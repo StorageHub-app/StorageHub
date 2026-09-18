@@ -833,11 +833,16 @@ public sealed class SettingsForm : Form
             BackColor = StorageHubTheme.Surface
         };
         var heading = UiControlFactory.CreateSectionTitle(title);
+        // A page title is a sentence, not a mnemonic: left as WinForms defaults, "Transfers &
+        // sync" is painted as "Transfers  sync" with the ampersand swallowed and no underline to
+        // show for it.
+        heading.UseMnemonic = false;
         heading.Width = ContentWidth;
         heading.MinimumSize = new Size(ContentWidth, 0);
         heading.Font = new Font("Segoe UI Semibold", 16F, FontStyle.Bold, GraphicsUnit.Point);
         heading.Height = 40;
         var summary = UiControlFactory.CreateDescription(description);
+        summary.UseMnemonic = false;
         summary.Width = ContentWidth;
         summary.MinimumSize = new Size(ContentWidth, 0);
         summary.MaximumSize = new Size(ContentWidth, 0);

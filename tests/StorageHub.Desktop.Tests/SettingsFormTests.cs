@@ -548,6 +548,37 @@ public sealed class SettingsFormTests
         return Assert.IsType<T>(field.GetValue(instance));
     }
 
+    /// <summary>
+    /// An ampersand in settings text is an ampersand, not a keyboard shortcut.
+    /// </summary>
+    /// <remarks>
+    /// A stock Label reads "&" as the marker for an access key and paints neither it nor the
+    /// letter after it, so the "Transfers &amp; sync" page was headed "Transfers  sync" -- an
+    /// ampersand swallowed, two spaces left behind, and no underline to show for it. The rows and
+    /// captions draw their own text with NoPrefix; the page heading and its summary are Labels,
+    /// and had to be told.
+    /// </remarks>
+    [Fact]
+    public void SettingsTextNeverSwallowsAnAmpersand()
+    {
+        SyncRunReviewControlTests.RunOnSta(() =>
+        {
+            using var settings = new SettingsForm();
+            settings.CreateControl();
+
+            var offenders = DescendantsAndSelf(settings)
+                .OfType<Label>()
+                .Where(label => label.Text.Contains('&', StringComparison.Ordinal) && label.UseMnemonic)
+                .Select(label => label.Text)
+                .ToList();
+
+            Assert.True(
+                offenders.Count == 0,
+                "These settings labels would paint their ampersand as an access key: " +
+                string.Join(", ", offenders));
+        });
+    }
+
     private static IEnumerable<Control> DescendantsAndSelf(Control root)
     {
         yield return root;
