@@ -1,0 +1,58 @@
+## .NET build output
+bin/
+obj/
+artifacts/
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+coverage/
+
+## Native Windows build output
+src/StorageHub.ShellExtension.Native/StorageH.*/
+src/StorageHub.ShellExtension.Native/x64/
+tests/StorageHub.ShellExtension.Native.Tests/StorageH.*/
+tests/StorageHub.ShellExtension.Native.Tests/x64/
+
+## IDE state
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## Package/build caches
+packages/
+*.nupkg
+*.snupkg
+__pycache__/
+*.py[cod]
+
+## StorageHub runtime state and secrets
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.sqlite-shm
+*.sqlite-wal
+*.vault
+*.pfx
+*.p12
+*.key
+*.pem
+.env
+.env.*
+!.env.example
+logs/
+diagnostics/
+
+## OS files
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Machine-local Claude Code settings
+.claude/settings.local.json

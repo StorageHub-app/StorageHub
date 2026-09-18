@@ -1,0 +1,92 @@
+using StorageHub.Transfers;
+
+namespace StorageHub.Agent.Transfers;
+
+public sealed record TransferQueueWorkerOptions
+{
+    public int MaximumConcurrency { get; init; } = 4;
+    public int MinimumConcurrency { get; init; } = 1;
+    public int PerConnectionConcurrency { get; init; } = 2;
+    public bool AdaptiveConcurrency { get; init; }
+    public TimeSpan PollInterval { get; init; } = TimeSpan.FromSeconds(1);
+    public TimeSpan LeaseDuration { get; init; } = TimeSpan.FromMinutes(2);
+    public TimeSpan LeaseRenewalInterval { get; init; } = TimeSpan.FromSeconds(30);
+    public TimeSpan CheckpointInterval { get; init; } = TimeSpan.FromSeconds(2);
+    public TimeSpan InitialRetryDelay { get; init; } = TimeSpan.FromSeconds(5);
+    public TimeSpan MaximumRetryDelay { get; init; } = TimeSpan.FromMinutes(5);
+    public int MaximumAttempts { get; init; } = 3;
+    public int BufferSize { get; init; } = BoundedStreamCopier.DefaultBufferSize;
+
+    /// <summary>
+    /// Upper bound for a terminal state write. Such a write deliberately ignores the host
+    /// cancellation token so a job never stops in an ambiguous state, so it needs its own
+    /// deadline; without one a wedged store would hang the worker and block shutdown.
+    /// </summary>
+    public TimeSpan StoreWriteTimeout { get; init; } = TimeSpan.FromSeconds(10);
+
+    internal void Validate()
+    {
+        if (MaximumConcurrency is < 1 or > 32)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(MaximumConcurrency),
+                "Transfer concurrency must be between 1 and 32.");
+        }
+
+        if (MinimumConcurrency < 1 || MinimumConcurrency > MaximumConcurrency)
+        {
+            throw new ArgumentOutOfRangeException(nameof(MinimumConcurrency));
+        }
+
+        if (PerConnectionConcurrency is < 1 or > 16)
+        {
+            throw new ArgumentOutOfRangeException(nameof(PerConnectionConcurrency));
+        }
+
+        ValidatePositive(PollInterval, nameof(PollInterval));
+        ValidatePositive(LeaseDuration, nameof(LeaseDuration));
+        ValidatePositive(LeaseRenewalInterval, nameof(LeaseRenewalInterval));
+        ValidatePositive(CheckpointInterval, nameof(CheckpointInterval));
+        ValidatePositive(InitialRetryDelay, nameof(InitialRetryDelay));
+        ValidatePositive(MaximumRetryDelay, nameof(MaximumRetryDelay));
+        ValidatePositive(StoreWriteTimeout, nameof(StoreWriteTimeout));
+        if (LeaseDuration > TimeSpan.FromHours(24))
+        {
+            throw new ArgumentOutOfRangeException(nameof(LeaseDuration), "A transfer lease cannot exceed 24 hours.");
+        }
+
+        if (LeaseRenewalInterval >= LeaseDuration)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(LeaseRenewalInterval),
+                "Lease renewal must occur before the current lease expires.");
+        }
+
+        if (MaximumRetryDelay < InitialRetryDelay)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(MaximumRetryDelay),
+                "The maximum retry delay cannot be shorter than the initial delay.");
+        }
+
+        if (MaximumAttempts is < 1 or > 100)
+        {
+            throw new ArgumentOutOfRangeException(nameof(MaximumAttempts), "Maximum attempts must be between 1 and 100.");
+        }
+
+        if (BufferSize is < 1 or > BoundedStreamCopier.MaximumBufferSize)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(BufferSize),
+                $"The transfer buffer must be between 1 and {BoundedStreamCopier.MaximumBufferSize} bytes.");
+        }
+    }
+
+    private static void ValidatePositive(TimeSpan value, string parameterName)
+    {
+        if (value <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(parameterName, "The interval must be positive.");
+        }
+    }
+}

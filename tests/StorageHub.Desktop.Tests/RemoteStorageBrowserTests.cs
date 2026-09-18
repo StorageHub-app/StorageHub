@@ -1,0 +1,366 @@
+using StorageHub.Contracts.Ipc;
+
+namespace StorageHub.Desktop.Tests;
+
+public sealed class RemoteStorageBrowserTests
+{
+    [Theory]
+    [InlineData("../private")]
+    [InlineData("folder/%2e%2e/private")]
+    [InlineData("C:\\private")]
+    [InlineData("\\\\server\\share")]
+    public void RemotePathsRejectTraversalAndAbsoluteLocations(string value)
+    {
+        Assert.False(RemoteBrowserPath.TryNormalize(value, out _, out var error));
+        Assert.False(string.IsNullOrWhiteSpace(error));
+    }
+
+    [Fact]
+    public async Task SelectionTestsBeforeOpeningAndNavigationCommitsHistoryOnlyAfterSuccess()
+    {
+        var connection = CreateConnection("Archive", favorite: true);
+        var calls = new List<string>();
+        var client = new FakeRemoteClient
+        {
+            ListConnections = (_, _) => Task.FromResult(new ConnectionListResponse(
+                StorageIpcContract.CurrentVersion,
+                [connection])),
+            TestConnection = (request, _) =>
+            {
+                calls.Add("test:" + request.ConnectionId);
+                return Task.FromResult(new ConnectionTestResponse(
+                    StorageIpcContract.CurrentVersion,
+                    request.ConnectionId,
+                    Succeeded: true,
+                    ElapsedMilliseconds: 3));
+            },
+            ListStorage = (request, _) =>
+            {
+                calls.Add("list:" + request.RelativePath);
+                StorageListItem[] entries = request.RelativePath.Length == 0
+                    ? [Item("folder", "folder", isContainer: true)]
+                    : [Item("file.txt", "folder/file.txt")];
+                return Task.FromResult(new StorageListPageResponse(
+                    StorageIpcContract.CurrentVersion,
+                    request.ConnectionId,
+                    request.RelativePath,
+                    entries,
+                    ContinuationToken: null,
+                    RootIdentity: "root-browser"));
+            }
+        };
+        await using var controller = new RemoteBrowserController(client);
+
+        var loaded = await controller.LoadConnectionsAsync();
+        var selected = await controller.SelectConnectionAsync(connection.ConnectionId);
+        var opened = await controller.NavigateAsync(RemoteBrowserNavigationKind.Navigate, "/folder/");
+
+        Assert.Equal(RemoteBrowserOperationStatus.Succeeded, loaded.Status);
+        Assert.Equal(RemoteBrowserOperationStatus.Succeeded, selected.Status);
+        Assert.Equal(RemoteBrowserOperationStatus.Succeeded, opened.Status);
+        Assert.Equal("folder", opened.Snapshot?.RelativePath);
+        Assert.Equal("root-browser", opened.Snapshot?.RootIdentity);
+        Assert.True(controller.CanGoBack);
+
+        var backed = await controller.NavigateAsync(RemoteBrowserNavigationKind.Back);
+
+        Assert.Equal(RemoteBrowserOperationStatus.Succeeded, backed.Status);
+        Assert.Equal(string.Empty, backed.Snapshot?.RelativePath);
+        Assert.Equal(
+            [
+                "test:" + connection.ConnectionId,
+                "list:",
+                "list:folder",
+                "list:"
+            ],
+            calls);
+    }
+
+    [Fact]
+    public async Task LoadMoreReturnsOneBoundedPageTracksIndexedCountAndRejectsRepeatingContinuation()
+    {
+        var connection = CreateConnection("Paged");
+        var page = 0;
+        var client = CreateSelectableClient(connection, (request, _) =>
+        {
+            page++;
+            return Task.FromResult(page switch
+            {
+                1 => Response(request, [Item("one.txt", "one.txt")], "next-1"),
+                2 => Response(request, [Item("two.txt", "two.txt")], "next-2"),
+                _ => Response(request, [Item("three.txt", "three.txt")], "next-2")
+            });
+        });
+        await using var controller = new RemoteBrowserController(client);
+        _ = await controller.LoadConnectionsAsync();
+        var selected = await controller.SelectConnectionAsync(connection.ConnectionId);
+
+        var more = await controller.LoadMoreAsync();
+        var inconsistent = await controller.LoadMoreAsync();
+
+        Assert.Equal(RemoteBrowserOperationStatus.Succeeded, selected.Status);
+        Assert.Equal(RemoteBrowserOperationStatus.Succeeded, more.Status);
+        Assert.Single(more.Snapshot!.Entries);
+        Assert.Equal(2, more.Snapshot.IndexedEntryCount);
+        Assert.True(more.AppendedPage);
+        Assert.Equal(RemoteBrowserOperationStatus.Failed, inconsistent.Status);
+        Assert.Contains("inconsistent", inconsistent.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Single(controller.CurrentSnapshot!.Entries);
+        Assert.Equal(2, controller.CurrentSnapshot.IndexedEntryCount);
+    }
+
+    [Fact]
+    public async Task NewNavigationSupersedesOlderListingAndDoesNotCommitItsPath()
+    {
+        var connection = CreateConnection("Remote");
+        var slowStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var client = CreateSelectableClient(connection, async (request, token) =>
+        {
+            if (request.RelativePath == "slow")
+            {
+                slowStarted.TrySetResult();
+                await Task.Delay(Timeout.InfiniteTimeSpan, token);
+            }
+
+            return Response(request, [], null);
+        });
+        await using var controller = new RemoteBrowserController(client);
+        _ = await controller.LoadConnectionsAsync();
+        _ = await controller.SelectConnectionAsync(connection.ConnectionId);
+
+        var slow = controller.NavigateAsync(RemoteBrowserNavigationKind.Navigate, "slow");
+        await slowStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var fast = await controller.NavigateAsync(RemoteBrowserNavigationKind.Navigate, "fast");
+        var superseded = await slow.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(RemoteBrowserOperationStatus.Succeeded, fast.Status);
+        Assert.Equal("fast", controller.CurrentSnapshot?.RelativePath);
+        Assert.Equal(RemoteBrowserOperationStatus.Superseded, superseded.Status);
+    }
+
+    [Fact]
+    public async Task ContinuationPipelinePassesOldTenThousandItemLimitWithoutAccumulatingPages()
+    {
+        const int pageCount = 300;
+        const int entriesPerPage = 40;
+        var connection = CreateConnection("Huge");
+        var page = 0;
+        var client = CreateSelectableClient(connection, (request, _) =>
+        {
+            var currentPage = page++;
+            var entries = Enumerable.Range(0, entriesPerPage)
+                .Select(index => Item(
+                    $"file-{currentPage:D3}-{index:D2}.bin",
+                    $"file-{currentPage:D3}-{index:D2}.bin"))
+                .ToArray();
+            var token = currentPage + 1 < pageCount ? $"page-{currentPage + 1}" : null;
+            return Task.FromResult(Response(request, entries, token));
+        });
+        await using var controller = new RemoteBrowserController(client);
+        _ = await controller.LoadConnectionsAsync();
+        _ = await controller.SelectConnectionAsync(connection.ConnectionId);
+
+        for (var index = 1; index < pageCount; index++)
+        {
+            var result = await controller.LoadMoreAsync();
+            Assert.Equal(RemoteBrowserOperationStatus.Succeeded, result.Status);
+            Assert.Equal(entriesPerPage, result.Snapshot!.Entries.Count);
+        }
+
+        Assert.Equal(pageCount * entriesPerPage, controller.CurrentSnapshot!.IndexedEntryCount);
+        Assert.Equal(entriesPerPage, controller.CurrentSnapshot.Entries.Count);
+        Assert.False(controller.CurrentSnapshot.HasMore);
+    }
+
+    [Fact]
+    public async Task ControllerDoesNotExposeTransportExceptionDetails()
+    {
+        var client = new FakeRemoteClient
+        {
+            ListConnections = (_, _) => Task.FromException<ConnectionListResponse>(
+                new IOException("pipe included password=hunter2"))
+        };
+        await using var controller = new RemoteBrowserController(client);
+
+        var result = await controller.LoadConnectionsAsync();
+
+        Assert.Equal(RemoteBrowserOperationStatus.Failed, result.Status);
+        Assert.Equal("The background agent is unavailable.", result.ErrorMessage);
+        Assert.DoesNotContain("hunter2", result.ErrorMessage, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task EntersAnEmptyContainerInsteadOfMovingToTheParent()
+    {
+        // An object store has no entry for a prefix holding no keys, so listing one answers
+        // NotFound. The parent still lists the container, which proves it exists and is empty.
+        var connection = CreateConnection("Bucket");
+        var client = CreateSelectableClient(connection, (request, _) => Task.FromResult(
+            request.RelativePath switch
+            {
+                "" => Response(request, [Item("empty", "empty", isContainer: true)], null),
+                _ => NotFound(request)
+            }));
+        await using var controller = new RemoteBrowserController(client);
+
+        await controller.LoadConnectionsAsync();
+        await controller.SelectConnectionAsync(connection.ConnectionId);
+        var opened = await controller.NavigateAsync(RemoteBrowserNavigationKind.Navigate, "empty");
+
+        Assert.Equal(RemoteBrowserOperationStatus.Succeeded, opened.Status);
+        Assert.Null(opened.UnavailablePath);
+        Assert.Equal("empty", controller.CurrentSnapshot!.RelativePath);
+        Assert.Empty(controller.CurrentSnapshot.Entries);
+        Assert.Equal("root-browser", controller.CurrentSnapshot.RootIdentity);
+    }
+
+    [Fact]
+    public async Task StillMovesToTheParentWhenTheContainerIsProvablyGone()
+    {
+        var connection = CreateConnection("Bucket");
+        var client = CreateSelectableClient(connection, (request, _) => Task.FromResult(
+            request.RelativePath switch
+            {
+                "" => Response(request, [Item("other", "other", isContainer: true)], null),
+                _ => NotFound(request)
+            }));
+        await using var controller = new RemoteBrowserController(client);
+
+        await controller.LoadConnectionsAsync();
+        await controller.SelectConnectionAsync(connection.ConnectionId);
+        var opened = await controller.NavigateAsync(RemoteBrowserNavigationKind.Navigate, "removed");
+
+        Assert.Equal(RemoteBrowserOperationStatus.Succeeded, opened.Status);
+        Assert.Equal("removed", opened.UnavailablePath);
+        Assert.False(string.IsNullOrWhiteSpace(opened.ErrorMessage));
+        Assert.Equal(string.Empty, controller.CurrentSnapshot!.RelativePath);
+    }
+
+    [Fact]
+    public async Task DoesNotClaimAContainerIsGoneWhileTheParentPageIsIncomplete()
+    {
+        // The child could still live beyond an unread continuation, so presenting an empty
+        // folder is safer than moving the user somewhere they did not ask to go.
+        var connection = CreateConnection("Bucket");
+        var client = CreateSelectableClient(connection, (request, _) => Task.FromResult(
+            request.RelativePath switch
+            {
+                "" => Response(request, [Item("other", "other", isContainer: true)], "more"),
+                _ => NotFound(request)
+            }));
+        await using var controller = new RemoteBrowserController(client);
+
+        await controller.LoadConnectionsAsync();
+        await controller.SelectConnectionAsync(connection.ConnectionId);
+        var opened = await controller.NavigateAsync(RemoteBrowserNavigationKind.Navigate, "maybe");
+
+        Assert.Equal(RemoteBrowserOperationStatus.Succeeded, opened.Status);
+        Assert.Null(opened.UnavailablePath);
+        Assert.Equal("maybe", controller.CurrentSnapshot!.RelativePath);
+        Assert.Empty(controller.CurrentSnapshot.Entries);
+    }
+
+    [Fact]
+    public async Task SelectsAConnectionWhoseRootListingIsNotFound()
+    {
+        var connection = CreateConnection("Bucket");
+        var client = CreateSelectableClient(connection, (request, _) => Task.FromResult(NotFound(request)));
+        await using var controller = new RemoteBrowserController(client);
+
+        await controller.LoadConnectionsAsync();
+        var selected = await controller.SelectConnectionAsync(connection.ConnectionId);
+
+        Assert.Equal(RemoteBrowserOperationStatus.Succeeded, selected.Status);
+        Assert.Empty(controller.CurrentSnapshot!.Entries);
+        Assert.Equal(string.Empty, controller.CurrentSnapshot.RelativePath);
+    }
+
+    private static StorageListPageResponse NotFound(StorageListPageRequest request) => new(
+        StorageIpcContract.CurrentVersion,
+        request.ConnectionId,
+        request.RelativePath,
+        [],
+        ContinuationToken: null,
+        Failure: new StorageIpcFailure(
+            "storage.not_found",
+            StorageIpcFailureCategory.NotFound,
+            "The object was not found.",
+            IsTransient: false),
+        RootIdentity: "root-browser");
+
+    private static FakeRemoteClient CreateSelectableClient(
+        ConnectionSummary connection,
+        Func<StorageListPageRequest, CancellationToken, Task<StorageListPageResponse>> list) => new()
+        {
+            ListConnections = (_, _) => Task.FromResult(new ConnectionListResponse(
+                StorageIpcContract.CurrentVersion,
+                [connection])),
+            TestConnection = (request, _) => Task.FromResult(new ConnectionTestResponse(
+                StorageIpcContract.CurrentVersion,
+                request.ConnectionId,
+                Succeeded: true,
+                ElapsedMilliseconds: 1)),
+            ListStorage = list
+        };
+
+    private static StorageListPageResponse Response(
+        StorageListPageRequest request,
+        StorageListItem[] items,
+        string? token) => new(
+        StorageIpcContract.CurrentVersion,
+        request.ConnectionId,
+        request.RelativePath,
+        items,
+        token,
+        RootIdentity: "root-browser");
+
+    private static ConnectionSummary CreateConnection(string name, bool favorite = false) => new(
+        Guid.NewGuid(),
+        name,
+        StorageConnectionProvider.S3,
+        FolderPath: null,
+        Tags: [],
+        IsFavorite: favorite,
+        IsEnabled: true,
+        IconKey: "cloud",
+        AccentColor: "#3366CC",
+        Version: 1);
+
+    private static StorageListItem Item(
+        string name,
+        string path,
+        bool isContainer = false) => new(
+        name,
+        path,
+        isContainer ? StorageItemKind.Directory : StorageItemKind.File,
+        isContainer ? null : 42,
+        LastModifiedUtc: null,
+        ContentType: null,
+        isContainer);
+
+    private sealed class FakeRemoteClient : IRemoteStorageAgentClient
+    {
+        public Func<ConnectionListRequest, CancellationToken, Task<ConnectionListResponse>> ListConnections { get; init; } =
+            static (_, _) => throw new NotSupportedException();
+
+        public Func<ConnectionTestRequest, CancellationToken, Task<ConnectionTestResponse>> TestConnection { get; init; } =
+            static (_, _) => throw new NotSupportedException();
+
+        public Func<StorageListPageRequest, CancellationToken, Task<StorageListPageResponse>> ListStorage { get; init; } =
+            static (_, _) => throw new NotSupportedException();
+
+        public Task<ConnectionListResponse> ListConnectionsAsync(
+            ConnectionListRequest request,
+            CancellationToken cancellationToken = default) => ListConnections(request, cancellationToken);
+
+        public Task<ConnectionTestResponse> TestConnectionAsync(
+            ConnectionTestRequest request,
+            CancellationToken cancellationToken = default) => TestConnection(request, cancellationToken);
+
+        public Task<StorageListPageResponse> ListStorageAsync(
+            StorageListPageRequest request,
+            CancellationToken cancellationToken = default) => ListStorage(request, cancellationToken);
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+}

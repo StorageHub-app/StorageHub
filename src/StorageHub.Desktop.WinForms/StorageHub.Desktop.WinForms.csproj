@@ -1,0 +1,108 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <RootNamespace>StorageHub.Desktop</RootNamespace>
+    <AssemblyName>StorageHub.Desktop</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\..\assets\branding\storagehub.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <!-- The translations ship beside the executable and are seeded into the user's localization
+       directory on first run and after an upgrade. CodeLogic only ever generates English
+       templates, and never overwrites a file that already exists, so the real translations have
+       to arrive as content. -->
+  <ItemGroup>
+    <Content Include="..\..\assets\localization\*.json"
+             Link="localization\%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- Embedded rather than copied beside the executable: the splash is the surface that reports a
+       damaged installation, so the one image it draws must not be a file that can go missing. -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\assets\branding\storagehub-icon.png"
+                      LogicalName="StorageHub.Desktop.storagehub-icon.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CodeLogic" />
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" VersionOverride="2.1.12" />
+    <PackageReference Include="Velopack" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\StorageHub.Agent\StorageHub.Agent.csproj" />
+    <ProjectReference Include="..\StorageHub.Agent.Windows\StorageHub.Agent.Windows.csproj"
+                      Condition="'$(StorageHubPackagedAgent)' != 'true' and '$(ArtifactsPath)' == ''"
+                      ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\StorageHub.Contracts\StorageHub.Contracts.csproj" />
+    <!-- Reached transitively through the agent, but declared because the settings export format
+         lives here and the desktop uses it directly. -->
+    <ProjectReference Include="..\StorageHub.Security\StorageHub.Security.csproj" />
+  </ItemGroup>
+
+  <Target Name="StageCurrentDevelopmentAgent"
+          AfterTargets="Build"
+          Condition="'$(DesignTimeBuild)' != 'true' and '$(StorageHubPackagedAgent)' != 'true' and '$(ArtifactsPath)' == ''">
+    <ItemGroup>
+      <_StorageHubAgentFiles Include="$(MSBuildProjectDirectory)\..\StorageHub.Agent.Windows\bin\$(Configuration)\net10.0-windows10.0.19041.0\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_StorageHubAgentFiles)"
+          DestinationFiles="@(_StorageHubAgentFiles->'$(OutDir)Agent\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <PropertyGroup>
+    <StorageHubVsWhere>$(MSBuildProgramFiles32)\Microsoft Visual Studio\Installer\vswhere.exe</StorageHubVsWhere>
+    <StorageHubNativeProject>$(MSBuildProjectDirectory)\..\StorageHub.ShellExtension.Native\StorageHub.ShellExtension.Native.vcxproj</StorageHubNativeProject>
+    <StorageHubNativeOutput>$(MSBuildProjectDirectory)\..\StorageHub.ShellExtension.Native\x64\$(Configuration)\StorageHub.ShellExtension.Native.dll</StorageHubNativeOutput>
+  </PropertyGroup>
+  <Target Name="ResolveStorageHubNativeMsBuild"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <Error Condition="!Exists('$(StorageHubVsWhere)')"
+           Text="StorageHub Explorer integration requires Visual Studio C++ build tools, but vswhere.exe was not found." />
+    <Exec Command="&quot;$(StorageHubVsWhere)&quot; -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -find MSBuild\**\Bin\MSBuild.exe"
+          ConsoleToMSBuild="true"
+          StandardOutputImportance="Low">
+      <Output TaskParameter="ConsoleOutput" ItemName="_StorageHubNativeMsBuildCandidate" />
+    </Exec>
+    <PropertyGroup>
+      <StorageHubNativeMsBuild>@(_StorageHubNativeMsBuildCandidate)</StorageHubNativeMsBuild>
+    </PropertyGroup>
+    <Error Condition="'$(StorageHubNativeMsBuild)' == '' or !Exists('$(StorageHubNativeMsBuild)')"
+           Text="StorageHub Explorer integration requires an installed Visual Studio C++ MSBuild toolchain." />
+  </Target>
+  <Target Name="BuildAndStageExplorerDropBroker"
+          AfterTargets="Build"
+          DependsOnTargets="ResolveStorageHubNativeMsBuild"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <Exec Command="&quot;$(StorageHubNativeMsBuild)&quot; &quot;$(StorageHubNativeProject)&quot; /p:Configuration=$(Configuration) /p:Platform=x64 /m" />
+    <Error Condition="!Exists('$(StorageHubNativeOutput)')"
+           Text="The StorageHub Explorer drop broker build did not produce $(StorageHubNativeOutput)." />
+    <Copy SourceFiles="$(StorageHubNativeOutput)"
+          DestinationFolder="$(OutDir)"
+          SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="StageExplorerDropBrokerForPublish"
+          AfterTargets="Publish"
+          DependsOnTargets="BuildAndStageExplorerDropBroker"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <Copy SourceFiles="$(StorageHubNativeOutput)"
+          DestinationFolder="$(PublishDir)"
+          SkipUnchangedFiles="true" />
+    <Error Condition="!Exists('$(PublishDir)StorageHub.ShellExtension.Native.dll')"
+           Text="The published StorageHub Desktop is missing its Explorer drop broker." />
+  </Target>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="StorageHub.Desktop.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Configuration types are referenced from all over the shell; a using per file is noise. -->
+    <Using Include="StorageHub.Desktop.Configuration" />
+  </ItemGroup>
+</Project>
