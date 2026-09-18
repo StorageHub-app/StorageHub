@@ -158,5 +158,9 @@
   "stagedCut": "Ausgeschnitten",
   "stagedCopied": "Kopiert",
   "stagedSelectionFormat": "{1:N0} Element(e) {0}. Wählen Sie ein Ziel und fügen Sie ein.",
-  "culture": "de-DE"
+  "culture": "de-DE",
+  "agentReconnecting": "Der Hintergrundagent antwortet nicht. StorageHub stellt die Verbindung wieder her...",
+  "agentOffline": "Der Hintergrundagent läuft nicht. Übertragungen, Synchronisierung und gespeicherte Verbindungen sind nicht verfügbar, bis er startet.",
+  "agentRequestFailed": "StorageHub konnte die Anforderung nicht abschließen.",
+  "agentReconnectingStatus": "Agent: Verbindung wird wiederhergestellt"
 }

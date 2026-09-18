@@ -26,6 +26,9 @@ internal sealed class ConnectionsPanelControl : UserControl
     private readonly ConnectionDetailView _detail;
     private readonly StorageHubTextField _searchBox;
     private readonly Label _status;
+
+    /// <summary>The sentence currently on screen, kept so a resize can re-measure it.</summary>
+    private string? _statusMessage;
     private readonly ContextMenuStrip _rowMenu;
 
     private readonly List<ConnectionCardModel> _cards = [];
@@ -62,6 +65,7 @@ internal sealed class ConnectionsPanelControl : UserControl
         _secretClient = secretClient ?? throw new ArgumentNullException(nameof(secretClient));
         _ownsClients = ownsClients;
         _controller = new ConnectionManagerController(_profileClient, _secretClient);
+        DesktopAgentAvailability.Changed += AgentAvailabilityChanged;
 
         Dock = DockStyle.Fill;
         BackColor = StorageHubTheme.Surface;
@@ -91,6 +95,8 @@ internal sealed class ConnectionsPanelControl : UserControl
 
         _status = new Label
         {
+            // Wrapped rather than clipped; the height follows in ShowStatus.
+            AutoEllipsis = false,
             Dock = DockStyle.Bottom,
             Height = 0,
             AutoSize = false,
@@ -187,9 +193,9 @@ internal sealed class ConnectionsPanelControl : UserControl
         catch (OperationCanceledException)
         {
         }
-        catch (Exception)
+        catch (Exception error)
         {
-            ShowStatus(Ui.Connections.AgentUnavailable);
+            ShowStatus(DesktopAgentAvailability.ReportFailure(error));
         }
         finally
         {
@@ -455,11 +461,45 @@ internal sealed class ConnectionsPanelControl : UserControl
         }
     }
 
+    /// <summary>
+    /// Shows a sentence above the details pane, as tall as that sentence needs to be.
+    /// </summary>
+    /// <remarks>
+    /// The height used to be a flat 40px, which fitted the message it was written for and clipped
+    /// every longer one: "The background agent is not answering. StorageHub is" was the whole of
+    /// what a person saw, mid-sentence, with no indication there was more.
+    /// </remarks>
     private void ShowStatus(string? message)
     {
+        _statusMessage = message;
         _status.Text = message ?? string.Empty;
         _status.Visible = message is not null;
-        _status.Height = message is null ? 0 : 40;
+        _status.Height = message is null ? 0 : MeasureStatusHeight(message);
+    }
+
+    private int MeasureStatusHeight(string message)
+    {
+        var available = Math.Max(
+            _status.Width - _status.Padding.Horizontal,
+            LogicalToDeviceUnits(120));
+        var needed = TextRenderer.MeasureText(
+            message,
+            _status.Font,
+            new Size(available, 0),
+            TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix).Height;
+        return needed + _status.Padding.Vertical;
+    }
+
+    protected override void OnClientSizeChanged(EventArgs e)
+    {
+        base.OnClientSizeChanged(e);
+
+        // A narrower panel wraps the same sentence onto more lines, so the height it was given
+        // when it appeared stops being enough.
+        if (_statusMessage is { } message)
+        {
+            _status.Height = MeasureStatusHeight(message);
+        }
     }
 
     private async Task DeleteAsync(ConnectionCardModel card)
@@ -589,10 +629,38 @@ internal sealed class ConnectionsPanelControl : UserControl
         }
     }
 
+    /// <summary>
+    /// Reloads once the agent is answering again, so an outage leaves a stale error on screen
+    /// only for as long as the outage lasts.
+    /// </summary>
+    private void AgentAvailabilityChanged(object? sender, AgentAvailabilityChangedEventArgs e)
+    {
+        if (!e.Recovered || IsDisposed || !IsHandleCreated)
+        {
+            return;
+        }
+
+        try
+        {
+            BeginInvoke(new Action(() =>
+            {
+                if (!IsDisposed)
+                {
+                    _ = RefreshAsync(_lifetime.Token);
+                }
+            }));
+        }
+        catch (InvalidOperationException)
+        {
+            // The window went away between the check and the post, which needs no reload.
+        }
+    }
+
     protected override void Dispose(bool disposing)
     {
         if (disposing)
         {
+            DesktopAgentAvailability.Changed -= AgentAvailabilityChanged;
             _lifetime.Cancel();
             _detailLoad?.Cancel();
             _detailLoad?.Dispose();

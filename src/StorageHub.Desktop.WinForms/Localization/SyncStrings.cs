@@ -609,9 +609,6 @@ internal sealed class SyncStrings : LocalizationModelBase
     public string RepeatedHistoryToken { get; set; } =
         "The agent returned a repeated sync-history page token.";
 
-    /// <summary>{0} = the underlying error message.</summary>
-    public string TasksUnavailableFormat { get; set; } = "Sync tasks unavailable: {0}";
-
     /// <summary>{0} = the time of the refresh, {1} = how many runs are shown.</summary>
     public string TasksUpdatedFormat { get; set; } = "Updated {0:t}. Showing {1:N0} durable run(s).";
 

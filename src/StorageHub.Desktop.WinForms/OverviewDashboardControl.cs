@@ -1,4 +1,4 @@
-﻿using StorageHub.Contracts.Ipc;
+using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Localization;
 
 namespace StorageHub.Desktop;
@@ -61,6 +61,7 @@ public sealed class OverviewDashboardControl : UserControl
     {
         _storageClient = storageClient;
         _transferClient = transferClient;
+        DesktopAgentAvailability.Changed += AgentAvailabilityChanged;
         Dock = DockStyle.Fill;
         BackColor = StorageHubTheme.Canvas;
         AccessibleName = Ui.Overview.OverviewAccessibleName;
@@ -333,12 +334,42 @@ public sealed class OverviewDashboardControl : UserControl
         }
         catch (Exception exception)
         {
-            _status.Text = Ui.Format(Ui.Overview.StatusUnavailableFormat, exception.Message);
+            // What the person is told, and the decision to reconnect, both belong to one place.
+            // This used to print exception.Message, which is how "Pipe is broken." reached the
+            // window while the status bar underneath it still read "Agent: connected".
+            _status.Text = DesktopAgentAvailability.ReportFailure(exception);
             _status.ForeColor = StorageHubTheme.Warning;
         }
         finally
         {
             Volatile.Write(ref _refreshing, 0);
+        }
+    }
+
+    /// <summary>
+    /// Reloads once the agent is answering again. The overview is usually the surface somebody is
+    /// looking at when the agent restarts, so it is the one most worth not leaving stale.
+    /// </summary>
+    private void AgentAvailabilityChanged(object? sender, AgentAvailabilityChangedEventArgs e)
+    {
+        if (!e.Recovered || _disposed || IsDisposed || !IsHandleCreated)
+        {
+            return;
+        }
+
+        try
+        {
+            BeginInvoke(new Action(() =>
+            {
+                if (!_disposed && !IsDisposed)
+                {
+                    _ = RefreshAsync(_lifetime.Token);
+                }
+            }));
+        }
+        catch (InvalidOperationException)
+        {
+            // The window went away between the check and the post, which needs no reload.
         }
     }
 
@@ -356,6 +387,7 @@ public sealed class OverviewDashboardControl : UserControl
         if (disposing && !_disposed)
         {
             _disposed = true;
+            DesktopAgentAvailability.Changed -= AgentAvailabilityChanged;
             _lifetime.Cancel();
             _storageClient.DisposeAsync().AsTask().GetAwaiter().GetResult();
             _transferClient.DisposeAsync().AsTask().GetAwaiter().GetResult();

@@ -42,6 +42,5 @@
   "statusDeferred": "Oversigten indlæses, når StorageHub vises.",
   "statusRefreshing": "Opdaterer oversigten...",
   "statusUpdatedFormat": "Opdateret {0:t}",
-  "statusUnavailableFormat": "Oversigten er ikke tilgængelig: {0}",
   "culture": "da-DK"
 }

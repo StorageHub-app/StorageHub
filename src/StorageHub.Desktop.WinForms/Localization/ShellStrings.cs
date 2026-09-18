@@ -83,6 +83,9 @@ internal sealed class ShellStrings : LocalizationModelBase
 
     public string AgentNotConnected { get; set; } = "Agent: not connected";
 
+    /// <summary>The status bar while a reconnect is in flight.</summary>
+    public string AgentReconnectingStatus { get; set; } = "Agent: reconnecting";
+
     // --------------------------------------------------------- status messages
     public string StatusSettingsImported { get; set; } = "Settings imported.";
 
@@ -418,4 +421,17 @@ internal sealed class ShellStrings : LocalizationModelBase
     /// <summary>{0} = the staging verb above, {1} = how many items were staged.</summary>
     public string StagedSelectionFormat { get; set; } =
         "{0} {1:N0} item(s). Choose a destination and paste.";
+
+    // ------------------------------------------------------------ agent availability
+    /// <summary>Shown while a reconnect is in flight, which is the usual case after a restart.</summary>
+    public string AgentReconnecting { get; set; } =
+        "The background agent is not answering. StorageHub is reconnecting...";
+
+    /// <summary>Shown once a probe has confirmed the agent is not running.</summary>
+    public string AgentOffline { get; set; } =
+        "The background agent is not running. Transfers, synchronization, and saved connections are unavailable until it starts.";
+
+    /// <summary>Shown when the agent answered and refused, which is not a reconnect problem.</summary>
+    public string AgentRequestFailed { get; set; } =
+        "StorageHub could not complete that request.";
 }

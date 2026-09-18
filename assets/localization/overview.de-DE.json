@@ -42,6 +42,5 @@
   "statusDeferred": "Die Übersicht wird geladen, sobald StorageHub angezeigt wird.",
   "statusRefreshing": "Übersicht wird aktualisiert...",
   "statusUpdatedFormat": "Aktualisiert {0:t}",
-  "statusUnavailableFormat": "Übersicht nicht verfügbar: {0}",
   "culture": "de-DE"
 }

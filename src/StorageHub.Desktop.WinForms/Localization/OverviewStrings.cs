@@ -109,7 +109,4 @@ internal sealed class OverviewStrings : LocalizationModelBase
 
     /// <summary>{0} = the time of the refresh.</summary>
     public string StatusUpdatedFormat { get; set; } = "Updated {0:t}";
-
-    /// <summary>{0} = the underlying error message.</summary>
-    public string StatusUnavailableFormat { get; set; } = "Overview unavailable: {0}";
 }

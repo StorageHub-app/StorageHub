@@ -1,4 +1,4 @@
-﻿using StorageHub.Contracts.Ipc;
+using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Localization;
 
 namespace StorageHub.Desktop;
@@ -202,7 +202,7 @@ public sealed class SyncTasksOverviewControl : UserControl
         }
         catch (Exception exception)
         {
-            _status.Text = Ui.Format(Ui.Sync.TasksUnavailableFormat, exception.Message);
+            _status.Text = DesktopAgentAvailability.ReportFailure(exception);
             _status.ForeColor = StorageHubTheme.Warning;
         }
         finally

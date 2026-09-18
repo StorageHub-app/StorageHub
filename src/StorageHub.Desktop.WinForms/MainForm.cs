@@ -207,6 +207,7 @@ public sealed class MainForm : Form
 
         ApplyStatus(_status);
         _agentMonitor.StatusChanged += AgentMonitorStatusChanged;
+        DesktopAgentAvailability.Changed += AgentAvailabilityChanged;
         _updater.StatusChanged += UpdaterStatusChanged;
         _updater.RestartRequested += UpdaterRestartRequested;
         _updateStatus.Click += UpdateStatusClicked;
@@ -368,6 +369,7 @@ public sealed class MainForm : Form
             _workspaceTabs.DrawItem -= WorkspaceTabsDrawItem;
             _workspaceTabs.MouseDown -= WorkspaceTabsMouseDown;
             _agentMonitor.StatusChanged -= AgentMonitorStatusChanged;
+            DesktopAgentAvailability.Changed -= AgentAvailabilityChanged;
             _updater.StatusChanged -= UpdaterStatusChanged;
             _updater.RestartRequested -= UpdaterRestartRequested;
             _updateStatus.Click -= UpdateStatusClicked;
@@ -3261,6 +3263,41 @@ public sealed class MainForm : Form
             Ui.Dialogs.ObjectInspectorCaption,
             MessageBoxButtons.OK,
             MessageBoxIcon.Information);
+    }
+
+    /// <summary>
+    /// Follows the central belief about the agent, so the status bar stops saying "connected" the
+    /// moment a call finds otherwise rather than at the next poll, eight seconds later.
+    /// </summary>
+    private void AgentAvailabilityChanged(object? sender, AgentAvailabilityChangedEventArgs e)
+    {
+        if (IsDisposed || !IsHandleCreated)
+        {
+            return;
+        }
+
+        var state = e.Availability switch
+        {
+            AgentAvailability.Online => AgentConnectionState.Connected,
+            AgentAvailability.Reconnecting => AgentConnectionState.Reconnecting,
+            AgentAvailability.Offline => AgentConnectionState.Disconnected,
+            _ => _status.AgentState,
+        };
+
+        try
+        {
+            BeginInvoke(new Action(() =>
+            {
+                if (!IsDisposed && _status.AgentState != state)
+                {
+                    ApplyStatus(_status with { AgentState = state });
+                }
+            }));
+        }
+        catch (InvalidOperationException)
+        {
+            // The window went away between the check and the post.
+        }
     }
 
     private void AgentMonitorStatusChanged(object? sender, AgentMonitorStatusEventArgs e)

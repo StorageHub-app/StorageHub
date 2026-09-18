@@ -238,7 +238,6 @@
   "tasksRunHistory": "Verlauf und Prüfung der Synchronisierungsläufe",
   "useReviewAndRun": "Verwenden Sie Prüfen und ausführen oder öffnen Sie einen vorhandenen Lauf",
   "repeatedHistoryToken": "Der Agent hat ein wiederholtes Seitentoken für den Synchronisierungsverlauf zurückgegeben.",
-  "tasksUnavailableFormat": "Synchronisierungsaufgaben nicht verfügbar: {0}",
   "tasksUpdatedFormat": "Aktualisiert {0:t}. {1:N0} dauerhafte(r) Lauf/Läufe werden angezeigt.",
   "profileSavedFormat": "Profil bei Revision {0} gespeichert. Es wurden keine Anbieteränderungen angefordert.",
   "profileSavedNonAtomicFormat": "Profil bei Revision {0} gespeichert. WARNUNG: nicht-atomare Schreibvorgänge am Ziel sind aktiviert.",

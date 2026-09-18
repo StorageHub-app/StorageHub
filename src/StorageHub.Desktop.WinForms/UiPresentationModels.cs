@@ -289,7 +289,14 @@ public enum AgentConnectionState
     Starting,
     Connected,
     RecoveryOnly,
-    Disconnected
+    Disconnected,
+
+    /// <summary>
+    /// A call failed on its pipe and the desktop is finding out whether the agent is still there.
+    /// Distinct from Starting, which is the state before anything has answered, and from
+    /// Disconnected, which is a probe's verdict rather than a guess.
+    /// </summary>
+    Reconnecting
 }
 
 public sealed record ShellStatusSnapshot(
@@ -325,6 +332,7 @@ public sealed record ShellStatusSnapshot(
         AgentConnectionState.Starting => Ui.Shell.AgentStarting,
         AgentConnectionState.Connected => Ui.Shell.AgentConnected,
         AgentConnectionState.RecoveryOnly => Ui.Shell.AgentRecoveryMode,
+        AgentConnectionState.Reconnecting => Ui.Shell.AgentReconnectingStatus,
         _ => Ui.Shell.AgentNotConnected
     };
 }

@@ -1,4 +1,4 @@
-﻿using StorageHub.Contracts.Ipc;
+using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Localization;
 using System.Globalization;
 
@@ -215,7 +215,7 @@ public sealed class ActivityLogControl : UserControl
         }
         catch (Exception error)
         {
-            _status.Text = Ui.Format(Ui.Transfer.ActivityUnavailableFormat, error.Message);
+            _status.Text = DesktopAgentAvailability.ReportFailure(error);
             _status.ForeColor = StorageHubTheme.Danger;
         }
         finally

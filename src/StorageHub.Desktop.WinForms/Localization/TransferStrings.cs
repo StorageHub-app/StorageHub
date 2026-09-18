@@ -186,9 +186,6 @@ internal sealed class TransferStrings : LocalizationModelBase
     public string ActivityShowingPendingFormat { get; set; } =
         "Showing {0:N0} recent event(s), {1:N0} still pending.";
 
-    /// <summary>{0} = the underlying error message.</summary>
-    public string ActivityUnavailableFormat { get; set; } = "Activity unavailable: {0}";
-
     public string ActivityAreaTransfer { get; set; } = "Transfer";
 
     public string ActivityAreaDrop { get; set; } = "Drop";

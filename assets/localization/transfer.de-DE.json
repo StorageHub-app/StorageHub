@@ -71,7 +71,6 @@
   "activityNone": "Noch keine Übertragungs- oder Synchronisierungsaktivität.",
   "activityShowingFormat": "{0:N0} aktuelle dauerhafte Ereignis(se) werden angezeigt.",
   "activityShowingPendingFormat": "{0:N0} aktuelle Ereignis(se) werden angezeigt, {1:N0} stehen noch aus.",
-  "activityUnavailableFormat": "Aktivität nicht verfügbar: {0}",
   "activityAreaTransfer": "Übertragung",
   "activityAreaDrop": "Ablage",
   "activityAreaSync": "Synchronisierung",

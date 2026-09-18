@@ -71,7 +71,6 @@
   "activityNone": "Der er endnu ingen overførsels- eller synkroniseringsaktivitet.",
   "activityShowingFormat": "Viser {0:N0} seneste vedvarende hændelse(r).",
   "activityShowingPendingFormat": "Viser {0:N0} seneste hændelse(r), {1:N0} afventer stadig.",
-  "activityUnavailableFormat": "Aktiviteten er ikke tilgængelig: {0}",
   "activityAreaTransfer": "Overførsel",
   "activityAreaDrop": "Slip",
   "activityAreaSync": "Synkronisering",

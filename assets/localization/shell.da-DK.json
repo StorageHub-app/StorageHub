@@ -158,5 +158,9 @@
   "stagedCut": "Klippede",
   "stagedCopied": "Kopierede",
   "stagedSelectionFormat": "{0} {1:N0} element(er). Vælg en destination, og indsæt.",
-  "culture": "da-DK"
+  "culture": "da-DK",
+  "agentReconnecting": "Baggrundsagenten svarer ikke. StorageHub genopretter forbindelsen...",
+  "agentOffline": "Baggrundsagenten kører ikke. Overførsler, synkronisering og gemte forbindelser er utilgængelige, indtil den starter.",
+  "agentRequestFailed": "StorageHub kunne ikke fuldføre anmodningen.",
+  "agentReconnectingStatus": "Agent: genopretter forbindelse"
 }

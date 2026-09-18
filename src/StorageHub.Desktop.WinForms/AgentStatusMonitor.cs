@@ -50,7 +50,27 @@ public sealed class AgentStatusMonitor : IAsyncDisposable
     public void Start()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        // The monitor probes on a fresh connection every cycle, so it -- not a surface holding a
+        // pipe that broke when the agent restarted -- is what the rest of the desktop believes
+        // about whether the agent is running.
+        DesktopAgentAvailability.UseProbe(ProbeAsync);
         _monitorTask ??= Task.Run(() => MonitorAsync(_lifetime.Token));
+    }
+
+    /// <summary>
+    /// One immediate poll, for when something else has just failed and waiting out the interval
+    /// would leave the window saying the agent is fine when it is not.
+    /// </summary>
+    public async Task<bool> ProbeAsync(CancellationToken cancellationToken)
+    {
+        if (_disposed)
+        {
+            return false;
+        }
+
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
+        await PollOnceAsync(linked.Token).ConfigureAwait(false);
+        return DesktopAgentAvailability.Current == AgentAvailability.Online;
     }
 
     public async ValueTask DisposeAsync()
@@ -132,8 +152,11 @@ public sealed class AgentStatusMonitor : IAsyncDisposable
         }
     }
 
-    private void RaiseStatus(AgentMonitorStatus status) =>
+    private void RaiseStatus(AgentMonitorStatus status)
+    {
+        DesktopAgentAvailability.ReportMonitor(status.State);
         StatusChanged?.Invoke(this, new AgentMonitorStatusEventArgs(status));
+    }
 
     private static AgentMonitorStatus Map(AgentStatusSnapshot snapshot)
     {

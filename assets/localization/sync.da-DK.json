@@ -238,7 +238,6 @@
   "tasksRunHistory": "Historik og gennemsyn af synkroniseringskørsler",
   "useReviewAndRun": "Brug Gennemse og kør, eller åbn en eksisterende kørsel",
   "repeatedHistoryToken": "Agenten returnerede et gentaget sidetoken for synkroniseringshistorik.",
-  "tasksUnavailableFormat": "Synkroniseringsopgaver er ikke tilgængelige: {0}",
   "tasksUpdatedFormat": "Opdateret {0:t}. Viser {1:N0} vedvarende kørsel/kørsler.",
   "profileSavedFormat": "Profilen er gemt ved revision {0}. Der blev ikke anmodet om ændringer hos udbyderen.",
   "profileSavedNonAtomicFormat": "Profilen er gemt ved revision {0}. ADVARSEL: ikke-atomare skrivninger på destinationen er aktiveret.",
