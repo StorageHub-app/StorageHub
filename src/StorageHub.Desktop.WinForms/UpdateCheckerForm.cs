@@ -1,4 +1,4 @@
-﻿using StorageHub.Desktop.Localization;
+using StorageHub.Desktop.Localization;
 namespace StorageHub.Desktop;
 
 /// <summary>
@@ -35,6 +35,7 @@ internal sealed class UpdateCheckerForm : Form
         ClientSize = new Size(520, 250);
         BackColor = StorageHubTheme.Canvas;
         ForeColor = StorageHubTheme.Text;
+        StorageHubTheme.Register(this);
 
         _headline = new Label
         {

@@ -43,6 +43,7 @@ public sealed class KeyStoreForm : Form
         Size = new Size(980, 560);
         BackColor = StorageHubTheme.Canvas;
         ForeColor = StorageHubTheme.Text;
+        StorageHubTheme.Register(this);
 
         _entries = new ListView
         {
@@ -511,6 +512,7 @@ internal sealed class SecretPromptForm : Form
         MaximizeBox = false;
         ClientSize = new Size(400, 130);
         BackColor = StorageHubTheme.Canvas;
+        StorageHubTheme.Register(this);
         ForeColor = StorageHubTheme.Text;
 
         var label = new Label
@@ -574,6 +576,7 @@ internal sealed class TextPromptForm : Form
         MaximizeBox = false;
         ClientSize = new Size(400, 130);
         BackColor = StorageHubTheme.Canvas;
+        StorageHubTheme.Register(this);
         ForeColor = StorageHubTheme.Text;
 
         var label = new Label
@@ -632,6 +635,7 @@ internal sealed class KeyFormatPromptForm : Form
         MaximizeBox = false;
         ClientSize = new Size(400, 130);
         BackColor = StorageHubTheme.Canvas;
+        StorageHubTheme.Register(this);
         ForeColor = StorageHubTheme.Text;
 
         var label = new Label

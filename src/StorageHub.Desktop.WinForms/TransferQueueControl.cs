@@ -384,7 +384,7 @@ public sealed class TransferQueueControl : UserControl
                 await RefreshQueueCoreAsync(resetPage: true, _lifetime.Token).ConfigureAwait(true);
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
-        catch (Exception) { SetUnavailable(); }
+        catch (Exception error) { SetUnavailable(error); }
         finally { SetBusy(false); }
     }
 
@@ -533,9 +533,9 @@ public sealed class TransferQueueControl : UserControl
         {
             // The control is closing.
         }
-        catch (Exception)
+        catch (Exception error)
         {
-            SetUnavailable();
+            SetUnavailable(error);
         }
         finally
         {
@@ -600,9 +600,9 @@ public sealed class TransferQueueControl : UserControl
         {
             // A closing or superseded control does not need a UI error.
         }
-        catch (Exception)
+        catch (Exception error)
         {
-            SetUnavailable();
+            SetUnavailable(error);
         }
         finally
         {
@@ -973,9 +973,11 @@ public sealed class TransferQueueControl : UserControl
         }
     }
 
-    private void SetUnavailable()
+    private void SetUnavailable(Exception? error = null)
     {
-        _status.Text = Ui.Transfer.QueueUnavailable;
+        _status.Text = error is null
+            ? Ui.Transfer.QueueUnavailable
+            : DesktopAgentAvailability.ReportFailure(error);
         _nextCursor = null;
         _nextButton.Enabled = false;
     }
@@ -1023,6 +1025,9 @@ internal sealed class ClearTransferHistoryConfirmationForm : Form
         MinimizeBox = false;
         MaximizeBox = false;
         ClientSize = new Size(500, 190);
+        BackColor = StorageHubTheme.Canvas;
+        ForeColor = StorageHubTheme.Text;
+        StorageHubTheme.Register(this);
         var message = new Label
         {
             AutoSize = false,
@@ -1057,6 +1062,7 @@ internal sealed class ClearTransferHistoryConfirmationForm : Form
         Controls.AddRange([message, _dontShowAgain, clear, cancel]);
         AcceptButton = clear;
         CancelButton = cancel;
+        StorageHubTheme.Apply(this);
     }
 
     internal bool DontShowAgain => _dontShowAgain.Checked;

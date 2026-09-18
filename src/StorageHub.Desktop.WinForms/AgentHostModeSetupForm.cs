@@ -29,6 +29,7 @@ internal sealed class AgentHostModeSetupForm : Form
         ShowInTaskbar = false;
         BackColor = StorageHubTheme.Surface;
         ForeColor = StorageHubTheme.Text;
+        StorageHubTheme.Register(this);
         // Tall enough that the machine-wide-secrets warning is visible without scrolling:
         // a caution the reader has to find is not a caution.
         ClientSize = new Size(580, 560);

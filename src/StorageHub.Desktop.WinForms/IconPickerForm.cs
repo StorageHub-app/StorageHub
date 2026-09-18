@@ -1,4 +1,4 @@
-﻿using StorageHub.Desktop.Localization;
+using StorageHub.Desktop.Localization;
 
 namespace StorageHub.Desktop;
 
@@ -30,6 +30,7 @@ internal sealed class IconPickerForm : Form
         MaximizeBox = false;
         ShowInTaskbar = false;
         BackColor = StorageHubTheme.Surface;
+        StorageHubTheme.Register(this);
         AutoScaleMode = AutoScaleMode.Dpi;
 
         var grid = new FlowLayoutPanel

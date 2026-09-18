@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Localization;
 
@@ -25,6 +25,7 @@ internal sealed class KeyStorePickerForm : Form
         ClientSize = new Size(720, 400);
         BackColor = StorageHubTheme.Canvas;
         ForeColor = StorageHubTheme.Text;
+        StorageHubTheme.Register(this);
 
         _entries = new ListView
         {

@@ -588,6 +588,9 @@ internal sealed class NewWorkspaceForm : Form
         MaximizeBox = false;
         MinimizeBox = false;
         ClientSize = new Size(660, 424);
+        BackColor = StorageHubTheme.Canvas;
+        ForeColor = StorageHubTheme.Text;
+        StorageHubTheme.Register(this);
 
         var rows = (WorkspacePreset.All.Count + Columns - 1) / Columns;
         var choices = new TableLayoutPanel
@@ -650,6 +653,7 @@ internal sealed class NewWorkspaceForm : Form
         Controls.Add(choices);
         Controls.Add(_remember);
         PaneLayout = layout;
+        StorageHubTheme.Apply(this);
     }
 
     internal int PaneCount { get; private set; }

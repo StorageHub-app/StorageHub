@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using StorageHub.Desktop.Localization;
 
 namespace StorageHub.Desktop;
@@ -40,6 +40,7 @@ public sealed class AgentControlForm : Form
         ClientSize = new Size(520, 300);
         BackColor = StorageHubTheme.Canvas;
         ForeColor = StorageHubTheme.Text;
+        StorageHubTheme.Register(this);
 
         _state = new Label
         {
@@ -199,6 +200,7 @@ public sealed class AgentControlForm : Form
         AgentConnectionState.Connected => Ui.Updates.AgentStateRunning,
         AgentConnectionState.RecoveryOnly => Ui.Updates.AgentStateRecovery,
         AgentConnectionState.Disconnected => Ui.Updates.AgentStateNotRunning,
+        AgentConnectionState.Reconnecting => Ui.Shell.AgentReconnectingStatus,
         _ => Ui.Updates.AgentStateStarting
     };
 
@@ -209,6 +211,7 @@ public sealed class AgentControlForm : Form
             Ui.Updates.TheAgentStartedButItsDurableState,
         AgentConnectionState.Disconnected =>
             Ui.Updates.StorageHubCannotReachTheBackgroundAgentTransfers,
+        AgentConnectionState.Reconnecting => Ui.Shell.AgentReconnecting,
         _ => Ui.Updates.TheAgentIsStarting
     };
 
@@ -216,7 +219,7 @@ public sealed class AgentControlForm : Form
     {
         var canControl = _controller is not null && !_busy;
         var running = state is AgentConnectionState.Connected or AgentConnectionState.RecoveryOnly
-            or AgentConnectionState.Starting;
+            or AgentConnectionState.Starting or AgentConnectionState.Reconnecting;
         _start.Enabled = canControl && state is AgentConnectionState.Disconnected;
         _stop.Enabled = canControl && running;
         _restart.Enabled = canControl;
