@@ -9,7 +9,7 @@ namespace StorageHub.Desktop;
 /// afterwards, which is why sections ended at a different distance below their last control on
 /// every page. A card measures itself from its rows, so it cannot disagree with them.
 /// </summary>
-internal sealed class SettingsCard : Control
+internal sealed class SettingsCard : Control, StorageHubFieldChrome.IPaintedBackdrop
 {
     private readonly List<SettingsRow> _rows = [];
 
@@ -56,6 +56,13 @@ internal sealed class SettingsCard : Control
 
         return new Size(width, height);
     }
+
+    /// <summary>
+    /// What a control sitting on this card is actually sitting on. The card's own BackColor is
+    /// Transparent so that its rounded corners show the page behind them, which makes BackColor
+    /// the wrong thing for anything on top to read.
+    /// </summary>
+    public Color PaintedBackdrop => StorageHubFieldChrome.CardFill;
 
     protected override void OnLayout(LayoutEventArgs levent)
     {

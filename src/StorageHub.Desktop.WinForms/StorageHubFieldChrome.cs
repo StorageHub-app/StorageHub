@@ -106,6 +106,9 @@ internal static class StorageHubFieldChrome
         graphics.SmoothingMode = previous;
     }
 
+    /// <summary>The colour a card is filled with, and so the colour anything on one sits against.</summary>
+    internal static Color CardFill => StorageHubTheme.SurfaceMuted;
+
     /// <summary>Paints a card: the surface a group of rows sits on.</summary>
     internal static void PaintCard(Graphics graphics, Control control)
     {
@@ -122,7 +125,7 @@ internal static class StorageHubFieldChrome
         var edge = Rectangle.FromLTRB(bounds.Left, bounds.Top, bounds.Right - 1, bounds.Bottom - 1);
         using (var path = RoundedRectangle(edge, control.LogicalToDeviceUnits(CardRadius)))
         {
-            using var fill = new SolidBrush(StorageHubTheme.SurfaceMuted);
+            using var fill = new SolidBrush(CardFill);
             graphics.FillPath(fill, path);
             using var pen = new Pen(StorageHubTheme.Border);
             graphics.DrawPath(pen, path);
@@ -202,6 +205,17 @@ internal static class StorageHubFieldChrome
         ArgumentNullException.ThrowIfNull(control);
         for (var ancestor = control.Parent; ancestor is not null; ancestor = ancestor.Parent)
         {
+            // Asked, not inferred. A container that paints its own surface has a BackColor of
+            // Transparent -- that is how its own rounded corners show the page behind them -- so
+            // reading BackColor walks straight past it to whatever is further up. A field sitting
+            // on a card then filled its corners with the page's colour instead of the card's,
+            // which in the dark palette is darker: a small black square outside each corner,
+            // exactly where the rounding was supposed to be invisible.
+            if (ancestor is IPaintedBackdrop painted)
+            {
+                return painted.PaintedBackdrop;
+            }
+
             if (ancestor.BackColor.A == 255)
             {
                 return ancestor.BackColor;
@@ -209,5 +223,15 @@ internal static class StorageHubFieldChrome
         }
 
         return StorageHubTheme.Surface;
+    }
+
+    /// <summary>
+    /// A container that paints its own background rather than letting <see cref="Control.BackColor"/>
+    /// describe it. Anything drawn on top asks it what is actually behind, so a rounded corner can
+    /// be filled with the colour it will sit on.
+    /// </summary>
+    internal interface IPaintedBackdrop
+    {
+        Color PaintedBackdrop { get; }
     }
 }
