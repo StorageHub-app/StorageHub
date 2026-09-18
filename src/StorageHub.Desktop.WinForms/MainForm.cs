@@ -1358,12 +1358,7 @@ public sealed class MainForm : Form
                     ShowUpdateChecker();
                     break;
                 case UiCommandIds.HelpAboutStorageHub:
-                    _ = MessageBox.Show(
-                        this,
-                        Ui.Format(Ui.Dialogs.AboutBodyFormat, DesktopApplicationVersion.Current),
-                        Ui.Dialogs.AboutCaption,
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Information);
+                    AboutForm.ShowFor(this);
                     break;
                 case UiCommandIds.WorkspaceExit:
                     Close();

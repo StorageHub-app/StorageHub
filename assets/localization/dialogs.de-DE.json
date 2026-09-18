@@ -13,6 +13,7 @@
   "saveWorkspaceFailedFormat": "StorageHub konnte diesen Arbeitsbereich nicht speichern. {0}",
   "aboutCaption": "Über StorageHub",
   "aboutBodyFormat": "StorageHub {0}\nQuelloffene, sicherheitsorientierte Speicherverwaltung\nBasiert auf CodeLogic und CL.Storage",
+  "aboutProjectLink": "Das Projekt auf GitHub",
   "transferOperationMove": "VERSCHIEBEN",
   "transferOperationCopy": "KOPIEREN",
   "reviewTransferCaptionFormat": "Prüfen: {0}",

@@ -316,8 +316,10 @@ jobs:
         uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
         with:
           subject-path: windows-release/*
-          # Linked artifact storage records are organization-only. The signed
-          # provenance remains published for this public personal repository.
+          # Left off. Linked artifact storage records are an organization
+          # feature, which this repository now qualifies for, but turning them
+          # on changes what a release carries and is a decision of its own. The
+          # signed provenance is published either way.
           create-storage-record: false
 
   publish-release:

@@ -13,6 +13,7 @@
   "saveWorkspaceFailedFormat": "StorageHub kunne ikke gemme dette arbejdsområde. {0}",
   "aboutCaption": "Om StorageHub",
   "aboutBodyFormat": "StorageHub {0}\nOpen source-lagerstyring med fokus på sikkerhed\nDrevet af CodeLogic og CL.Storage",
+  "aboutProjectLink": "Projektet på GitHub",
   "transferOperationMove": "FLYTTE",
   "transferOperationCopy": "KOPIERE",
   "reviewTransferCaptionFormat": "Gennemse: {0}",

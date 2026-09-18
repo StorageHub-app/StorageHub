@@ -56,6 +56,9 @@ internal sealed class DialogStrings : LocalizationModelBase
     public string AboutBodyFormat { get; set; } =
         "StorageHub {0}\nOpen-source secure storage manager\nPowered by CodeLogic and CL.Storage";
 
+    /// <summary>The link to the project's repository. The address itself is never translated.</summary>
+    public string AboutProjectLink { get; set; } = "The project on GitHub";
+
     // ------------------------------------------------------------- transfers
     /// <summary>Named in the confirmation below, in capitals, so the consequence is unmissable.</summary>
     public string TransferOperationMove { get; set; } = "MOVE";
