@@ -8,6 +8,13 @@ public static class DesktopAppearanceService
     private static readonly ToolStripRenderer SharedMenuRenderer =
         new ToolStripProfessionalRenderer(new DesktopMenuColorTable());
     private static Func<bool> _systemDarkModeReader = ReadSystemDarkMode;
+
+    /// <summary>
+    /// Whether the WinForms runtime has been told which colour mode to draw in. Tracked because
+    /// the first call is usually a no-op by value -- the configured appearance is System and the
+    /// field already says System -- and the work below must happen anyway.
+    /// </summary>
+    private static bool _frameworkColorModeApplied;
     private static readonly List<WeakReference<Form>> RegisteredWindows = [];
     private static readonly object RegisteredWindowsLock = new();
 
@@ -18,6 +25,12 @@ public static class DesktopAppearanceService
     }
 
     public static DesktopAppearance Appearance { get; private set; } = DesktopAppearance.System;
+
+    /// <summary>Whether the runtime has been told its colour mode. See <see cref="SetAppearance"/>.</summary>
+    internal static bool FrameworkColorModeApplied => _frameworkColorModeApplied;
+
+    /// <summary>Puts the service back to how it starts, for a test that checks the first call.</summary>
+    internal static void ForgetFrameworkColorModeForTests() => _frameworkColorModeApplied = false;
 
     public static DesktopAppearance EffectiveAppearance { get; private set; } = ResolveEffective(DesktopAppearance.System);
 
@@ -32,7 +45,15 @@ public static class DesktopAppearanceService
 
         var previousEffective = EffectiveAppearance;
         var effective = ResolveEffective(appearance);
-        if (Appearance == appearance && previousEffective == effective)
+
+        // Not "nothing changed, so do nothing": the very first call changes nothing by value and
+        // everything by effect. Program.Main makes it before the first window precisely so the
+        // runtime can be told the colour mode, which it refuses once a message loop is running --
+        // and because the default field value is already System, the early return used to skip it
+        // on every launch where the appearance was left on System. What showed for it was menus:
+        // a dark menu bar whose dropdowns opened white, because a dropdown is its own window and
+        // takes its colours from the runtime's mode rather than from the strip that owns it.
+        if (_frameworkColorModeApplied && Appearance == appearance && previousEffective == effective)
         {
             return;
         }
@@ -40,6 +61,7 @@ public static class DesktopAppearanceService
         Appearance = appearance;
         EffectiveAppearance = effective;
         ApplyFrameworkColorMode(effective);
+        _frameworkColorModeApplied = true;
         ApplyToOpenForms(previousEffective);
         AppearanceChanged?.Invoke(null, EventArgs.Empty);
     }
