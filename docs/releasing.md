@@ -12,14 +12,14 @@ anything is published and the tag names the exact commit that ships:
 
 ```powershell
 # 1. Land the release version on main. This publishes one more candidate.
-#    Directory.Build.props: <VersionPrefix>1.3.0</VersionPrefix>
+#    Directory.Build.props: <VersionPrefix>1.4.0</VersionPrefix>
 
 # 2. Tag that commit. This publishes the stable release.
-git tag v1.3.0
-git push origin v1.3.0
+git tag v1.4.0
+git push origin v1.4.0
 
 # 3. Open the next line of development, which returns main to candidates.
-#    Directory.Build.props: <VersionPrefix>1.4.0</VersionPrefix>
+#    Directory.Build.props: <VersionPrefix>1.5.0</VersionPrefix>
 ```
 
 The tag must match the `VersionPrefix` declared by the commit it points at. A

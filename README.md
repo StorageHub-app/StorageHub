@@ -18,7 +18,7 @@ lifecycle, adapting the all-in-one `CL.Storage` (`CodeLogic.Storage`) provider
 library behind a provider-neutral contract.
 
 > [!IMPORTANT]
-> StorageHub 1.3 is the current stable release. Every push to `main` also
+> StorageHub 1.4 is the current stable release. Every push to `main` also
 > publishes a release candidate, which an installation can opt into or exclude.
 > Release binaries are not yet Authenticode-signed, so Windows SmartScreen may
 > warn on first run; verify downloads against the published `SHA256SUMS`. As
