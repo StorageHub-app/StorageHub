@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.Globalization;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Localization;
@@ -94,7 +94,38 @@ public static class ConnectionProviderCatalog
             "Private key + password (MFA)"
         });
 
-    private static readonly ReadOnlyCollection<ConnectionProviderDescriptor> Providers = Array.AsReadOnly(
+    private static ReadOnlyCollection<ConnectionProviderDescriptor>? _providers;
+    private static string? _providersCulture;
+
+    /// <summary>
+    /// The provider descriptors, in the language the shell is currently speaking.
+    /// </summary>
+    /// <remarks>
+    /// Rebuilt when that language changes rather than held in a static initializer. Every label
+    /// and help string below is read from <see cref="Ui"/> at the moment the collection is built,
+    /// so a single static instance froze whichever language happened to be installed the first
+    /// time anything touched this type -- which in the running app is the right one, but is a
+    /// property of luck rather than of design, and left the German text of one test leaking into
+    /// every test that ran after it.
+    /// </remarks>
+    private static ReadOnlyCollection<ConnectionProviderDescriptor> Providers
+    {
+        get
+        {
+            var culture = Ui.Culture.Name;
+            if (_providers is { } cached && string.Equals(_providersCulture, culture, StringComparison.Ordinal))
+            {
+                return cached;
+            }
+
+            var built = BuildProviders();
+            _providersCulture = culture;
+            _providers = built;
+            return built;
+        }
+    }
+
+    private static ReadOnlyCollection<ConnectionProviderDescriptor> BuildProviders() => Array.AsReadOnly(
     new ConnectionProviderDescriptor[]
     {
         new(
@@ -372,7 +403,28 @@ public sealed record SyncModeDescriptor(
 
 public static class SyncPresentationCatalog
 {
-    private static readonly ReadOnlyCollection<SyncModeDescriptor> Modes = Array.AsReadOnly(
+    private static ReadOnlyCollection<SyncModeDescriptor>? _modes;
+    private static string? _modesCulture;
+
+    /// <summary>The sync modes, in the language the shell is currently speaking.</summary>
+    private static ReadOnlyCollection<SyncModeDescriptor> Modes
+    {
+        get
+        {
+            var culture = Ui.Culture.Name;
+            if (_modes is { } cached && string.Equals(_modesCulture, culture, StringComparison.Ordinal))
+            {
+                return cached;
+            }
+
+            var built = BuildModes();
+            _modesCulture = culture;
+            _modes = built;
+            return built;
+        }
+    }
+
+    private static ReadOnlyCollection<SyncModeDescriptor> BuildModes() => Array.AsReadOnly(
     new SyncModeDescriptor[]
     {
         new(SyncModeKind.BackupLeftToRight, Ui.Providers.BackupLeftRight, Ui.Providers.CopyNewAndChangedItemsNeverDelete, false, true),

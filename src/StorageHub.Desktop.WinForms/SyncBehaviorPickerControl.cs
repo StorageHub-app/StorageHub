@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Localization;
 
@@ -7,7 +7,32 @@ namespace StorageHub.Desktop;
 /// <summary>A descriptive, keyboard-accessible menu for the complete synchronization presets.</summary>
 internal sealed class SyncBehaviorPickerControl : UserControl
 {
-    private static readonly SyncBehaviorOption[] Options =
+    private static SyncBehaviorOption[]? _options;
+    private static string? _optionsCulture;
+
+    /// <summary>
+    /// The behaviours, in the language the shell is currently speaking. Built on demand rather
+    /// than in a static initializer, which would freeze whichever language was installed the
+    /// first time this control was used.
+    /// </summary>
+    private static SyncBehaviorOption[] Options
+    {
+        get
+        {
+            var culture = Ui.Culture.Name;
+            if (_options is { } cached && string.Equals(_optionsCulture, culture, StringComparison.Ordinal))
+            {
+                return cached;
+            }
+
+            var built = BuildOptions();
+            _optionsCulture = culture;
+            _options = built;
+            return built;
+        }
+    }
+
+    private static SyncBehaviorOption[] BuildOptions() =>
     [
         new(SyncIpcBehavior.CopyNewFilesAToB, Ui.Sync.BehaviorCopyNewAtoB, Ui.Sync.BehaviorCopyNewAtoBSummary, Ui.Sync.BadgeCreateOnly, SyncBehaviorRisk.Safe),
         new(SyncIpcBehavior.UpdateAToB, Ui.Sync.BehaviorUpdateAtoB, Ui.Sync.BehaviorUpdateAtoBSummary, Ui.Sync.BadgeDefault, SyncBehaviorRisk.Default),

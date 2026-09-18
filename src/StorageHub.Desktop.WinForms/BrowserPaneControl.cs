@@ -25,15 +25,39 @@ public sealed class BrowserPaneControl : UserControl
     private const int MaximumCachedDirectoriesPerConnection = 2_000;
     private const int MaximumTreeDirectories = 2_000;
     private const int MaximumTreeChildrenPerDirectory = 500;
-    private static readonly BrowserListItem ParentNavigationItem = new(
-        "..",
-        string.Empty,
-        Ui.Pane.ParentFolder,
-        string.Empty,
-        Ui.Pane.GoUpOneLevel,
-        IsContainer: true,
-        Kind: StorageItemKind.Directory,
-        IsParentNavigation: true);
+    private static BrowserListItem? _parentNavigationItem;
+    private static string? _parentNavigationCulture;
+
+    /// <summary>
+    /// The ".." row, in the language the shell is currently speaking. Built on demand rather than
+    /// in a static initializer, which would freeze whichever language was installed the first
+    /// time any pane was created.
+    /// </summary>
+    private static BrowserListItem ParentNavigationItem
+    {
+        get
+        {
+            var culture = Ui.Culture.Name;
+            if (_parentNavigationItem is { } cached
+                && string.Equals(_parentNavigationCulture, culture, StringComparison.Ordinal))
+            {
+                return cached;
+            }
+
+            var built = new BrowserListItem(
+                "..",
+                string.Empty,
+                Ui.Pane.ParentFolder,
+                string.Empty,
+                Ui.Pane.GoUpOneLevel,
+                IsContainer: true,
+                Kind: StorageItemKind.Directory,
+                IsParentNavigation: true);
+            _parentNavigationCulture = culture;
+            _parentNavigationItem = built;
+            return built;
+        }
+    }
     private readonly List<Image> _ownedImages = [];
     private readonly ImageList _browserImages;
 
