@@ -25,6 +25,59 @@ library behind a provider-neutral contract.
 > with any file-management tool, keep an independent backup of irreplaceable
 > data.
 
+## A look at it
+
+<table>
+  <tr>
+    <td width="50%"><a href="docs/screenshots/welcome.png"><img src="docs/screenshots/welcome.png" alt="The Welcome page: agent status, transfer counters, saved workspaces, and recent connections"></a></td>
+    <td width="50%"><a href="docs/screenshots/workspace.png"><img src="docs/screenshots/workspace.png" alt="A two-pane workspace with local disks beside a connection's saved locations"></a></td>
+  </tr>
+  <tr>
+    <td><b>Welcome</b> - connections, transfers, and anything that needs attention, in one place.</td>
+    <td><b>Workspaces</b> - one to four panes, any mix of local and remote.</td>
+  </tr>
+  <tr>
+    <td><a href="docs/screenshots/new-workspace.png"><img src="docs/screenshots/new-workspace.png" alt="The New Workspace chooser, showing six pane layouts"></a></td>
+    <td><a href="docs/screenshots/sync-tasks.png"><img src="docs/screenshots/sync-tasks.png" alt="The Sync tasks page, listing saved synchronization profiles and recent runs"></a></td>
+  </tr>
+  <tr>
+    <td><b>Six layouts</b> - from a single pane to a 2x2 grid, remembered per workspace.</td>
+    <td><b>Sync tasks</b> - saved profiles and durable run history from the background agent.</td>
+  </tr>
+  <tr>
+    <td><a href="docs/screenshots/connection-editor.png"><img src="docs/screenshots/connection-editor.png" alt="The connection editor on its General tab, editing a Local/UNC profile"></a></td>
+    <td><a href="docs/screenshots/connection-editor-s3.png"><img src="docs/screenshots/connection-editor-s3.png" alt="The connection editor showing S3 endpoint, signing region, bucket, and prefix"></a></td>
+  </tr>
+  <tr>
+    <td><b>Connections</b> - typed profiles, with folders, labels, and a colour of their own.</td>
+    <td><b>Per provider</b> - the fields that provider actually has, and no others.</td>
+  </tr>
+  <tr>
+    <td><a href="docs/screenshots/key-store.png"><img src="docs/screenshots/key-store.png" alt="The key store, listing imported certificates and SSH keys"></a></td>
+    <td><a href="docs/screenshots/settings-transfers.png"><img src="docs/screenshots/settings-transfers.png" alt="Settings, on the transfers and sync page, showing the concurrency limits"></a></td>
+  </tr>
+  <tr>
+    <td><b>Key store</b> - certificates and SSH keys in one place, so rotating one updates every profile that uses it.</td>
+    <td><b>Settings</b> - captioned cards of labelled rows, in the app's own controls rather than Windows'.</td>
+  </tr>
+  <tr>
+    <td><a href="docs/screenshots/settings-background-agent.png"><img src="docs/screenshots/settings-background-agent.png" alt="Settings, on the background agent page, with the three hosting modes listed"></a></td>
+    <td><a href="docs/screenshots/settings-ssh-terminal.png"><img src="docs/screenshots/settings-ssh-terminal.png" alt="Settings, on the SSH terminal page, choosing the default authentication for new profiles"></a></td>
+  </tr>
+  <tr>
+    <td><b>Background agent</b> - three ways to run it, switched without reinstalling. See <a href="#how-the-background-agent-runs">below</a>.</td>
+    <td><b>Per-provider defaults</b> - what a new profile starts with, including SSH keys and timeouts.</td>
+  </tr>
+  <tr>
+    <td><a href="docs/screenshots/settings-updates.png"><img src="docs/screenshots/settings-updates.png" alt="Settings, on the updates page, with automatic checks and downloads enabled and silent restart disabled"></a></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td><b>Updates</b> - checked against one fixed repository, downloaded with their checksums verified, installed when you say so.</td>
+    <td></td>
+  </tr>
+</table>
+
 ## Features
 
 **Browse and manage** — Workspaces of one to four equal-capability panes, in six
@@ -104,20 +157,33 @@ The installer does not require elevation and starts the background agent as the
 signed-in Windows user. Application data under `%LOCALAPPDATA%\StorageHub` is
 preserved across updates and uninstalls.
 
-How the agent is hosted is then chosen in the application — once on first run,
-and afterwards in Settings under **Background agent**:
+### How the background agent runs
 
-- **When I sign in** — the historical behaviour. The agent starts with Windows
-  and outlives the window, and your secrets stay readable only by your account.
-  Scheduled work runs only while you are signed in.
-- **Only while StorageHub is open** — no logon entry and nothing left running;
-  transfers and schedules progress only while the window is open.
-- **As a Windows service** — starts with the computer and keeps running with
-  nobody signed in, which is what an unattended schedule needs. It requires
-  administrator approval once, moves the database to `%ProgramData%\StorageHub`,
-  and re-protects every stored secret with the machine key, so administrators of
-  the computer can read them. Your existing data is copied, never moved, so
-  switching back leaves the original untouched.
+The agent is the part that actually moves files: it owns the transfer queue, the
+schedules, and the database, which is why closing the window does not stop a
+transfer. How it is hosted is a decision StorageHub asks you to make once, on
+first run, and you can change it whenever you like in
+**Tools > Settings > Background agent**.
+
+| Mode | The agent runs | Choose it when |
+| --- | --- | --- |
+| **When I sign in** | From the moment you sign in to Windows until you sign out, window open or not | You want queued transfers to finish after closing StorageHub |
+| **Only while StorageHub is open** | Only alongside the window, with no logon entry and nothing left behind | You would rather nothing ran in the background |
+| **As a Windows service** | From startup, with nobody signed in at all | A schedule has to run overnight, or on a machine nobody is logged into |
+
+The first two are your account's own process, so your credentials stay readable
+only by you. The service is the one with consequences, and they are stated
+before it is installed: it needs administrator approval once, it moves the
+database to `%ProgramData%\StorageHub`, and it re-protects every stored secret
+with the machine key rather than yours — which means an administrator of that
+computer can read them. Your existing data is copied rather than moved, so
+switching back leaves the original exactly where it was.
+
+Setup never makes this choice for you. An unelevated installer could not install
+a service correctly anyway, and a decision that changes where your secrets live
+is not a packaging detail.
+
+### Updates
 
 Installed builds check the official GitHub release feed at startup and silently
 download integrity-checked updates by default. Settings can disable automatic
@@ -226,6 +292,7 @@ restore the defaults. Conflicting shortcuts must be cleared before reassignment.
 
 ## Documentation
 
+- [Changelog](CHANGELOG.md)
 - [Architecture](docs/architecture.md)
 - [Release engineering](docs/releasing.md)
 - [Contributing](CONTRIBUTING.md)
