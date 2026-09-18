@@ -223,7 +223,10 @@ integration test. Existing in `CL.Storage` is not enough.
   for the Explorer drag/drop broker
 - [.NET SDK 10.0.401](global.json), or a later 10.0 patch accepted by `global.json`
 - Git
-- CPython 3.12 when running the local FTP/FTPS or SFTP fixtures; CI pins 3.12.10
+- CPython 3.12 — **only** to run the FTP/FTPS and SFTP test fixtures, which
+  stand up real loopback servers for the integration tests. StorageHub itself
+  has no Python dependency; building and running it needs none of this. CI
+  pins 3.12.10
 
 The CodeLogic framework and `CL.Storage` provider library are restored from the
 centrally pinned `CodeLogic` and `CodeLogic.Storage` NuGet packages.
