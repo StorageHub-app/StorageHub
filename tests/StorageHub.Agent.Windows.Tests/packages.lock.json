@@ -410,7 +410,7 @@
       "storagehub.agent.windows": {
         "type": "Project",
         "dependencies": {
-          "CodeLogic": "[4.1.0, )",
+          "CodeLogic": "[4.8.19, )",
           "CodeLogic.Storage": "[4.8.91, )",
           "SSH.NET": "[2026.0.0, )",
           "StorageHub.Agent": "[1.4.2, )",
@@ -426,7 +426,7 @@
       "storagehub.application": {
         "type": "Project",
         "dependencies": {
-          "CodeLogic": "[4.1.0, )",
+          "CodeLogic": "[4.8.19, )",
           "Cronos": "[0.13.0, )",
           "StorageHub.Domain": "[1.4.2, )",
           "StorageHub.Security": "[1.4.2, )"
@@ -471,7 +471,7 @@
       "storagehub.storage.codelogic": {
         "type": "Project",
         "dependencies": {
-          "CodeLogic": "[4.1.0, )",
+          "CodeLogic": "[4.8.19, )",
           "CodeLogic.Storage": "[4.8.91, )",
           "SSH.NET": "[2026.0.0, )",
           "StorageHub.Application": "[1.4.2, )",
@@ -498,9 +498,9 @@
       },
       "CodeLogic": {
         "type": "CentralTransitive",
-        "requested": "[4.1.0, )",
-        "resolved": "4.1.0",
-        "contentHash": "zmlsOZ+kRGW62zyn7HdblpsOIeqZ74FeA757rcS1NJTyp40NUq6SIBmnKGotjUEAHz/uQZPVDIh98kJ8fhQGwQ=="
+        "requested": "[4.8.19, )",
+        "resolved": "4.8.19",
+        "contentHash": "XRUvqBICo7AfpK0X7B4mp2YoA+iAks10bs9GegLEylighHlSLib60z/AkbYELdJmaqBrZe7WqmG+zFT85zdgOg=="
       },
       "CodeLogic.Storage": {
         "type": "CentralTransitive",
