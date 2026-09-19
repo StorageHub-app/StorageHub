@@ -15,6 +15,26 @@ release candidate; only a pushed tag publishes a stable release.
 
 ---
 
+## 1.4.1 — 2026-09-19
+
+The connection sidebar, tidied.
+
+A folder’s cards stopped short of the pane whenever the list was long enough to
+scroll, because the scrollbar was subtracted from their width twice — once by
+Windows and once by StorageHub. Expanding a folder moved everything left;
+collapsing it put it back.
+
+Folder titles were buttons, so each one drew a filled, outlined box inside the
+group’s own frame and centred its label. They are a line of text now, with a
+background only under the pointer, and the frame around a group is a hairline
+rather than an outline.
+
+A row’s edit and delete icons were measured in raw pixels while everything
+beside them grew with the display scaling, so at 125% they were small, thin and
+pressed against the card’s edge.
+
+---
+
 ## 1.4.0 — 2026-09-18
 
 The release where the shell stopped looking like a WinForms application, and
