@@ -15,6 +15,42 @@ release candidate; only a pushed tag publishes a stable release.
 
 ---
 
+## 1.4.2 — 2026-09-19
+
+Dropping a folder used to look like nothing had happened.
+
+A folder dropped on a pane was read to the end before anything reached the
+transfer queue: the whole tree walked, every destination folder created, and only
+then the files queued in one go. Over SFTP on a large folder that is minutes with
+nothing on screen to say the drop was even accepted. The queue now carries a row
+for the reading itself from the moment the drop lands, counting what it has
+found, and files appear beneath it as they are found. Cancelling that row stops
+the walk; what it already queued stays queued.
+
+A drop is no longer all or nothing, which is the trade for showing it. A problem
+found on the last page used to mean nothing had been queued; now the files before
+it are queued and may already be moving, and the result says how many got
+through.
+
+**Reading a folder got faster.** The storage library re-listed and re-sorted an
+entire directory on every page of a listing, so paging ten thousand entries meant
+walking the tree two hundred and fifty times — over SFTP, where recursive listing
+is emulated by walking it, behind a fresh connection each time. It now pages from
+one cached listing per pass and reuses its session. StorageHub was rebuilding the
+whole connection for every call as well, down to decrypting the credentials and
+registering the connection again, which meant the library saw a different
+connection on each page and could reuse nothing. A profile's connection is now
+shared and kept for half a minute after its last use.
+
+**A failed transfer says what failed.** "StorageHub could not build the recursive
+transfer manifest" covered six unrelated causes, and the underlying error was
+discarded rather than logged, so a report of it could not be followed up either.
+A listing that runs out of time now says which folder it stalled in and on which
+page, and listings get a budget of their own rather than sharing the fifteen
+seconds meant for a status call.
+
+---
+
 ## 1.4.1 — 2026-09-19
 
 The connection sidebar, tidied.
