@@ -418,6 +418,17 @@ public static class StorageHubTheme
         grid.ColumnHeadersDefaultCellStyle.SelectionForeColor = palette.TextMuted;
         grid.RowHeadersDefaultCellStyle.BackColor = palette.SurfaceMuted;
         grid.RowHeadersDefaultCellStyle.ForeColor = palette.Text;
+
+        // A DataGridView keeps its header at a flat 23px and its rows at 22 unless told to
+        // measure them, and neither number moves with the font. At 150% a column title needs
+        // about 24px, so the header clipped its own text along its bottom edge.
+        grid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+        grid.RowTemplate.Height = grid.TextBoxHeight(6);
+        foreach (DataGridViewRow row in grid.Rows)
+        {
+            row.Height = grid.RowTemplate.Height;
+        }
+
         ApplyNativeChrome(grid);
     }
 

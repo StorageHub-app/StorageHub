@@ -54,7 +54,10 @@ same at 125% -- the scaling this was all designed at -- and correct everywhere
 else. Doing it turned up boxes that were already too small for their own text
 before any of this: an 18px band around a 20px bold line in the connection
 detail pane, and a 30px band around a 14pt title in the object inspector. Five
-more pixel literals had never been converted at all.
+more pixel literals had never been converted at all. Every data grid
+kept its column header at a flat 23px and its rows at 22, neither of which moves
+with the font, so at 150% a header clipped its own titles along the bottom edge;
+they measure their contents now.
 
 Two things were being measured before there was anything to measure. Icons were
 rasterised against the *system* dpi rather than the display the window is
