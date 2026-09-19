@@ -90,6 +90,11 @@ internal sealed class TransferStrings : LocalizationModelBase
 
     public string ClearSelectedHistory { get; set; } = "Clear selected history";
 
+    public string CancelAndClearSelected { get; set; } = "Cancel and clear selected";
+
+    public string NothingCouldBeCancelled { get; set; } =
+        "None of the selected transfers could be cancelled, so none were cleared.";
+
     public string ClearAllHistory { get; set; } = "Clear all history...";
 
     // ----------------------------------------------------------------- columns

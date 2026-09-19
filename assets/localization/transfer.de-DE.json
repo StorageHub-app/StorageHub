@@ -31,6 +31,8 @@
   "nextPage": "Nächste Seite der Warteschlange anzeigen",
   "clearHistory": "Verlauf löschen",
   "clearSelectedHistory": "Ausgewählten Verlauf löschen",
+  "cancelAndClearSelected": "Ausgewählte abbrechen und entfernen",
+  "nothingCouldBeCancelled": "Keine der ausgewählten Übertragungen konnte abgebrochen werden, daher wurde keine entfernt.",
   "clearAllHistory": "Gesamten Verlauf löschen...",
   "columnOperation": "Vorgang",
   "columnSource": "Quelle",
