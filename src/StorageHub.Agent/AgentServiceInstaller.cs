@@ -63,7 +63,8 @@ public static class AgentServiceInstaller
         var stagedExecutable = AgentServiceStaging.Stage(agentExecutablePath);
         AgentServiceStaging.EnsureSafeForService(stagedExecutable);
         var binPath = $"\"{stagedExecutable}\" {AgentHostLayout.ServiceArgument}";
-        if (Describe().Installed)
+        var alreadyInstalled = Describe().Installed;
+        if (alreadyInstalled)
         {
             RunServiceControl("config", AgentHostLayout.ServiceName, "binPath=", binPath, "start=", "auto");
         }
@@ -84,7 +85,41 @@ public static class AgentServiceInstaller
             "description",
             AgentHostLayout.ServiceName,
             "Runs StorageHub transfers and scheduled synchronization without a signed-in user.");
-        Start();
+
+        try
+        {
+            Start();
+        }
+        catch (Exception) when (!alreadyInstalled)
+        {
+            // A registered service that will not start is worse than no service: the session agent
+            // refuses to run beside an installed one, so the machine would be left with no agent at
+            // all, and the only way out is a setting the operator has no reason to suspect. Putting
+            // the registration back means a refused opt-in simply leaves them where they started.
+            //
+            // Only for a service this call created. Reconfiguring one that already existed is a
+            // different situation -- the operator already has a service, and deleting it because a
+            // restart failed would discard something this call did not create.
+            RollBackFailedRegistration();
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Removes a service that was just created but could not be started. Best effort by design: the
+    /// caller is already reporting a failed install, and a registration that also refuses to be
+    /// deleted needs an operator either way.
+    /// </summary>
+    private static void RollBackFailedRegistration()
+    {
+        try
+        {
+            Uninstall();
+        }
+        catch (Exception)
+        {
+            // Nothing further to try without turning a failed install into a second failure.
+        }
     }
 
     /// <summary>Stops and deletes the service. Data is left where it is.</summary>

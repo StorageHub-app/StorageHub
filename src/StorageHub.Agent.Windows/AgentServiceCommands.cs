@@ -3,18 +3,25 @@ using System.Security.Principal;
 namespace StorageHub.Agent.Windows;
 
 /// <summary>
-/// The elevated half of switching host modes: migrate, then register or remove the service.
+/// The elevated half of switching host modes: bring the installation across, then register or
+/// remove the service.
 ///
-/// This runs as its own short-lived process because installing a service needs an elevated token
-/// the desktop does not have. It stays a single pass on purpose -- migration and installation in
-/// the same elevated run -- so the operator sees one consent prompt rather than one per step, and
-/// so the service is never registered against a machine location the secrets have not reached.
+/// This runs as its own short-lived process because managing a service needs an elevated token the
+/// desktop does not have. It stays a single pass on purpose -- migration and registration in the
+/// same elevated run -- so the operator sees one consent prompt rather than one per step, and so
+/// the service is never registered against a machine location the installation has not reached.
+///
+/// Both directions migrate. Only installing used to, which left anything done under the service
+/// stranded in ProgramData the moment somebody switched back.
 /// </summary>
 [System.Runtime.Versioning.SupportedOSPlatform("windows")]
 internal static class AgentServiceCommands
 {
     internal const string InstallArgument = "--install-service";
     internal const string UninstallArgument = "--uninstall-service";
+
+    /// <summary>Applied, but some secrets could not be read and must be entered again.</summary>
+    private const int PartialMigrationExitCode = 6;
 
     internal static async Task<int> ExecuteAsync(string[] args)
     {
@@ -26,31 +33,14 @@ internal static class AgentServiceCommands
                 return 5;
             }
 
-            if (args.Contains(UninstallArgument, StringComparer.OrdinalIgnoreCase))
-            {
-                AgentServiceInstaller.Uninstall();
-                Console.WriteLine("The StorageHub agent service was removed.");
-                return 0;
-            }
+            var machine = AgentDataLocation.For(AgentHostMode.WindowsService);
+            var user = AgentDataLocation.For(
+                AgentHostMode.UserSession,
+                ResolveInvokingUserRoot(args) ?? AgentHostLayout.ResolveDataRoot(AgentHostMode.UserSession));
 
-            var machineRoot = AgentHostLayout.ResolveDataRoot(AgentHostMode.WindowsService);
-            var userRoot = ResolveInvokingUserRoot(args)
-                ?? AgentHostLayout.ResolveDataRoot(AgentHostMode.UserSession);
-            var report = await AgentModeMigration
-                .CopyUserInstallationToMachineAsync(userRoot, machineRoot)
-                .ConfigureAwait(false);
-            Console.WriteLine(report.Summary);
-
-            using var identity = WindowsIdentity.GetCurrent();
-            var owner = identity.User ??
-                throw new InvalidOperationException("The current Windows account SID is unavailable.");
-            AgentServiceInstaller.Install(Environment.ProcessPath!, machineRoot, owner);
-            Console.WriteLine("The StorageHub agent service is installed and running.");
-
-            // A partial migration still leaves a working service, so it is reported rather than
-            // failed: the connections whose secrets did not survive can be re-entered, and saying
-            // so beats rolling back a service the operator asked for.
-            return report.Succeeded ? 0 : 6;
+            return args.Contains(UninstallArgument, StringComparer.OrdinalIgnoreCase)
+                ? await RemoveAsync(machine, user).ConfigureAwait(false)
+                : await InstallAsync(user, machine).ConfigureAwait(false);
         }
         catch (Exception error)
         {
@@ -59,10 +49,53 @@ internal static class AgentServiceCommands
         }
     }
 
+    private static async Task<int> InstallAsync(AgentDataLocation user, AgentDataLocation machine)
+    {
+        var report = await AgentModeMigration.MigrateAsync(user, machine).ConfigureAwait(false);
+        Console.WriteLine(report.Summary);
+
+        using var identity = WindowsIdentity.GetCurrent();
+        var owner = identity.User ??
+            throw new InvalidOperationException("The current Windows account SID is unavailable.");
+        AgentServiceInstaller.Install(Environment.ProcessPath!, machine.DataRoot, owner);
+        Console.WriteLine("The StorageHub agent service is installed and running.");
+
+        // A partial migration still leaves a working service, so it is reported rather than failed:
+        // the connections whose secrets did not survive can be re-entered, and saying so beats
+        // rolling back a service the operator asked for.
+        return report.Succeeded ? 0 : PartialMigrationExitCode;
+    }
+
     /// <summary>
-    /// The user data root to migrate from. Passed explicitly because an elevated launch can arrive
-    /// with a different profile than the desktop that requested it, and guessing would silently
-    /// migrate the wrong account's installation -- or nothing at all.
+    /// Stops the service, brings the installation back to the user location, and only then removes
+    /// the registration.
+    ///
+    /// Stopping first is what makes the copy trustworthy -- a database read out from under a
+    /// running agent is a database missing whatever it wrote in the meantime -- and the service is
+    /// being deleted anyway, so there is nothing to preserve by leaving it up. Deleting last means
+    /// a failed migration leaves the machine in the mode it was already in, rather than in neither.
+    /// </summary>
+    private static async Task<int> RemoveAsync(AgentDataLocation machine, AgentDataLocation user)
+    {
+        if (!AgentServiceInstaller.Describe().Installed)
+        {
+            Console.WriteLine("There was no StorageHub agent service to remove.");
+            return 0;
+        }
+
+        AgentServiceInstaller.Stop();
+        var report = await AgentModeMigration.MigrateAsync(machine, user).ConfigureAwait(false);
+        Console.WriteLine(report.Summary);
+
+        AgentServiceInstaller.Uninstall();
+        Console.WriteLine("The StorageHub agent service was removed.");
+        return report.Succeeded ? 0 : PartialMigrationExitCode;
+    }
+
+    /// <summary>
+    /// The user data root to migrate to and from. Passed explicitly because an elevated launch can
+    /// arrive with a different profile than the desktop that requested it, and guessing would
+    /// silently migrate the wrong account's installation -- or nothing at all.
     /// </summary>
     private static string? ResolveInvokingUserRoot(string[] args)
     {
