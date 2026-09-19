@@ -22,6 +22,40 @@ Nothing yet.
 
 ---
 
+## 1.4.3 — 2026-09-19
+
+The transfer queue stopped keeping things to itself.
+
+**A folder being copied into now fills as it copies.** Nothing reloaded a pane
+while transfers ran, or when they finished, so a copy of three thousand files
+left the destination showing what was there before it started until somebody
+pressed refresh. The panes are re-read every five seconds while work is
+outstanding and once more when it drains. A small copy used to miss even that:
+the reload waited to catch the queue busy on a poll, and a handful of files can
+be queued and finished between two of them, so it is armed when the transfers are
+accepted instead.
+
+**A pane no longer keeps an error the agent has recovered from.** "The background
+agent is not available" stayed on screen after the agent came back, because every
+other surface reloads itself on recovery and the panes were missed when that was
+built.
+
+**Conflicts can be cleared.** Applying the reconciliation action to a conflicted
+transfer reported success and changed nothing visible: the action list defaults to
+Review, the default only moved off it for one of the two states the conflicts tab
+shows, and Review on the other simply moved the transfer to the first — still a
+conflict, still on that tab. The default now moves for anything reconcilable, and
+the right-click menu offers to cancel a conflict and clear it in one step, since
+only a settled transfer can be cleared and nothing said so.
+
+**Dragging inside StorageHub no longer reports a cancellation.** A drag left a
+second queue row reading "Cancelled: dropped onto a StorageHub pane" — a marker
+for a drag out to Explorer that was retired as cancelled when the drop landed on
+a pane instead. It says a gesture failed when it succeeded, so it is discarded
+rather than settled.
+
+---
+
 ## 1.4.2 — 2026-09-19
 
 Dropping a folder used to look like nothing had happened.
