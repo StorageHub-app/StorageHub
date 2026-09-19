@@ -270,6 +270,29 @@ public sealed class ConnectionSidebarControlTests
     private static Point Centre(Rectangle bounds) =>
         new(bounds.X + (bounds.Width / 2), bounds.Y + (bounds.Height / 2));
 
+    [Fact]
+    public void Groups_span_the_pane_even_once_the_list_is_long_enough_to_scroll()
+    {
+        SyncRunReviewControlTests.RunOnSta(() =>
+        {
+            var cards = Enumerable.Range(0, 30)
+                .Select(index => Card(Guid.NewGuid(), $"Server {index}", StorageProviderKind.Sftp, "FRAGHUNT"))
+                .ToArray();
+            using var sidebar = new ConnectionSidebarControl { Size = new Size(320, 400) };
+            sidebar.CreateControl();
+
+            sidebar.SetConnections(cards, searchText: null, selectedConnectionId: null);
+
+            var content = Assert.Single(sidebar.Controls.OfType<FlowLayoutPanel>());
+            Assert.True(content.VerticalScroll.Visible, "the list should be long enough to scroll");
+            var expected = content.ClientSize.Width - content.Padding.Horizontal;
+            foreach (Control row in content.Controls)
+            {
+                Assert.Equal(expected, row.Width);
+            }
+        });
+    }
+
     private static void RaiseMouseUp(Control control, Point location) =>
         typeof(Control).GetMethod("OnMouseUp", BindingFlags.Instance | BindingFlags.NonPublic)!
             .Invoke(control, [new MouseEventArgs(MouseButtons.Left, 1, location.X, location.Y, 0)]);

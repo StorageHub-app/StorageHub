@@ -363,9 +363,10 @@ internal sealed class ConnectionSidebarControl : UserControl
             // that flips it back is accepted rather than chased.
             for (var pass = 0; pass < 3; pass++)
             {
+                // ClientSize already excludes the scrollbar when it is showing, so subtracting the
+                // scrollbar width here as well would leave the rows a scrollbar short of the pane.
                 var measured = _content.ClientSize.Width;
-                var width = Math.Max(120, measured - _content.Padding.Horizontal -
-                    (_content.VerticalScroll.Visible ? SystemInformation.VerticalScrollBarWidth : 0));
+                var width = Math.Max(120, measured - _content.Padding.Horizontal);
                 _content.SuspendLayout();
                 try
                 {
