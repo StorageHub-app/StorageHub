@@ -461,6 +461,12 @@ public sealed class PackagedDesktopLifecycle : IDisposable
         return false;
     }
 
+    /// <summary>
+    /// Whether the agent belongs to this desktop. False when it is hosted as a Windows service,
+    /// which owns its own lifetime and is stopped through the service control manager.
+    /// </summary>
+    public bool DesktopOwnsAgent => _options.DesktopOwnsAgent();
+
     public async ValueTask<bool> TryStopAgentAsync(
         AgentShutdownReason reason,
         CancellationToken cancellationToken = default)
@@ -540,11 +546,36 @@ public sealed class DesktopPackageLifecycleHooks(PackagedDesktopLifecycle lifecy
 
     public void AfterUpdate() => _ = _lifecycle.ConfigureAutostart();
 
-    public void BeforeUpdate() => StopSynchronously(AgentShutdownReason.Update);
+    /// <summary>
+    /// Stops the agent so an update is not swapping files underneath it -- but only an agent
+    /// this desktop started.
+    ///
+    /// A service-hosted agent answers the same pipe, so an unconditional shutdown request here
+    /// stopped the service.s own process behind the service control manager.s back. Windows
+    /// recorded an unexpected termination and, with no failure actions configured, left it
+    /// stopped -- so every single update ended with the desktop reporting that the agent did not
+    /// become ready. There is nothing to get out of the way either: an update replaces the
+    /// application, not the machine-owned copy the service runs from.
+    /// </summary>
+    public void BeforeUpdate()
+    {
+        if (!_lifecycle.DesktopOwnsAgent)
+        {
+            return;
+        }
+
+        StopSynchronously(AgentShutdownReason.Update);
+    }
 
     public void BeforeUninstall()
     {
-        StopSynchronously(AgentShutdownReason.Uninstall);
+        // Same reasoning as BeforeUpdate. Removing the service below is what stops a
+        // service-hosted agent, through the service control manager rather than behind it.
+        if (_lifecycle.DesktopOwnsAgent)
+        {
+            StopSynchronously(AgentShutdownReason.Uninstall);
+        }
+
         _ = _lifecycle.RemoveAutostart();
         TryRemoveAgentService();
         _ = _unregisterExplorerDropBroker();

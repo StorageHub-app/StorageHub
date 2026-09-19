@@ -318,6 +318,56 @@ public sealed class PackagedDesktopLifecycleTests
         Assert.Equal(expected, version);
     }
 
+    /// <summary>
+    /// A service-hosted agent answers the same pipe as one the desktop started, so an
+    /// unconditional shutdown before an update stopped the service.s own process behind the
+    /// service control manager.s back. Windows logged an unexpected termination and, with no
+    /// failure actions, left it stopped -- so every update ended with "the background agent did
+    /// not become ready in time". It happened four times on one machine in a single evening.
+    /// </summary>
+    [Fact]
+    public void AnUpdateLeavesAServiceHostedAgentAlone()
+    {
+        var fixture = CreateFixture(desktopOwnsAgent: false);
+
+        new DesktopPackageLifecycleHooks(fixture.Lifecycle).BeforeUpdate();
+
+        Assert.Empty(fixture.AgentClient.ShutdownReasons);
+    }
+
+    [Fact]
+    public void AnUpdateStillStopsAnAgentTheDesktopStarted()
+    {
+        var fixture = CreateFixture(desktopOwnsAgent: true, shutdownResult: true);
+
+        new DesktopPackageLifecycleHooks(fixture.Lifecycle).BeforeUpdate();
+
+        Assert.Equal(
+            AgentShutdownReason.Update,
+            Assert.Single(fixture.AgentClient.ShutdownReasons));
+    }
+
+    /// <summary>Removing the service stops it, through the control manager rather than behind it.</summary>
+    [Fact]
+    public void UninstallingLeavesAServiceHostedAgentToTheServiceControlManager()
+    {
+        var fixture = CreateFixture(desktopOwnsAgent: false);
+
+        new DesktopPackageLifecycleHooks(fixture.Lifecycle, () => true).BeforeUninstall();
+
+        Assert.Empty(fixture.AgentClient.ShutdownReasons);
+    }
+
+    [Fact]
+    public void UninstallingStopsAnAgentTheDesktopStarted()
+    {
+        var fixture = CreateFixture(desktopOwnsAgent: true, shutdownResult: true);
+
+        new DesktopPackageLifecycleHooks(fixture.Lifecycle, () => true).BeforeUninstall();
+
+        Assert.Contains(AgentShutdownReason.Uninstall, fixture.AgentClient.ShutdownReasons);
+    }
+
     private static LifecycleFixture CreateFixture(
         bool disableAutostart = false,
         bool agentAvailable = false,

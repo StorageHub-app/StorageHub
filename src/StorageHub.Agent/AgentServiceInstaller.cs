@@ -86,6 +86,18 @@ public static class AgentServiceInstaller
             AgentHostLayout.ServiceName,
             "Runs StorageHub transfers and scheduled synchronization without a signed-in user.");
 
+        // Windows does nothing for a service with no failure actions, so a single crash left the
+        // machine with no agent until somebody noticed and started it by hand -- and the only
+        // symptom is the desktop reporting that the agent did not become ready. Five seconds,
+        // then ten, then thirty, forgetting a bad day after 24 hours.
+        RunServiceControl(
+            "failure",
+            AgentHostLayout.ServiceName,
+            "reset=",
+            "86400",
+            "actions=",
+            "restart/5000/restart/10000/restart/30000");
+
         try
         {
             Start();

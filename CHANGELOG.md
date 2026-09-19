@@ -18,6 +18,26 @@ chosen is written down in [Versioning and merges](docs/versioning.md).
 
 ## Unreleased
 
+**Updating no longer kills a service-hosted agent.** Before applying an update
+the desktop asked the agent to shut down, so that files were not swapped
+underneath it. It asked unconditionally -- and a service-hosted agent answers
+the same pipe, so it obliged. The service control manager had issued no stop,
+so Windows recorded an unexpected termination, and with no failure actions
+configured it left the service stopped. Every single update therefore ended
+with "the StorageHub background agent did not become ready in time", on a
+machine where nothing was wrong until the update ran.
+
+The stop now applies only to an agent this desktop started. There was nothing
+to get out of the way in the first place: an update replaces the application,
+not the machine-owned copy the service runs from. Uninstalling is the same --
+removing the service is what stops it, through the control manager rather than
+behind it.
+
+Registering the service also configures what Windows should do when the agent
+dies: restart after five seconds, then ten, then thirty. Without failure
+actions a crash was permanent, and the only symptom was the desktop reporting
+that the agent never became ready.
+
 **An update tells you when it cannot bring the agent with it.** In the session
 modes the agent lives inside the installation and updates with it. Hosted as a
 Windows service it cannot: StorageHub installs per user, into a directory the
