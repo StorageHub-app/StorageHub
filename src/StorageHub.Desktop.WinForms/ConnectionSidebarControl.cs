@@ -726,18 +726,30 @@ internal sealed class ConnectionSidebarItem : Control
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     internal Image? DeleteIcon { get; set; }
 
+    private int ScaledActionSize => LogicalToDeviceUnits(ActionSize);
+
+    private int ScaledActionInset => LogicalToDeviceUnits(ActionInset);
+
     /// <summary>Internal so the hit targets can be driven directly from tests.</summary>
     internal Rectangle EditBounds => new(
-        Width - (ActionSize * 2) - ActionGap - ActionInset, (Height - ActionSize) / 2, ActionSize, ActionSize);
+        Width - (ScaledActionSize * 2) - LogicalToDeviceUnits(ActionGap) - ScaledActionInset,
+        (Height - ScaledActionSize) / 2,
+        ScaledActionSize,
+        ScaledActionSize);
 
     internal Rectangle DeleteBounds => new(
-        Width - ActionSize - ActionInset, (Height - ActionSize) / 2, ActionSize, ActionSize);
+        Width - ScaledActionSize - ScaledActionInset,
+        (Height - ScaledActionSize) / 2,
+        ScaledActionSize,
+        ScaledActionSize);
 
     /// <summary>
     /// Reserved whether or not the icons are currently painted, so the name does not reflow under
-    /// the pointer as the row is hovered.
+    /// the pointer as the row is hovered. The trailing gap keeps the caption off the first icon.
     /// </summary>
-    private int ActionStripWidth => ShowActions ? (ActionSize * 2) + ActionGap + ActionInset + 4 : 0;
+    private int ActionStripWidth => ShowActions
+        ? Width - EditBounds.Left + LogicalToDeviceUnits(8)
+        : 0;
 
     [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     internal bool Selected
@@ -961,8 +973,11 @@ internal sealed class ConnectionSidebarItem : Control
         // list into a wall of icons, but a keyboard user never hovers.
         if (ShowActions && (_hovered || _selected || Focused))
         {
-            DrawAction(e.Graphics, EditIcon, EditBounds, _hotAction == ConnectionRowAction.Edit, danger: false);
-            DrawAction(e.Graphics, DeleteIcon, DeleteBounds, _hotAction == ConnectionRowAction.Delete, danger: true);
+            var iconSize = LogicalToDeviceUnits(ActionIconSize);
+            DrawAction(
+                e.Graphics, EditIcon, EditBounds, iconSize, _hotAction == ConnectionRowAction.Edit, danger: false);
+            DrawAction(
+                e.Graphics, DeleteIcon, DeleteBounds, iconSize, _hotAction == ConnectionRowAction.Delete, danger: true);
         }
 
         if (Focused)
@@ -971,7 +986,13 @@ internal sealed class ConnectionSidebarItem : Control
         }
     }
 
-    private static void DrawAction(Graphics graphics, Image? icon, Rectangle bounds, bool hot, bool danger)
+    private static void DrawAction(
+        Graphics graphics,
+        Image? icon,
+        Rectangle bounds,
+        int iconSize,
+        bool hot,
+        bool danger)
     {
         if (hot)
         {
@@ -990,10 +1011,10 @@ internal sealed class ConnectionSidebarItem : Control
         graphics.DrawImage(
             icon,
             new Rectangle(
-                bounds.X + ((bounds.Width - 16) / 2),
-                bounds.Y + ((bounds.Height - 16) / 2),
-                16,
-                16));
+                bounds.X + ((bounds.Width - iconSize) / 2),
+                bounds.Y + ((bounds.Height - iconSize) / 2),
+                iconSize,
+                iconSize));
     }
 
     /// <summary>
