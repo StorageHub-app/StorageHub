@@ -139,6 +139,43 @@ public sealed class TransferQueueControlTests
         NeedsReconciliation: false);
 
     [Fact]
+    public void Selecting_an_interrupted_transfer_moves_the_reconcile_action_off_review()
+    {
+        SyncRunReviewControlTests.RunOnSta(() =>
+        {
+            var interrupted = Summary(TransferQueueState.Interrupted, progress: 0, expected: 1) with
+            {
+                NeedsReconciliation = true
+            };
+            var client = new FakeQueueClient { Transfers = [interrupted] };
+            using var form = new Form { ClientSize = new Size(1_400, 600) };
+            using var control = new TransferQueueControl(client);
+            form.Controls.Add(control);
+            form.Show();
+            var tabs = Assert.Single(control.Controls.OfType<TabControl>());
+            tabs.SelectedTab = tabs.TabPages.Cast<TabPage>().Single(page => page.Name == "Conflicts");
+            control.RefreshQueueAsync().GetAwaiter().GetResult();
+            System.Windows.Forms.Application.DoEvents();
+
+            var grid = Descendants<DataGridView>(tabs.SelectedTab).Single();
+            Assert.Equal(1, grid.Rows.Count);
+            grid.Rows[0].Selected = true;
+            System.Windows.Forms.Application.DoEvents();
+
+            // Review on an Interrupted transfer moves it to NeedsReconciliation, which is still a
+            // conflict on this same tab. Leaving it as the default made the button report success
+            // and change nothing anybody could see.
+            var action = Descendants<ToolStrip>(control)
+                .SelectMany(strip => strip.Items.Cast<ToolStripItem>())
+                .Single(item => item.Name == "ReconciliationAction");
+            Assert.True(action.Enabled);
+            Assert.Equal(
+                TransferReconciliationAction.Restart,
+                ((StorageHubToolStripChoice)action).SelectedItem);
+        });
+    }
+
+    [Fact]
     public void Control_stays_inert_until_shown_and_renders_an_explicit_refresh()
     {
         SyncRunReviewControlTests.RunOnSta(() =>
@@ -257,10 +294,29 @@ public sealed class TransferQueueControlTests
         });
     }
 
+    private static IEnumerable<T> Descendants<T>(Control root) where T : Control
+    {
+        foreach (Control child in root.Controls)
+        {
+            if (child is T match)
+            {
+                yield return match;
+            }
+
+            foreach (var descendant in Descendants<T>(child))
+            {
+                yield return descendant;
+            }
+        }
+    }
+
     private sealed class FakeQueueClient : ITransferQueueAgentClient
     {
         public int ListCount { get; private set; }
         public TransferQueueState[]? LastStates { get; private set; }
+
+        /// <summary>Returned instead of the default page when a test needs particular rows.</summary>
+        public TransferQueueSummary[]? Transfers { get; init; }
 
         public Task<TransferEnqueueResponse> EnqueueAsync(
             TransferEnqueueRequest request,
@@ -272,6 +328,15 @@ public sealed class TransferQueueControlTests
         {
             ListCount++;
             LastStates = request.States;
+            if (Transfers is { } supplied)
+            {
+                return Task.FromResult(new TransferListResponse(
+                    TransferQueueIpcContract.CurrentVersion,
+                    supplied,
+                    ContinuationToken: null,
+                    StateCounts: new Dictionary<TransferQueueState, int>()));
+            }
+
             return Task.FromResult(new TransferListResponse(
                 TransferQueueIpcContract.CurrentVersion,
                 [new TransferQueueSummary(

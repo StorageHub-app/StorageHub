@@ -90,7 +90,6 @@
   "dropRequiresConnection": "Ablegen aus dem Explorer erfordert einen geöffneten Ordner einer gespeicherten Verbindung.",
   "dropCouldNotInitialize": "StorageHub konnte das Ablegen aus dem Explorer nicht vorbereiten.",
   "dropNotInitialized": "Der Ablegevorgang konnte nicht vorbereitet werden.",
-  "droppedOntoPane": "Auf einem StorageHub-Bereich abgelegt.",
   "noDestinationReported": "Es wurde kein Ziel gemeldet.",
   "dragCouldNotStart": "Windows konnte den Ziehvorgang nicht starten.",
   "dragCouldNotStartFormat": "Windows konnte den Ziehvorgang nicht starten: {0}",

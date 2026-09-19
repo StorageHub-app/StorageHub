@@ -11,6 +11,20 @@ public sealed class MainForm : Form
     private readonly ManualTransferController _manualTransfers = new();
     private readonly NamedPipeTransferQueueAgentClient _shellTransfers = new();
     private readonly RecursiveTransferController _recursiveTransfers;
+
+    /// <summary>
+    /// Re-reads the open workspace while transfers are landing. Five seconds is slow enough that a
+    /// long copy does not spend itself re-listing a folder, and quick enough that the folder is
+    /// visibly filling rather than jumping to its final contents at the end.
+    /// </summary>
+    private readonly System.Windows.Forms.Timer _paneRefresh = new() { Interval = 5_000 };
+
+    /// <summary>
+    /// Whether transfers are outstanding that the open workspace has not been re-read for. Set when
+    /// transfers are accepted rather than when the queue is next seen to be busy: a small copy can
+    /// start and finish between two polls, and waiting to observe it means never reloading at all.
+    /// </summary>
+    private bool _transfersPendingReload;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly ToolStripStatusLabel _locationStatus = new() { Spring = true, TextAlign = ContentAlignment.MiddleLeft };
     private readonly ToolStripStatusLabel _selectionStatus = new();
@@ -167,6 +181,7 @@ public sealed class MainForm : Form
         mainSplit.Panel1.Controls.Add(_workspaceTabs);
         _transferQueue = new TransferQueueControl(_updatePreferencesStore) { PendingDrops = _pendingDrops };
         _transferQueue.QueueCountsChanged += TransferQueueCountsChanged;
+        _paneRefresh.Tick += (_, _) => ReloadWorkspacePanes();
         _manualTransfers.TransfersEnqueued += ManualTransfersEnqueued;
         mainSplit.Panel2.Controls.Add(_transferQueue);
 
@@ -371,6 +386,8 @@ public sealed class MainForm : Form
             _workspaceTabs.MouseDown -= WorkspaceTabsMouseDown;
             _agentMonitor.StatusChanged -= AgentMonitorStatusChanged;
             DesktopAgentAvailability.Changed -= AgentAvailabilityChanged;
+            _paneRefresh.Stop();
+            _paneRefresh.Dispose();
             _updater.StatusChanged -= UpdaterStatusChanged;
             _updater.RestartRequested -= UpdaterRestartRequested;
             _updateStatus.Click -= UpdateStatusClicked;
@@ -3311,6 +3328,8 @@ public sealed class MainForm : Form
                     int.MaxValue,
                     (long)_status.QueuedJobs + e.AcceptedTransferIds.Count);
                 ApplyStatus(_status with { QueuedJobs = queuedJobs });
+                _transfersPendingReload = true;
+                _paneRefresh.Start();
                 _ = _transferQueue.RefreshQueueAsync(_lifetime.Token);
             }));
         }
@@ -3394,6 +3413,14 @@ public sealed class MainForm : Form
                 if (!IsDisposed && _status.AgentState != state)
                 {
                     ApplyStatus(_status with { AgentState = state });
+                }
+
+                // A pane that failed while the agent was away keeps its error banner until
+                // something asks it to try again. Every other surface already reloads itself on
+                // recovery; the panes were left showing a stale failure until a manual refresh.
+                if (!IsDisposed && e.Recovered)
+                {
+                    ReloadWorkspacePanes();
                 }
             }));
         }
@@ -3662,9 +3689,52 @@ public sealed class MainForm : Form
             return;
         }
 
+        var working = e.QueuedJobs + e.ActiveJobs > 0;
         if (_status.QueuedJobs != e.QueuedJobs || _status.ActiveJobs != e.ActiveJobs)
         {
             ApplyStatus(_status with { QueuedJobs = e.QueuedJobs, ActiveJobs = e.ActiveJobs });
+        }
+
+        // Files appear in a folder as a copy runs, so the folder is re-read while it runs and once
+        // more when it stops. Not per transfer: a folder copy finishes thousands of them, and a
+        // reload each would spend the whole copy re-listing the destination.
+        if (working)
+        {
+            // Work the desktop did not enqueue itself, from a drag out to Explorer or a schedule.
+            _transfersPendingReload = true;
+            _paneRefresh.Start();
+            return;
+        }
+
+        _paneRefresh.Stop();
+        if (_transfersPendingReload)
+        {
+            _transfersPendingReload = false;
+            ReloadWorkspacePanes();
+        }
+    }
+
+    /// <summary>
+    /// Re-reads every pane of the open workspace.
+    ///
+    /// Deliberately not <see cref="TryGetActiveWorkspacePanes"/>, which looks for a SplitContainer
+    /// sitting directly under the tab. A workspace has not been built that way since it gained
+    /// rearrangeable panes -- it hosts a <see cref="WorkspaceControl"/>, and the panes live inside
+    /// that -- so the lookup finds nothing and quietly does nothing.
+    /// </summary>
+    private void ReloadWorkspacePanes()
+    {
+        if (_workspaceTabs.SelectedTab is not { } page)
+        {
+            return;
+        }
+
+        foreach (var workspace in page.Controls.OfType<WorkspaceControl>())
+        {
+            foreach (var pane in workspace.Panes)
+            {
+                pane.Reload();
+            }
         }
     }
 

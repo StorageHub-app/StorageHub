@@ -2483,8 +2483,10 @@ public sealed class BrowserPaneControl : UserControl
         if (dropToken is not null && payload.InternalDropHandled)
         {
             // The selection was dropped on another StorageHub pane, so the Explorer marker was
-            // never used and the pending row should settle rather than wait for a destination.
-            PendingDrops?.MarkCancelled(dropToken, Ui.Pane.DroppedOntoPane);
+            // never used. Dropped, not cancelled: the drop is being carried out by the pane that
+            // received it, which posts its own row, and a marker that never became work should
+            // leave rather than settle into a terminal state that misreports the gesture.
+            PendingDrops?.Discard(dropToken);
         }
 
         if (registration is not null && CommitExplorerDropAsync is not null)

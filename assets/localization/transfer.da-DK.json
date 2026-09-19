@@ -31,6 +31,8 @@
   "nextPage": "Vis den næste side af køen",
   "clearHistory": "Ryd historik",
   "clearSelectedHistory": "Ryd den valgte historik",
+  "cancelAndClearSelected": "Annuller og ryd de valgte",
+  "nothingCouldBeCancelled": "Ingen af de valgte overførsler kunne annulleres, så ingen blev ryddet.",
   "clearAllHistory": "Ryd al historik...",
   "columnOperation": "Handling",
   "columnSource": "Kilde",

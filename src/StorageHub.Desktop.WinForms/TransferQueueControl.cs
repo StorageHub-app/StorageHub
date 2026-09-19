@@ -323,17 +323,95 @@ public sealed class TransferQueueControl : UserControl
             AccessibleName = Ui.Transfer.HistoryCommands
         };
         var clearSelected = new ToolStripMenuItem(Ui.Transfer.ClearSelectedHistory);
+        var cancelAndClear = new ToolStripMenuItem(Ui.Transfer.CancelAndClearSelected);
         var clearAll = new ToolStripMenuItem(Ui.Transfer.ClearAllHistory);
         clearSelected.Click += async (_, _) => await ClearSelectedHistoryAsync(grid).ConfigureAwait(true);
+        cancelAndClear.Click += async (_, _) => await CancelAndClearSelectedAsync(grid).ConfigureAwait(true);
         clearAll.Click += async (_, _) => await ClearAllHistoryAsync().ConfigureAwait(true);
         menu.Items.Add(clearSelected);
+        menu.Items.Add(cancelAndClear);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(clearAll);
-        menu.Opening += (_, _) => clearSelected.Enabled = grid.SelectedRows.Cast<DataGridViewRow>()
-            .Select(row => row.Tag)
-            .OfType<TransferQueueSummary>()
-            .Any(IsHistoryState);
+        menu.Opening += (_, _) =>
+        {
+            var selected = SelectedSummaries(grid);
+            clearSelected.Enabled = selected.Any(IsHistoryState);
+            // Only finished transfers can be cleared, so a conflict has to be settled first. Doing
+            // both from one entry is what somebody trying to get rid of the row actually wants,
+            // and it still cancels the transfer rather than dropping unresolved work.
+            cancelAndClear.Enabled = selected.Any(CanCancelAndClear);
+        };
         grid.ContextMenuStrip = menu;
+    }
+
+    private static TransferQueueSummary[] SelectedSummaries(DataGridView grid) =>
+        [.. grid.SelectedRows.Cast<DataGridViewRow>()
+            .Select(row => row.Tag)
+            .OfType<TransferQueueSummary>()];
+
+    /// <summary>An unresolved transfer that can be settled before being cleared.</summary>
+    private static bool CanCancelAndClear(TransferQueueSummary transfer) =>
+        !IsHistoryState(transfer) && transfer.CanCancel;
+
+    /// <summary>
+    /// Cancels the unresolved transfers in the selection and then clears them. Cancelling is what
+    /// makes them clearable, so the two have to happen in order and only the ones the agent
+    /// actually cancelled are cleared -- a transfer it refused stays where it is rather than
+    /// disappearing unresolved.
+    /// </summary>
+    private async Task CancelAndClearSelectedAsync(DataGridView grid)
+    {
+        var targets = SelectedSummaries(grid)
+            .Where(CanCancelAndClear)
+            .DistinctBy(transfer => transfer.TransferId)
+            .Take(TransferQueueIpcLimits.MaximumPageSize)
+            .ToArray();
+        if (targets.Length == 0)
+        {
+            return;
+        }
+
+        SetBusy(true, Ui.Transfer.ApplyingAction);
+        var cancelled = new List<Guid>(targets.Length);
+        try
+        {
+            foreach (var transfer in targets)
+            {
+                var response = await _client.CancelAsync(
+                    new TransferCancelRequest(
+                        TransferQueueIpcContract.CurrentVersion,
+                        transfer.TransferId,
+                        transfer.Revision),
+                    _lifetime.Token).ConfigureAwait(true);
+                if (response.Outcome is TransferQueueMutationOutcome.Applied or
+                    TransferQueueMutationOutcome.Accepted)
+                {
+                    cancelled.Add(transfer.TransferId);
+                }
+            }
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception error)
+        {
+            SetUnavailable(error);
+            return;
+        }
+        finally
+        {
+            SetBusy(false);
+        }
+
+        if (cancelled.Count == 0)
+        {
+            _status.Text = Ui.Transfer.NothingCouldBeCancelled;
+            return;
+        }
+
+        await ClearHistoryAsync(new TransferHistoryClearRequest(
+            TransferQueueIpcContract.CurrentVersion, [.. cancelled], ClearAll: false)).ConfigureAwait(true);
     }
 
     private async Task ClearSelectedHistoryAsync(DataGridView grid)
@@ -838,9 +916,13 @@ public sealed class TransferQueueControl : UserControl
         // The values are enum members, so both sides of this are the enum. It used to compare
         // against a name and then assign a string, which a combo box quietly ignored -- the
         // default action never moved off Review.
-        if (canReconcile &&
-            selected.Any(static transfer => transfer.State == TransferQueueState.NeedsReconciliation) &&
-            _reconcileAction.SelectedItem is TransferReconciliationAction.Review)
+        //
+        // It moves for anything reconcilable, not only for NeedsReconciliation. The conflicts tab
+        // also holds Interrupted transfers, and Review on one of those moves it to
+        // NeedsReconciliation -- still a conflict, still on this tab, still counted. Applying the
+        // default therefore reported success and changed nothing anybody could see, which reads as
+        // a button that does not work.
+        if (canReconcile && _reconcileAction.SelectedItem is TransferReconciliationAction.Review)
         {
             _reconcileAction.SelectedItem = TransferReconciliationAction.Restart;
         }
