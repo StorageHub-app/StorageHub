@@ -18,6 +18,21 @@ chosen is written down in [Versioning and merges](docs/versioning.md).
 
 ## Unreleased
 
+**An update tells you when it cannot bring the agent with it.** In the session
+modes the agent lives inside the installation and updates with it. Hosted as a
+Windows service it cannot: StorageHub installs per user, into a directory the
+user can write, and a service binary its own user can replace runs that user's
+code as SYSTEM -- so the service runs from a machine-owned copy instead, and the
+unelevated updater has no way to reach it. The result was an application that
+moved forward while the service stayed on the version it was staged with, and
+nothing said so.
+
+The update now says so while there is still a decision to be made, and Check
+installation will bring the service across afterwards in one elevated pass:
+stopping it, copying the current agent over the staged one, and starting it
+again. Until now that repair only told you to go and re-apply the service mode
+yourself.
+
 ## 1.4.5 — 2026-09-19
 
 **StorageHub can tell you what is wrong with itself.** When the background

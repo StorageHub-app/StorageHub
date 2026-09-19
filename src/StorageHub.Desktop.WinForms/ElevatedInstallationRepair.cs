@@ -22,7 +22,8 @@ internal static class ElevatedInstallationRepair
         // Nothing to elevate for, or the token is already elevated: do it here and skip the prompt.
         if (!AgentInstallationRepair.RequiresElevation(repair) || AgentHostLayout.IsElevated())
         {
-            return AgentInstallationRepair.Apply(repair, mode);
+            // Already elevated: the bundled agent is the copy the service should be running.
+            return AgentInstallationRepair.Apply(repair, mode, ResolveBundledAgent());
         }
 
         string agent;
@@ -41,6 +42,20 @@ internal static class ElevatedInstallationRepair
         }
 
         return Run(agent, repair);
+    }
+
+
+    private static string? ResolveBundledAgent()
+    {
+        try
+        {
+            var agent = PackagedDesktopLifecycle.CreateDefault().AgentExecutablePath;
+            return File.Exists(agent) ? agent : null;
+        }
+        catch (Exception error) when (error is InvalidOperationException or IOException)
+        {
+            return null;
+        }
     }
 
     private static InstallationRepairResult Run(string agent, InstallationRepair repair)

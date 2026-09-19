@@ -34,7 +34,16 @@ public static class AgentInstallationRepair
     /// Applies one repair. Returns rather than throws, because every one of these can fail for a
     /// reason the operator needs to read -- most often that the token is not elevated.
     /// </summary>
-    public static InstallationRepairResult Apply(InstallationRepair repair, AgentHostMode mode)
+    /// <param name="agentSourcePath">
+    /// The agent to copy when re-staging. Passed in rather than taken from the running process,
+    /// because this runs in the agent when elevation was needed and in the desktop when it was
+    /// not -- and staging the desktop over the service would be a memorable way to break a
+    /// machine.
+    /// </param>
+    public static InstallationRepairResult Apply(
+        InstallationRepair repair,
+        AgentHostMode mode,
+        string? agentSourcePath = null)
     {
         if (repair == InstallationRepair.None)
         {
@@ -54,10 +63,7 @@ public static class AgentInstallationRepair
             InstallationRepair.CreateAgentDirectory => CreateAgentDirectory(mode),
             InstallationRepair.StartService => StartService(),
             InstallationRepair.ConfigureServiceRecovery => ConfigureRecovery(),
-            InstallationRepair.RestageAgent => new InstallationRepairResult(
-                false,
-                "Re-staging copies the agent into a machine-owned directory, which the installer does as part "
-                    + "of applying the service mode. Choose the service mode again in Settings to re-apply it."),
+            InstallationRepair.RestageAgent => Restage(agentSourcePath),
             _ => new InstallationRepairResult(false, "Unknown repair."),
         };
     }
@@ -86,6 +92,46 @@ public static class AgentInstallationRepair
         catch (Exception error) when (error is InvalidOperationException or System.ComponentModel.Win32Exception or TimeoutException)
         {
             return new InstallationRepairResult(false, $"The service did not start: {error.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Copies the current agent over the one the service runs from.
+    ///
+    /// Needed because an application update cannot do it: the updater is unelevated and the
+    /// staged copy lives somewhere only administrators may write, which is the whole point --
+    /// a service binary its own user can replace runs that user.s code as SYSTEM. The service
+    /// must be stopped first, because it holds the file it is executing.
+    /// </summary>
+    private static InstallationRepairResult Restage(string? agentSourcePath)
+    {
+        if (string.IsNullOrWhiteSpace(agentSourcePath) || !File.Exists(agentSourcePath))
+        {
+            return new InstallationRepairResult(
+                false,
+                "The agent to copy from could not be found, so nothing was changed.");
+        }
+
+        try
+        {
+            var wasRunning = AgentServiceInstaller.Describe().Running;
+            if (wasRunning)
+            {
+                AgentServiceInstaller.Stop();
+            }
+
+            var staged = AgentServiceStaging.Stage(agentSourcePath);
+            AgentServiceStaging.EnsureSafeForService(staged);
+            AgentServiceInstaller.Start();
+            return new InstallationRepairResult(true, "The service is running the current agent.");
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException
+            or InvalidOperationException or System.ComponentModel.Win32Exception or TimeoutException)
+        {
+            return new InstallationRepairResult(
+                false,
+                $"The agent could not be re-staged: {error.Message}. The service may be stopped; "
+                    + "check the installation again.");
         }
     }
 

@@ -79,7 +79,10 @@ internal static class AgentServiceCommands
             return 2;
         }
 
-        var result = AgentInstallationRepair.Apply(repair, AgentHostMode.WindowsService);
+        // Environment.ProcessPath is this agent, launched from the install directory, which is
+        // exactly the copy the service should be running.
+        var result = AgentInstallationRepair.Apply(
+            repair, AgentHostMode.WindowsService, Environment.ProcessPath);
         Console.WriteLine(result.Message);
         return result.Succeeded ? 0 : 1;
     }

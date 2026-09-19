@@ -15,6 +15,7 @@ internal sealed class UpdateCheckerForm : Form
     private readonly DesktopUpdater _updater;
     private readonly Label _headline;
     private readonly Label _detail;
+    private readonly Label _serviceNotice;
     private readonly Label _installed;
     private readonly Label _channel;
     private readonly ProgressBar _progress;
@@ -52,6 +53,17 @@ internal sealed class UpdateCheckerForm : Form
             ForeColor = StorageHubTheme.TextMuted,
             AccessibleName = Ui.Updates.UpdateDetail
         };
+
+        // Hidden unless the agent runs as a service, where an update leaves it behind.
+        _serviceNotice = new Label
+        {
+            Dock = DockStyle.Top,
+            AutoSize = false,
+            Height = this.TextBoxHeight(44),
+            ForeColor = StorageHubTheme.Warning,
+            Visible = false,
+            AccessibleName = "What this update does not cover"
+        };
         _progress = new ProgressBar
         {
             Dock = DockStyle.Top,
@@ -85,6 +97,7 @@ internal sealed class UpdateCheckerForm : Form
         body.Controls.Add(_channel);
         body.Controls.Add(_installed);
         body.Controls.Add(_progress);
+        body.Controls.Add(_serviceNotice);
         body.Controls.Add(_detail);
         body.Controls.Add(_headline);
 
@@ -194,6 +207,10 @@ internal sealed class UpdateCheckerForm : Form
         };
         _detail.Text = DescribeDetail(snapshot);
 
+        var notice = DescribeServiceAgentNotice(snapshot, DesktopAgentHost.Mode);
+        _serviceNotice.Text = notice ?? string.Empty;
+        _serviceNotice.Visible = notice is not null;
+
         var downloading = snapshot.State == DesktopUpdateState.Downloading;
         _progress.Visible = downloading;
         if (downloading)
@@ -240,6 +257,32 @@ internal sealed class UpdateCheckerForm : Form
         DesktopUpdateState.Failed => Ui.Updates.TheUpdateCouldNotBeCompleted,
         _ => Ui.Updates.Updates
     };
+
+    /// <summary>
+    /// What an update does not cover when the agent runs as a service, or null when it does.
+    ///
+    /// The updater is unelevated, and the copy the service runs from is machine-owned so that
+    /// the user it runs beside cannot replace a binary executing as SYSTEM. So an update moves
+    /// the application and leaves the service on the version it was staged with. Saying so here
+    /// is the difference between an informed restart and discovering later that the agent is a
+    /// release behind.
+    /// </summary>
+    internal static string? DescribeServiceAgentNotice(
+        DesktopUpdateSnapshot snapshot,
+        StorageHub.Agent.AgentHostMode mode)
+    {
+        if (mode != StorageHub.Agent.AgentHostMode.WindowsService)
+        {
+            return null;
+        }
+
+        return snapshot.State is DesktopUpdateState.UpdateAvailable
+            or DesktopUpdateState.Downloading or DesktopUpdateState.ReadyToRestart
+            ? "The background agent runs as a Windows service, from a copy only administrators "
+                + "may replace. This update cannot bring it across. Afterwards, Check installation "
+                + "will offer to update the service, which asks for administrator approval."
+            : null;
+    }
 
     internal static string DescribeDetail(DesktopUpdateSnapshot snapshot) => snapshot.State switch
     {
