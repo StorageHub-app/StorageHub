@@ -1,4 +1,5 @@
-﻿using StorageHub.Contracts.Ipc;
+﻿using System.Runtime.CompilerServices;
+using StorageHub.Contracts.Ipc;
 using StorageHub.Contracts.Results;
 using StorageHub.Desktop.Localization;
 
@@ -37,11 +38,16 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
         _ownsClients = ownsClients;
     }
 
+    /// <param name="progress">
+    /// Called with the running file and folder counts after every page, so the queue can show the
+    /// walk while it runs. Optional: the transfer is identical without it.
+    /// </param>
     internal async Task<ManualTransferEnqueueResult> EnqueueAsync(
         PaneSelectionSnapshot source,
         PaneDestinationSnapshot destination,
         TransferQueueOperation operation,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action<int, int>? progress = null)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (operation == TransferQueueOperation.Move && source.Items.Any(static item => item.IsContainer))
@@ -61,43 +67,24 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
                 Ui.Validation.RecursiveTransfersRequireSavedConnectionsOnBoth);
         }
 
+        var accepted = new List<TransferEnqueueResponse>();
         try
         {
-            var manifest = await BuildManifestAsync(source, destination, operation, cancellationToken)
+            return await StreamAsync(source, destination, operation, accepted, progress, cancellationToken)
                 .ConfigureAwait(false);
-            if (manifest.Failure is not null)
-            {
-                return new ManualTransferEnqueueResult([], [], manifest.Failure);
-            }
-
-            foreach (var directoryPath in manifest.Directories
-                .OrderBy(static path => path.Count(static character => character == '/'))
-                .ThenBy(static path => path, StringComparer.Ordinal))
-            {
-                var ensured = await _mutations.EnsureDirectoryAsync(new StorageDirectoryEnsureRequest(
-                    EditableFileIpcContract.CurrentVersion,
-                    new ObjectInspectorAddress(
-                        destination.Context.ConnectionId.Value,
-                        destination.Context.RootIdentity!,
-                        directoryPath)), cancellationToken).ConfigureAwait(false);
-                if (ensured.Failure is not null)
-                {
-                    return new ManualTransferEnqueueResult([], [], MapFailure(ensured.Failure));
-                }
-            }
-
-            if (manifest.Requests.Count == 0)
-            {
-                return new ManualTransferEnqueueResult([], [], failure: null);
-            }
-
-            return await _transfers.EnqueuePlanAsync(
-                new ManualTransferPlan(manifest.Requests),
-                cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
+        }
+        catch (OperationCanceledException)
+        {
+            // The person stopped the walk. What it already queued is durable and stays queued;
+            // stopping the reading of a folder is not a request to undo accepted transfers.
+            return new ManualTransferEnqueueResult(accepted, [], new StorageFailure(
+                "manual_transfer.gathering_cancelled",
+                StorageFailureKind.Cancelled,
+                Ui.Validation.ReadingTheFolderWasStopped));
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException or
             InvalidOperationException or TimeoutException or System.Text.Json.JsonException)
@@ -105,10 +92,11 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
             // One sentence for six unrelated causes told nobody anything, and the exception was
             // dropped rather than logged, so a report of it could not be followed up either. The
             // shell already decides once what a failed agent call means; this asks it.
-            return Failure(
+            return new ManualTransferEnqueueResult(accepted, [], new StorageFailure(
                 "manual_transfer.manifest_unavailable",
+                StorageFailureKind.Unavailable,
                 DesktopAgentAvailability.ReportFailure(error),
-                isTransient: true);
+                isTransient: true));
         }
     }
 
@@ -127,140 +115,224 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
         }
     }
 
-    private async Task<ManifestBuildResult> BuildManifestAsync(
+    /// <summary>
+    /// Walks the dropped folders and queues what it finds as it finds them, rather than reading the
+    /// whole tree first. The checks that used to need the finished manifest -- a duplicate target, a
+    /// file and a folder claiming one path, an entry outside the folder that was dropped -- are all
+    /// "have I seen this already", so they carry across pages unchanged in the sets below.
+    ///
+    /// What this gives up is the all-or-nothing guarantee. A collision found on the last page used
+    /// to mean nothing had been queued; now the files before it are queued and may already be
+    /// moving. That is the trade every file manager that shows a growing queue makes, and the
+    /// result already carries <see cref="ManualTransferEnqueueResult.IsPartial"/> to say so.
+    /// </summary>
+    private async Task<ManualTransferEnqueueResult> StreamAsync(
         PaneSelectionSnapshot source,
         PaneDestinationSnapshot destination,
         TransferQueueOperation operation,
+        List<TransferEnqueueResponse> accepted,
+        Action<int, int>? progress,
         CancellationToken cancellationToken)
     {
-        var sourceFiles = new List<(PaneTransferItem Item, string DestinationPath)>();
         var sourceEntryKinds = new Dictionary<string, StorageItemKind>(StringComparer.Ordinal);
-        var directories = new HashSet<string>(StringComparer.Ordinal);
+        var ensuredDirectories = new HashSet<string>(StringComparer.Ordinal);
+        var targetPaths = new HashSet<string>(StringComparer.Ordinal);
         var destinationEntries = destination.Entries.ToDictionary(
             static item => item.RelativePath,
             StringComparer.Ordinal);
+        var batch = new List<(PaneTransferItem Item, string DestinationPath)>();
         long combinedPathCharacters = 0;
+        var entryCount = 0;
 
-        foreach (var selected in source.Items)
+        // Loose files first. A mixed drop then puts rows in the queue before any folder is read.
+        foreach (var selected in source.Items.Where(static item => !item.IsContainer))
         {
-            if (!selected.IsContainer)
+            var destinationPath = Combine(destination.Context.RelativePath, selected.Name);
+            combinedPathCharacters += selected.RelativePath.Length + destinationPath.Length;
+            entryCount++;
+            batch.Add((selected, destinationPath));
+        }
+
+        if (batch.Count > 0)
+        {
+            var flushed = await FlushAsync(
+                batch, source, destination, operation, targetPaths, ensuredDirectories,
+                destinationEntries, accepted, cancellationToken).ConfigureAwait(false);
+            if (flushed is not null)
             {
-                var destinationPath = Combine(destination.Context.RelativePath, selected.Name);
-                sourceFiles.Add((selected, destinationPath));
-                combinedPathCharacters += selected.RelativePath.Length + destinationPath.Length;
-                continue;
+                return new ManualTransferEnqueueResult(accepted, flushed.AmbiguousTransferIds, flushed.Failure);
             }
 
+            batch.Clear();
+            progress?.Invoke(accepted.Count, ensuredDirectories.Count);
+        }
+
+        foreach (var selected in source.Items.Where(static item => item.IsContainer))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
             var targetRoot = Combine(destination.Context.RelativePath, selected.Name);
-            directories.Add(targetRoot);
-            var sourceEntries = await ListTreeAsync(
-                source.Context.ConnectionId!.Value,
-                source.Context.RootIdentity!,
-                selected.RelativePath,
-                allowNotFound: false,
-                cancellationToken).ConfigureAwait(false);
-            if (sourceEntries.Failure is not null)
+            progress?.Invoke(accepted.Count, ensuredDirectories.Count);
+
+            var rootFailure = await EnsureDirectoryChainAsync(
+                destination, targetRoot, ensuredDirectories, cancellationToken).ConfigureAwait(false);
+            if (rootFailure is not null)
             {
-                return ManifestBuildResult.Fail(sourceEntries.Failure);
+                return new ManualTransferEnqueueResult(accepted, [], rootFailure);
             }
 
-            var existingEntries = await ListTreeAsync(
+            // What the destination already holds under that root. Drained whole because a conflict
+            // has to be known before the first file lands on top of something.
+            var existing = await DrainAsync(ListTreePagesAsync(
                 destination.Context.ConnectionId!.Value,
                 destination.Context.RootIdentity!,
                 targetRoot,
                 allowNotFound: true,
-                cancellationToken).ConfigureAwait(false);
-            if (existingEntries.Failure is not null)
+                cancellationToken)).ConfigureAwait(false);
+            if (existing.Failure is not null)
             {
-                return ManifestBuildResult.Fail(existingEntries.Failure);
+                return new ManualTransferEnqueueResult(accepted, [], existing.Failure);
             }
 
-            foreach (var existing in existingEntries.Entries)
+            foreach (var entry in existing.Entries)
             {
-                var mapped = PaneTransferItem.Create(existing);
-                if (mapped.IsFailure)
+                var mappedExisting = PaneTransferItem.Create(entry);
+                if (mappedExisting.IsFailure)
                 {
-                    return ManifestBuildResult.Fail(new StorageFailure(
+                    return new ManualTransferEnqueueResult(accepted, [], new StorageFailure(
                         "manual_transfer.destination_manifest_invalid",
                         StorageFailureKind.Integrity,
                         Ui.Validation.TheDestinationReturnedAnInvalidRecursiveEntry));
                 }
 
-                if (!destinationEntries.TryAdd(existing.RelativePath, mapped.Value) &&
-                    !string.Equals(existing.RelativePath, targetRoot, StringComparison.Ordinal))
+                if (!destinationEntries.TryAdd(entry.RelativePath, mappedExisting.Value) &&
+                    !string.Equals(entry.RelativePath, targetRoot, StringComparison.Ordinal))
                 {
-                    return ManifestBuildResult.Fail(new StorageFailure(
+                    return new ManualTransferEnqueueResult(accepted, [], new StorageFailure(
                         "manual_transfer.destination_manifest_invalid",
                         StorageFailureKind.Integrity,
                         Ui.Validation.TheDestinationReturnedDuplicatedRecursiveEntries));
                 }
             }
 
-            foreach (var entry in sourceEntries.Entries)
+            await foreach (var page in ListTreePagesAsync(
+                source.Context.ConnectionId!.Value,
+                source.Context.RootIdentity!,
+                selected.RelativePath,
+                allowNotFound: false,
+                cancellationToken).ConfigureAwait(false))
             {
-                if (sourceEntryKinds.TryGetValue(entry.RelativePath, out var priorKind))
+                if (page.Failure is not null)
                 {
-                    return ManifestBuildResult.Fail(new StorageFailure(
-                        priorKind != entry.Kind
-                            ? "manual_transfer.source_kind_collision"
-                            : "manual_transfer.source_manifest_duplicate",
-                        StorageFailureKind.Integrity,
-                        priorKind != entry.Kind
-                            ? Ui.Validation.TheSourceReturnedAFileAndFolder
-                            : Ui.Validation.TheSourceReturnedADuplicatedRecursiveEntry));
-                }
-                sourceEntryKinds.Add(entry.RelativePath, entry.Kind);
-
-                if (!TryGetDescendantSuffix(selected.RelativePath, entry.RelativePath, out var suffix))
-                {
-                    return ManifestBuildResult.Fail(new StorageFailure(
-                        "manual_transfer.source_manifest_invalid",
-                        StorageFailureKind.Integrity,
-                        Ui.Validation.TheSourceReturnedAnEntryOutsideThe));
+                    return new ManualTransferEnqueueResult(accepted, [], page.Failure);
                 }
 
-                var targetPath = suffix.Length == 0 ? targetRoot : Combine(targetRoot, suffix);
-                combinedPathCharacters += entry.RelativePath.Length + targetPath.Length;
-                if (entry.Kind is StorageItemKind.Directory or StorageItemKind.Prefix)
+                foreach (var entry in page.Entries)
                 {
-                    directories.Add(targetPath);
-                    continue;
+                    if (sourceEntryKinds.TryGetValue(entry.RelativePath, out var priorKind))
+                    {
+                        return new ManualTransferEnqueueResult(accepted, [], new StorageFailure(
+                            priorKind != entry.Kind
+                                ? "manual_transfer.source_kind_collision"
+                                : "manual_transfer.source_manifest_duplicate",
+                            StorageFailureKind.Integrity,
+                            priorKind != entry.Kind
+                                ? Ui.Validation.TheSourceReturnedAFileAndFolder
+                                : Ui.Validation.TheSourceReturnedADuplicatedRecursiveEntry));
+                    }
+
+                    sourceEntryKinds.Add(entry.RelativePath, entry.Kind);
+                    if (!TryGetDescendantSuffix(selected.RelativePath, entry.RelativePath, out var suffix))
+                    {
+                        return new ManualTransferEnqueueResult(accepted, [], new StorageFailure(
+                            "manual_transfer.source_manifest_invalid",
+                            StorageFailureKind.Integrity,
+                            Ui.Validation.TheSourceReturnedAnEntryOutsideThe));
+                    }
+
+                    var targetPath = suffix.Length == 0 ? targetRoot : Combine(targetRoot, suffix);
+                    combinedPathCharacters += entry.RelativePath.Length + targetPath.Length;
+                    entryCount++;
+                    if (entryCount > MaximumManifestEntries ||
+                        combinedPathCharacters > MaximumCombinedPathCharacters)
+                    {
+                        return new ManualTransferEnqueueResult(accepted, [], new StorageFailure(
+                            "manual_transfer.manifest_limit_exceeded",
+                            StorageFailureKind.Validation,
+                            $"A recursive transfer is limited to {MaximumManifestEntries:N0} files and folders."));
+                    }
+
+                    if (entry.Kind is StorageItemKind.Directory or StorageItemKind.Prefix)
+                    {
+                        // Created as it is met rather than in one depth-ordered pass at the end,
+                        // because the files inside it are queued before the walk has seen the rest.
+                        var madeDirectory = await EnsureDirectoryChainAsync(
+                            destination, targetPath, ensuredDirectories, cancellationToken).ConfigureAwait(false);
+                        if (madeDirectory is not null)
+                        {
+                            return new ManualTransferEnqueueResult(accepted, [], madeDirectory);
+                        }
+
+                        continue;
+                    }
+
+                    if (entry.Kind != StorageItemKind.File || entry.IsContainer)
+                    {
+                        return new ManualTransferEnqueueResult(accepted, [], new StorageFailure(
+                            "manual_transfer.recursive_item_unsupported",
+                            StorageFailureKind.Unsupported,
+                            Ui.Validation.TheSelectedFolderContainsASymbolicLink));
+                    }
+
+                    var mapped = PaneTransferItem.Create(entry);
+                    if (mapped.IsFailure)
+                    {
+                        return new ManualTransferEnqueueResult(accepted, [], mapped.Error);
+                    }
+
+                    batch.Add((mapped.Value, targetPath));
                 }
 
-                if (entry.Kind != StorageItemKind.File || entry.IsContainer)
+                if (batch.Count > 0)
                 {
-                    return ManifestBuildResult.Fail(new StorageFailure(
-                        "manual_transfer.recursive_item_unsupported",
-                        StorageFailureKind.Unsupported,
-                        Ui.Validation.TheSelectedFolderContainsASymbolicLink));
+                    var flushed = await FlushAsync(
+                        batch, source, destination, operation, targetPaths, ensuredDirectories,
+                        destinationEntries, accepted, cancellationToken).ConfigureAwait(false);
+                    if (flushed is not null)
+                    {
+                        return new ManualTransferEnqueueResult(accepted, flushed.AmbiguousTransferIds, flushed.Failure);
+                    }
+
+                    batch.Clear();
                 }
 
-                var mapped = PaneTransferItem.Create(entry);
-                if (mapped.IsFailure)
-                {
-                    return ManifestBuildResult.Fail(mapped.Error);
-                }
-
-                sourceFiles.Add((mapped.Value, targetPath));
+                progress?.Invoke(accepted.Count, ensuredDirectories.Count);
             }
         }
 
-        if (sourceFiles.Count + directories.Count > MaximumManifestEntries ||
-            combinedPathCharacters > MaximumCombinedPathCharacters)
-        {
-            return ManifestBuildResult.Fail(new StorageFailure(
-                "manual_transfer.manifest_limit_exceeded",
-                StorageFailureKind.Validation,
-                $"A recursive transfer is limited to {MaximumManifestEntries:N0} files and folders."));
-        }
+        return new ManualTransferEnqueueResult(accepted, [], failure: null);
+    }
 
-        var requests = new List<TransferEnqueueRequest>(sourceFiles.Count);
-        var targetPaths = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var (item, destinationPath) in sourceFiles)
+    /// <summary>
+    /// Turns one page of files into requests and hands them to the queue. Returns the failing result
+    /// to stop on, or null when the page was accepted; what it accepted is appended either way.
+    /// </summary>
+    private async Task<ManualTransferEnqueueResult?> FlushAsync(
+        List<(PaneTransferItem Item, string DestinationPath)> batch,
+        PaneSelectionSnapshot source,
+        PaneDestinationSnapshot destination,
+        TransferQueueOperation operation,
+        HashSet<string> targetPaths,
+        HashSet<string> ensuredDirectories,
+        Dictionary<string, PaneTransferItem> destinationEntries,
+        List<TransferEnqueueResponse> accepted,
+        CancellationToken cancellationToken)
+    {
+        var requests = new List<TransferEnqueueRequest>(batch.Count);
+        foreach (var (item, destinationPath) in batch)
         {
-            if (directories.Contains(destinationPath))
+            if (ensuredDirectories.Contains(destinationPath))
             {
-                return ManifestBuildResult.Fail(new StorageFailure(
+                return new ManualTransferEnqueueResult([], [], new StorageFailure(
                     "manual_transfer.source_kind_collision",
                     StorageFailureKind.Integrity,
                     Ui.Validation.TheRecursiveManifestMappedAFileAnd));
@@ -268,7 +340,7 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
 
             if (!targetPaths.Add(destinationPath))
             {
-                return ManifestBuildResult.Fail(new StorageFailure(
+                return new ManualTransferEnqueueResult([], [], new StorageFailure(
                     "manual_transfer.destination_duplicate",
                     StorageFailureKind.Validation,
                     Ui.Validation.MoreThanOneSelectedFileMapsTo));
@@ -277,7 +349,7 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
             destinationEntries.TryGetValue(destinationPath, out var existing);
             if (existing is { Kind: not StorageItemKind.File })
             {
-                return ManifestBuildResult.Fail(new StorageFailure(
+                return new ManualTransferEnqueueResult([], [], new StorageFailure(
                     "manual_transfer.destination_container_conflict",
                     StorageFailureKind.Conflict,
                     Ui.Validation.ADestinationFolderOrNonFileItem2));
@@ -285,7 +357,7 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
 
             if (existing is not null && (!existing.HasStableIdentity || !item.HasStableIdentity))
             {
-                return ManifestBuildResult.Fail(new StorageFailure(
+                return new ManualTransferEnqueueResult([], [], new StorageFailure(
                     "manual_transfer.overwrite_identity_required",
                     StorageFailureKind.Conflict,
                     Ui.Validation.ReplacingAnExistingFileRequiresStableSource));
@@ -315,7 +387,7 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
                 ExpectedDestinationEntityTag: existing?.EntityTag);
             if (!request.HasValidBounds || IsSameAddress(request.Source, request.Destination))
             {
-                return ManifestBuildResult.Fail(new StorageFailure(
+                return new ManualTransferEnqueueResult([], [], new StorageFailure(
                     "manual_transfer.request_invalid",
                     StorageFailureKind.Validation,
                     Ui.Validation.TheRecursiveManifestProducedAnInvalidOr));
@@ -324,22 +396,102 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
             requests.Add(request);
         }
 
-        return new ManifestBuildResult(requests, directories, null);
+        var result = await _transfers.EnqueuePlanAsync(
+            new ManualTransferPlan(requests),
+            cancellationToken).ConfigureAwait(false);
+        accepted.AddRange(result.Accepted);
+        return result.Failure is null && !result.HasAmbiguity ? null : result;
     }
 
-    private async Task<TreeListResult> ListTreeAsync(
+    /// <summary>
+    /// Creates every folder between the destination root and <paramref name="path"/> that has not
+    /// been created yet, outermost first. Walking up rather than sorting the whole set by depth is
+    /// what lets a folder be created the moment it is met.
+    /// </summary>
+    private async Task<StorageFailure?> EnsureDirectoryChainAsync(
+        PaneDestinationSnapshot destination,
+        string path,
+        HashSet<string> ensuredDirectories,
+        CancellationToken cancellationToken)
+    {
+        var root = destination.Context.RelativePath;
+        if (string.Equals(path, root, StringComparison.Ordinal) || ensuredDirectories.Contains(path))
+        {
+            return null;
+        }
+
+        var pending = new List<string>();
+        var current = path;
+        while (current.Length > root.Length && !ensuredDirectories.Contains(current))
+        {
+            pending.Add(current);
+            var separator = current.LastIndexOf('/');
+            if (separator < 0)
+            {
+                break;
+            }
+
+            current = current[..separator];
+        }
+
+        pending.Reverse();
+        foreach (var directoryPath in pending)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var ensured = await _mutations.EnsureDirectoryAsync(new StorageDirectoryEnsureRequest(
+                EditableFileIpcContract.CurrentVersion,
+                new ObjectInspectorAddress(
+                    destination.Context.ConnectionId!.Value,
+                    destination.Context.RootIdentity!,
+                    directoryPath)), cancellationToken).ConfigureAwait(false);
+            if (ensured.Failure is not null)
+            {
+                return MapFailure(ensured.Failure);
+            }
+
+            ensuredDirectories.Add(directoryPath);
+        }
+
+        return null;
+    }
+
+    /// <summary>Reads a whole tree into memory, for the destination side where a page is no use.</summary>
+    private static async Task<TreeListResult> DrainAsync(IAsyncEnumerable<TreePage> pages)
+    {
+        var entries = new List<StorageListItem>();
+        await foreach (var page in pages.ConfigureAwait(false))
+        {
+            if (page.Failure is not null)
+            {
+                return new TreeListResult([], page.Failure);
+            }
+
+            entries.AddRange(page.Entries);
+        }
+
+        return new TreeListResult(entries, null);
+    }
+
+    /// <summary>
+    /// The tree, a page at a time. It used to accumulate every entry and return them together,
+    /// which meant nothing could be queued until the last page arrived -- minutes, on a tree that
+    /// CL.Storage has to walk itself because SFTP has no recursive listing.
+    /// </summary>
+    private async IAsyncEnumerable<TreePage> ListTreePagesAsync(
         Guid connectionId,
         string expectedRootIdentity,
         string relativePath,
         bool allowNotFound,
-        CancellationToken cancellationToken)
+        [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        var entries = new List<StorageListItem>();
         var continuationTokens = new HashSet<string>(StringComparer.Ordinal);
         string? continuation = null;
+        var total = 0;
         for (var pageNumber = 0; pageNumber < MaximumManifestPages; pageNumber++)
         {
-            StorageListPageResponse response;
+            cancellationToken.ThrowIfCancellationRequested();
+            StorageListPageResponse? response = null;
+            StorageFailure? timedOut = null;
             try
             {
                 response = await _storage.ListStorageAsync(new StorageListPageRequest(
@@ -352,76 +504,104 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
             }
             catch (TimeoutException)
             {
-                return new TreeListResult([], ListingTimedOut(relativePath, pageNumber + 1));
+                timedOut = ListingTimedOut(relativePath, pageNumber + 1);
             }
-            if (response.Failure is not null)
+
+            if (timedOut is not null)
+            {
+                yield return TreePage.Fail(timedOut);
+                yield break;
+            }
+
+            if (response!.Failure is not null)
             {
                 if (response.Failure.Category == StorageIpcFailureCategory.Unsupported &&
                     continuation is null)
                 {
-                    return await ListTreeBreadthFirstAsync(
+                    await foreach (var page in ListTreeBreadthFirstPagesAsync(
                         connectionId,
                         expectedRootIdentity,
                         relativePath,
                         allowNotFound,
-                        cancellationToken).ConfigureAwait(false);
+                        cancellationToken).ConfigureAwait(false))
+                    {
+                        yield return page;
+                    }
+
+                    yield break;
                 }
 
-                return allowNotFound && response.Failure.Category == StorageIpcFailureCategory.NotFound
-                    ? new TreeListResult([], null)
-                    : new TreeListResult([], MapFailure(response.Failure));
+                if (allowNotFound && response.Failure.Category == StorageIpcFailureCategory.NotFound)
+                {
+                    yield break;
+                }
+
+                yield return TreePage.Fail(MapFailure(response.Failure));
+                yield break;
             }
 
             if (!string.Equals(response.RootIdentity, expectedRootIdentity, StringComparison.Ordinal))
             {
-                return new TreeListResult([], new StorageFailure(
+                yield return TreePage.Fail(new StorageFailure(
                     "manual_transfer.root_identity_changed",
                     StorageFailureKind.Integrity,
                     Ui.Validation.TheConnectionRootIdentityChangedWhileThe));
+                yield break;
             }
 
-            entries.AddRange(response.Entries);
-            if (entries.Count > MaximumManifestEntries)
+            total += response.Entries.Length;
+            if (total > MaximumManifestEntries)
             {
-                return new TreeListResult([], new StorageFailure(
-                    "manual_transfer.manifest_limit_exceeded",
-                    StorageFailureKind.Validation,
-                    $"A recursive transfer is limited to {MaximumManifestEntries:N0} files and folders."));
+                yield return TreePage.Fail(ManifestLimitExceeded());
+                yield break;
             }
 
+            // Read before the page is handed on: a provider that repeats a page repeats its
+            // entries too, and the consumer would report those as duplicates rather than naming
+            // the provider fault that produced them.
             continuation = response.ContinuationToken;
-            if (continuation is null)
+            if (continuation is not null && !continuationTokens.Add(continuation))
             {
-                return new TreeListResult(entries, null);
-            }
-
-            if (!continuationTokens.Add(continuation))
-            {
-                return new TreeListResult([], new StorageFailure(
+                yield return TreePage.Fail(new StorageFailure(
                     "manual_transfer.repeated_page_token",
                     StorageFailureKind.Integrity,
                     Ui.Validation.TheProviderRepeatedARecursiveListingPage));
+                yield break;
+            }
+
+            if (response.Entries.Length > 0)
+            {
+                yield return new TreePage(response.Entries, null);
+            }
+
+            if (continuation is null)
+            {
+                yield break;
             }
         }
 
-        return new TreeListResult([], new StorageFailure(
+        yield return TreePage.Fail(new StorageFailure(
             "manual_transfer.page_limit_exceeded",
             StorageFailureKind.Validation,
             Ui.Validation.TheRecursiveListingExceededItsBoundedPage));
     }
 
-    private async Task<TreeListResult> ListTreeBreadthFirstAsync(
+    /// <summary>
+    /// The same, for a provider that will not list recursively at all: one directory at a time,
+    /// breadth first. Each directory's page is yielded as it arrives, so this streams too.
+    /// </summary>
+    private async IAsyncEnumerable<TreePage> ListTreeBreadthFirstPagesAsync(
         Guid connectionId,
         string expectedRootIdentity,
         string relativePath,
         bool allowNotFound,
-        CancellationToken cancellationToken)
+        [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        var entries = new List<StorageListItem>();
         var directories = new Queue<string>();
         var visited = new HashSet<string>(StringComparer.Ordinal) { relativePath };
         directories.Enqueue(relativePath);
         var pageCount = 0;
+        var total = 0;
         while (directories.Count > 0)
         {
             var directory = directories.Dequeue();
@@ -429,15 +609,18 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
             string? continuation = null;
             do
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (++pageCount > MaximumManifestPages)
                 {
-                    return new TreeListResult([], new StorageFailure(
+                    yield return TreePage.Fail(new StorageFailure(
                         "manual_transfer.page_limit_exceeded",
                         StorageFailureKind.Validation,
                         Ui.Validation.TheRecursiveListingExceededItsBoundedPage));
+                    yield break;
                 }
 
-                StorageListPageResponse response;
+                StorageListPageResponse? response = null;
+                StorageFailure? timedOut = null;
                 try
                 {
                     response = await _storage.ListStorageAsync(new StorageListPageRequest(
@@ -450,30 +633,38 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
                 }
                 catch (TimeoutException)
                 {
-                    return new TreeListResult([], ListingTimedOut(directory, pageCount));
+                    timedOut = ListingTimedOut(directory, pageCount);
                 }
-                if (response.Failure is not null)
+
+                if (timedOut is not null)
+                {
+                    yield return TreePage.Fail(timedOut);
+                    yield break;
+                }
+
+                if (response!.Failure is not null)
                 {
                     if (allowNotFound && directory == relativePath &&
                         response.Failure.Category == StorageIpcFailureCategory.NotFound)
                     {
-                        return new TreeListResult([], null);
+                        yield break;
                     }
 
-                    return new TreeListResult([], MapFailure(response.Failure));
+                    yield return TreePage.Fail(MapFailure(response.Failure));
+                    yield break;
                 }
 
                 if (!string.Equals(response.RootIdentity, expectedRootIdentity, StringComparison.Ordinal))
                 {
-                    return new TreeListResult([], new StorageFailure(
+                    yield return TreePage.Fail(new StorageFailure(
                         "manual_transfer.root_identity_changed",
                         StorageFailureKind.Integrity,
                         Ui.Validation.TheConnectionRootIdentityChangedWhileThe));
+                    yield break;
                 }
 
                 foreach (var entry in response.Entries)
                 {
-                    entries.Add(entry);
                     if (entry.Kind is StorageItemKind.Directory or StorageItemKind.Prefix &&
                         visited.Add(entry.RelativePath))
                     {
@@ -481,28 +672,36 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
                     }
                 }
 
-                if (entries.Count > MaximumManifestEntries)
+                total += response.Entries.Length;
+                if (total > MaximumManifestEntries)
                 {
-                    return new TreeListResult([], new StorageFailure(
-                        "manual_transfer.manifest_limit_exceeded",
-                        StorageFailureKind.Validation,
-                        $"A recursive transfer is limited to {MaximumManifestEntries:N0} files and folders."));
+                    yield return TreePage.Fail(ManifestLimitExceeded());
+                    yield break;
                 }
 
                 continuation = response.ContinuationToken;
                 if (continuation is not null && !continuationTokens.Add(continuation))
                 {
-                    return new TreeListResult([], new StorageFailure(
+                    yield return TreePage.Fail(new StorageFailure(
                         "manual_transfer.repeated_page_token",
                         StorageFailureKind.Integrity,
                         Ui.Validation.TheProviderRepeatedARecursiveListingPage));
+                    yield break;
+                }
+
+                if (response.Entries.Length > 0)
+                {
+                    yield return new TreePage(response.Entries, null);
                 }
             }
             while (continuation is not null);
         }
-
-        return new TreeListResult(entries, null);
     }
+
+    private static StorageFailure ManifestLimitExceeded() => new(
+        "manual_transfer.manifest_limit_exceeded",
+        StorageFailureKind.Validation,
+        $"A recursive transfer is limited to {MaximumManifestEntries:N0} files and folders.");
 
     private static string Combine(string parent, string child) =>
         parent.Length == 0 ? child : $"{parent}/{child}";
@@ -567,11 +766,8 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
 
     private sealed record TreeListResult(IReadOnlyList<StorageListItem> Entries, StorageFailure? Failure);
 
-    private sealed record ManifestBuildResult(
-        IReadOnlyList<TransferEnqueueRequest> Requests,
-        IReadOnlyCollection<string> Directories,
-        StorageFailure? Failure)
+    private sealed record TreePage(IReadOnlyList<StorageListItem> Entries, StorageFailure? Failure)
     {
-        internal static ManifestBuildResult Fail(StorageFailure failure) => new([], [], failure);
+        internal static TreePage Fail(StorageFailure failure) => new([], failure);
     }
 }

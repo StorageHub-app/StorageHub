@@ -49,7 +49,7 @@ public sealed class RecursiveTransferControllerTests
     }
 
     [Fact]
-    public async Task Repeated_recursive_page_token_fails_before_destination_mutation()
+    public async Task A_repeated_page_token_stops_the_walk_and_keeps_what_it_already_queued()
     {
         var sourceId = Guid.NewGuid();
         var destinationId = Guid.NewGuid();
@@ -72,12 +72,17 @@ public sealed class RecursiveTransferControllerTests
 
         Assert.Equal("manual_transfer.repeated_page_token", result.Failure?.Code);
         Assert.Equal(2, storage.SourceListCount);
-        Assert.Empty(mutations.EnsuredPaths);
-        Assert.Empty(queue.Requests);
+
+        // The walk queues each page as it reads it, so the first page's two files are already
+        // durable when the bad token arrives on the second. They stay: this is the partial drop
+        // that streaming trades the all-or-nothing manifest for.
+        Assert.True(result.IsPartial);
+        Assert.Equal(2, queue.Requests.Count);
+        Assert.NotEmpty(mutations.EnsuredPaths);
     }
 
     [Fact]
-    public async Task File_and_directory_path_collision_fails_before_destination_mutation()
+    public async Task A_file_and_folder_sharing_one_path_stops_the_walk_before_either_is_queued()
     {
         var sourceId = Guid.NewGuid();
         var destinationId = Guid.NewGuid();
@@ -99,8 +104,40 @@ public sealed class RecursiveTransferControllerTests
             CancellationToken.None);
 
         Assert.Equal("manual_transfer.source_kind_collision", result.Failure?.Code);
-        Assert.Empty(mutations.EnsuredPaths);
+
+        // Nothing is queued: the collision is met on the entry that follows the folder, before the
+        // page is flushed. The folder itself was created as it was met, which is what lets the
+        // files inside it be queued before the walk has seen the rest of the tree.
         Assert.Empty(queue.Requests);
+        Assert.False(result.IsPartial);
+        Assert.NotEmpty(mutations.EnsuredPaths);
+    }
+
+    [Fact]
+    public async Task The_walk_reports_its_running_counts_so_the_queue_can_show_them()
+    {
+        var sourceId = Guid.NewGuid();
+        var destinationId = Guid.NewGuid();
+        var storage = new FakeStorageClient(sourceId, destinationId, "source-root", "destination-root");
+        var mutations = new FakeMutationClient();
+        var queue = new FakeTransferClient();
+        await using var transfers = new ManualTransferController(queue);
+        await using var controller = new RecursiveTransferController(transfers, storage, mutations);
+        var reported = new List<(int Files, int Folders)>();
+
+        var result = await controller.EnqueueAsync(
+            CreateFolderSelection(sourceId, "source-root"),
+            CreateDestination(destinationId, "destination-root"),
+            TransferQueueOperation.Copy,
+            CancellationToken.None,
+            (files, folders) => reported.Add((files, folders)));
+
+        Assert.Null(result.Failure);
+        Assert.NotEmpty(reported);
+
+        // The last report is what the row ends on, and it has to match what was actually queued.
+        Assert.Equal(queue.Requests.Count, reported[^1].Files);
+        Assert.Equal(mutations.EnsuredPaths.Count, reported[^1].Folders);
     }
 
     private static PaneSelectionSnapshot CreateFolderSelection(Guid connectionId, string rootIdentity)

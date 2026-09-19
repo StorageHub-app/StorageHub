@@ -17,7 +17,13 @@ public enum PendingDropState
     Cancelled = 3,
 
     /// <summary>The drop could not be turned into agent work.</summary>
-    Failed = 4
+    Failed = 4,
+
+    /// <summary>
+    /// The destination is known and the folders that were dropped are being read. Files reach the
+    /// queue as they are found, so this entry stands beside the rows it is producing.
+    /// </summary>
+    Gathering = 5
 }
 
 public sealed record PendingDropEntry(
@@ -30,12 +36,21 @@ public sealed record PendingDropEntry(
     DateTimeOffset StartedUtc,
     DateTimeOffset UpdatedUtc)
 {
+    /// <summary>Files queued so far, while <see cref="State"/> is <see cref="PendingDropState.Gathering"/>.</summary>
+    public int FilesFound { get; init; }
+
+    /// <summary>Folders created so far, while <see cref="State"/> is <see cref="PendingDropState.Gathering"/>.</summary>
+    public int FoldersFound { get; init; }
+
     public bool IsTerminal => State is PendingDropState.Cancelled or PendingDropState.Queued
         or PendingDropState.Failed;
 
     public string Describe() => State switch
     {
         PendingDropState.AwaitingDestination => Ui.Transfer.DropWaitingForDestination,
+        PendingDropState.Gathering => FilesFound == 0 && FoldersFound == 0
+            ? Ui.Transfer.DropGathering
+            : Ui.Format(Ui.Transfer.DropGatheringFormat, FilesFound, FoldersFound),
         PendingDropState.Queued => Ui.Transfer.DropQueued,
         PendingDropState.Cancelled => Detail is null
             ? Ui.Transfer.DropCancelled
@@ -76,6 +91,31 @@ public sealed class PendingDropRegistry
     /// <summary>Raised whenever an entry is added or changes state, so views can refresh promptly.</summary>
     public event EventHandler? Changed;
 
+    /// <summary>
+    /// Raised when somebody cancels a drop that is still being read. The registry records gestures
+    /// and owns no work, so whoever is doing the reading listens for this and stops.
+    /// </summary>
+    public event EventHandler<string>? CancelRequested;
+
+    /// <summary>Whether the named drop is still reading folders, and so can be stopped.</summary>
+    public bool IsGathering(string token)
+    {
+        lock (_gate)
+        {
+            return _entries.TryGetValue(token, out var entry) && entry.State == PendingDropState.Gathering;
+        }
+    }
+
+    /// <summary>Asks whoever is reading this drop's folders to stop.</summary>
+    public void RequestCancel(string token)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(token);
+        if (IsGathering(token))
+        {
+            CancelRequested?.Invoke(this, token);
+        }
+    }
+
     public void Begin(string token, string source, int itemCount)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(token);
@@ -109,6 +149,43 @@ public sealed class PendingDropRegistry
                 Detail: null,
                 now,
                 now);
+        }
+
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Records that the drop's folders are being read, and how far that has got. Called on every
+    /// page, so it leaves the entry alone when nothing has changed rather than making the views
+    /// redraw an identical row.
+    /// </summary>
+    public void MarkGathering(string token, string? destination, int filesFound, int foldersFound)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(token);
+        var now = _timeProvider.GetUtcNow();
+        lock (_gate)
+        {
+            if (!_entries.TryGetValue(token, out var entry))
+            {
+                return;
+            }
+
+            if (entry.State == PendingDropState.Gathering &&
+                entry.FilesFound == filesFound &&
+                entry.FoldersFound == foldersFound)
+            {
+                return;
+            }
+
+            _entries[token] = entry with
+            {
+                State = PendingDropState.Gathering,
+                Destination = destination ?? entry.Destination,
+                Detail = null,
+                FilesFound = filesFound,
+                FoldersFound = foldersFound,
+                UpdatedUtc = now
+            };
         }
 
         Changed?.Invoke(this, EventArgs.Empty);

@@ -81,6 +81,8 @@
   "activitySyncConflictsFormat": "Generation {0}; {1:N0} Konflikt(e)",
   "dropWaitingForDestination": "Warten auf Ziel",
   "dropQueued": "In Warteschlange",
+  "dropGathering": "Ordner und Dateien werden gesammelt...",
+  "dropGatheringFormat": "Ordner und Dateien werden gesammelt... {0} in der Warteschlange, {1} Ordner",
   "dropCancelled": "Abgebrochen",
   "dropCancelledFormat": "Abgebrochen: {0}",
   "dropFailed": "Fehlgeschlagen",

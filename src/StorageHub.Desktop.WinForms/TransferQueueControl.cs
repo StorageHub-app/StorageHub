@@ -462,7 +462,15 @@ public sealed class TransferQueueControl : UserControl
         await RefreshQueueCoreAsync(resetPage: false, _lifetime.Token).ConfigureAwait(true);
     }
 
-    private async void CancelButtonClicked(object? sender, EventArgs e) =>
+    private async void CancelButtonClicked(object? sender, EventArgs e)
+    {
+        // A folder still being read is not a durable job the agent can cancel, so it is stopped
+        // where it is running. The files it already queued are real work and stay.
+        foreach (var token in SelectedGatheringTokens())
+        {
+            _pendingDrops?.RequestCancel(token);
+        }
+
         await ApplySelectedAsync(
             static (client, transfer, token) => client.CancelAsync(
                 new TransferCancelRequest(
@@ -470,6 +478,23 @@ public sealed class TransferQueueControl : UserControl
                     transfer.TransferId,
                     transfer.Revision),
                 token)).ConfigureAwait(true);
+    }
+
+    private string[] SelectedGatheringTokens()
+    {
+        if (_tabs.SelectedTab is null || !_grids.TryGetValue(_tabs.SelectedTab, out var grid))
+        {
+            return [];
+        }
+
+        return grid.SelectedRows
+            .Cast<DataGridViewRow>()
+            .Select(static row => row.Tag)
+            .OfType<PendingDropEntry>()
+            .Where(static drop => drop.State == PendingDropState.Gathering)
+            .Select(static drop => drop.Token)
+            .ToArray();
+    }
 
     private async void RetryButtonClicked(object? sender, EventArgs e) =>
         await ApplySelectedAsync(
@@ -644,8 +669,11 @@ public sealed class TransferQueueControl : UserControl
         "Copy",
         drop.DescribeSource(),
         drop.Destination ?? Ui.Transfer.FileExplorerSource,
-        // No byte total exists yet: the destination, and therefore the work, is still unknown.
-        drop.State is PendingDropState.AwaitingDestination ? "Pending" : "-",
+        // No byte total exists yet: for a drag out the destination is still unknown, and for a
+        // folder being read the total is exactly what the reading is there to discover.
+        drop.State is PendingDropState.AwaitingDestination or PendingDropState.Gathering
+            ? "Pending"
+            : "-",
         "-",
         drop.Describe(),
         Fraction: null,

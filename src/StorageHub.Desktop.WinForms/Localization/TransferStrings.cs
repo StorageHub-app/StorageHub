@@ -212,6 +212,10 @@ internal sealed class TransferStrings : LocalizationModelBase
 
     public string DropQueued { get; set; } = "Queued";
 
+    public string DropGathering { get; set; } = "Gathering folders and files...";
+
+    public string DropGatheringFormat { get; set; } = "Gathering folders and files... {0} queued, {1} folders";
+
     public string DropCancelled { get; set; } = "Cancelled";
 
     /// <summary>{0} = why the drop was cancelled.</summary>

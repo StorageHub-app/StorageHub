@@ -81,6 +81,8 @@
   "activitySyncConflictsFormat": "Generation {0}; {1:N0} konflikt(er)",
   "dropWaitingForDestination": "Venter på destination",
   "dropQueued": "I kø",
+  "dropGathering": "Samler mapper og filer...",
+  "dropGatheringFormat": "Samler mapper og filer... {0} i kø, {1} mapper",
   "dropCancelled": "Annulleret",
   "dropCancelledFormat": "Annulleret: {0}",
   "dropFailed": "Mislykkedes",

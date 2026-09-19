@@ -163,6 +163,9 @@ internal sealed class ValidationStrings : LocalizationModelBase
 
     public string StorageHubCouldNotBuildTheRecursiveTransfer { get; set; } = "StorageHub could not build the recursive transfer manifest.";
 
+    public string ReadingTheFolderWasStopped { get; set; } =
+        "Reading the folder was stopped. The files found before it stopped are still queued.";
+
     public string TheListingTimeoutMustBeAtMost { get; set; } = "The listing timeout must be at most ten minutes.";
 
     public string TheRecursiveListingTimedOutFormat { get; set; } =

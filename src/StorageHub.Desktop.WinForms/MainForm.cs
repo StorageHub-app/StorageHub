@@ -1,5 +1,6 @@
 using System.Globalization;
 using StorageHub.Contracts.Ipc;
+using StorageHub.Contracts.Results;
 using StorageHub.Desktop.Localization;
 
 namespace StorageHub.Desktop;
@@ -2537,9 +2538,26 @@ public sealed class MainForm : Form
             selection = capturedSelection;
         }
 
+        // A dropped folder cannot be queued until it has been read, and reading a large tree takes
+        // minutes. The queue carries a row for the reading itself from here on, so the drop is
+        // visibly doing something from the moment it lands -- including while the destination is
+        // being indexed, which is part of the same wait.
+        var recursive = selection.Items.Any(static item => item.IsContainer);
+        var dropToken = recursive ? "gather:" + Guid.NewGuid().ToString("N") : null;
+        if (dropToken is not null)
+        {
+            _pendingDrops.Begin(dropToken, DescribeTransferSource(selection), selection.Items.Count);
+            _pendingDrops.MarkGathering(dropToken, DescribeDestination(destination), 0, 0);
+        }
+
         _locationStatus.Text = Ui.Shell.StatusIndexingDestination;
         if (!await destination.EnsureListingCompleteAsync(_lifetime.Token).ConfigureAwait(true))
         {
+            if (dropToken is not null)
+            {
+                _pendingDrops.MarkFailed(dropToken, Ui.Shell.CouldNotFinishIndexing);
+            }
+
             ShowManualTransferFailure(Ui.Shell.CouldNotFinishIndexing);
             return;
         }
@@ -2548,18 +2566,39 @@ public sealed class MainForm : Form
             selection.Items.Select(static item => item.Name).ToArray());
         if (destinationSnapshot.IsFailure)
         {
+            if (dropToken is not null)
+            {
+                _pendingDrops.MarkFailed(dropToken, destinationSnapshot.Error.Message);
+            }
+
             ShowManualTransferFailure(destinationSnapshot.Error.Message);
             return;
         }
 
+        using var gathering = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        void CancelGathering(object? sender, string token)
+        {
+            if (string.Equals(token, dropToken, StringComparison.Ordinal))
+            {
+                gathering.Cancel();
+            }
+        }
+
+        if (dropToken is not null)
+        {
+            _pendingDrops.CancelRequested += CancelGathering;
+        }
+
         try
         {
-            var result = selection.Items.Any(static item => item.IsContainer)
+            var result = recursive
                 ? await _recursiveTransfers.EnqueueAsync(
                     selection,
                     destinationSnapshot.Value,
                     operation,
-                    _lifetime.Token).ConfigureAwait(true)
+                    gathering.Token,
+                    (files, folders) => _pendingDrops.MarkGathering(
+                        dropToken!, DescribeDestination(destination), files, folders)).ConfigureAwait(true)
                 : await _manualTransfers.EnqueueAsync(
                     selection,
                     destinationSnapshot.Value,
@@ -2567,16 +2606,27 @@ public sealed class MainForm : Form
                     cancellationToken: _lifetime.Token).ConfigureAwait(true);
             if (result.HasAmbiguity)
             {
-                ShowManualTransferFailure(DescribeAmbiguousEnqueue(
+                var ambiguous = DescribeAmbiguousEnqueue(
                     selection.Items.Count,
                     result.Accepted.Count,
-                    result.AmbiguousTransferIds));
+                    result.AmbiguousTransferIds);
+                if (dropToken is not null)
+                {
+                    _pendingDrops.MarkFailed(dropToken, ambiguous);
+                }
+
+                ShowManualTransferFailure(ambiguous);
                 return;
             }
 
             if (result.Failure is null)
             {
-                if (selection.Items.Any(static item => item.IsContainer))
+                if (dropToken is not null)
+                {
+                    _pendingDrops.MarkQueued(dropToken, DescribeDestination(destination));
+                }
+
+                if (recursive)
                 {
                     _locationStatus.Text = result.Accepted.Count == 0
                         ? Ui.Shell.EmptyDestinationCreated
@@ -2593,6 +2643,19 @@ public sealed class MainForm : Form
             var message = result.IsPartial
                 ? $"{result.Accepted.Count} transfer(s) were durably accepted before the next request failed. {result.Failure.Message}"
                 : result.Failure.Message;
+            if (dropToken is not null)
+            {
+                // A stopped read is an outcome the person asked for, not a failure to report twice.
+                if (result.Failure.Kind == StorageFailureKind.Cancelled)
+                {
+                    _pendingDrops.MarkCancelled(dropToken, result.Failure.Message);
+                    _locationStatus.Text = message;
+                    return;
+                }
+
+                _pendingDrops.MarkFailed(dropToken, result.Failure.Message);
+            }
+
             ShowManualTransferFailure(message);
         }
         catch (ManualTransferEnqueueAmbiguousException error)
@@ -2612,8 +2675,48 @@ public sealed class MainForm : Form
         catch (Exception error) when (
             error is IOException or InvalidDataException or InvalidOperationException or TimeoutException)
         {
+            if (dropToken is not null)
+            {
+                _pendingDrops.MarkFailed(dropToken, Ui.Shell.AgentCannotEnqueue);
+            }
+
             ShowManualTransferFailure(Ui.Shell.AgentCannotEnqueue);
         }
+        finally
+        {
+            if (dropToken is not null)
+            {
+                _pendingDrops.CancelRequested -= CancelGathering;
+                if (_pendingDrops.IsGathering(dropToken))
+                {
+                    // Nothing above claimed the entry, so it must not be left reading for ever.
+                    _pendingDrops.MarkQueued(dropToken, DescribeDestination(destination));
+                }
+            }
+        }
+    }
+
+    private static string DescribeTransferSource(PaneSelectionSnapshot selection)
+    {
+        if (selection.Items.Count == 1 && !string.IsNullOrWhiteSpace(selection.Items[0].Name))
+        {
+            return selection.Items[0].Name;
+        }
+
+        var location = selection.Context.RelativePath;
+        return string.IsNullOrWhiteSpace(location) ? "/" : location;
+    }
+
+    private static string DescribeDestination(BrowserPaneControl pane)
+    {
+        var context = pane.CaptureCurrentLocation();
+        if (context.IsFailure)
+        {
+            return "/";
+        }
+
+        var path = context.Value.RelativePath;
+        return string.IsNullOrWhiteSpace(path) ? "/" : path;
     }
 
     private void EnqueuePaneDrop(

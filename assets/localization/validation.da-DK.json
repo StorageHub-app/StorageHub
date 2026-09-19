@@ -70,6 +70,7 @@
   "storageHubCouldNotAuthenticateToTheLocal": "StorageHub kunne ikke godkende sig over for den lokale baggrundsagent.",
   "storageHubCouldNotBuildTheRecursiveTransfer": "StorageHub kunne ikke bygge det rekursive overførselsmanifest.",
   "theListingTimeoutMustBeAtMost": "Tidsgrænsen for visning må højst være ti minutter.",
+  "readingTheFolderWasStopped": "Læsningen af mappen blev stoppet. De filer, der blev fundet inden, er stadig i køen.",
   "theRecursiveListingTimedOutFormat": "Visningen af \"{0}\" blev ikke færdig i tide. Mappen læses stadig efter side {1}; vælg en mindre mappe, eller flyt den i dele.",
   "storageHubCouldNotOpenThisLocation": "StorageHub kunne ikke åbne denne placering.",
   "storageHubCouldNotPrepareTheSelectedItems": "StorageHub kunne ikke klargøre de valgte elementer til Stifinder.",
