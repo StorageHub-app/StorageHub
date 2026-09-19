@@ -224,7 +224,6 @@ internal sealed class PaneStrings : LocalizationModelBase
 
     public string DropNotInitialized { get; set; } = "The drop could not be initialized.";
 
-    public string DroppedOntoPane { get; set; } = "Dropped onto a StorageHub pane.";
 
     public string NoDestinationReported { get; set; } = "No destination was reported.";
 

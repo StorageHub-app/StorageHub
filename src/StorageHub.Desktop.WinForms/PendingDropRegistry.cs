@@ -191,6 +191,26 @@ public sealed class PendingDropRegistry
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// Forgets a marker whose gesture went somewhere else. A drag out to Explorer that lands on a
+    /// StorageHub pane instead was never Explorer's work, and the in-app drop keeps a row of its
+    /// own, so leaving a second row behind -- reading as cancelled, for a drop that succeeded --
+    /// says something untrue about a gesture that worked.
+    /// </summary>
+    public void Discard(string token)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(token);
+        lock (_gate)
+        {
+            if (!_entries.Remove(token))
+            {
+                return;
+            }
+        }
+
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
     public void MarkQueued(string token, string? destination) =>
         Transition(token, PendingDropState.Queued, destination, detail: null);
 

@@ -90,7 +90,6 @@
   "dropRequiresConnection": "Slip fra Stifinder kræver en åben mappe på en gemt forbindelse.",
   "dropCouldNotInitialize": "StorageHub kunne ikke klargøre slip fra Stifinder.",
   "dropNotInitialized": "Slip-handlingen kunne ikke klargøres.",
-  "droppedOntoPane": "Sluppet på en StorageHub-rude.",
   "noDestinationReported": "Ingen destination blev rapporteret.",
   "dragCouldNotStart": "Windows kunne ikke starte trækket.",
   "dragCouldNotStartFormat": "Windows kunne ikke starte trækket: {0}",
