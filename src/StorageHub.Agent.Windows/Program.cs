@@ -40,7 +40,8 @@ if (string.IsNullOrWhiteSpace(configuredStorageHubRoot))
 // startup below. Elevation keeps the caller's user identity, which is exactly what the migration
 // needs: rights to write the machine location, while still able to open the user's own secrets.
 if (args.Contains("--install-service", StringComparer.OrdinalIgnoreCase) ||
-    args.Contains("--uninstall-service", StringComparer.OrdinalIgnoreCase))
+    args.Contains("--uninstall-service", StringComparer.OrdinalIgnoreCase) ||
+    args.Contains("--repair-installation", StringComparer.OrdinalIgnoreCase))
 {
     return await AgentServiceCommands.ExecuteAsync(args).ConfigureAwait(false);
 }

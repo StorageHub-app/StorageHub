@@ -52,6 +52,13 @@ public static class AgentHostLayout
     /// <summary>Command-line switch that runs the agent under the service control manager.</summary>
     public const string ServiceArgument = "--service";
 
+    /// <summary>
+    /// Command-line switch that applies one named installation repair and reports through the
+    /// exit code. Declared here rather than beside the other service commands because the desktop
+    /// launches it and cannot reference the agent executable.s own types.
+    /// </summary>
+    public const string RepairArgument = "--repair-installation";
+
     private const string MachinePipePrefix = "StorageHub.Agent.v1.machine";
     private const string MachineSecretPipePrefix = "StorageHub.Agent.Secrets.v1.machine";
 

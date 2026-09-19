@@ -30,9 +30,12 @@ and service modes moves the data root, so it reports a populated database left
 behind in the mode you are not using: the connections are not gone, they are out
 of reach until that mode is selected again.
 
-Where it can fix something it offers to, and says when that needs an
+Where it can fix something it offers to, and asks Windows for consent when the
+fix needs it rather than sending you away to restart the application as an
 administrator: creating a missing data directory, starting a stopped service,
-and telling Windows to restart the agent if it stops unexpectedly. That last one
+and telling Windows to restart the agent if it stops unexpectedly. The elevated
+work is done by the agent in one short-lived pass, which is the same route
+switching host modes already takes. That last one
 was simply never configured, so a single crash left the machine with no agent
 until somebody noticed and started it by hand. Looking changes nothing; only a
 repair you ask for by name does.

@@ -28,7 +28,7 @@ public sealed class InstallationCheckForm : Form
                 DesktopApplicationVersion.Current,
                 "StorageHub.Agent.Windows.exe",
                 new WindowsInstallationProbe()),
-            repair => AgentInstallationRepair.Apply(repair, mode))
+            repair => ElevatedInstallationRepair.Apply(repair, mode))
     {
     }
 
@@ -201,11 +201,13 @@ public sealed class InstallationCheckForm : Form
 
         if (finding.Repair != InstallationRepair.None)
         {
+            // Enabled even when it needs elevation: Windows already has a way to ask for
+            // consent, and telling somebody to go and restart the application as an
+            // administrator is worse than showing them the prompt they would get anyway.
             var apply = new StorageHubButton
             {
-                Text = finding.RequiresElevation ? "Repair (needs administrator)" : "Repair",
-                AutoSize = true,
-                Enabled = !finding.RequiresElevation
+                Text = finding.RequiresElevation ? "Repair2026" : "Repair",
+                AutoSize = true
             };
             apply.Variant = StorageHubButtonVariant.Secondary;
             apply.Click += (_, _) => ApplyRepair(finding.Repair);
@@ -218,7 +220,17 @@ public sealed class InstallationCheckForm : Form
 
     private void ApplyRepair(InstallationRepair repair)
     {
-        var result = _repair(repair);
+        Cursor = Cursors.WaitCursor;
+        InstallationRepairResult result;
+        try
+        {
+            result = _repair(repair);
+        }
+        finally
+        {
+            Cursor = Cursors.Default;
+        }
+
         MessageBox.Show(
             this,
             result.Message,
