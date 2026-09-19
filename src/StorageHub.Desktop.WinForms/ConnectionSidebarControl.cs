@@ -490,7 +490,7 @@ internal sealed class ConnectionSidebarSectionHeader : Control
 internal sealed class ConnectionSidebarGroup : Panel
 {
     private readonly FlowLayoutPanel _body;
-    private readonly StorageHubButton _header;
+    private readonly ConnectionSidebarGroupHeader _header;
     private readonly string _label;
     private readonly int _count;
     private bool _expanded;
@@ -514,19 +514,12 @@ internal sealed class ConnectionSidebarGroup : Panel
         Margin = new Padding(depth * 8, 2, 0, 10);
         BackColor = StorageHubTheme.SurfaceMuted;
         DoubleBuffered = true;
-        _header = new StorageHubButton
+        _header = new ConnectionSidebarGroupHeader
         {
-            Height = 30,
             Dock = DockStyle.Top,
-            FlatStyle = FlatStyle.Flat,
-            TextAlign = ContentAlignment.MiddleLeft,
-            Font = StorageHubTheme.CreateSectionFont(),
-            ForeColor = StorageHubTheme.Text,
             BackColor = StorageHubTheme.SurfaceMuted,
-            TabStop = true,
             AccessibleName = Ui.Format(Ui.Connections.GroupAccessibleFormat, label)
         };
-        _header.FlatAppearance.BorderSize = 0;
         _header.Click += (_, _) => Expanded = !Expanded;
         _header.MouseUp += (_, args) =>
         {
@@ -540,15 +533,13 @@ internal sealed class ConnectionSidebarGroup : Panel
         // every folder acquiring a generic folder glyph that carries no information.
         if (ConnectionIconCatalog.Resolve(iconKey) is { } glyph)
         {
-            _header.Image = StorageHubTheme.TrackIcon(
+            _ = StorageHubTheme.TrackIcon(
                 _header,
+                image => _header.Image = image,
                 glyph,
                 16,
                 UiIconTone.Text,
                 DeviceDpi / 96F);
-            _header.ImageAlign = ContentAlignment.MiddleLeft;
-            _header.TextImageRelation = TextImageRelation.ImageBeforeText;
-            _header.Padding = new Padding(4, 0, 0, 0);
         }
         _body = new FlowLayoutPanel
         {
@@ -648,21 +639,18 @@ internal sealed class ConnectionSidebarGroup : Panel
         base.OnPaint(e);
         e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
         using var path = RoundedPath(new Rectangle(0, 0, Width - 1, Height - 1), 12);
-        using var border = new Pen(StorageHubTheme.Border);
+        // A hairline blended most of the way into the fill. A group is already told apart by its
+        // tinted surface, so the edge only has to finish it off, not draw a box around it.
+        using var border = new Pen(Color.FromArgb(104, StorageHubTheme.Border));
         e.Graphics.DrawPath(border, path);
     }
 
-    protected override void Dispose(bool disposing)
+    private void UpdateHeader()
     {
-        if (disposing)
-        {
-            _header.Font.Dispose();
-        }
-
-        base.Dispose(disposing);
+        _header.Expanded = _expanded;
+        _header.Text = _label;
+        _header.Count = _count;
     }
-
-    private void UpdateHeader() => _header.Text = $"{(_expanded ? "▾" : "▸")}  {_label}  ·  {_count}";
 
     private static System.Drawing.Drawing2D.GraphicsPath RoundedPath(Rectangle bounds, int radius)
     {
@@ -683,9 +671,13 @@ internal sealed class ConnectionSidebarGroup : Panel
 
 internal sealed class ConnectionSidebarItem : Control
 {
+    // Logical units. The row's fonts grow with the display scaling, so a strip measured in raw
+    // pixels shrinks against them: at 125% the icons stayed 16px, ended up small and thin next to
+    // the text, and sat all but on top of the card's edge.
     private const int ActionSize = 22;
     private const int ActionGap = 4;
-    private const int ActionInset = 8;
+    private const int ActionInset = 10;
+    private const int ActionIconSize = 16;
     private const int BadgeIconSize = 22;
     private const int BadgeSize = 40;
     private const int BadgeLeft = 11;
