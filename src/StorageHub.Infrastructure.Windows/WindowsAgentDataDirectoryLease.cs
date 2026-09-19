@@ -4,6 +4,31 @@ using System.Security.Principal;
 namespace StorageHub.Infrastructure.Windows;
 
 /// <summary>
+/// Who, besides the account running the agent, may reach its durable state.
+/// </summary>
+public enum AgentDataTreeScope
+{
+    /// <summary>
+    /// The running account and nobody else. Right for a session agent: its vault is sealed with
+    /// that user's own DPAPI key, so restricting the files to them matches what the secrets
+    /// themselves already guarantee.
+    /// </summary>
+    CurrentUser,
+
+    /// <summary>
+    /// The running account and the machine's administrators. Right for the service, whose vault is
+    /// sealed with the machine key -- an administrator can already read those secrets, and StorageHub
+    /// says so before installing the service, so locking the files to LocalSystem buys no secrecy.
+    ///
+    /// What it does buy is a working switch back. Moving the installation out of the machine
+    /// location runs elevated as the signed-in user, because that is the only identity that can
+    /// write their own user-scoped vault; with a LocalSystem-only tree, that process cannot read
+    /// the database or the secrets it is supposed to be bringing home.
+    /// </summary>
+    Machine
+}
+
+/// <summary>
 /// Owns the per-user agent instance lock and protects agent-owned durable state.
 /// </summary>
 public sealed class WindowsAgentDataDirectoryLease : IDisposable, IAsyncDisposable
@@ -93,7 +118,8 @@ public sealed class WindowsAgentDataDirectoryLease : IDisposable, IAsyncDisposab
     /// </summary>
     public static WindowsAgentDataDirectoryLease Acquire(
         string rootDirectory,
-        string? instanceLockDirectory = null)
+        string? instanceLockDirectory = null,
+        AgentDataTreeScope scope = AgentDataTreeScope.CurrentUser)
     {
         var fullRootPath = ValidateLocalPath(rootDirectory, "agent data directory");
         var fullInstanceLockDirectory = ValidateLocalPath(
@@ -103,11 +129,15 @@ public sealed class WindowsAgentDataDirectoryLease : IDisposable, IAsyncDisposab
         try
         {
             var currentUser = GetCurrentUser();
-            instanceLock = AcquireInstanceLock(fullInstanceLockDirectory, currentUser);
+            // The instance lock stays the running account's alone whatever the tree's scope is: it
+            // is per-user by definition, and lives in that user's own profile rather than in the
+            // shared data root.
+            instanceLock = AcquireInstanceLock(fullInstanceLockDirectory, [currentUser]);
+            var trustees = ResolveTrustees(currentUser, scope);
 
             RejectReparsePointsInPath(fullRootPath, "agent data directory");
             Directory.CreateDirectory(fullRootPath);
-            ProtectDirectory(fullRootPath, currentUser);
+            ProtectDirectory(fullRootPath, currentUser, trustees);
             var agentDirectory = Path.Combine(fullRootPath, "Agent");
             var frameworkDirectory = Path.Combine(agentDirectory, "CodeLogic");
             Directory.CreateDirectory(frameworkDirectory);
@@ -115,7 +145,7 @@ public sealed class WindowsAgentDataDirectoryLease : IDisposable, IAsyncDisposab
             // They can be open or governed by their own ACL requirements and must not
             // prevent the background Agent from starting. Recursively harden only the
             // Agent subtree, which owns the database, vault, and runtime secrets.
-            ProtectOwnedTree(agentDirectory, currentUser);
+            ProtectOwnedTree(agentDirectory, currentUser, trustees);
 
             var result = new WindowsAgentDataDirectoryLease(fullRootPath, instanceLock);
             instanceLock = null;
@@ -180,14 +210,33 @@ public sealed class WindowsAgentDataDirectoryLease : IDisposable, IAsyncDisposab
         return Path.Combine(localAppData, "StorageHub", "AgentInstance");
     }
 
+    /// <summary>
+    /// The accounts given full control of the tree. The owner always; the machine's administrators
+    /// as well when the tree is machine-scoped, because an elevated switch back out of the service
+    /// has to be able to read it.
+    /// </summary>
+    private static SecurityIdentifier[] ResolveTrustees(
+        SecurityIdentifier owner,
+        AgentDataTreeScope scope)
+    {
+        if (scope != AgentDataTreeScope.Machine)
+        {
+            return [owner];
+        }
+
+        var administrators = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
+        return owner.Equals(administrators) ? [owner] : [owner, administrators];
+    }
+
     private static FileStream AcquireInstanceLock(
         string lockDirectory,
-        SecurityIdentifier currentUser)
+        SecurityIdentifier[] trustees)
     {
+        var currentUser = trustees[0];
         RejectReparsePointsInPath(lockDirectory, "agent instance lock directory");
         Directory.CreateDirectory(lockDirectory);
         RejectReparsePointsInPath(lockDirectory, "agent instance lock directory");
-        ProtectDirectory(lockDirectory, currentUser);
+        ProtectDirectory(lockDirectory, currentUser, trustees);
 
         var lockPath = Path.Combine(lockDirectory, LockFileName);
         RejectReparsePointEntryIfPresent(lockPath, "agent instance lock");
@@ -202,7 +251,7 @@ public sealed class WindowsAgentDataDirectoryLease : IDisposable, IAsyncDisposab
                 bufferSize: 1,
                 FileOptions.WriteThrough);
             RejectReparsePointEntryIfPresent(lockPath, "agent instance lock");
-            ProtectFile(lockPath, currentUser);
+            ProtectFile(lockPath, currentUser, trustees);
             var attributes = File.GetAttributes(lockPath);
             File.SetAttributes(
                 lockPath,
@@ -305,9 +354,12 @@ public sealed class WindowsAgentDataDirectoryLease : IDisposable, IAsyncDisposab
         WindowsIdentity.GetCurrent().User ??
         throw new InvalidOperationException("The current Windows user SID is unavailable.");
 
-    private static void ProtectOwnedTree(string fullPath, SecurityIdentifier currentUser)
+    private static void ProtectOwnedTree(
+        string fullPath,
+        SecurityIdentifier owner,
+        SecurityIdentifier[] trustees)
     {
-        ProtectDirectory(fullPath, currentUser);
+        ProtectDirectory(fullPath, owner, trustees);
         var pendingDirectories = new Stack<string>();
         pendingDirectories.Push(fullPath);
         var enumerationOptions = new EnumerationOptions
@@ -333,12 +385,12 @@ public sealed class WindowsAgentDataDirectoryLease : IDisposable, IAsyncDisposab
 
                 if ((attributes & FileAttributes.Directory) != 0)
                 {
-                    ProtectDirectory(entry.FullName, currentUser);
+                    ProtectDirectory(entry.FullName, owner, trustees);
                     pendingDirectories.Push(entry.FullName);
                 }
                 else
                 {
-                    ProtectFile(entry.FullName, currentUser);
+                    ProtectFile(entry.FullName, owner, trustees);
                 }
             }
         }
@@ -378,50 +430,72 @@ public sealed class WindowsAgentDataDirectoryLease : IDisposable, IAsyncDisposab
         }
     }
 
-    private static void ProtectDirectory(string fullPath, SecurityIdentifier currentUser)
+    private static void ProtectDirectory(
+        string fullPath,
+        SecurityIdentifier owner,
+        SecurityIdentifier[] trustees)
     {
         var security = new DirectorySecurity();
-        security.SetOwner(currentUser);
+        security.SetOwner(owner);
         security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
-        security.AddAccessRule(new FileSystemAccessRule(
-            currentUser,
-            FileSystemRights.FullControl,
-            InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
-            PropagationFlags.None,
-            AccessControlType.Allow));
+        foreach (var trustee in trustees)
+        {
+            security.AddAccessRule(new FileSystemAccessRule(
+                trustee,
+                FileSystemRights.FullControl,
+                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                PropagationFlags.None,
+                AccessControlType.Allow));
+        }
+
         var directory = new DirectoryInfo(fullPath);
         directory.SetAccessControl(security);
         VerifyAccessRules(
             directory.GetAccessControl(AccessControlSections.Owner | AccessControlSections.Access),
-            currentUser,
+            owner,
+            trustees,
             "directory");
     }
 
-    private static void ProtectFile(string fullPath, SecurityIdentifier currentUser)
+    private static void ProtectFile(
+        string fullPath,
+        SecurityIdentifier owner,
+        SecurityIdentifier[] trustees)
     {
         var security = new FileSecurity();
-        security.SetOwner(currentUser);
+        security.SetOwner(owner);
         security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
-        security.AddAccessRule(new FileSystemAccessRule(
-            currentUser,
-            FileSystemRights.FullControl,
-            InheritanceFlags.None,
-            PropagationFlags.None,
-            AccessControlType.Allow));
+        foreach (var trustee in trustees)
+        {
+            security.AddAccessRule(new FileSystemAccessRule(
+                trustee,
+                FileSystemRights.FullControl,
+                InheritanceFlags.None,
+                PropagationFlags.None,
+                AccessControlType.Allow));
+        }
+
         var file = new FileInfo(fullPath);
         file.SetAccessControl(security);
         VerifyAccessRules(
             file.GetAccessControl(AccessControlSections.Owner | AccessControlSections.Access),
-            currentUser,
+            owner,
+            trustees,
             "file");
     }
 
+    /// <summary>
+    /// Reads the applied security back and insists it says exactly what was asked for: this owner,
+    /// no inheritance, and one full-control rule per intended trustee and nothing else. Checking
+    /// the count is the point -- a rule that survived is a rule nobody intended.
+    /// </summary>
     private static void VerifyAccessRules(
         FileSystemSecurity security,
-        SecurityIdentifier currentUser,
+        SecurityIdentifier owner,
+        SecurityIdentifier[] trustees,
         string entryKind)
     {
-        if (!currentUser.Equals(security.GetOwner(typeof(SecurityIdentifier))) ||
+        if (!owner.Equals(security.GetOwner(typeof(SecurityIdentifier))) ||
             !security.AreAccessRulesProtected)
         {
             throw new IOException($"The StorageHub {entryKind} ownership or inheritance could not be verified.");
@@ -431,12 +505,21 @@ public sealed class WindowsAgentDataDirectoryLease : IDisposable, IAsyncDisposab
             .GetAccessRules(includeExplicit: true, includeInherited: false, typeof(SecurityIdentifier))
             .Cast<FileSystemAccessRule>()
             .ToArray();
-        if (explicitRules.Length != 1 ||
-            !currentUser.Equals(explicitRules[0].IdentityReference) ||
-            explicitRules[0].AccessControlType != AccessControlType.Allow ||
-            (explicitRules[0].FileSystemRights & FileSystemRights.FullControl) != FileSystemRights.FullControl)
+        if (explicitRules.Length != trustees.Length)
         {
             throw new IOException($"The StorageHub {entryKind} access rules could not be verified.");
+        }
+
+        foreach (var trustee in trustees)
+        {
+            var granted = explicitRules.Any(rule =>
+                trustee.Equals(rule.IdentityReference) &&
+                rule.AccessControlType == AccessControlType.Allow &&
+                (rule.FileSystemRights & FileSystemRights.FullControl) == FileSystemRights.FullControl);
+            if (!granted)
+            {
+                throw new IOException($"The StorageHub {entryKind} access rules could not be verified.");
+            }
         }
     }
 

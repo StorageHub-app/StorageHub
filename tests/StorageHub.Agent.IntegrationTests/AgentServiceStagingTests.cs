@@ -55,14 +55,48 @@ public sealed class AgentServiceStagingTests : IDisposable
                 Path.Combine(_root, "absent", "StorageHub.Agent.Windows.exe")));
     }
 
-    [Fact]
-    public void The_staging_directory_is_inside_the_machine_data_root()
+    /// <summary>
+    /// The regression that made the service unusable: the binaries were staged into
+    /// <c>%ProgramData%\StorageHub\bin</c>, inside the very data root the service resolves. The
+    /// agent rejects an overlapping data root and application directory at startup, so the service
+    /// was registered and then exited immediately, every time, on every machine.
+    ///
+    /// Neither direction may overlap, and the check is written the way the agent writes it -- a
+    /// path prefix on a separator boundary -- so a sibling like <c>StorageHubAgent</c> beside
+    /// <c>StorageHub</c> is correctly read as separate rather than as a parent.
+    /// </summary>
+    [Theory]
+    [InlineData(AgentHostMode.WindowsService)]
+    [InlineData(AgentHostMode.UserSession)]
+    public void The_staging_directory_never_overlaps_a_data_root(AgentHostMode mode)
     {
         var staging = AgentServiceStaging.ResolveDirectory();
-        var machineRoot = AgentHostLayout.ResolveDataRoot(AgentHostMode.WindowsService);
+        var dataRoot = AgentHostLayout.ResolveDataRoot(mode);
 
-        Assert.StartsWith(machineRoot, staging, StringComparison.OrdinalIgnoreCase);
-        Assert.NotEqual(machineRoot, staging);
+        Assert.False(IsSamePathOrAncestor(dataRoot, staging), $"{dataRoot} contains {staging}");
+        Assert.False(IsSamePathOrAncestor(staging, dataRoot), $"{staging} contains {dataRoot}");
+    }
+
+    /// <summary>
+    /// The binaries still live under the staging root, so protecting that root protects them.
+    /// </summary>
+    [Fact]
+    public void The_staging_directory_sits_inside_the_protected_staging_root()
+    {
+        var root = AgentServiceStaging.ResolveRootDirectory();
+        var staging = AgentServiceStaging.ResolveDirectory();
+
+        Assert.True(IsSamePathOrAncestor(root, staging));
+        Assert.NotEqual(root, staging);
+    }
+
+    /// <summary>Mirrors the agent's own overlap rule, so the assertion tests what production does.</summary>
+    private static bool IsSamePathOrAncestor(string candidateAncestor, string candidateDescendant)
+    {
+        var ancestor = Path.TrimEndingDirectorySeparator(Path.GetFullPath(candidateAncestor));
+        var descendant = Path.TrimEndingDirectorySeparator(Path.GetFullPath(candidateDescendant));
+        return string.Equals(ancestor, descendant, StringComparison.OrdinalIgnoreCase) ||
+            descendant.StartsWith(ancestor + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     }
 
     private static void GrantCurrentUserWrite(string directory)

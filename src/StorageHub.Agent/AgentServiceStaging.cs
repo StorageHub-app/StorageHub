@@ -21,9 +21,28 @@ namespace StorageHub.Agent;
 [System.Runtime.Versioning.SupportedOSPlatform("windows")]
 public static class AgentServiceStaging
 {
-    /// <summary>The machine-owned directory the service runs from.</summary>
-    public static string ResolveDirectory() => Path.Combine(
-        AgentHostLayout.ResolveDataRoot(AgentHostMode.WindowsService), "bin");
+    /// <summary>
+    /// The machine-owned tree the service runs from.
+    ///
+    /// It is a sibling of the service's data root, never a directory inside it. The agent refuses
+    /// to start when its data root and its application directory overlap, because an update
+    /// replacing the application tree would then be replacing durable state, and the ownership the
+    /// agent takes of durable state would be taking ownership of packaged files. Staging into the
+    /// data root tripped that check on every single start: the service could be registered, but
+    /// exited immediately with "the StorageHub data directory must not overlap the installed
+    /// application directory" -- and because a session agent refuses to run beside an installed
+    /// service, the machine was then left with no agent at all.
+    /// </summary>
+    public static string ResolveRootDirectory()
+    {
+        var machineFolder = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+        return string.IsNullOrWhiteSpace(machineFolder)
+            ? throw new InvalidOperationException("Windows did not report a machine data folder.")
+            : Path.Combine(machineFolder, AgentHostLayout.ServiceName);
+    }
+
+    /// <summary>The machine-owned directory the service's binaries are staged into.</summary>
+    public static string ResolveDirectory() => Path.Combine(ResolveRootDirectory(), "bin");
 
     /// <summary>The staged executable, whether or not it exists yet.</summary>
     public static string ResolveStagedExecutable(string executableName) =>
@@ -71,6 +90,11 @@ public static class AgentServiceStaging
         var sourceDirectory = Path.GetDirectoryName(Path.GetFullPath(sourceExecutablePath)) ??
             throw new ArgumentException("The agent executable has no directory.", nameof(sourceExecutablePath));
         var target = ResolveDirectory();
+        // The parent is protected too. ProgramData lets any authenticated user create a directory
+        // in it, so leaving the staging root unprotected would let somebody create it first and
+        // hold it as its owner -- and an owner of the parent can replace the directory the service
+        // runs from, which is the escalation this whole class exists to prevent.
+        CreateProtectedDirectory(ResolveRootDirectory());
         CreateProtectedDirectory(target);
 
         foreach (var file in Directory.EnumerateFiles(sourceDirectory, "*", SearchOption.AllDirectories))
@@ -87,9 +111,38 @@ public static class AgentServiceStaging
         }
 
         var staged = Path.Combine(target, Path.GetFileName(sourceExecutablePath));
-        return File.Exists(staged)
-            ? staged
-            : throw new InvalidOperationException("The agent could not be staged for the service.");
+        if (!File.Exists(staged))
+        {
+            throw new InvalidOperationException("The agent could not be staged for the service.");
+        }
+
+        RemoveLegacyStagingDirectory();
+        return staged;
+    }
+
+    /// <summary>
+    /// Deletes the copy left inside the data root by a build that staged there.
+    ///
+    /// Only reached once the new copy exists and the caller is about to register the service
+    /// against it, so the worst case is a stale directory nobody points at. Best effort for the
+    /// same reason: a few hundred orphaned files in ProgramData are untidy, not a reason to fail an
+    /// install that has otherwise succeeded.
+    /// </summary>
+    private static void RemoveLegacyStagingDirectory()
+    {
+        var legacy = Path.Combine(
+            AgentHostLayout.ResolveDataRoot(AgentHostMode.WindowsService), "bin");
+        try
+        {
+            if (Directory.Exists(legacy))
+            {
+                Directory.Delete(legacy, recursive: true);
+            }
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            // Still in use by the service being replaced, or already gone.
+        }
     }
 
     /// <summary>

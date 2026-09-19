@@ -82,7 +82,14 @@ try
     WindowsAgentDataDirectoryLease.EnsureApplicationTreeIsSeparateFromInstanceLock(
         applicationOwnedTreeRoot);
     agentDataDirectoryLease = WindowsAgentDataDirectoryLease.Acquire(
-        configuredStorageHubRoot);
+        configuredStorageHubRoot,
+        scope: hostMode == AgentHostMode.WindowsService
+            // The machine tree stays reachable by administrators. Its secrets are sealed with the
+            // machine key, which any administrator can already use, and the elevated switch back to
+            // a session mode runs as the signed-in user -- it has to be able to read what it is
+            // bringing home.
+            ? AgentDataTreeScope.Machine
+            : AgentDataTreeScope.CurrentUser);
 }
 catch (WindowsAgentDataDirectoryException error)
 {

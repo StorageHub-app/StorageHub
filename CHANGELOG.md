@@ -18,7 +18,50 @@ chosen is written down in [Versioning and merges](docs/versioning.md).
 
 ## Unreleased
 
-Nothing yet.
+**The Windows service can start.** It never could. The elevated install copied
+the agent into `%ProgramData%\StorageHub\bin`, inside the very data root the
+service resolves, and the agent refuses to run with its data root and its
+application directory overlapping — so every start exited immediately and
+Windows reported only "the StorageHub Agent service terminated unexpectedly".
+The binaries are staged beside the data root now, in `%ProgramData%\StorageHubAgent\bin`,
+and the copy left in the old location is removed when the service is
+re-registered. The layout is checked against the guard the agent actually
+enforces at startup, which is what nobody was doing: both halves had tests, and
+neither test put the two real paths together.
+
+**Switching host modes no longer arrives with an empty installation.** The
+database runs in write-ahead logging mode, so everything written since the last
+checkpoint lives in the `-wal` sidecar rather than in the `.db` file — and the
+migration copied the `.db` file alone. The result opened cleanly, passed its
+integrity check, contained no connections, keys, schedules or history, and
+reported that it had copied the database. It is copied through SQLite's online
+backup now, which reads through the log and writes one consistent, fully
+checkpointed file.
+
+**Switching back brings the installation with it.** Only the way out was ever
+migrated. Choosing a session mode again removed the service and left everything
+done under it in `%ProgramData%`, silently presenting whatever stale copy the
+per-user location still held. Migration is one job in two directions now: the
+service is stopped, the installation is copied home and its secrets re-protected
+with your key, and only then is the registration removed. Anything already at
+the destination is moved into a dated folder beside it rather than overwritten,
+and the source is never modified, so a switch stays reversible. Switching back
+also restores the logon entry again, which it had stopped doing — "when I sign
+in" quietly became "only while StorageHub is open".
+
+**The service's data stays readable by administrators.** It was locked to
+LocalSystem alone on first start. That buys no secrecy — the vault is sealed
+with the machine key, which any administrator can use, and StorageHub says so
+before installing the service — while it did block the elevated switch back,
+which runs as the signed-in user and has to read what it is bringing home.
+
+**Choosing the service can no longer leave the machine with no agent at all.**
+The registration survived a failed start, and a session agent refuses to run
+beside an installed service, so a service that could not start took the whole
+application down with it — the desktop opened, and nothing worked. A service
+this install created is now removed again if it will not start, so declining or
+failing the switch leaves you exactly where you were: running in your own
+session. A service that already existed is still left alone.
 
 ---
 

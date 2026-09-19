@@ -247,11 +247,77 @@ public sealed class WindowsAgentDataDirectoryLeaseTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// The service's tree stays reachable by administrators. Its secrets are sealed with the machine
+    /// key, which any administrator can already use, so a LocalSystem-only tree buys no secrecy --
+    /// and it breaks the elevated switch back to a session mode, which runs as the signed-in user
+    /// and has to read the database and vault it is bringing home.
+    /// </summary>
+    [Fact]
+    public void A_machine_scoped_tree_also_grants_administrators()
+    {
+        var dataRoot = Path.Combine(_testRoot, "data");
+        var agentFile = Path.Combine(dataRoot, "Agent", "storagehub.db");
+        Directory.CreateDirectory(Path.GetDirectoryName(agentFile)!);
+        File.WriteAllBytes(agentFile, [1, 2, 3]);
+
+        using var lease = WindowsAgentDataDirectoryLease.Acquire(
+            dataRoot,
+            Path.Combine(_testRoot, "instance"),
+            AgentDataTreeScope.Machine);
+
+        AssertProtectedForCurrentUserAndAdministrators(new DirectoryInfo(lease.AgentDirectory)
+            .GetAccessControl(AccessControlSections.Owner | AccessControlSections.Access));
+        AssertProtectedForCurrentUserAndAdministrators(new FileInfo(agentFile)
+            .GetAccessControl(AccessControlSections.Owner | AccessControlSections.Access));
+    }
+
+    /// <summary>
+    /// The instance lock is per-user by definition and lives in that user's own profile, so the
+    /// tree's scope must not widen it.
+    /// </summary>
+    [Fact]
+    public void A_machine_scoped_tree_leaves_the_instance_lock_to_its_own_user()
+    {
+        var lockRoot = Path.Combine(_testRoot, "instance");
+
+        using var lease = WindowsAgentDataDirectoryLease.Acquire(
+            Path.Combine(_testRoot, "data"),
+            lockRoot,
+            AgentDataTreeScope.Machine);
+
+        AssertProtectedForCurrentUser(new DirectoryInfo(lockRoot).GetAccessControl(
+            AccessControlSections.Owner | AccessControlSections.Access));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_testRoot))
         {
             Directory.Delete(_testRoot, recursive: true);
+        }
+    }
+
+    private static void AssertProtectedForCurrentUserAndAdministrators(FileSystemSecurity security)
+    {
+        var currentUser = WindowsIdentity.GetCurrent().User;
+        var administrators = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
+        Assert.Equal(currentUser, security.GetOwner(typeof(SecurityIdentifier)));
+        Assert.True(security.AreAccessRulesProtected);
+        var rules = security
+            .GetAccessRules(includeExplicit: true, includeInherited: false, typeof(SecurityIdentifier))
+            .Cast<FileSystemAccessRule>()
+            .ToArray();
+
+        // Exactly these two, so an inherited or leftover grant cannot hide among them.
+        Assert.Equal(2, rules.Length);
+        foreach (var expected in new[] { currentUser!, administrators })
+        {
+            var rule = Assert.Single(rules, candidate => expected.Equals(candidate.IdentityReference));
+            Assert.Equal(AccessControlType.Allow, rule.AccessControlType);
+            Assert.Equal(
+                FileSystemRights.FullControl,
+                rule.FileSystemRights & FileSystemRights.FullControl);
         }
     }
 

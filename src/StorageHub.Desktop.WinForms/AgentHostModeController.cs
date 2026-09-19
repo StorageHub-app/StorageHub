@@ -109,13 +109,29 @@ internal sealed class AgentHostModeController(string agentExecutablePath)
             return ApplySessionMode(desired);
         }
 
+        // The user root travels with both verbs. The elevated process can arrive with a different
+        // profile than the desktop that asked for it, and on the way back it is the destination --
+        // guessing it would restore the installation into the wrong account, or nowhere.
         var arguments = desired == AgentHostMode.WindowsService
             ? new[]
             {
                 "--install-service",
                 $"--user-data-root={AgentHostLayout.ResolveDataRoot(AgentHostMode.UserSession)}"
             }
-            : ["--uninstall-service"];
+            : [
+                "--uninstall-service",
+                $"--user-data-root={AgentHostLayout.ResolveDataRoot(AgentHostMode.UserSession)}"
+            ];
+
+        if (desired == AgentHostMode.WindowsService)
+        {
+            // Quiesced before the elevated pass, not after it. That pass copies this installation,
+            // and an agent still writing to the database is an agent whose last writes the copy
+            // will not contain. Only the process is stopped here -- the logon entry stays until the
+            // switch has actually succeeded, so a declined consent prompt costs nothing but a
+            // restart the shell performs on its own.
+            StopSessionAgent();
+        }
 
         try
         {
@@ -124,16 +140,26 @@ internal sealed class AgentHostModeController(string agentExecutablePath)
             // The cached mode was read at startup and is now wrong either way, including on a
             // failure that got far enough to register the service.
             DesktopAgentHost.Invalidate();
-            if (exitCode is 0 or 6 && desired == AgentHostMode.WindowsService)
+            if (exitCode is 0 or 6)
             {
-                RetireSessionAgent();
+                if (desired == AgentHostMode.WindowsService)
+                {
+                    RemoveSessionAutostart();
+                }
+                else
+                {
+                    // The service is gone and the installation is back in this account, but the
+                    // logon entry that decides between the two session modes is this side's to
+                    // write -- without it, "when I sign in" quietly became "only while open".
+                    _ = ApplySessionMode(desired);
+                }
             }
 
             return exitCode switch
             {
                 0 => new AgentHostModeChangeResult(true, Ui.Settings.AgentModeApplied),
-                // The agent reports a partly migrated vault separately: the service is installed
-                // and running, but some secrets could not be read and must be entered again.
+                // The agent reports a partly migrated vault separately: the switch itself went
+                // through, but some secrets could not be read and must be entered again.
                 6 => new AgentHostModeChangeResult(true, Ui.Settings.AgentModeAppliedWithSecretLoss),
                 5 => new AgentHostModeChangeResult(false, Ui.Settings.AgentModeNeedsAdministrator),
                 _ => new AgentHostModeChangeResult(false, Ui.Settings.AgentModeChangeFailed)
@@ -179,25 +205,43 @@ internal sealed class AgentHostModeController(string agentExecutablePath)
     }
 
     /// <summary>
-    /// Stops the session agent left over from before the switch.
+    /// Stops the session agent, so nothing is writing to the installation about to be copied.
     ///
     /// It is a sibling process, not a child, so it survives on its own and would otherwise keep
-    /// running beside the service -- two agents holding the same database open, and a desktop that
-    /// connects to whichever pipe it happens to resolve. Removing the autostart entry as well
-    /// stops it coming back at the next sign-in.
+    /// running beside the service -- two agents holding two databases open, and a desktop that
+    /// connects to whichever pipe it happens to resolve.
     /// </summary>
-    private static void RetireSessionAgent()
+    private static void StopSessionAgent()
     {
         try
         {
-            var lifecycle = PackagedDesktopLifecycle.CreateDefault();
-            _ = lifecycle.RemoveAutostart();
-            _ = lifecycle.TryStopAgentAsync(AgentShutdownReason.Restart).AsTask().GetAwaiter().GetResult();
+            _ = PackagedDesktopLifecycle.CreateDefault()
+                .TryStopAgentAsync(AgentShutdownReason.Restart)
+                .AsTask()
+                .GetAwaiter()
+                .GetResult();
         }
         catch (Exception)
         {
-            // The service is installed and serving either way; a stubborn session agent is worth
-            // reporting only if it actually interferes, and it exits with the session regardless.
+            // Worth reporting only if it actually interferes, and the shell restarts it by itself
+            // when the switch does not happen.
+        }
+    }
+
+    /// <summary>
+    /// Drops the logon entry once the service owns the machine, so the session agent does not come
+    /// back at the next sign-in and start competing with it.
+    /// </summary>
+    private static void RemoveSessionAutostart()
+    {
+        try
+        {
+            _ = PackagedDesktopLifecycle.CreateDefault().RemoveAutostart();
+        }
+        catch (Exception)
+        {
+            // The service is installed and serving either way, and Program refuses to start a
+            // session agent beside a running service even if the entry fires.
         }
     }
 
