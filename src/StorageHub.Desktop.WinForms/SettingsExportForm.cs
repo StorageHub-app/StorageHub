@@ -32,7 +32,7 @@ public sealed class SettingsExportForm : Form
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MinimizeBox = false;
         MaximizeBox = false;
-        ClientSize = new Size(660, 640);
+        ClientSize = this.LogicalWindowSize(new Size(660, 640));
         AutoScaleMode = AutoScaleMode.Dpi;
         BackColor = StorageHubTheme.Canvas;
         ForeColor = StorageHubTheme.Text;
@@ -44,7 +44,7 @@ public sealed class SettingsExportForm : Form
             Dock = DockStyle.Fill,
             ColumnCount = 1,
             AutoScroll = true,
-            Padding = new Padding(18, 16, 18, 8)
+            Padding = this.LogicalToDeviceUnits(new Padding(18, 16, 18, 8))
         };
         content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
 
@@ -54,7 +54,7 @@ public sealed class SettingsExportForm : Form
             AutoSize = true,
             Font = StorageHubTheme.CreateSectionFont(),
             ForeColor = StorageHubTheme.Text,
-            Margin = new Padding(0, 0, 0, 10)
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 0, 0, 10))
         });
 
         foreach (var section in SettingsSectionCatalog.Sections)
@@ -64,7 +64,7 @@ public sealed class SettingsExportForm : Form
                 Text = section.Label,
                 Checked = section.CheckedByDefault,
                 AutoSize = true,
-                Margin = new Padding(0, 6, 0, 0),
+                Margin = this.LogicalToDeviceUnits(new Padding(0, 6, 0, 0)),
                 AccessibleName = section.Label,
                 AccessibleDescription = section.Description
             };
@@ -75,9 +75,9 @@ public sealed class SettingsExportForm : Form
             {
                 Text = section.Description,
                 AutoSize = true,
-                MaximumSize = new Size(600, 0),
+                MaximumSize = new Size(LogicalToDeviceUnits(600), 0),
                 ForeColor = StorageHubTheme.TextMuted,
-                Margin = new Padding(20, 0, 0, 4)
+                Margin = this.LogicalToDeviceUnits(new Padding(20, 0, 0, 4))
             });
         }
 
@@ -87,7 +87,7 @@ public sealed class SettingsExportForm : Form
         {
             Text = Ui.SettingsTransfer.ProtectThisFileWithAPassword,
             AutoSize = true,
-            Margin = new Padding(0, 0, 0, 4),
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 0, 0, 4)),
             AccessibleName = Ui.SettingsTransfer.ProtectTheExportWithAPassword
         };
         _protect.CheckedChanged += (_, _) => { UpdatePasswordState(); UpdateExportState(); };
@@ -98,9 +98,9 @@ public sealed class SettingsExportForm : Form
         _passwordHint = new Label
         {
             AutoSize = true,
-            MaximumSize = new Size(600, 0),
+            MaximumSize = new Size(LogicalToDeviceUnits(600), 0),
             ForeColor = StorageHubTheme.TextMuted,
-            Margin = new Padding(0, 2, 0, 0)
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 2, 0, 0))
         };
 
         // Docked rather than added to the scrolling list above: whether the file is readable or
@@ -110,7 +110,7 @@ public sealed class SettingsExportForm : Form
             Dock = DockStyle.Bottom,
             AutoSize = true,
             ColumnCount = 1,
-            Padding = new Padding(18, 8, 18, 4),
+            Padding = this.LogicalToDeviceUnits(new Padding(18, 8, 18, 4)),
             BackColor = StorageHubTheme.Canvas
         };
         passwordGroup.Controls.Add(_protect);
@@ -122,21 +122,21 @@ public sealed class SettingsExportForm : Form
             Text = Ui.SettingsTransfer.WithoutAPasswordTheFileIsReadable +
                 Ui.SettingsTransfer.ALostPasswordCannotBeRecovered,
             AutoSize = true,
-            MaximumSize = new Size(600, 0),
+            MaximumSize = new Size(LogicalToDeviceUnits(600), 0),
             ForeColor = StorageHubTheme.TextMuted,
-            Margin = new Padding(0, 4, 0, 0)
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 4, 0, 0))
         });
 
         _status = new Label
         {
             Dock = DockStyle.Bottom,
-            Height = 24,
+            Height = this.TextBoxHeight(3),
             ForeColor = StorageHubTheme.TextMuted,
-            Padding = new Padding(18, 0, 18, 0),
+            Padding = this.LogicalToDeviceUnits(new Padding(18, 0, 18, 0)),
             AccessibleName = Ui.SettingsTransfer.ExportStatus
         };
 
-        _export = new StorageHubButton { Text = Ui.SettingsTransfer.Export, AutoSize = true, Margin = new Padding(8, 0, 0, 0) };
+        _export = new StorageHubButton { Text = Ui.SettingsTransfer.Export, AutoSize = true, Margin = this.LogicalToDeviceUnits(new Padding(8, 0, 0, 0)) };
         _export.Click += async (_, _) => await ExportClickedAsync().ConfigureAwait(true);
         _export.Variant = StorageHubButtonVariant.Primary;
         var cancel = new StorageHubButton
@@ -144,15 +144,15 @@ public sealed class SettingsExportForm : Form
             Text = Ui.SettingsTransfer.Cancel,
             AutoSize = true,
             DialogResult = DialogResult.Cancel,
-            Margin = new Padding(8, 0, 0, 0)
+            Margin = this.LogicalToDeviceUnits(new Padding(8, 0, 0, 0))
         };
         cancel.Variant = StorageHubButtonVariant.Secondary;
         var buttons = new FlowLayoutPanel
         {
             Dock = DockStyle.Bottom,
             FlowDirection = FlowDirection.RightToLeft,
-            Height = 56,
-            Padding = new Padding(16, 12, 16, 10)
+            Height = this.TextBoxHeight(29),
+            Padding = this.LogicalToDeviceUnits(new Padding(16, 12, 16, 10))
         };
         buttons.Controls.Add(_export);
         buttons.Controls.Add(cancel);
@@ -287,13 +287,13 @@ public sealed class SettingsExportForm : Form
         }
     }
 
-    private static TableLayoutPanel CreateExclusions()
+    private TableLayoutPanel CreateExclusions()
     {
         var panel = new TableLayoutPanel
         {
             AutoSize = true,
             ColumnCount = 1,
-            Margin = new Padding(0, 14, 0, 0)
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 14, 0, 0))
         };
         panel.Controls.Add(new Label
         {
@@ -301,7 +301,7 @@ public sealed class SettingsExportForm : Form
             AutoSize = true,
             Font = StorageHubTheme.CreateSectionFont(),
             ForeColor = StorageHubTheme.Text,
-            Margin = new Padding(0, 0, 0, 4)
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 0, 0, 4))
         });
         foreach (var (title, reason) in new[]
         {
@@ -317,32 +317,32 @@ public sealed class SettingsExportForm : Form
             {
                 Text = $"{title} — {reason}",
                 AutoSize = true,
-                MaximumSize = new Size(600, 0),
+                MaximumSize = new Size(LogicalToDeviceUnits(600), 0),
                 ForeColor = StorageHubTheme.TextMuted,
-                Margin = new Padding(0, 0, 0, 2)
+                Margin = this.LogicalToDeviceUnits(new Padding(0, 0, 0, 2))
             });
         }
 
         return panel;
     }
 
-    private static StorageHubTextField CreatePasswordBox(string accessibleName) => new()
+    private StorageHubTextField CreatePasswordBox(string accessibleName) => new()
     {
-        Width = 280,
+        Width = LogicalToDeviceUnits(280),
         UseSystemPasswordChar = true,
         MaxLength = Security.SettingsExportEnvelope.MaximumPasswordLength,
         AccessibleName = accessibleName
     };
 
-    private static TableLayoutPanel Labelled(string text, Control control)
+    private TableLayoutPanel Labelled(string text, Control control)
     {
         var row = new TableLayoutPanel
         {
             AutoSize = true,
             ColumnCount = 2,
-            Margin = new Padding(20, 4, 0, 0)
+            Margin = this.LogicalToDeviceUnits(new Padding(20, 4, 0, 0))
         };
-        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 80));
+        row.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, LogicalToDeviceUnits(80)));
         row.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         row.Controls.Add(new Label
         {
@@ -350,7 +350,7 @@ public sealed class SettingsExportForm : Form
             AutoSize = true,
             Anchor = AnchorStyles.Left,
             ForeColor = StorageHubTheme.Text,
-            Margin = new Padding(0, 4, 0, 0)
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 4, 0, 0))
         });
         row.Controls.Add(control);
         return row;

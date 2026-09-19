@@ -46,8 +46,8 @@ public sealed class ActivityLogControl : UserControl
         var toolbar = new FlowLayoutPanel
         {
             Dock = DockStyle.Top,
-            Height = 42,
-            Padding = new Padding(8, 6, 8, 4),
+            Height = this.TextBoxHeight(18),
+            Padding = this.LogicalToDeviceUnits(new Padding(8, 6, 8, 4)),
             WrapContents = false,
             BackColor = StorageHubTheme.Surface
         };
@@ -58,7 +58,7 @@ public sealed class ActivityLogControl : UserControl
         {
             Text = Ui.Transfer.ActivityNotLoaded,
             AutoSize = true,
-            Margin = new Padding(12, 8, 0, 0),
+            Margin = this.LogicalToDeviceUnits(new Padding(12, 8, 0, 0)),
             ForeColor = StorageHubTheme.TextMuted,
             AccessibleDescription = Ui.Transfer.ActivityStatusAccessibleDescription
         };

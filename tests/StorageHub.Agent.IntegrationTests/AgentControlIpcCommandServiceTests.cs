@@ -81,6 +81,7 @@ public sealed class AgentControlIpcCommandServiceTests
     private static NamedPipeIpcClientOptions CreateClientOptions(string pipeName) => new()
     {
         PipeName = pipeName,
+        Access = IpcPipeAccess.CurrentUserOnly,
         ClientName = "StorageHub.Control.Tests",
         ClientVersion = "1.0.0-tests",
         ClientInstanceId = Guid.NewGuid(),

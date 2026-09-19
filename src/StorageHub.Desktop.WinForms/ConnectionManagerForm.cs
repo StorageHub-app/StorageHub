@@ -87,8 +87,8 @@ public sealed class ConnectionManagerForm : Form
         AccessibleName = quickConnectMode ? Ui.ConnectionEditor.QuickConnectAccessibleName : Ui.ConnectionEditor.EditAccessibleName;
         AccessibleDescription = Ui.ConnectionEditor.WindowAccessibleDescription;
         StartPosition = FormStartPosition.CenterParent;
-        MinimumSize = new Size(720, 620);
-        Size = new Size(880, 760);
+        MinimumSize = this.LogicalWindowSize(new Size(720, 620));
+        Size = this.LogicalWindowSize(new Size(880, 760));
         AutoScaleMode = AutoScaleMode.Dpi;
         BackColor = StorageHubTheme.Canvas;
         Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
@@ -100,7 +100,7 @@ public sealed class ConnectionManagerForm : Form
         _providerAccent = new Panel { Dock = DockStyle.Top, Height = 4, BackColor = StorageHubTheme.Primary };
         _typeSelector = new StorageHubChoiceField
         {
-            Width = 260,
+            Width = LogicalToDeviceUnits(260),
             AccessibleName = Ui.ConnectionEditor.ConnectionType,
             AccessibleDescription = Ui.ConnectionEditor.ConnectionTypeHint
         };
@@ -109,7 +109,7 @@ public sealed class ConnectionManagerForm : Form
         _typeSelector.SelectedIndexChanged += TypeSelectionChanged;
         _providerSelector = new StorageHubChoiceField
         {
-            Width = 260,
+            Width = LogicalToDeviceUnits(260),
             AccessibleName = Ui.ConnectionEditor.ConnectionProvider,
             AccessibleDescription = Ui.ConnectionEditor.ProviderHint
         };
@@ -119,7 +119,7 @@ public sealed class ConnectionManagerForm : Form
         _providerSummary = new Label
         {
             AutoSize = true,
-            MaximumSize = new Size(650, 0),
+            MaximumSize = new Size(LogicalToDeviceUnits(650), 0),
             ForeColor = StorageHubTheme.TextMuted,
             AccessibleName = Ui.ConnectionEditor.ProviderSummary
         };
@@ -149,7 +149,7 @@ public sealed class ConnectionManagerForm : Form
             Text = Ui.ConnectionEditor.NotTested,
             AutoSize = true,
             ForeColor = StorageHubTheme.TextMuted,
-            Padding = new Padding(8, 9, 8, 0),
+            Padding = this.LogicalToDeviceUnits(new Padding(8, 9, 8, 0)),
             AccessibleName = Ui.ConnectionEditor.ConnectionTestStatus
         };
         var footer = BuildFooter();
@@ -225,8 +225,8 @@ public sealed class ConnectionManagerForm : Form
         {
             GripStyle = ToolStripGripStyle.Hidden,
             Dock = DockStyle.Top,
-            ImageScalingSize = new Size(18, 18),
-            Padding = new Padding(6, 4, 6, 4),
+            ImageScalingSize = LogicalToDeviceUnits(new Size(18, 18)),
+            Padding = this.LogicalToDeviceUnits(new Padding(6, 4, 6, 4)),
             BackColor = StorageHubTheme.Surface,
             AccessibleName = Ui.ConnectionEditor.QuickConnectCommands
         };
@@ -262,18 +262,18 @@ public sealed class ConnectionManagerForm : Form
         var header = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
-            Height = 130,
+            Height = (this.TextBoxHeight(13) * 2) + LogicalToDeviceUnits(46),
             ColumnCount = 2,
             RowCount = 3,
-            Padding = new Padding(18, 12, 18, 10),
+            Padding = this.LogicalToDeviceUnits(new Padding(18, 12, 18, 10)),
             BackColor = StorageHubTheme.Surface
         };
         // Measured rather than fixed at 130: that width fitted the English labels, so
         // "Udbyder / protokol" arrived truncated in Danish. The English width stays the floor.
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, MeasureHeaderLabelWidth()));
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        header.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
-        header.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+        header.RowStyles.Add(new RowStyle(SizeType.Absolute, this.TextBoxHeight(13)));
+        header.RowStyles.Add(new RowStyle(SizeType.Absolute, this.TextBoxHeight(13)));
         header.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         header.Controls.Add(new Label
         {
@@ -329,9 +329,9 @@ public sealed class ConnectionManagerForm : Form
         var footer = new TableLayoutPanel
         {
             Dock = DockStyle.Bottom,
-            Height = 58,
+            Height = this.TextBoxHeight(30),
             ColumnCount = 2,
-            Padding = new Padding(12, 8, 12, 8),
+            Padding = this.LogicalToDeviceUnits(new Padding(12, 8, 12, 8)),
             BackColor = StorageHubTheme.Surface
         };
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -371,9 +371,9 @@ public sealed class ConnectionManagerForm : Form
         return footer;
     }
 
-    private static TabPage NewPage(string name) => new(name)
+    private TabPage NewPage(string name) => new(name)
     {
-        Padding = new Padding(8)
+        Padding = this.LogicalToDeviceUnits(new Padding(8))
     };
 
     private void ProviderSelectionChanged(object? sender, EventArgs e)
@@ -617,7 +617,7 @@ public sealed class ConnectionManagerForm : Form
                 AutoSize = true,
                 ForeColor = StorageHubTheme.ParseAccent(provider.AccentHex),
                 BackColor = StorageHubTheme.SurfaceMuted,
-                Padding = new Padding(6, 5, 6, 5)
+                Padding = this.LogicalToDeviceUnits(new Padding(6, 5, 6, 5))
             };
             UiControlFactory.AddLabeledRow(
                 table,
@@ -642,10 +642,10 @@ public sealed class ConnectionManagerForm : Form
         var content = CreateScrollableContent(Ui.ConnectionEditor.TabTrust, provider.TrustNotice, out var table);
         var notice = new Panel
         {
-            Height = 62,
+            Height = this.TextBoxHeight(34),
             Dock = DockStyle.Top,
             BackColor = provider.EncryptedByDefault ? StorageHubTheme.SuccessTint : StorageHubTheme.WarningTint,
-            Margin = new Padding(4, 4, 4, 12),
+            Margin = this.LogicalToDeviceUnits(new Padding(4, 4, 4, 12)),
             AccessibleName = provider.EncryptedByDefault ? Ui.ConnectionEditor.SecureTransportPolicy : Ui.ConnectionEditor.PlaintextWarning
         };
         var icon = new PictureBox
@@ -653,14 +653,14 @@ public sealed class ConnectionManagerForm : Form
             Image = CreateOwnedImage(provider.EncryptedByDefault ? UiGlyph.Lock : UiGlyph.Warning, provider.EncryptedByDefault ? StorageHubTheme.Success : StorageHubTheme.Warning),
             SizeMode = PictureBoxSizeMode.CenterImage,
             Dock = DockStyle.Left,
-            Width = 48
+            Width = LogicalToDeviceUnits(48)
         };
         var warning = new Label
         {
             Text = provider.TrustNotice,
             Dock = DockStyle.Fill,
             AutoEllipsis = true,
-            Padding = new Padding(0, 9, 10, 6),
+            Padding = this.LogicalToDeviceUnits(new Padding(0, 9, 10, 6)),
             ForeColor = provider.EncryptedByDefault ? StorageHubTheme.Success : StorageHubTheme.Warning
         };
         notice.Controls.Add(warning);
@@ -721,24 +721,24 @@ public sealed class ConnectionManagerForm : Form
             ? (string.IsNullOrWhiteSpace(_initialEndpoint) ? field.DefaultValue : _initialEndpoint)
             : field.DefaultValue;
 
-    private static Panel CreateScrollableContent(string title, string description, out TableLayoutPanel table)
+    private Panel CreateScrollableContent(string title, string description, out TableLayoutPanel table)
     {
         var panel = new Panel
         {
             Dock = DockStyle.Fill,
             AutoScroll = true,
             BackColor = StorageHubTheme.Surface,
-            Padding = new Padding(10)
+            Padding = this.LogicalToDeviceUnits(new Padding(10))
         };
         table = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
             AutoSize = true,
             ColumnCount = 2,
-            Padding = new Padding(8),
+            Padding = this.LogicalToDeviceUnits(new Padding(8)),
             BackColor = StorageHubTheme.Surface
         };
-        table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 190));
+        table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, LogicalToDeviceUnits(190)));
         table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         var heading = UiControlFactory.CreateSectionTitle(title);
         var summary = UiControlFactory.CreateDescription(description);
@@ -751,12 +751,12 @@ public sealed class ConnectionManagerForm : Form
         return panel;
     }
 
-    private static StorageHubNumberField Numeric(decimal value, decimal minimum, decimal maximum) => new()
+    private StorageHubNumberField Numeric(decimal value, decimal minimum, decimal maximum) => new()
     {
         Minimum = minimum,
         Maximum = maximum,
         Value = Math.Clamp(value, minimum, maximum),
-        Width = 130
+        Width = LogicalToDeviceUnits(130)
     };
 
     private static StorageHubChoiceField Choice(string selected, params string[] choices)
@@ -783,7 +783,7 @@ public sealed class ConnectionManagerForm : Form
         AutoSize = true
     };
 
-    private static TableLayoutPanel ReferencePicker(
+    private TableLayoutPanel ReferencePicker(
         string placeholder,
         string buttonText,
         bool readOnly = true,
@@ -808,7 +808,7 @@ public sealed class ConnectionManagerForm : Form
         };
         var select = new StorageHubButton { Text = buttonText };
         select.Variant = StorageHubButtonVariant.Secondary;
-        select.Margin = new Padding(6, 0, 0, 0);
+        select.Margin = this.LogicalToDeviceUnits(new Padding(6, 0, 0, 0));
         if (!readOnly)
         {
             select.Click += (_, _) =>
@@ -857,8 +857,8 @@ public sealed class ConnectionManagerForm : Form
         var delete = new StorageHubButton { Text = Ui.ConnectionEditor.Delete };
         enroll.Variant = StorageHubButtonVariant.Secondary;
         delete.Variant = StorageHubButtonVariant.Secondary;
-        enroll.Margin = new Padding(6, 0, 0, 0);
-        delete.Margin = new Padding(6, 0, 0, 0);
+        enroll.Margin = this.LogicalToDeviceUnits(new Padding(6, 0, 0, 0));
+        delete.Margin = this.LogicalToDeviceUnits(new Padding(6, 0, 0, 0));
         enroll.Click += async (_, _) => await EnrollOrUpdateSecretAsync(field, value, _formLifetime.Token);
         delete.Click += async (_, _) => await DeleteSecretAsync(field, value, _formLifetime.Token);
         panel.Controls.Add(value, 0, 0);
@@ -868,7 +868,7 @@ public sealed class ConnectionManagerForm : Form
         // Material fields can also borrow an already-imported key instead of enrolling a new copy.
         if (KeyStoreSlotKind(field.Key) is { } kind)
         {
-            var choose = new StorageHubButton { Text = Ui.ConnectionEditor.KeyStore, Margin = new Padding(6, 0, 0, 0) };
+            var choose = new StorageHubButton { Text = Ui.ConnectionEditor.KeyStore, Margin = this.LogicalToDeviceUnits(new Padding(6, 0, 0, 0)) };
             choose.Variant = StorageHubButtonVariant.Secondary;
             choose.Click += async (_, _) => await ChooseFromKeyStoreAsync(field, kind, _formLifetime.Token);
             panel.ColumnCount = 4;
@@ -908,7 +908,7 @@ public sealed class ConnectionManagerForm : Form
             AccessibleDescription = Ui.ConnectionEditor.RejectHint
         };
         reject.Variant = StorageHubButtonVariant.Secondary;
-        reject.Margin = new Padding(6, 0, 0, 0);
+        reject.Margin = this.LogicalToDeviceUnits(new Padding(6, 0, 0, 0));
         reject.Click += async (_, _) => await RejectFingerprintAsync(value, _formLifetime.Token);
         panel.Controls.Add(value, 0, 0);
         if (canFetchFromHost)
@@ -919,7 +919,7 @@ public sealed class ConnectionManagerForm : Form
                 AccessibleDescription = Ui.ConnectionEditor.FetchFromHostHint
             };
             fetch.Variant = StorageHubButtonVariant.Secondary;
-            fetch.Margin = new Padding(6, 0, 0, 0);
+            fetch.Margin = this.LogicalToDeviceUnits(new Padding(6, 0, 0, 0));
             fetch.Click += async (_, _) => await FetchSshHostKeyAsync(value, _formLifetime.Token);
             panel.Controls.Add(fetch, 1, 0);
             panel.Controls.Add(reject, 2, 0);
@@ -1445,8 +1445,8 @@ public sealed class ConnectionManagerForm : Form
             MinimizeBox = false,
             MaximizeBox = false,
             ShowInTaskbar = false,
-            ClientSize = new Size(520, 150),
-            Padding = new Padding(14)
+            ClientSize = LogicalToDeviceUnits(new Size(520, 150)),
+            Padding = this.LogicalToDeviceUnits(new Padding(14))
         };
         var input = new StorageHubTextField
         {
@@ -1458,14 +1458,14 @@ public sealed class ConnectionManagerForm : Form
         var notice = new Label
         {
             Dock = DockStyle.Top,
-            Height = 48,
+            Height = this.TextBoxHeight(22),
             Text = Ui.ConnectionEditor.VaultEncryptionHint,
             ForeColor = StorageHubTheme.TextMuted
         };
         var buttons = new FlowLayoutPanel
         {
             Dock = DockStyle.Bottom,
-            Height = 40,
+            Height = this.TextBoxHeight(16),
             FlowDirection = FlowDirection.RightToLeft
         };
         var accept = new StorageHubButton { Text = Ui.ConnectionEditor.Enroll, DialogResult = DialogResult.OK, AutoSize = true };

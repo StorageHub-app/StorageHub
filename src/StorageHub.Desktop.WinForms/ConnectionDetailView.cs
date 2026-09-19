@@ -56,7 +56,7 @@ internal sealed class ConnectionDetailView : Panel
 
     internal ConnectionDetailView()
     {
-        Padding = new Padding(12, 10, 12, 10);
+        Padding = this.LogicalToDeviceUnits(new Padding(12, 10, 12, 10));
         BackColor = StorageHubTheme.SurfaceMuted;
         AccessibleName = Ui.Connections.DetailViewTitle;
 
@@ -68,20 +68,20 @@ internal sealed class ConnectionDetailView : Panel
             Text = Ui.Connections.DetailEmpty
         };
 
-        _badge = new Panel { Dock = DockStyle.Left, Width = 40, BackColor = StorageHubTheme.SurfaceMuted };
+        _badge = new Panel { Dock = DockStyle.Left, Width = LogicalToDeviceUnits(32), BackColor = StorageHubTheme.SurfaceMuted };
         _badge.Paint += PaintBadge;
 
         _name = new Label
         {
             Dock = DockStyle.Fill,
-            Padding = new Padding(8, 0, 0, 0),
+            Padding = this.LogicalToDeviceUnits(new Padding(8, 0, 0, 0)),
             TextAlign = ContentAlignment.MiddleLeft,
             AutoEllipsis = true,
             Font = StorageHubTheme.CreateSectionFont(),
             ForeColor = StorageHubTheme.Text
         };
 
-        var title = new Panel { Dock = DockStyle.Top, Height = 34 };
+        var title = new Panel { Dock = DockStyle.Top, Height = this.TextBoxHeight(11) };
         title.Controls.Add(_name);
         title.Controls.Add(_badge);
 
@@ -93,17 +93,19 @@ internal sealed class ConnectionDetailView : Panel
             WrapContents = false,
             Location = Point.Empty,
             Margin = Padding.Empty,
-            Padding = new Padding(0, 4, 0, 4)
+            Padding = this.LogicalToDeviceUnits(new Padding(0, 4, 0, 4))
         };
         _sectionFont = new Font(Font, FontStyle.Bold);
 
         // The pane a property grid keeps at the bottom: it explains whatever row the pointer or
         // the keyboard is on, so the grid itself stays terse.
+        // Reuses the section font rather than building a second identical bold one. Its 18px box
+        // was already a pixel short of the 20px line it holds at 125%, so the title clipped.
         _descriptionTitle = new Label
         {
             Dock = DockStyle.Top,
-            Height = 18,
-            Font = new Font(Font, FontStyle.Bold),
+            Height = this.TextBoxHeight(_sectionFont, 1),
+            Font = _sectionFont,
             ForeColor = StorageHubTheme.Text,
             TextAlign = ContentAlignment.MiddleLeft
         };
@@ -117,8 +119,8 @@ internal sealed class ConnectionDetailView : Panel
         _description = new Panel
         {
             Dock = DockStyle.Bottom,
-            Height = 52,
-            Padding = new Padding(8, 5, 8, 5),
+            Height = this.TextBoxHeight(26),
+            Padding = this.LogicalToDeviceUnits(new Padding(8, 5, 8, 5)),
             BackColor = StorageHubTheme.SurfaceMuted,
             Visible = false
         };
@@ -140,9 +142,9 @@ internal sealed class ConnectionDetailView : Panel
         _attention = new StorageHubButton
         {
             Dock = DockStyle.Bottom,
-            Height = 28,
+            Height = this.TextBoxHeight(6),
             Visible = false,
-            Margin = new Padding(0, 4, 0, 4)
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 4, 0, 4))
         };
         _attention.Variant = StorageHubButtonVariant.Secondary;
         _attention.ForeColor = StorageHubTheme.Warning;
@@ -168,7 +170,7 @@ internal sealed class ConnectionDetailView : Panel
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents = true,
             Margin = Padding.Empty,
-            Padding = new Padding(0, 4, 0, 0)
+            Padding = this.LogicalToDeviceUnits(new Padding(0, 4, 0, 0))
         };
         actions.Controls.AddRange([_open, _test, edit, delete]);
 
@@ -644,7 +646,7 @@ internal sealed class ConnectionDetailView : Panel
             TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
     }
 
-    private static StorageHubButton CreateAction(
+    private StorageHubButton CreateAction(
         string text,
         UiGlyph glyph,
         EventHandler onClick,
@@ -656,7 +658,7 @@ internal sealed class ConnectionDetailView : Panel
             Glyph = glyph,
             Variant = variant,
             // These four wrap in a narrow panel rather than losing the last one off the edge.
-            Margin = new Padding(0, 0, 4, 4),
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 0, 4, 4)),
             AccessibleName = $"{text} connection"
         };
         button.Click += onClick;

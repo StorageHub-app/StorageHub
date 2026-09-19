@@ -209,6 +209,26 @@ dialog, or hosted in a toolbar. Toolbars use the dense variant through
 Every metric is written as a logical unit and converted with
 `Control.LogicalToDeviceUnits`. A literal pixel in layout code is a bug on a
 scaled display, and most of this project's DPI defects have been exactly that.
+`DisplayMetrics` supplies the `Padding` and `Point` conversions WinForms leaves
+out; the framework converts only an `int` and a `Size`, and the two shapes it
+omits are the ones layout code writes most, which is why the rule went unapplied
+for so long outside the custom controls.
+
+Nothing is left to the framework's own scaling. Every form sets
+`AutoScaleMode.Dpi` but none assigns `AutoScaleDimensions`, so WinForms
+initializes it to the current DPI and the automatic pass is a no-op by
+construction. That is deliberate rather than accidental: the automatic pass only
+ever scales the tree that exists when a container is first laid out, and this
+shell builds most of its surface afterwards — panes per workspace tab, rows per
+settings page, cards per connection. Converting at the point of use is the only
+form of it that reaches those.
+
+Two consequences are easy to forget. A rasterised glyph has to be drawn at the
+size it was rasterised for, so `ToolStrip.ImageScalingSize` is converted too --
+the framework never scales it, and left alone it resamples a 125% glyph back down
+to its 96-DPI extent. And a metric a control compares against measured text has
+to be in device units, because `TextRenderer` measures in device units: a column
+width left logical is compared against text a quarter larger than itself at 125%.
 
 Settings pages are composed rather than positioned: `SettingsRow` puts a title
 and its description on the left and the control on the right, `SettingsCard`

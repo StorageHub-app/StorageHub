@@ -32,29 +32,30 @@ internal sealed class UpdateCheckerForm : Form
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MinimizeBox = false;
         MaximizeBox = false;
-        ClientSize = new Size(520, 250);
+        ClientSize = this.LogicalWindowSize(new Size(520, 250));
         BackColor = StorageHubTheme.Canvas;
         ForeColor = StorageHubTheme.Text;
         StorageHubTheme.Register(this);
 
+        var headlineFont = StorageHubTheme.CreateSectionFont();
         _headline = new Label
         {
             Dock = DockStyle.Top,
-            Height = 30,
-            Font = StorageHubTheme.CreateSectionFont(),
+            Height = this.TextBoxHeight(headlineFont, 6),
+            Font = headlineFont,
             ForeColor = StorageHubTheme.Text
         };
         _detail = new Label
         {
             Dock = DockStyle.Top,
-            Height = 52,
+            Height = this.TextBoxHeight(26),
             ForeColor = StorageHubTheme.TextMuted,
             AccessibleName = Ui.Updates.UpdateDetail
         };
         _progress = new ProgressBar
         {
             Dock = DockStyle.Top,
-            Height = 10,
+            Height = LogicalToDeviceUnits(10),
             Minimum = 0,
             Maximum = 100,
             Visible = false,
@@ -63,7 +64,7 @@ internal sealed class UpdateCheckerForm : Form
         _installed = new Label { Dock = DockStyle.Top, Height = 24, ForeColor = StorageHubTheme.TextMuted };
         _channel = new Label { Dock = DockStyle.Top, Height = 24, ForeColor = StorageHubTheme.TextMuted };
 
-        _primary = new StorageHubButton { Text = Ui.Updates.CheckForUpdates, AutoSize = true, Height = 30, Margin = new Padding(0, 0, 8, 0) };
+        _primary = new StorageHubButton { Text = Ui.Updates.CheckForUpdates, AutoSize = true, Height = 30, Margin = this.LogicalToDeviceUnits(new Padding(0, 0, 8, 0)) };
         _close = new StorageHubButton { Text = Ui.Dialogs.ButtonClose, AutoSize = true, Height = 30, DialogResult = DialogResult.Cancel };
         _primary.Variant = StorageHubButtonVariant.Primary;
         _close.Variant = StorageHubButtonVariant.Secondary;
@@ -72,14 +73,14 @@ internal sealed class UpdateCheckerForm : Form
         var actions = new FlowLayoutPanel
         {
             Dock = DockStyle.Bottom,
-            Height = 50,
+            Height = this.TextBoxHeight(24),
             FlowDirection = FlowDirection.LeftToRight,
-            Padding = new Padding(14, 8, 14, 8),
+            Padding = this.LogicalToDeviceUnits(new Padding(14, 8, 14, 8)),
             BackColor = StorageHubTheme.Canvas
         };
         actions.Controls.AddRange([_primary, _close]);
 
-        var body = new Panel { Dock = DockStyle.Fill, Padding = new Padding(14, 14, 14, 0) };
+        var body = new Panel { Dock = DockStyle.Fill, Padding = this.LogicalToDeviceUnits(new Padding(14, 14, 14, 0)) };
         // Docked children stack in reverse order of addition.
         body.Controls.Add(_channel);
         body.Controls.Add(_installed);

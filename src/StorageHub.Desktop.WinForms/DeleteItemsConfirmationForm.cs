@@ -15,7 +15,7 @@ internal sealed class DeleteItemsConfirmationForm : Form
         MinimizeBox = false;
         MaximizeBox = false;
         ShowInTaskbar = false;
-        ClientSize = new Size(520, 330);
+        ClientSize = this.LogicalWindowSize(new Size(520, 330));
         BackColor = StorageHubTheme.Surface;
         ForeColor = StorageHubTheme.Text;
         Font = new Font("Segoe UI", 9F);
@@ -32,8 +32,8 @@ internal sealed class DeleteItemsConfirmationForm : Form
         {
             Left = 24,
             Top = 22,
-            Width = 470,
-            Height = 190,
+            Width = LogicalToDeviceUnits(470),
+            Height = LogicalToDeviceUnits(190),
             Text = $"{Ui.Format(Ui.Dialogs.DeleteItemsPromptFormat, items.Count)}\n\n{preview}\n\n" +
                 (local
                     ? Ui.Dialogs.DeleteLocalToRecycleBin
@@ -44,7 +44,7 @@ internal sealed class DeleteItemsConfirmationForm : Form
         {
             Left = 24,
             Top = 225,
-            Width = 300,
+            Width = LogicalToDeviceUnits(300),
             Text = Ui.Dialogs.DontShowWarningAgain,
             AccessibleName = Ui.Dialogs.DontShowDeleteWarningAgainAccessibleName
         };
@@ -54,7 +54,7 @@ internal sealed class DeleteItemsConfirmationForm : Form
             DialogResult = DialogResult.OK,
             Left = 326,
             Top = 270,
-            Width = 82
+            Width = LogicalToDeviceUnits(82)
         };
         var cancel = new StorageHubButton
         {
@@ -62,7 +62,7 @@ internal sealed class DeleteItemsConfirmationForm : Form
             DialogResult = DialogResult.Cancel,
             Left = 414,
             Top = 270,
-            Width = 82
+            Width = LogicalToDeviceUnits(82)
         };
         delete.Variant = StorageHubButtonVariant.Primary;
         cancel.Variant = StorageHubButtonVariant.Secondary;

@@ -632,6 +632,9 @@ public sealed class NamedPipeIpcTests
     private static NamedPipeIpcClientOptions CreateClientOptions(string pipeName) => new()
     {
         PipeName = pipeName,
+        // These tests stand up a pipe owned by the account running them, which is what a session
+        // agent does.
+        Access = IpcPipeAccess.CurrentUserOnly,
         ClientName = "StorageHub.Tests",
         ClientVersion = "1.0.0-tests",
         ClientInstanceId = Guid.NewGuid(),

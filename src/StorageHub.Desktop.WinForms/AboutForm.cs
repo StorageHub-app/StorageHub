@@ -27,7 +27,7 @@ internal sealed class AboutForm : Form
         MinimizeBox = false;
         ShowInTaskbar = false;
         AutoScaleMode = AutoScaleMode.Dpi;
-        ClientSize = new Size(500, 236);
+        ClientSize = this.LogicalWindowSize(new Size(500, 236));
         BackColor = StorageHubTheme.Canvas;
         Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
         StorageHubTheme.Register(this);
@@ -86,7 +86,7 @@ internal sealed class AboutForm : Form
         var footer = new FlowLayoutPanel
         {
             Dock = DockStyle.Bottom,
-            Height = LogicalToDeviceUnits(62),
+            Height = this.TextBoxHeight(34),
             FlowDirection = FlowDirection.RightToLeft,
             WrapContents = false,
             Padding = new Padding(

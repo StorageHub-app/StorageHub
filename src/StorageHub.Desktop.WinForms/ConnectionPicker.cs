@@ -193,8 +193,10 @@ internal sealed class ConnectionPickerPopup : ToolStripDropDown
         var host = new Panel
         {
             BackColor = StorageHubTheme.Surface,
-            Padding = new Padding(6),
-            Size = new Size(Math.Max(280, Math.Max(width, MeasureRequiredWidth(cards))), 360)
+            Padding = this.LogicalToDeviceUnits(new Padding(6)),
+            Size = new Size(
+                Math.Max(LogicalToDeviceUnits(280), Math.Max(width, MeasureRequiredWidth(cards))),
+                LogicalToDeviceUnits(360))
         };
         host.Controls.Add(_empty);
         host.Controls.Add(_list);
@@ -389,7 +391,8 @@ internal sealed class ConnectionPickerPopup : ToolStripDropDown
         // provider badge: the row ran out of width and the two were laid out over each other.
         using var badgeFont = new Font("Segoe UI Semibold", 7.5F, FontStyle.Bold, GraphicsUnit.Point);
         var activeBadge = TextRenderer.MeasureText(
-            Ui.Connections.PickerActiveBadge, badgeFont, Size.Empty, TextFormatFlags.NoPadding).Width + 16;
+            Ui.Connections.PickerActiveBadge, badgeFont, Size.Empty, TextFormatFlags.NoPadding).Width
+            + LogicalToDeviceUnits(16);
         var widest = 0;
         foreach (var card in cards)
         {
@@ -415,14 +418,14 @@ internal sealed class ConnectionPickerPopup : ToolStripDropDown
         }
 
         // Capped so one pathological name cannot produce a popup wider than the window.
-        return Math.Min(widest, 720);
+        return Math.Min(widest, LogicalToDeviceUnits(720));
     }
 
     private void MeasureRow(object? sender, MeasureItemEventArgs e)
     {
         e.ItemHeight = e.Index >= 0 && e.Index < _rows.Count && _rows[e.Index].IsHeader
-            ? HeaderHeight
-            : CardHeight;
+            ? LogicalToDeviceUnits(HeaderHeight)
+            : LogicalToDeviceUnits(CardHeight);
     }
 
     private void DrawRow(object? sender, DrawItemEventArgs e)
@@ -442,7 +445,11 @@ internal sealed class ConnectionPickerPopup : ToolStripDropDown
                 e.Graphics,
                 (row.GroupLabel ?? string.Empty).ToUpperInvariant(),
                 groupFont,
-                new Rectangle(e.Bounds.Left + 10, e.Bounds.Top + 2, e.Bounds.Width - 20, HeaderHeight - 4),
+                new Rectangle(
+                    e.Bounds.Left + LogicalToDeviceUnits(10),
+                    e.Bounds.Top + LogicalToDeviceUnits(2),
+                    e.Bounds.Width - LogicalToDeviceUnits(20),
+                    LogicalToDeviceUnits(HeaderHeight - 4)),
                 StorageHubTheme.TextMuted,
                 TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
             return;
@@ -452,7 +459,11 @@ internal sealed class ConnectionPickerPopup : ToolStripDropDown
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
         var highlighted = (e.State & DrawItemState.Selected) != 0;
         var accent = StorageHubTheme.ParseAccent(card.AccentHex);
-        var bounds = new Rectangle(e.Bounds.Left + 5, e.Bounds.Top + 3, e.Bounds.Width - 10, e.Bounds.Height - 7);
+        var bounds = new Rectangle(
+            e.Bounds.Left + LogicalToDeviceUnits(5),
+            e.Bounds.Top + LogicalToDeviceUnits(3),
+            e.Bounds.Width - LogicalToDeviceUnits(10),
+            e.Bounds.Height - LogicalToDeviceUnits(7));
 
         using (var fill = new SolidBrush(highlighted
                    ? StorageHubTheme.CurrentPalette.Selection
@@ -466,10 +477,16 @@ internal sealed class ConnectionPickerPopup : ToolStripDropDown
 
         using (var accentBrush = new SolidBrush(accent))
         {
-            e.Graphics.FillEllipse(accentBrush, bounds.Left + 14, bounds.Top + (bounds.Height - 9) / 2, 9, 9);
+            var dot = LogicalToDeviceUnits(9);
+            e.Graphics.FillEllipse(
+                accentBrush,
+                bounds.Left + LogicalToDeviceUnits(14),
+                bounds.Top + ((bounds.Height - dot) / 2),
+                dot,
+                dot);
         }
 
-        var right = bounds.Right - 14;
+        var right = bounds.Right - LogicalToDeviceUnits(14);
 
         // The connection already open in this pane is marked, so the list answers "where am I?"
         // as well as "where do I want to go?".
@@ -477,8 +494,15 @@ internal sealed class ConnectionPickerPopup : ToolStripDropDown
         {
             using var activeFont = new Font("Segoe UI Semibold", 7.5F, FontStyle.Bold, GraphicsUnit.Point);
             var activeText = Ui.Connections.PickerActiveBadge;
-            var activeWidth = TextRenderer.MeasureText(activeText, activeFont, Size.Empty, TextFormatFlags.NoPadding).Width + 16;
-            var activeBounds = new Rectangle(right - activeWidth, bounds.Top + (bounds.Height - 20) / 2, activeWidth, 20);
+            var activeWidth = TextRenderer.MeasureText(
+                activeText, activeFont, Size.Empty, TextFormatFlags.NoPadding).Width
+                + LogicalToDeviceUnits(16);
+            var pillHeight = LogicalToDeviceUnits(20);
+            var activeBounds = new Rectangle(
+                right - activeWidth,
+                bounds.Top + ((bounds.Height - pillHeight) / 2),
+                activeWidth,
+                pillHeight);
             using (var activeFill = new SolidBrush(Color.FromArgb(46, StorageHubTheme.Success)))
             using (var activePath = RoundedRectangle(activeBounds, 9))
             {
@@ -492,7 +516,7 @@ internal sealed class ConnectionPickerPopup : ToolStripDropDown
                 activeBounds,
                 StorageHubTheme.Success,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
-            right = activeBounds.Left - 8;
+            right = activeBounds.Left - LogicalToDeviceUnits(8);
         }
 
         var badgeText = card.Type == ConnectionProfileType.Client
@@ -504,9 +528,9 @@ internal sealed class ConnectionPickerPopup : ToolStripDropDown
         {
             var badgeSize = TextRenderer.MeasureText(badgeText, badgeFont, Size.Empty, TextFormatFlags.NoPadding);
             var badgeBounds = new Rectangle(
-                right - badgeSize.Width - 12,
-                bounds.Top + (bounds.Height - 20) / 2,
-                badgeSize.Width + 12,
+                right - badgeSize.Width - LogicalToDeviceUnits(12),
+                bounds.Top + ((bounds.Height - LogicalToDeviceUnits(20)) / 2),
+                badgeSize.Width + LogicalToDeviceUnits(12),
                 20);
             using (var badgeFill = new SolidBrush(Color.FromArgb(highlighted ? 48 : 28, accent)))
             using (var badgePath = RoundedRectangle(badgeBounds, 9))
@@ -521,27 +545,29 @@ internal sealed class ConnectionPickerPopup : ToolStripDropDown
                 badgeBounds,
                 highlighted ? StorageHubTheme.Text : accent,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
-            right = badgeBounds.Left - 8;
+            right = badgeBounds.Left - LogicalToDeviceUnits(8);
         }
 
         // The two lines are centred as a block inside the card, so the space above the name
         // matches the space below the endpoint rather than the text hugging the top edge.
         const int TextBlockHeight = 36;
-        var textLeft = bounds.Left + 33;
-        var textRight = Math.Max(textLeft + 40, right);
-        var textTop = bounds.Top + ((bounds.Height - TextBlockHeight) / 2);
+        var textBlockHeight = LogicalToDeviceUnits(TextBlockHeight);
+        var textLeft = bounds.Left + LogicalToDeviceUnits(33);
+        var textRight = Math.Max(textLeft + LogicalToDeviceUnits(40), right);
+        var textTop = bounds.Top + ((bounds.Height - textBlockHeight) / 2);
         TextRenderer.DrawText(
             e.Graphics,
             card.Name,
             _list.Font,
-            Rectangle.FromLTRB(textLeft, textTop, textRight, textTop + 19),
+            Rectangle.FromLTRB(textLeft, textTop, textRight, textTop + LogicalToDeviceUnits(19)),
             card.IsEnabled ? StorageHubTheme.Text : StorageHubTheme.TextMuted,
             TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
         TextRenderer.DrawText(
             e.Graphics,
             card.Endpoint,
             _list.Font,
-            Rectangle.FromLTRB(textLeft, textTop + 18, textRight, textTop + TextBlockHeight),
+            Rectangle.FromLTRB(
+                textLeft, textTop + LogicalToDeviceUnits(18), textRight, textTop + textBlockHeight),
             StorageHubTheme.TextMuted,
             TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
     }

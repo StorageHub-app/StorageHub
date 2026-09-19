@@ -166,6 +166,66 @@ public sealed class PackagedDesktopLifecycleTests
         Assert.Equal(2, fixture.AgentClient.WaitCalls);
     }
 
+    /// <summary>
+    /// The sign-in race under a service. Windows starts the auto-start service alongside the
+    /// session that starts the desktop, and the service answers the control manager long before its
+    /// pipe exists. Asking once and giving up turned that ordinary ordering into "the background
+    /// agent did not become ready in time" on every boot, with a perfectly healthy service running.
+    /// </summary>
+    [Fact]
+    public async Task EnsureAgentWaitsForAServiceThatIsStillStarting()
+    {
+        var fixture = CreateFixture(
+            agentAvailable: false,
+            waitResult: true,
+            desktopOwnsAgent: false);
+
+        var result = await fixture.Lifecycle.EnsureAgentAsync();
+
+        Assert.Equal(AgentEnsureStatus.AlreadyRunning, result.Status);
+        Assert.True(result.IsReady);
+        Assert.Equal(1, fixture.AgentClient.WaitCalls);
+        // Still never starts one: that is the service control manager's job, and a second agent
+        // beside it would be two processes on two databases.
+        Assert.Empty(fixture.Launcher.Launches);
+    }
+
+    /// <summary>
+    /// A service that really never arrives is still reported, rather than waited on forever.
+    /// </summary>
+    [Fact]
+    public async Task EnsureAgentReportsAServiceThatNeverBecomesAvailable()
+    {
+        var fixture = CreateFixture(
+            agentAvailable: false,
+            waitResult: false,
+            desktopOwnsAgent: false);
+
+        var result = await fixture.Lifecycle.EnsureAgentAsync();
+
+        Assert.Equal(AgentEnsureStatus.StartupTimedOut, result.Status);
+        Assert.False(result.IsReady);
+        Assert.Empty(fixture.Launcher.Launches);
+    }
+
+    /// <summary>
+    /// An already-running service costs nothing: the wait returns as soon as the pipe answers, so
+    /// the longer budget is never actually spent on the common path.
+    /// </summary>
+    [Fact]
+    public async Task EnsureAgentReturnsImmediatelyWhenTheServiceIsAlreadyUp()
+    {
+        var fixture = CreateFixture(
+            agentAvailable: true,
+            waitResult: true,
+            desktopOwnsAgent: false);
+
+        var result = await fixture.Lifecycle.EnsureAgentAsync();
+
+        Assert.Equal(AgentEnsureStatus.AlreadyRunning, result.Status);
+        Assert.Empty(fixture.Launcher.Launches);
+    }
+
     [Fact]
     public async Task EnsureAgentReportsLaunchFailureWhenNewProcessExitsBeforeReadiness()
     {
@@ -267,7 +327,8 @@ public sealed class PackagedDesktopLifecycleTests
         bool enforceExpectedProcess = false,
         bool expectedProcessRunning = false,
         bool terminateResult = false,
-        bool registersAutostart = true)
+        bool registersAutostart = true,
+        bool desktopOwnsAgent = true)
     {
         var applicationDirectory = Path.Combine(
             Path.GetTempPath(),
@@ -298,11 +359,11 @@ public sealed class PackagedDesktopLifecycleTests
                     ? "1"
                     : null,
             _ => fileExists,
-            // Pinned so these tests describe the session-hosted agent regardless of whether the
-            // machine running them happens to have the StorageHub service installed.
+            // Pinned rather than read from the machine, so these tests describe the mode they name
+            // regardless of whether the machine running them happens to have the service installed.
             options: new PackagedDesktopLifecycleOptions
             {
-                DesktopOwnsAgent = static () => true,
+                DesktopOwnsAgent = () => desktopOwnsAgent,
                 RegistersAutostart = () => registersAutostart
             },
             processMonitor: processMonitor);
@@ -350,6 +411,13 @@ public sealed class PackagedDesktopLifecycleTests
 
     private sealed class FakeAgentLifecycleClient : IPackagedAgentLifecycleClient
     {
+        /// <summary>
+        /// The real client refuses any wait longer than this, so the double has to as well.
+        /// A fake that accepts whatever it is handed let a twelve-second contract be broken by a
+        /// forty-five-second default: every test passed, and the application threw on startup.
+        /// </summary>
+        private static readonly TimeSpan MaximumWait = TimeSpan.FromSeconds(12);
+
         public bool Available { get; set; }
 
         public bool WaitResult { get; init; }
@@ -371,8 +439,19 @@ public sealed class PackagedDesktopLifecycleTests
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            EnsureAcceptableWait(timeout);
             WaitCalls++;
             return ValueTask.FromResult(WaitResult);
+        }
+
+        private static void EnsureAcceptableWait(TimeSpan timeout)
+        {
+            if (timeout <= TimeSpan.Zero || timeout > MaximumWait)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(timeout),
+                    "The Agent lifecycle timeout must be between zero and twelve seconds.");
+            }
         }
 
         public ValueTask<bool> RequestShutdownAndWaitAsync(
@@ -381,6 +460,7 @@ public sealed class PackagedDesktopLifecycleTests
             CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            EnsureAcceptableWait(timeout);
             ShutdownReasons.Add(reason);
             if (ShutdownResult)
             {

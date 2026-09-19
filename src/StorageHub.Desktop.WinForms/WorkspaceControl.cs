@@ -34,7 +34,7 @@ public sealed class WorkspaceControl : UserControl
         {
             Dock = DockStyle.Top,
             GripStyle = ToolStripGripStyle.Hidden,
-            ImageScalingSize = new Size(16, 16),
+            ImageScalingSize = LogicalToDeviceUnits(new Size(16, 16)),
             BackColor = StorageHubTheme.SurfaceMuted,
             AccessibleName = Ui.Format(Ui.Shell.WorkspaceLayoutAccessibleNameFormat, name)
         };
@@ -288,7 +288,7 @@ public sealed class WorkspaceControl : UserControl
             Dock = DockStyle.Fill,
             Orientation = model.Orientation == WorkspaceSplitOrientation.Vertical ? Orientation.Vertical : Orientation.Horizontal,
             BackColor = StorageHubTheme.Border,
-            SplitterWidth = 6,
+            SplitterWidth = LogicalToDeviceUnits(6),
             AccessibleName = Ui.Shell.PaneSplitAccessibleName
         };
         split.Panel1.Controls.Add(BuildNode(model.First));
@@ -494,22 +494,23 @@ public sealed class WorkspaceControl : UserControl
     {
         if (LayoutModel.PaneCount >= WorkspaceLayoutModel.MaximumPanes || !_panes.TryGetValue(paneId, out var pane)) return false;
         return edge is WorkspaceDockEdge.Left or WorkspaceDockEdge.Right
-            ? pane.Width >= MinimumPaneWidth * 2
-            : pane.Height >= MinimumPaneHeight * 2;
+            ? pane.Width >= LogicalToDeviceUnits(MinimumPaneWidth) * 2
+            : pane.Height >= LogicalToDeviceUnits(MinimumPaneHeight) * 2;
     }
 
     private bool CanDock(Guid target, WorkspaceDockEdge edge)
     {
         if (!_panes.TryGetValue(target, out var pane)) return false;
         return edge is WorkspaceDockEdge.Left or WorkspaceDockEdge.Right
-            ? pane.Width >= MinimumPaneWidth * 2
-            : pane.Height >= MinimumPaneHeight * 2;
+            ? pane.Width >= LogicalToDeviceUnits(MinimumPaneWidth) * 2
+            : pane.Height >= LogicalToDeviceUnits(MinimumPaneHeight) * 2;
     }
 
     private static void ApplyRatio(SplitContainer split, double ratio)
     {
         var available = split.Orientation == Orientation.Vertical ? split.ClientSize.Width : split.ClientSize.Height;
-        var minimum = split.Orientation == Orientation.Vertical ? MinimumPaneWidth : MinimumPaneHeight;
+        var minimum = split.LogicalToDeviceUnits(
+            split.Orientation == Orientation.Vertical ? MinimumPaneWidth : MinimumPaneHeight);
         if (available <= split.SplitterWidth + minimum * 2) return;
         var distance = (int)Math.Round((available - split.SplitterWidth) * ratio);
         distance = Math.Clamp(distance, minimum, available - split.SplitterWidth - minimum);
@@ -587,7 +588,7 @@ internal sealed class NewWorkspaceForm : Form
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
-        ClientSize = new Size(660, 424);
+        ClientSize = this.LogicalWindowSize(new Size(660, 424));
         BackColor = StorageHubTheme.Canvas;
         ForeColor = StorageHubTheme.Text;
         StorageHubTheme.Register(this);
@@ -598,7 +599,7 @@ internal sealed class NewWorkspaceForm : Form
             Dock = DockStyle.Fill,
             ColumnCount = Columns,
             RowCount = rows,
-            Padding = new Padding(14)
+            Padding = this.LogicalToDeviceUnits(new Padding(14))
         };
         for (var column = 0; column < Columns; column++)
         {
@@ -618,13 +619,13 @@ internal sealed class NewWorkspaceForm : Form
             var button = new StorageHubButton
             {
                 Dock = DockStyle.Fill,
-                Margin = new Padding(7),
+                Margin = this.LogicalToDeviceUnits(new Padding(7)),
                 Text = Ui.Format(Ui.Shell.WorkspacePresetButtonFormat, preset.Title, preset.Description),
                 Image = preview,
                 ImageAlign = ContentAlignment.TopCenter,
                 TextAlign = ContentAlignment.BottomCenter,
                 TextImageRelation = TextImageRelation.ImageAboveText,
-                Padding = new Padding(0, 10, 0, 8),
+                Padding = this.LogicalToDeviceUnits(new Padding(0, 10, 0, 8)),
                 AccessibleName = Ui.Format(Ui.Shell.CreateWorkspaceWithFormat, preset.Label)
             };
             button.Click += (_, _) =>
@@ -644,7 +645,7 @@ internal sealed class NewWorkspaceForm : Form
             Text = Ui.Shell.RememberLayout,
             AutoSize = true,
             Dock = DockStyle.Bottom,
-            Padding = new Padding(21, 0, 21, 14),
+            Padding = this.LogicalToDeviceUnits(new Padding(21, 0, 21, 14)),
             AccessibleName = Ui.Shell.RememberLayoutAccessibleName,
             AccessibleDescription = Ui.Shell.RememberLayoutAccessibleDescription
         };

@@ -39,8 +39,8 @@ public sealed class KeyStoreForm : Form
 
         Text = Ui.KeyStore.KeyStore;
         StartPosition = FormStartPosition.CenterParent;
-        MinimumSize = new Size(820, 460);
-        Size = new Size(980, 560);
+        MinimumSize = this.LogicalWindowSize(new Size(820, 460));
+        Size = this.LogicalWindowSize(new Size(980, 560));
         BackColor = StorageHubTheme.Canvas;
         ForeColor = StorageHubTheme.Text;
         StorageHubTheme.Register(this);
@@ -57,18 +57,18 @@ public sealed class KeyStoreForm : Form
             ForeColor = StorageHubTheme.Text,
             AccessibleName = Ui.KeyStore.StoredKeysAndCertificates
         };
-        _entries.Columns.Add("Name", 200);
-        _entries.Columns.Add("Kind", 110);
-        _entries.Columns.Add(Ui.KeyStore.Identity, 260);
-        _entries.Columns.Add(Ui.KeyStore.Expires, 130);
+        _entries.Columns.Add("Name", LogicalToDeviceUnits(200));
+        _entries.Columns.Add("Kind", LogicalToDeviceUnits(110));
+        _entries.Columns.Add(Ui.KeyStore.Identity, LogicalToDeviceUnits(260));
+        _entries.Columns.Add(Ui.KeyStore.Expires, LogicalToDeviceUnits(130));
         _entries.Columns.Add(Ui.KeyStore.UsedBy, 80, HorizontalAlignment.Right);
-        _entries.Columns.Add("Tags", 140);
+        _entries.Columns.Add("Tags", LogicalToDeviceUnits(140));
         StorageHubTheme.ConfigureList(_entries);
         _entries.SelectedIndexChanged += (_, _) => UpdateActionState();
 
         _search = new StorageHubTextField
         {
-            Width = 220,
+            Width = LogicalToDeviceUnits(220),
             PlaceholderText = Ui.KeyStore.SearchNameOrDescription,
             AccessibleName = Ui.KeyStore.KeyStoreSearch
         };
@@ -86,8 +86,8 @@ public sealed class KeyStoreForm : Form
         _status = new Label
         {
             Dock = DockStyle.Bottom,
-            Height = 28,
-            Padding = new Padding(10, 6, 10, 4),
+            Height = this.TextBoxHeight(6),
+            Padding = this.LogicalToDeviceUnits(new Padding(10, 6, 10, 4)),
             ForeColor = StorageHubTheme.TextMuted,
             BackColor = StorageHubTheme.Surface,
             Text = Ui.KeyStore.Loading
@@ -96,8 +96,8 @@ public sealed class KeyStoreForm : Form
         var toolbar = new FlowLayoutPanel
         {
             Dock = DockStyle.Top,
-            Height = 52,
-            Padding = new Padding(10, 10, 10, 6),
+            Height = this.TextBoxHeight(26),
+            Padding = this.LogicalToDeviceUnits(new Padding(10, 10, 10, 6)),
             BackColor = StorageHubTheme.Canvas,
             WrapContents = false
         };
@@ -106,7 +106,7 @@ public sealed class KeyStoreForm : Form
         var body = new Panel
         {
             Dock = DockStyle.Fill,
-            Padding = new Padding(10, 0, 10, 6),
+            Padding = this.LogicalToDeviceUnits(new Padding(10, 0, 10, 6)),
             BackColor = StorageHubTheme.Canvas
         };
         body.Controls.Add(_entries);
@@ -136,8 +136,8 @@ public sealed class KeyStoreForm : Form
         {
             Text = text,
             AutoSize = true,
-            Margin = new Padding(0, 0, 8, 0),
-            Height = 30
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 0, 8, 0)),
+            Height = this.TextBoxHeight(8)
         };
         button.Click += async (_, _) =>
         {
@@ -510,7 +510,7 @@ internal sealed class SecretPromptForm : Form
         StartPosition = FormStartPosition.CenterParent;
         MinimizeBox = false;
         MaximizeBox = false;
-        ClientSize = new Size(400, 130);
+        ClientSize = this.LogicalWindowSize(new Size(400, 130));
         BackColor = StorageHubTheme.Canvas;
         StorageHubTheme.Register(this);
         ForeColor = StorageHubTheme.Text;
@@ -518,14 +518,14 @@ internal sealed class SecretPromptForm : Form
         var label = new Label
         {
             Text = caption,
-            Location = new Point(14, 16),
+            Location = this.LogicalToDeviceUnits(new Point(14, 16)),
             AutoSize = true,
             ForeColor = StorageHubTheme.Text
         };
         _value = new StorageHubTextField
         {
-            Location = new Point(14, 42),
-            Width = 370,
+            Location = this.LogicalToDeviceUnits(new Point(14, 42)),
+            Width = LogicalToDeviceUnits(370),
             UseSystemPasswordChar = true,
             AccessibleName = caption
         };
@@ -533,15 +533,15 @@ internal sealed class SecretPromptForm : Form
         {
             Text = "OK",
             DialogResult = DialogResult.OK,
-            Location = new Point(214, 82),
-            Size = new Size(84, 30)
+            Location = this.LogicalToDeviceUnits(new Point(214, 82)),
+            Size = LogicalToDeviceUnits(new Size(84, 30))
         };
         var cancel = new StorageHubButton
         {
             Text = Ui.KeyStore.Cancel,
             DialogResult = DialogResult.Cancel,
-            Location = new Point(300, 82),
-            Size = new Size(84, 30)
+            Location = this.LogicalToDeviceUnits(new Point(300, 82)),
+            Size = LogicalToDeviceUnits(new Size(84, 30))
         };
         ok.Variant = StorageHubButtonVariant.Primary;
         cancel.Variant = StorageHubButtonVariant.Secondary;
@@ -574,7 +574,7 @@ internal sealed class TextPromptForm : Form
         StartPosition = FormStartPosition.CenterParent;
         MinimizeBox = false;
         MaximizeBox = false;
-        ClientSize = new Size(400, 130);
+        ClientSize = this.LogicalWindowSize(new Size(400, 130));
         BackColor = StorageHubTheme.Canvas;
         StorageHubTheme.Register(this);
         ForeColor = StorageHubTheme.Text;
@@ -582,14 +582,14 @@ internal sealed class TextPromptForm : Form
         var label = new Label
         {
             Text = caption,
-            Location = new Point(14, 16),
+            Location = this.LogicalToDeviceUnits(new Point(14, 16)),
             AutoSize = true,
             ForeColor = StorageHubTheme.Text
         };
         _value = new StorageHubTextField
         {
-            Location = new Point(14, 42),
-            Width = 370,
+            Location = this.LogicalToDeviceUnits(new Point(14, 42)),
+            Width = LogicalToDeviceUnits(370),
             Text = initial,
             MaxLength = KeyStoreIpcLimits.MaximumDisplayNameLength,
             AccessibleName = caption
@@ -598,15 +598,15 @@ internal sealed class TextPromptForm : Form
         {
             Text = "OK",
             DialogResult = DialogResult.OK,
-            Location = new Point(214, 82),
-            Size = new Size(84, 30)
+            Location = this.LogicalToDeviceUnits(new Point(214, 82)),
+            Size = LogicalToDeviceUnits(new Size(84, 30))
         };
         var cancel = new StorageHubButton
         {
             Text = Ui.KeyStore.Cancel,
             DialogResult = DialogResult.Cancel,
-            Location = new Point(300, 82),
-            Size = new Size(84, 30)
+            Location = this.LogicalToDeviceUnits(new Point(300, 82)),
+            Size = LogicalToDeviceUnits(new Size(84, 30))
         };
         ok.Variant = StorageHubButtonVariant.Primary;
         cancel.Variant = StorageHubButtonVariant.Secondary;
@@ -633,7 +633,7 @@ internal sealed class KeyFormatPromptForm : Form
         StartPosition = FormStartPosition.CenterParent;
         MinimizeBox = false;
         MaximizeBox = false;
-        ClientSize = new Size(400, 130);
+        ClientSize = this.LogicalWindowSize(new Size(400, 130));
         BackColor = StorageHubTheme.Canvas;
         StorageHubTheme.Register(this);
         ForeColor = StorageHubTheme.Text;
@@ -641,14 +641,14 @@ internal sealed class KeyFormatPromptForm : Form
         var label = new Label
         {
             Text = Ui.KeyStore.WhichEnvelopeDoesTheKeyUse,
-            Location = new Point(14, 16),
+            Location = this.LogicalToDeviceUnits(new Point(14, 16)),
             AutoSize = true,
             ForeColor = StorageHubTheme.Text
         };
         _format = new StorageHubChoiceField
         {
-            Location = new Point(14, 42),
-            Width = 370,
+            Location = this.LogicalToDeviceUnits(new Point(14, 42)),
+            Width = LogicalToDeviceUnits(370),
             AccessibleName = Ui.KeyStore.PrivateKeyFormatLabel
         };
         _format.Items.AddRange([Ui.KeyStore.OpenSSHOpensshKeyV1, Ui.KeyStore.LegacyPEM, Ui.KeyStore.PKCS8]);
@@ -657,15 +657,15 @@ internal sealed class KeyFormatPromptForm : Form
         {
             Text = "OK",
             DialogResult = DialogResult.OK,
-            Location = new Point(214, 82),
-            Size = new Size(84, 30)
+            Location = this.LogicalToDeviceUnits(new Point(214, 82)),
+            Size = LogicalToDeviceUnits(new Size(84, 30))
         };
         var cancel = new StorageHubButton
         {
             Text = Ui.KeyStore.Cancel,
             DialogResult = DialogResult.Cancel,
-            Location = new Point(300, 82),
-            Size = new Size(84, 30)
+            Location = this.LogicalToDeviceUnits(new Point(300, 82)),
+            Size = LogicalToDeviceUnits(new Size(84, 30))
         };
         ok.Variant = StorageHubButtonVariant.Primary;
         cancel.Variant = StorageHubButtonVariant.Secondary;

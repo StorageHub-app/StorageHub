@@ -98,7 +98,7 @@ public sealed class StorageHubCheckBox : CheckBox
         {
             using var focus = new Pen(StorageHubTheme.Primary) { DashStyle = DashStyle.Dot };
             using var path = StorageHubFieldChrome.RoundedRectangle(
-                Rectangle.Inflate(bounds, 2, 2),
+                Rectangle.Inflate(bounds, LogicalToDeviceUnits(2), LogicalToDeviceUnits(2)),
                 LogicalToDeviceUnits(4));
             graphics.DrawPath(focus, path);
         }

@@ -60,8 +60,8 @@ public sealed class ScheduleManagerForm : Form
         AccessibleName = Ui.Schedules.WindowAccessibleName;
         AccessibleDescription = Ui.Schedules.WindowAccessibleDescription;
         StartPosition = FormStartPosition.CenterParent;
-        MinimumSize = new Size(980, 640);
-        Size = new Size(1220, 760);
+        MinimumSize = this.LogicalWindowSize(new Size(980, 640));
+        Size = this.LogicalWindowSize(new Size(1220, 760));
         AutoScaleMode = AutoScaleMode.Dpi;
         BackColor = StorageHubTheme.Canvas;
         Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
@@ -70,18 +70,18 @@ public sealed class ScheduleManagerForm : Form
         _modeNotice = new Label
         {
             Dock = DockStyle.Top,
-            Height = 62,
+            Height = this.TextBoxHeight(34),
             ForeColor = StorageHubTheme.Warning,
             BackColor = StorageHubTheme.SurfaceMuted,
-            Padding = new Padding(18, 13, 18, 8),
+            Padding = this.LogicalToDeviceUnits(new Padding(18, 13, 18, 8)),
             AccessibleName = Ui.Schedules.ExecutionModeNotice
         };
 
         var toolbar = new FlowLayoutPanel
         {
             Dock = DockStyle.Top,
-            Height = 52,
-            Padding = new Padding(12, 8, 12, 5),
+            Height = this.TextBoxHeight(26),
+            Padding = this.LogicalToDeviceUnits(new Padding(12, 8, 12, 5)),
             WrapContents = false,
             BackColor = StorageHubTheme.Surface
         };
@@ -124,13 +124,13 @@ public sealed class ScheduleManagerForm : Form
         _profile = new StorageHubChoiceField
         {
             Name = "ScheduleProfile",
-            Width = 320,
+            Width = LogicalToDeviceUnits(320),
             AccessibleName = Ui.Schedules.ScheduledProfile
         };
         _frequency = new StorageHubChoiceField
         {
             Name = "ScheduleFrequency",
-            Width = 320,
+            Width = LogicalToDeviceUnits(320),
             AccessibleName = Ui.Schedules.FrequencyAccessibleName
         };
         _frequency.Items.AddRange(
@@ -144,13 +144,13 @@ public sealed class ScheduleManagerForm : Form
         _scheduleTime = new StorageHubTimeField
         {
             Name = "ScheduleTime",
-            Width = 120,
+            Width = LogicalToDeviceUnits(120),
             AccessibleName = Ui.Schedules.TimeAccessibleName
         };
         _weekDay = new StorageHubChoiceField
         {
             Name = "ScheduleWeekDay",
-            Width = 200,
+            Width = LogicalToDeviceUnits(200),
             AccessibleName = Ui.Schedules.DayOfWeek,
             DisplayText = static item => item is DayOfWeek day
                 ? UiEnumNames.Describe(day)
@@ -164,7 +164,7 @@ public sealed class ScheduleManagerForm : Form
             Minimum = 1,
             Maximum = 31,
             Value = 1,
-            Width = 110,
+            Width = LogicalToDeviceUnits(110),
             AccessibleName = Ui.Schedules.DayOfMonth
         };
         _cron = new StorageHubTextField
@@ -183,8 +183,8 @@ public sealed class ScheduleManagerForm : Form
             Name = "ScheduleSummary",
             AutoSize = true,
             ForeColor = StorageHubTheme.TextMuted,
-            MaximumSize = new Size(390, 0),
-            Margin = new Padding(0, 8, 0, 0)
+            MaximumSize = new Size(LogicalToDeviceUnits(390), 0),
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 8, 0, 0))
         };
         _scheduleBuilder.Controls.Add(_scheduleSummary, 0, 5);
         _scheduleBuilder.SetColumnSpan(_scheduleSummary, 2);
@@ -197,7 +197,7 @@ public sealed class ScheduleManagerForm : Form
         _timeZone = new StorageHubChoiceField
         {
             Name = "ScheduleTimeZone",
-            Width = 420,
+            Width = LogicalToDeviceUnits(420),
             AccessibleName = Ui.Schedules.TimeZoneAccessibleName
         };
         _timeZone.Items.AddRange(TimeZoneInfo.GetSystemTimeZones()
@@ -212,7 +212,7 @@ public sealed class ScheduleManagerForm : Form
             Maximum = 30 * 24 * 60,
             Value = 24 * 60,
             ThousandsSeparator = true,
-            Width = 160,
+            Width = LogicalToDeviceUnits(160),
             AccessibleName = Ui.Schedules.MisfireGraceAccessibleName
         };
         _queueOne = new StorageHubCheckBox
@@ -229,7 +229,7 @@ public sealed class ScheduleManagerForm : Form
         };
         _executionMode = new StorageHubChoiceField
         {
-            Width = 320,
+            Width = LogicalToDeviceUnits(320),
             AccessibleName = Ui.Schedules.ExecutionModeAccessibleName,
 
             // The captions are a function of the item rather than an event that only fires when a
@@ -249,10 +249,10 @@ public sealed class ScheduleManagerForm : Form
         {
             Dock = DockStyle.Fill,
             Orientation = Orientation.Vertical,
-            Size = new Size(1180, 600),
-            SplitterDistance = 610,
-            Panel1MinSize = 430,
-            Panel2MinSize = 400,
+            Size = LogicalToDeviceUnits(new Size(1180, 600)),
+            SplitterDistance = LogicalToDeviceUnits(610),
+            Panel1MinSize = LogicalToDeviceUnits(430),
+            Panel2MinSize = LogicalToDeviceUnits(400),
             BackColor = StorageHubTheme.Border,
             AccessibleName = Ui.Schedules.ListAndEditor
         };
@@ -263,9 +263,9 @@ public sealed class ScheduleManagerForm : Form
         var footer = new TableLayoutPanel
         {
             Dock = DockStyle.Bottom,
-            Height = 64,
+            Height = this.TextBoxHeight(35),
             ColumnCount = 2,
-            Padding = new Padding(14, 9, 14, 8),
+            Padding = this.LogicalToDeviceUnits(new Padding(14, 9, 14, 8)),
             BackColor = StorageHubTheme.Surface
         };
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -503,16 +503,16 @@ public sealed class ScheduleManagerForm : Form
             Dock = DockStyle.Fill,
             AutoScroll = true,
             BackColor = StorageHubTheme.Surface,
-            Padding = new Padding(12)
+            Padding = this.LogicalToDeviceUnits(new Padding(12))
         };
         var table = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
             AutoSize = true,
             ColumnCount = 2,
-            Padding = new Padding(8)
+            Padding = this.LogicalToDeviceUnits(new Padding(8))
         };
-        table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 165));
+        table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, LogicalToDeviceUnits(165)));
         table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         var heading = UiControlFactory.CreateSectionTitle(Ui.Schedules.SyncSchedule);
         var description = UiControlFactory.CreateDescription(
@@ -546,11 +546,11 @@ public sealed class ScheduleManagerForm : Form
             Name = "ScheduleBuilder",
             AutoSize = true,
             ColumnCount = 2,
-            Padding = new Padding(12),
+            Padding = this.LogicalToDeviceUnits(new Padding(12)),
             BackColor = StorageHubTheme.SurfaceMuted,
             AccessibleName = Ui.Schedules.BuilderAccessibleName
         };
-        builder.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 105));
+        builder.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, LogicalToDeviceUnits(105)));
         builder.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         AddBuilderRow(builder, 0, Ui.Schedules.Repeats, _frequency, "FrequencyLabel");
         AddBuilderRow(builder, 1, "At", _scheduleTime, "TimeLabel");
@@ -560,7 +560,7 @@ public sealed class ScheduleManagerForm : Form
         return builder;
     }
 
-    private static void AddBuilderRow(
+    private void AddBuilderRow(
         TableLayoutPanel builder,
         int row,
         string text,
@@ -575,10 +575,10 @@ public sealed class ScheduleManagerForm : Form
             AutoSize = true,
             Anchor = AnchorStyles.Left,
             ForeColor = StorageHubTheme.Text,
-            Margin = new Padding(0, 8, 10, 6)
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 8, 10, 6))
         };
         control.Dock = DockStyle.Top;
-        control.Margin = new Padding(0, 4, 0, 4);
+        control.Margin = this.LogicalToDeviceUnits(new Padding(0, 4, 0, 4));
         builder.Controls.Add(label, 0, row);
         builder.Controls.Add(control, 1, row);
     }

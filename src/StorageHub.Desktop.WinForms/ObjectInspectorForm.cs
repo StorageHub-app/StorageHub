@@ -56,8 +56,8 @@ public sealed class ObjectInspectorForm : Form
         AccessibleDescription =
             Ui.Inspector.ReadOnlyObjectVersionsPortableMetadataAnd;
         StartPosition = FormStartPosition.CenterParent;
-        MinimumSize = new Size(860, 560);
-        Size = new Size(1120, 720);
+        MinimumSize = this.LogicalWindowSize(new Size(860, 560));
+        Size = this.LogicalWindowSize(new Size(1120, 720));
         AutoScaleMode = AutoScaleMode.Dpi;
         BackColor = StorageHubTheme.Canvas;
         Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
@@ -139,14 +139,14 @@ public sealed class ObjectInspectorForm : Form
 
         _versionsTab = new TabPage(Ui.Inspector.Versions)
         {
-            Padding = new Padding(10)
+            Padding = this.LogicalToDeviceUnits(new Padding(10))
         };
         var versionFooter = new FlowLayoutPanel
         {
             Dock = DockStyle.Bottom,
-            Height = 44,
+            Height = this.TextBoxHeight(19),
             FlowDirection = FlowDirection.RightToLeft,
-            Padding = new Padding(5),
+            Padding = this.LogicalToDeviceUnits(new Padding(5)),
             BackColor = StorageHubTheme.Surface
         };
         versionFooter.Controls.Add(_loadMoreButton);
@@ -171,8 +171,8 @@ public sealed class ObjectInspectorForm : Form
         var footer = new Panel
         {
             Dock = DockStyle.Bottom,
-            Height = 48,
-            Padding = new Padding(16, 13, 16, 8),
+            Height = this.TextBoxHeight(22),
+            Padding = this.LogicalToDeviceUnits(new Padding(16, 13, 16, 8)),
             BackColor = StorageHubTheme.Surface
         };
         _status = new Label
@@ -260,21 +260,24 @@ public sealed class ObjectInspectorForm : Form
         base.Dispose(disposing);
     }
 
-    private static Panel BuildHeading(ObjectInspectorAddress address)
+    private Panel BuildHeading(ObjectInspectorAddress address)
     {
         var panel = new Panel
         {
             Dock = DockStyle.Top,
-            Height = 104,
-            Padding = new Padding(18, 14, 18, 10),
+            Height = this.TextBoxHeight(67),
+            Padding = this.LogicalToDeviceUnits(new Padding(18, 14, 18, 10)),
             BackColor = StorageHubTheme.Surface
         };
+        // 14pt sets a line about 31px tall at 125%, so the 30px box this used to be given was
+        // already a pixel short of its own text before any other scaling came into it.
+        var titleFont = new Font("Segoe UI Semibold", 14F, FontStyle.Regular, GraphicsUnit.Point);
         var title = new Label
         {
             Dock = DockStyle.Top,
-            Height = 30,
+            Height = this.TextBoxHeight(titleFont, 1),
             Text = address.RelativePath,
-            Font = new Font("Segoe UI Semibold", 14F, FontStyle.Regular, GraphicsUnit.Point),
+            Font = titleFont,
             ForeColor = StorageHubTheme.Text,
             AutoEllipsis = true,
             AccessibleName = Ui.Inspector.InspectedObjectPath
@@ -282,7 +285,7 @@ public sealed class ObjectInspectorForm : Form
         var identity = new Label
         {
             Dock = DockStyle.Top,
-            Height = 24,
+            Height = this.TextBoxHeight(3),
             Text = Ui.Format(Ui.Inspector.ConnectionIdentityFormat, address.ConnectionId),
             ForeColor = StorageHubTheme.TextMuted,
             AutoEllipsis = true
@@ -346,22 +349,22 @@ public sealed class ObjectInspectorForm : Form
         return grid;
     }
 
-    private static Label CreateNotice(string text) => new()
+    private Label CreateNotice(string text) => new()
     {
         Dock = DockStyle.Top,
-        Height = 34,
-        Padding = new Padding(5, 7, 5, 5),
+        Height = this.TextBoxHeight(11),
+        Padding = this.LogicalToDeviceUnits(new Padding(5, 7, 5, 5)),
         Text = text,
         ForeColor = StorageHubTheme.TextMuted,
         BackColor = StorageHubTheme.Surface,
         AutoEllipsis = true
     };
 
-    private static TabPage CreateDataTab(string title, DataGridView grid, Label notice)
+    private TabPage CreateDataTab(string title, DataGridView grid, Label notice)
     {
         var tab = new TabPage(title)
         {
-            Padding = new Padding(10)
+            Padding = this.LogicalToDeviceUnits(new Padding(10))
         };
         tab.Controls.Add(grid);
         tab.Controls.Add(notice);

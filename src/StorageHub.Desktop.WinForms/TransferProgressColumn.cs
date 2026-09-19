@@ -17,6 +17,15 @@ internal sealed class TransferProgressCell : DataGridViewTextBoxCell
     private const int TrackInset = 4;
     private const int TrackRadius = 3;
 
+    /// <summary>
+    /// A logical unit at the size this cell is drawn. A cell is not a <see cref="Control"/> and so
+    /// has no <see cref="Control.LogicalToDeviceUnits(int)"/> of its own; it takes the scaling from
+    /// the grid that owns it, and falls back to 96 DPI only while it is still a template with no
+    /// grid attached.
+    /// </summary>
+    private int Scaled(int logical) =>
+        (int)Math.Round(logical * ((DataGridView?.DeviceDpi ?? 96) / 96F));
+
     protected override void Paint(
         Graphics graphics,
         Rectangle clipBounds,
@@ -43,7 +52,8 @@ internal sealed class TransferProgressCell : DataGridViewTextBoxCell
             advancedBorderStyle,
             paintParts & ~DataGridViewPaintParts.ContentForeground);
 
-        var track = Rectangle.Inflate(cellBounds, -TrackInset, -TrackInset);
+        var trackInset = Scaled(TrackInset);
+        var track = Rectangle.Inflate(cellBounds, -trackInset, -trackInset);
         if (track.Width <= 2 || track.Height <= 2)
         {
             return;
@@ -52,7 +62,7 @@ internal sealed class TransferProgressCell : DataGridViewTextBoxCell
         if (cellStyle.Tag is double fraction)
         {
             var selected = (cellState & DataGridViewElementStates.Selected) != 0;
-            PaintBar(graphics, track, fraction, selected);
+            PaintBar(graphics, track, fraction, selected, Scaled(TrackRadius));
         }
 
         if ((paintParts & DataGridViewPaintParts.ContentForeground) == 0)
@@ -75,13 +85,14 @@ internal sealed class TransferProgressCell : DataGridViewTextBoxCell
             TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter | TextFormatFlags.EndEllipsis);
     }
 
-    private static void PaintBar(Graphics graphics, Rectangle track, double fraction, bool selected)
+    private static void PaintBar(
+        Graphics graphics, Rectangle track, double fraction, bool selected, int radius)
     {
         var previousMode = graphics.SmoothingMode;
         graphics.SmoothingMode = SmoothingMode.AntiAlias;
         try
         {
-            using (var trackPath = CreateRoundedPath(track, TrackRadius))
+            using (var trackPath = CreateRoundedPath(track, radius))
             using (var trackBrush = new SolidBrush(selected
                 ? Color.FromArgb(40, StorageHubTheme.Text)
                 : StorageHubTheme.SurfaceMuted))
@@ -97,8 +108,8 @@ internal sealed class TransferProgressCell : DataGridViewTextBoxCell
 
             // A rounded fill narrower than its own corners degenerates into a wedge, so keep the
             // painted width at least one full diameter and clip it back to the real fraction.
-            var fill = new Rectangle(track.X, track.Y, Math.Max(filledWidth, TrackRadius * 2), track.Height);
-            using var fillPath = CreateRoundedPath(fill, TrackRadius);
+            var fill = new Rectangle(track.X, track.Y, Math.Max(filledWidth, radius * 2), track.Height);
+            using var fillPath = CreateRoundedPath(fill, radius);
             using var fillBrush = new SolidBrush(fraction >= 1D
                 ? StorageHubTheme.Success
                 : StorageHubTheme.Primary);

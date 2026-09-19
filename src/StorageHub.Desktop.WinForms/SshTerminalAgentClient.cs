@@ -112,6 +112,9 @@ public sealed class NamedPipeSshTerminalAgentClient : ISshTerminalAgentClient
         new(new NamedPipeIpcClient(new NamedPipeIpcClientOptions
         {
             PipeName = AgentStatusMonitor.DefaultPipeName,
+            // As everywhere else: the access mode has to match the pipe the name resolved to, or a
+            // service-hosted agent is unreachable and every terminal fails to open.
+            Access = DesktopAgentHost.PipeAccess,
             ClientName = $"StorageHub.Desktop.SshTerminal.{role}",
             ClientVersion = DesktopApplicationVersion.Current,
             ConnectTimeout = TimeSpan.FromSeconds(2),

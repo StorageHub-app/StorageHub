@@ -17,6 +17,7 @@ public sealed class SyncTasksOverviewControl : UserControl
     private readonly TabControl _views;
     private readonly TabPage _runReviewPage;
     private readonly SyncRunsControl _runReview;
+    private readonly SplitContainer _lists;
     private readonly List<SyncRunSummary> _sessionRuns = [];
     private int _refreshing;
     private bool _disposed;
@@ -38,7 +39,7 @@ public sealed class SyncTasksOverviewControl : UserControl
             Dock = DockStyle.Fill,
             AccessibleName = Ui.Sync.TasksViews,
             HotTrack = true,
-            Padding = new Point(16, 4)
+            Padding = new Point(LogicalToDeviceUnits(16), LogicalToDeviceUnits(4))
         };
         StorageHubTheme.ConfigureTabs(_views);
 
@@ -46,7 +47,7 @@ public sealed class SyncTasksOverviewControl : UserControl
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            Padding = new Padding(28, 24, 28, 24),
+            Padding = this.LogicalToDeviceUnits(new Padding(28, 24, 28, 24)),
             BackColor = StorageHubTheme.Canvas
         };
         content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
@@ -63,17 +64,17 @@ public sealed class SyncTasksOverviewControl : UserControl
             AutoSize = true,
             Font = new Font("Segoe UI Semibold", 20F),
             ForeColor = StorageHubTheme.Text,
-            Margin = new Padding(0, 0, 0, 2)
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 0, 0, 2))
         });
         content.Controls.Add(new Label
         {
             Text = Ui.Sync.TasksAccessibleDescription,
             AutoSize = true,
             ForeColor = StorageHubTheme.TextMuted,
-            Margin = new Padding(1, 0, 0, 16)
+            Margin = this.LogicalToDeviceUnits(new Padding(1, 0, 0, 16))
         });
 
-        var actions = new FlowLayoutPanel { AutoSize = true, WrapContents = true, Margin = new Padding(0, 0, 0, 18) };
+        var actions = new FlowLayoutPanel { AutoSize = true, WrapContents = true, Margin = this.LogicalToDeviceUnits(new Padding(0, 0, 0, 18)) };
         actions.Controls.Add(CreateButton(Ui.Sync.NewSyncProfile, UiGlyph.Add, (_, _) => NewProfileRequested?.Invoke(this, EventArgs.Empty), primary: true));
         actions.Controls.Add(CreateButton("Schedules", UiGlyph.Run, (_, _) => SchedulesRequested?.Invoke(this, EventArgs.Empty)));
         actions.Controls.Add(CreateButton(Ui.Sync.RunHistoryAndReview, UiGlyph.Compare, ReviewRunClicked));
@@ -84,14 +85,19 @@ public sealed class SyncTasksOverviewControl : UserControl
         {
             Dock = DockStyle.Top,
             AutoSize = false,
-            Height = 108,
-            MinimumSize = new Size(0, 108),
+            Height = this.TextBoxHeight(70),
+            MinimumSize = new Size(0, this.TextBoxHeight(70)),
             ColumnCount = 3,
-            Margin = new Padding(0, 0, 0, 18)
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 0, 0, 18))
         };
         metrics.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33F));
         metrics.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33F));
         metrics.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.34F));
+        // The row has to fill the band. Left undeclared it auto-sizes, so the cards take their
+        // own preferred height and hang out of the bottom -- which only stayed invisible while
+        // the band was a generous fixed 108px.
+        metrics.RowCount = 1;
+        metrics.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
         _enabledValue = AddMetric(metrics, 0, Ui.Sync.EnabledTasks, UiGlyph.Run, StorageHubTheme.Success);
         _disabledValue = AddMetric(metrics, 1, Ui.Sync.DisabledTasks, UiGlyph.Pause, StorageHubTheme.TextMuted);
         _knownRunsValue = AddMetric(metrics, 2, Ui.Sync.RunsThisSession, UiGlyph.Compare, StorageHubTheme.Primary);
@@ -101,15 +107,23 @@ public sealed class SyncTasksOverviewControl : UserControl
         {
             Dock = DockStyle.Fill,
             Orientation = Orientation.Horizontal,
-            SplitterDistance = 260,
-            BackColor = StorageHubTheme.Border,
+            // Canvas, not Border. The gutter below is page space between two cards; painted in
+            // the border colour it read as a rule joining them into one block instead.
+            BackColor = StorageHubTheme.Canvas,
             Margin = Padding.Empty
         };
+        // Neither card may be starved below its heading, column header and a few rows.
+        lists.Panel1MinSize = this.TextBoxHeight(50);
+        lists.Panel2MinSize = this.TextBoxHeight(50);
+        _lists = lists;
+
         _profiles = CreateList(Ui.Sync.SavedTasks, Ui.Sync.ColumnState, UiGlyph.Compare, out var profilesCard);
         _profiles.Columns.Insert(1, Ui.Sync.ColumnBehavior, 180);
         _runs = CreateList(Ui.Sync.LastSyncs, Ui.Sync.ColumnState, UiGlyph.Run, out var runsCard);
-        lists.Panel1.Padding = new Padding(0, 0, 0, 5);
-        lists.Panel2.Padding = new Padding(0, 5, 0, 0);
+        lists.Panel1.BackColor = StorageHubTheme.Canvas;
+        lists.Panel2.BackColor = StorageHubTheme.Canvas;
+        lists.Panel1.Padding = this.LogicalToDeviceUnits(new Padding(0, 0, 0, 7));
+        lists.Panel2.Padding = this.LogicalToDeviceUnits(new Padding(0, 7, 0, 0));
         lists.Panel1.Controls.Add(profilesCard);
         lists.Panel2.Controls.Add(runsCard);
         content.Controls.Add(lists);
@@ -119,7 +133,7 @@ public sealed class SyncTasksOverviewControl : UserControl
             Text = Ui.Sync.TasksDeferred,
             AutoSize = true,
             ForeColor = StorageHubTheme.TextMuted,
-            Margin = new Padding(0, 10, 0, 0)
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 10, 0, 0))
         };
         content.Controls.Add(_status);
 
@@ -329,7 +343,7 @@ public sealed class SyncTasksOverviewControl : UserControl
         }
     }
 
-    private static Label AddMetric(TableLayoutPanel host, int column, string title, UiGlyph glyph, Color accent)
+    private Label AddMetric(TableLayoutPanel host, int column, string title, UiGlyph glyph, Color accent)
     {
         var card = CreateCard();
         card.Dock = DockStyle.Fill;
@@ -339,16 +353,16 @@ public sealed class SyncTasksOverviewControl : UserControl
             Dock = DockStyle.Fill,
             ColumnCount = 2,
             RowCount = 2,
-            Padding = new Padding(12, 10, 12, 10),
+            Padding = this.LogicalToDeviceUnits(new Padding(12, 10, 12, 10)),
             Margin = Padding.Empty
         };
-        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 42));
+        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, LogicalToDeviceUnits(42)));
         grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         grid.RowStyles.Add(new RowStyle(SizeType.Percent, 55));
         grid.RowStyles.Add(new RowStyle(SizeType.Percent, 45));
         var icon = new PictureBox
         {
-            Image = UiIconFactory.Create(glyph, accent, 24),
+            Image = UiIconFactory.Create(glyph, accent, 24, DeviceDpi / 96F),
             SizeMode = PictureBoxSizeMode.CenterImage,
             Dock = DockStyle.Fill,
             Margin = Padding.Empty
@@ -379,7 +393,38 @@ public sealed class SyncTasksOverviewControl : UserControl
         return value;
     }
 
-    private static ListView CreateList(string title, string thirdColumn, UiGlyph glyph, out Panel card)
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        // A SplitContainer is 150px tall until it has been laid out, so a distance assigned in
+        // the constructor is clamped to fit that and then carried forward. The next turn of the
+        // message loop is the first moment the real height is known.
+        BeginInvoke(PlaceSplitter);
+    }
+
+    /// <summary>
+    /// Half the band each. The two lists matter equally, and giving the upper one a fixed height
+    /// spends the whole window on it and leaves the lower card on its minimum -- a heading with
+    /// a clipped column header under it.
+    /// </summary>
+    private void PlaceSplitter()
+    {
+        if (IsDisposed || _lists.IsDisposed)
+        {
+            return;
+        }
+
+        var room = _lists.Height - _lists.Panel2MinSize - _lists.SplitterWidth;
+        if (room < _lists.Panel1MinSize)
+        {
+            return;
+        }
+
+        _lists.SplitterDistance = Math.Clamp(_lists.Height / 2, _lists.Panel1MinSize, room);
+    }
+
+    private ListView CreateList(string title, string thirdColumn, UiGlyph glyph, out Panel card)
+
     {
         card = CreateCard();
         card.Dock = DockStyle.Fill;
@@ -388,16 +433,16 @@ public sealed class SyncTasksOverviewControl : UserControl
             Dock = DockStyle.Fill,
             ColumnCount = 2,
             RowCount = 2,
-            Padding = new Padding(14, 10, 14, 14),
+            Padding = this.LogicalToDeviceUnits(new Padding(14, 10, 14, 14)),
             Margin = Padding.Empty
         };
-        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 36));
+        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, LogicalToDeviceUnits(36)));
         grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 30));
+        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, this.TextBoxHeight(8)));
         grid.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var icon = new PictureBox
         {
-            Image = UiIconFactory.Create(glyph, StorageHubTheme.Primary, 20),
+            Image = UiIconFactory.Create(glyph, StorageHubTheme.Primary, 20, DeviceDpi / 96F),
             SizeMode = PictureBoxSizeMode.CenterImage,
             Dock = DockStyle.Fill,
             Margin = Padding.Empty
@@ -411,11 +456,11 @@ public sealed class SyncTasksOverviewControl : UserControl
             ForeColor = StorageHubTheme.Text,
             Margin = Padding.Empty
         };
-        var images = new ImageList { ImageSize = new Size(18, 18), ColorDepth = ColorDepth.Depth32Bit };
-        images.Images.Add("enabled", UiIconFactory.Create(UiGlyph.Test, StorageHubTheme.Success, 18));
-        images.Images.Add("disabled", UiIconFactory.Create(UiGlyph.Pause, StorageHubTheme.TextMuted, 18));
-        images.Images.Add("run", UiIconFactory.Create(UiGlyph.Run, StorageHubTheme.Primary, 18));
-        images.Images.Add("empty", UiIconFactory.Create(UiGlyph.More, StorageHubTheme.TextMuted, 18));
+        var images = new ImageList { ImageSize = LogicalToDeviceUnits(new Size(18, 18)), ColorDepth = ColorDepth.Depth32Bit };
+        images.Images.Add("enabled", UiIconFactory.Create(UiGlyph.Test, StorageHubTheme.Success, 18, DeviceDpi / 96F));
+        images.Images.Add("disabled", UiIconFactory.Create(UiGlyph.Pause, StorageHubTheme.TextMuted, 18, DeviceDpi / 96F));
+        images.Images.Add("run", UiIconFactory.Create(UiGlyph.Run, StorageHubTheme.Primary, 18, DeviceDpi / 96F));
+        images.Images.Add("empty", UiIconFactory.Create(UiGlyph.More, StorageHubTheme.TextMuted, 18, DeviceDpi / 96F));
         var list = new ListView
         {
             View = View.Details,
@@ -425,12 +470,12 @@ public sealed class SyncTasksOverviewControl : UserControl
             ForeColor = StorageHubTheme.Text,
             HeaderStyle = ColumnHeaderStyle.Nonclickable,
             Dock = DockStyle.Fill,
-            Margin = new Padding(0, 8, 0, 0)
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 8, 0, 0))
         };
         StorageHubTheme.ConfigureList(list);
-        list.Columns.Add(Ui.Sync.ColumnName, 360);
-        list.Columns.Add(thirdColumn, 180);
-        list.Columns.Add(Ui.Sync.ColumnUpdated, 180);
+        list.Columns.Add(Ui.Sync.ColumnName, LogicalToDeviceUnits(360));
+        list.Columns.Add(thirdColumn, LogicalToDeviceUnits(180));
+        list.Columns.Add(Ui.Sync.ColumnUpdated, LogicalToDeviceUnits(180));
         grid.Controls.Add(icon, 0, 0);
         grid.Controls.Add(titleLabel, 1, 0);
         grid.Controls.Add(list, 0, 1);
@@ -445,15 +490,15 @@ public sealed class SyncTasksOverviewControl : UserControl
         BorderStyle = BorderStyle.FixedSingle
     };
 
-    private static StorageHubButton CreateButton(string text, UiGlyph glyph, EventHandler handler, bool primary = false)
+    private StorageHubButton CreateButton(string text, UiGlyph glyph, EventHandler handler, bool primary = false)
     {
         var button = new StorageHubButton
         {
             Text = text,
-            Image = UiIconFactory.Create(glyph, primary ? Color.White : StorageHubTheme.Text, 18),
+            Image = UiIconFactory.Create(glyph, primary ? Color.White : StorageHubTheme.Text, 18, DeviceDpi / 96F),
             TextImageRelation = TextImageRelation.ImageBeforeText,
             AutoSize = true,
-            Margin = new Padding(0, 0, 8, 0)
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 0, 8, 0))
         };
         if (primary)
         {

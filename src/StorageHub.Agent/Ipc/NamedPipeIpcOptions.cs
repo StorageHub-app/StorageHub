@@ -64,8 +64,13 @@ public sealed record NamedPipeIpcClientOptions
     /// cannot use CurrentUserOnly -- the server is a different account -- so it verifies the pipe's
     /// owner instead. Without that check any local process could create another instance of the
     /// machine-wide pipe name and collect whatever the desktop sends it.
+    ///
+    /// Required rather than defaulted. It used to default to CurrentUserOnly, which is correct for
+    /// a session agent and silently wrong for a service: Windows refuses the connection, the client
+    /// reports the agent as absent, and nothing anywhere says the two disagreed about the mode.
+    /// A caller that has to name it cannot forget to think about it.
     /// </summary>
-    public IpcPipeAccess Access { get; init; } = IpcPipeAccess.CurrentUserOnly;
+    public required IpcPipeAccess Access { get; init; }
 
     public required string ClientName { get; init; }
 

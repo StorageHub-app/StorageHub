@@ -18,7 +18,7 @@ internal sealed class DetailCategoryHeader : Control
     {
         Text = title;
         _font = font;
-        Height = 24;
+        Height = this.TextBoxHeight(_font, 2);
         Cursor = Cursors.Hand;
         TabStop = true;
         DoubleBuffered = true;
@@ -125,7 +125,8 @@ internal sealed class DetailCategoryHeader : Control
             e.Graphics,
             Text,
             _font,
-            new Rectangle(20, 0, Math.Max(1, Width - 24), Height),
+            new Rectangle(
+                LogicalToDeviceUnits(20), 0, Math.Max(1, Width - LogicalToDeviceUnits(24)), Height),
             StorageHubTheme.Text,
             TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
 
@@ -154,7 +155,7 @@ internal sealed class DetailFactRow : Control
         _value = value;
         _muted = muted;
         _odd = index % 2 == 1;
-        Height = 22;
+        Height = this.TextBoxHeight(2);
         TabStop = true;
         DoubleBuffered = true;
         AccessibleRole = AccessibleRole.Row;
@@ -248,14 +249,16 @@ internal sealed class DetailFactRow : Control
             e.Graphics,
             _key,
             Font,
-            new Rectangle(8, 0, KeyColumnWidth - 12, Height),
+            new Rectangle(
+                LogicalToDeviceUnits(8), 0, LogicalToDeviceUnits(KeyColumnWidth - 12), Height),
             StorageHubTheme.TextMuted,
             TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
 
         // The divider is what makes this read as two columns rather than as indented text.
         using (var divider = new Pen(StorageHubTheme.Border))
         {
-            e.Graphics.DrawLine(divider, KeyColumnWidth, 0, KeyColumnWidth, Height);
+            var keyColumn = LogicalToDeviceUnits(KeyColumnWidth);
+            e.Graphics.DrawLine(divider, keyColumn, 0, keyColumn, Height);
             e.Graphics.DrawLine(divider, 0, Height - 1, Width, Height - 1);
         }
 
@@ -263,7 +266,11 @@ internal sealed class DetailFactRow : Control
             e.Graphics,
             _value,
             Font,
-            new Rectangle(KeyColumnWidth + 8, 0, Math.Max(1, Width - KeyColumnWidth - 12), Height),
+            new Rectangle(
+                LogicalToDeviceUnits(KeyColumnWidth + 8),
+                0,
+                Math.Max(1, Width - LogicalToDeviceUnits(KeyColumnWidth + 12)),
+                Height),
             _muted ? StorageHubTheme.TextMuted : StorageHubTheme.Text,
             TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
     }

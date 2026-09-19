@@ -40,8 +40,8 @@ internal sealed class SyncLocationPickerForm : Form
         Text = Ui.Format(Ui.Sync.PickerTitleWithConnectionFormat, locationName, connection.DisplayName);
         AccessibleName = Ui.Format(Ui.Sync.PickerTitleFormat, locationName);
         StartPosition = FormStartPosition.CenterParent;
-        MinimumSize = new Size(680, 480);
-        Size = new Size(780, 570);
+        MinimumSize = this.LogicalWindowSize(new Size(680, 480));
+        Size = this.LogicalWindowSize(new Size(780, 570));
         AutoScaleMode = AutoScaleMode.Dpi;
         BackColor = StorageHubTheme.Canvas;
         Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
@@ -50,9 +50,9 @@ internal sealed class SyncLocationPickerForm : Form
         var header = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
-            Height = 82,
+            Height = this.TextBoxHeight(50),
             ColumnCount = 1,
-            Padding = new Padding(18, 10, 18, 8),
+            Padding = this.LogicalToDeviceUnits(new Padding(18, 10, 18, 8)),
             BackColor = StorageHubTheme.Surface
         };
         header.Controls.Add(UiControlFactory.CreateSectionTitle($"{connection.DisplayName} folders"), 0, 0);
@@ -62,9 +62,9 @@ internal sealed class SyncLocationPickerForm : Form
         var navigation = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
-            Height = 48,
+            Height = this.TextBoxHeight(22),
             ColumnCount = 4,
-            Padding = new Padding(12, 8, 12, 6),
+            Padding = this.LogicalToDeviceUnits(new Padding(12, 8, 12, 6)),
             BackColor = StorageHubTheme.SurfaceMuted
         };
         navigation.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
@@ -80,7 +80,7 @@ internal sealed class SyncLocationPickerForm : Form
             Dock = DockStyle.Fill,
             PlaceholderText = Ui.Sync.PickerConnectionRoot,
             AccessibleName = Ui.Sync.PickerAddressAccessibleName,
-            Margin = new Padding(8, 3, 8, 0)
+            Margin = this.LogicalToDeviceUnits(new Padding(8, 3, 8, 0))
         };
         _address.KeyDown += AddressKeyDown;
         _refresh = CreateSecondaryButton(Ui.Sync.PickerRefresh);
@@ -103,17 +103,17 @@ internal sealed class SyncLocationPickerForm : Form
             AccessibleName = Ui.Sync.PickerFoldersAccessibleName
         };
         StorageHubTheme.ConfigureList(_folders);
-        _folders.Columns.Add(Ui.Sync.PickerFolder, 430);
-        _folders.Columns.Add(Ui.Sync.PickerPath, 280);
+        _folders.Columns.Add(Ui.Sync.PickerFolder, LogicalToDeviceUnits(430));
+        _folders.Columns.Add(Ui.Sync.PickerPath, LogicalToDeviceUnits(280));
         _folders.DoubleClick += FolderDoubleClicked;
         _folders.KeyDown += FoldersKeyDown;
 
         var footer = new TableLayoutPanel
         {
             Dock = DockStyle.Bottom,
-            Height = 66,
+            Height = this.TextBoxHeight(37),
             ColumnCount = 3,
-            Padding = new Padding(12, 8, 12, 8),
+            Padding = this.LogicalToDeviceUnits(new Padding(12, 8, 12, 8)),
             BackColor = StorageHubTheme.Surface
         };
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));

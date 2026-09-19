@@ -116,8 +116,9 @@ internal sealed class ConnectionSidebarGroupHeader : Control
 
         if (_image is { } icon)
         {
-            graphics.DrawImage(icon, new Rectangle(left, (Height - 16) / 2, 16, 16));
-            left += 16 + LogicalToDeviceUnits(IconGap);
+            var iconSize = LogicalToDeviceUnits(16);
+            graphics.DrawImage(icon, new Rectangle(left, (Height - iconSize) / 2, iconSize, iconSize));
+            left += iconSize + LogicalToDeviceUnits(IconGap);
         }
 
         // The count is measured first so a long folder name gives up room to it rather than

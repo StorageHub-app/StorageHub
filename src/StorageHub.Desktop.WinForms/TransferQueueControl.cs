@@ -120,8 +120,8 @@ public sealed class TransferQueueControl : UserControl
             BackColor = StorageHubTheme.Surface,
             ForeColor = StorageHubTheme.Text,
             AccessibleName = Ui.Transfer.QueueCommands,
-            Padding = new Padding(6, 4, 6, 4),
-            ImageScalingSize = new Size(18, 18),
+            Padding = this.LogicalToDeviceUnits(new Padding(6, 4, 6, 4)),
+            ImageScalingSize = LogicalToDeviceUnits(new Size(18, 18)),
             AutoSize = true
         };
         var refresh = CreateButton(UiGlyph.Refresh, Ui.Transfer.Refresh, Ui.Transfer.RefreshQueue, RefreshButtonClicked);
@@ -134,7 +134,7 @@ public sealed class TransferQueueControl : UserControl
             Name = "ReconciliationAction",
             AccessibleName = Ui.Transfer.ReconciliationAction,
             AutoSize = false,
-            Width = 170
+            Width = LogicalToDeviceUnits(170)
         };
         // Typed values captioned by a function, not names: the list has to read as words, and the
         // selection has to come back as the value the request carries rather than a parsed string.
@@ -276,7 +276,7 @@ public sealed class TransferQueueControl : UserControl
         _tabs.TabPages.Add(page);
     }
 
-    private static DataGridView CreateGrid(string name)
+    private DataGridView CreateGrid(string name)
     {
         var grid = new DataGridView
         {
@@ -297,7 +297,7 @@ public sealed class TransferQueueControl : UserControl
         grid.EnableHeadersVisualStyles = false;
         grid.ColumnHeadersDefaultCellStyle.BackColor = StorageHubTheme.SurfaceMuted;
         grid.ColumnHeadersDefaultCellStyle.ForeColor = StorageHubTheme.Text;
-        grid.ColumnHeadersDefaultCellStyle.Padding = new Padding(4);
+        grid.ColumnHeadersDefaultCellStyle.Padding = this.LogicalToDeviceUnits(new Padding(4));
         grid.DefaultCellStyle.BackColor = StorageHubTheme.Surface;
         grid.DefaultCellStyle.ForeColor = StorageHubTheme.Text;
         grid.DefaultCellStyle.SelectionBackColor = StorageHubTheme.Selection;
@@ -483,7 +483,7 @@ public sealed class TransferQueueControl : UserControl
             DisplayStyle = ToolStripItemDisplayStyle.ImageAndText,
             ImageAlign = ContentAlignment.MiddleLeft,
             TextAlign = ContentAlignment.MiddleRight,
-            Padding = new Padding(4, 1, 4, 1),
+            Padding = this.LogicalToDeviceUnits(new Padding(4, 1, 4, 1)),
             ToolTipText = description,
             AccessibleName = description,
             AccessibleDescription = description,
@@ -493,21 +493,21 @@ public sealed class TransferQueueControl : UserControl
         return button;
     }
 
-    private static ImageList CreateTabImages()
+    private ImageList CreateTabImages()
     {
         var images = new ImageList
         {
             ColorDepth = ColorDepth.Depth32Bit,
-            ImageSize = new Size(18, 18),
+            ImageSize = LogicalToDeviceUnits(new Size(18, 18)),
             TransparentColor = Color.Transparent
         };
-        images.Images.Add("Active", UiIconFactory.Create(UiGlyph.Run, StorageHubTheme.Success, 18));
-        images.Images.Add("Queued", UiIconFactory.Create(UiGlyph.More, StorageHubTheme.Primary, 18));
-        images.Images.Add("Paused", UiIconFactory.Create(UiGlyph.Pause, StorageHubTheme.Warning, 18));
-        images.Images.Add("Failed", UiIconFactory.Create(UiGlyph.Warning, StorageHubTheme.Danger, 18));
-        images.Images.Add("Completed", UiIconFactory.Create(UiGlyph.Test, StorageHubTheme.Success, 18));
-        images.Images.Add("Conflicts", UiIconFactory.Create(UiGlyph.Compare, StorageHubTheme.Warning, 18));
-        images.Images.Add("Logs", UiIconFactory.Create(UiGlyph.File, StorageHubTheme.TextMuted, 18));
+        images.Images.Add("Active", UiIconFactory.Create(UiGlyph.Run, StorageHubTheme.Success, 18, DeviceDpi / 96F));
+        images.Images.Add("Queued", UiIconFactory.Create(UiGlyph.More, StorageHubTheme.Primary, 18, DeviceDpi / 96F));
+        images.Images.Add("Paused", UiIconFactory.Create(UiGlyph.Pause, StorageHubTheme.Warning, 18, DeviceDpi / 96F));
+        images.Images.Add("Failed", UiIconFactory.Create(UiGlyph.Warning, StorageHubTheme.Danger, 18, DeviceDpi / 96F));
+        images.Images.Add("Completed", UiIconFactory.Create(UiGlyph.Test, StorageHubTheme.Success, 18, DeviceDpi / 96F));
+        images.Images.Add("Conflicts", UiIconFactory.Create(UiGlyph.Compare, StorageHubTheme.Warning, 18, DeviceDpi / 96F));
+        images.Images.Add("Logs", UiIconFactory.Create(UiGlyph.File, StorageHubTheme.TextMuted, 18, DeviceDpi / 96F));
         return images;
     }
 
@@ -522,8 +522,8 @@ public sealed class TransferQueueControl : UserControl
             .DefaultIfEmpty(70)
             .Max();
         _tabs.ItemSize = new Size(
-            widestText + _tabImages.ImageSize.Width + 36,
-            Math.Max(34, _tabImages.ImageSize.Height + 12));
+            widestText + _tabImages.ImageSize.Width + LogicalToDeviceUnits(36),
+            Math.Max(LogicalToDeviceUnits(34), _tabImages.ImageSize.Height + LogicalToDeviceUnits(12)));
     }
 
     private async void RefreshButtonClicked(object? sender, EventArgs e) =>
@@ -1134,15 +1134,15 @@ internal sealed class ClearTransferHistoryConfirmationForm : Form
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MinimizeBox = false;
         MaximizeBox = false;
-        ClientSize = new Size(500, 190);
+        ClientSize = this.LogicalWindowSize(new Size(500, 190));
         BackColor = StorageHubTheme.Canvas;
         ForeColor = StorageHubTheme.Text;
         StorageHubTheme.Register(this);
         var message = new Label
         {
             AutoSize = false,
-            Location = new Point(18, 18),
-            Size = new Size(464, 70),
+            Location = this.LogicalToDeviceUnits(new Point(18, 18)),
+            Size = LogicalToDeviceUnits(new Size(464, 70)),
             Text = Ui.Transfer.ClearAllBody,
             ForeColor = StorageHubTheme.Text
         };
@@ -1150,21 +1150,21 @@ internal sealed class ClearTransferHistoryConfirmationForm : Form
         {
             Text = Ui.Transfer.ClearAllSuppress,
             AutoSize = true,
-            Location = new Point(18, 100)
+            Location = this.LogicalToDeviceUnits(new Point(18, 100))
         };
         var clear = new StorageHubButton
         {
             Text = Ui.Transfer.ClearHistory,
             DialogResult = DialogResult.OK,
-            Location = new Point(282, 140),
-            Size = new Size(100, 32)
+            Location = this.LogicalToDeviceUnits(new Point(282, 140)),
+            Size = LogicalToDeviceUnits(new Size(100, 32))
         };
         var cancel = new StorageHubButton
         {
             Text = Ui.Dialogs.ButtonCancel,
             DialogResult = DialogResult.Cancel,
-            Location = new Point(392, 140),
-            Size = new Size(90, 32)
+            Location = this.LogicalToDeviceUnits(new Point(392, 140)),
+            Size = LogicalToDeviceUnits(new Size(90, 32))
         };
         clear.Variant = StorageHubButtonVariant.Primary;
         clear.BackColor = StorageHubTheme.Danger;

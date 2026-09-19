@@ -21,8 +21,8 @@ internal sealed class KeyStorePickerForm : Form
         StartPosition = FormStartPosition.CenterParent;
         MinimizeBox = false;
         MaximizeBox = false;
-        MinimumSize = new Size(640, 360);
-        ClientSize = new Size(720, 400);
+        MinimumSize = this.LogicalWindowSize(new Size(640, 360));
+        ClientSize = this.LogicalWindowSize(new Size(720, 400));
         BackColor = StorageHubTheme.Canvas;
         ForeColor = StorageHubTheme.Text;
         StorageHubTheme.Register(this);
@@ -39,9 +39,9 @@ internal sealed class KeyStorePickerForm : Form
             ForeColor = StorageHubTheme.Text,
             AccessibleName = Ui.KeyStore.StoredKeysAndCertificates
         };
-        _entries.Columns.Add("Name", 200);
-        _entries.Columns.Add(Ui.KeyStore.Identity, 300);
-        _entries.Columns.Add(Ui.KeyStore.Expires, 110);
+        _entries.Columns.Add("Name", LogicalToDeviceUnits(200));
+        _entries.Columns.Add(Ui.KeyStore.Identity, LogicalToDeviceUnits(300));
+        _entries.Columns.Add(Ui.KeyStore.Expires, LogicalToDeviceUnits(110));
         _entries.Columns.Add(Ui.KeyStore.UsedBy, 70, HorizontalAlignment.Right);
         StorageHubTheme.ConfigureList(_entries);
 
@@ -65,7 +65,7 @@ internal sealed class KeyStorePickerForm : Form
             Text = "Use",
             DialogResult = DialogResult.OK,
             AutoSize = true,
-            Margin = new Padding(0, 0, 8, 0)
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 0, 8, 0))
         };
         var cancel = new StorageHubButton { Text = Ui.KeyStore.Cancel, DialogResult = DialogResult.Cancel, AutoSize = true };
         use.Variant = StorageHubButtonVariant.Primary;
@@ -75,8 +75,8 @@ internal sealed class KeyStorePickerForm : Form
         {
             Dock = DockStyle.Bottom,
             FlowDirection = FlowDirection.RightToLeft,
-            Height = 48,
-            Padding = new Padding(10, 8, 10, 8),
+            Height = this.TextBoxHeight(22),
+            Padding = this.LogicalToDeviceUnits(new Padding(10, 8, 10, 8)),
             BackColor = StorageHubTheme.Canvas
         };
         actions.Controls.Add(cancel);
@@ -85,7 +85,7 @@ internal sealed class KeyStorePickerForm : Form
         var body = new Panel
         {
             Dock = DockStyle.Fill,
-            Padding = new Padding(10, 10, 10, 0),
+            Padding = this.LogicalToDeviceUnits(new Padding(10, 10, 10, 0)),
             BackColor = StorageHubTheme.Canvas
         };
         body.Controls.Add(_entries);

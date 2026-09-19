@@ -43,13 +43,13 @@ public sealed class SyncRunsControl : UserControl
         var toolbar = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
-            Height = 58,
+            Height = this.TextBoxHeight(30),
             ColumnCount = 6,
-            Padding = new Padding(10, 9, 10, 7),
+            Padding = this.LogicalToDeviceUnits(new Padding(10, 9, 10, 7)),
             BackColor = StorageHubTheme.Surface
         };
         toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 330));
+        toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, LogicalToDeviceUnits(330)));
         toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
@@ -60,7 +60,7 @@ public sealed class SyncRunsControl : UserControl
             AutoSize = true,
             Anchor = AnchorStyles.Left,
             ForeColor = StorageHubTheme.Text,
-            Margin = new Padding(0, 8, 8, 0)
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 8, 8, 0))
         }, 0, 0);
         _runId = new StorageHubTextField
         {
@@ -107,7 +107,7 @@ public sealed class SyncRunsControl : UserControl
         {
             if (split.Width >= 800)
             {
-                var distance = Math.Max(300, (int)(split.Width * 0.35));
+                var distance = Math.Max(LogicalToDeviceUnits(300), (int)(split.Width * 0.35));
                 // Setting the same distance again still lays both panels out and repaints them.
                 if (split.SplitterDistance != distance)
                 {

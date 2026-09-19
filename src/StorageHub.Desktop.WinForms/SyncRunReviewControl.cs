@@ -44,9 +44,9 @@ public sealed class SyncRunReviewControl : UserControl
         var heading = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
-            Height = 94,
+            Height = this.TextBoxHeight(59),
             ColumnCount = 2,
-            Padding = new Padding(12, 8, 12, 6),
+            Padding = this.LogicalToDeviceUnits(new Padding(12, 8, 12, 6)),
             BackColor = StorageHubTheme.Surface
         };
         heading.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -71,7 +71,7 @@ public sealed class SyncRunReviewControl : UserControl
             AutoSize = true,
             WrapContents = false,
             FlowDirection = FlowDirection.LeftToRight,
-            Margin = new Padding(8, 8, 0, 0)
+            Margin = this.LogicalToDeviceUnits(new Padding(8, 8, 0, 0))
         };
         var refresh = new StorageHubButton { Text = Ui.Sync.RefreshStatus, AutoSize = true };
         refresh.Variant = StorageHubButtonVariant.Secondary;
@@ -533,13 +533,13 @@ public sealed class SyncRunReviewControl : UserControl
         return grid;
     }
 
-    private static StorageHubButton CreateNextButton(string text, EventHandler click)
+    private StorageHubButton CreateNextButton(string text, EventHandler click)
     {
         var button = new StorageHubButton
         {
             Text = text,
             Dock = DockStyle.Right,
-            Width = 170,
+            Width = LogicalToDeviceUnits(170),
             Enabled = false
         };
         button.Variant = StorageHubButtonVariant.Secondary;
@@ -547,10 +547,10 @@ public sealed class SyncRunReviewControl : UserControl
         return button;
     }
 
-    private static TabPage CreatePagedTab(string name, Control content, Button next)
+    private TabPage CreatePagedTab(string name, Control content, Button next)
     {
-        var page = new TabPage(name) { Padding = new Padding(4) };
-        var footer = new Panel { Dock = DockStyle.Bottom, Height = 42, Padding = new Padding(4) };
+        var page = new TabPage(name) { Padding = this.LogicalToDeviceUnits(new Padding(4)) };
+        var footer = new Panel { Dock = DockStyle.Bottom, Height = 42, Padding = this.LogicalToDeviceUnits(new Padding(4)) };
         footer.Controls.Add(next);
         page.Controls.Add(content);
         page.Controls.Add(footer);

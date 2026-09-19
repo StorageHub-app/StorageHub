@@ -100,7 +100,7 @@ internal sealed class ConnectionsPanelControl : UserControl
             Dock = DockStyle.Bottom,
             Height = 0,
             AutoSize = false,
-            Padding = new Padding(12, 4, 12, 4),
+            Padding = this.LogicalToDeviceUnits(new Padding(12, 4, 12, 4)),
             ForeColor = StorageHubTheme.Warning,
             Visible = false,
             AccessibleName = Ui.Connections.PanelStatus
@@ -122,7 +122,7 @@ internal sealed class ConnectionsPanelControl : UserControl
         Controls.Add(new Splitter
         {
             Dock = DockStyle.Bottom,
-            Height = 4,
+            Height = LogicalToDeviceUnits(4),
             MinExtra = 120,
             MinSize = 120,
             BackColor = StorageHubTheme.Border
@@ -208,8 +208,8 @@ internal sealed class ConnectionsPanelControl : UserControl
         var header = new Panel
         {
             Dock = DockStyle.Top,
-            Height = 100,
-            Padding = new Padding(12, 10, 12, 10),
+            Height = this.TextBoxHeight(64),
+            Padding = this.LogicalToDeviceUnits(new Padding(12, 10, 12, 10)),
             BackColor = StorageHubTheme.Surface
         };
 
@@ -223,7 +223,7 @@ internal sealed class ConnectionsPanelControl : UserControl
         {
             // Docked buttons ignore Margin, so these live in a flow panel instead: docking them
             // right put the New button hard up against the overflow button with no gap at all.
-            Margin = new Padding(6, 0, 0, 0),
+            Margin = this.LogicalToDeviceUnits(new Padding(6, 0, 0, 0)),
             Text = string.Empty,
             // A drawn glyph rather than the U+22EE character, which picks up whatever fallback
             // font the shell supplies and sits off-centre next to the New button.
@@ -285,7 +285,7 @@ internal sealed class ConnectionsPanelControl : UserControl
         {
             Dock = DockStyle.Bottom,
             Height = searchHeight + 10,
-            Padding = new Padding(0, 10, 0, 0),
+            Padding = this.LogicalToDeviceUnits(new Padding(0, 10, 0, 0)),
             BackColor = StorageHubTheme.Surface
         };
         _searchBox.Dock = DockStyle.Fill;

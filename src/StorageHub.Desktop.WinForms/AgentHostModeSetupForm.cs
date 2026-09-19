@@ -32,8 +32,8 @@ internal sealed class AgentHostModeSetupForm : Form
         StorageHubTheme.Register(this);
         // Tall enough that the machine-wide-secrets warning is visible without scrolling:
         // a caution the reader has to find is not a caution.
-        ClientSize = new Size(580, 560);
-        Padding = new Padding(20);
+        ClientSize = this.LogicalWindowSize(new Size(580, 560));
+        Padding = this.LogicalToDeviceUnits(new Padding(20));
 
         var layout = new FlowLayoutPanel
         {
@@ -46,15 +46,15 @@ internal sealed class AgentHostModeSetupForm : Form
         var heading = new Label
         {
             AutoSize = true,
-            MaximumSize = new Size(510, 0),
+            MaximumSize = new Size(LogicalToDeviceUnits(510), 0),
             Text = Ui.Settings.AgentModeStartupIntro,
             Font = StorageHubTheme.CreateSectionFont(),
-            Margin = new Padding(0, 0, 0, 12)
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 0, 0, 12))
         };
 
         _userSession.Name = "AgentModeUserSession";
         _userSession.AutoSize = true;
-        _userSession.MaximumSize = new Size(510, 0);
+        _userSession.MaximumSize = new Size(LogicalToDeviceUnits(510), 0);
         _userSession.Text = Ui.Settings.AgentModeUserSession;
         _userSession.AccessibleName = Ui.Settings.AgentModeUserSession;
         // Preselected: it changes nothing, needs no elevation, and keeps the vault readable only
@@ -63,13 +63,13 @@ internal sealed class AgentHostModeSetupForm : Form
 
         _appSession.Name = "AgentModeAppSession";
         _appSession.AutoSize = true;
-        _appSession.MaximumSize = new Size(510, 0);
+        _appSession.MaximumSize = new Size(LogicalToDeviceUnits(510), 0);
         _appSession.Text = Ui.Settings.AgentModeAppSession;
         _appSession.AccessibleName = Ui.Settings.AgentModeAppSession;
 
         _service.Name = "AgentModeService";
         _service.AutoSize = true;
-        _service.MaximumSize = new Size(510, 0);
+        _service.MaximumSize = new Size(LogicalToDeviceUnits(510), 0);
         _service.Text = Ui.Settings.AgentModeService;
         _service.AccessibleName = Ui.Settings.AgentModeService;
 
@@ -83,15 +83,15 @@ internal sealed class AgentHostModeSetupForm : Form
         layout.Controls.Add(new Label
         {
             AutoSize = true,
-            MaximumSize = new Size(510, 0),
+            MaximumSize = new Size(LogicalToDeviceUnits(510), 0),
             Text = Ui.Settings.AgentModeServiceWarning,
             ForeColor = StorageHubTheme.Warning,
-            Margin = new Padding(24, 4, 0, 12)
+            Margin = this.LogicalToDeviceUnits(new Padding(24, 4, 0, 12))
         });
         layout.Controls.Add(new Label
         {
             AutoSize = true,
-            MaximumSize = new Size(510, 0),
+            MaximumSize = new Size(LogicalToDeviceUnits(510), 0),
             Text = Ui.Settings.AgentModeChangeLaterHint,
             ForeColor = StorageHubTheme.TextMuted
         });
@@ -103,7 +103,7 @@ internal sealed class AgentHostModeSetupForm : Form
             Dock = DockStyle.Bottom,
             FlowDirection = FlowDirection.RightToLeft,
             AutoSize = true,
-            Padding = new Padding(0, 10, 0, 0)
+            Padding = this.LogicalToDeviceUnits(new Padding(0, 10, 0, 0))
         };
         buttons.Controls.Add(confirm);
 
@@ -119,12 +119,12 @@ internal sealed class AgentHostModeSetupForm : Form
             ? AgentHostMode.AppSession
             : AgentHostMode.UserSession;
 
-    private static Label Describe(string text) => new()
+    private Label Describe(string text) => new()
     {
         AutoSize = true,
-        MaximumSize = new Size(510, 0),
+        MaximumSize = new Size(LogicalToDeviceUnits(510), 0),
         Text = text,
         ForeColor = StorageHubTheme.TextMuted,
-        Margin = new Padding(24, 0, 0, 10)
+        Margin = this.LogicalToDeviceUnits(new Padding(24, 0, 0, 10))
     };
 }

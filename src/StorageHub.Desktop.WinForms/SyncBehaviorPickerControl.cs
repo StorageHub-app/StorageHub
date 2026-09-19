@@ -117,7 +117,7 @@ internal sealed class SyncBehaviorPickerControl : UserControl
         }
     }
 
-    private static void AddHeading(TableLayoutPanel grid, int column, string direction, string summary)
+    private void AddHeading(TableLayoutPanel grid, int column, string direction, string summary)
     {
         var heading = new TableLayoutPanel
         {
@@ -140,7 +140,7 @@ internal sealed class SyncBehaviorPickerControl : UserControl
             Text = summary,
             AutoSize = true,
             ForeColor = StorageHubTheme.TextMuted,
-            Margin = new Padding(0, 1, 0, 0)
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 1, 0, 0))
         });
         grid.Controls.Add(heading, column, 0);
     }
@@ -189,8 +189,8 @@ internal sealed class SyncBehaviorPickerControl : UserControl
             AccessibleDescription = $"{option.Summary} {option.Badge}.";
             AccessibleRole = AccessibleRole.RadioButton;
             Dock = DockStyle.Fill;
-            Height = 82;
-            MinimumSize = new Size(210, 82);
+            Height = this.TextBoxHeight(50);
+            MinimumSize = new Size(LogicalToDeviceUnits(210), this.TextBoxHeight(50));
             FlatStyle = FlatStyle.Flat;
             FlatAppearance.BorderSize = 0;
             Cursor = Cursors.Hand;
@@ -251,7 +251,7 @@ internal sealed class SyncBehaviorPickerControl : UserControl
             using var selectedBrush = new SolidBrush(StorageHubTheme.Primary);
             if (Selected)
             {
-                e.Graphics.FillRectangle(selectedBrush, 0, 0, 4, Height);
+                e.Graphics.FillRectangle(selectedBrush, 0, 0, LogicalToDeviceUnits(4), Height);
             }
 
             var textLeft = 13;
@@ -260,7 +260,7 @@ internal sealed class SyncBehaviorPickerControl : UserControl
             e.Graphics.DrawString(Option.Badge, badgeFont, badgeBrush, new RectangleF(textLeft, Height - 18, Width - 26, 14));
             if (Focused)
             {
-                ControlPaint.DrawFocusRectangle(e.Graphics, Rectangle.Inflate(bounds, -5, -5));
+                ControlPaint.DrawFocusRectangle(e.Graphics, Rectangle.Inflate(bounds, -LogicalToDeviceUnits(5), -LogicalToDeviceUnits(5)));
             }
         }
     }

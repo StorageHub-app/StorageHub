@@ -33,6 +33,25 @@ public sealed class OverviewDashboardControl : UserControl
     /// <summary>How many rows each card shows. Unrelated to the workspace caps.</summary>
     private const int MaximumListRows = 12;
 
+    // Logical layout units. This page was laid out by eye on a 125% display, so each number here
+    // started life as a device pixel measured at that scaling; these are those numbers divided by
+    // 1.25. Read logically they reproduce the intended spacing at 125% and follow from the same
+    // arithmetic at 100%, 150% or whatever else the display asks for.
+    private const int PageGutter = 22;
+    private const int PageTop = 19;
+    private const int SectionGap = 14;
+
+    /// <summary>Room to breathe above and below a metric tile's two lines of text.</summary>
+    private const int MetricCardChrome = 18;
+
+    /// <summary>List-card chrome: card inset, grid padding and the gap above the rows.</summary>
+    private const int ListCardChrome = 26;
+
+    // How many rows each card stands tall enough to show before it scrolls. Heights are derived
+    // from this and the row height rather than stated in pixels, so a card cannot end up showing
+    // three and a half rows at a scaling nobody tried.
+    private const int WorkspaceRowsVisible = 4;
+    private const int SummaryRowsVisible = 9;
 
     private readonly IRemoteStorageAgentClient _storageClient;
     private readonly ITransferQueueAgentClient _transferClient;
@@ -45,6 +64,20 @@ public sealed class OverviewDashboardControl : UserControl
     private readonly ListView _attention;
     private readonly ListView _workspaces;
     private readonly Label _status;
+    private readonly DashboardRow _metrics;
+    private readonly DashboardRow _workspaceRow;
+    private readonly DashboardRow _lists;
+    /// <summary>
+    /// The section titles of the list cards, kept so their height can be measured. Reading the
+    /// live label rather than the font this control created matters because WinForms replaces a
+    /// control's explicitly-set font with a scaled copy when the display scaling changes.
+    /// </summary>
+    private readonly List<Label> _sectionTitles = [];
+    private readonly List<Label> _sectionSubtitles = [];
+    private readonly List<Label> _metricCaptions = [];
+    private int _metricCardInset;
+    private readonly Font _sectionFont = StorageHubTheme.CreateSectionFont();
+    private readonly Font _metricValueFont = new("Segoe UI Semibold", 17F, FontStyle.Regular, GraphicsUnit.Point);
     private readonly List<ConnectionSummary> _recentConnections = [];
     private IReadOnlyList<ConnectionSummary> _savedConnections = [];
     private int _refreshing;
@@ -71,7 +104,8 @@ public sealed class OverviewDashboardControl : UserControl
             Dock = DockStyle.Fill,
             AutoScroll = true,
             ColumnCount = 1,
-            Padding = new Padding(28, 24, 28, 28),
+            Padding = this.LogicalToDeviceUnits(
+                new Padding(PageGutter, PageTop, PageGutter, PageGutter)),
             BackColor = StorageHubTheme.Canvas
         };
         content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
@@ -82,14 +116,14 @@ public sealed class OverviewDashboardControl : UserControl
             AutoSize = true,
             Font = new Font("Segoe UI Semibold", 20F),
             ForeColor = StorageHubTheme.Text,
-            Margin = new Padding(0, 0, 0, 2)
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 0, 0, 2))
         };
         var subtitle = new Label
         {
             Text = Ui.Overview.Subheading,
             AutoSize = true,
             ForeColor = StorageHubTheme.TextMuted,
-            Margin = new Padding(1, 0, 0, 16)
+            Margin = this.LogicalToDeviceUnits(new Padding(1, 0, 0, 13))
         };
         content.Controls.Add(heading);
         content.Controls.Add(subtitle);
@@ -98,7 +132,7 @@ public sealed class OverviewDashboardControl : UserControl
         {
             AutoSize = true,
             WrapContents = true,
-            Margin = new Padding(0, 0, 0, 18)
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 0, 0, SectionGap))
         };
         actions.Controls.Add(CreateActionButton(Ui.Overview.ActionNewWorkspace, UiGlyph.Add, (_, _) => NewWorkspaceRequested?.Invoke(this, EventArgs.Empty), primary: true));
         actions.Controls.Add(CreateActionButton(Ui.Overview.ActionConnections, UiGlyph.Connections, (_, _) => ConnectionsRequested?.Invoke(this, EventArgs.Empty)));
@@ -106,19 +140,18 @@ public sealed class OverviewDashboardControl : UserControl
         actions.Controls.Add(CreateActionButton(Ui.Overview.ActionRefresh, UiGlyph.Refresh, async (_, _) => await RefreshAsync()));
         content.Controls.Add(actions);
 
-        var metrics = new DashboardRow
+        _metrics = new DashboardRow
         {
             Dock = DockStyle.Top,
-            Height = 104,
             Columns = 4,
-            Margin = new Padding(0, 0, 0, 18),
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 0, 0, SectionGap)),
             BackColor = Color.Transparent
         };
-        _agentValue = AddMetric(metrics, Ui.Overview.MetricAgent, Ui.Overview.AgentStarting, UiGlyph.Server, UiIconTone.Primary);
-        _activeValue = AddMetric(metrics, Ui.Overview.MetricActiveTransfers, "0", UiGlyph.Run, UiIconTone.Success);
-        _queuedValue = AddMetric(metrics, Ui.Overview.MetricQueued, "0", UiGlyph.Queue, UiIconTone.Primary);
-        _attentionValue = AddMetric(metrics, Ui.Overview.MetricNeedsAttention, "0", UiGlyph.Warning, UiIconTone.Warning);
-        content.Controls.Add(metrics);
+        _agentValue = AddMetric(_metrics, Ui.Overview.MetricAgent, Ui.Overview.AgentStarting, UiGlyph.Server, UiIconTone.Primary);
+        _activeValue = AddMetric(_metrics, Ui.Overview.MetricActiveTransfers, "0", UiGlyph.Run, UiIconTone.Success);
+        _queuedValue = AddMetric(_metrics, Ui.Overview.MetricQueued, "0", UiGlyph.Queue, UiIconTone.Primary);
+        _attentionValue = AddMetric(_metrics, Ui.Overview.MetricNeedsAttention, "0", UiGlyph.Warning, UiIconTone.Warning);
+        content.Controls.Add(_metrics);
 
         // A full-width row of its own rather than a third column beside the two lists: at the
         // shell's 1120px minimum width, three columns leave each one narrower than the columns
@@ -131,9 +164,9 @@ public sealed class OverviewDashboardControl : UserControl
         // Only the leading columns get a fixed width. The trailing one absorbs whatever is left,
         // so the row never totals more than the card and never raises a horizontal scrollbar in a
         // narrow window.
-        _workspaces.Columns[0].Width = 220;
+        _workspaces.Columns[0].Width = LogicalToDeviceUnits(176);
         _workspaces.Columns[1].Text = Ui.Overview.ColumnLocation;
-        _workspaces.Columns[1].Width = 420;
+        _workspaces.Columns[1].Width = LogicalToDeviceUnits(336);
         _workspaces.Columns[2].Text = Ui.Overview.ColumnState;
         StorageHubTheme.FitTrailingColumn(_workspaces);
         // No ListViewGroups: the rows arrive pinned-first and the State column already says which
@@ -141,20 +174,18 @@ public sealed class OverviewDashboardControl : UserControl
         _workspaces.MouseDoubleClick += (_, args) => OpenWorkspaceAt(_workspaces.HitTest(args.Location).Item);
         _workspaces.KeyDown += WorkspaceListKeyDown;
         _workspaces.ContextMenuStrip = BuildWorkspaceMenu();
-        var workspaceRow = new DashboardRow
+        _workspaceRow = new DashboardRow
         {
             Dock = DockStyle.Top,
-            Height = 214,
-            Margin = new Padding(0, 0, 0, 18),
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 0, 0, SectionGap)),
             BackColor = Color.Transparent
         };
-        workspaceRow.Controls.Add(workspaceCard);
-        content.Controls.Add(workspaceRow);
+        _workspaceRow.Controls.Add(workspaceCard);
+        content.Controls.Add(_workspaceRow);
 
-        var lists = new DashboardRow
+        _lists = new DashboardRow
         {
             Dock = DockStyle.Top,
-            Height = 330,
             Columns = 2,
             Margin = Padding.Empty,
             BackColor = Color.Transparent
@@ -163,19 +194,83 @@ public sealed class OverviewDashboardControl : UserControl
         _connections.Columns[1].Text = Ui.Overview.ColumnProvider;
         _connections.Columns[2].Text = Ui.Overview.ColumnDetails;
         _attention = CreateList(Ui.Overview.AttentionTitle, Ui.Overview.AttentionSubtitle, UiGlyph.Warning, out var attentionCard);
-        lists.Controls.Add(connectionCard);
-        lists.Controls.Add(attentionCard);
-        content.Controls.Add(lists);
+        _lists.Controls.Add(connectionCard);
+        _lists.Controls.Add(attentionCard);
+        content.Controls.Add(_lists);
 
         _status = new Label
         {
             Text = Ui.Overview.StatusDeferred,
             AutoSize = true,
             ForeColor = StorageHubTheme.TextMuted,
-            Margin = new Padding(0, 12, 0, 0)
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 10, 0, 0))
         };
         content.Controls.Add(_status);
         Controls.Add(content);
+        ApplyRowHeights();
+    }
+
+    /// <summary>
+    /// Sizes the three card bands from the text they hold rather than from pixel constants, so a
+    /// card cannot clip its own contents at a scaling nobody tested -- or after the display it is
+    /// sitting on changes scaling under an open window.
+    /// </summary>
+    private void ApplyRowHeights()
+    {
+        if (_disposed || IsDisposed)
+        {
+            return;
+        }
+
+        // Summed from the laid-out labels, not from the grid's PreferredSize: asked for a
+        // preferred height the grid answered 86 at 100% and 238 at 125% for the same two lines
+        // of text, because it measures against an unconstrained width. A label that has been
+        // through layout already knows how tall its own text is.
+        if (_metricCaptions.Count > 0)
+        {
+            _metrics.Height = _agentValue.Height
+                + _agentValue.Margin.Vertical
+                + _metricCaptions[0].Height
+                + _metricCardInset
+                + LogicalToDeviceUnits(MetricCardChrome);
+        }
+
+        _workspaceRow.Height = ListCardHeight(WorkspaceRowsVisible);
+        _lists.Height = ListCardHeight(SummaryRowsVisible);
+    }
+
+    /// <summary>A list card's title, subtitle, column header and <paramref name="rows"/> of data.</summary>
+    private int ListCardHeight(int rows)
+    {
+        var header = _sectionTitles.Count > 0 && _sectionSubtitles.Count > 0
+            ? _sectionTitles[0].Height + _sectionTitles[0].Margin.Vertical + _sectionSubtitles[0].Height
+            : _sectionFont.Height + Font.Height;
+        // The column header band is a row's worth of chrome, so it is measured the same way.
+        return header + (ListRowHeight * (rows + 1)) + LogicalToDeviceUnits(ListCardChrome);
+    }
+
+    private int ListRowHeight => Font.Height + LogicalToDeviceUnits(4);
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        // WinForms rescales a control tree's fonts after it is built and parented, so the heights
+        // measured in the constructor were taken against 96-dpi text and come out short on a
+        // scaled display. The next turn of the message loop is the first moment the fonts in hand
+        // are the ones that will actually render.
+        BeginInvoke(ApplyRowHeights);
+    }
+
+    protected override void OnFontChanged(EventArgs e)
+    {
+        base.OnFontChanged(e);
+        ApplyRowHeights();
+    }
+
+    protected override void OnDpiChangedAfterParent(EventArgs e)
+    {
+        base.OnDpiChangedAfterParent(e);
+        ApplyRowHeights();
     }
 
     public event EventHandler? NewWorkspaceRequested;
@@ -392,6 +487,8 @@ public sealed class OverviewDashboardControl : UserControl
             _storageClient.DisposeAsync().AsTask().GetAwaiter().GetResult();
             _transferClient.DisposeAsync().AsTask().GetAwaiter().GetResult();
             _lifetime.Dispose();
+            _sectionFont.Dispose();
+            _metricValueFont.Dispose();
         }
 
         base.Dispose(disposing);
@@ -492,7 +589,7 @@ public sealed class OverviewDashboardControl : UserControl
         }
     }
 
-    private static Label AddMetric(DashboardRow host, string title, string value, UiGlyph glyph, UiIconTone tone)
+    private Label AddMetric(DashboardRow host, string title, string value, UiGlyph glyph, UiIconTone tone)
     {
         var accent = StorageHubTheme.ToneColor(tone);
         var card = CreateCard(accent);
@@ -500,41 +597,53 @@ public sealed class OverviewDashboardControl : UserControl
         // them: a 3px inset keeps an opaque rectangle within a 7px corner radius. The content
         // used to be transparent instead, and a transparent panel paints by asking its parent to
         // paint first, so every label refresh repainted the whole card, rail, curves and all.
-        card.Padding = new Padding(6, 3, 3, 3);
+        card.Padding = this.LogicalToDeviceUnits(new Padding(5, 2, 2, 2));
         var grid = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 2,
             RowCount = 2,
             BackColor = StorageHubTheme.Surface,
-            Padding = new Padding(9, 9, 11, 9),
+            Padding = this.LogicalToDeviceUnits(new Padding(7, 7, 9, 7)),
             Margin = Padding.Empty
         };
-        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 46));
+        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, LogicalToDeviceUnits(37)));
         grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        grid.RowStyles.Add(new RowStyle(SizeType.Percent, 55));
-        grid.RowStyles.Add(new RowStyle(SizeType.Percent, 45));
+        grid.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        grid.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        // Sized by its own glyph. Docking it made it drag the two auto-sizing rows around and
+        // pushed the glyph below the text; an explicit pixel Size was worse again, because a size
+        // stated in pixels is rescaled against the *system* dpi rather than the window's, so the
+        // same tile measured 24 on a 100% primary, 48 on a 125% secondary beside it, and 21 on
+        // that same secondary once the primary moved to 150%.
+        //
+        // Anchored to nothing, which is how a TableLayoutPanel centres a control in the rows it
+        // spans. Anchoring it left instead pinned the glyph to the caption line rather than
+        // sitting it beside both lines.
         var icon = new PictureBox
         {
-            SizeMode = PictureBoxSizeMode.CenterImage,
-            Dock = DockStyle.Fill,
+            SizeMode = PictureBoxSizeMode.AutoSize,
+            Anchor = AnchorStyles.None,
             Margin = Padding.Empty
         };
         _ = StorageHubTheme.TrackIcon(icon, glyph, 24, tone);
+        // Both lines size themselves. A Dock-filled label inside an auto-sizing row reports a
+        // preferred height that does not track the font -- measured across two displays the two
+        // rows traded their share of the tile instead of both growing by the scaling factor.
         var valueLabel = new Label
         {
             Text = value,
-            Dock = DockStyle.Fill,
-            TextAlign = ContentAlignment.BottomLeft,
-            Font = new Font("Segoe UI Semibold", 17F),
+            AutoSize = true,
+            Anchor = AnchorStyles.Left | AnchorStyles.Bottom,
+            Font = _metricValueFont,
             ForeColor = StorageHubTheme.Text,
-            Margin = Padding.Empty
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 0, 0, 1))
         };
         var titleLabel = new Label
         {
             Text = title,
-            Dock = DockStyle.Fill,
-            TextAlign = ContentAlignment.TopLeft,
+            AutoSize = true,
+            Anchor = AnchorStyles.Left | AnchorStyles.Top,
             ForeColor = StorageHubTheme.TextMuted,
             Margin = Padding.Empty
         };
@@ -544,73 +653,81 @@ public sealed class OverviewDashboardControl : UserControl
         grid.Controls.Add(titleLabel, 1, 1);
         card.Controls.Add(grid);
         host.Controls.Add(card);
+        // All four tiles are built alike, so one of them answers for the band's height.
+        _metricCaptions.Add(titleLabel);
+        _metricCardInset = card.Padding.Vertical + grid.Padding.Vertical;
         return valueLabel;
     }
 
-    private static ListView CreateList(string title, string subtitle, UiGlyph glyph, out UiCard card)
+    private ListView CreateList(string title, string subtitle, UiGlyph glyph, out UiCard card)
     {
         card = CreateCard();
         card.Dock = DockStyle.Fill;
         // Opaque and inset past the corner radius, for the reason given in AddMetric.
-        card.Padding = new Padding(3);
+        card.Padding = this.LogicalToDeviceUnits(new Padding(2));
         var grid = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 2,
             RowCount = 3,
             BackColor = StorageHubTheme.Surface,
-            Padding = new Padding(11, 9, 11, 11),
+            Padding = this.LogicalToDeviceUnits(new Padding(9, 7, 9, 9)),
             Margin = Padding.Empty
         };
-        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 36));
+        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, LogicalToDeviceUnits(29)));
         grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 27));
-        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
+        // Title and subtitle each measure their own line of text, so a longer translation or a
+        // rescaled font grows the band instead of being clipped by it.
+        grid.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        grid.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         grid.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        // Sized by its own glyph and centred in the rows it spans, for the reasons in AddMetric.
         var icon = new PictureBox
         {
-            SizeMode = PictureBoxSizeMode.CenterImage,
-            Dock = DockStyle.Fill,
+            SizeMode = PictureBoxSizeMode.AutoSize,
+            Anchor = AnchorStyles.None,
             Margin = Padding.Empty
         };
         _ = StorageHubTheme.TrackIcon(icon, glyph, 20, glyph == UiGlyph.Warning ? UiIconTone.Warning : UiIconTone.Primary);
         var titleLabel = new Label
         {
             Text = title,
-            Dock = DockStyle.Fill,
-            TextAlign = ContentAlignment.MiddleLeft,
-            Font = StorageHubTheme.CreateSectionFont(),
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
+            Font = _sectionFont,
             ForeColor = StorageHubTheme.Text,
-            Margin = Padding.Empty
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 0, 0, 2))
         };
+        _sectionTitles.Add(titleLabel);
         var subtitleLabel = new Label
         {
             Text = subtitle,
-            Dock = DockStyle.Fill,
-            TextAlign = ContentAlignment.MiddleLeft,
+            AutoSize = true,
+            Anchor = AnchorStyles.Left,
             ForeColor = StorageHubTheme.TextMuted,
             Margin = Padding.Empty
         };
-        var images = new ImageList { ImageSize = new Size(18, 18), ColorDepth = ColorDepth.Depth32Bit };
-        images.Images.Add("connection", UiIconFactory.Create(UiGlyph.Connections, StorageHubTheme.Primary, 18));
-        images.Images.Add("warning", UiIconFactory.Create(UiGlyph.Warning, StorageHubTheme.Warning, 18));
-        images.Images.Add("ok", UiIconFactory.Create(UiGlyph.Test, StorageHubTheme.Success, 18));
-        images.Images.Add("empty", UiIconFactory.Create(UiGlyph.Info, StorageHubTheme.TextMuted, 18));
+        _sectionSubtitles.Add(subtitleLabel);
+        var images = new ImageList { ImageSize = LogicalToDeviceUnits(new Size(18, 18)), ColorDepth = ColorDepth.Depth32Bit };
+        images.Images.Add("connection", UiIconFactory.Create(UiGlyph.Connections, StorageHubTheme.Primary, 18, DeviceDpi / 96F));
+        images.Images.Add("warning", UiIconFactory.Create(UiGlyph.Warning, StorageHubTheme.Warning, 18, DeviceDpi / 96F));
+        images.Images.Add("ok", UiIconFactory.Create(UiGlyph.Test, StorageHubTheme.Success, 18, DeviceDpi / 96F));
+        images.Images.Add("empty", UiIconFactory.Create(UiGlyph.Info, StorageHubTheme.TextMuted, 18, DeviceDpi / 96F));
         var list = new ListView
         {
             View = View.Details,
             FullRowSelect = true,
             SmallImageList = images,
             Dock = DockStyle.Fill,
-            Margin = new Padding(0, 8, 0, 0),
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 6, 0, 0)),
             BackColor = StorageHubTheme.Surface,
             ForeColor = StorageHubTheme.Text,
             ShowItemToolTips = true
         };
         StorageHubTheme.ConfigureList(list);
-        list.Columns.Add(Ui.Overview.ColumnName, 240);
-        list.Columns.Add(Ui.Overview.ColumnState, 110);
-        list.Columns.Add(Ui.Overview.ColumnUpdated, 130);
+        list.Columns.Add(Ui.Overview.ColumnName, LogicalToDeviceUnits(192));
+        list.Columns.Add(Ui.Overview.ColumnState, LogicalToDeviceUnits(88));
+        list.Columns.Add(Ui.Overview.ColumnUpdated, LogicalToDeviceUnits(104));
         grid.Controls.Add(icon, 0, 0);
         grid.SetRowSpan(icon, 2);
         grid.Controls.Add(titleLabel, 1, 0);
@@ -680,7 +797,7 @@ public sealed class OverviewDashboardControl : UserControl
     /// </summary>
     private sealed class DashboardRow : Panel
     {
-        private const int Gutter = 12;
+        private const int Gutter = 10;
 
         /// <summary>How many equal columns the children are spread across.</summary>
         [System.ComponentModel.DefaultValue(1)]
@@ -692,7 +809,8 @@ public sealed class OverviewDashboardControl : UserControl
         {
             base.OnLayout(levent);
             var count = Math.Max(1, Columns);
-            var available = ClientSize.Width - (Gutter * (count - 1));
+            var gutter = LogicalToDeviceUnits(Gutter);
+            var available = ClientSize.Width - (gutter * (count - 1));
             if (available <= 0 || Controls.Count == 0)
             {
                 return;
@@ -702,7 +820,7 @@ public sealed class OverviewDashboardControl : UserControl
             var index = 0;
             foreach (Control child in Controls)
             {
-                var left = index * (cell + Gutter);
+                var left = index * (cell + gutter);
                 // The last column absorbs the rounding remainder so the band ends flush.
                 var width = index == count - 1 ? ClientSize.Width - left : cell;
                 var bounds = new Rectangle(left, 0, Math.Max(1, width), ClientSize.Height);
@@ -728,7 +846,7 @@ public sealed class OverviewDashboardControl : UserControl
         Accent = accent
     };
 
-    private static StorageHubButton CreateActionButton(string text, UiGlyph glyph, EventHandler handler, bool primary = false)
+    private StorageHubButton CreateActionButton(string text, UiGlyph glyph, EventHandler handler, bool primary = false)
     {
         var button = new StorageHubButton
         {
@@ -736,7 +854,7 @@ public sealed class OverviewDashboardControl : UserControl
             ImageAlign = ContentAlignment.MiddleLeft,
             TextImageRelation = TextImageRelation.ImageBeforeText,
             AutoSize = true,
-            Margin = new Padding(0, 0, 8, 0)
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 0, 6, 0))
         };
         _ = StorageHubTheme.TrackIcon(button, glyph, 18, primary ? UiIconTone.OnPrimary : UiIconTone.Text);
         if (primary)

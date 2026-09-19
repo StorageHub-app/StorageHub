@@ -36,7 +36,7 @@ internal sealed class IconPickerForm : Form
         var grid = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
-            Padding = new Padding(12),
+            Padding = this.LogicalToDeviceUnits(new Padding(12)),
             AutoScroll = true,
             BackColor = StorageHubTheme.Surface
         };
@@ -57,7 +57,7 @@ internal sealed class IconPickerForm : Form
             Dock = DockStyle.Bottom,
             FlowDirection = FlowDirection.RightToLeft,
             AutoSize = true,
-            Padding = new Padding(12, 8, 12, 12),
+            Padding = this.LogicalToDeviceUnits(new Padding(12, 8, 12, 12)),
             BackColor = StorageHubTheme.Surface
         };
 
@@ -66,13 +66,13 @@ internal sealed class IconPickerForm : Form
             Text = Ui.Connections.IconPickerUse,
             Variant = StorageHubButtonVariant.Primary,
             DialogResult = DialogResult.OK,
-            Margin = new Padding(6, 0, 0, 0)
+            Margin = this.LogicalToDeviceUnits(new Padding(6, 0, 0, 0))
         };
         var cancel = new StorageHubButton
         {
             Text = Ui.Connections.IconPickerCancel,
             DialogResult = DialogResult.Cancel,
-            Margin = new Padding(6, 0, 0, 0)
+            Margin = this.LogicalToDeviceUnits(new Padding(6, 0, 0, 0))
         };
 
         // Clearing is the way back to the provider's own icon, which is what every profile shows
@@ -80,7 +80,7 @@ internal sealed class IconPickerForm : Form
         var clear = new StorageHubButton
         {
             Text = Ui.Connections.IconPickerUseDefault,
-            Margin = new Padding(6, 0, 0, 0)
+            Margin = this.LogicalToDeviceUnits(new Padding(6, 0, 0, 0))
         };
         clear.Click += (_, _) =>
         {
@@ -101,9 +101,9 @@ internal sealed class IconPickerForm : Form
         Controls.Add(buttons);
         AcceptButton = ok;
         CancelButton = cancel;
-        ClientSize = new Size(
+        ClientSize = LogicalToDeviceUnits(new Size(
             (Columns * CellSize) + 40,
-            (((ConnectionIconCatalog.Choices.Count + Columns - 1) / Columns) * CellSize) + 90);
+            (((ConnectionIconCatalog.Choices.Count + Columns - 1) / Columns) * CellSize) + 90));
         StorageHubTheme.Apply(this);
     }
 
@@ -131,8 +131,8 @@ internal sealed class IconPickerForm : Form
             Key = key;
             _glyph = glyph;
             _accent = accent;
-            Size = new Size(CellSize - 6, CellSize - 6);
-            Margin = new Padding(3);
+            Size = LogicalToDeviceUnits(new Size(CellSize - 6, CellSize - 6));
+            Margin = this.LogicalToDeviceUnits(new Padding(3));
             Cursor = Cursors.Hand;
             TabStop = true;
             DoubleBuffered = true;
@@ -220,7 +220,10 @@ internal sealed class IconPickerForm : Form
                 _selected ? _accent : StorageHubTheme.Text,
                 IconSize,
                 DeviceDpi / 96F);
-            e.Graphics.DrawImage(icon, (Width - IconSize) / 2, (Height - IconSize) / 2, IconSize, IconSize);
+            // Drawn at the bitmap's own size. Asking for the logical size here would shrink the
+            // glyph the factory just rasterised for this display back to its 96-DPI extent.
+            e.Graphics.DrawImage(
+                icon, (Width - icon.Width) / 2, (Height - icon.Height) / 2, icon.Width, icon.Height);
         }
     }
 }

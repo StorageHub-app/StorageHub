@@ -58,7 +58,7 @@ public class ThemedTabControl : TabControl
         var display = DisplayRectangle;
         using (var surface = new SolidBrush(StorageHubTheme.Surface))
         {
-            graphics.FillRectangle(surface, Rectangle.Inflate(display, 2, 2));
+            graphics.FillRectangle(surface, Rectangle.Inflate(display, LogicalToDeviceUnits(2), LogicalToDeviceUnits(2)));
         }
 
         var count = TabCount;

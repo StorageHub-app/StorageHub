@@ -22,7 +22,11 @@ public sealed class SyncRunsControlTests
             var metrics = Assert.Single(
                 content.Controls.OfType<TableLayoutPanel>(),
                 candidate => candidate.ColumnCount == 3);
-            Assert.True(metrics.Height >= 108);
+            // The band is measured from its text now rather than fixed at 108 device pixels,
+            // which was the height it happened to have on the 125% display it was designed on.
+            Assert.True(
+                metrics.Height >= metrics.Font.Height * 4,
+                $"The sync summary band collapsed to {metrics.Height}px.");
             Assert.All(metrics.Controls.Cast<Control>(), card =>
                 Assert.True(card.Bottom <= metrics.ClientSize.Height, "A sync summary card was clipped."));
 

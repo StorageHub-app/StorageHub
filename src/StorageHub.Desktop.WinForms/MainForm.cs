@@ -112,8 +112,8 @@ public sealed class MainForm : Form
         AccessibleName = Ui.Shell.ShellAccessibleName;
         AccessibleDescription = Ui.Shell.ShellAccessibleDescription;
         StartPosition = FormStartPosition.CenterScreen;
-        MinimumSize = new Size(1120, 720);
-        Size = new Size(1500, 920);
+        MinimumSize = this.LogicalWindowSize(new Size(1120, 720));
+        Size = this.LogicalWindowSize(new Size(1500, 920));
         KeyPreview = true;
         AutoScaleMode = AutoScaleMode.Dpi;
         BackColor = StorageHubTheme.Canvas;
@@ -167,9 +167,9 @@ public sealed class MainForm : Form
         {
             Dock = DockStyle.Fill,
             Orientation = Orientation.Horizontal,
-            Size = new Size(1400, 760),
-            SplitterDistance = 615,
-            Panel2MinSize = 145,
+            Size = LogicalToDeviceUnits(new Size(1400, 760)),
+            SplitterDistance = LogicalToDeviceUnits(615),
+            Panel2MinSize = LogicalToDeviceUnits(145),
             BackColor = StorageHubTheme.Border,
             AccessibleName = Ui.Shell.WorkspaceAndJobQueue
         };
@@ -205,7 +205,7 @@ public sealed class MainForm : Form
         {
             Dock = DockStyle.Fill,
             Orientation = Orientation.Vertical,
-            Size = new Size(1500, 760),
+            Size = LogicalToDeviceUnits(new Size(1500, 760)),
             BackColor = StorageHubTheme.Border,
             AccessibleName = Ui.Shell.ConnectionsAndWorkspaces
         };
@@ -756,7 +756,7 @@ public sealed class MainForm : Form
         {
             Dock = DockStyle.Top,
             GripStyle = ToolStripGripStyle.Hidden,
-            ImageScalingSize = new Size(20, 20),
+            ImageScalingSize = LogicalToDeviceUnits(new Size(20, 20)),
             AccessibleName = Ui.Shell.MainToolbar,
             AccessibleDescription = Ui.Shell.WorkspaceCommands,
             BackColor = StorageHubTheme.Surface,
@@ -951,15 +951,15 @@ public sealed class MainForm : Form
         {
             Dock = DockStyle.Fill,
             Orientation = Orientation.Vertical,
-            Size = new Size(1300, 600),
-            SplitterDistance = 700,
-            Panel1MinSize = 360,
-            Panel2MinSize = 360,
+            Size = LogicalToDeviceUnits(new Size(1300, 600)),
+            SplitterDistance = LogicalToDeviceUnits(700),
+            Panel1MinSize = LogicalToDeviceUnits(360),
+            Panel2MinSize = LogicalToDeviceUnits(360),
             BackColor = StorageHubTheme.Border,
             AccessibleName = Ui.Shell.SourceAndDestinationPanes
         };
-        split.Panel1.Padding = new Padding(0, 0, 3, 0);
-        split.Panel2.Padding = new Padding(3, 0, 0, 0);
+        split.Panel1.Padding = this.LogicalToDeviceUnits(new Padding(0, 0, 3, 0));
+        split.Panel2.Padding = this.LogicalToDeviceUnits(new Padding(3, 0, 0, 0));
         var source = new BrowserPaneControl("Source", showLocalDefault: true);
         var destination = new BrowserPaneControl("Destination", showLocalDefault: false);
         source.Enter += ActivePaneEntered;
@@ -1016,12 +1016,12 @@ public sealed class MainForm : Form
         {
             Dock = DockStyle.Top,
             AutoSize = false,
-            Height = 40,
+            Height = this.TextBoxHeight(16),
             GripStyle = ToolStripGripStyle.Hidden,
             BackColor = StorageHubTheme.SurfaceMuted,
             ForeColor = StorageHubTheme.Text,
-            ImageScalingSize = new Size(20, 20),
-            Padding = new Padding(6, 5, 6, 5),
+            ImageScalingSize = LogicalToDeviceUnits(new Size(20, 20)),
+            Padding = this.LogicalToDeviceUnits(new Padding(6, 5, 6, 5)),
             AccessibleName = $"{title} workspace layout"
         };
         var layoutMenu = new ToolStripDropDownButton(Ui.Shell.LayoutSideBySide)
@@ -1429,7 +1429,11 @@ public sealed class MainForm : Form
         // strip rather than in the tab's own fill colour: an outline matching the fill left no
         // visible edge at all, so a row of tabs ran together into one band with words in it.
         using (var shape = UiShapes.RoundedRectangle(
-                   new RectangleF(bounds.Left + 1, bounds.Top, bounds.Width - 3, bounds.Height + 6),
+                   new RectangleF(
+                       bounds.Left + ScaleForDpi(1),
+                       bounds.Top,
+                       bounds.Width - ScaleForDpi(3),
+                       bounds.Height + ScaleForDpi(6)),
                    6F))
         using (var brush = new SolidBrush(fill))
         using (var outline = new Pen(selected ? StorageHubTheme.Border : StorageHubTheme.Canvas))
@@ -1441,7 +1445,12 @@ public sealed class MainForm : Form
         if (selected)
         {
             using var accent = new SolidBrush(StorageHubTheme.Primary);
-            e.Graphics.FillRectangle(accent, bounds.Left + 4, bounds.Top + 1, bounds.Width - 9, 2);
+            e.Graphics.FillRectangle(
+                accent,
+                bounds.Left + ScaleForDpi(4),
+                bounds.Top + ScaleForDpi(1),
+                bounds.Width - ScaleForDpi(9),
+                ScaleForDpi(2));
         }
 
         e.Graphics.SmoothingMode = previousMode;
@@ -1451,8 +1460,9 @@ public sealed class MainForm : Form
         {
             using var plus = new Pen(hovered ? StorageHubTheme.Primary : StorageHubTheme.TextMuted, Math.Max(1.4F, DeviceDpi / 96F * 1.5F));
             var center = new Point(bounds.Left + (bounds.Width / 2), bounds.Top + (bounds.Height / 2));
-            e.Graphics.DrawLine(plus, center.X - 5, center.Y, center.X + 5, center.Y);
-            e.Graphics.DrawLine(plus, center.X, center.Y - 5, center.X, center.Y + 5);
+            var arm = ScaleForDpi(5);
+            e.Graphics.DrawLine(plus, center.X - arm, center.Y, center.X + arm, center.Y);
+            e.Graphics.DrawLine(plus, center.X, center.Y - arm, center.X, center.Y + arm);
             return;
         }
 
@@ -2076,7 +2086,7 @@ public sealed class MainForm : Form
             Text = Ui.Shell.RenameWorkspaceTitle,
             StartPosition = FormStartPosition.CenterParent,
             FormBorderStyle = FormBorderStyle.FixedDialog,
-            ClientSize = new Size(420, 120),
+            ClientSize = LogicalToDeviceUnits(new Size(420, 120)),
             MinimizeBox = false,
             MaximizeBox = false
         };

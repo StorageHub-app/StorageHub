@@ -37,31 +37,32 @@ public sealed class AgentControlForm : Form
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MinimizeBox = false;
         MaximizeBox = false;
-        ClientSize = new Size(520, 300);
+        ClientSize = this.LogicalWindowSize(new Size(520, 300));
         BackColor = StorageHubTheme.Canvas;
         ForeColor = StorageHubTheme.Text;
         StorageHubTheme.Register(this);
 
+        var stateFont = StorageHubTheme.CreateSectionFont();
         _state = new Label
         {
             Dock = DockStyle.Top,
-            Height = 30,
-            Font = StorageHubTheme.CreateSectionFont(),
+            Height = this.TextBoxHeight(stateFont, 6),
+            Font = stateFont,
             ForeColor = StorageHubTheme.Text
         };
         _detail = new Label
         {
             Dock = DockStyle.Top,
-            Height = 58,
+            Height = this.TextBoxHeight(30),
             ForeColor = StorageHubTheme.TextMuted,
             AccessibleName = Ui.Updates.AgentDetail
         };
-        _counters = new Label { Dock = DockStyle.Top, Height = 24, ForeColor = StorageHubTheme.TextMuted };
-        _observed = new Label { Dock = DockStyle.Top, Height = 24, ForeColor = StorageHubTheme.TextMuted };
+        _counters = new Label { Dock = DockStyle.Top, Height = this.TextBoxHeight(3), ForeColor = StorageHubTheme.TextMuted };
+        _observed = new Label { Dock = DockStyle.Top, Height = this.TextBoxHeight(3), ForeColor = StorageHubTheme.TextMuted };
         _outcome = new Label
         {
             Dock = DockStyle.Bottom,
-            Height = 44,
+            Height = this.TextBoxHeight(19),
             ForeColor = StorageHubTheme.TextMuted,
             AccessibleName = Ui.Updates.LastAgentActionResult
         };
@@ -79,13 +80,13 @@ public sealed class AgentControlForm : Form
         var actions = new FlowLayoutPanel
         {
             Dock = DockStyle.Bottom,
-            Height = 48,
+            Height = this.TextBoxHeight(22),
             FlowDirection = FlowDirection.LeftToRight,
-            Padding = new Padding(0, 8, 0, 0)
+            Padding = this.LogicalToDeviceUnits(new Padding(0, 8, 0, 0))
         };
         actions.Controls.AddRange([_restart, _start, _stop, close]);
 
-        var body = new Panel { Dock = DockStyle.Fill, Padding = new Padding(14, 12, 14, 0) };
+        var body = new Panel { Dock = DockStyle.Fill, Padding = this.LogicalToDeviceUnits(new Padding(14, 12, 14, 0)) };
         // Docked controls stack in reverse order of addition, so add bottom-most first.
         body.Controls.Add(_observed);
         body.Controls.Add(_counters);
@@ -119,7 +120,7 @@ public sealed class AgentControlForm : Form
 
     private StorageHubButton CreateButton(string text, Func<Task> handler)
     {
-        var button = new StorageHubButton { Text = text, AutoSize = true, Margin = new Padding(0, 0, 8, 0), Height = 30 };
+        var button = new StorageHubButton { Text = text, AutoSize = true, Margin = this.LogicalToDeviceUnits(new Padding(0, 0, 8, 0)), Height = this.TextBoxHeight(8) };
         button.Click += async (_, _) =>
         {
             if (_busy) return;

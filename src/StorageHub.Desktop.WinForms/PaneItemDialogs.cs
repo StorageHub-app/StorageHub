@@ -40,7 +40,7 @@ internal sealed class PaneItemNameDialog : Form
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MinimizeBox = MaximizeBox = false;
         ShowInTaskbar = false;
-        ClientSize = new Size(460, 175);
+        ClientSize = this.LogicalWindowSize(new Size(460, 175));
         BackColor = StorageHubTheme.Surface;
         ForeColor = StorageHubTheme.Text;
         Font = new Font("Segoe UI", 9F);
@@ -90,7 +90,7 @@ internal sealed class BatchRenameDialog : Form
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MinimizeBox = MaximizeBox = false;
         ShowInTaskbar = false;
-        ClientSize = new Size(620, 450);
+        ClientSize = this.LogicalWindowSize(new Size(620, 450));
         BackColor = StorageHubTheme.Surface;
         ForeColor = StorageHubTheme.Text;
         Font = new Font("Segoe UI", 9F);

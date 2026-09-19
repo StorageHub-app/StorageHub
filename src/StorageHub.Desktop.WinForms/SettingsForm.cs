@@ -19,11 +19,22 @@ public sealed class SettingsForm : Form
     /// show its full name beside its icon rather than an ellipsis.
     /// </summary>
     private const int NavigationWidth = 288;
+
+    /// <summary>
+    /// The two column widths at the size they are drawn. They are read from layout code that also
+    /// measures text, and text is measured in device pixels, so a column left in logical units is
+    /// compared against a width a quarter larger than itself on a 125% display -- which is how a
+    /// description that fits on one line at 100% came to wrap onto two.
+    /// </summary>
+    private int ScaledContentWidth => LogicalToDeviceUnits(ContentWidth);
+
+    private int ScaledNavigationWidth => LogicalToDeviceUnits(NavigationWidth);
+
     private readonly DesktopConfigStore _store;
     private readonly Action<DesktopUpdatePreferences>? _saved;
     private readonly IRemoteSecretVaultClient _secretClient;
     private readonly bool _ownsSecretClient;
-    private readonly ImageList _categoryIcons = CreateCategoryIcons();
+    private readonly ImageList _categoryIcons;
     private readonly TreeView _categories;
     private readonly Font _categoryItemFont;
     private TreeNode? _lastCategoryNode;
@@ -101,12 +112,16 @@ public sealed class SettingsForm : Form
         AccessibleName = Ui.Settings.WindowAccessibleName;
         AccessibleDescription = Ui.Settings.WindowAccessibleDescription;
         StartPosition = FormStartPosition.CenterParent;
-        MinimumSize = new Size(1080, 720);
-        Size = new Size(1160, 780);
+        MinimumSize = this.LogicalWindowSize(new Size(1080, 720));
+        Size = this.LogicalWindowSize(new Size(1160, 780));
         AutoScaleMode = AutoScaleMode.Dpi;
         BackColor = StorageHubTheme.Canvas;
         Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
         StorageHubTheme.Register(this);
+
+        // Built here rather than in a field initializer: the glyphs are rasterised for this
+        // window's scaling, and a field initializer cannot see the window.
+        _categoryIcons = CreateCategoryIcons(this);
 
         var preferences = _store.Load();
         // Held so settings this dialog does not present -- the pinned and recent workspace
@@ -125,7 +140,7 @@ public sealed class SettingsForm : Form
         _externalEditor = new StorageHubTextField
         {
             Text = preferences.ExternalEditorPath ?? string.Empty,
-            Width = 240,
+            Width = LogicalToDeviceUnits(240),
             PlaceholderText = Ui.Settings.EditorPlaceholder,
             AccessibleName = Ui.Settings.EditorExecutableAccessibleName
         };
@@ -134,7 +149,7 @@ public sealed class SettingsForm : Form
             Minimum = 1,
             Maximum = EditableFileIpcContract.MaximumContentBytes / 1024,
             Value = Math.Clamp(preferences.MaximumEditableFileBytes / 1024, 1, EditableFileIpcContract.MaximumContentBytes / 1024),
-            Width = 150,
+            Width = LogicalToDeviceUnits(150),
             Unit = Ui.Settings.UnitKibibytes,
             ThousandsSeparator = true,
             AccessibleName = Ui.Settings.MaximumEditableSizeAccessibleName
@@ -150,7 +165,7 @@ public sealed class SettingsForm : Form
         _maximumSyncConcurrency = CreateConcurrencyInput(1, 8, preferences.MaximumSyncConcurrency, Ui.Settings.MaximumSynchronizationsAccessibleName);
         _appearance = new StorageHubChoiceField
         {
-            Width = 240,
+            Width = LogicalToDeviceUnits(240),
             AccessibleName = Ui.Settings.ThemeAccessibleName,
             DisplayText = static item => item switch
             {
@@ -167,7 +182,7 @@ public sealed class SettingsForm : Form
         {
             // Wider than the controls around it because a language names itself in full, and
             // "Nederlands (Nederland)" has to fit without the reader having to open the list.
-            Width = 280,
+            Width = LogicalToDeviceUnits(280),
             AccessibleName = Ui.Settings.LanguageAccessibleName,
             DisplayText = static item => DescribeLanguage((string)item)
         };
@@ -183,7 +198,7 @@ public sealed class SettingsForm : Form
             ?? DesktopCulture.AutomaticLanguage;
         _defaultWorkspaceLayout = new StorageHubChoiceField
         {
-            Width = 240,
+            Width = LogicalToDeviceUnits(240),
             AccessibleName = Ui.Settings.DefaultPaneLayoutAccessibleName,
             DisplayText = static item => item switch
             {
@@ -196,7 +211,7 @@ public sealed class SettingsForm : Form
         _defaultWorkspaceLayout.SelectedItem = preferences.DefaultWorkspaceLayout;
         _defaultWorkspacePreset = new StorageHubChoiceField
         {
-            Width = 280,
+            Width = LogicalToDeviceUnits(280),
             AccessibleName = Ui.Settings.NewWorkspaceLayoutAccessibleName,
             DisplayText = static item => item is WorkspacePreset preset ? preset.Label : AskEveryTime
         };
@@ -220,7 +235,7 @@ public sealed class SettingsForm : Form
         _sshTerminalName = new StorageHubChoiceField
         {
             Editable = true,
-            Width = 280,
+            Width = LogicalToDeviceUnits(280),
             MaxLength = SshTerminalIpcContract.MaximumTerminalNameLength,
             Text = terminalPreferences.TerminalName,
             AccessibleName = Ui.Settings.TerminalTypeAccessibleName
@@ -235,7 +250,7 @@ public sealed class SettingsForm : Form
 
         _sshStartupCommand = new StorageHubTextField
         {
-            Width = 280,
+            Width = LogicalToDeviceUnits(280),
             MaxLength = SshTerminalPreferences.MaximumStartupCommandLength,
             Text = terminalPreferences.StartupCommand ?? string.Empty,
             PlaceholderText = Ui.Settings.StartupShellPlaceholder,
@@ -249,7 +264,7 @@ public sealed class SettingsForm : Form
         _sshFontFamily = new StorageHubChoiceField
         {
             Editable = true,
-            Width = 280,
+            Width = LogicalToDeviceUnits(280),
             MaxLength = 128,
             Text = terminalPreferences.FontFamily,
             AccessibleName = Ui.Settings.FontFamilyAccessibleName
@@ -269,7 +284,7 @@ public sealed class SettingsForm : Form
             DecimalPlaces = 1,
             Increment = 0.5M,
             Value = (decimal)terminalPreferences.FontSize,
-            Width = 150,
+            Width = LogicalToDeviceUnits(150),
             Unit = Ui.Settings.UnitPoints,
             AccessibleName = Ui.Settings.FontSizeAccessibleName
         };
@@ -287,7 +302,7 @@ public sealed class SettingsForm : Form
 
         _sshDiscovery = new StorageHubChoiceField
         {
-            Width = 280,
+            Width = LogicalToDeviceUnits(280),
             AccessibleName = Ui.Settings.HostKeyDiscoveryAccessibleName,
             DisplayText = static item => ((DiscoveryChoice)item).Label
         };
@@ -310,7 +325,7 @@ public sealed class SettingsForm : Form
         _categories = new TreeView
         {
             Dock = DockStyle.Fill,
-            ItemHeight = 32,
+            ItemHeight = this.TextBoxHeight(10),
             Indent = 18,
             FullRowSelect = true,
             HideSelection = false,
@@ -368,7 +383,7 @@ public sealed class SettingsForm : Form
         {
             Dock = DockStyle.Fill,
             BackColor = StorageHubTheme.Surface,
-            Padding = new Padding(32, 26, 32, 20)
+            Padding = this.LogicalToDeviceUnits(new Padding(32, 26, 32, 20))
         };
         AddPage(pageHost, "Performance", BuildPerformancePage());
         AddPage(pageHost, "Editing", BuildEditingPage());
@@ -394,11 +409,11 @@ public sealed class SettingsForm : Form
         {
             Dock = DockStyle.Fill,
             BackColor = StorageHubTheme.SurfaceMuted,
-            Padding = new Padding(16, 22, 12, 14)
+            Padding = this.LogicalToDeviceUnits(new Padding(16, 22, 12, 14))
         };
         var navigationTitle = UiControlFactory.CreateSectionTitle(Ui.Settings.NavigationTitle);
         navigationTitle.Dock = DockStyle.Top;
-        navigationTitle.Height = 42;
+        navigationTitle.Height = this.TextBoxHeight(navigationTitle.Font, 16);
         navigation.Controls.Add(_categories);
         navigation.Controls.Add(navigationTitle);
 
@@ -407,16 +422,16 @@ public sealed class SettingsForm : Form
         // The split and the window both have to make room for the measured navigation, or
         // Panel2MinSize simply clamps the splitter back and the widest label truncates anyway.
         // Both grow by exactly what the navigation gained, so English is unchanged.
-        var extraNavigation = navigationWidth - NavigationWidth;
+        var extraNavigation = navigationWidth - ScaledNavigationWidth;
         MinimumSize = new Size(MinimumSize.Width + extraNavigation, MinimumSize.Height);
         var split = new SplitContainer
         {
             Dock = DockStyle.Fill,
-            Size = new Size(1060 + extraNavigation, 650),
+            Size = new Size(LogicalToDeviceUnits(1060) + extraNavigation, LogicalToDeviceUnits(650)),
             FixedPanel = FixedPanel.Panel1,
             SplitterDistance = navigationWidth,
             Panel1MinSize = navigationWidth,
-            Panel2MinSize = ContentWidth + 64,
+            Panel2MinSize = ScaledContentWidth + LogicalToDeviceUnits(64),
             IsSplitterFixed = true,
             BackColor = StorageHubTheme.Border
         };
@@ -426,10 +441,10 @@ public sealed class SettingsForm : Form
         var footer = new FlowLayoutPanel
         {
             Dock = DockStyle.Bottom,
-            Height = 64,
+            Height = this.TextBoxHeight(35),
             FlowDirection = FlowDirection.RightToLeft,
             WrapContents = false,
-            Padding = new Padding(16, 12, 16, 10),
+            Padding = this.LogicalToDeviceUnits(new Padding(16, 12, 16, 10)),
             BackColor = StorageHubTheme.Surface
         };
         var ok = new StorageHubButton { Text = Ui.Dialogs.ButtonOk };
@@ -589,21 +604,21 @@ public sealed class SettingsForm : Form
     /// whose own height depends on how their text wraps at this width, which auto-sizing resolves
     /// one layout pass too late and leaves the last row clipped.
     /// </remarks>
-    private static void AddSection(FlowLayoutPanel page, string? caption, Control card)
+    private void AddSection(FlowLayoutPanel page, string? caption, Control card)
     {
         if (caption is not null)
         {
             page.Controls.Add(new SettingsCaption(caption)
             {
-                Width = ContentWidth,
+                Width = ScaledContentWidth,
                 Margin = new Padding(0, page.Controls.Count > 2 ? 18 : 4, 0, 6)
             });
         }
 
-        card.Width = ContentWidth;
+        card.Width = ScaledContentWidth;
         card.MinimumSize = new Size(0, 0);
-        card.Margin = new Padding(0, 0, 0, 2);
-        card.Height = card.GetPreferredSize(new Size(ContentWidth, 0)).Height;
+        card.Margin = this.LogicalToDeviceUnits(new Padding(0, 0, 0, 2));
+        card.Height = card.GetPreferredSize(new Size(ScaledContentWidth, 0)).Height;
         page.Controls.Add(card);
     }
 
@@ -665,8 +680,8 @@ public sealed class SettingsForm : Form
     private SettingsPagePanel BuildToolbarPage()
     {
         var page = CreatePage(Ui.Settings.CategoryToolbar, Ui.Settings.PageToolbarDescription);
-        _toolbar.Width = ContentWidth;
-        _toolbar.Margin = new Padding(0, 6, 0, 0);
+        _toolbar.Width = ScaledContentWidth;
+        _toolbar.Margin = this.LogicalToDeviceUnits(new Padding(0, 6, 0, 0));
         _toolbar.Changed += MarkDirty;
         page.Controls.Add(_toolbar);
         return page;
@@ -681,7 +696,7 @@ public sealed class SettingsForm : Form
     {
         var page = CreatePage(Ui.Settings.CategoryAgent, Ui.Settings.PageAgentDescription);
         _agentMode.Name = "AgentHostMode";
-        _agentMode.Width = 280;
+        _agentMode.Width = LogicalToDeviceUnits(280);
         _agentMode.AccessibleName = Ui.Settings.AgentModeLabel;
         // Order matches AgentModeChoices below; index is the only thing binding them.
         _agentMode.Items.Add(Ui.Settings.AgentModeUserSession);
@@ -694,22 +709,22 @@ public sealed class SettingsForm : Form
         AddSection(page, Ui.Settings.CategoryAgent, card);
 
         _agentModeWarning.AutoSize = true;
-        _agentModeWarning.MaximumSize = new Size(ContentWidth, 0);
+        _agentModeWarning.MaximumSize = new Size(ScaledContentWidth, 0);
         _agentModeWarning.ForeColor = StorageHubTheme.Warning;
         _agentModeWarning.Text = Ui.Settings.AgentModeServiceWarning;
-        _agentModeWarning.Margin = new Padding(0, 12, 0, 0);
+        _agentModeWarning.Margin = this.LogicalToDeviceUnits(new Padding(0, 12, 0, 0));
         page.Controls.Add(_agentModeWarning);
 
         _agentModeApply.Name = "ApplyAgentHostMode";
         _agentModeApply.Text = Ui.Settings.AgentModeApply;
-        _agentModeApply.Margin = new Padding(0, 12, 0, 0);
+        _agentModeApply.Margin = this.LogicalToDeviceUnits(new Padding(0, 12, 0, 0));
         _agentModeApply.Click += async (_, _) => await ApplyAgentModeAsync().ConfigureAwait(true);
         page.Controls.Add(_agentModeApply);
 
         _agentModeStatus.AutoSize = true;
-        _agentModeStatus.MaximumSize = new Size(ContentWidth, 0);
+        _agentModeStatus.MaximumSize = new Size(ScaledContentWidth, 0);
         _agentModeStatus.ForeColor = StorageHubTheme.TextMuted;
-        _agentModeStatus.Margin = new Padding(0, 10, 0, 0);
+        _agentModeStatus.Margin = this.LogicalToDeviceUnits(new Padding(0, 10, 0, 0));
         page.Controls.Add(_agentModeStatus);
 
         RefreshAgentMode();
@@ -813,19 +828,19 @@ public sealed class SettingsForm : Form
         page.Controls.Add(new Label
         {
             AutoSize = true,
-            MaximumSize = new Size(ContentWidth, 0),
+            MaximumSize = new Size(ScaledContentWidth, 0),
             Text = Ui.Format(
                 Ui.Settings.UpdateSourceFormat,
                 VelopackDesktopUpdateEngineFactory.TrustedRepositoryUrl,
                 DesktopApplicationVersion.Current),
             ForeColor = StorageHubTheme.TextMuted,
-            Margin = new Padding(0, 14, 0, 0),
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 14, 0, 0)),
             AccessibleName = Ui.Settings.UpdateSourceAccessibleName
         });
         return page;
     }
 
-    private static SettingsPagePanel CreatePage(string title, string description)
+    private SettingsPagePanel CreatePage(string title, string description)
     {
         var page = new SettingsPagePanel
         {
@@ -837,23 +852,23 @@ public sealed class SettingsForm : Form
         // sync" is painted as "Transfers  sync" with the ampersand swallowed and no underline to
         // show for it.
         heading.UseMnemonic = false;
-        heading.Width = ContentWidth;
-        heading.MinimumSize = new Size(ContentWidth, 0);
+        heading.Width = ScaledContentWidth;
+        heading.MinimumSize = new Size(ScaledContentWidth, 0);
         heading.Font = new Font("Segoe UI Semibold", 16F, FontStyle.Bold, GraphicsUnit.Point);
-        heading.Height = 40;
+        heading.Height = this.TextBoxHeight(heading.Font, 4);
         var summary = UiControlFactory.CreateDescription(description);
         summary.UseMnemonic = false;
-        summary.Width = ContentWidth;
-        summary.MinimumSize = new Size(ContentWidth, 0);
-        summary.MaximumSize = new Size(ContentWidth, 0);
-        summary.Padding = new Padding(0, 0, 0, 14);
+        summary.Width = ScaledContentWidth;
+        summary.MinimumSize = new Size(ScaledContentWidth, 0);
+        summary.MaximumSize = new Size(ScaledContentWidth, 0);
+        summary.Padding = this.LogicalToDeviceUnits(new Padding(0, 0, 0, 14));
         page.Controls.Add(heading);
         page.Controls.Add(summary);
         page.ClientSizeChanged += FitSettingsPageContent;
         return page;
     }
 
-    private static void FitSettingsPageContent(object? sender, EventArgs e)
+    private void FitSettingsPageContent(object? sender, EventArgs e)
     {
         if (sender is FlowLayoutPanel page)
         {
@@ -861,7 +876,7 @@ public sealed class SettingsForm : Form
         }
     }
 
-    private static void FitSettingsPageContent(FlowLayoutPanel page)
+    private void FitSettingsPageContent(FlowLayoutPanel page)
     {
         if (page.Tag is true || !page.Visible || !page.IsHandleCreated ||
             page.ClientSize.Width <= SystemInformation.VerticalScrollBarWidth + 1)
@@ -889,7 +904,7 @@ public sealed class SettingsForm : Form
 
                 if (control is Label label)
                 {
-                    var maximum = Math.Min(availableWidth, ContentWidth);
+                    var maximum = Math.Min(availableWidth, ScaledContentWidth);
                     if (label.MaximumSize.Width > 0 && label.MaximumSize.Width != maximum)
                     {
                         label.MaximumSize = new Size(maximum, label.MaximumSize.Height);
@@ -916,7 +931,7 @@ public sealed class SettingsForm : Form
                 // Capped at the content width rather than stretched to fill: a row puts its
                 // control against its trailing edge, and on a wide window that edge would end up
                 // an inch of empty space away from the setting it belongs to.
-                var width = Math.Min(availableWidth, ContentWidth);
+                var width = Math.Min(availableWidth, ScaledContentWidth);
                 if (!control.AutoSize && control.Width != width)
                 {
                     control.MinimumSize = new Size(0, control.MinimumSize.Height);
@@ -940,9 +955,9 @@ public sealed class SettingsForm : Form
     /// Builds the image list the category tree indexes into. Tree nodes address images by key, so
     /// each glyph is rasterised once here in the muted text colour that suits a navigation rail.
     /// </summary>
-    private static ImageList CreateCategoryIcons()
+    private static ImageList CreateCategoryIcons(Control owner)
     {
-        var images = new ImageList { ImageSize = new Size(18, 18), ColorDepth = ColorDepth.Depth32Bit };
+        var images = new ImageList { ImageSize = owner.LogicalToDeviceUnits(new Size(18, 18)), ColorDepth = ColorDepth.Depth32Bit };
         foreach (var glyph in new[]
                  {
                      UiGlyph.Speed, UiGlyph.Rename, UiGlyph.Theme, UiGlyph.Layers, UiGlyph.Keyboard,
@@ -950,7 +965,9 @@ public sealed class SettingsForm : Form
                      UiGlyph.Folder, UiGlyph.Cloud, UiGlyph.Link, UiGlyph.Lock, UiGlyph.Key
                  })
         {
-            images.Images.Add(glyph.ToString(), UiIconFactory.Create(glyph, StorageHubTheme.TextMuted, 18));
+            images.Images.Add(
+                glyph.ToString(),
+                UiIconFactory.Create(glyph, StorageHubTheme.TextMuted, 18, owner.DeviceDpi / 96F));
         }
 
         return images;
@@ -974,7 +991,7 @@ public sealed class SettingsForm : Form
         {
             // Every row's text starts at the same place now, so the widest row is simply the
             // longest name.
-            var indent = IsCategoryCaption(node) ? CaptionIndent : TextIndent;
+            var indent = LogicalToDeviceUnits(IsCategoryCaption(node) ? CaptionIndent : TextIndent);
 
             var text = TextRenderer.MeasureText(
                 node.Text,
@@ -983,8 +1000,8 @@ public sealed class SettingsForm : Form
         }
 
         // Room for the list's own padding, its scrollbar, and the panel's right inset.
-        widest += 16 + SystemInformation.VerticalScrollBarWidth + 12;
-        return Math.Clamp(widest, NavigationWidth, MaximumNavigationWidth);
+        widest += LogicalToDeviceUnits(16) + SystemInformation.VerticalScrollBarWidth + LogicalToDeviceUnits(12);
+        return Math.Clamp(widest, ScaledNavigationWidth, LogicalToDeviceUnits(MaximumNavigationWidth));
     }
 
     private static IEnumerable<TreeNode> AllCategoryNodes(TreeNodeCollection nodes)
@@ -1026,6 +1043,11 @@ public sealed class SettingsForm : Form
 
         e.DrawDefault = false;
         var graphics = e.Graphics;
+        // Every inset this method draws from is a logical unit. The rail is painted rather than
+        // laid out, so nothing here is scaled for it by the framework.
+        var captionIndent = LogicalToDeviceUnits(CaptionIndent);
+        var textIndent = LogicalToDeviceUnits(TextIndent);
+        var trailingInset = LogicalToDeviceUnits(6);
         var row = new Rectangle(0, e.Bounds.Top, _categories.ClientSize.Width, e.Bounds.Height);
         using (var background = new SolidBrush(_categories.BackColor))
         {
@@ -1039,7 +1061,7 @@ public sealed class SettingsForm : Form
                 graphics,
                 node.Text.ToUpperInvariant(),
                 captionFont,
-                Rectangle.FromLTRB(CaptionIndent, row.Top, row.Right - 6, row.Bottom),
+                Rectangle.FromLTRB(captionIndent, row.Top, row.Right - trailingInset, row.Bottom),
                 StorageHubTheme.TextMuted,
                 TextFormatFlags.Left | TextFormatFlags.Bottom | TextFormatFlags.EndEllipsis |
                 TextFormatFlags.NoPrefix);
@@ -1050,15 +1072,24 @@ public sealed class SettingsForm : Form
         if (selected)
         {
             graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            var pill = new Rectangle(row.Left + 4, row.Top + 1, Math.Max(1, row.Width - 10), row.Height - 3);
+            var pill = new Rectangle(
+                row.Left + LogicalToDeviceUnits(4),
+                row.Top + LogicalToDeviceUnits(1),
+                Math.Max(1, row.Width - LogicalToDeviceUnits(10)),
+                row.Height - LogicalToDeviceUnits(3));
             using (var fill = new SolidBrush(StorageHubTheme.Selection))
-            using (var shape = UiShapes.RoundedRectangle(pill, 5F))
+            using (var shape = UiShapes.RoundedRectangle(pill, LogicalToDeviceUnits(5)))
             {
                 graphics.FillPath(fill, shape);
             }
 
             using var accent = new SolidBrush(StorageHubTheme.Primary);
-            graphics.FillRectangle(accent, pill.Left, pill.Top + 4, 3, pill.Height - 8);
+            graphics.FillRectangle(
+                accent,
+                pill.Left,
+                pill.Top + LogicalToDeviceUnits(4),
+                LogicalToDeviceUnits(3),
+                pill.Height - LogicalToDeviceUnits(8));
             graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.Default;
         }
 
@@ -1068,13 +1099,14 @@ public sealed class SettingsForm : Form
             // an icon each said nothing the group had not already said, while pushing their names
             // into a column of their own.
             using var guide = new Pen(StorageHubTheme.Border);
-            graphics.DrawLine(guide, CaptionIndent, row.Top, CaptionIndent, row.Bottom);
+            graphics.DrawLine(guide, captionIndent, row.Top, captionIndent, row.Bottom);
         }
         else if (node.Nodes.Count > 0)
         {
             DrawCategoryChevron(
                 graphics,
-                new Rectangle(ChevronIndent, row.Top, ChevronWidth, row.Height),
+                new Rectangle(
+                    LogicalToDeviceUnits(ChevronIndent), row.Top, LogicalToDeviceUnits(ChevronWidth), row.Height),
                 node.IsExpanded);
         }
 
@@ -1083,7 +1115,7 @@ public sealed class SettingsForm : Form
             var image = _categoryIcons.Images[index];
             graphics.DrawImage(
                 image,
-                IconIndent,
+                LogicalToDeviceUnits(IconIndent),
                 row.Top + ((row.Height - image.Height) / 2),
                 image.Width,
                 image.Height);
@@ -1093,7 +1125,7 @@ public sealed class SettingsForm : Form
             graphics,
             node.Text,
             node.NodeFont ?? _categories.Font,
-            Rectangle.FromLTRB(TextIndent, row.Top, row.Right - 6, row.Bottom),
+            Rectangle.FromLTRB(textIndent, row.Top, row.Right - trailingInset, row.Bottom),
             selected ? StorageHubTheme.Text : StorageHubTheme.TextMuted,
             // NoPrefix: category names such as "Transfers & sync" are labels, not mnemonics.
             TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis |
@@ -1163,17 +1195,17 @@ public sealed class SettingsForm : Form
     /// A card that states something rather than changing it: one heading and a paragraph, on the
     /// same surface as the cards that carry settings.
     /// </summary>
-    private static SettingsCard CreateInformationCard(string title, string text)
+    private SettingsCard CreateInformationCard(string title, string text)
     {
         var card = new SettingsCard
         {
             Name = "InformationCard",
-            Width = ContentWidth,
-            Margin = new Padding(0, 4, 0, 12),
+            Width = ScaledContentWidth,
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 4, 0, 12)),
             AccessibleName = Ui.Format(Ui.Settings.SettingsCardFormat, title)
         };
         card.Add(title, text, null);
-        card.Height = card.GetPreferredSize(new Size(ContentWidth, 0)).Height;
+        card.Height = card.GetPreferredSize(new Size(ScaledContentWidth, 0)).Height;
         return card;
     }
 
@@ -1181,17 +1213,17 @@ public sealed class SettingsForm : Form
     /// The standing caveat about host keys: a card of one titleless row, in the warning colour.
     /// A card rather than a tinted panel so the page can size it like everything else on it.
     /// </summary>
-    private static SettingsCard CreateSecurityNotice()
+    private SettingsCard CreateSecurityNotice()
     {
         var notice = new SettingsCard
         {
             Name = "SecurityNotice",
-            Width = ContentWidth,
-            Margin = new Padding(0, 14, 0, 0),
+            Width = ScaledContentWidth,
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 14, 0, 0)),
             AccessibleName = Ui.Settings.HostKeyCaveat
         };
         notice.Add(string.Empty, Ui.Settings.HostKeyCaveat, null).DescriptionIsWarning = true;
-        notice.Height = notice.GetPreferredSize(new Size(ContentWidth, 0)).Height;
+        notice.Height = notice.GetPreferredSize(new Size(ScaledContentWidth, 0)).Height;
         return notice;
     }
 
@@ -1212,7 +1244,7 @@ public sealed class SettingsForm : Form
 
     private static StorageHubToggle CreateToggle(bool isChecked) => new() { Checked = isChecked };
 
-    private static StorageHubNumberField CreateConcurrencyInput(
+    private StorageHubNumberField CreateConcurrencyInput(
         int minimum,
         int maximum,
         int value,
@@ -1222,7 +1254,7 @@ public sealed class SettingsForm : Form
             Minimum = minimum,
             Maximum = maximum,
             Value = Math.Clamp(value, minimum, maximum),
-            Width = 132,
+            Width = LogicalToDeviceUnits(132),
             Unit = Ui.Settings.UnitJobs,
             AccessibleName = accessibleName
         };
@@ -1403,7 +1435,7 @@ public sealed class SettingsForm : Form
         {
             Text = Ui.Format(Ui.Settings.CreateProviderFormat, provider.DisplayName),
             AutoSize = true,
-            Margin = new Padding(0, 16, 0, 8),
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 16, 0, 8)),
             AccessibleName = Ui.Format(Ui.Settings.ConfigureProviderFormat, provider.DisplayName)
         };
         open.Variant = StorageHubButtonVariant.Primary;
@@ -1441,7 +1473,7 @@ public sealed class SettingsForm : Form
             Minimum = minimum,
             Maximum = maximum,
             Value = Math.Clamp(value, minimum, maximum),
-            Width = 150,
+            Width = LogicalToDeviceUnits(150),
             ThousandsSeparator = true
         };
         control.ValueChanged += MarkDirty;
@@ -1490,7 +1522,7 @@ public sealed class SettingsForm : Form
         var text = new StorageHubTextField
         {
             Text = value,
-            Width = 280,
+            Width = LogicalToDeviceUnits(280),
             MaxLength = 2_048
         };
         text.TextChanged += MarkDirty;
@@ -1503,7 +1535,7 @@ public sealed class SettingsForm : Form
         {
             ReadOnly = true,
             Text = reference,
-            Width = 200,
+            Width = LogicalToDeviceUnits(200),
             PlaceholderText = Ui.Settings.NoDefaultPrivateKey,
             AccessibleDescription = Ui.Settings.PrivateKeyAccessibleDescription
         };
@@ -1527,14 +1559,16 @@ public sealed class SettingsForm : Form
             Margin = Padding.Empty,
             Padding = Padding.Empty
         };
-        import.Margin = new Padding(0, 0, 6, 0);
+        import.Margin = this.LogicalToDeviceUnits(new Padding(0, 0, 6, 0));
         clear.Margin = Padding.Empty;
         buttons.Controls.Add(import);
         buttons.Controls.Add(clear);
         // Measured rather than auto-sized: the row asks the accessory how wide it is while laying
         // out, which is before a flow panel would have sized itself from its children.
         buttons.Size = new Size(
-            import.GetPreferredSize(Size.Empty).Width + 6 + clear.GetPreferredSize(Size.Empty).Width,
+            import.GetPreferredSize(Size.Empty).Width
+            + LogicalToDeviceUnits(6)
+            + clear.GetPreferredSize(Size.Empty).Width,
             Math.Max(import.GetPreferredSize(Size.Empty).Height, clear.GetPreferredSize(Size.Empty).Height));
         return (value, buttons);
     }
@@ -1631,7 +1665,7 @@ public sealed class SettingsForm : Form
         _ => Ui.Format(Ui.Settings.DefaultFieldFormat, field.Label.ToLower(CultureInfo.CurrentCulture))
     };
 
-    private static void AddProviderFieldGroup(
+    private void AddProviderFieldGroup(
         FlowLayoutPanel page,
         string title,
         IReadOnlyList<ConnectionFieldDescriptor> fields)

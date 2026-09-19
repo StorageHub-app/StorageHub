@@ -279,7 +279,7 @@ public sealed class StorageHubButton : Button
             {
                 using var focus = new Pen(surface.Text) { DashStyle = DashStyle.Dot };
                 using var ring = StorageHubFieldChrome.RoundedRectangle(
-                    Rectangle.Inflate(edge, -3, -3),
+                    Rectangle.Inflate(edge, -LogicalToDeviceUnits(3), -LogicalToDeviceUnits(3)),
                     Math.Max(1, LogicalToDeviceUnits(CornerRadius) - 2));
                 graphics.DrawPath(focus, ring);
             }

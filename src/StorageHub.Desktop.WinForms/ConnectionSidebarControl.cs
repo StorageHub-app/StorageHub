@@ -56,7 +56,7 @@ internal sealed class ConnectionSidebarControl : UserControl
             AutoScroll = true,
             FlowDirection = FlowDirection.TopDown,
             WrapContents = false,
-            Padding = new Padding(8, 4, 8, 12),
+            Padding = this.LogicalToDeviceUnits(new Padding(8, 4, 8, 12)),
             BackColor = StorageHubTheme.Surface
         };
         _content.ClientSizeChanged += (_, _) => ResizeRows();
@@ -161,7 +161,7 @@ internal sealed class ConnectionSidebarControl : UserControl
                 _content.Controls.Add(new Label
                 {
                     AutoSize = false,
-                    Height = 64,
+                    Height = this.TextBoxHeight(35),
                     TextAlign = ContentAlignment.MiddleCenter,
                     ForeColor = StorageHubTheme.TextMuted,
                     Text = connections.Any() ? Ui.Connections.SidebarNoMatches : Ui.Connections.SidebarEmpty
@@ -366,7 +366,7 @@ internal sealed class ConnectionSidebarControl : UserControl
                 // ClientSize already excludes the scrollbar when it is showing, so subtracting the
                 // scrollbar width here as well would leave the rows a scrollbar short of the pane.
                 var measured = _content.ClientSize.Width;
-                var width = Math.Max(120, measured - _content.Padding.Horizontal);
+                var width = Math.Max(LogicalToDeviceUnits(120), measured - _content.Padding.Horizontal);
                 _content.SuspendLayout();
                 try
                 {
@@ -432,9 +432,10 @@ internal sealed class ConnectionSidebarSectionHeader : Control
     internal ConnectionSidebarSectionHeader(string title, UiGlyph? glyph = null)
     {
         Text = title;
-        Height = 38;
-        Margin = new Padding(0, 8, 0, 2);
+        // Font before height: the height is measured from it.
         Font = StorageHubTheme.CreateSectionFont();
+        Height = this.TextBoxHeight(13);
+        Margin = this.LogicalToDeviceUnits(new Padding(0, 8, 0, 2));
         ForeColor = StorageHubTheme.Text;
         BackColor = StorageHubTheme.Surface;
         TabStop = false;
@@ -472,7 +473,9 @@ internal sealed class ConnectionSidebarSectionHeader : Control
         TextRenderer.DrawText(e.Graphics, Text, Font, new Rectangle(left, 0, Width - left - 5, Height), ForeColor,
             TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
         using var line = new Pen(StorageHubTheme.Border);
-        e.Graphics.DrawLine(line, Math.Min(Width - 8, left + textSize.Width + 13), y, Width - 8, y);
+        var edge = Width - LogicalToDeviceUnits(8);
+        e.Graphics.DrawLine(
+            line, Math.Min(edge, left + textSize.Width + LogicalToDeviceUnits(13)), y, edge, y);
     }
 
     protected override void Dispose(bool disposing)
@@ -510,7 +513,7 @@ internal sealed class ConnectionSidebarGroup : Panel
         _count = count;
         _expanded = expanded;
         AutoSize = false;
-        Padding = new Padding(8, 7, 8, 9);
+        Padding = this.LogicalToDeviceUnits(new Padding(8, 7, 8, 9));
         Margin = new Padding(depth * 8, 2, 0, 10);
         BackColor = StorageHubTheme.SurfaceMuted;
         DoubleBuffered = true;
@@ -547,7 +550,7 @@ internal sealed class ConnectionSidebarGroup : Panel
             Dock = DockStyle.Top,
             FlowDirection = FlowDirection.TopDown,
             WrapContents = false,
-            Padding = new Padding(0, 3, 0, 0),
+            Padding = this.LogicalToDeviceUnits(new Padding(0, 3, 0, 0)),
             Margin = Padding.Empty,
             BackColor = StorageHubTheme.SurfaceMuted,
             Visible = expanded
@@ -604,12 +607,12 @@ internal sealed class ConnectionSidebarGroup : Panel
         _arranging = true;
         try
         {
-            var innerWidth = Math.Max(80, ClientSize.Width - Padding.Horizontal);
+            var innerWidth = Math.Max(LogicalToDeviceUnits(80), ClientSize.Width - Padding.Horizontal);
             _header.Width = innerWidth;
             _body.Width = innerWidth;
             foreach (Control child in _body.Controls)
             {
-                child.Width = Math.Max(72, innerWidth - child.Margin.Horizontal);
+                child.Width = Math.Max(LogicalToDeviceUnits(72), innerWidth - child.Margin.Horizontal);
             }
 
             var bodyHeight = _body.Padding.Vertical + _body.Controls
@@ -638,7 +641,7 @@ internal sealed class ConnectionSidebarGroup : Panel
     {
         base.OnPaint(e);
         e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-        using var path = RoundedPath(new Rectangle(0, 0, Width - 1, Height - 1), 12);
+        using var path = RoundedPath(new Rectangle(0, 0, Width - 1, Height - 1), LogicalToDeviceUnits(12));
         // A hairline blended most of the way into the fill. A group is already told apart by its
         // tinted surface, so the edge only has to finish it off, not draw a box around it.
         using var border = new Pen(Color.FromArgb(104, StorageHubTheme.Border));
@@ -690,7 +693,7 @@ internal sealed class ConnectionSidebarItem : Control
     internal ConnectionSidebarItem(ConnectionCardModel connection)
     {
         Connection = connection;
-        Height = 76;
+        Height = this.TextBoxHeight(45);
         Cursor = Cursors.Hand;
         TabStop = true;
         AccessibleName = connection.Name;
@@ -856,19 +859,21 @@ internal sealed class ConnectionSidebarItem : Control
     /// Draws as many tag pills as fit, and a "+n" when they do not. Truncating with a count keeps
     /// the row's height fixed however many labels a connection carries.
     /// </summary>
-    private static void DrawTags(Graphics graphics, IReadOnlyList<string> tags, Rectangle bounds, Color accent)
+    private void DrawTags(Graphics graphics, IReadOnlyList<string> tags, Rectangle bounds, Color accent)
     {
         using var tagFont = new Font("Segoe UI", 7.5F, FontStyle.Regular, GraphicsUnit.Point);
+        var pillPadding = LogicalToDeviceUnits(14);
+        var overflowReserve = LogicalToDeviceUnits(34);
         var left = bounds.Left;
         var shown = 0;
         foreach (var tag in tags)
         {
             var size = TextRenderer.MeasureText(tag, tagFont, Size.Empty, TextFormatFlags.NoPadding);
-            var width = size.Width + 14;
+            var width = size.Width + pillPadding;
             var remaining = tags.Count - shown;
 
             // Leave room for the overflow marker unless this is the last tag anyway.
-            var reserve = remaining > 1 ? 34 : 0;
+            var reserve = remaining > 1 ? overflowReserve : 0;
             if (left + width + reserve > bounds.Right)
             {
                 break;
@@ -915,17 +920,28 @@ internal sealed class ConnectionSidebarItem : Control
     {
         base.OnPaint(e);
         e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-        var bounds = new Rectangle(1, 1, Width - 3, Height - 3);
-        using var path = CreatePath(bounds, 9);
+        // Every measurement below is a logical unit. The card is painted, not laid out, so the
+        // badge, the text block and the insets between them are the row's own responsibility.
+        var badgeSize = LogicalToDeviceUnits(BadgeSize);
+        var badgeIconSize = LogicalToDeviceUnits(BadgeIconSize);
+        var badgeLeft = LogicalToDeviceUnits(BadgeLeft);
+        var textLeft = LogicalToDeviceUnits(TextLeft);
+        var bounds = new Rectangle(
+            LogicalToDeviceUnits(1),
+            LogicalToDeviceUnits(1),
+            Width - LogicalToDeviceUnits(3),
+            Height - LogicalToDeviceUnits(3));
+        using var path = CreatePath(bounds, LogicalToDeviceUnits(9));
         using var fill = new SolidBrush(_selected ? StorageHubTheme.CurrentPalette.Selection : StorageHubTheme.Surface);
         using var outline = new Pen(_selected ? StorageHubTheme.ParseAccent(Connection.AccentHex) : StorageHubTheme.Border,
             _selected ? 1.8F : 1F);
         e.Graphics.FillPath(fill, path);
         e.Graphics.DrawPath(outline, path);
         var accent = StorageHubTheme.ParseAccent(Connection.AccentHex);
-        var badgeTop = (Height - BadgeSize) / 2;
+        var badgeTop = (Height - badgeSize) / 2;
         using var badge = new SolidBrush(accent);
-        using (var badgePath = CreatePath(new Rectangle(BadgeLeft, badgeTop, BadgeSize, BadgeSize), 10))
+        using (var badgePath = CreatePath(
+                   new Rectangle(badgeLeft, badgeTop, badgeSize, badgeSize), LogicalToDeviceUnits(10)))
         {
             e.Graphics.FillPath(badge, badgePath);
         }
@@ -944,29 +960,44 @@ internal sealed class ConnectionSidebarItem : Control
         {
             e.Graphics.DrawImage(
                 icon,
-                BadgeLeft + ((BadgeSize - BadgeIconSize) / 2),
-                badgeTop + ((BadgeSize - BadgeIconSize) / 2),
-                BadgeIconSize,
-                BadgeIconSize);
+                badgeLeft + ((badgeSize - badgeIconSize) / 2),
+                badgeTop + ((badgeSize - badgeIconSize) / 2),
+                badgeIconSize,
+                badgeIconSize);
         }
-        var textWidth = Math.Max(20, Width - TextLeft - 10 - ActionStripWidth);
+        var textWidth = Math.Max(
+            LogicalToDeviceUnits(20), Width - textLeft - LogicalToDeviceUnits(10) - ActionStripWidth);
         var tags = Connection.DisplayTags;
 
         // The name and endpoint sit as a block, with the tag row below when there is one, so a
         // connection without tags does not leave a gap where they would have been.
-        var blockHeight = tags.Count > 0 ? 62 : 42;
-        var top = Math.Max(6, (Height - blockHeight) / 2);
-        TextRenderer.DrawText(e.Graphics, Connection.Name, Font, new Rectangle(TextLeft, top, textWidth, 21),
+        var blockHeight = LogicalToDeviceUnits(tags.Count > 0 ? 62 : 42);
+        var top = Math.Max(LogicalToDeviceUnits(6), (Height - blockHeight) / 2);
+        TextRenderer.DrawText(
+            e.Graphics,
+            Connection.Name,
+            Font,
+            new Rectangle(textLeft, top, textWidth, LogicalToDeviceUnits(21)),
             StorageHubTheme.Text, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
         var detail = Connection.IsEnabled
             ? Ui.Format(Ui.Connections.EndpointStateFormat, Connection.Endpoint, Connection.State)
             : Ui.Format(Ui.Connections.EndpointStateFormat, Connection.Endpoint, Ui.Connections.StateDisabled);
-        TextRenderer.DrawText(e.Graphics, detail, Font, new Rectangle(TextLeft, top + 21, textWidth, 20),
+        TextRenderer.DrawText(
+            e.Graphics,
+            detail,
+            Font,
+            new Rectangle(
+                textLeft, top + LogicalToDeviceUnits(21), textWidth, LogicalToDeviceUnits(20)),
             Connection.IsEnabled ? StorageHubTheme.TextMuted : StorageHubTheme.Warning,
             TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
         if (tags.Count > 0)
         {
-            DrawTags(e.Graphics, tags, new Rectangle(TextLeft, top + 44, textWidth, 18), accent);
+            DrawTags(
+                e.Graphics,
+                tags,
+                new Rectangle(
+                    textLeft, top + LogicalToDeviceUnits(44), textWidth, LogicalToDeviceUnits(18)),
+                accent);
         }
 
         // Revealed on hover, selection or focus: drawing them on every row at rest turns a long
@@ -982,7 +1013,8 @@ internal sealed class ConnectionSidebarItem : Control
 
         if (Focused)
         {
-            ControlPaint.DrawFocusRectangle(e.Graphics, Rectangle.Inflate(bounds, -4, -4));
+            var focusInset = LogicalToDeviceUnits(4);
+            ControlPaint.DrawFocusRectangle(e.Graphics, Rectangle.Inflate(bounds, -focusInset, -focusInset));
         }
     }
 

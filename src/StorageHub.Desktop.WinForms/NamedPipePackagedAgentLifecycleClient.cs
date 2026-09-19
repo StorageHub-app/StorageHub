@@ -178,6 +178,11 @@ public sealed class NamedPipePackagedAgentLifecycleClient : IPackagedAgentLifecy
     private NamedPipeIpcClient CreateClient() => new(new NamedPipeIpcClientOptions
     {
         PipeName = AgentStatusMonitor.DefaultPipeName,
+        // Has to travel with the pipe name. A machine pipe cannot be opened current-user-only --
+        // the server is LocalSystem and the pipe is owned by Administrators, so Windows refuses the
+        // connection outright and the agent looks absent. Leaving this out is how a perfectly
+        // healthy service came up and the desktop still reported that the agent never became ready.
+        Access = DesktopAgentHost.PipeAccess,
         ClientName = "StorageHub.Desktop.Lifecycle",
         ClientVersion = _clientVersion,
         ConnectTimeout = TimeSpan.FromMilliseconds(350),

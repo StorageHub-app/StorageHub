@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
 
@@ -131,7 +132,7 @@ public static class StorageHubTheme
             e.Graphics,
             e.Header?.Text ?? string.Empty,
             e.Font,
-            Rectangle.Inflate(e.Bounds, -6, 0),
+            Rectangle.Inflate(e.Bounds, -((sender as Control)?.LogicalToDeviceUnits(6) ?? 6), 0),
             TextMuted,
             TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
     }
@@ -216,7 +217,7 @@ public static class StorageHubTheme
         // the client width, so filling exactly to the edge scrolls at every size. Reserving a
         // whole scrollbar's width instead would leave a strip of unpainted native header, which
         // is the bright block this fill exists to remove.
-        var width = Math.Max(80, list.ClientSize.Width - preceding - 2);
+        var width = Math.Max(list.LogicalToDeviceUnits(80), list.ClientSize.Width - preceding - 2);
 
         if (trailing.Width == width)
         {
@@ -287,7 +288,9 @@ public static class StorageHubTheme
         // Workspace headers include a 16px icon and, for browser workspaces, a
         // 16px close target. Native sizing only measures the text, so reserve
         // enough horizontal padding for those renderer-owned elements.
-        tabs.Padding = ownsItemRendering ? new Point(39, 5) : new Point(16, 6);
+        tabs.Padding = ownsItemRendering
+            ? tabs.LogicalToDeviceUnits(new Point(39, 5))
+            : tabs.LogicalToDeviceUnits(new Point(16, 6));
         if (tabs is ThemedTabControl themed)
         {
             themed.Invalidate(true);
@@ -478,8 +481,12 @@ public static class StorageHubTheme
         // Inset so neighbouring tabs do not touch: without the gap a row of muted tabs reads as
         // one continuous band with words in it rather than as separate tabs.
         using (var shape = UiShapes.RoundedRectangle(
-                   new RectangleF(bounds.Left + 1, bounds.Top, bounds.Width - 3, bounds.Height + 6),
-                   5F))
+                   new RectangleF(
+                       bounds.Left + tabs.LogicalToDeviceUnits(1),
+                       bounds.Top,
+                       bounds.Width - tabs.LogicalToDeviceUnits(3),
+                       bounds.Height + tabs.LogicalToDeviceUnits(6)),
+                   tabs.LogicalToDeviceUnits(5)))
         {
             e.Graphics.FillPath(background, shape);
 
@@ -494,7 +501,12 @@ public static class StorageHubTheme
             // A 2px accent cap is the only cue that survives at every DPI once the tab and the
             // page below it share one surface colour.
             using var accent = new SolidBrush(palette.Primary);
-            e.Graphics.FillRectangle(accent, bounds.Left + 3, bounds.Top + 1, bounds.Width - 7, 2);
+            e.Graphics.FillRectangle(
+                accent,
+                bounds.Left + tabs.LogicalToDeviceUnits(3),
+                bounds.Top + tabs.LogicalToDeviceUnits(1),
+                bounds.Width - tabs.LogicalToDeviceUnits(7),
+                tabs.LogicalToDeviceUnits(2));
         }
 
         e.Graphics.SmoothingMode = SmoothingMode.Default;
@@ -505,9 +517,10 @@ public static class StorageHubTheme
             tabs.Font,
             Size.Empty,
             TextFormatFlags.NoPadding);
-        var gap = image is null ? 0 : 7;
+        var gap = image is null ? 0 : tabs.LogicalToDeviceUnits(7);
         var contentWidth = textSize.Width + gap + (image?.Width ?? 0);
-        var contentLeft = bounds.Left + Math.Max(8, (bounds.Width - contentWidth) / 2);
+        var contentLeft = bounds.Left
+            + Math.Max(tabs.LogicalToDeviceUnits(8), (bounds.Width - contentWidth) / 2);
         if (image is not null)
         {
             e.Graphics.DrawImage(
@@ -522,7 +535,11 @@ public static class StorageHubTheme
             e.Graphics,
             page.Text,
             tabs.Font,
-            new Rectangle(contentLeft, bounds.Top, Math.Max(1, bounds.Right - contentLeft - 6), bounds.Height),
+            new Rectangle(
+                contentLeft,
+                bounds.Top,
+                Math.Max(1, bounds.Right - contentLeft - tabs.LogicalToDeviceUnits(6)),
+                bounds.Height),
             selected ? palette.Text : palette.TextMuted,
             TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
     }
@@ -653,7 +670,7 @@ public static class StorageHubTheme
         UiGlyph glyph,
         int size = 16,
         UiIconTone tone = UiIconTone.Text,
-        float dpiScale = 1F)
+        float dpiScale = 0F)
     {
         ArgumentNullException.ThrowIfNull(item);
         return Track(item, image => item.Image = image, glyph, size, tone, dpiScale);
@@ -664,7 +681,7 @@ public static class StorageHubTheme
         UiGlyph glyph,
         int size = 18,
         UiIconTone tone = UiIconTone.Text,
-        float dpiScale = 1F)
+        float dpiScale = 0F)
     {
         ArgumentNullException.ThrowIfNull(button);
         return Track(button, image => button.Image = image, glyph, size, tone, dpiScale);
@@ -675,7 +692,7 @@ public static class StorageHubTheme
         UiGlyph glyph,
         int size = 20,
         UiIconTone tone = UiIconTone.Text,
-        float dpiScale = 1F)
+        float dpiScale = 0F)
     {
         ArgumentNullException.ThrowIfNull(picture);
         return Track(picture, image => picture.Image = image, glyph, size, tone, dpiScale);
@@ -691,7 +708,7 @@ public static class StorageHubTheme
         UiGlyph glyph,
         int size,
         UiIconTone tone = UiIconTone.Text,
-        float dpiScale = 1F)
+        float dpiScale = 0F)
     {
         ArgumentNullException.ThrowIfNull(owner);
         ArgumentNullException.ThrowIfNull(apply);
@@ -701,25 +718,106 @@ public static class StorageHubTheme
     private static readonly List<TrackedIcon> TrackedIcons = [];
     private static readonly Lock TrackedIconsLock = new();
 
+    /// <summary>
+    /// The scaling of the display a fresh control is built for. A <see cref="Control"/> reports
+    /// this before it has a handle, so it answers for an owner that cannot be asked -- a
+    /// <see cref="ToolStripItem"/> that has not been added to its strip yet, most often.
+    /// </summary>
+    private static readonly float SystemScale = MeasureSystemScale();
+
+    private static float MeasureSystemScale()
+    {
+        using var probe = new Control();
+        return probe.DeviceDpi / 96F;
+    }
+
+    /// <summary>
+    /// The scaling a glyph for this owner has to be rasterised at.
+    ///
+    /// This is derived rather than defaulted because the default used to be 1, and a caller that
+    /// forgot the argument got a glyph drawn for 96 DPI and then stretched -- which is a soft,
+    /// misshapen icon on any scaled display, and was silently true of sixteen call sites.
+    /// </summary>
+    private static float ResolveScale(object owner, float requested)
+    {
+        if (requested > 0F)
+        {
+            return requested;
+        }
+
+        return owner switch
+        {
+            Control control => control.DeviceDpi / 96F,
+            ToolStripItem { Owner: { } strip } => strip.DeviceDpi / 96F,
+            _ => SystemScale
+        };
+    }
+
     private static Bitmap Track(
         object owner,
         Action<Image> apply,
         UiGlyph glyph,
         int size,
         UiIconTone tone,
-        float dpiScale)
+        float requestedScale)
     {
+        var dpiScale = ResolveScale(owner, requestedScale);
         var image = UiIconFactory.Create(glyph, ToneColor(tone), size, dpiScale);
         apply(image);
+        var tracked = new TrackedIcon(new WeakReference<object>(owner), apply, glyph, size, tone, requestedScale)
+        {
+            Current = image,
+            Scale = dpiScale
+        };
         lock (TrackedIconsLock)
         {
-            TrackedIcons.Add(new TrackedIcon(new WeakReference<object>(owner), apply, glyph, size, tone, dpiScale)
-            {
-                Current = image
-            });
+            TrackedIcons.Add(tracked);
+        }
+
+        // The scale above is the best guess available at construction, and on a mixed-scaling
+        // desktop it is the wrong one: a control without a handle reports the *system* dpi, so a
+        // window that opens on a display scaled differently from the primary gets glyphs
+        // rasterised for the primary. A control knows where it really is once it has a handle,
+        // and says so again if it is moved, so re-rasterise at both points.
+        switch (owner)
+        {
+            case Control control:
+                control.HandleCreated += (_, _) => Rescale(tracked);
+                control.DpiChangedAfterParent += (_, _) => Rescale(tracked);
+                break;
+            case ToolStripItem { Owner: { } strip }:
+                strip.HandleCreated += (_, _) => Rescale(tracked);
+                strip.DpiChangedAfterParent += (_, _) => Rescale(tracked);
+                break;
         }
 
         return image;
+    }
+
+    /// <summary>
+    /// Redraws one tracked icon if the display it is on wants a different size than it was drawn
+    /// for. Sized in device pixels rather than stretched: a glyph rasterised for 96 dpi and then
+    /// scaled up is the soft, misshapen icon this whole mechanism exists to avoid.
+    /// </summary>
+    private static void Rescale(TrackedIcon tracked)
+    {
+        if (!tracked.TryGetOwner(out var owner))
+        {
+            return;
+        }
+
+        var scale = ResolveScale(owner, tracked.RequestedScale);
+        if (Math.Abs(scale - tracked.Scale) < 0.01F)
+        {
+            return;
+        }
+
+        var replacement = UiIconFactory.Create(tracked.Glyph, ToneColor(tracked.Tone), tracked.Size, scale);
+        var previous = tracked.Current;
+        tracked.Apply(replacement);
+        tracked.Current = replacement;
+        tracked.Scale = scale;
+        previous?.Dispose();
     }
 
     private static void RefreshTrackedIcons()
@@ -737,7 +835,7 @@ public static class StorageHubTheme
                 tracked.Glyph,
                 ToneColor(tracked.Tone),
                 tracked.Size,
-                tracked.DpiScale);
+                tracked.Scale);
             var previous = tracked.Current;
             tracked.Apply(replacement);
             tracked.Current = replacement;
@@ -751,21 +849,40 @@ public static class StorageHubTheme
         UiGlyph glyph,
         int size,
         UiIconTone tone,
-        float dpiScale)
+        float requestedScale)
     {
         public Action<Image> Apply { get; } = apply;
         public UiGlyph Glyph { get; } = glyph;
         public int Size { get; } = size;
         public UiIconTone Tone { get; } = tone;
-        public float DpiScale { get; } = dpiScale;
+
+        /// <summary>What the call site asked for; 0 means "derive it from the owner".</summary>
+        public float RequestedScale { get; } = requestedScale;
+
+        /// <summary>The scale the current bitmap was actually drawn at.</summary>
+        public float Scale { get; set; }
+
         public Image? Current { get; set; }
 
-        public bool IsAlive => owner.TryGetTarget(out var target) && target switch
+        public bool IsAlive => TryGetOwner(out _);
+
+        public bool TryGetOwner([NotNullWhen(true)] out object? target)
         {
-            Control control => !control.IsDisposed,
-            ToolStripItem item => !item.IsDisposed,
-            _ => true
-        };
+            target = null;
+            if (!owner.TryGetTarget(out var candidate))
+            {
+                return false;
+            }
+
+            var alive = candidate switch
+            {
+                Control control => !control.IsDisposed,
+                ToolStripItem item => !item.IsDisposed,
+                _ => true
+            };
+            target = alive ? candidate : null;
+            return alive;
+        }
     }
 
     /// <summary>
@@ -993,23 +1110,35 @@ internal readonly record struct StorageHubPalette(
 
 internal static class UiControlFactory
 {
-    public static Label CreateSectionTitle(string text) => new()
+    // These two build their own scaling source rather than taking one, because a factory on a
+    // static class has no control to ask. A freshly constructed Control reports the system DPI,
+    // which is the window's own until it is dragged to a display with a different scaling, and
+    // the framework re-scales it from there.
+    public static Label CreateSectionTitle(string text)
     {
-        Text = text,
-        AutoSize = true,
-        Font = StorageHubTheme.CreateSectionFont(),
-        ForeColor = StorageHubTheme.Text,
-        Margin = new Padding(0, 4, 0, 2)
-    };
+        var label = new Label
+        {
+            Text = text,
+            AutoSize = true,
+            Font = StorageHubTheme.CreateSectionFont(),
+            ForeColor = StorageHubTheme.Text
+        };
+        label.Margin = label.LogicalToDeviceUnits(new Padding(0, 4, 0, 2));
+        return label;
+    }
 
-    public static Label CreateDescription(string text) => new()
+    public static Label CreateDescription(string text)
     {
-        Text = text,
-        AutoSize = true,
-        MaximumSize = new Size(760, 0),
-        ForeColor = StorageHubTheme.TextMuted,
-        Margin = new Padding(0, 0, 0, 10)
-    };
+        var label = new Label
+        {
+            Text = text,
+            AutoSize = true,
+            ForeColor = StorageHubTheme.TextMuted
+        };
+        label.MaximumSize = new Size(label.LogicalToDeviceUnits(760), 0);
+        label.Margin = label.LogicalToDeviceUnits(new Padding(0, 0, 0, 10));
+        return label;
+    }
 
     public static void AddLabeledRow(TableLayoutPanel table, string labelText, Control control, string? helpText = null)
     {
@@ -1018,7 +1147,8 @@ internal static class UiControlFactory
         var row = table.RowCount++;
         table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         control.Dock = DockStyle.Top;
-        control.Margin = new Padding(4, 6, 4, string.IsNullOrWhiteSpace(helpText) ? 8 : 1);
+        control.Margin = table.LogicalToDeviceUnits(
+            new Padding(4, 6, 4, string.IsNullOrWhiteSpace(helpText) ? 8 : 1));
         control.AccessibleName = string.IsNullOrWhiteSpace(control.AccessibleName) ? labelText : control.AccessibleName;
         var label = new Label
         {
@@ -1026,7 +1156,7 @@ internal static class UiControlFactory
             AutoSize = true,
             ForeColor = StorageHubTheme.Text,
             Anchor = AnchorStyles.Left,
-            Margin = new Padding(4, 10, 12, 3)
+            Margin = table.LogicalToDeviceUnits(new Padding(4, 10, 12, 3))
         };
         table.Controls.Add(label, 0, row);
         table.Controls.Add(control, 1, row);
@@ -1039,9 +1169,9 @@ internal static class UiControlFactory
             {
                 Text = helpText,
                 AutoSize = true,
-                MaximumSize = new Size(660, 0),
+                MaximumSize = new Size(table.LogicalToDeviceUnits(660), 0),
                 ForeColor = StorageHubTheme.TextMuted,
-                Margin = new Padding(4, 0, 4, 8)
+                Margin = table.LogicalToDeviceUnits(new Padding(4, 0, 4, 8))
             }, 1, helpRow);
         }
     }

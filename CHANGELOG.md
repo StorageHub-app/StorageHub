@@ -18,6 +18,73 @@ chosen is written down in [Versioning and merges](docs/versioning.md).
 
 ## Unreleased
 
+**The shell is the same shape at every display scaling.** The fonts scaled and
+the layout did not, so the two drifted apart by exactly the scaling factor. That
+is why StorageHub, which was built at 125%, came apart at 100% and looked
+squeezed back at 125%: the numbers had been tuned by eye against text that was
+already a quarter larger than the boxes holding it.
+
+Every form set `AutoScaleMode.Dpi` but none ever assigned
+`AutoScaleDimensions`, and WinForms initializes that to the *current* DPI, which
+makes the scale factor exactly 1 and the automatic pass a no-op. Nothing was
+scaling the layout at all. Meanwhile a 9pt font resolves its points against the
+real display, so text grew 25% inside boxes that did not. Around 550 literal
+pixels across 44 files are now logical units converted at the point of use, which
+is the rule `docs/architecture.md` has stated all along and the custom controls
+already followed.
+
+The most visible of them: the Settings content column was a fixed 720 pixels, so
+a description that fit on one line at 100% wrapped onto two at 125%; the pane
+header reserved a fixed 220 pixels for a connection name that had grown; and
+every toolbar resampled its icons back down — the glyphs were rasterised at the
+right size for the display and then squashed into a `ImageScalingSize` nobody had
+scaled, which is why they looked soft and misshapen. Sixteen more icons were
+never rasterised for the display in the first place, because the scale argument
+defaulted to 1 and was easy to forget; it is derived from the control the icon
+belongs to now, so it cannot be.
+
+**A box that holds text is measured from that text.** Converting a pixel to a
+logical unit only makes it track the display; it still does not track the font,
+and the two disagree whenever a translation runs long or the system font
+changes. Seventy-five boxes across twenty-seven files now take their height from
+the line they contain plus named breathing room, which is arithmetically the
+same at 125% -- the scaling this was all designed at -- and correct everywhere
+else. Doing it turned up boxes that were already too small for their own text
+before any of this: an 18px band around a 20px bold line in the connection
+detail pane, and a 30px band around a 14pt title in the object inspector. Five
+more pixel literals had never been converted at all.
+
+Two things were being measured before there was anything to measure. Icons were
+rasterised against the *system* dpi rather than the display the window is
+actually on, so on a mixed-scaling desktop every glyph was drawn for the primary
+monitor wherever the window went; they are redrawn now when a control learns
+where it is and again if it moves. The sync task band was measured in a
+constructor, before WinForms had rescaled the fonts, and its split was assigned
+to a SplitContainer that is 150px tall until it is laid out -- so the run
+history card was left showing a heading above a half-drawn column header.
+
+**The desktop can actually reach a service-hosted agent.** It never could, which
+means the Windows service was unusable even once it started: the connection that
+decides whether the agent is there was opened current-user-only, and a service's
+pipe belongs to LocalSystem. Windows refuses that connection outright, so the
+desktop reported "the background agent did not become ready in time" while a
+perfectly healthy service sat there answering everyone else. Two clients were
+built by hand and neither named the access mode, so both silently took the
+current-user default that is right for a session agent and wrong for a service —
+the startup and shutdown client, and every SSH terminal. Naming it is now
+mandatory rather than defaulted, so the next client cannot quietly get it wrong.
+
+**Signing in no longer beats the service to it.** With the agent hosted as a
+Windows service, StorageHub asked once whether the agent was reachable and gave
+up if it was not — a race it lost at almost every sign-in, because Windows
+starts the auto-start service alongside the session that starts StorageHub, and
+the service answers the service control manager immediately and then spends
+several seconds opening its database before its pipe exists. The result was
+"the StorageHub background agent did not become ready in time" on a boot where
+nothing was wrong and the service was running perfectly. It waits now, the way
+it already waited for an agent it started itself. Nothing was waiting for this
+before because the service could never start at all.
+
 **The Windows service can start.** It never could. The elevated install copied
 the agent into `%ProgramData%\StorageHub\bin`, inside the very data root the
 service resolves, and the agent refuses to run with its data root and its

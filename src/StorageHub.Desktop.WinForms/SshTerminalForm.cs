@@ -94,8 +94,8 @@ public sealed class SshTerminalForm : Form
         Text = Ui.Format(Ui.Connections.TerminalCaptionFormat, displayName);
         AccessibleName = Ui.Format(Ui.Connections.TerminalAccessibleNameFormat, displayName);
         StartPosition = FormStartPosition.CenterParent;
-        MinimumSize = new Size(640, 400);
-        Size = new Size(1000, 680);
+        MinimumSize = this.LogicalWindowSize(new Size(640, 400));
+        Size = this.LogicalWindowSize(new Size(1000, 680));
         BackColor = Color.FromArgb(12, 18, 28);
         KeyPreview = true;
 

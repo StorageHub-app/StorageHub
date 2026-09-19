@@ -129,8 +129,8 @@ public sealed class StorageHubToggle : Control
             // Drawn inside the track: a ring around it would overlap the row's text.
             using var focus = new Pen(StorageHubTheme.Primary) { DashStyle = DashStyle.Dot };
             using var path = StorageHubFieldChrome.RoundedRectangle(
-                Rectangle.Inflate(track, -2, -2),
-                Math.Max(1, (track.Height - 4) / 2));
+                Rectangle.Inflate(track, -LogicalToDeviceUnits(2), -LogicalToDeviceUnits(2)),
+                Math.Max(1, (track.Height - LogicalToDeviceUnits(4)) / 2));
             graphics.DrawPath(focus, path);
         }
 

@@ -59,8 +59,8 @@ public sealed class SyncProfileEditorForm : Form
         AccessibleName = Ui.Sync.EditorAccessibleName;
         AccessibleDescription = Ui.Sync.EditorAccessibleDescription;
         StartPosition = FormStartPosition.CenterParent;
-        MinimumSize = new Size(1000, 700);
-        Size = new Size(1240, 860);
+        MinimumSize = this.LogicalWindowSize(new Size(1000, 700));
+        Size = this.LogicalWindowSize(new Size(1240, 860));
         AutoScaleMode = AutoScaleMode.Dpi;
         BackColor = StorageHubTheme.Canvas;
         Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
@@ -69,13 +69,13 @@ public sealed class SyncProfileEditorForm : Form
         var header = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
-            Height = 84,
+            Height = this.TextBoxHeight(51),
             ColumnCount = 3,
-            Padding = new Padding(18, 11, 18, 9),
+            Padding = this.LogicalToDeviceUnits(new Padding(18, 11, 18, 9)),
             BackColor = StorageHubTheme.Surface
         };
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 330));
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, LogicalToDeviceUnits(330)));
         header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         var title = new FlowLayoutPanel
         {
@@ -102,11 +102,11 @@ public sealed class SyncProfileEditorForm : Form
             // the height of the header row left its border cut off by the row's edge.
             Anchor = AnchorStyles.Left | AnchorStyles.Right,
             AccessibleName = Ui.Sync.SavedProfile,
-            Margin = new Padding(8, 6, 8, 6)
+            Margin = this.LogicalToDeviceUnits(new Padding(8, 6, 8, 6))
         };
         _profileChoice.SelectedIndexChanged += ProfileSelectionChanged;
         header.Controls.Add(_profileChoice, 1, 0);
-        var newProfile = new StorageHubButton { Text = Ui.Sync.NewProfile, AutoSize = true, Margin = new Padding(0, 10, 0, 0) };
+        var newProfile = new StorageHubButton { Text = Ui.Sync.NewProfile, AutoSize = true, Margin = this.LogicalToDeviceUnits(new Padding(0, 10, 0, 0)) };
         newProfile.Variant = StorageHubButtonVariant.Secondary;
         newProfile.Click += (_, _) => BeginNewProfile();
         header.Controls.Add(newProfile, 2, 0);
@@ -173,7 +173,7 @@ public sealed class SyncProfileEditorForm : Form
         _review = new SyncRunReviewControl(_syncClient);
         var previewPage = new TabPage(Ui.Sync.PlanAndRun)
         {
-            Padding = new Padding(5)
+            Padding = this.LogicalToDeviceUnits(new Padding(5))
         };
         previewPage.Controls.Add(_review);
         _tabs.TabPages.Add(previewPage);
@@ -181,9 +181,9 @@ public sealed class SyncProfileEditorForm : Form
         var footer = new TableLayoutPanel
         {
             Dock = DockStyle.Bottom,
-            Height = 64,
+            Height = this.TextBoxHeight(35),
             ColumnCount = 2,
-            Padding = new Padding(14, 9, 14, 8),
+            Padding = this.LogicalToDeviceUnits(new Padding(14, 9, 14, 8)),
             BackColor = StorageHubTheme.Surface
         };
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -441,7 +441,7 @@ public sealed class SyncProfileEditorForm : Form
             Dock = DockStyle.Fill,
             AutoScroll = true,
             BackColor = StorageHubTheme.Canvas,
-            Padding = new Padding(18)
+            Padding = this.LogicalToDeviceUnits(new Padding(18))
         };
         var content = new TableLayoutPanel
         {
@@ -462,14 +462,14 @@ public sealed class SyncProfileEditorForm : Form
         identity.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30));
         identity.Controls.Add(CreateField(Ui.Sync.ProfileName, _name, Ui.Sync.ProfileNameHint), 0, 0);
         identity.Controls.Add(CreateField(Ui.Sync.ProfileState, _enabled, Ui.Sync.DisabledProfilesHint), 1, 0);
-        content.Controls.Add(CreateCard(identity, new Padding(16), new Padding(0, 0, 0, 14)));
+        content.Controls.Add(CreateCard(identity, this.LogicalToDeviceUnits(new Padding(16)), this.LogicalToDeviceUnits(new Padding(0, 0, 0, 14))));
 
         content.Controls.Add(CreateSectionHeader(
             Ui.Sync.StepLocations,
             Ui.Sync.LocationsRelativeHint));
         var locationGrid = new TableLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, ColumnCount = 3 };
         locationGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        locationGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 112));
+        locationGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, LogicalToDeviceUnits(112)));
         locationGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
         locationGrid.Controls.Add(CreateLocationCard("A", "PRIMARY", _leftConnection, _leftRoot, _leftBrowse), 0, 0);
         var swap = new StorageHubButton { Text = Ui.Sync.SwapLocations, AutoSize = true, Anchor = AnchorStyles.None };
@@ -482,7 +482,7 @@ public sealed class SyncProfileEditorForm : Form
         content.Controls.Add(CreateSectionHeader(
             Ui.Sync.StepBehavior,
             Ui.Sync.SelectPresetHint));
-        content.Controls.Add(CreateCard(_behavior, new Padding(14), new Padding(0, 0, 0, 14)));
+        content.Controls.Add(CreateCard(_behavior, this.LogicalToDeviceUnits(new Padding(14)), this.LogicalToDeviceUnits(new Padding(0, 0, 0, 14))));
 
         content.Controls.Add(CreateSectionHeader(
             Ui.Sync.StepSafety,
@@ -506,16 +506,16 @@ public sealed class SyncProfileEditorForm : Form
         UiControlFactory.AddLabeledRow(
             scope,
             Ui.Sync.IncludeGlobs,
-            new StorageHubFieldHost(_includeGlobs) { Height = _includeGlobs.Height + 12 },
+            new StorageHubFieldHost(_includeGlobs) { Height = _includeGlobs.Height + LogicalToDeviceUnits(12) },
             Ui.Sync.GlobHint);
         UiControlFactory.AddLabeledRow(
             scope,
             Ui.Sync.ExcludeGlobs,
-            new StorageHubFieldHost(_excludeGlobs) { Height = _excludeGlobs.Height + 12 },
+            new StorageHubFieldHost(_excludeGlobs) { Height = _excludeGlobs.Height + LogicalToDeviceUnits(12) },
             Ui.Sync.StagingExcludedHint);
         UiControlFactory.AddLabeledRow(scope, Ui.Sync.HiddenContent, _includeHiddenFiles, Ui.Sync.HiddenFilesHint);
-        advanced.Controls.Add(CreateCard(policy, new Padding(10), new Padding(0, 0, 7, 0)), 0, 0);
-        advanced.Controls.Add(CreateCard(scope, new Padding(10), new Padding(7, 0, 0, 0)), 1, 0);
+        advanced.Controls.Add(CreateCard(policy, this.LogicalToDeviceUnits(new Padding(10)), this.LogicalToDeviceUnits(new Padding(0, 0, 7, 0))), 0, 0);
+        advanced.Controls.Add(CreateCard(scope, this.LogicalToDeviceUnits(new Padding(10)), this.LogicalToDeviceUnits(new Padding(7, 0, 0, 0))), 1, 0);
         content.Controls.Add(advanced);
 
         panel.Controls.Add(content);
@@ -523,14 +523,14 @@ public sealed class SyncProfileEditorForm : Form
         return page;
     }
 
-    private static TableLayoutPanel CreateSectionHeader(string title, string description)
+    private TableLayoutPanel CreateSectionHeader(string title, string description)
     {
         var header = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             AutoSize = true,
             ColumnCount = 1,
-            Margin = new Padding(0, 5, 0, 7)
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 5, 0, 7))
         };
         header.Controls.Add(new Label
         {
@@ -544,9 +544,9 @@ public sealed class SyncProfileEditorForm : Form
         {
             Text = description,
             AutoSize = true,
-            MaximumSize = new Size(940, 0),
+            MaximumSize = new Size(LogicalToDeviceUnits(940), 0),
             ForeColor = StorageHubTheme.TextMuted,
-            Margin = new Padding(0, 2, 0, 0)
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 2, 0, 0))
         });
         return header;
     }
@@ -568,14 +568,14 @@ public sealed class SyncProfileEditorForm : Form
         return card;
     }
 
-    private static TableLayoutPanel CreateField(string label, Control control, string help)
+    private TableLayoutPanel CreateField(string label, Control control, string help)
     {
         var field = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             AutoSize = true,
             ColumnCount = 1,
-            Margin = new Padding(0, 0, 12, 0)
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 0, 12, 0))
         };
         field.Controls.Add(new Label
         {
@@ -583,7 +583,7 @@ public sealed class SyncProfileEditorForm : Form
             AutoSize = true,
             Font = StorageHubTheme.CreateSectionFont(),
             ForeColor = StorageHubTheme.Text,
-            Margin = new Padding(0, 0, 0, 5)
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 0, 0, 5))
         });
         control.Dock = DockStyle.Top;
         control.Margin = Padding.Empty;
@@ -593,7 +593,7 @@ public sealed class SyncProfileEditorForm : Form
             Text = help,
             AutoSize = true,
             ForeColor = StorageHubTheme.TextMuted,
-            Margin = new Padding(0, 5, 0, 0)
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 5, 0, 0))
         };
 
         // Bounded to the field so the text wraps rather than running past the column. Without
@@ -605,7 +605,7 @@ public sealed class SyncProfileEditorForm : Form
         return field;
     }
 
-    private static Panel CreateLocationCard(
+    private Panel CreateLocationCard(
         string location,
         string badge,
         StorageHubChoiceField connection,
@@ -637,7 +637,7 @@ public sealed class SyncProfileEditorForm : Form
             Font = new Font("Segoe UI Semibold", 7.5F),
             ForeColor = StorageHubTheme.Primary,
             BackColor = StorageHubTheme.SurfaceMuted,
-            Padding = new Padding(7, 3, 7, 3),
+            Padding = this.LogicalToDeviceUnits(new Padding(7, 3, 7, 3)),
             Margin = Padding.Empty
         }, 1, 0);
         body.Controls.Add(heading);
@@ -646,7 +646,7 @@ public sealed class SyncProfileEditorForm : Form
             Text = Ui.Sync.SavedConnection,
             AutoSize = true,
             ForeColor = StorageHubTheme.TextMuted,
-            Margin = new Padding(0, 14, 0, 4)
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 14, 0, 4))
         });
         connection.Dock = DockStyle.Top;
         connection.Margin = Padding.Empty;
@@ -656,7 +656,7 @@ public sealed class SyncProfileEditorForm : Form
             Text = Ui.Sync.FolderInsideConnection,
             AutoSize = true,
             ForeColor = StorageHubTheme.TextMuted,
-            Margin = new Padding(0, 12, 0, 4)
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 12, 0, 4))
         });
         body.Controls.Add(CreateFolderSelector(root, browse));
         body.Controls.Add(new Label
@@ -664,9 +664,9 @@ public sealed class SyncProfileEditorForm : Form
             Text = Ui.Sync.EmptyMeansRoot,
             AutoSize = true,
             ForeColor = StorageHubTheme.TextMuted,
-            Margin = new Padding(0, 5, 0, 0)
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 5, 0, 0))
         });
-        return CreateCard(body, new Padding(16), new Padding(0));
+        return CreateCard(body, this.LogicalToDeviceUnits(new Padding(16)), new Padding(0));
     }
 
     private static TableLayoutPanel CreateFormTable()
@@ -678,7 +678,7 @@ public sealed class SyncProfileEditorForm : Form
             ColumnCount = 2,
             Margin = Padding.Empty
         };
-        table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
+        table.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, table.LogicalToDeviceUnits(150)));
         table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         return table;
     }
@@ -1019,9 +1019,9 @@ public sealed class SyncProfileEditorForm : Form
         }
     }
 
-    private static StorageHubChoiceField CreateChoice(string accessibleName) => new()
+    private StorageHubChoiceField CreateChoice(string accessibleName) => new()
     {
-        Width = 320,
+        Width = LogicalToDeviceUnits(320),
         AccessibleName = accessibleName
     };
 
@@ -1040,7 +1040,7 @@ public sealed class SyncProfileEditorForm : Form
         return button;
     }
 
-    private static TableLayoutPanel CreateFolderSelector(StorageHubTextField root, Button browse)
+    private TableLayoutPanel CreateFolderSelector(StorageHubTextField root, Button browse)
     {
         var selector = new TableLayoutPanel
         {
@@ -1052,7 +1052,7 @@ public sealed class SyncProfileEditorForm : Form
         selector.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         selector.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         root.Dock = DockStyle.Fill;
-        root.Margin = new Padding(0, 0, 8, 0);
+        root.Margin = this.LogicalToDeviceUnits(new Padding(0, 0, 8, 0));
         browse.Margin = Padding.Empty;
         selector.Controls.Add(root, 0, 0);
         selector.Controls.Add(browse, 1, 0);
@@ -1074,7 +1074,7 @@ public sealed class SyncProfileEditorForm : Form
         };
     }
 
-    private static StorageHubChoiceField CreateEnumChoice<T>(string accessibleName) where T : struct, Enum
+    private StorageHubChoiceField CreateEnumChoice<T>(string accessibleName) where T : struct, Enum
     {
         var combo = CreateChoice(accessibleName);
         combo.Items.AddRange(Enum.GetValues<T>().Cast<object>().ToArray());
@@ -1098,14 +1098,14 @@ public sealed class SyncProfileEditorForm : Form
     /// It stays a text box, stripped of its border, and the caller wraps it in the chrome every
     /// other input carries.
     /// </summary>
-    private static TextBox CreateGlobTextBox(string accessibleName) => new()
+    private TextBox CreateGlobTextBox(string accessibleName) => new()
     {
         Multiline = true,
         BorderStyle = BorderStyle.None,
         BackColor = StorageHubTheme.Input,
         ForeColor = StorageHubTheme.Text,
         ScrollBars = ScrollBars.Vertical,
-        Height = 58,
+        Height = this.TextBoxHeight(30),
         MaxLength = SyncManagementIpcLimits.MaximumFilterCount * SyncManagementIpcLimits.MaximumGlobLength,
         AccessibleName = accessibleName
     };
@@ -1115,7 +1115,7 @@ public sealed class SyncProfileEditorForm : Form
         .Where(static line => line.Length > 0)
         .ToArray();
 
-    private static StorageHubNumberField CreateNumeric(
+    private StorageHubNumberField CreateNumeric(
         decimal value,
         decimal minimum,
         decimal maximum,
@@ -1128,7 +1128,7 @@ public sealed class SyncProfileEditorForm : Form
             DecimalPlaces = decimalPlaces,
             Increment = increment,
             ThousandsSeparator = true,
-            Width = 180
+            Width = LogicalToDeviceUnits(180)
         };
 
     private static T SelectedEnum<T>(StorageHubChoiceField combo) where T : struct, Enum =>

@@ -129,7 +129,8 @@ public sealed class StorageHubTimeField : Control
     protected override void OnLayout(LayoutEventArgs levent)
     {
         base.OnLayout(levent);
-        var editorHeight = Math.Min(Font.Height + 2, Math.Max(1, Height - 2));
+        var inset = LogicalToDeviceUnits(2);
+        var editorHeight = Math.Min(Font.Height + inset, Math.Max(1, Height - inset));
         var left = StorageHubFieldChrome.TextInset(this, _dense);
         _editor.SetBounds(
             left,

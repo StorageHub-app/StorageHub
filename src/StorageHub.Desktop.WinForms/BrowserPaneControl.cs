@@ -154,7 +154,7 @@ public sealed class BrowserPaneControl : UserControl
         _accentBar = new Panel
         {
             Dock = DockStyle.Top,
-            Height = 3,
+            Height = LogicalToDeviceUnits(3),
             BackColor = StorageHubTheme.Primary,
             AccessibleName = $"{title} provider color"
         };
@@ -168,7 +168,7 @@ public sealed class BrowserPaneControl : UserControl
         // Room for the badge pills and the picker button to breathe. At 34px the pills were
         // clipped top and bottom, and there is no shortage of vertical space here -- this row
         // replaced an 88px block.
-        var headerHeight = Math.Max(42, sectionFont.Height + 22);
+        var headerHeight = Math.Max(LogicalToDeviceUnits(42), sectionFont.Height + LogicalToDeviceUnits(22));
         _paneHeader = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
@@ -176,11 +176,11 @@ public sealed class BrowserPaneControl : UserControl
             MinimumSize = new Size(0, headerHeight),
             ColumnCount = 2,
             RowCount = 1,
-            Padding = new Padding(8, 3, 8, 3),
+            Padding = this.LogicalToDeviceUnits(new Padding(8, 3, 8, 3)),
             BackColor = StorageHubTheme.Surface
         };
         var header = _paneHeader;
-        header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 220));
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, LogicalToDeviceUnits(220)));
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         header.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
@@ -193,7 +193,7 @@ public sealed class BrowserPaneControl : UserControl
             ForeColor = StorageHubTheme.Text,
             AutoEllipsis = true,
             UseMnemonic = false,
-            Margin = new Padding(4, 0, 8, 0),
+            Margin = this.LogicalToDeviceUnits(new Padding(4, 0, 8, 0)),
             AccessibleName = $"{title} active connection"
         };
         _connectionTypeBadge = CreatePaneBadge("STORAGE", StorageHubTheme.Primary);
@@ -205,7 +205,7 @@ public sealed class BrowserPaneControl : UserControl
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents = false,
-            Margin = new Padding(1, 0, 0, 0)
+            Margin = this.LogicalToDeviceUnits(new Padding(1, 0, 0, 0))
         };
         badges.Controls.Add(_connectionTypeBadge);
         badges.Controls.Add(_providerBadge);
@@ -227,10 +227,10 @@ public sealed class BrowserPaneControl : UserControl
         _connectionNameLabel.Dock = DockStyle.None;
         _connectionNameLabel.AutoSize = true;
         _connectionNameLabel.Anchor = AnchorStyles.Left;
-        _connectionNameLabel.MaximumSize = new Size(300, 0);
+        _connectionNameLabel.MaximumSize = new Size(LogicalToDeviceUnits(300), 0);
         identity.Controls.Add(_connectionNameLabel, 0, 0);
         identity.Controls.Add(badges, 1, 0);
-        var identityFrame = CreateHeaderFrame(new Padding(8, 1, 8, 1), new Padding(0, 0, 0, 0));
+        var identityFrame = CreateHeaderFrame(this.LogicalToDeviceUnits(new Padding(8, 1, 8, 1)), new Padding(0, 0, 0, 0));
         identityFrame.AccessibleName = Ui.Format(Ui.Pane.ConnectionIdentityAccessibleNameFormat, title);
         identityFrame.Controls.Add(identity);
 
@@ -239,12 +239,12 @@ public sealed class BrowserPaneControl : UserControl
             Dock = DockStyle.Fill,
             DropDownStyle = ComboBoxStyle.DropDownList,
             DrawMode = DrawMode.OwnerDrawVariable,
-            ItemHeight = 32,
+            ItemHeight = this.TextBoxHeight(10),
             IntegralHeight = false,
-            DropDownHeight = 260,
+            DropDownHeight = LogicalToDeviceUnits(260),
             BackColor = StorageHubTheme.Surface,
             ForeColor = StorageHubTheme.Text,
-            Margin = new Padding(0, 2, 0, 2),
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 2, 0, 2)),
             AccessibleName = $"{title} connection",
             AccessibleDescription = Ui.Pane.ConnectionPickerAccessibleName
         };
@@ -274,7 +274,7 @@ public sealed class BrowserPaneControl : UserControl
             FlatStyle = FlatStyle.Flat,
             BackColor = StorageHubTheme.Surface,
             ForeColor = StorageHubTheme.Text,
-            Margin = new Padding(0, 2, 0, 2),
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 2, 0, 2)),
             TextAlign = ContentAlignment.MiddleLeft,
             AccessibleName = $"{title} connection",
             AccessibleDescription = Ui.Pane.ConnectionPickerHint
@@ -291,7 +291,7 @@ public sealed class BrowserPaneControl : UserControl
             TextAlign = ContentAlignment.MiddleLeft,
             ForeColor = showLocalDefault ? StorageHubTheme.Success : StorageHubTheme.TextMuted,
             AutoEllipsis = true,
-            Margin = new Padding(3, 0, 6, 0),
+            Margin = this.LogicalToDeviceUnits(new Padding(3, 0, 6, 0)),
             AccessibleName = $"{title} connection state"
         };
         var selectorGrid = new TableLayoutPanel
@@ -306,13 +306,13 @@ public sealed class BrowserPaneControl : UserControl
         selectorGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         // Wide enough for a real connection name: at 200px the button ellipsized while empty
         // space sat to its left.
-        selectorGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 280));
+        selectorGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, LogicalToDeviceUnits(280)));
         selectorGrid.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         selectorGrid.Controls.Add(_connectionState, 0, 0);
         selectorGrid.Controls.Add(_connectionButton, 1, 0);
         // Still parented so its handle and data model live with the pane, just never shown.
         selectorGrid.Controls.Add(_connectionSelector, 1, 0);
-        var selectorFrame = CreateHeaderFrame(new Padding(6, 1, 6, 1), new Padding(8, 0, 0, 0));
+        var selectorFrame = CreateHeaderFrame(this.LogicalToDeviceUnits(new Padding(6, 1, 6, 1)), this.LogicalToDeviceUnits(new Padding(8, 0, 0, 0)));
         selectorFrame.AccessibleName = Ui.Format(Ui.Pane.ConnectionSelectionAccessibleNameFormat, title);
         selectorFrame.Controls.Add(selectorGrid);
 
@@ -343,8 +343,8 @@ public sealed class BrowserPaneControl : UserControl
             GripStyle = ToolStripGripStyle.Hidden,
             BackColor = StorageHubTheme.SurfaceMuted,
             ForeColor = StorageHubTheme.Text,
-            ImageScalingSize = new Size(18, 18),
-            Padding = new Padding(4, 3, 4, 3),
+            ImageScalingSize = LogicalToDeviceUnits(new Size(18, 18)),
+            Padding = this.LogicalToDeviceUnits(new Padding(4, 3, 4, 3)),
             AccessibleName = $"{title} navigation"
         };
         _backButton = CreateButton(UiGlyph.Back, "Back");
@@ -375,7 +375,7 @@ public sealed class BrowserPaneControl : UserControl
         _addressBox = new StorageHubToolStripField
         {
             AutoSize = false,
-            Width = 330,
+            Width = LogicalToDeviceUnits(330),
             Text = showLocalDefault ? Ui.Pane.ThisPc : Ui.Pane.Connections,
             AccessibleName = $"{title} address",
             AccessibleDescription = showLocalDefault
@@ -391,7 +391,7 @@ public sealed class BrowserPaneControl : UserControl
         _filterBox = new StorageHubToolStripField
         {
             AutoSize = false,
-            Width = 150,
+            Width = LogicalToDeviceUnits(150),
             Glyph = UiGlyph.Search,
             ShowClearButton = true,
             PlaceholderText = Ui.Pane.FilterPlaceholder,
@@ -409,8 +409,8 @@ public sealed class BrowserPaneControl : UserControl
             GripStyle = ToolStripGripStyle.Hidden,
             BackColor = StorageHubTheme.Surface,
             ForeColor = StorageHubTheme.Text,
-            ImageScalingSize = new Size(16, 16),
-            Padding = new Padding(6, 2, 6, 2),
+            ImageScalingSize = LogicalToDeviceUnits(new Size(16, 16)),
+            Padding = this.LogicalToDeviceUnits(new Padding(6, 2, 6, 2)),
             AccessibleName = $"{title} file commands"
         };
         _fileCommands.Items.Add(new ToolStripLabel("FILES")
@@ -479,11 +479,11 @@ public sealed class BrowserPaneControl : UserControl
             AccessibleDescription = Ui.Pane.ListAccessibleDescription
         };
         _fileList.SmallImageList = _browserImages;
-        _fileList.Columns.Add(Ui.Pane.ColumnName, 280);
+        _fileList.Columns.Add(Ui.Pane.ColumnName, LogicalToDeviceUnits(280));
         _fileList.Columns.Add(Ui.Pane.ColumnSize, 100, HorizontalAlignment.Right);
-        _fileList.Columns.Add("Type", 120);
-        _fileList.Columns.Add(Ui.Pane.ColumnModified, 155);
-        _fileList.Columns.Add(Ui.Pane.ColumnStatus, 100);
+        _fileList.Columns.Add("Type", LogicalToDeviceUnits(120));
+        _fileList.Columns.Add(Ui.Pane.ColumnModified, LogicalToDeviceUnits(155));
+        _fileList.Columns.Add(Ui.Pane.ColumnStatus, LogicalToDeviceUnits(100));
         StorageHubTheme.ConfigureList(_fileList);
         UpdateSortColumnHeaders();
         _fileList.RetrieveVirtualItem += RetrieveVirtualItem;
@@ -585,16 +585,16 @@ public sealed class BrowserPaneControl : UserControl
         {
             Dock = DockStyle.Fill,
             Orientation = Orientation.Vertical,
-            Size = new Size(650, 500),
-            SplitterDistance = 185,
+            Size = LogicalToDeviceUnits(new Size(650, 500)),
+            SplitterDistance = LogicalToDeviceUnits(185),
             FixedPanel = FixedPanel.Panel1,
-            Panel1MinSize = 130,
-            Panel2MinSize = 240,
+            Panel1MinSize = LogicalToDeviceUnits(130),
+            Panel2MinSize = LogicalToDeviceUnits(240),
             BackColor = StorageHubTheme.Border,
             AccessibleName = $"{title} tree and item list"
         };
-        browserSplit.Panel1.Padding = new Padding(8, 7, 4, 7);
-        browserSplit.Panel2.Padding = new Padding(4, 7, 8, 7);
+        browserSplit.Panel1.Padding = this.LogicalToDeviceUnits(new Padding(8, 7, 4, 7));
+        browserSplit.Panel2.Padding = this.LogicalToDeviceUnits(new Padding(4, 7, 8, 7));
         browserSplit.Panel1.BackColor = StorageHubTheme.Surface;
         browserSplit.Panel2.BackColor = StorageHubTheme.Surface;
         browserSplit.Panel1.Controls.Add(_directoryTree);
@@ -605,8 +605,8 @@ public sealed class BrowserPaneControl : UserControl
         _summary = new Label
         {
             Dock = DockStyle.Bottom,
-            Height = 28,
-            Padding = new Padding(9, 6, 9, 3),
+            Height = this.TextBoxHeight(6),
+            Padding = this.LogicalToDeviceUnits(new Padding(9, 6, 9, 3)),
             Text = Ui.Pane.ItemCountEmpty,
             ForeColor = StorageHubTheme.TextMuted,
             BackColor = StorageHubTheme.Surface,
@@ -617,8 +617,8 @@ public sealed class BrowserPaneControl : UserControl
         {
             Dock = DockStyle.Top,
             AutoSize = false,
-            Height = 34,
-            Padding = new Padding(10, 8, 10, 6),
+            Height = this.TextBoxHeight(11),
+            Padding = this.LogicalToDeviceUnits(new Padding(10, 8, 10, 6)),
             Visible = false,
             BackColor = StorageHubTheme.SurfaceMuted,
             ForeColor = StorageHubTheme.Warning,
@@ -3046,7 +3046,7 @@ public sealed class BrowserPaneControl : UserControl
             }
         }
 
-        var desiredWidth = Math.Max(160, _navigation.ClientSize.Width - occupiedWidth);
+        var desiredWidth = Math.Max(LogicalToDeviceUnits(160), _navigation.ClientSize.Width - occupiedWidth);
         if (_addressBox.Width != desiredWidth)
         {
             _addressBox.Width = desiredWidth;
@@ -3253,7 +3253,7 @@ public sealed class BrowserPaneControl : UserControl
         return images;
     }
 
-    private static TableLayoutPanel CreateLoadingOverlay()
+    private TableLayoutPanel CreateLoadingOverlay()
     {
         var overlay = new TableLayoutPanel
         {
@@ -3282,13 +3282,13 @@ public sealed class BrowserPaneControl : UserControl
             Text = Ui.Pane.FetchingFolder,
             Font = StorageHubTheme.CreateSectionFont(),
             ForeColor = StorageHubTheme.Text,
-            Margin = new Padding(0, 0, 0, 10)
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 0, 0, 10))
         });
         content.Controls.Add(new ProgressBar
         {
             Style = ProgressBarStyle.Marquee,
             MarqueeAnimationSpeed = 28,
-            Size = new Size(220, 8),
+            Size = LogicalToDeviceUnits(new Size(220, 8)),
             AccessibleName = Ui.Pane.FetchingFolderContents
         });
         overlay.Controls.Add(content, 0, 1);
@@ -3328,7 +3328,7 @@ public sealed class BrowserPaneControl : UserControl
         node.SelectedImageKey = key;
     }
 
-    private static Label CreatePaneBadge(string text, Color color)
+    private Label CreatePaneBadge(string text, Color color)
     {
         var badge = new Label
         {
@@ -3336,8 +3336,8 @@ public sealed class BrowserPaneControl : UserControl
             AutoSize = true,
             ForeColor = color,
             BackColor = Color.Transparent,
-            Padding = new Padding(9, 3, 9, 4),
-            Margin = new Padding(3, 3, 3, 3),
+            Padding = this.LogicalToDeviceUnits(new Padding(9, 3, 9, 4)),
+            Margin = this.LogicalToDeviceUnits(new Padding(3, 3, 3, 3)),
             Font = new Font("Segoe UI Semibold", 7.5F, FontStyle.Bold, GraphicsUnit.Point)
         };
 
@@ -3382,7 +3382,7 @@ public sealed class BrowserPaneControl : UserControl
     {
         if (e.Index < 0 || e.Index >= _connectionSelector.Items.Count)
         {
-            e.ItemHeight = 32;
+            e.ItemHeight = this.TextBoxHeight(10);
             return;
         }
 
@@ -3416,21 +3416,23 @@ public sealed class BrowserPaneControl : UserControl
                     ? "SYSTEM · LOCAL"
                     : $"STORAGE · {card.Provider.ToString().ToUpperInvariant()}";
             var nameAndBadge = TextRenderer.MeasureText(card.Name, _connectionSelector.Font).Width +
-                TextRenderer.MeasureText(badge, badgeFont).Width + 92;
-            var detailWidth = TextRenderer.MeasureText(card.Endpoint, _connectionSelector.Font).Width + 76;
+                TextRenderer.MeasureText(badge, badgeFont).Width + LogicalToDeviceUnits(92);
+            var detailWidth = TextRenderer.MeasureText(card.Endpoint, _connectionSelector.Font).Width + LogicalToDeviceUnits(76);
             var groupWidth = TextRenderer.MeasureText(
                 GetConnectionGroupLabel(card).ToUpperInvariant(),
-                groupFont).Width + 44;
+                groupFont).Width + LogicalToDeviceUnits(44);
             desiredWidth = Math.Max(desiredWidth, Math.Max(nameAndBadge, Math.Max(detailWidth, groupWidth)));
         }
 
         var workingArea = Screen.FromControl(_connectionSelector).WorkingArea;
         _connectionSelector.DropDownWidth = Math.Min(
             Math.Max(_connectionSelector.Width, desiredWidth),
-            Math.Max(_connectionSelector.Width, workingArea.Width - 48));
+            Math.Max(_connectionSelector.Width, workingArea.Width - LogicalToDeviceUnits(48)));
         _connectionSelector.DropDownHeight = Math.Min(
             desiredHeight,
-            Math.Max(180, Math.Min(560, workingArea.Height - 96)));
+            Math.Max(
+                LogicalToDeviceUnits(180),
+                Math.Min(LogicalToDeviceUnits(560), workingArea.Height - LogicalToDeviceUnits(96))));
     }
 
     private void DrawConnectionItem(object? sender, DrawItemEventArgs e)
@@ -3451,7 +3453,7 @@ public sealed class BrowserPaneControl : UserControl
 
         e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
         var firstInGroup = IsFirstConnectionInGroup(e.Index);
-        var groupTop = firstInGroup ? 22 : 0;
+        var groupTop = firstInGroup ? LogicalToDeviceUnits(22) : 0;
         if (firstInGroup)
         {
             using var groupFont = new Font("Segoe UI Semibold", 7.5F, FontStyle.Bold, GraphicsUnit.Point);
@@ -3459,16 +3461,20 @@ public sealed class BrowserPaneControl : UserControl
                 e.Graphics,
                 GetConnectionGroupLabel(card).ToUpperInvariant(),
                 groupFont,
-                new Rectangle(e.Bounds.Left + 12, e.Bounds.Top + 2, e.Bounds.Width - 24, 18),
+                new Rectangle(
+                    e.Bounds.Left + LogicalToDeviceUnits(12),
+                    e.Bounds.Top + LogicalToDeviceUnits(2),
+                    e.Bounds.Width - LogicalToDeviceUnits(24),
+                    LogicalToDeviceUnits(18)),
                 StorageHubTheme.TextMuted,
                 TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
         }
 
         var cardBounds = new Rectangle(
-            e.Bounds.Left + 8,
-            e.Bounds.Top + groupTop + 2,
-            Math.Max(1, e.Bounds.Width - 16),
-            Math.Max(1, e.Bounds.Height - groupTop - 5));
+            e.Bounds.Left + LogicalToDeviceUnits(8),
+            e.Bounds.Top + groupTop + LogicalToDeviceUnits(2),
+            Math.Max(1, e.Bounds.Width - LogicalToDeviceUnits(16)),
+            Math.Max(1, e.Bounds.Height - groupTop - LogicalToDeviceUnits(5)));
         var selected = (e.State & DrawItemState.Selected) != 0;
         using var cardFill = new SolidBrush(selected
             ? StorageHubTheme.CurrentPalette.Selection
@@ -3477,13 +3483,19 @@ public sealed class BrowserPaneControl : UserControl
             ? StorageHubTheme.ParseAccent(card.AccentHex)
             : StorageHubTheme.Border,
             selected ? 1.8F : 1F);
-        using var cardPath = CreateRoundedRectangle(cardBounds, 10);
+        using var cardPath = CreateRoundedRectangle(cardBounds, LogicalToDeviceUnits(10));
         e.Graphics.FillPath(cardFill, cardPath);
         e.Graphics.DrawPath(border, cardPath);
 
         var accent = StorageHubTheme.ParseAccent(card.AccentHex);
         using var accentBrush = new SolidBrush(accent);
-        e.Graphics.FillEllipse(accentBrush, cardBounds.Left + 12, cardBounds.Top + 11, 9, 9);
+        var dot = LogicalToDeviceUnits(9);
+        e.Graphics.FillEllipse(
+            accentBrush,
+            cardBounds.Left + LogicalToDeviceUnits(12),
+            cardBounds.Top + LogicalToDeviceUnits(11),
+            dot,
+            dot);
 
         var badgeText = card.Type == ConnectionProfileType.Client
             ? $"CLIENT · {card.Provider.ToString().ToUpperInvariant()}"
@@ -3493,12 +3505,13 @@ public sealed class BrowserPaneControl : UserControl
         using var badgeFont = new Font("Segoe UI Semibold", 7.5F, FontStyle.Bold, GraphicsUnit.Point);
         var badgeSize = TextRenderer.MeasureText(badgeText, badgeFont, Size.Empty, TextFormatFlags.NoPadding);
         var badgeBounds = new Rectangle(
-            cardBounds.Right - badgeSize.Width - 19,
-            cardBounds.Top + Math.Max(6, (cardBounds.Height - 22) / 2),
-            badgeSize.Width + 12,
-            20);
+            cardBounds.Right - badgeSize.Width - LogicalToDeviceUnits(19),
+            cardBounds.Top + Math.Max(
+                LogicalToDeviceUnits(6), (cardBounds.Height - LogicalToDeviceUnits(22)) / 2),
+            badgeSize.Width + LogicalToDeviceUnits(12),
+            LogicalToDeviceUnits(20));
         using var badgeFill = new SolidBrush(Color.FromArgb(selected ? 48 : 28, accent));
-        using var badgePath = CreateRoundedRectangle(badgeBounds, 9);
+        using var badgePath = CreateRoundedRectangle(badgeBounds, LogicalToDeviceUnits(9));
         e.Graphics.FillPath(badgeFill, badgePath);
         TextRenderer.DrawText(
             e.Graphics,
@@ -3508,12 +3521,17 @@ public sealed class BrowserPaneControl : UserControl
             selected ? StorageHubTheme.Text : accent,
             TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
 
-        var textRight = Math.Max(cardBounds.Left + 70, badgeBounds.Left - 10);
+        var textRight = Math.Max(
+            cardBounds.Left + LogicalToDeviceUnits(70), badgeBounds.Left - LogicalToDeviceUnits(10));
         TextRenderer.DrawText(
             e.Graphics,
             card.Name,
             e.Font ?? Font,
-            Rectangle.FromLTRB(cardBounds.Left + 29, cardBounds.Top + 5, textRight, cardBounds.Top + 24),
+            Rectangle.FromLTRB(
+                cardBounds.Left + LogicalToDeviceUnits(29),
+                cardBounds.Top + LogicalToDeviceUnits(5),
+                textRight,
+                cardBounds.Top + LogicalToDeviceUnits(24)),
             StorageHubTheme.Text,
             TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
         using var detailFont = new Font(e.Font ?? Font, FontStyle.Regular);
@@ -3521,12 +3539,16 @@ public sealed class BrowserPaneControl : UserControl
             e.Graphics,
             card.Endpoint,
             detailFont,
-            Rectangle.FromLTRB(cardBounds.Left + 29, cardBounds.Top + 23, textRight, cardBounds.Bottom - 3),
+            Rectangle.FromLTRB(
+                cardBounds.Left + LogicalToDeviceUnits(29),
+                cardBounds.Top + LogicalToDeviceUnits(23),
+                textRight,
+                cardBounds.Bottom - LogicalToDeviceUnits(3)),
             StorageHubTheme.TextMuted,
             TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
     }
 
-    private static void DrawCompactConnectionItem(
+    private void DrawCompactConnectionItem(
         Graphics graphics,
         Rectangle bounds,
         ConnectionCardModel card,
@@ -3534,12 +3556,22 @@ public sealed class BrowserPaneControl : UserControl
     {
         var accent = StorageHubTheme.ParseAccent(card.AccentHex);
         using var accentBrush = new SolidBrush(accent);
-        graphics.FillEllipse(accentBrush, bounds.Left + 7, bounds.Top + Math.Max(2, (bounds.Height - 9) / 2), 9, 9);
+        var dotSize = LogicalToDeviceUnits(9);
+        graphics.FillEllipse(
+            accentBrush,
+            bounds.Left + LogicalToDeviceUnits(7),
+            bounds.Top + Math.Max(LogicalToDeviceUnits(2), (bounds.Height - dotSize) / 2),
+            dotSize,
+            dotSize);
         var type = card.Type == ConnectionProfileType.Client
             ? "CLIENT"
             : card.Provider == StorageProviderKind.Local ? "LOCAL" : "STORAGE";
-        var typeWidth = TextRenderer.MeasureText(type, font).Width + 10;
-        var typeBounds = new Rectangle(bounds.Right - typeWidth - 5, bounds.Top + 3, typeWidth, Math.Max(18, bounds.Height - 6));
+        var typeWidth = TextRenderer.MeasureText(type, font).Width + LogicalToDeviceUnits(10);
+        var typeBounds = new Rectangle(
+            bounds.Right - typeWidth - LogicalToDeviceUnits(5),
+            bounds.Top + LogicalToDeviceUnits(3),
+            typeWidth,
+            Math.Max(LogicalToDeviceUnits(18), bounds.Height - LogicalToDeviceUnits(6)));
         TextRenderer.DrawText(
             graphics,
             type,
@@ -3551,7 +3583,11 @@ public sealed class BrowserPaneControl : UserControl
             graphics,
             card.Name,
             font,
-            Rectangle.FromLTRB(bounds.Left + 23, bounds.Top, typeBounds.Left - 5, bounds.Bottom),
+            Rectangle.FromLTRB(
+                bounds.Left + LogicalToDeviceUnits(23),
+                bounds.Top,
+                typeBounds.Left - LogicalToDeviceUnits(5),
+                bounds.Bottom),
             StorageHubTheme.Text,
             TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
     }
@@ -3568,7 +3604,7 @@ public sealed class BrowserPaneControl : UserControl
             e.Graphics.FillRectangle(background, bounds);
         }
 
-        var chevronWidth = 22;
+        var chevronWidth = LogicalToDeviceUnits(22);
         if (_connectionSelector.SelectedItem is ConnectionCardModel card)
         {
             DrawCompactConnectionItem(
@@ -3580,13 +3616,15 @@ public sealed class BrowserPaneControl : UserControl
 
         e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
         using var chevron = new Pen(StorageHubTheme.TextMuted, 1.6F);
-        var centerX = bounds.Right - (chevronWidth / 2) - 4;
-        var centerY = bounds.Top + (bounds.Height / 2) - 1;
+        var centerX = bounds.Right - (chevronWidth / 2) - LogicalToDeviceUnits(4);
+        var centerY = bounds.Top + (bounds.Height / 2) - LogicalToDeviceUnits(1);
+        var reach = LogicalToDeviceUnits(4);
+        var drop = LogicalToDeviceUnits(2);
         e.Graphics.DrawLines(chevron,
         [
-            new Point(centerX - 4, centerY - 2),
-            new Point(centerX, centerY + 2),
-            new Point(centerX + 4, centerY - 2)
+            new Point(centerX - reach, centerY - drop),
+            new Point(centerX, centerY + drop),
+            new Point(centerX + reach, centerY - drop)
         ]);
     }
 

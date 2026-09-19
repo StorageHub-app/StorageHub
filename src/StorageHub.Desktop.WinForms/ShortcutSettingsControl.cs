@@ -12,8 +12,8 @@ internal sealed class ShortcutSettingsControl : UserControl
     internal ShortcutSettingsControl(IReadOnlyDictionary<string, Keys>? shortcuts)
     {
         _shortcuts = ShortcutSettings.Resolve(shortcuts);
-        Height = 460;
-        Width = 700;
+        Height = LogicalToDeviceUnits(460);
+        Width = LogicalToDeviceUnits(700);
         Margin = Padding.Empty;
         AccessibleName = Ui.Settings.ShortcutsAccessibleName;
         _commands = new DataGridView
@@ -42,7 +42,7 @@ internal sealed class ShortcutSettingsControl : UserControl
         assign.Click += (_, _) => SetSelected(_capture.CapturedKeys);
         clear.Click += (_, _) => SetSelected(Keys.None);
         reset.Click += (_, _) => { _shortcuts = ShortcutSettings.Resolve(null); RefreshRows(); Changed?.Invoke(this, EventArgs.Empty); };
-        var actions = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, WrapContents = true, Padding = new Padding(0, 8, 0, 0) };
+        var actions = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, WrapContents = true, Padding = this.LogicalToDeviceUnits(new Padding(0, 8, 0, 0)) };
         actions.Controls.AddRange([_capture, assign, clear, reset]);
         _message = new Label { Dock = DockStyle.Bottom, Height = 48, AutoEllipsis = true, AccessibleName = Ui.Settings.ShortcutStatusAccessibleName };
         _commands.SelectionChanged += (_, _) => { _capture.Reset(); _message.Text = Ui.Settings.ShortcutSelectCommandHint; };

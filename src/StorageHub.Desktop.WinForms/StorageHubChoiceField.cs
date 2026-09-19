@@ -203,7 +203,8 @@ public sealed class StorageHubChoiceField : Control
     {
         base.OnLayout(levent);
         var padding = StorageHubFieldChrome.TextInset(this, _dense);
-        var editorHeight = Math.Min(Font.Height + 2, Math.Max(1, Height - 2));
+        var inset = LogicalToDeviceUnits(2);
+        var editorHeight = Math.Min(Font.Height + inset, Math.Max(1, Height - inset));
         _editor.SetBounds(
             padding,
             (Height - editorHeight) / 2,
@@ -417,7 +418,7 @@ public sealed class StorageHubChoiceField : Control
         _list.Size = size;
         _popup!.Items[0].Size = size;
         _popup.Size = size;
-        _popup.Show(this, new Point(0, Height + 2));
+        _popup.Show(this, new Point(0, Height + LogicalToDeviceUnits(2)));
         _list.Focus();
     }
 

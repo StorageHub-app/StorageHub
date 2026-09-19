@@ -89,6 +89,23 @@ public sealed record PackagedDesktopLifecycleOptions
 
     public TimeSpan StartupTimeout { get; init; } = TimeSpan.FromSeconds(8);
 
+    /// <summary>
+    /// How long to wait for a service-hosted agent to publish its pipe.
+    /// </summary>
+    /// <remarks>
+    /// Longer than <see cref="StartupTimeout"/> on purpose. That one covers an agent this process
+    /// launched, at a moment of its own choosing, on a machine already running. This one covers a
+    /// service Windows is starting concurrently with the sign-in that starts the desktop -- a cold
+    /// boot contending for the same disk, with no way for the desktop to hurry it along. Spending
+    /// the difference is free when the agent is already up, because the wait returns as soon as the
+    /// pipe answers.
+    ///
+    /// Twelve seconds is the ceiling the lifecycle client itself enforces on any wait, so that is
+    /// the most this can ask for. A boot slower than that still recovers: the window opens and the
+    /// shell's own reconnect reports the agent arriving, rather than refusing to start at all.
+    /// </remarks>
+    public TimeSpan ServiceReadyTimeout { get; init; } = TimeSpan.FromSeconds(12);
+
     public TimeSpan ShutdownTimeout { get; init; } = TimeSpan.FromSeconds(8);
 
     /// <summary>
@@ -114,6 +131,7 @@ public sealed record PackagedDesktopLifecycleOptions
         ValidateSinglePathSegment(AgentExecutableName, nameof(AgentExecutableName));
         ValidateArgument(AgentArgument, nameof(AgentArgument));
         ValidateTimeout(StartupTimeout, nameof(StartupTimeout));
+        ValidateTimeout(ServiceReadyTimeout, nameof(ServiceReadyTimeout));
         ValidateTimeout(ShutdownTimeout, nameof(ShutdownTimeout));
     }
 
@@ -156,6 +174,7 @@ public sealed record PackagedDesktopLifecycleOptions
                 "Package lifecycle waits must be between zero and twelve seconds.");
         }
     }
+
 }
 
 /// <summary>
@@ -326,10 +345,20 @@ public sealed class PackagedDesktopLifecycle : IDisposable
             // Under a service the agent's lifetime belongs to Windows, not to this process. Left
             // out, the desktop would start a second agent in the session beside the service --
             // two processes on one database, and a desktop talking to whichever it found first.
+            //
+            // Not starting it is not the same as not waiting for it. This asked once and gave up,
+            // which lost a race it runs at every sign-in: Windows brings the auto-start service up
+            // alongside the session, the service answers the control manager immediately and then
+            // spends seconds opening its database and subsystems before the pipe exists, and the
+            // desktop had already decided the agent was never coming. Waiting is what the session
+            // branch below does for an agent it launched itself, and a service the desktop does not
+            // control deserves it at least as much.
             if (!_options.DesktopOwnsAgent())
             {
                 return new AgentEnsureResult(
-                    await _agentClient.IsAvailableAsync(cancellationToken).ConfigureAwait(false)
+                    await _agentClient
+                        .WaitUntilAvailableAsync(_options.ServiceReadyTimeout, cancellationToken)
+                        .ConfigureAwait(false)
                         ? AgentEnsureStatus.AlreadyRunning
                         : AgentEnsureStatus.StartupTimedOut);
             }

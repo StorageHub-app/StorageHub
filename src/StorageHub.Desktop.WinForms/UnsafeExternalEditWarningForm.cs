@@ -19,7 +19,7 @@ internal sealed class UnsafeExternalEditWarningForm : Form
         MinimizeBox = false;
         ShowInTaskbar = false;
         AutoScaleMode = AutoScaleMode.Dpi;
-        ClientSize = new Size(560, 260);
+        ClientSize = this.LogicalWindowSize(new Size(560, 260));
         BackColor = StorageHubTheme.Canvas;
         Font = new Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point);
         StorageHubTheme.Register(this);
@@ -29,14 +29,14 @@ internal sealed class UnsafeExternalEditWarningForm : Form
         {
             Image = _warningImage,
             SizeMode = PictureBoxSizeMode.CenterImage,
-            Size = new Size(54, 54),
-            Margin = new Padding(0, 2, 14, 0),
+            Size = LogicalToDeviceUnits(new Size(54, 54)),
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 2, 14, 0)),
             AccessibleName = Ui.Dialogs.WarningAccessibleName
         };
         var message = new Label
         {
             AutoSize = true,
-            MaximumSize = new Size(440, 0),
+            MaximumSize = new Size(LogicalToDeviceUnits(440), 0),
             Text = Ui.Format(Ui.Dialogs.UnsafeExternalEditBodyFormat, fileName),
             ForeColor = StorageHubTheme.Text
         };
@@ -52,7 +52,7 @@ internal sealed class UnsafeExternalEditWarningForm : Form
             Dock = DockStyle.Fill,
             ColumnCount = 2,
             RowCount = 2,
-            Padding = new Padding(20, 20, 20, 8),
+            Padding = this.LogicalToDeviceUnits(new Padding(20, 20, 20, 8)),
             BackColor = StorageHubTheme.Surface
         };
         content.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
@@ -64,10 +64,10 @@ internal sealed class UnsafeExternalEditWarningForm : Form
         var footer = new FlowLayoutPanel
         {
             Dock = DockStyle.Bottom,
-            Height = 62,
+            Height = this.TextBoxHeight(34),
             FlowDirection = FlowDirection.RightToLeft,
             WrapContents = false,
-            Padding = new Padding(12, 12, 12, 8),
+            Padding = this.LogicalToDeviceUnits(new Padding(12, 12, 12, 8)),
             BackColor = StorageHubTheme.SurfaceMuted
         };
         var cancel = new StorageHubButton { Text = Ui.Dialogs.ButtonCancel, DialogResult = DialogResult.Cancel };

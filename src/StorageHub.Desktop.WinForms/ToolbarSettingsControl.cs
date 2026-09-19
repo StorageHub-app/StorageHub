@@ -28,8 +28,8 @@ internal sealed class ToolbarSettingsControl : UserControl
         // Tall enough for a usable list, short enough that the whole editor -- including the
         // reset buttons under it -- fits the settings page without scrolling at the default size.
         // The card's own padding is part of it, which is why this is not simply the grid's height.
-        Height = 500;
-        Width = 700;
+        Height = LogicalToDeviceUnits(500);
+        Width = LogicalToDeviceUnits(700);
         Margin = Padding.Empty;
         AccessibleName = Ui.Settings.ToolbarAccessibleName;
 
@@ -41,7 +41,7 @@ internal sealed class ToolbarSettingsControl : UserControl
         _current.DoubleClick += (_, _) => RemoveSelected();
 
         _labels.Name = "ToolbarLabelStyle";
-        _labels.Width = 220;
+        _labels.Width = LogicalToDeviceUnits(220);
         _labels.AccessibleName = Ui.Settings.ToolbarLabelsAccessibleName;
         _labels.Items.Add(Ui.Settings.ToolbarLabelsIconsOnly);
         _labels.Items.Add(Ui.Settings.ToolbarLabelsIconsAndText);
@@ -71,14 +71,14 @@ internal sealed class ToolbarSettingsControl : UserControl
             RowCount = 3,
             // The card behind it is painted by this control, so the grid itself carries no colour.
             BackColor = Color.Transparent,
-            Padding = new Padding(16, 14, 16, 14)
+            Padding = this.LogicalToDeviceUnits(new Padding(16, 14, 16, 14))
         };
         grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170));
+        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, LogicalToDeviceUnits(170)));
         grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 26));
+        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, this.TextBoxHeight(5)));
         grid.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, 96));
+        grid.RowStyles.Add(new RowStyle(SizeType.Absolute, LogicalToDeviceUnits(96)));
 
         grid.Controls.Add(Caption(Ui.Settings.ToolbarAvailable), 0, 0);
         grid.Controls.Add(Caption(Ui.Settings.ToolbarCurrent), 2, 0);
@@ -90,7 +90,7 @@ internal sealed class ToolbarSettingsControl : UserControl
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.TopDown,
             WrapContents = false,
-            Padding = new Padding(8, 24, 8, 0)
+            Padding = this.LogicalToDeviceUnits(new Padding(8, 24, 8, 0))
         };
         middle.Controls.Add(Action("ToolbarAdd", Ui.Settings.ToolbarAdd, AddSelected));
         middle.Controls.Add(Action("ToolbarRemove", Ui.Settings.ToolbarRemove, RemoveSelected));
@@ -107,7 +107,7 @@ internal sealed class ToolbarSettingsControl : UserControl
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.TopDown,
             WrapContents = false,
-            Padding = new Padding(0, 10, 0, 0)
+            Padding = this.LogicalToDeviceUnits(new Padding(0, 10, 0, 0))
         };
         var labelRow = new FlowLayoutPanel
         {
@@ -121,7 +121,7 @@ internal sealed class ToolbarSettingsControl : UserControl
         {
             AutoSize = true,
             Text = Ui.Settings.ToolbarLabels,
-            Padding = new Padding(0, 6, 8, 0)
+            Padding = this.LogicalToDeviceUnits(new Padding(0, 6, 8, 0))
         });
         labelRow.Controls.Add(_labels);
         footer.Controls.Add(labelRow);
@@ -132,7 +132,7 @@ internal sealed class ToolbarSettingsControl : UserControl
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents = false,
-            Margin = new Padding(0, 8, 0, 0)
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 8, 0, 0))
         };
         resetRow.Controls.Add(Action(
             "ToolbarResetEssential", Ui.Settings.ToolbarResetEssential, () => Reset(ToolbarPreset.Essential)));
@@ -217,7 +217,7 @@ internal sealed class ToolbarSettingsControl : UserControl
     /// A button that sizes itself to its own text. A fixed width clipped the Danish and German
     /// labels, which run half again as long as the English ones.
     /// </summary>
-    private static StorageHubButton Action(string name, string text, Action handler)
+    private StorageHubButton Action(string name, string text, Action handler)
     {
         var button = new StorageHubButton
         {
@@ -225,8 +225,8 @@ internal sealed class ToolbarSettingsControl : UserControl
             Text = text,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            MinimumSize = new Size(112, 0),
-            Margin = new Padding(0, 0, 8, 6)
+            MinimumSize = new Size(LogicalToDeviceUnits(112), 0),
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 0, 8, 6))
         };
         button.AccessibleName = text;
         button.Click += (_, _) => handler();

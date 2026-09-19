@@ -59,7 +59,7 @@ public sealed class SettingsImportForm : Form
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MinimizeBox = false;
         MaximizeBox = false;
-        ClientSize = new Size(660, 560);
+        ClientSize = this.LogicalWindowSize(new Size(660, 560));
         AutoScaleMode = AutoScaleMode.Dpi;
         BackColor = StorageHubTheme.Canvas;
         ForeColor = StorageHubTheme.Text;
@@ -69,26 +69,26 @@ public sealed class SettingsImportForm : Form
         _fileSummary = new Label
         {
             AutoSize = true,
-            MaximumSize = new Size(580, 0),
+            MaximumSize = new Size(LogicalToDeviceUnits(580), 0),
             ForeColor = StorageHubTheme.Text,
-            Margin = new Padding(0, 0, 0, 14),
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 0, 0, 14)),
             AccessibleName = Ui.SettingsTransfer.SelectedFile
         };
         _passwordPrompt = new Label
         {
             AutoSize = true,
-            MaximumSize = new Size(580, 0),
+            MaximumSize = new Size(LogicalToDeviceUnits(580), 0),
             Visible = false,
             ForeColor = StorageHubTheme.TextMuted,
-            Margin = new Padding(0, 0, 0, 4)
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 0, 0, 4))
         };
         _password = new StorageHubTextField
         {
-            Width = 280,
+            Width = LogicalToDeviceUnits(280),
             Visible = false,
             UseSystemPasswordChar = true,
             MaxLength = Security.SettingsExportEnvelope.MaximumPasswordLength,
-            Margin = new Padding(0, 0, 0, 12),
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 0, 0, 12)),
             AccessibleName = Ui.SettingsTransfer.FilePassword
         };
         _open = new StorageHubButton { Text = Ui.Settings.ImportOpen, AutoSize = true, Visible = false };
@@ -121,7 +121,7 @@ public sealed class SettingsImportForm : Form
         _reviewHeading = new Label
         {
             Dock = DockStyle.Top,
-            Height = 44,
+            Height = this.TextBoxHeight(19),
             ForeColor = StorageHubTheme.Text,
             AccessibleName = Ui.SettingsTransfer.FileSummary
         };
@@ -135,14 +135,14 @@ public sealed class SettingsImportForm : Form
         _concurrencyNotice = new Label
         {
             Dock = DockStyle.Bottom,
-            Height = 40,
+            Height = this.TextBoxHeight(16),
             Visible = false,
             ForeColor = StorageHubTheme.Warning,
             AccessibleName = Ui.SettingsTransfer.AgentRestartNotice
         };
         _conflictPolicy = new StorageHubChoiceField
         {
-            Width = 320,
+            Width = LogicalToDeviceUnits(320),
             AccessibleName = Ui.SettingsTransfer.WhatToDoAboutConnectionsAndTasks
         };
         _conflictPolicy.Items.AddRange([.. Enum.GetValues<SettingsConflictPolicy>().Cast<object>()]);
@@ -168,7 +168,7 @@ public sealed class SettingsImportForm : Form
             Dock = DockStyle.Bottom,
             AutoSize = true,
             ColumnCount = 1,
-            Padding = new Padding(0, 6, 0, 6)
+            Padding = this.LogicalToDeviceUnits(new Padding(0, 6, 0, 6))
         };
         conflictRow.Controls.Add(_conflictLabel);
         conflictRow.Controls.Add(_conflictPolicy);
@@ -184,14 +184,14 @@ public sealed class SettingsImportForm : Form
         {
             Dock = DockStyle.Top,
             AutoSize = false,
-            Height = 300,
+            Height = LogicalToDeviceUnits(300),
             ForeColor = StorageHubTheme.Text,
             AccessibleName = Ui.SettingsTransfer.ImportResult
         };
         _backupLink = new LinkLabel
         {
             Dock = DockStyle.Top,
-            Height = 24,
+            Height = this.TextBoxHeight(3),
             Visible = false,
             AccessibleName = Ui.SettingsTransfer.ShowTheBackupFile
         };
@@ -201,10 +201,10 @@ public sealed class SettingsImportForm : Form
         _resultPanel.Controls.Add(_backupLink);
         _resultPanel.Controls.Add(_resultSummary);
 
-        _back = new StorageHubButton { Text = Ui.Settings.ImportBack, AutoSize = true, Visible = false, Margin = new Padding(8, 0, 0, 0) };
+        _back = new StorageHubButton { Text = Ui.Settings.ImportBack, AutoSize = true, Visible = false, Margin = this.LogicalToDeviceUnits(new Padding(8, 0, 0, 0)) };
         _back.Click += (_, _) => ShowStep(_filePanel);
         _back.Variant = StorageHubButtonVariant.Secondary;
-        _import = new StorageHubButton { Text = Ui.SettingsTransfer.Import, AutoSize = true, Visible = false, Margin = new Padding(8, 0, 0, 0) };
+        _import = new StorageHubButton { Text = Ui.SettingsTransfer.Import, AutoSize = true, Visible = false, Margin = this.LogicalToDeviceUnits(new Padding(8, 0, 0, 0)) };
         _import.Click += async (_, _) => await ApplyImportAsync().ConfigureAwait(true);
         _import.Variant = StorageHubButtonVariant.Primary;
         _close = new StorageHubButton
@@ -212,7 +212,7 @@ public sealed class SettingsImportForm : Form
             Text = Ui.SettingsTransfer.Cancel,
             AutoSize = true,
             DialogResult = DialogResult.Cancel,
-            Margin = new Padding(8, 0, 0, 0)
+            Margin = this.LogicalToDeviceUnits(new Padding(8, 0, 0, 0))
         };
         _close.Variant = StorageHubButtonVariant.Secondary;
 
@@ -220,8 +220,8 @@ public sealed class SettingsImportForm : Form
         {
             Dock = DockStyle.Bottom,
             FlowDirection = FlowDirection.RightToLeft,
-            Height = 56,
-            Padding = new Padding(16, 12, 16, 10)
+            Height = this.TextBoxHeight(29),
+            Padding = this.LogicalToDeviceUnits(new Padding(16, 12, 16, 10))
         };
         buttons.Controls.Add(_import);
         buttons.Controls.Add(_close);
@@ -341,7 +341,7 @@ public sealed class SettingsImportForm : Form
                 // Ticked only where the file has something and the section is on by default, so
                 // "this computer only" still has to be asked for even when the file carries it.
                 Checked = inFile && section.CheckedByDefault,
-                Margin = new Padding(0, 6, 0, 0),
+                Margin = this.LogicalToDeviceUnits(new Padding(0, 6, 0, 0)),
                 AccessibleName = section.Label
             };
             _sections[section.Id] = check;
@@ -350,9 +350,9 @@ public sealed class SettingsImportForm : Form
             {
                 Text = inFile ? DescribeContents(document, section) : Ui.SettingsTransfer.NotInThisFile,
                 AutoSize = true,
-                MaximumSize = new Size(580, 0),
+                MaximumSize = new Size(LogicalToDeviceUnits(580), 0),
                 ForeColor = StorageHubTheme.TextMuted,
-                Margin = new Padding(20, 0, 0, 4)
+                Margin = this.LogicalToDeviceUnits(new Padding(20, 0, 0, 4))
             });
         }
 
@@ -523,10 +523,10 @@ public sealed class SettingsImportForm : Form
         _import.Visible = step == _reviewPanel;
     }
 
-    private static Panel NewPanel() => new()
+    private Panel NewPanel() => new()
     {
         Dock = DockStyle.Fill,
-        Padding = new Padding(18, 16, 18, 8),
+        Padding = this.LogicalToDeviceUnits(new Padding(18, 16, 18, 8)),
         BackColor = StorageHubTheme.Canvas
     };
 }

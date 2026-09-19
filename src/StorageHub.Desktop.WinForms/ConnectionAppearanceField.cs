@@ -30,13 +30,13 @@ internal sealed class ConnectionAppearanceField : Panel
 
         _iconButton = new StorageHubButton
         {
-            Width = 92,
-            Height = 34,
+            Width = LogicalToDeviceUnits(92),
+            Height = this.TextBoxHeight(11),
             Text = Ui.Connections.ChooseIcon,
             TextAlign = ContentAlignment.MiddleRight,
             ImageAlign = ContentAlignment.MiddleLeft,
             TextImageRelation = TextImageRelation.ImageBeforeText,
-            Margin = new Padding(0, 0, 10, 0)
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 0, 10, 0))
         };
         _iconButton.Click += (_, _) => ChooseIcon();
 
@@ -44,7 +44,7 @@ internal sealed class ConnectionAppearanceField : Panel
         _swatches.WrapContents = true;
         _swatches.AutoSize = true;
         _swatches.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-        _swatches.MaximumSize = new Size(300, 0);
+        _swatches.MaximumSize = new Size(LogicalToDeviceUnits(300), 0);
         _swatches.Margin = Padding.Empty;
         foreach (var swatch in Swatches)
         {
@@ -131,9 +131,9 @@ internal sealed class ConnectionAppearanceField : Panel
     {
         var swatch = new Panel
         {
-            Width = 22,
-            Height = 22,
-            Margin = new Padding(0, 0, 6, 6),
+            Width = LogicalToDeviceUnits(22),
+            Height = LogicalToDeviceUnits(22),
+            Margin = this.LogicalToDeviceUnits(new Padding(0, 0, 6, 6)),
             Cursor = Cursors.Hand,
             BackColor = Color.Transparent,
             AccessibleRole = AccessibleRole.RadioButton,

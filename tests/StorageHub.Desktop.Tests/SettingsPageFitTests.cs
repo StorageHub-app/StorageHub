@@ -40,7 +40,7 @@ public sealed class SettingsPageFitTests
                 page.Visible = true;
                 page.Dock = DockStyle.None;
                 page.Width = 420;
-                InvokeFit(page);
+                InvokeFit(settings, page);
 
                 // A maximum is only a cap and cannot widen anything, so the two things that can
                 // actually force the page sideways are a minimum wider than it and a child that is
@@ -74,7 +74,7 @@ public sealed class SettingsPageFitTests
             page.Dock = DockStyle.None;
 
             page.Width = 420;
-            InvokeFit(page);
+            InvokeFit(settings, page);
             var wrapped = page.Controls.OfType<Label>().Where(static label => label.MaximumSize.Width > 0).ToArray();
             Assert.NotEmpty(wrapped);
             Assert.All(wrapped, label => Assert.True(
@@ -82,7 +82,7 @@ public sealed class SettingsPageFitTests
                 $"'{label.Name}' was left wrapping at {label.MaximumSize.Width} in a 420px page."));
 
             page.Width = 900;
-            InvokeFit(page);
+            InvokeFit(settings, page);
 
             // Shrinking then growing must not leave the text clamped to the narrow width: the fit
             // has to be repeatable, not a one-shot that latches on the first size it sees.
@@ -92,16 +92,21 @@ public sealed class SettingsPageFitTests
         });
     }
 
-    private static void InvokeFit(FlowLayoutPanel page)
+    /// <summary>
+    /// The fit belongs to a window rather than to the type: it caps the content against a width
+    /// written in logical units, and a logical unit means nothing without a display to scale it
+    /// for. So it is invoked against the form under test.
+    /// </summary>
+    private static void InvokeFit(SettingsForm settings, FlowLayoutPanel page)
     {
         var method = typeof(SettingsForm).GetMethod(
             "FitSettingsPageContent",
-            BindingFlags.Static | BindingFlags.NonPublic,
+            BindingFlags.Instance | BindingFlags.NonPublic,
             binder: null,
             types: [typeof(FlowLayoutPanel)],
             modifiers: null);
         Assert.NotNull(method);
-        _ = method.Invoke(null, [page]);
+        _ = method.Invoke(settings, [page]);
         System.Windows.Forms.Application.DoEvents();
     }
 
