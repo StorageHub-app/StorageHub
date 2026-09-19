@@ -102,9 +102,12 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException or
             InvalidOperationException or TimeoutException or System.Text.Json.JsonException)
         {
+            // One sentence for six unrelated causes told nobody anything, and the exception was
+            // dropped rather than logged, so a report of it could not be followed up either. The
+            // shell already decides once what a failed agent call means; this asks it.
             return Failure(
                 "manual_transfer.manifest_unavailable",
-                Ui.Validation.StorageHubCouldNotBuildTheRecursiveTransfer,
+                DesktopAgentAvailability.ReportFailure(error),
                 isTransient: true);
         }
     }
@@ -336,13 +339,21 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
         string? continuation = null;
         for (var pageNumber = 0; pageNumber < MaximumManifestPages; pageNumber++)
         {
-            var response = await _storage.ListStorageAsync(new StorageListPageRequest(
-                StorageIpcContract.CurrentVersion,
-                connectionId,
-                relativePath,
-                PageSize: StorageIpcLimits.MaximumStableIdentityPageSize,
-                ContinuationToken: continuation,
-                Recursive: true), cancellationToken).ConfigureAwait(false);
+            StorageListPageResponse response;
+            try
+            {
+                response = await _storage.ListStorageAsync(new StorageListPageRequest(
+                    StorageIpcContract.CurrentVersion,
+                    connectionId,
+                    relativePath,
+                    PageSize: StorageIpcLimits.MaximumStableIdentityPageSize,
+                    ContinuationToken: continuation,
+                    Recursive: true), cancellationToken).ConfigureAwait(false);
+            }
+            catch (TimeoutException)
+            {
+                return new TreeListResult([], ListingTimedOut(relativePath, pageNumber + 1));
+            }
             if (response.Failure is not null)
             {
                 if (response.Failure.Category == StorageIpcFailureCategory.Unsupported &&
@@ -426,13 +437,21 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
                         Ui.Validation.TheRecursiveListingExceededItsBoundedPage));
                 }
 
-                var response = await _storage.ListStorageAsync(new StorageListPageRequest(
-                    StorageIpcContract.CurrentVersion,
-                    connectionId,
-                    directory,
-                    PageSize: StorageIpcLimits.MaximumStableIdentityPageSize,
-                    ContinuationToken: continuation,
-                    Recursive: false), cancellationToken).ConfigureAwait(false);
+                StorageListPageResponse response;
+                try
+                {
+                    response = await _storage.ListStorageAsync(new StorageListPageRequest(
+                        StorageIpcContract.CurrentVersion,
+                        connectionId,
+                        directory,
+                        PageSize: StorageIpcLimits.MaximumStableIdentityPageSize,
+                        ContinuationToken: continuation,
+                        Recursive: false), cancellationToken).ConfigureAwait(false);
+                }
+                catch (TimeoutException)
+                {
+                    return new TreeListResult([], ListingTimedOut(directory, pageCount));
+                }
                 if (response.Failure is not null)
                 {
                     if (allowNotFound && directory == relativePath &&
@@ -511,6 +530,17 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
         left.ConnectionId == right.ConnectionId &&
         string.Equals(left.RootIdentity, right.RootIdentity, StringComparison.Ordinal) &&
         string.Equals(left.RelativePath, right.RelativePath, StringComparison.Ordinal);
+
+    /// <summary>
+    /// A listing that ran out of time. Named separately from a broken pipe because the agent is
+    /// alive and working -- it is the tree that is bigger than the budget -- and the path is worth
+    /// saying, since it is the one fact that tells somebody which folder to narrow.
+    /// </summary>
+    private static StorageFailure ListingTimedOut(string relativePath, int page) => new(
+        "manual_transfer.listing_timed_out",
+        StorageFailureKind.Timeout,
+        Ui.Format(Ui.Validation.TheRecursiveListingTimedOutFormat, relativePath, page),
+        isTransient: true);
 
     private static ManualTransferEnqueueResult Failure(string code, string message, bool isTransient = false) =>
         new([], [], new StorageFailure(code, StorageFailureKind.Validation, message, isTransient));

@@ -1,4 +1,4 @@
-using CodeLogic.Core.Localization;
+﻿using CodeLogic.Core.Localization;
 
 namespace StorageHub.Desktop.Localization;
 
@@ -162,6 +162,11 @@ internal sealed class ValidationStrings : LocalizationModelBase
     public string StorageHubCouldNotAuthenticateToTheLocal { get; set; } = "StorageHub could not authenticate to the local background agent.";
 
     public string StorageHubCouldNotBuildTheRecursiveTransfer { get; set; } = "StorageHub could not build the recursive transfer manifest.";
+
+    public string TheListingTimeoutMustBeAtMost { get; set; } = "The listing timeout must be at most ten minutes.";
+
+    public string TheRecursiveListingTimedOutFormat { get; set; } =
+        "Listing \"{0}\" did not finish in time. The folder is still being read after page {1}; open a smaller folder, or move it in parts.";
 
     public string StorageHubCouldNotOpenThisLocation { get; set; } = "StorageHub could not open this location.";
 

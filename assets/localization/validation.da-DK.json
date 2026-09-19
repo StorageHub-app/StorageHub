@@ -69,6 +69,8 @@
   "skippedTheAgentWasUnavailable": "Sprunget over, agenten var ikke tilgængelig",
   "storageHubCouldNotAuthenticateToTheLocal": "StorageHub kunne ikke godkende sig over for den lokale baggrundsagent.",
   "storageHubCouldNotBuildTheRecursiveTransfer": "StorageHub kunne ikke bygge det rekursive overførselsmanifest.",
+  "theListingTimeoutMustBeAtMost": "Tidsgrænsen for visning må højst være ti minutter.",
+  "theRecursiveListingTimedOutFormat": "Visningen af \"{0}\" blev ikke færdig i tide. Mappen læses stadig efter side {1}; vælg en mindre mappe, eller flyt den i dele.",
   "storageHubCouldNotOpenThisLocation": "StorageHub kunne ikke åbne denne placering.",
   "storageHubCouldNotPrepareTheSelectedItems": "StorageHub kunne ikke klargøre de valgte elementer til Stifinder.",
   "storageHubCouldNotSaveThatPreferenceSo": "StorageHub kunne ikke gemme den indstilling, så denne advarsel vises igen næste gang.",

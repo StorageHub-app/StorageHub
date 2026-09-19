@@ -12,6 +12,14 @@ public sealed record RemoteStorageAgentClientOptions
     public TimeSpan ConnectTimeout { get; init; } = TimeSpan.FromSeconds(2);
 
     public TimeSpan RequestTimeout { get; init; } = TimeSpan.FromSeconds(15);
+
+    /// <summary>
+    /// What a listing gets instead. Every other call is O(1) work behind the pipe and 15 seconds is
+    /// generous for it, but a listing's cost scales with the tree it is asked about: a recursive
+    /// page over SFTP walks directories one round trip at a time, and the first page of a large
+    /// folder does not arrive inside a status call's budget.
+    /// </summary>
+    public TimeSpan ListingTimeout { get; init; } = TimeSpan.FromMinutes(2);
 }
 
 /// <summary>The read-only storage operations exposed by the local StorageHub agent.</summary>
@@ -55,6 +63,7 @@ public sealed class NamedPipeRemoteStorageAgentClient : IRemoteStorageAgentClien
 {
     private readonly IStorageIpcTransport _transport;
     private readonly TimeSpan _requestTimeout;
+    private readonly TimeSpan _listingTimeout;
     private readonly SemaphoreSlim _requestGate = new(1, 1);
     private long _sendSequence;
     private bool _disposed;
@@ -72,6 +81,7 @@ public sealed class NamedPipeRemoteStorageAgentClient : IRemoteStorageAgentClien
         var effectiveOptions = options ?? new RemoteStorageAgentClientOptions();
         ValidateOptions(effectiveOptions);
         _requestTimeout = effectiveOptions.RequestTimeout;
+        _listingTimeout = effectiveOptions.ListingTimeout;
     }
 
     public Task<ConnectionListResponse> ListConnectionsAsync(
@@ -125,7 +135,8 @@ public sealed class NamedPipeRemoteStorageAgentClient : IRemoteStorageAgentClien
             StorageIpcMessageTypes.StorageListResponse,
             request,
             response => ValidateStorageListResponse(request, response),
-            cancellationToken);
+            cancellationToken,
+            _listingTimeout);
     }
 
     public async ValueTask DisposeAsync()
@@ -152,13 +163,14 @@ public sealed class NamedPipeRemoteStorageAgentClient : IRemoteStorageAgentClien
         string responseMessageType,
         TRequest request,
         Action<TResponse> validateResponse,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        TimeSpan? timeout = null)
         where TRequest : class
         where TResponse : class
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        deadline.CancelAfter(_requestTimeout);
+        deadline.CancelAfter(timeout ?? _requestTimeout);
         try
         {
             await _requestGate.WaitAsync(deadline.Token).ConfigureAwait(false);
@@ -477,6 +489,11 @@ public sealed class NamedPipeRemoteStorageAgentClient : IRemoteStorageAgentClien
         if (options.RequestTimeout <= TimeSpan.Zero || options.RequestTimeout > TimeSpan.FromMinutes(1))
         {
             throw new ArgumentOutOfRangeException(nameof(options), Ui.Validation.TheRequestTimeoutMustBeAtMost);
+        }
+
+        if (options.ListingTimeout <= TimeSpan.Zero || options.ListingTimeout > TimeSpan.FromMinutes(10))
+        {
+            throw new ArgumentOutOfRangeException(nameof(options), Ui.Validation.TheListingTimeoutMustBeAtMost);
         }
     }
 

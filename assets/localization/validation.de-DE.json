@@ -69,6 +69,8 @@
   "skippedTheAgentWasUnavailable": "Übersprungen, der Agent war nicht verfügbar",
   "storageHubCouldNotAuthenticateToTheLocal": "StorageHub konnte sich beim lokalen Hintergrundagenten nicht authentifizieren.",
   "storageHubCouldNotBuildTheRecursiveTransfer": "StorageHub konnte das rekursive Übertragungsmanifest nicht erstellen.",
+  "theListingTimeoutMustBeAtMost": "Das Zeitlimit für Auflistungen darf höchstens zehn Minuten betragen.",
+  "theRecursiveListingTimedOutFormat": "Die Auflistung von \"{0}\" wurde nicht rechtzeitig abgeschlossen. Der Ordner wird nach Seite {1} noch gelesen; wählen Sie einen kleineren Ordner oder verschieben Sie ihn in Teilen.",
   "storageHubCouldNotOpenThisLocation": "StorageHub konnte diesen Ort nicht öffnen.",
   "storageHubCouldNotPrepareTheSelectedItems": "StorageHub konnte die ausgewählten Elemente nicht für den Explorer vorbereiten.",
   "storageHubCouldNotSaveThatPreferenceSo": "StorageHub konnte diese Einstellung nicht speichern, daher erscheint diese Warnung beim nächsten Mal erneut.",
