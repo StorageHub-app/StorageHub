@@ -234,6 +234,63 @@ public sealed class AgentInstallationCheckTests
     public void OnlyTheServiceRepairsNeedAnAdministrator(InstallationRepair repair, bool expected) =>
         Assert.Equal(expected, AgentInstallationRepair.RequiresElevation(repair));
 
+    /// <summary>
+    /// The machine-owned service root denies the signed-in user any read, which is the point of
+    /// it. Reporting that as missing told a machine with a healthy, running service that its
+    /// database had vanished, and offered to create a directory that was already there.
+    /// </summary>
+    [Fact]
+    public void ADirectoryThisAccountMayNotReadIsNotReportedAsMissing()
+    {
+        var probe = FakeProbe.HealthyService();
+        var directory = AgentHostLayout.ResolveAgentDirectory(AgentHostMode.WindowsService);
+        probe.Directories.Clear();
+        probe.Denied.Add(directory);
+
+        var report = AgentInstallationCheck.Inspect(
+            AgentHostMode.WindowsService,
+            "1.4.4",
+            AgentExecutable,
+            probe);
+
+        var finding = Single(report, "Data directory");
+        Assert.Equal(InstallationCheckStatus.Ok, finding.Status);
+        Assert.Equal(InstallationRepair.None, finding.Repair);
+    }
+
+    [Fact]
+    public void ADatabaseThisAccountMayNotReadIsNotReportedAsLost()
+    {
+        var probe = FakeProbe.HealthyService();
+        var path = AgentHostLayout.ResolveDatabasePath(AgentHostMode.WindowsService);
+        probe.Files.Remove(path);
+        probe.Denied.Add(path);
+
+        var report = AgentInstallationCheck.Inspect(
+            AgentHostMode.WindowsService,
+            "1.4.4",
+            AgentExecutable,
+            probe);
+
+        Assert.Equal(InstallationCheckStatus.Ok, Single(report, "Database").Status);
+    }
+
+    /// <summary>A database that cannot be read cannot be said to hold anything.</summary>
+    [Fact]
+    public void AnUnreadableDatabaseInTheOtherModeIsNotPointedAt()
+    {
+        var probe = FakeProbe.HealthyService();
+        probe.Denied.Add(AgentHostLayout.ResolveDatabasePath(AgentHostMode.UserSession));
+
+        var report = AgentInstallationCheck.Inspect(
+            AgentHostMode.WindowsService,
+            "1.4.4",
+            AgentExecutable,
+            probe);
+
+        Assert.DoesNotContain(report.Findings, f => f.Title == "Database from the other mode");
+    }
+
     private static InstallationFinding Single(InstallationReport report, string title) =>
         Assert.Single(report.Findings, finding => finding.Title == title);
 
@@ -255,9 +312,18 @@ public sealed class AgentInstallationCheckTests
 
         public string StagedAgentDirectory => @"C:\ProgramData\StorageHubAgent\bin";
 
-        public bool DirectoryExists(string path) => Directories.Contains(path);
+        /// <summary>Paths this account is not allowed to look at, whatever is really there.</summary>
+        public HashSet<string> Denied { get; } = new(StringComparer.OrdinalIgnoreCase);
 
-        public bool FileExists(string path) => Files.ContainsKey(path);
+        public PathVisibility InspectDirectory(string path) =>
+            Denied.Contains(path) ? PathVisibility.Denied
+            : Directories.Contains(path) ? PathVisibility.Present
+            : PathVisibility.Missing;
+
+        public PathVisibility InspectFile(string path) =>
+            Denied.Contains(path) ? PathVisibility.Denied
+            : Files.ContainsKey(path) ? PathVisibility.Present
+            : PathVisibility.Missing;
 
         public long? FileLength(string path) => Files.TryGetValue(path, out var length) ? length : null;
 

@@ -18,6 +18,8 @@ chosen is written down in [Versioning and merges](docs/versioning.md).
 
 ## Unreleased
 
+## 1.4.5 — 2026-09-19
+
 **StorageHub can tell you what is wrong with itself.** When the background
 agent does not come up, the only symptom is the desktop saying it did not
 become ready, which points at the wrong thing: the state that decides it is
@@ -28,7 +30,11 @@ says which one is at fault, in a sentence rather than a status code.
 It also answers the frightening question directly. Switching between the session
 and service modes moves the data root, so it reports a populated database left
 behind in the mode you are not using: the connections are not gone, they are out
-of reach until that mode is selected again.
+of reach until that mode is selected again. A path this account may not
+read is reported as exactly that rather than as missing: the service data root
+denies the signed-in user by design, and File.Exists answers false for a path it
+cannot open, so the first version of this check told a machine with a healthy,
+running service that its database had vanished.
 
 Where it can fix something it offers to, and asks Windows for consent when the
 fix needs it rather than sending you away to restart the application as an

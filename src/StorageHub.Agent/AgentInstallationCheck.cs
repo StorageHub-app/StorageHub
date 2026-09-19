@@ -1,5 +1,22 @@
 namespace StorageHub.Agent;
 
+/// <summary>
+/// Whether a path is there, absent, or simply not visible from here.
+///
+/// The third case is not pedantry. A service data root is machine-owned and denies the signed-in
+/// user any read at all, which is the point of it -- and File.Exists answers false for a path it
+/// cannot open. Collapsing that into "missing" told a machine with a healthy, running service
+/// that its database had vanished, and offered to create a directory that was already there.
+/// </summary>
+public enum PathVisibility
+{
+    Present = 0,
+    Missing = 1,
+
+    /// <summary>It may or may not exist; this account is not allowed to find out.</summary>
+    Denied = 2,
+}
+
 /// <summary>How one installation check came out.</summary>
 public enum InstallationCheckStatus
 {
@@ -69,9 +86,9 @@ public sealed record InstallationReport(AgentHostMode Mode, IReadOnlyList<Instal
 /// </summary>
 public interface IInstallationProbe
 {
-    bool DirectoryExists(string path);
+    PathVisibility InspectDirectory(string path);
 
-    bool FileExists(string path);
+    PathVisibility InspectFile(string path);
 
     /// <summary>Size in bytes, or null when the file cannot be read.</summary>
     long? FileLength(string path);
@@ -155,26 +172,44 @@ public static class AgentInstallationCheck
     private static InstallationFinding CheckAgentDirectory(AgentHostMode mode, IInstallationProbe probe)
     {
         var directory = AgentHostLayout.ResolveAgentDirectory(mode);
-        if (probe.DirectoryExists(directory))
+        return probe.InspectDirectory(directory) switch
         {
-            return new InstallationFinding("Data directory", InstallationCheckStatus.Ok, "Present.", directory);
-        }
+            PathVisibility.Present =>
+                new InstallationFinding("Data directory", InstallationCheckStatus.Ok, "Present.", directory),
 
-        // A service mode directory lives under ProgramData, which an ordinary token cannot create.
-        var elevated = mode == AgentHostMode.WindowsService;
-        return new InstallationFinding(
-            "Data directory",
-            InstallationCheckStatus.Problem,
-            "Missing. The agent keeps its database, vault and logs here and cannot start without it.",
-            directory,
-            InstallationRepair.CreateAgentDirectory,
-            elevated);
+            // Expected, and a good sign: the service data root denies the signed-in user any
+            // read, which is what stops one account from rifling through a machine-wide vault.
+            PathVisibility.Denied => new InstallationFinding(
+                "Data directory",
+                InstallationCheckStatus.Ok,
+                "Machine-owned, and not readable from this account -- which is how the service keeps it.",
+                directory),
+
+            // A service directory lives under ProgramData, which an ordinary token cannot create.
+            _ => new InstallationFinding(
+                "Data directory",
+                InstallationCheckStatus.Problem,
+                "Missing. The agent keeps its database, vault and logs here and cannot start without it.",
+                directory,
+                InstallationRepair.CreateAgentDirectory,
+                mode == AgentHostMode.WindowsService),
+        };
     }
 
     private static InstallationFinding CheckDatabase(AgentHostMode mode, IInstallationProbe probe)
     {
         var path = AgentHostLayout.ResolveDatabasePath(mode);
-        if (!probe.FileExists(path))
+        var visibility = probe.InspectFile(path);
+        if (visibility == PathVisibility.Denied)
+        {
+            return new InstallationFinding(
+                "Database",
+                InstallationCheckStatus.Ok,
+                "Not readable from this account, which is expected while the service owns it.",
+                path);
+        }
+
+        if (visibility == PathVisibility.Missing)
         {
             // Not a fault on its own: a fresh installation has no database until the agent makes
             // one. It is only worth saying so the operator can tell "new" from "lost".
@@ -208,7 +243,10 @@ public static class AgentInstallationCheck
             ? AgentHostMode.UserSession
             : AgentHostMode.WindowsService;
         var path = AgentHostLayout.ResolveDatabasePath(other);
-        if (!probe.FileExists(path) || probe.FileLength(path) is null or 0)
+        // Only a database this account can actually read and size is worth pointing at. One it
+        // cannot see says nothing either way, and a guess here is the scare the check exists to
+        // prevent.
+        if (probe.InspectFile(path) != PathVisibility.Present || probe.FileLength(path) is null or 0)
         {
             return null;
         }

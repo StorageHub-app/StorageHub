@@ -12,9 +12,46 @@ namespace StorageHub.Agent;
 [System.Runtime.Versioning.SupportedOSPlatform("windows")]
 public sealed class WindowsInstallationProbe : IInstallationProbe
 {
-    public bool DirectoryExists(string path) => !string.IsNullOrWhiteSpace(path) && Directory.Exists(path);
+    public PathVisibility InspectDirectory(string path) =>
+        Inspect(path, Directory.Exists, probe => new DirectoryInfo(probe).EnumerateFileSystemInfos().Any());
 
-    public bool FileExists(string path) => !string.IsNullOrWhiteSpace(path) && File.Exists(path);
+    public PathVisibility InspectFile(string path) =>
+        Inspect(path, File.Exists, probe => new FileInfo(probe).Length >= 0);
+
+    /// <summary>
+    /// Distinguishes "not there" from "not allowed to look".
+    ///
+    /// Directory.Exists and File.Exists both answer false for a path the caller cannot open, so
+    /// a false is followed by an access attempt that throws a different exception for each case.
+    /// Without this a machine-owned service root -- which denies the signed-in user by design --
+    /// reads as a missing installation.
+    /// </summary>
+    private static PathVisibility Inspect(string path, Func<string, bool> exists, Func<string, bool> touch)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return PathVisibility.Missing;
+        }
+
+        if (exists(path))
+        {
+            return PathVisibility.Present;
+        }
+
+        try
+        {
+            _ = touch(path);
+            return PathVisibility.Present;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return PathVisibility.Denied;
+        }
+        catch (Exception error) when (error is IOException or ArgumentException)
+        {
+            return PathVisibility.Missing;
+        }
+    }
 
     public long? FileLength(string path)
     {
