@@ -838,9 +838,13 @@ public sealed class TransferQueueControl : UserControl
         // The values are enum members, so both sides of this are the enum. It used to compare
         // against a name and then assign a string, which a combo box quietly ignored -- the
         // default action never moved off Review.
-        if (canReconcile &&
-            selected.Any(static transfer => transfer.State == TransferQueueState.NeedsReconciliation) &&
-            _reconcileAction.SelectedItem is TransferReconciliationAction.Review)
+        //
+        // It moves for anything reconcilable, not only for NeedsReconciliation. The conflicts tab
+        // also holds Interrupted transfers, and Review on one of those moves it to
+        // NeedsReconciliation -- still a conflict, still on this tab, still counted. Applying the
+        // default therefore reported success and changed nothing anybody could see, which reads as
+        // a button that does not work.
+        if (canReconcile && _reconcileAction.SelectedItem is TransferReconciliationAction.Review)
         {
             _reconcileAction.SelectedItem = TransferReconciliationAction.Restart;
         }
