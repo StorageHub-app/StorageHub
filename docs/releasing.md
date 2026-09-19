@@ -8,18 +8,26 @@ but never receive a write-capable GitHub token and never publish a release.
 ## Cutting a stable release
 
 A stable release is cut by tagging, so the decision is recorded in git before
-anything is published and the tag names the exact commit that ships:
+anything is published and the tag names the exact commit that ships. How the
+number is chosen is in [Versioning and merges](versioning.md).
+
+`main` is protected, so steps 1 and 3 arrive through a pull request like any
+other change. Only the tag is pushed directly, because a tag is not a branch.
 
 ```powershell
-# 1. Land the release version on main. This publishes one more candidate.
-#    Directory.Build.props: <VersionPrefix>1.4.1</VersionPrefix>
+# 1. In a pull request: rename the changelog's Unreleased heading to the version
+#    and today's date, open a fresh Unreleased above it, and confirm
+#    Directory.Build.props already declares that version:
+#    <VersionPrefix>1.4.2</VersionPrefix>
+#    Merging it publishes one more candidate.
 
-# 2. Tag that commit. This publishes the stable release.
-git tag v1.4.1
-git push origin v1.4.1
+# 2. Tag the merged commit. This publishes the stable release.
+git tag v1.4.2 <the merge commit>
+git push origin v1.4.2
 
-# 3. Open the next line of development, which returns main to candidates.
-#    Directory.Build.props: <VersionPrefix>1.4.2</VersionPrefix>
+# 3. In a second pull request: open the next line of development, which returns
+#    main to candidates.
+#    Directory.Build.props: <VersionPrefix>1.4.3</VersionPrefix>
 ```
 
 The tag must match the `VersionPrefix` declared by the commit it points at. A

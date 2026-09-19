@@ -11,7 +11,14 @@ entries before 1.4.0 describe work whose commits are no longer public. They are
 grouped by what changed rather than listed commit by commit.
 
 Versions follow `MAJOR.MINOR.PATCH`. Every push to `main` also publishes a
-release candidate; only a pushed tag publishes a stable release.
+release candidate; only a pushed tag publishes a stable release. How a number is
+chosen is written down in [Versioning and merges](docs/versioning.md).
+
+---
+
+## Unreleased
+
+Nothing yet.
 
 ---
 

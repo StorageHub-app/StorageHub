@@ -297,6 +297,7 @@ restore the defaults. Conflicting shortcuts must be cleared before reassignment.
 
 - [Changelog](CHANGELOG.md)
 - [Architecture](docs/architecture.md)
+- [Versioning and merges](docs/versioning.md)
 - [Release engineering](docs/releasing.md)
 - [Contributing](CONTRIBUTING.md)
 

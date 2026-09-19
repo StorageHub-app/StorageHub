@@ -75,9 +75,23 @@ keyboard access, accessible names, high-DPI behavior, and construction tests.
 
 ## Pull requests
 
+`main` is protected: every change arrives through a pull request, and auto-merge
+squashes it in once the full gate passes. Direct pushes are refused, for
+administrators too. [Versioning and merges](docs/versioning.md) explains why, and
+has the three commands the flow takes.
+
+```powershell
+git switch -c short-description-of-the-change
+git push -u origin HEAD
+gh pr create --fill
+gh pr merge --auto --squash
+```
+
 A useful pull request:
 
 - has a narrow, descriptive title and explains the user-visible outcome;
+- adds an entry under `## Unreleased` in the changelog when a person would
+  notice the change, and none when they would not;
 - identifies destructive-operation, credential, trust, migration, and recovery
   implications;
 - includes verification commands and their results;
