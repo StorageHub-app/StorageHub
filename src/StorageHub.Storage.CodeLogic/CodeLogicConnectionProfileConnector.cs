@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using CL.Storage.Configuration;
 using StorageHub.Application.Connections;
+using StorageHub.Domain.Identifiers;
 using StorageHub.Contracts.Results;
 using StorageHub.Security;
 
@@ -12,26 +13,68 @@ namespace StorageHub.Storage.CodeLogic;
 /// <summary>
 /// Resolves a saved profile immediately before use and registers it only in CL.Storage's
 /// in-memory runtime registry. Resolved credentials are never written back to profile JSON.
+///
+/// One registration is shared by everything using a profile, and outlives the call that opened it
+/// by <see cref="IdleLifetime"/>. Every call used to build its own: open the vault, decrypt the
+/// credentials, materialise any client certificate to disk, register a connection under a fresh id,
+/// connect, work, and tear all of it down again. Paging a listing did that per page, and because the
+/// registration id changed every time, the storage library saw a different connection on each page
+/// and could reuse neither its listing snapshot nor its pooled session.
+///
+/// The cost of sharing is that resolved credentials and materialised secret files live for the idle
+/// window rather than for one call. The window is deliberately short, a profile edit retires the
+/// registration at once rather than at expiry, and nothing is written anywhere durable.
 /// </summary>
-public sealed class CodeLogicConnectionProfileConnector(
-    CodeLogicStorageSessionFactory sessionFactory,
-    ISecretVault secretVault,
-    ITrustStore trustStore,
-    IRuntimeSecretFileMaterializer secretFileMaterializer,
-    TimeProvider? timeProvider = null)
+public sealed class CodeLogicConnectionProfileConnector : IAsyncDisposable
 {
-    private readonly CodeLogicStorageSessionFactory _sessionFactory =
-        sessionFactory ?? throw new ArgumentNullException(nameof(sessionFactory));
-    private readonly CodeLogicConnectionConfigurationBuilder _builder = new(
-        secretVault,
-        trustStore,
-        secretFileMaterializer,
-        timeProvider ?? TimeProvider.System);
+    /// <summary>How long an unused registration is kept before its secrets are released.</summary>
+    internal static readonly TimeSpan DefaultIdleLifetime = TimeSpan.FromSeconds(30);
 
+    private readonly TimeSpan _idleLifetime;
+
+    private readonly CodeLogicStorageSessionFactory _sessionFactory;
+    private readonly CodeLogicConnectionConfigurationBuilder _builder;
+    private readonly TimeProvider _timeProvider;
+    private readonly Dictionary<ConnectionProfileId, Entry> _open = [];
+    private readonly Lock _gate = new();
+    private bool _disposed;
+
+    public CodeLogicConnectionProfileConnector(
+        CodeLogicStorageSessionFactory sessionFactory,
+        ISecretVault secretVault,
+        ITrustStore trustStore,
+        IRuntimeSecretFileMaterializer secretFileMaterializer,
+        TimeProvider? timeProvider = null,
+        TimeSpan? idleLifetime = null)
+    {
+        _sessionFactory = sessionFactory ?? throw new ArgumentNullException(nameof(sessionFactory));
+        _timeProvider = timeProvider ?? TimeProvider.System;
+        _idleLifetime = idleLifetime ?? DefaultIdleLifetime;
+        _builder = new CodeLogicConnectionConfigurationBuilder(
+            secretVault,
+            trustStore,
+            secretFileMaterializer,
+            _timeProvider);
+    }
+
+    /// <summary>
+    /// Borrows the runtime connection for a profile, building one when none is open. The caller
+    /// disposes what it gets back exactly as before; that returns the borrow rather than closing the
+    /// connection.
+    /// </summary>
     public async ValueTask<StorageResult<RuntimeStorageConnection>> OpenAsync(
         ConnectionProfile profile,
         CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(profile);
+        if (TryBorrow(profile, out var shared))
+        {
+            return StorageResult<RuntimeStorageConnection>.Success(shared);
+        }
+
+        // Built outside the lock: it opens the vault and can touch the disk. Two callers racing on
+        // one profile therefore both build, and the loser's connection is retired below rather than
+        // leaked -- the same trade as any build-then-publish cache, and self-correcting.
         var build = await _builder.BuildAsync(profile, cancellationToken).ConfigureAwait(false);
         if (build.IsFailure)
         {
@@ -45,12 +88,193 @@ public sealed class CodeLogicConnectionProfileConnector(
             prepared.Configuration,
             prepared.RuntimeResources,
             cancellationToken).ConfigureAwait(false);
-        if (registration.IsSuccess)
+        if (registration.IsFailure)
         {
-            prepared.TransferResourceOwnership();
+            return registration;
         }
 
-        return registration;
+        prepared.TransferResourceOwnership();
+        return await PublishAsync(profile, registration.Value).ConfigureAwait(false);
+    }
+
+    /// <summary>Retires every open registration, releasing its credentials and secret files.</summary>
+    public async ValueTask DisposeAsync()
+    {
+        Entry[] open;
+        lock (_gate)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            open = [.. _open.Values];
+            _open.Clear();
+        }
+
+        foreach (var entry in open)
+        {
+            entry.Idle?.Dispose();
+            await entry.Connection.TearDownAsync().ConfigureAwait(false);
+        }
+    }
+
+    private bool TryBorrow(ConnectionProfile profile, out RuntimeStorageConnection connection)
+    {
+        lock (_gate)
+        {
+            if (!_disposed &&
+                _open.TryGetValue(profile.Id, out var entry) &&
+                entry.Version == profile.Version)
+            {
+                // Borrowed while idle: cancel the retirement that was already scheduled.
+                entry.Idle?.Dispose();
+                entry.Idle = null;
+                entry.Connection.Retain();
+                connection = entry.Connection;
+                return true;
+            }
+        }
+
+        connection = null!;
+        return false;
+    }
+
+    private async ValueTask<StorageResult<RuntimeStorageConnection>> PublishAsync(
+        ConnectionProfile profile,
+        RuntimeStorageConnection connection)
+    {
+        RuntimeStorageConnection? retire = null;
+        RuntimeStorageConnection? stale = null;
+        lock (_gate)
+        {
+            if (_disposed)
+            {
+                retire = connection;
+            }
+            else if (_open.TryGetValue(profile.Id, out var existing) && existing.Version == profile.Version)
+            {
+                // Another caller published first. Theirs wins, so one profile keeps one
+                // registration; ours is retired without ever having been handed out.
+                existing.Idle?.Dispose();
+                existing.Idle = null;
+                existing.Connection.Retain();
+                retire = connection;
+                connection = existing.Connection;
+            }
+            else
+            {
+                // A registration for an older version of this profile must not be reused: its
+                // credentials, host or root may all have changed.
+                if (existing is not null)
+                {
+                    existing.Idle?.Dispose();
+                    existing.Idle = null;
+                    stale = existing.Connection;
+                }
+
+                connection.BindOwner(ReleaseAsync);
+                _open[profile.Id] = new Entry(connection, profile.Version);
+            }
+        }
+
+        // Outside the lock: both close sessions and delete materialised secret files.
+        if (stale is not null)
+        {
+            await stale.DisposeAsync().ConfigureAwait(false);
+        }
+
+        if (retire is not null)
+        {
+            await retire.TearDownAsync().ConfigureAwait(false);
+        }
+
+        return StorageResult<RuntimeStorageConnection>.Success(connection);
+    }
+
+    /// <summary>
+    /// Called when the last borrow is returned. The registration is kept for a short idle window,
+    /// because the next call on the same profile is usually the next page of the same listing.
+    /// </summary>
+    private ValueTask ReleaseAsync(RuntimeStorageConnection connection)
+    {
+        var orphaned = true;
+        lock (_gate)
+        {
+            if (!_disposed && TryFindKey(connection, out var key))
+            {
+                orphaned = false;
+                var entry = _open[key];
+                entry.Idle?.Dispose();
+                entry.Idle = _timeProvider.CreateTimer(
+                    _ => RetireIfStillIdle(connection),
+                    state: null,
+                    _idleLifetime,
+                    Timeout.InfiniteTimeSpan);
+            }
+        }
+
+        // Already replaced by an edit, or the connector is shutting down: really close it.
+        return orphaned ? connection.TearDownAsync() : ValueTask.CompletedTask;
+    }
+
+    private void RetireIfStillIdle(RuntimeStorageConnection connection)
+    {
+        var retire = false;
+        lock (_gate)
+        {
+            if (TryFindKey(connection, out var key) && _open[key].Idle is { } idle)
+            {
+                idle.Dispose();
+                _open.Remove(key);
+                retire = true;
+            }
+        }
+
+        if (!retire)
+        {
+            // Borrowed again between the timer firing and this lock, so it is in use.
+            return;
+        }
+
+        // The timer owns no caller to report to, so the teardown carries its own failure handling.
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await connection.TearDownAsync().ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                // A registration that will not close must not take the agent down with it; the
+                // CodeLogic host disposes what is left when it stops.
+            }
+        });
+    }
+
+    private bool TryFindKey(RuntimeStorageConnection connection, out ConnectionProfileId key)
+    {
+        foreach (var pair in _open)
+        {
+            if (ReferenceEquals(pair.Value.Connection, connection))
+            {
+                key = pair.Key;
+                return true;
+            }
+        }
+
+        key = default;
+        return false;
+    }
+
+    private sealed class Entry(RuntimeStorageConnection connection, long version)
+    {
+        public RuntimeStorageConnection Connection { get; } = connection;
+
+        public long Version { get; } = version;
+
+        public ITimer? Idle { get; set; }
     }
 }
 

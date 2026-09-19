@@ -145,8 +145,10 @@ var transferDatabase = new SingleWriterSqliteDatabase(databaseOptions);
 var transferStore = new SqliteTransferJobStore(transferDatabase);
 var transferTrustStore = new SqliteTrustStore(transferDatabase);
 var transferProfiles = new SqliteConnectionProfileRepository(databaseOptions);
-var transferEndpointConnector = new CodeLogicTransferEndpointConnector(
-    transferProfiles,
+// One connector for the subsystem, so a profile's registration -- and with it the storage
+// library's listing snapshot and pooled session -- survives between calls instead of being
+// rebuilt for each one.
+await using var transferConnector = new SharedConnectionProfileConnector(
     () => new CodeLogicConnectionProfileConnector(
         new CodeLogicStorageSessionFactory(
             Libraries.Get<StorageLibrary>() ??
@@ -154,6 +156,9 @@ var transferEndpointConnector = new CodeLogicTransferEndpointConnector(
         vaultSubsystem.Vault,
         transferTrustStore,
         runtimeSecretFileMaterializer));
+var transferEndpointConnector = new CodeLogicTransferEndpointConnector(
+    transferProfiles,
+    transferConnector.Get);
 await using var transferQueueSubsystem = new TransferQueueAgentSubsystem(
     transferStore,
     transferEndpointConnector,
@@ -164,7 +169,7 @@ await using var transferQueueSubsystem = new TransferQueueAgentSubsystem(
         MaximumConcurrency = concurrencyConfiguration.MaximumTransfers,
         PerConnectionConcurrency = concurrencyConfiguration.PerConnection
     });
-var storageCommands = new StorageIpcCommandService(
+await using var storageCommands = new StorageIpcCommandService(
     databaseOptions,
     () => vaultSubsystem.Vault,
     runtimeSecretFileMaterializer,
@@ -190,8 +195,7 @@ var syncBaselines = new SqliteSyncBaselineStore(transferDatabase);
 var syncPlans = new SqliteSyncPlanStore(transferDatabase);
 var syncRuns = new SqliteSyncRunStore(transferDatabase);
 var syncConflicts = new SqliteSyncConflictStore(transferDatabase);
-var syncConnector = new CodeLogicSyncEndpointConnector(
-    transferProfiles,
+await using var syncSharedConnector = new SharedConnectionProfileConnector(
     () => new CodeLogicConnectionProfileConnector(
         new CodeLogicStorageSessionFactory(
             Libraries.Get<StorageLibrary>() ??
@@ -199,6 +203,9 @@ var syncConnector = new CodeLogicSyncEndpointConnector(
         vaultSubsystem.Vault,
         transferTrustStore,
         runtimeSecretFileMaterializer));
+var syncConnector = new CodeLogicSyncEndpointConnector(
+    transferProfiles,
+    syncSharedConnector.Get);
 var syncOrchestration = new SyncOrchestrationService(
     syncProfiles,
     syncBaselines,

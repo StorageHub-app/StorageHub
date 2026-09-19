@@ -34,7 +34,7 @@ public interface IStorageIpcSessionOpener
 /// Implements only saved-connection discovery, connection health checks, and bounded storage
 /// listing. It intentionally has no upload, mutation, delete, or secret-returning command.
 /// </summary>
-public sealed class StorageIpcCommandService : IAgentIpcCommandHandler
+public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDisposable
 {
     private const int MaximumCachedHealthSnapshots = 256;
     private readonly IConnectionProfileRepository _profiles;
@@ -93,6 +93,14 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler
             timeProvider)
     {
     }
+
+    /// <summary>
+    /// Releases the shared connector, which is what closes any registration still open and deletes
+    /// the secret files materialised for it. Process exit would do it eventually; a graceful stop
+    /// should not wait for that.
+    /// </summary>
+    public ValueTask DisposeAsync() =>
+        _sessionOpener is IAsyncDisposable disposable ? disposable.DisposeAsync() : ValueTask.CompletedTask;
 
     public bool CanHandle(string messageType) => messageType is
         StorageIpcMessageTypes.ConnectionListRequest or
@@ -682,13 +690,14 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler
         ArgumentNullException.ThrowIfNull(secretFileMaterializer);
         ArgumentNullException.ThrowIfNull(sessionFactoryProvider);
         var trustStore = new SqliteTrustStore(new SingleWriterSqliteDatabase(databaseOptions));
-        return new CodeLogicStorageIpcSessionOpener(
+        // Shared, so the registration a listing opens is still there for the next page of it.
+        return new CodeLogicStorageIpcSessionOpener(new SharedConnectionProfileConnector(
             () => new CodeLogicConnectionProfileConnector(
                 sessionFactoryProvider(),
                 vaultProvider(),
                 trustStore,
                 secretFileMaterializer,
-            timeProvider));
+                timeProvider)));
     }
 
     private sealed record CachedConnectionHealth(
@@ -696,16 +705,18 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler
         ConnectionHealthSnapshot Snapshot);
 
     private sealed class CodeLogicStorageIpcSessionOpener(
-        Func<CodeLogicConnectionProfileConnector> connectorProvider) : IStorageIpcSessionOpener
+        SharedConnectionProfileConnector connector) : IStorageIpcSessionOpener, IAsyncDisposable
     {
-        private readonly Func<CodeLogicConnectionProfileConnector> _connectorProvider =
-            connectorProvider ?? throw new ArgumentNullException(nameof(connectorProvider));
+        private readonly SharedConnectionProfileConnector _connector =
+            connector ?? throw new ArgumentNullException(nameof(connector));
+
+        public ValueTask DisposeAsync() => _connector.DisposeAsync();
 
         public async ValueTask<StorageResult<IStorageIpcSessionLease>> OpenAsync(
             ConnectionProfile profile,
             CancellationToken cancellationToken = default)
         {
-            var opened = await _connectorProvider().OpenAsync(profile, cancellationToken).ConfigureAwait(false);
+            var opened = await _connector.Get().OpenAsync(profile, cancellationToken).ConfigureAwait(false);
             return opened.IsSuccess
                 ? StorageResult<IStorageIpcSessionLease>.Success(new RuntimeSessionLease(opened.Value))
                 : StorageResult<IStorageIpcSessionLease>.Fail(opened.Error);

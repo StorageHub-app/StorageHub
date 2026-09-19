@@ -149,6 +149,8 @@ public sealed class CodeLogicStorageSessionFactory(StorageLibrary library)
 public sealed class RuntimeStorageConnection : IAsyncDisposable
 {
     private readonly StorageLibrary _library;
+    private Func<RuntimeStorageConnection, ValueTask>? _onLastReleased;
+    private int _leases = 1;
     private int _disposed;
 
     internal RuntimeStorageConnection(
@@ -169,7 +171,38 @@ public sealed class RuntimeStorageConnection : IAsyncDisposable
 
     private IReadOnlyList<IAsyncDisposable> RuntimeResources { get; }
 
+    /// <summary>
+    /// Hands this connection to a cache that will share it. From then on <see cref="DisposeAsync"/>
+    /// only gives a borrow back: the cache decides when the registration, the resolved credentials
+    /// and the materialised secret files actually go away.
+    /// </summary>
+    internal void BindOwner(Func<RuntimeStorageConnection, ValueTask> onLastReleased) =>
+        _onLastReleased = onLastReleased;
+
+    /// <summary>Takes another borrow. Balanced by one <see cref="DisposeAsync"/>.</summary>
+    internal void Retain() => Interlocked.Increment(ref _leases);
+
+    /// <summary>
+    /// Gives a borrow back. An owned connection reports its last borrow to the cache and stays
+    /// alive; an unowned one is torn down here, which is what a caller that opened it directly gets.
+    /// </summary>
     public async ValueTask DisposeAsync()
+    {
+        if (_onLastReleased is { } release)
+        {
+            if (Interlocked.Decrement(ref _leases) == 0)
+            {
+                await release(this).ConfigureAwait(false);
+            }
+
+            return;
+        }
+
+        await TearDownAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>Closes the session and removes the runtime registration, once.</summary>
+    internal async ValueTask TearDownAsync()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
         {
