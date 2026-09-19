@@ -74,6 +74,18 @@ public sealed class AgentControlForm : Form
         _start.Variant = StorageHubButtonVariant.Secondary;
         _stop.Variant = StorageHubButtonVariant.Secondary;
 
+        // Offered next to the lifecycle buttons because it answers the question they raise: if
+        // starting the agent does not help, something about the installation is wrong, and this
+        // says which of the five places it lives in is the one at fault.
+        var check = CreateButton("Check installation", () =>
+        {
+            using var dialog = new InstallationCheckForm(DesktopAgentHost.Mode);
+            dialog.ShowDialog(this);
+            Render();
+            return Task.CompletedTask;
+        });
+        check.Variant = StorageHubButtonVariant.Secondary;
+
         var close = new StorageHubButton { Text = Ui.Dialogs.ButtonClose, DialogResult = DialogResult.Cancel, AutoSize = true };
         close.Variant = StorageHubButtonVariant.Secondary;
 
@@ -84,7 +96,7 @@ public sealed class AgentControlForm : Form
             FlowDirection = FlowDirection.LeftToRight,
             Padding = this.LogicalToDeviceUnits(new Padding(0, 8, 0, 0))
         };
-        actions.Controls.AddRange([_restart, _start, _stop, close]);
+        actions.Controls.AddRange([_restart, _start, _stop, check, close]);
 
         var body = new Panel { Dock = DockStyle.Fill, Padding = this.LogicalToDeviceUnits(new Padding(14, 12, 14, 0)) };
         // Docked controls stack in reverse order of addition, so add bottom-most first.

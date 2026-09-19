@@ -175,6 +175,22 @@ public sealed class DialogThemeTests
         yield return (nameof(UpdateCheckerForm), new UpdateCheckerForm(new DesktopUpdater(store)));
         yield return (nameof(AgentControlForm), new AgentControlForm(static () => null, controller: null));
         yield return (nameof(AgentHostModeSetupForm), new AgentHostModeSetupForm());
+        // Given its report rather than left to inspect the machine: the theme check only cares
+        // that the window paints, and a real check would read this machine.s services.
+        yield return (
+            nameof(InstallationCheckForm),
+            new InstallationCheckForm(
+                StorageHub.Agent.AgentHostMode.UserSession,
+                () => new StorageHub.Agent.InstallationReport(
+                    StorageHub.Agent.AgentHostMode.UserSession,
+                    [
+                        new StorageHub.Agent.InstallationFinding(
+                            "Database",
+                            StorageHub.Agent.InstallationCheckStatus.Ok,
+                            "Present.",
+                            @"C:\temp\storagehub.db"),
+                    ]),
+                _ => new StorageHub.Agent.InstallationRepairResult(true, "done")));
         yield return (nameof(KeyStorePickerForm), new KeyStorePickerForm([]));
         yield return (
             nameof(IconPickerForm),

@@ -79,6 +79,22 @@ public static class AgentHostLayout
     }
 
     /// <summary>
+    /// Where the agent keeps its own files inside the data root. Spelled out here because the
+    /// convention was repeated at four call sites, and a repair that looks in the wrong place is
+    /// worse than no repair at all.
+    /// </summary>
+    public static string ResolveAgentDirectory(AgentHostMode mode) =>
+        Path.Combine(ResolveDataRoot(mode), AgentDirectoryName);
+
+    /// <summary>The agent database for a mode, whether or not it exists yet.</summary>
+    public static string ResolveDatabasePath(AgentHostMode mode) =>
+        Path.Combine(ResolveAgentDirectory(mode), DatabaseFileName);
+
+    internal const string AgentDirectoryName = "Agent";
+
+    internal const string DatabaseFileName = "storagehub.db";
+
+    /// <summary>
     /// Pipe names for the mode. The per-user names hash the account SID so two signed-in users
     /// never share an agent; the service names deliberately do not, because the whole point is
     /// that one machine-wide agent serves whoever is signed in. Access is then decided by the

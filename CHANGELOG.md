@@ -18,6 +18,29 @@ chosen is written down in [Versioning and merges](docs/versioning.md).
 
 ## Unreleased
 
+**StorageHub can tell you what is wrong with itself.** When the background
+agent does not come up, the only symptom is the desktop saying it did not
+become ready, which points at the wrong thing: the state that decides it is
+spread over a per-user data root, a machine data root, a staged binary tree, a
+service registration and a named pipe. Check installation looks at all five and
+says which one is at fault, in a sentence rather than a status code.
+
+It also answers the frightening question directly. Switching between the session
+and service modes moves the data root, so it reports a populated database left
+behind in the mode you are not using: the connections are not gone, they are out
+of reach until that mode is selected again.
+
+Where it can fix something it offers to, and says when that needs an
+administrator: creating a missing data directory, starting a stopped service,
+and telling Windows to restart the agent if it stops unexpectedly. That last one
+was simply never configured, so a single crash left the machine with no agent
+until somebody noticed and started it by hand. Looking changes nothing; only a
+repair you ask for by name does.
+
+It is offered from the background agent screen, and from the startup failure
+itself -- when the agent does not come up the main window never opens, so every
+other route to it is behind a door that will not open.
+
 ## 1.4.4 — 2026-09-19
 
 **The shell is the same shape at every display scaling.** The fonts scaled and
