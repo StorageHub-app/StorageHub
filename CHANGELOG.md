@@ -18,6 +18,8 @@ chosen is written down in [Versioning and merges](docs/versioning.md).
 
 ## Unreleased
 
+## 1.4.4 — 2026-09-19
+
 **The shell is the same shape at every display scaling.** The fonts scaled and
 the layout did not, so the two drifted apart by exactly the scaling factor. That
 is why StorageHub, which was built at 125%, came apart at 100% and looked
