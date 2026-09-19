@@ -7,7 +7,7 @@
 
   <ItemGroup>
     <PackageVersion Include="CodeLogic" Version="4.1.0" />
-    <PackageVersion Include="CodeLogic.Storage" Version="4.6.83" />
+    <PackageVersion Include="CodeLogic.Storage" Version="4.8.91" />
     <PackageVersion Include="Cronos" Version="0.13.0" />
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="9.0.18" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.7.0" />

@@ -10,9 +10,9 @@
       },
       "CodeLogic.Storage": {
         "type": "Direct",
-        "requested": "[4.6.83, )",
-        "resolved": "4.6.83",
-        "contentHash": "eiQXEE61niddl7DnI9Tz5iVO9vd3XZ2EjQX+d/ydz6n8uHpEvplDYmLYPOTByW642k4dra1xNdGGyByNsaF3lA==",
+        "requested": "[4.8.91, )",
+        "resolved": "4.8.91",
+        "contentHash": "D+xed+V4u2FzB4GR117Bbt/+l1dDyqkruDG61z5lt5DZqv/Tk/fzAUje42p++UEZg3AZRN0cWl0HEiFbxkWE+Q==",
         "dependencies": {
           "AWSSDK.S3": "4.0.101.6",
           "Azure.Identity": "1.21.0",
@@ -20,7 +20,7 @@
           "CodeLogic": "[4.0.0, 5.0.0)",
           "FluentFTP": "54.2.0",
           "Google.Cloud.Storage.V1": "4.15.0",
-          "SSH.NET": "2025.1.0",
+          "SSH.NET": "2026.0.0",
           "WebDAVClient": "2.7.0"
         }
       },
@@ -305,8 +305,8 @@
         "dependencies": {
           "CodeLogic": "[4.1.0, )",
           "Cronos": "[0.13.0, )",
-          "StorageHub.Domain": "[1.0.0, )",
-          "StorageHub.Security": "[1.0.0, )"
+          "StorageHub.Domain": "[1.4.2, )",
+          "StorageHub.Security": "[1.4.2, )"
         }
       },
       "storagehub.contracts": {
@@ -315,7 +315,7 @@
       "storagehub.domain": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[1.0.0, )"
+          "StorageHub.Contracts": "[1.4.2, )"
         }
       },
       "storagehub.security": {
@@ -324,8 +324,8 @@
       "storagehub.storage": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[1.0.0, )",
-          "StorageHub.Domain": "[1.0.0, )"
+          "StorageHub.Contracts": "[1.4.2, )",
+          "StorageHub.Domain": "[1.4.2, )"
         }
       },
       "Cronos": {
