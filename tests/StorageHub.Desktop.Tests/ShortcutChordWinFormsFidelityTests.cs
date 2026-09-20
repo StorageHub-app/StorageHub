@@ -4,48 +4,23 @@ using StorageHub.Desktop.Configuration;
 namespace StorageHub.Desktop.Tests;
 
 /// <summary>
-/// That a keyboard shortcut survives being written to a file and read back.
+/// That the chord codec still writes exactly the bytes the WinForms build wrote.
 /// </summary>
 /// <remarks>
-/// Chords are stored as text rather than as the <see cref="Keys"/> enum, because CodeLogic's
-/// camel-case string enum converter would render a flags combination as something like
-/// <c>"control, shiftKey, s"</c>. That makes the codec here the thing standing between a user's
-/// rebindings and silent loss, so it is tested on its own rather than only through the store.
+/// The codec's own behaviour is checked in ShortcutChordTests, which is portable. What is left
+/// here is the half that cannot be: comparing against <see cref="Keys"/>, the enum that produced
+/// every config.shortcuts.json already on disk. That comparison is only available while this
+/// project still references the WinForms shell, and it is the reason these tests are worth the
+/// awkwardness of living apart from their subject.
 /// </remarks>
-public sealed class ShortcutChordTests
+public sealed class ShortcutChordWinFormsFidelityTests
 {
-    public static TheoryData<Keys, string> Chords => new()
-    {
-        { Keys.None, "Unassigned" },
-        { Keys.Control | Keys.S, "Ctrl+S" },
-        { Keys.Control | Keys.Shift | Keys.S, "Ctrl+Shift+S" },
-        { Keys.Control | Keys.Alt | Keys.Shift | Keys.Delete, "Ctrl+Alt+Shift+Delete" },
-        { Keys.Alt | Keys.Left, "Alt+Left" },
-        { Keys.F5, "F5" },
-        { Keys.Delete, "Delete" },
-        { Keys.Control | Keys.D1, "Ctrl+D1" },
-        { Keys.Control | Keys.Oemplus, "Ctrl+Oemplus" }
-    };
-
-    [Theory]
-    [MemberData(nameof(Chords))]
-    public void AChordFormatsToItsStoredText(Keys keys, string expected) =>
-        Assert.Equal(expected, ShortcutChord.Format(ShortcutKeys.ToGesture(keys)));
-
-    [Theory]
-    [MemberData(nameof(Chords))]
-    public void AStoredChordParsesBackToTheSameKeys(Keys keys, string text)
-    {
-        Assert.True(ShortcutChord.TryParse(text, out var gesture));
-        Assert.Equal(keys, ShortcutKeys.ToKeys(gesture));
-    }
-
     /// <summary>
     /// The codec writes exactly what the WinForms build wrote, for every key.
     /// </summary>
     /// <remarks>
     /// This is the test that matters for the port. The chord is stored as the key's name, and the
-    /// two enums disagree about seventeen of them - PageDown was written as "Next", CapsLock as
+    /// two enums disagree about twenty-one of them - PageDown was written as "Next", CapsLock as
     /// "Capital", OemQuestion as "Oem2", Return as "Enter". Emitting Avalonia's spelling instead
     /// would rewrite every affected line of an existing config.shortcuts.json, and an older build
     /// reading it back would drop those bindings as unrecognised rather than fail loudly.
@@ -97,15 +72,6 @@ public sealed class ShortcutChordTests
 
         Assert.Empty(unreadable);
     }
-
-    /// <summary>
-    /// The modifier order is fixed so that the same binding always produces the same bytes, and a
-    /// diff of the file shows only what the user actually changed.
-    /// </summary>
-    [Fact]
-    public void ModifiersAreWrittenInAFixedOrder() => Assert.Equal(
-        "Ctrl+Alt+Shift+F1",
-        ShortcutChord.Format(ShortcutKeys.ToGesture(Keys.Shift | Keys.Alt | Keys.Control | Keys.F1)));
 
     [Fact]
     public void EveryDefaultBindingRoundTrips()

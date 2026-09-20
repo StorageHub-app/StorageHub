@@ -1,3 +1,5 @@
+using Avalonia.Input;
+
 namespace StorageHub.Desktop.Tests;
 
 public sealed class UiCommandCatalogTests
@@ -136,21 +138,23 @@ public sealed class UiCommandCatalogTests
     }
 
     [Theory]
-    [InlineData(UiCommandIds.WorkspaceNewWorkspace, Keys.Control | Keys.T)]
-    [InlineData(UiCommandIds.WorkspaceSaveWorkspaceAs, Keys.Control | Keys.Shift | Keys.S)]
-    [InlineData(UiCommandIds.SyncSchedules, Keys.Control | Keys.Alt | Keys.S)]
-    [InlineData(UiCommandIds.WorkspaceOpenWorkspace, Keys.Control | Keys.O)]
-    [InlineData(UiCommandIds.WorkspaceSaveWorkspace, Keys.Control | Keys.S)]
-    [InlineData(UiCommandIds.ViewRefresh, Keys.F5)]
-    [InlineData(UiCommandIds.EditNewFolder, Keys.Control | Keys.Shift | Keys.N)]
-    [InlineData(UiCommandIds.EditRename, Keys.F2)]
-    [InlineData(UiCommandIds.EditDelete, Keys.Delete)]
-    [InlineData(UiCommandIds.EditInvertSelection, Keys.Control | Keys.I)]
-    [InlineData(UiCommandIds.ConnectionsQuickConnect, Keys.Control | Keys.K)]
-    [InlineData(UiCommandIds.SyncComparePanes, Keys.Control | Keys.D)]
-    public void CriticalCommandsExposeKeyboardShortcuts(string commandId, Keys shortcut)
+    [InlineData(UiCommandIds.WorkspaceNewWorkspace, Key.T, KeyModifiers.Control)]
+    [InlineData(UiCommandIds.WorkspaceSaveWorkspaceAs, Key.S, KeyModifiers.Control | KeyModifiers.Shift)]
+    [InlineData(UiCommandIds.SyncSchedules, Key.S, KeyModifiers.Control | KeyModifiers.Alt)]
+    [InlineData(UiCommandIds.WorkspaceOpenWorkspace, Key.O, KeyModifiers.Control)]
+    [InlineData(UiCommandIds.WorkspaceSaveWorkspace, Key.S, KeyModifiers.Control)]
+    [InlineData(UiCommandIds.ViewRefresh, Key.F5, KeyModifiers.None)]
+    [InlineData(UiCommandIds.EditNewFolder, Key.N, KeyModifiers.Control | KeyModifiers.Shift)]
+    [InlineData(UiCommandIds.EditRename, Key.F2, KeyModifiers.None)]
+    [InlineData(UiCommandIds.EditDelete, Key.Delete, KeyModifiers.None)]
+    [InlineData(UiCommandIds.EditInvertSelection, Key.I, KeyModifiers.Control)]
+    [InlineData(UiCommandIds.ConnectionsQuickConnect, Key.K, KeyModifiers.Control)]
+    [InlineData(UiCommandIds.SyncComparePanes, Key.D, KeyModifiers.Control)]
+    public void CriticalCommandsExposeKeyboardShortcuts(string commandId, Key key, KeyModifiers modifiers)
     {
-        Assert.Equal(shortcut, ShortcutKeys.ToKeys(UiCommandCatalog.GetDefinition(commandId).Shortcut));
+        Assert.Equal(
+            new KeyGesture(key, modifiers),
+            UiCommandCatalog.GetDefinition(commandId).Shortcut);
     }
 
     [Fact]

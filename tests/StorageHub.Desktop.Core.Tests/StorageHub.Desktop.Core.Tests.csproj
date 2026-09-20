@@ -1,8 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
-    <UseWindowsForms>true</UseWindowsForms>
-    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <!-- No -windows and no UseWindowsForms: that is the whole point. Everything here tests
+         StorageHub.Desktop.Core, which is portable, so these run on the Linux agent too. -->
     <IsTestProject>true</IsTestProject>
     <RootNamespace>StorageHub.Desktop.Tests</RootNamespace>
   </PropertyGroup>
@@ -17,15 +16,15 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\StorageHub.Desktop.WinForms\StorageHub.Desktop.WinForms.csproj" />
+    <ProjectReference Include="..\..\src\StorageHub.Desktop.Core\StorageHub.Desktop.Core.csproj" />
   </ItemGroup>
-
   <ItemGroup>
-    <!-- Linked rather than copied. Most of this suite moved to StorageHub.Desktop.Core.Tests, and
-         this helper went with it; the few tests still stranded here by a WinForms type need the
-         same reader. The link disappears along with this project. -->
-    <Compile Include="..\StorageHub.Desktop.Core.Tests\ShippedTranslationProvider.cs"
-             Link="ShippedTranslationProvider.cs" />
+    <!-- The shipped translations, as the shell lays them out beside itself. LocalizationModelTests
+         reads them off disk to check that every string a model declares is actually translated, so
+         without this the suite passes here and the files it was meant to guard go unchecked. -->
+    <Content Include="..\..\assets\localization\*.json"
+             Link="localization\%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <!-- Configuration types are referenced from all over the shell; a using per file is noise. -->
