@@ -97,9 +97,10 @@ public static class AgentHostLayout
     public static string ResolveDatabasePath(AgentHostMode mode) =>
         Path.Combine(ResolveAgentDirectory(mode), DatabaseFileName);
 
-    internal const string AgentDirectoryName = "Agent";
+    /// <summary>The agent's subtree of the data root. Public because each platform lays it out.</summary>
+    public const string AgentDirectoryName = "Agent";
 
-    internal const string DatabaseFileName = "storagehub.db";
+    public const string DatabaseFileName = "storagehub.db";
 
     /// <summary>
     /// Pipe names for the mode. The per-user names hash the account SID so two signed-in users
