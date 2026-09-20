@@ -1,5 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <ItemGroup>
-    <ProjectReference Include="../StorageHub.Ipc/StorageHub.Ipc.csproj" />
-  </ItemGroup>
-</Project>

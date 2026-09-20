@@ -9,22 +9,17 @@
     <Project Path="src/StorageHub.Sync/StorageHub.Sync.csproj" />
     <Project Path="src/StorageHub.Persistence/StorageHub.Persistence.csproj" />
     <Project Path="src/StorageHub.Security/StorageHub.Security.csproj" />
-    <Project Path="src/StorageHub.Infrastructure.Windows/StorageHub.Infrastructure.Windows.csproj" />
-    <Project Path="src/StorageHub.Infrastructure.Unix/StorageHub.Infrastructure.Unix.csproj" />
+    <Project Path="src/StorageHub.Infrastructure/StorageHub.Infrastructure.csproj" />
     <Project Path="src/StorageHub.Ipc/StorageHub.Ipc.csproj" />
-    <Project Path="src/StorageHub.Ipc.Windows/StorageHub.Ipc.Windows.csproj" />
-    <Project Path="src/StorageHub.Ipc.Unix/StorageHub.Ipc.Unix.csproj" />
     <Project Path="src/StorageHub.Agent/StorageHub.Agent.csproj" />
     <Project Path="src/StorageHub.Agent.Windows/StorageHub.Agent.Windows.csproj" />
-    <Project Path="src/StorageHub.Agent.Linux/StorageHub.Agent.Linux.csproj" />
     <Project Path="src/StorageHub.Diagnostics/StorageHub.Diagnostics.csproj" />
     <Project Path="src/StorageHub.Desktop.WinForms/StorageHub.Desktop.WinForms.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/StorageHub.Testing/StorageHub.Testing.csproj" />
-    <Project Path="tests/StorageHub.Ipc.Unix.Tests/StorageHub.Ipc.Unix.Tests.csproj" />
-    <Project Path="tests/StorageHub.Agent.Linux.Tests/StorageHub.Agent.Linux.Tests.csproj" />
-    <Project Path="tests/StorageHub.Infrastructure.Unix.Tests/StorageHub.Infrastructure.Unix.Tests.csproj" />
+    <Project Path="tests/StorageHub.Ipc.Tests/StorageHub.Ipc.Tests.csproj" />
+    <Project Path="tests/StorageHub.Infrastructure.Tests/StorageHub.Infrastructure.Tests.csproj" />
     <Project Path="tests/StorageHub.Domain.Tests/StorageHub.Domain.Tests.csproj" />
     <Project Path="tests/StorageHub.Storage.ContractTests/StorageHub.Storage.ContractTests.csproj" />
     <Project Path="tests/StorageHub.Storage.CodeLogic.Tests/StorageHub.Storage.CodeLogic.Tests.csproj" />
@@ -33,7 +28,6 @@
     <Project Path="tests/StorageHub.Sync.Tests/StorageHub.Sync.Tests.csproj" />
     <Project Path="tests/StorageHub.Persistence.Tests/StorageHub.Persistence.Tests.csproj" />
     <Project Path="tests/StorageHub.Security.Tests/StorageHub.Security.Tests.csproj" />
-    <Project Path="tests/StorageHub.Infrastructure.Windows.Tests/StorageHub.Infrastructure.Windows.Tests.csproj" />
     <Project Path="tests/StorageHub.Agent.IntegrationTests/StorageHub.Agent.IntegrationTests.csproj" />
     <Project Path="tests/StorageHub.Agent.Windows.Tests/StorageHub.Agent.Windows.Tests.csproj" />
     <Project Path="tests/StorageHub.Diagnostics.Tests/StorageHub.Diagnostics.Tests.csproj" />

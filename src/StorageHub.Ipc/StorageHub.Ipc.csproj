@@ -1,5 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- LibraryImport generates unsafe marshalling stubs for the SO_PEERCRED lookup in Unix/. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\StorageHub.Infrastructure\StorageHub.Infrastructure.csproj" />
     <ProjectReference Include="..\StorageHub.Contracts\StorageHub.Contracts.csproj" />
   </ItemGroup>
 </Project>

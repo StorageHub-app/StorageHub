@@ -19,7 +19,7 @@
     <ProjectReference Include="..\..\src\StorageHub.Application\StorageHub.Application.csproj" />
     <ProjectReference Include="..\..\src\StorageHub.Contracts\StorageHub.Contracts.csproj" />
     <ProjectReference Include="..\..\src\StorageHub.Domain\StorageHub.Domain.csproj" />
-    <ProjectReference Include="..\..\src\StorageHub.Infrastructure.Windows\StorageHub.Infrastructure.Windows.csproj" />
+    <ProjectReference Include="..\..\src\StorageHub.Infrastructure\StorageHub.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\StorageHub.Persistence\StorageHub.Persistence.csproj" />
     <ProjectReference Include="..\..\src\StorageHub.Security\StorageHub.Security.csproj" />
     <ProjectReference Include="..\..\src\StorageHub.Storage\StorageHub.Storage.csproj" />

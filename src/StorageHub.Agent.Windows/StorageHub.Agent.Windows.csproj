@@ -10,10 +10,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\StorageHub.Ipc.Windows\StorageHub.Ipc.Windows.csproj" />
+    <ProjectReference Include="..\StorageHub.Ipc\StorageHub.Ipc.csproj" />
     <ProjectReference Include="..\StorageHub.Agent\StorageHub.Agent.csproj" />
     <ProjectReference Include="..\StorageHub.Application\StorageHub.Application.csproj" />
-    <ProjectReference Include="..\StorageHub.Infrastructure.Windows\StorageHub.Infrastructure.Windows.csproj" />
+    <ProjectReference Include="..\StorageHub.Infrastructure\StorageHub.Infrastructure.csproj" />
     <ProjectReference Include="..\StorageHub.Persistence\StorageHub.Persistence.csproj" />
     <ProjectReference Include="..\StorageHub.Security\StorageHub.Security.csproj" />
     <ProjectReference Include="..\StorageHub.Storage\StorageHub.Storage.csproj" />

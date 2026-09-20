@@ -44,17 +44,6 @@ public interface IAgentHostPlatform
     AgentHostMode ResolveHostMode(IReadOnlyList<string> arguments);
 
     /// <summary>
-    /// Runs an administrative command and returns its exit code, or null if these arguments are not
-    /// one.
-    /// </summary>
-    /// <remarks>
-    /// Service install, uninstall and repair run elevated and do no agent work, so they are handled
-    /// before any startup. On Linux there are none: registering a user unit needs no privilege and
-    /// is done in-process.
-    /// </remarks>
-    Task<int?> TryHandleAdministrativeCommandAsync(IReadOnlyList<string> arguments);
-
-    /// <summary>
     /// Why this agent must not start, or null if it may.
     /// </summary>
     /// <remarks>

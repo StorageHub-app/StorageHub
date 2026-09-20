@@ -4,6 +4,15 @@
     "net10.0": {
       "storagehub.contracts": {
         "type": "Project"
+      },
+      "storagehub.infrastructure": {
+        "type": "Project",
+        "dependencies": {
+          "StorageHub.Security": "[1.4.6, )"
+        }
+      },
+      "storagehub.security": {
+        "type": "Project"
       }
     },
     "net10.0/linux-x64": {},

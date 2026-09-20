@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- DPAPI marshals through a pointer, and LibraryImport generates unsafe stubs for geteuid and
+         statx. Both are confined to the platform folders beside this file. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\StorageHub.Security\StorageHub.Security.csproj" />
+  </ItemGroup>
+</Project>
