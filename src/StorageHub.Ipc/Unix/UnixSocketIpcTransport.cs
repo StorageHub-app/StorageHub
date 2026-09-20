@@ -126,6 +126,23 @@ public sealed class UnixSocketIpcTransport : IIpcTransport
                 cancellationToken).ConfigureAwait(false);
             return new UnixSocketIpcConnection(socket);
         }
+        catch (SocketException error)
+        {
+            socket.Dispose();
+
+            // Translated rather than let out. On Windows an agent that is not running is a named
+            // pipe that is not there, which surfaces as an IOException, and every caller in the
+            // desktop decides "the agent is unavailable" by catching that -- see
+            // RemoteBrowserErrors.IsExpected and DesktopAgentAvailability.IsTransportFault, which
+            // list IOException and do not list SocketException, because SocketException is not one.
+            //
+            // So the identical condition wore a type nothing caught, and on Linux a missing agent
+            // reached the screen as an unhandled exception where on Windows it showed the offline
+            // banner. Found by running the suite on Ubuntu with no agent up; it had never failed
+            // on Windows and never could.
+            throw new IOException(
+                $"The StorageHub agent is not listening on '{endpoint.SocketPath}'.", error);
+        }
         catch
         {
             socket.Dispose();

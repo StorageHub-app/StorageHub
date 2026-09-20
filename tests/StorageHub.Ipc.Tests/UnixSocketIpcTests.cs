@@ -235,6 +235,30 @@ public sealed class UnixSocketIpcTests : IDisposable
         Assert.Contains("already listening", error.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// An agent that is not running is an <see cref="IOException"/>, as it is on Windows.
+    /// </summary>
+    /// <remarks>
+    /// The transport used to let the raw <c>SocketException</c> out, and nothing in the desktop
+    /// catches one: both <c>RemoteBrowserErrors.IsExpected</c> and
+    /// <c>DesktopAgentAvailability.IsTransportFault</c> decide "the agent is unavailable" from a
+    /// list that names IOException, which a SocketException is not. The same missing agent that
+    /// showed an offline banner on Windows therefore reached the screen on Linux as an unhandled
+    /// exception.
+    ///
+    /// This is the shape, not the message, so the assertion is on the type. It would have caught
+    /// the original, and it is the sort of thing only running on Linux can catch.
+    /// </remarks>
+    [LinuxOnlyFact]
+    public async Task ConnectingWithNoAgentListeningFailsTheWayWindowsDoes()
+    {
+        var endpoint = new UnixSocketEndpoint(Path.Combine(_directory, "nobody-is-home.sock"));
+
+        await using var client = UnixDomainSocketIpc.CreateClient(ClientOptions(endpoint));
+
+        await Assert.ThrowsAnyAsync<IOException>(() => client.ConnectAsync());
+    }
+
     private IpcServerOptions ServerOptions(string name = "agent.sock") => new()
     {
         Endpoint = new UnixSocketEndpoint(Path.Combine(_directory, name)),
