@@ -49,7 +49,6 @@ public sealed class SettingsForm : Form
     private readonly Label _agentModeWarning = new();
     private readonly Label _agentModeStatus = new();
     private readonly Button _agentModeApply = new StorageHubButton();
-    private string? _agentModeStaleService;
     /// <summary>
     /// The row the host-key discovery mode sits in. Its description changes with the selection,
     /// which is what the separate paragraph under the old drop-down used to do.
@@ -739,19 +738,11 @@ public sealed class SettingsForm : Form
             return;
         }
 
-        var status = AgentHostModeController.Describe(DesktopAgentHost.Mode);
+        // Nothing can be out of step any more: both modes are this user's own agent, and the only
+        // difference is whether an autostart entry exists. The mismatch warning and the stale-service
+        // notice both described a Windows service that no longer exists.
         _agentMode.SelectedIndex = Array.IndexOf(AgentModeChoices, DesktopAgentHost.Mode);
-        _agentModeStatus.Text = status.ServiceInstalled && !status.ServiceRunning
-            ? Ui.Format(Ui.Settings.AgentModeMismatchFormat, Ui.Settings.AgentModeService)
-            : string.Empty;
-        _agentModeStaleService = AgentHostModeController.DescribeStaleService();
-        if (_agentModeStaleService is { } stale)
-        {
-            // Updating the app leaves the service on the previous build: re-staging needs
-            // elevation, so it cannot happen silently behind an update hook.
-            _agentModeStatus.Text = stale;
-            _agentModeStatus.ForeColor = StorageHubTheme.Warning;
-        }
+        _agentModeStatus.Text = string.Empty;
 
         UpdateAgentModeControls();
     }
@@ -759,8 +750,7 @@ public sealed class SettingsForm : Form
     private static readonly AgentHostMode[] AgentModeChoices =
     [
         AgentHostMode.UserSession,
-        AgentHostMode.AppSession,
-        AgentHostMode.WindowsService
+        AgentHostMode.AppSession
     ];
 
     private AgentHostMode SelectedAgentMode => _agentMode.SelectedIndex >= 0
@@ -769,18 +759,10 @@ public sealed class SettingsForm : Form
 
     private void UpdateAgentModeControls()
     {
-        var wantsService = SelectedAgentMode == AgentHostMode.WindowsService;
-        _agentModeWarning.Visible = wantsService;
-        if (!OperatingSystem.IsWindows())
-        {
-            _agentModeApply.Enabled = false;
-            return;
-        }
-
-        // Also offer Apply when the mode already matches but the service is running an older
-        // build, which is the only way to refresh it.
-        _agentModeApply.Enabled = SelectedAgentMode != DesktopAgentHost.Mode ||
-            (wantsService && _agentModeStaleService is not null);
+        // The warning belonged to the service: a machine-wide vault any administrator could read.
+        // Neither mode carries a caveat worth interrupting somebody over.
+        _agentModeWarning.Visible = false;
+        _agentModeApply.Enabled = OperatingSystem.IsWindows() && SelectedAgentMode != DesktopAgentHost.Mode;
     }
 
     private async Task ApplyAgentModeAsync()
@@ -796,8 +778,7 @@ public sealed class SettingsForm : Form
         _agentModeStatus.Text = Ui.Settings.AgentModeApplying;
         try
         {
-            var controller = new AgentHostModeController(PackagedDesktopLifecycle.CreateDefault().AgentExecutablePath);
-            var result = await controller.ApplyAsync(desired).ConfigureAwait(true);
+            var result = AgentHostModeController.Apply(desired);
             _agentModeStatus.Text = result.Summary;
             _agentModeStatus.ForeColor = result.Succeeded
                 ? StorageHubTheme.Success

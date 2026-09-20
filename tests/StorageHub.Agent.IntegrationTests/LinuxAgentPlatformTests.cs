@@ -102,14 +102,22 @@ public sealed class LinuxAgentPlatformTests : IDisposable
         Assert.StartsWith("/run/user/4242", paths.RuntimeSecretsDirectory, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Both platforms host the same two modes.
+    /// </summary>
+    /// <remarks>
+    /// This asserted that Linux refused WindowsService, which was the one mode the two platforms did
+    /// not share. There is no such mode now: StorageHub runs one per-user agent everywhere, and the
+    /// two remaining modes differ only by whether an autostart registration exists.
+    /// </remarks>
     [LinuxOnlyFact]
-    public void ThereIsNoServiceModeOnLinux()
+    public void LinuxHostsTheSameModesAsEverywhereElse()
     {
         var platform = new LinuxAgentPlatform();
 
-        Assert.DoesNotContain(AgentHostMode.WindowsService, platform.SupportedHostModes);
-        _ = Assert.Throws<PlatformNotSupportedException>(
-            () => platform.ResolvePaths(AgentHostMode.WindowsService));
+        Assert.Equal(
+            [AgentHostMode.UserSession, AgentHostMode.AppSession],
+            platform.SupportedHostModes.OrderBy(mode => mode));
     }
 
     [LinuxOnlyFact]

@@ -20,39 +20,33 @@ internal sealed class WindowsAgentDataDirectory(WindowsAgentDataDirectoryLease l
 [System.Runtime.Versioning.SupportedOSPlatform("windows")]
 public sealed class WindowsAgentHostPlatform : IAgentHostPlatform
 {
+    /// <summary>
+    /// Every invocation is a session agent.
+    /// </summary>
+    /// <remarks>
+    /// Windows used to recognise --service here. There is one agent now, so the arguments no longer
+    /// decide which kind it is.
+    /// </remarks>
     public AgentHostMode ResolveHostMode(IReadOnlyList<string> arguments)
     {
         ArgumentNullException.ThrowIfNull(arguments);
-        return arguments.Contains(AgentHostLayout.ServiceArgument, StringComparer.OrdinalIgnoreCase)
-            ? AgentHostMode.WindowsService
-            : AgentHostMode.UserSession;
+        return AgentHostMode.UserSession;
     }
 
     /// <summary>
-    /// A session agent will not run beside an installed service.
+    /// Nothing refuses a session agent any more.
     /// </summary>
     /// <remarks>
-    /// An older desktop, or an autostart entry one left behind, would otherwise start a second agent
-    /// on a second database: no corruption, because the files differ, but the app and the scheduler
-    /// would quietly disagree about what is stored. Refusing is the only signal a stale launcher
-    /// will understand.
+    /// This refused to start beside an installed service, which would otherwise have been a second
+    /// agent on a second database. With one mode there is no second database to disagree with, and
+    /// the single-instance lease already covers two agents in the same one.
     /// </remarks>
-    public string? DescribeStartupRefusal(AgentHostMode mode) =>
-        mode == AgentHostMode.UserSession && AgentServiceInstaller.Describe().Installed
-            ? "The StorageHub agent service is installed; the session agent will not start alongside it."
-            : null;
+    public string? DescribeStartupRefusal(AgentHostMode mode) => null;
 
-    /// <summary>
-    /// Answers the service control manager before the slow startup below, or it retires the process
-    /// as unresponsive long before the agent is ready.
-    /// </summary>
+    /// <summary>There is no service control manager to answer.</summary>
     public void AttachToServiceManager(AgentHostMode mode, TaskCompletionSource shutdown)
     {
         ArgumentNullException.ThrowIfNull(shutdown);
-        if (mode == AgentHostMode.WindowsService)
-        {
-            AgentServiceHost.Attach(shutdown);
-        }
     }
 
     public IAgentDataDirectory AcquireDataDirectory(AgentHostMode mode, string dataRoot)
@@ -70,13 +64,9 @@ public sealed class WindowsAgentHostPlatform : IAgentHostPlatform
 
             return new WindowsAgentDataDirectory(WindowsAgentDataDirectoryLease.Acquire(
                 dataRoot,
-                scope: mode == AgentHostMode.WindowsService
-                    // The machine tree stays reachable by administrators. Its secrets are sealed
-                    // with the machine key, which any administrator can already use, and the
-                    // elevated switch back to a session mode runs as the signed-in user - it has to
-                    // be able to read what it is bringing home.
-                    ? AgentDataTreeScope.Machine
-                    : AgentDataTreeScope.CurrentUser));
+                // The data root is machine-wide - %PROGRAMDATA% - but the agent that owns it is
+                // this user's, so the lease is the user's.
+                scope: AgentDataTreeScope.CurrentUser));
         }
         catch (WindowsAgentDataDirectoryException error)
         {
@@ -88,11 +78,15 @@ public sealed class WindowsAgentHostPlatform : IAgentHostPlatform
         }
     }
 
+    /// <summary>
+    /// None. A same-user pipe is already restricted to this account by the kernel.
+    /// </summary>
+    /// <remarks>
+    /// This listed the SIDs allowed onto a machine-wide pipe, which only a service published.
+    /// </remarks>
     public IReadOnlyList<string> ResolvePermittedPrincipals(AgentHostMode mode, string dataRoot)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataRoot);
-        return mode == AgentHostMode.WindowsService
-            ? AgentServiceClients.ReadPermittedSids(dataRoot)
-            : [];
+        return [];
     }
 }

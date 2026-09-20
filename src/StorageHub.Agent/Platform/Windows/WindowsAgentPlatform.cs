@@ -1,6 +1,7 @@
 using Microsoft.Win32;
 using StorageHub.Agent;
 using StorageHub.Ipc;
+using StorageHub.Infrastructure;
 using StorageHub.Infrastructure.Windows;
 using StorageHub.Ipc.Windows;
 using StorageHub.Security;
@@ -96,7 +97,7 @@ public sealed class WindowsRunKeyAutostart : IAutostartRegistration
 public sealed class WindowsAgentPlatform : IAgentPlatform
 {
     private static readonly HashSet<AgentHostMode> Supported =
-        [AgentHostMode.UserSession, AgentHostMode.AppSession, AgentHostMode.WindowsService];
+        [AgentHostMode.UserSession, AgentHostMode.AppSession];
 
     public string Name => "windows";
 
@@ -146,8 +147,6 @@ public sealed class WindowsAgentPlatform : IAgentPlatform
     {
         try
         {
-            if (AgentServiceInstaller.Describe().Installed) return AgentHostMode.WindowsService;
-
             return Autostart.IsRegistered
                 ? AgentHostMode.UserSession
                 : AgentHostMode.AppSession;
@@ -187,9 +186,10 @@ public sealed class WindowsAgentPlatform : IAgentPlatform
     {
         EnsureSupported(mode);
         ArgumentNullException.ThrowIfNull(paths);
-        return new WindowsDpapiProtector(mode == AgentHostMode.WindowsService
-            ? DpapiProtectionScope.LocalMachine
-            : DpapiProtectionScope.CurrentUser);
+        // The same envelope Linux writes, from the same kind of key. Only the key file's
+        // protection differs: DPAPI here, a 0600 file there.
+        return new KeyFileSecretProtector(
+            new WindowsDpapiMasterKeyStore(Path.Combine(paths.AgentDirectory, "secrets")));
     }
 
     public IRuntimeSecretFileMaterializer CreateRuntimeSecretFileMaterializer(AgentPaths paths)
@@ -198,12 +198,18 @@ public sealed class WindowsAgentPlatform : IAgentPlatform
         return new WindowsRuntimeSecretFileMaterializer(paths.RuntimeSecretsDirectory);
     }
 
+    /// <summary>
+    /// Always the same user, because there is only ever one agent and it is this account's.
+    /// </summary>
+    /// <remarks>
+    /// A machine-wide pipe with a SID-based ACL existed for the service. Nothing publishes one now,
+    /// and a same-user pipe is restricted by the kernel without StorageHub describing who may open
+    /// it - which is both simpler and harder to get wrong.
+    /// </remarks>
     public IpcTrustModel ResolveTrustModel(AgentHostMode mode)
     {
         EnsureSupported(mode);
-        return mode == AgentHostMode.WindowsService
-            ? IpcTrustModel.MachineService
-            : IpcTrustModel.SameUser;
+        return IpcTrustModel.SameUser;
     }
 
     private static void EnsureSupported(AgentHostMode mode)

@@ -312,11 +312,8 @@ public sealed class MainForm : Form
                 return;
             }
 
-            var controller = new AgentHostModeController(
-                PackagedDesktopLifecycle.CreateDefault().AgentExecutablePath);
-            var result = await controller
-                .ApplyAsync(chosen, _lifetime.Token)
-                .ConfigureAwait(true);
+            // Writing or removing an autostart entry; no elevation, so nothing to await.
+            var result = AgentHostModeController.Apply(chosen);
             _ = MessageBox.Show(
                 this,
                 result.Summary,

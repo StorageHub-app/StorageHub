@@ -597,15 +597,9 @@ public sealed class DesktopPackageLifecycleHooks(PackagedDesktopLifecycle lifecy
             return;
         }
 
-        try
-        {
-            StorageHub.Agent.AgentServiceInstaller.Uninstall();
-        }
-        catch (Exception)
-        {
-            // Not elevated, or the service is already gone. Switching back to a session mode
-            // before uninstalling is the clean path, and is what the release notes say.
-        }
+        // Nothing to remove. This uninstalled the Windows service, which no longer exists: the
+        // agent is a per-user process whose only registration is the autostart entry, and
+        // RemoveAutostart already takes that.
     }
 
     private void StopSynchronously(AgentShutdownReason reason)

@@ -55,8 +55,14 @@ internal static class DesktopAgentHost
 
     internal static IpcTrustModel TrustModel => Platform.ResolveTrustModel(Mode);
 
-    /// <summary>True when the desktop owns the agent's lifetime and may start one.</summary>
-    internal static bool DesktopStartsAgent => Mode != AgentHostMode.WindowsService;
+    /// <summary>
+    /// True when the desktop owns the agent's lifetime and may start one.
+    /// </summary>
+    /// <remarks>
+    /// Always, now that there is one agent and it belongs to this user. It was false under the
+    /// Windows service, which the desktop could ask to start but never started itself.
+    /// </remarks>
+    internal static bool DesktopStartsAgent => true;
 
     /// <summary>
     /// True when the agent should be stopped as the desktop closes, rather than left running for

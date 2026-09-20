@@ -1,24 +1,20 @@
-using System.Diagnostics;
 using StorageHub.Agent;
 using StorageHub.Desktop.Localization;
 
 namespace StorageHub.Desktop;
 
 /// <summary>What the agent is doing right now, regardless of what was configured.</summary>
-internal sealed record AgentHostModeStatus(
-    AgentHostMode Configured,
-    bool ServiceInstalled,
-    bool ServiceRunning)
+/// <remarks>
+/// This used to describe an installed Windows service as well, and the two could disagree - a
+/// service removed outside the app left the configured mode pointing at something that was not
+/// there. There is one agent now, and the only question is whether it is registered to start again
+/// at sign-in, so the configured mode and what is in force cannot drift apart.
+/// </remarks>
+internal sealed record AgentHostModeStatus(AgentHostMode Configured)
 {
-    /// <summary>The mode actually in force, which is not always the one that was chosen.</summary>
-    internal AgentHostMode Effective => ServiceInstalled
-        ? AgentHostMode.WindowsService
-        : AgentHostMode.UserSession;
+    internal AgentHostMode Effective => Configured;
 
-    /// <summary>
-    /// True when the configured mode is not what is running -- the case the startup check exists
-    /// to catch, such as a service removed outside the app.
-    /// </summary>
+    /// <summary>Always false. Kept so callers need not know the drift became impossible.</summary>
     internal bool Mismatched => Configured != Effective;
 }
 
@@ -26,155 +22,31 @@ internal sealed record AgentHostModeChangeResult(bool Succeeded, string Summary)
 
 /// <summary>
 /// Applies a host-mode change from the desktop.
-///
-/// The desktop cannot install a service itself, so the work is done by re-launching the agent
-/// elevated with a management verb and waiting for it. That is also why the migration lives on the
-/// far side of the prompt: the elevated process keeps this user's identity, so it can still read
-/// the user-scoped vault while having the rights to write the machine location.
 /// </summary>
+/// <remarks>
+/// Both modes are this user's own agent; they differ only by whether an autostart registration
+/// outlives the application. Changing between them is therefore writing or removing that
+/// registration, and needs no privilege.
+///
+/// It used to need a great deal. Installing the Windows service meant re-launching the agent
+/// elevated with a management verb and waiting for it, because the desktop could not register a
+/// service itself - and the vault had to be re-protected on the far side of that prompt, which is
+/// why the elevated process had to keep this user's identity.
+/// </remarks>
 [System.Runtime.Versioning.SupportedOSPlatform("windows")]
-internal sealed class AgentHostModeController(string agentExecutablePath)
+internal static class AgentHostModeController
 {
-    private static readonly TimeSpan ElevationTimeout = TimeSpan.FromMinutes(5);
-
-    private readonly string _agentExecutablePath = string.IsNullOrWhiteSpace(agentExecutablePath)
-        ? throw new ArgumentException("An agent executable path is required.", nameof(agentExecutablePath))
-        : agentExecutablePath;
+    internal static AgentHostModeStatus Describe(AgentHostMode configured) => new(configured);
 
     /// <summary>
-    /// A message when the installed service is running an older build than this application, or
-    /// null when it is current or there is no service.
-    ///
-    /// The service runs from a machine-owned copy that an application update does not touch, and
-    /// refreshing it needs elevation -- so the difference is reported rather than fixed quietly.
-    /// Letting the service re-stage itself would mean SYSTEM copying a binary out of a directory
-    /// the user can write, which is exactly what staging exists to prevent.
+    /// Writes or removes the autostart registration, and reports what Windows actually did.
     /// </summary>
-    internal static string? DescribeStaleService()
-    {
-        if (!AgentServiceInstaller.Describe().Installed)
-        {
-            return null;
-        }
-
-        var staged = AgentServiceStaging.ReadStagedVersion("StorageHub.Agent.Host.exe");
-        var current = DesktopApplicationVersion.Current;
-        if (staged is null || VersionsMatch(staged, current))
-        {
-            return null;
-        }
-
-        return Ui.Format(Ui.Settings.AgentModeStaleServiceFormat, Shorten(staged), Shorten(current));
-    }
-
-    /// <summary>
-    /// Compares only the release portion. Both sides carry a <c>+commit</c> suffix that differs
-    /// between builds of the same version, and reporting that as an update would send the operator
-    /// through an elevation prompt that changes nothing.
-    /// </summary>
-    private static bool VersionsMatch(string staged, string current) =>
-        string.Equals(Shorten(staged), Shorten(current), StringComparison.OrdinalIgnoreCase);
-
-    private static string Shorten(string version)
-    {
-        var plus = version.IndexOf('+', StringComparison.Ordinal);
-        return plus < 0 ? version : version[..plus];
-    }
-
-    internal static AgentHostModeStatus Describe(AgentHostMode configured)
-    {
-        var service = AgentServiceInstaller.Describe();
-        return new AgentHostModeStatus(configured, service.Installed, service.Running);
-    }
-
-    /// <summary>
-    /// Switches to <paramref name="desired"/>, prompting for elevation. Returns a result rather
-    /// than throwing so the caller can report a refused consent prompt as the ordinary outcome it
-    /// is, rather than as a crash.
-    /// </summary>
-    internal async Task<AgentHostModeChangeResult> ApplyAsync(
-        AgentHostMode desired,
-        CancellationToken cancellationToken = default)
-    {
-        if (!Enum.IsDefined(desired))
-        {
-            throw new ArgumentOutOfRangeException(nameof(desired));
-        }
-
-        // Moving between the two session modes only adds or removes a per-user logon entry, so it
-        // must not drag the operator through an elevation prompt for a registry value they own.
-        if (desired != AgentHostMode.WindowsService &&
-            !AgentServiceInstaller.Describe().Installed)
-        {
-            return ApplySessionMode(desired);
-        }
-
-        // The root no longer travels with the verb. It used to, because the elevated process can
-        // arrive with a different profile than the desktop that asked for it and the installation
-        // was copied between the two accounts' locations. There is one root per machine now, so the
-        // elevated process finds the same one this desktop is using.
-        var arguments = desired == AgentHostMode.WindowsService
-            ? new[] { "--install-service" }
-            : new[] { "--uninstall-service" };
-
-        if (desired == AgentHostMode.WindowsService)
-        {
-            // Quiesced before the elevated pass, not after it. That pass copies this installation,
-            // and an agent still writing to the database is an agent whose last writes the copy
-            // will not contain. Only the process is stopped here -- the logon entry stays until the
-            // switch has actually succeeded, so a declined consent prompt costs nothing but a
-            // restart the shell performs on its own.
-            StopSessionAgent();
-        }
-
-        try
-        {
-            var exitCode = await RunElevatedAsync(arguments, cancellationToken).ConfigureAwait(false);
-
-            // The cached mode was read at startup and is now wrong either way, including on a
-            // failure that got far enough to register the service.
-            DesktopAgentHost.Invalidate();
-            if (exitCode is 0 or 6)
-            {
-                if (desired == AgentHostMode.WindowsService)
-                {
-                    RemoveSessionAutostart();
-                }
-                else
-                {
-                    // The service is gone and the installation is back in this account, but the
-                    // logon entry that decides between the two session modes is this side's to
-                    // write -- without it, "when I sign in" quietly became "only while open".
-                    _ = ApplySessionMode(desired);
-                }
-            }
-
-            return exitCode switch
-            {
-                0 => new AgentHostModeChangeResult(true, Ui.Settings.AgentModeApplied),
-                // The agent reports a partly migrated vault separately: the switch itself went
-                // through, but some secrets could not be read and must be entered again.
-                6 => new AgentHostModeChangeResult(true, Ui.Settings.AgentModeAppliedWithSecretLoss),
-                5 => new AgentHostModeChangeResult(false, Ui.Settings.AgentModeNeedsAdministrator),
-                _ => new AgentHostModeChangeResult(false, Ui.Settings.AgentModeChangeFailed)
-            };
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception)
-        {
-            // Declining the consent prompt lands here, and is not an error worth a stack trace.
-            return new AgentHostModeChangeResult(false, Ui.Settings.AgentModeChangeCancelled);
-        }
-    }
-
-    /// <summary>
-    /// Adds or removes the logon entry, which is the whole difference between an agent that starts
-    /// with Windows and one that lives only as long as the app.
-    /// </summary>
-    private static AgentHostModeChangeResult ApplySessionMode(AgentHostMode desired)
+    /// <remarks>
+    /// The mode is re-read rather than assumed: autostart can be suppressed by policy or by the
+    /// environment switch, and claiming a mode Windows will not honour is worse than reporting that
+    /// it did not take.
+    /// </remarks>
+    internal static AgentHostModeChangeResult Apply(AgentHostMode desired)
     {
         try
         {
@@ -184,9 +56,6 @@ internal sealed class AgentHostModeController(string agentExecutablePath)
                 ? lifecycle.ConfigureAutostart()
                 : lifecycle.RemoveAutostart();
 
-            // Re-read rather than assume: autostart can be suppressed by policy or by the
-            // environment switch, and claiming a mode Windows will not honour would be worse than
-            // reporting the failure.
             DesktopAgentHost.Invalidate();
             return DesktopAgentHost.Mode == desired
                 ? new AgentHostModeChangeResult(true, Ui.Settings.AgentModeApplied)
@@ -196,70 +65,5 @@ internal sealed class AgentHostModeController(string agentExecutablePath)
         {
             return new AgentHostModeChangeResult(false, Ui.Settings.AgentModeChangeFailed);
         }
-    }
-
-    /// <summary>
-    /// Stops the session agent, so nothing is writing to the installation about to be copied.
-    ///
-    /// It is a sibling process, not a child, so it survives on its own and would otherwise keep
-    /// running beside the service -- two agents holding two databases open, and a desktop that
-    /// connects to whichever pipe it happens to resolve.
-    /// </summary>
-    private static void StopSessionAgent()
-    {
-        try
-        {
-            _ = PackagedDesktopLifecycle.CreateDefault()
-                .TryStopAgentAsync(AgentShutdownReason.Restart)
-                .AsTask()
-                .GetAwaiter()
-                .GetResult();
-        }
-        catch (Exception)
-        {
-            // Worth reporting only if it actually interferes, and the shell restarts it by itself
-            // when the switch does not happen.
-        }
-    }
-
-    /// <summary>
-    /// Drops the logon entry once the service owns the machine, so the session agent does not come
-    /// back at the next sign-in and start competing with it.
-    /// </summary>
-    private static void RemoveSessionAutostart()
-    {
-        try
-        {
-            _ = PackagedDesktopLifecycle.CreateDefault().RemoveAutostart();
-        }
-        catch (Exception)
-        {
-            // The service is installed and serving either way, and Program refuses to start a
-            // session agent beside a running service even if the entry fires.
-        }
-    }
-
-    private async Task<int> RunElevatedAsync(string[] arguments, CancellationToken cancellationToken)
-    {
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = _agentExecutablePath,
-            // Required for the runas verb; it also means output cannot be captured, which is why
-            // the agent communicates through its exit code rather than its console.
-            UseShellExecute = true,
-            Verb = "runas",
-            WindowStyle = ProcessWindowStyle.Hidden
-        };
-        foreach (var argument in arguments)
-        {
-            startInfo.ArgumentList.Add(argument);
-        }
-
-        using var process = Process.Start(startInfo) ??
-            throw new InvalidOperationException("Windows did not start the elevated helper.");
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(ElevationTimeout);
-        await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
-        return process.ExitCode;
     }
 }

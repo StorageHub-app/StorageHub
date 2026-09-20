@@ -28,12 +28,16 @@ public enum AgentHostMode
     /// </summary>
     AppSession = 2,
 
-    /// <summary>
-    /// A Windows service running as LocalSystem. Runs from boot with nobody signed in, which is
-    /// the only way a schedule can be relied on, at the cost of a machine-scoped vault that any
-    /// administrator could read.
-    /// </summary>
-    WindowsService = 1,
+    // There was a WindowsService = 1 here: an agent running as LocalSystem, from boot, with nobody
+    // signed in. It was removed because it bought one thing - schedules surviving sign-out on
+    // Windows - and charged for it everywhere: UAC elevation, a service installer and an
+    // administrator-only staged copy of the binaries, a machine-wide vault any administrator could
+    // read, a second DPAPI scope with re-protection whenever the mode changed, and a SID-based ACL
+    // on the pipe. Linux never needed any of it, because `systemd --user` with lingering keeps a
+    // per-user agent running after sign-out with no privilege at all.
+    //
+    // StorageHub now runs one agent per user on both platforms. On Windows that means scheduled
+    // work does not progress while signed out; everything else about the agent is simpler for it.
 }
 
 /// <summary>
@@ -160,9 +164,7 @@ public static class AgentHostLayout
     public static (string Normal, string Secret) ResolvePipeNames(AgentHostMode mode) =>
         !Enum.IsDefined(mode)
             ? throw new ArgumentOutOfRangeException(nameof(mode))
-            : mode == AgentHostMode.WindowsService
-                ? (MachinePipePrefix, MachineSecretPipePrefix)
-                : (Ipc.Windows.StorageHubIpcPipeNames.Normal, Ipc.Windows.StorageHubIpcPipeNames.Secret);
+            : (Ipc.Windows.StorageHubIpcPipeNames.Normal, Ipc.Windows.StorageHubIpcPipeNames.Secret);
 
     /// <summary>
     /// True when this process is already running with the privileges a service install needs.

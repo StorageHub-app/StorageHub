@@ -32,15 +32,6 @@ if (!OperatingSystem.IsWindows() && !OperatingSystem.IsLinux())
     return 3;
 }
 
-// Service install and uninstall run elevated and do no agent work, so they are handled before a
-// platform is composed. Linux has no counterpart - registering a user unit needs no privilege.
-if (OperatingSystem.IsWindows() &&
-    (args.Contains("--install-service", StringComparer.OrdinalIgnoreCase) ||
-     args.Contains("--uninstall-service", StringComparer.OrdinalIgnoreCase)))
-{
-    return AgentServiceCommands.Execute(args);
-}
-
 // The selection lives in AgentPlatforms, because the desktop needs the same answer and answering
 // it twice is how the two came to disagree about the autostart entry's name.
 if (!AgentPlatforms.TryCreate(out var agentPlatform, out var hostPlatform) ||

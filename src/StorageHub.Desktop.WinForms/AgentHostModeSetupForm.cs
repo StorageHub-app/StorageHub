@@ -112,12 +112,16 @@ internal sealed class AgentHostModeSetupForm : Form
         AcceptButton = confirm;
     }
 
-    /// <summary>The chosen mode.</summary>
-    internal AgentHostMode SelectedMode => _service.Checked
-        ? AgentHostMode.WindowsService
-        : _appSession.Checked
-            ? AgentHostMode.AppSession
-            : AgentHostMode.UserSession;
+    /// <summary>
+    /// The chosen mode: start again at sign-in, or only while StorageHub is open.
+    /// </summary>
+    /// <remarks>
+    /// There was a third choice here, a Windows service. It is gone, and with it the only option on
+    /// this dialog that asked for administrative rights.
+    /// </remarks>
+    internal AgentHostMode SelectedMode => _appSession.Checked
+        ? AgentHostMode.AppSession
+        : AgentHostMode.UserSession;
 
     private Label Describe(string text) => new()
     {

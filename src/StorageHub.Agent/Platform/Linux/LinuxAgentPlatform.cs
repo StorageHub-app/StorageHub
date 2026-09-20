@@ -1,5 +1,6 @@
 using StorageHub.Agent;
 using StorageHub.Ipc;
+using StorageHub.Infrastructure;
 using StorageHub.Infrastructure.Unix;
 using StorageHub.Ipc.Unix;
 using StorageHub.Security;
@@ -16,7 +17,7 @@ public sealed class LinuxAgentPlatform : IAgentPlatform
     public string Name => "linux";
 
     /// <summary>
-    /// The two per-user modes, and deliberately not WindowsService.
+    /// The two per-user modes, which are now the only modes anywhere.
     /// </summary>
     /// <remarks>
     /// The obvious move - adding a Linux member to AgentHostMode for a systemd unit - would be
@@ -92,7 +93,10 @@ public sealed class LinuxAgentPlatform : IAgentPlatform
     {
         EnsureSupported(mode);
         ArgumentNullException.ThrowIfNull(paths);
-        return new UnixKeyFileSecretProtector(Path.Combine(paths.AgentDirectory, "secrets"));
+        // The same envelope Windows writes, from the same kind of key. Linux has no service mode,
+        // so there is only ever one protection for the key file here.
+        return new KeyFileSecretProtector(
+            new UnixKeyFileMasterKeyStore(Path.Combine(paths.AgentDirectory, "secrets")));
     }
 
     public IRuntimeSecretFileMaterializer CreateRuntimeSecretFileMaterializer(AgentPaths paths)

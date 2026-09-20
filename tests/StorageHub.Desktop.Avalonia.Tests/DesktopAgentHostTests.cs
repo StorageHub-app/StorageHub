@@ -32,15 +32,16 @@ public class DesktopAgentHostTests
         Assert.NotEqual(DesktopAgentHost.NormalEndpoint, DesktopAgentHost.SecretEndpoint);
     }
 
+    /// <summary>
+    /// Always same-user, because there is only ever one agent and it is this account's.
+    /// </summary>
+    /// <remarks>
+    /// This followed the mode, because a Windows service published a machine-wide pipe that had to
+    /// be reached with a machine trust model. Nothing publishes one now.
+    /// </remarks>
     [Fact]
-    public void TheTrustModelFollowsTheMode()
-    {
-        var expected = DesktopAgentHost.Mode == AgentHostMode.WindowsService
-            ? IpcTrustModel.MachineService
-            : IpcTrustModel.SameUser;
-
-        Assert.Equal(expected, DesktopAgentHost.TrustModel);
-    }
+    public void TheTrustModelIsAlwaysSameUser() =>
+        Assert.Equal(IpcTrustModel.SameUser, DesktopAgentHost.TrustModel);
 
     [Fact]
     public void TheEndpointIsTheOneThisPlatformPublishes()
@@ -59,13 +60,15 @@ public class DesktopAgentHostTests
         }
     }
 
-    /// <summary>There is no service mode on Linux, so the desktop can never discover one.</summary>
+    /// <summary>The desktop owns the agent's lifetime on both platforms.</summary>
+    /// <remarks>
+    /// This asserted that Linux never discovers a service mode, which was the one asymmetry between
+    /// the two. Both now host the same two modes and the desktop starts the agent in either.
+    /// </remarks>
     [Fact]
-    public void LinuxNeverReportsAServiceMode()
+    public void TheDesktopOwnsTheAgentOnEveryPlatform()
     {
-        if (!OperatingSystem.IsLinux()) return;
-
-        Assert.NotEqual(AgentHostMode.WindowsService, DesktopAgentHost.Mode);
         Assert.True(DesktopAgentHost.DesktopStartsAgent);
+        Assert.Contains(DesktopAgentHost.Mode, (AgentHostMode[])[AgentHostMode.UserSession, AgentHostMode.AppSession]);
     }
 }

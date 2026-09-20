@@ -207,9 +207,10 @@ internal sealed class UpdateCheckerForm : Form
         };
         _detail.Text = DescribeDetail(snapshot);
 
-        var notice = DescribeServiceAgentNotice(snapshot, DesktopAgentHost.Mode);
-        _serviceNotice.Text = notice ?? string.Empty;
-        _serviceNotice.Visible = notice is not null;
+        // The service notice is gone with the service it described: an agent running as
+        // LocalSystem kept its own copy of itself and could stay on the previous build until
+        // somebody restarted it. One agent, owned by this desktop, updates with it.
+        _serviceNotice.Visible = false;
 
         var downloading = snapshot.State == DesktopUpdateState.Downloading;
         _progress.Visible = downloading;
@@ -267,22 +268,6 @@ internal sealed class UpdateCheckerForm : Form
     /// is the difference between an informed restart and discovering later that the agent is a
     /// release behind.
     /// </summary>
-    internal static string? DescribeServiceAgentNotice(
-        DesktopUpdateSnapshot snapshot,
-        StorageHub.Agent.AgentHostMode mode)
-    {
-        if (mode != StorageHub.Agent.AgentHostMode.WindowsService)
-        {
-            return null;
-        }
-
-        return snapshot.State is DesktopUpdateState.UpdateAvailable
-            or DesktopUpdateState.Downloading or DesktopUpdateState.ReadyToRestart
-            ? "The background agent runs as a Windows service, from a copy only administrators "
-                + "may replace. This update cannot bring it across. Afterwards, Check installation "
-                + "will offer to update the service, which asks for administrator approval."
-            : null;
-    }
 
     internal static string DescribeDetail(DesktopUpdateSnapshot snapshot) => snapshot.State switch
     {

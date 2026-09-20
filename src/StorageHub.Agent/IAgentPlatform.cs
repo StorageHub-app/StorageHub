@@ -81,8 +81,9 @@ public interface IAgentPlatform
     string Name { get; }
 
     /// <summary>
-    /// The modes this platform can host. WindowsService has no Linux counterpart, and asking for it
-    /// there is a configuration error rather than something to approximate.
+    /// The modes this platform can host. Both platforms host the same two now - they differ only by
+    /// whether an autostart registration outlives the application - so this no longer separates
+    /// them, and is kept because a platform is still the right thing to ask.
     /// </summary>
     IReadOnlySet<AgentHostMode> SupportedHostModes { get; }
 

@@ -61,7 +61,7 @@ internal static class AgentHostModePrompt
     [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     internal static AgentHostMode? AskOnce(IWin32Window? owner, string desktopDataRoot)
     {
-        if (AlreadyAsked(desktopDataRoot) || AgentServiceInstaller.Describe().Installed)
+        if (AlreadyAsked(desktopDataRoot))
         {
             return null;
         }
