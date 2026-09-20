@@ -183,4 +183,19 @@ public sealed class UiCommandCatalogTests
             UiCommandCatalog.Specs.Select(spec => spec.Id).OrderBy(id => id, StringComparer.Ordinal),
             declared.OrderBy(id => id, StringComparer.Ordinal));
     }
+
+    /// <summary>
+    /// A menu where only some rows are illustrated reads as unfinished, and the icon column is
+    /// what makes these menus scannable.
+    /// </summary>
+    /// <remarks>
+    /// Kept from the theme suite, which was otherwise asserting on how WinForms rasterised and
+    /// recoloured those glyphs. This part is about the catalog rather than the painting, so it
+    /// outlives the shell that drew it.
+    /// </remarks>
+    [Fact]
+    public void EveryMenuCommandCarriesAnIcon()
+    {
+        Assert.All(UiCommandCatalog.Definitions, definition => Assert.NotNull(definition.Glyph));
+    }
 }
