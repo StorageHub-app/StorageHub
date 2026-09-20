@@ -108,6 +108,25 @@ internal static class UiEnumNames
         _ => null
     };
 
+    internal static string? Name(KeyStoreMaterialKind kind) => kind switch
+    {
+        KeyStoreMaterialKind.Pkcs12Certificate => Ui.KeyStore.Certificate,
+        KeyStoreMaterialKind.SshPrivateKey => Ui.KeyStore.SSHKey,
+        _ => null
+    };
+
+    internal static string? Name(KeyStorePrivateKeyFormat format) => format switch
+    {
+        KeyStorePrivateKeyFormat.OpenSsh => Ui.KeyStore.OpenSSHOpensshKeyV1,
+        KeyStorePrivateKeyFormat.Pem => Ui.KeyStore.LegacyPEM,
+        KeyStorePrivateKeyFormat.Pkcs8 => Ui.KeyStore.PKCS8,
+        _ => null
+    };
+
+    internal static string Describe(KeyStoreMaterialKind kind) => Name(kind) ?? kind.ToString();
+
+    internal static string Describe(KeyStorePrivateKeyFormat format) => Name(format) ?? format.ToString();
+
 
     internal static string Describe(TransferQueueState state) => Name(state) ?? state.ToString();
 

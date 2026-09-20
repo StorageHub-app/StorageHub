@@ -27,14 +27,26 @@ public partial class ConnectionManagerWindow : Window
         };
     }
 
-    /// <summary>The manager over the real agent.</summary>
-    internal static ConnectionManagerWindow ForCurrentAgent() => new()
+    /// <summary>
+    /// The manager over the real agent.
+    /// </summary>
+    /// <remarks>
+    /// The key store picker is opened over this window rather than over the shell, because this
+    /// window is modal to the shell and a dialog owned by something behind a modal ends up behind
+    /// it too.
+    /// </remarks>
+    internal static ConnectionManagerWindow ForCurrentAgent()
     {
-        DataContext = new ConnectionManagerModel(
+        var window = new ConnectionManagerWindow();
+        window.DataContext = new ConnectionManagerModel(
             static () => new NamedPipeRemoteStorageAgentClient(),
             static () => new ConnectionManagerController(
                 new NamedPipeRemoteConnectionProfileClient(),
                 new NamedPipeRemoteSecretVaultClient()),
-            ShellServices.Dialogs)
-    };
+            ShellServices.Dialogs,
+            ShellServices.FilePicker,
+            static () => new NamedPipeKeyStoreAgentClient(),
+            entries => KeyStorePickerWindow.ChooseAsync(window, entries));
+        return window;
+    }
 }

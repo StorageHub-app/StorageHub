@@ -200,10 +200,11 @@ public sealed class SqliteKeyStoreRepositoryTests : IDisposable
     }
 
     [Fact]
-    public async Task A_soft_deleted_profile_still_pins_its_entry_and_is_labelled()
+    public async Task A_soft_deleted_profile_no_longer_pins_its_entry()
     {
-        // Soft delete keeps the binding row, so the foreign key would refuse the delete. The report
-        // has to agree with the constraint, or a clear refusal becomes an opaque failure.
+        // A tombstone cannot open a connection, so it has no claim on the key. The agent releases
+        // bindings when it deletes a profile; a row left by a delete from before it did is released
+        // here, so the foreign key does not refuse on behalf of something that no longer exists.
         var repository = Repository();
         var entry = CertificateEntry("Shared certificate");
         await repository.CreateAsync(entry);
@@ -211,11 +212,13 @@ public sealed class SqliteKeyStoreRepositoryTests : IDisposable
         await repository.BindAsync(profile, "ftps.client-certificate", entry.Id);
         await new SqliteConnectionProfileRepository(Options()).SoftDeleteAsync(profile, expectedVersion: 1);
 
-        var refused = await repository.DeleteAsync(entry.Id, expectedVersion: 1);
+        var usage = Assert.Single(await repository.SearchAsync(new KeyStoreSearch()));
+        Assert.Empty(usage.ReferencedByProfileNames);
 
-        Assert.Equal(KeyStoreWriteStatus.StillReferenced, refused.Status);
-        Assert.Equal(["Nightly FTPS (deleted)"], refused.ReferencedBy!);
-        Assert.NotNull(await repository.GetAsync(entry.Id));
+        var deleted = await repository.DeleteAsync(entry.Id, expectedVersion: 1);
+
+        Assert.Equal(KeyStoreWriteStatus.Succeeded, deleted.Status);
+        Assert.Null(await repository.GetAsync(entry.Id));
     }
 
     [Fact]

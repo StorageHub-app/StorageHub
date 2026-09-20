@@ -42,6 +42,10 @@ public partial class App : global::Avalonia.Application
             model.Sidebar.ManageCommand = new RelayCommand(
                 _ => ShowConnections(desktop, model, startNew: false));
 
+            // The key store: import a key or a certificate once, and reference it from any number
+            // of connections. It is what the Connection Manager's "Key Store…" buttons pick from.
+            model.Router.Handle(UiCommandIds.ConnectionsKeyStore, () => ShowKeyStore(desktop));
+
             // The sync profile editor, from the menu and from the tasks screen's New button.
             // Review & run opens the same window: in 1.x it was a second entry point into the same
             // form, and previewing is what its primary button already does.
@@ -122,6 +126,14 @@ public partial class App : global::Avalonia.Application
         }
 
         window.Closed += (_, _) => _ = model.Sidebar.RefreshAsync();
+        if (desktop.MainWindow is { } owner) _ = window.ShowDialog(owner);
+        else window.Show();
+    }
+
+    /// <summary>Opens the key store.</summary>
+    private static void ShowKeyStore(IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        var window = Views.KeyStoreWindow.ForCurrentAgent();
         if (desktop.MainWindow is { } owner) _ = window.ShowDialog(owner);
         else window.Show();
     }

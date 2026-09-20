@@ -19,6 +19,7 @@
       <TextBlock Text="{Binding Label}"/>
       <TextBox x:Name="PART_Value"
                Text="{Binding Value, Mode=TwoWay}"
+               PasswordChar="{Binding PasswordChar}"
                AutomationProperties.Name="{Binding Label}"/>
       <TextBlock Classes="caption danger"
                  IsVisible="{Binding HasError}"

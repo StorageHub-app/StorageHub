@@ -24,7 +24,7 @@ The catalog declares **62 commands**. `UiCommandCatalog.IsAvailable` admits **37
 
 So 1:1 means **37**, and the menu keeps showing the other 25 unavailable, exactly as it always has.
 
-**Of those 37, this shell handles 19.** That is the real number, and until recently this document
+**Of those 37, this shell handles 21.** That is the real number, and until recently this document
 quoted 1.x's in its place. It is now visible in the product rather than only here: a command is
 offered when it has a handler and dims when it does not, so the count of enabled menu entries is
 the count of handlers. `CommandAvailabilityTests` asserts the two are equal, which makes the menu
@@ -71,22 +71,17 @@ git show winforms-reference:src/StorageHub.Desktop.WinForms/SyncProfileEditorFor
 
 ### What is still there to port
 
-Roughly 14,200 lines of screens have no counterpart here yet. In descending order, from
+Roughly 4,700 lines of screens have no counterpart here yet. In descending order, from
 `winforms-reference`:
 
 | Lines | File | Block |
 |---:|---|---|
-| 1,153 | `SyncProfileEditorForm.cs` | sync |
-| 1,111 | `ScheduleManagerForm.cs` | sync |
 | 809 | `TerminalView.cs` | SSH -- the painter, and the only piece missing |
-| 683 | `KeyStoreForm.cs` (+3 nested prompts) | key store |
 | 622 | `SshTerminalForm.cs` | SSH |
-| 559 | `SyncRunReviewControl.cs` | sync |
 | 532 | `SettingsImportForm.cs` | settings |
 | 505 | `ObjectInspectorForm.cs` | properties |
 | 487 | `ConnectionPicker.cs` | grouped, filter-as-you-type |
 | 483 | `ExternalEditorController.cs` | mostly portable once its prompt is behind an interface |
-| 404 | `SyncRunsControl.cs` | sync |
 | 358 | `SettingsExportForm.cs` | settings |
 | 353 | `ToolbarSettingsControl.cs` | settings |
 | 329 | `ActivityLogControl.cs` | queue |
@@ -159,10 +154,10 @@ are the honest ones — each names what is missing rather than claiming the row.
 | What 1.x does | Status |
 |---|---|
 | Sidebar: grouped by folder, favourites, per-row menu, search | **partial** — groups are there and are better than 1.x: made by hand, reordered by dragging, remembered, and seeded from each connection's folder path so an upgrade keeps its organisation. Every row wears a STORAGE or CLIENT badge, which is what became of the fixed Storage/Clients split. Favourites and the per-row menu are not there, and the search box does not filter yet |
-| Connection Manager: create, edit, delete, test, 1,784 lines of provider fields | **done** — list, editor, save, test and delete. The fields are not written out: they come from `ConnectionProviderCatalog` and the draft from `ConnectionEditorDraftFactory`, which is what most of those 1,784 lines were doing by hand. Host-key trust and enrolling a vault secret are not here, and belong with the key store screen |
+| Connection Manager: create, edit, delete, test, 1,784 lines of provider fields | **done** — list, editor, save, test and delete. The fields are not written out: they come from `ConnectionProviderCatalog` and the draft from `ConnectionEditorDraftFactory`, which is what most of those 1,784 lines were doing by hand. A secret field is a read-only reference with Enroll, Delete and, for the two material fields, Key Store beside it, as in 1.x. Host-key trust (fetch from host, reject) is the one part of the editor not here |
 | Connection picker in a pane's header | **done** as a plain list; 1.x groups it and filters as you type |
 | Per-connection icon and accent colour | **partial** — resolved and drawn; no picker |
-| Key store: import, list, delete SSH keys and certificates | **todo** |
+| Key store: import, list, delete SSH keys and certificates | **done** — `KeyStoreController` in Core, and three windows: the store, one import dialog where 1.x chained three prompts, and the picker the Connection Manager opens. Proven against the live agent and the lab's SFTP server: a key imported in the store, borrowed by a connection, opens the server. Running it found that a deleted connection kept its key bound for good; the agent now releases bindings on delete |
 
 ### Sync
 
@@ -260,9 +255,9 @@ They are skipped otherwise, so CI stays green without one.
 4. ~~**File operations** — new folder, new file, rename, delete.~~ Done, through one
    `PaneMutationController` in Core. Batch rename and properties (the Object Inspector) are what
    remain of this group.
-5. ~~**Connection Manager**.~~ Done for listing, editing, creating and deleting. Host-key trust
-   and enrolling a secret into the vault are what remain, and both belong with the key store
-   screen rather than with this one.
+5. ~~**Connection Manager**.~~ Done for listing, editing, creating and deleting, and for
+   enrolling and borrowing secrets now that the key store is in. Host-key trust from the editor
+   is what remains.
 6. **The terminal painter**, which is what an SSH pane is still missing. `VtTerminalEmulator` and
    `VtKeyEncoder` are in Core with three suites; what is not written is the `Control` that renders a
    screen buffer into a `DrawingContext` and implements `ILogicalScrollable`.

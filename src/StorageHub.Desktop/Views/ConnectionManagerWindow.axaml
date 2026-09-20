@@ -118,12 +118,30 @@
                                          Text="{Binding HelpText}" TextWrapping="Wrap"/>
                             </StackPanel>
 
-                            <!-- One row per field, three ways to fill it in. A binding cannot
+                            <!-- One row per field, four ways to fill it in. A binding cannot
                                  switch on an enum, so the model says which one applies. -->
                             <TextBox Grid.Column="1" IsVisible="{Binding IsText}"
                                      Text="{Binding Value, Mode=TwoWay}"
-                                     Watermark="{Binding Placeholder}"
+                                     PlaceholderText="{Binding Placeholder}"
                                      AutomationProperties.Name="{Binding Label}"/>
+
+                            <!-- A secret is never typed here. The box shows the vault's opaque
+                                 reference and cannot be edited; the buttons are how it changes.
+                                 They sit under the box because three of them beside it leave no
+                                 room for the reference at the window's default width. -->
+                            <StackPanel Grid.Column="1" IsVisible="{Binding IsSecret}"
+                                        Spacing="{StaticResource SpaceXs}">
+                              <TextBox IsReadOnly="True" Text="{Binding Value}"
+                                       PlaceholderText="{Binding Placeholder}"
+                                       AutomationProperties.Name="{Binding Label}"
+                                       AutomationProperties.HelpText="{Binding SecretHint}"/>
+                              <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+                                <Button Content="{Binding EnrollLabel}" Command="{Binding EnrollCommand}"/>
+                                <Button Content="{Binding DeleteSecretLabel}" Command="{Binding DeleteSecretCommand}"/>
+                                <Button IsVisible="{Binding IsKeyStoreSlot}" Content="{Binding KeyStoreLabel}"
+                                        Command="{Binding ChooseFromKeyStoreCommand}"/>
+                              </StackPanel>
+                            </StackPanel>
                             <ComboBox Grid.Column="1" IsVisible="{Binding IsChoice}"
                                       HorizontalAlignment="Stretch"
                                       ItemsSource="{Binding Choices}"

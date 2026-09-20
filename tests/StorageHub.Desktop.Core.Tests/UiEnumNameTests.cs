@@ -53,6 +53,16 @@ public sealed class UiEnumNameTests
     public void EveryConflictStateHasWords(string culture) =>
         AssertNamed(culture, Enum.GetValues<SyncIpcConflictState>(), UiEnumNames.Name);
 
+    [Theory]
+    [MemberData(nameof(ShippedTranslationProvider.Cultures), MemberType = typeof(ShippedTranslationProvider))]
+    public void EveryKeyStoreMaterialKindHasWords(string culture) =>
+        AssertNamed(culture, Enum.GetValues<KeyStoreMaterialKind>(), UiEnumNames.Name);
+
+    [Theory]
+    [MemberData(nameof(ShippedTranslationProvider.Cultures), MemberType = typeof(ShippedTranslationProvider))]
+    public void EveryPrivateKeyFormatHasWords(string culture) =>
+        AssertNamed(culture, Enum.GetValues<KeyStorePrivateKeyFormat>(), UiEnumNames.Name);
+
     /// <summary>
     /// Weekdays come from .NET rather than the shipped files, so this checks the wiring instead of
     /// the words: that the day follows the shell's language, not the machine's regional settings.

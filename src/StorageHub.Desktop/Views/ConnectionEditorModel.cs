@@ -1,8 +1,11 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Security.Cryptography;
+using System.Text;
 using System.Windows.Input;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Localization;
+using StorageHub.Desktop.Shell;
 
 namespace StorageHub.Desktop.Views;
 
@@ -43,14 +46,44 @@ internal sealed class ConnectionFieldModel(ConnectionFieldDescriptor descriptor,
     public bool IsToggle => Kind == ConnectionFieldKind.Toggle;
 
     /// <summary>
+    /// A reference to something the vault holds, which is never typed.
+    /// </summary>
+    /// <remarks>
+    /// The box is read-only and shows the opaque reference; the buttons beside it are how it
+    /// changes. Enrol sends a secret to the vault and puts the reference it answers with here.
+    /// Delete removes the vault entry. A material field can also borrow an entry from the key
+    /// store instead of enrolling a second copy of the same file.
+    /// </remarks>
+    public bool IsSecret => Kind is ConnectionFieldKind.SecretReference or ConnectionFieldKind.CertificateReference;
+
+    /// <summary>Whether the key store can fill this field. Only the two material fields.</summary>
+    public bool IsKeyStoreSlot => ConnectionSecretFields.KeyStoreSlot(Key) is not null;
+
+    /// <summary>
     /// Everything that is typed into a box, which is every other kind.
     /// </summary>
     /// <remarks>
-    /// Including a secret reference, a certificate reference and a fingerprint. Those name
-    /// something held elsewhere rather than carrying it, so the editor's job is the name -- and a
-    /// picker for each belongs with the key store screen, which is not ported yet.
+    /// Including a fingerprint, which names something rather than carrying it, so the editor's
+    /// job is the name.
     /// </remarks>
-    public bool IsText => !IsChoice && !IsToggle;
+    public bool IsText => !IsChoice && !IsToggle && !IsSecret;
+
+    /// <summary>Sends a secret to the vault and keeps its reference. Set by the editor.</summary>
+    public ICommand? EnrollCommand { get; internal set; }
+
+    /// <summary>Removes the vault entry this field names. Set by the editor.</summary>
+    public ICommand? DeleteSecretCommand { get; internal set; }
+
+    /// <summary>Borrows an entry from the key store. Set by the editor, for material fields.</summary>
+    public ICommand? ChooseFromKeyStoreCommand { get; internal set; }
+
+    public static string SecretHint => Ui.ConnectionEditor.VaultReferenceHint;
+
+    public static string EnrollLabel => Ui.ConnectionEditor.EnrollOrReplace;
+
+    public static string DeleteSecretLabel => Ui.ConnectionEditor.Delete;
+
+    public static string KeyStoreLabel => Ui.ConnectionEditor.KeyStore;
 
     /// <summary>A toggle field stores "true" or "false", so it is read and written as text.</summary>
     public bool IsOn
@@ -107,6 +140,11 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
 {
     private readonly Func<ConnectionManagerController> _controller;
     private readonly Func<IRemoteStorageAgentClient>? _storage;
+    private readonly IDialogService? _dialogs;
+    private readonly IFilePickerService? _files;
+    private readonly Func<IKeyStoreAgentClient>? _keyStore;
+    private readonly Func<IReadOnlyList<KeyStoreEntryDocument>, Task<KeyStoreEntryDocument?>>? _pickKey;
+    private readonly List<RelayCommand> _fieldCommands = [];
     private readonly Dictionary<string, string> _values = new(StringComparer.Ordinal);
     private ConnectionProfileDocument? _current;
     private ConnectionProviderDescriptor _provider;
@@ -118,12 +156,26 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     /// How the editor reaches the agent to test a connection. Null leaves Test unavailable, which
     /// is what an editor in a test that is not about reachability wants.
     /// </param>
+    /// <param name="dialogs">Asks for a typed secret, and confirms deleting one. Null leaves both unavailable.</param>
+    /// <param name="files">Picks a certificate or a key file to enrol. Null leaves that unavailable.</param>
+    /// <param name="keyStore">Lists what the key store holds, for the material fields.</param>
+    /// <param name="pickKey">
+    /// Chooses one of those entries. The window supplies a dialog; a test supplies the answer.
+    /// </param>
     internal ConnectionEditorModel(
         Func<ConnectionManagerController> controller,
-        Func<IRemoteStorageAgentClient>? storage = null)
+        Func<IRemoteStorageAgentClient>? storage = null,
+        IDialogService? dialogs = null,
+        IFilePickerService? files = null,
+        Func<IKeyStoreAgentClient>? keyStore = null,
+        Func<IReadOnlyList<KeyStoreEntryDocument>, Task<KeyStoreEntryDocument?>>? pickKey = null)
     {
         _controller = controller ?? throw new ArgumentNullException(nameof(controller));
         _storage = storage;
+        _dialogs = dialogs;
+        _files = files;
+        _keyStore = keyStore;
+        _pickKey = pickKey;
         _provider = ConnectionProviderCatalog.All[0];
 
         SaveCommand = new RelayCommand(_ => _ = SaveAsync(), _ => CanSave);
@@ -419,6 +471,7 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     private void Rebuild()
     {
         Sections.Clear();
+        _fieldCommands.Clear();
         Add(Ui.Connections.SectionIdentity, IdentityFields);
         Add(Ui.Connections.SectionGeneral, _provider.GeneralFields);
         Add(Ui.Connections.SectionAuthentication, _provider.AuthenticationFields);
@@ -439,11 +492,281 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
                     IsDirty = true;
                     RaiseCommands();
                 };
+                if (field.IsSecret) Arm(field);
                 fields.Add(field);
             }
 
             Sections.Add(new ConnectionSectionModel(title, fields));
         }
+    }
+
+    /// <summary>
+    /// Gives a secret field its three actions.
+    /// </summary>
+    /// <remarks>
+    /// Commands on the field rather than on the editor with the field as a parameter, because the
+    /// row is drawn inside two nested item templates and a binding from there back up to the
+    /// editor is the kind of path that breaks silently when the markup is rearranged.
+    /// </remarks>
+    private void Arm(ConnectionFieldModel field)
+    {
+        var enroll = new RelayCommand(
+            _ => _ = EnrollAsync(field),
+            _ => !_isBusy && (ConnectionSecretFields.IsFile(field.Key) ? _files is not null : _dialogs is not null));
+        var delete = new RelayCommand(
+            _ => _ = DeleteSecretAsync(field),
+            _ => !_isBusy && _dialogs is not null && field.Value.Trim().Length > 0);
+        var choose = new RelayCommand(
+            _ => _ = ChooseFromKeyStoreAsync(field),
+            _ => !_isBusy && _keyStore is not null && _pickKey is not null);
+
+        field.EnrollCommand = enroll;
+        field.DeleteSecretCommand = delete;
+        field.ChooseFromKeyStoreCommand = choose;
+        field.Changed += (_, _) => delete.RaiseCanExecuteChanged();
+        _fieldCommands.Add(enroll);
+        _fieldCommands.Add(delete);
+        _fieldCommands.Add(choose);
+    }
+
+    /// <summary>
+    /// Sends a secret to the vault and puts the reference it answers with in the field.
+    /// </summary>
+    /// <remarks>
+    /// A certificate or a private key comes from a file; everything else is typed into a box that
+    /// does not echo it. Either way the bytes go to the vault and are zeroed here, and the profile
+    /// only ever stores the reference. A field that already names a reference is updated in place,
+    /// so a rotated password keeps its reference and every profile sharing it.
+    /// </remarks>
+    internal async Task EnrollAsync(ConnectionFieldModel field, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(field);
+        if (_isBusy) return;
+
+        byte[]? material = null;
+        try
+        {
+            material = await CollectSecretAsync(field, cancellationToken).ConfigureAwait(true);
+            if (material is null) return;
+
+            IsBusy = true;
+            Status = Ui.ConnectionEditor.WritingVaultEntry;
+            var existing = field.Value.Trim();
+            var response = await _controller()
+                .EnrollOrUpdateSecretAsync(
+                    ConnectionSecretFields.Purpose(field.Key),
+                    existing.Length == 0 ? null : existing,
+                    material,
+                    cancellationToken)
+                .ConfigureAwait(true);
+
+            if (!response.Succeeded || response.Reference is null)
+            {
+                Status = response.Failure?.Message ?? Ui.ConnectionEditor.VaultEntryFailed;
+                return;
+            }
+
+            field.Value = response.Reference;
+            Status = Ui.Format(Ui.ConnectionEditor.VaultReferenceReadyFormat, response.Version);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (ArgumentException error)
+        {
+            Status = error.Message;
+        }
+        catch (Exception error) when (IsAgentFailure(error) || error is UnauthorizedAccessException)
+        {
+            Status = Ui.ConnectionEditor.SecretOperationFailed;
+        }
+        finally
+        {
+            if (material is not null) CryptographicOperations.ZeroMemory(material);
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>
+    /// Confirms, then removes the vault entry a field names and clears the field.
+    /// </summary>
+    /// <remarks>
+    /// The profile still carries the old reference until it is saved, which the status says: a
+    /// deleted secret and an unsaved profile is the one state where the two disagree.
+    /// </remarks>
+    internal async Task DeleteSecretAsync(ConnectionFieldModel field, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(field);
+        if (_isBusy || _dialogs is null) return;
+
+        var reference = field.Value.Trim();
+        if (reference.Length == 0 || !ConnectionEndpointDocument.IsOpaqueSecretReference(reference))
+        {
+            Status = Ui.ConnectionEditor.NoVaultReference;
+            return;
+        }
+
+        var choice = await _dialogs.ConfirmAsync(
+            new DialogRequest
+            {
+                Title = Ui.Dialogs.DeleteVaultSecretCaption,
+                Message = Ui.Dialogs.DeleteVaultSecretPrompt,
+                Severity = DialogSeverity.Warning,
+                Buttons = DialogButtons.YesNo,
+                Default = DialogChoice.No
+            },
+            cancellationToken).ConfigureAwait(true);
+        if (choice != DialogChoice.Yes) return;
+
+        IsBusy = true;
+        try
+        {
+            var response = await _controller()
+                .DeleteSecretAsync(reference, ConnectionSecretFields.Purpose(field.Key), cancellationToken)
+                .ConfigureAwait(true);
+
+            if (!response.Succeeded)
+            {
+                Status = response.Failure?.Message ?? Ui.ConnectionEditor.VaultSecretDeleteFailed;
+                return;
+            }
+
+            field.Value = string.Empty;
+            Status = Ui.ConnectionEditor.VaultSecretDeleted;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception error) when (IsAgentFailure(error) || error is UnauthorizedAccessException)
+        {
+            Status = Ui.ConnectionEditor.SecretDeleteFailed;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>
+    /// Fills a material field, and the passphrase field that goes with it, from the key store.
+    /// </summary>
+    /// <remarks>
+    /// One entry fills both halves: the provider needs the passphrase to open the material, and
+    /// the profile requires them together. A password-less certificate has no passphrase
+    /// reference, so the companion field is cleared rather than left pointing at whatever was
+    /// there before.
+    /// </remarks>
+    internal async Task ChooseFromKeyStoreAsync(ConnectionFieldModel field, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(field);
+        if (_isBusy || _keyStore is null || _pickKey is null ||
+            ConnectionSecretFields.KeyStoreSlot(field.Key) is not { } kind)
+        {
+            return;
+        }
+
+        IsBusy = true;
+        try
+        {
+            await using var client = _keyStore();
+            var listed = await client.ListAsync(
+                new KeyStoreListRequest(KeyStoreIpcContract.CurrentVersion, Kind: kind),
+                cancellationToken).ConfigureAwait(true);
+
+            if (listed.Failure is { } failure)
+            {
+                Status = failure.Message;
+                return;
+            }
+
+            if (listed.Entries.Length == 0)
+            {
+                Status = Ui.ConnectionEditor.NoStoredKeys;
+                return;
+            }
+
+            // Not busy while the picker is open: it is modal, and a dimmed editor behind a modal
+            // reads as broken rather than as waiting.
+            IsBusy = false;
+            var chosen = await _pickKey(listed.Entries).ConfigureAwait(true);
+            if (chosen is null) return;
+
+            field.Value = chosen.MaterialReference;
+            if (ConnectionSecretFields.CompanionPassphrase(field.Key) is { } companionKey &&
+                Field(companionKey) is { } passphrase)
+            {
+                passphrase.Value = chosen.PassphraseReference ?? string.Empty;
+            }
+
+            Status = Ui.Format(Ui.ConnectionEditor.UsingStoredKeyFormat, chosen.DisplayName);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception error) when (IsAgentFailure(error) || error is UnauthorizedAccessException or InvalidDataException)
+        {
+            Status = Ui.ConnectionEditor.KeyStoreUnreadable;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>The field with a given key, or nothing when this provider has none.</summary>
+    internal ConnectionFieldModel? Field(string key) =>
+        Sections.SelectMany(static section => section.Fields).FirstOrDefault(field => field.Key == key);
+
+    /// <summary>
+    /// The bytes to enrol: a file's contents for material, a typed value for everything else.
+    /// Nothing when the person cancelled.
+    /// </summary>
+    private async Task<byte[]?> CollectSecretAsync(ConnectionFieldModel field, CancellationToken cancellationToken)
+    {
+        if (ConnectionSecretFields.IsFile(field.Key))
+        {
+            if (_files is null) return null;
+            var certificate = field.Kind == ConnectionFieldKind.CertificateReference;
+            var path = await _files.PickFileAsync(
+                new FilePickerRequest
+                {
+                    Title = certificate ? Ui.ConnectionEditor.SelectPfxCertificate : Ui.ConnectionEditor.SelectPrivateKey,
+                    Filters = certificate
+                        ?
+                        [
+                            new FilePickerFilter(Ui.KeyStore.CertificateFiles, ["pfx", "p12"]),
+                            new FilePickerFilter(Ui.KeyStore.AllFiles, ["*"])
+                        ]
+                        :
+                        [
+                            new FilePickerFilter(Ui.KeyStore.PrivateKeyFiles, ["key", "pem"]),
+                            new FilePickerFilter(Ui.KeyStore.AllFiles, ["*"])
+                        ]
+                },
+                cancellationToken).ConfigureAwait(true);
+            if (path is null) return null;
+
+            var info = new FileInfo(path);
+            if (!info.Exists || info.Length is <= 0 or > SecretVaultIpcContract.MaximumSecretBytes)
+            {
+                throw new ArgumentException(Ui.ConnectionEditor.SecretFileInvalid);
+            }
+
+            return await File.ReadAllBytesAsync(path, cancellationToken).ConfigureAwait(true);
+        }
+
+        if (_dialogs is null) return null;
+        var typed = await _dialogs.PromptAsync(
+            new DialogPromptRequest
+            {
+                Title = Ui.Format(Ui.ConnectionEditor.EnrollFieldFormat, field.Label),
+                Label = Ui.ConnectionEditor.VaultEncryptionHint,
+                Accept = Ui.ConnectionEditor.Enroll,
+                Secret = true
+            },
+            cancellationToken).ConfigureAwait(true);
+
+        return string.IsNullOrEmpty(typed) ? null : Encoding.UTF8.GetBytes(typed);
     }
 
     private static StorageProviderKind MapProvider(StorageConnectionProvider provider) => provider switch
@@ -475,6 +798,7 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     {
         (SaveCommand as RelayCommand)?.RaiseCanExecuteChanged();
         (TestCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        foreach (var command in _fieldCommands) command.RaiseCanExecuteChanged();
     }
 
     private void Raise(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));

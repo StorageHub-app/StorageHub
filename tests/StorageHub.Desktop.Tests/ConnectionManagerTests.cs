@@ -60,8 +60,9 @@ public class ConnectionManagerTests
             Assert.NotEmpty(editor.Sections);
             Assert.All(editor.Sections.SelectMany(static s => s.Fields), field =>
             {
-                // Exactly one of the three editors applies to each field, whatever its kind.
-                var drawn = (field.IsText ? 1 : 0) + (field.IsChoice ? 1 : 0) + (field.IsToggle ? 1 : 0);
+                // Exactly one of the four editors applies to each field, whatever its kind.
+                var drawn = (field.IsText ? 1 : 0) + (field.IsChoice ? 1 : 0) +
+                    (field.IsToggle ? 1 : 0) + (field.IsSecret ? 1 : 0);
                 Assert.Equal(1, drawn);
                 Assert.False(string.IsNullOrWhiteSpace(field.Label), $"{provider.Kind}/{field.Key}");
             });
@@ -206,6 +207,166 @@ public class ConnectionManagerTests
     }
 
     /// <summary>
+    /// A secret is never typed. The field shows a reference and offers the vault and the key store.
+    /// </summary>
+    /// <remarks>
+    /// Only the two material fields offer the key store: a passphrase is filled from whichever
+    /// entry is chosen, never picked on its own, because the two are only meaningful together.
+    /// </remarks>
+    [AvaloniaFact]
+    public void ASecretFieldIsNotTypedInto()
+    {
+        var editor = new ConnectionEditorModel(() => Controller(new FakeProfiles()));
+        editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Sftp);
+
+        var key = Field(editor, "privateKeyReference");
+        Assert.True(key.IsSecret);
+        Assert.False(key.IsText);
+        Assert.True(key.IsKeyStoreSlot);
+        Assert.NotNull(key.EnrollCommand);
+        Assert.NotNull(key.ChooseFromKeyStoreCommand);
+
+        var passphrase = Field(editor, "privateKeyPassphraseReference");
+        Assert.True(passphrase.IsSecret);
+        Assert.False(passphrase.IsKeyStoreSlot);
+
+        Assert.True(Field(editor, "hostKeyFingerprint").IsText);
+
+        // Nothing to enrol with and nothing to pick from, so the buttons say so.
+        Assert.False(key.EnrollCommand!.CanExecute(null));
+        Assert.False(key.ChooseFromKeyStoreCommand!.CanExecute(null));
+    }
+
+    /// <summary>
+    /// Choosing a stored key fills the material field and the passphrase field together.
+    /// </summary>
+    /// <remarks>
+    /// The listing is asked for the kind the field accepts, so a certificate is never offered
+    /// where a key is required. One entry fills both halves: the provider needs the passphrase to
+    /// open the material, and the profile requires them together.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task ChoosingFromTheKeyStoreFillsBothHalves()
+    {
+        var stored = KeyStoreTests.Entry("build box", KeyStoreMaterialKind.SshPrivateKey);
+        var keyStore = new KeyStoreTests.StubKeyStoreAgent { Entries = { stored } };
+        KeyStoreEntryDocument[]? offered = null;
+        var editor = new ConnectionEditorModel(
+            () => Controller(new FakeProfiles()),
+            keyStore: () => keyStore,
+            pickKey: entries =>
+            {
+                offered = [.. entries];
+                return Task.FromResult<KeyStoreEntryDocument?>(entries[0]);
+            });
+        editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Sftp);
+        var key = Field(editor, "privateKeyReference");
+        Assert.True(key.ChooseFromKeyStoreCommand!.CanExecute(null));
+
+        await editor.ChooseFromKeyStoreAsync(key, TestContext.Current.CancellationToken);
+
+        Assert.Equal(KeyStoreMaterialKind.SshPrivateKey, keyStore.Listed!.Kind);
+        Assert.Single(offered!);
+        Assert.Equal(stored.MaterialReference, key.Value);
+        Assert.Equal(stored.PassphraseReference, Field(editor, "privateKeyPassphraseReference").Value);
+        Assert.Equal(Ui.Format(Ui.ConnectionEditor.UsingStoredKeyFormat, "build box"), editor.Status);
+        Assert.True(editor.IsDirty);
+    }
+
+    /// <summary>An empty store says where to import one, rather than opening an empty picker.</summary>
+    [AvaloniaFact]
+    public async Task AnEmptyKeyStoreSaysSo()
+    {
+        var picked = false;
+        var editor = new ConnectionEditorModel(
+            () => Controller(new FakeProfiles()),
+            keyStore: () => new KeyStoreTests.StubKeyStoreAgent(),
+            pickKey: _ =>
+            {
+                picked = true;
+                return Task.FromResult<KeyStoreEntryDocument?>(null);
+            });
+        editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Sftp);
+
+        await editor.ChooseFromKeyStoreAsync(Field(editor, "privateKeyReference"), TestContext.Current.CancellationToken);
+
+        Assert.False(picked);
+        Assert.Equal(Ui.ConnectionEditor.NoStoredKeys, editor.Status);
+    }
+
+    /// <summary>
+    /// Enrolling a typed secret sends it to the vault and keeps only the reference.
+    /// </summary>
+    /// <remarks>
+    /// The prompt is a secret one, so the box does not echo. What the field holds afterwards is
+    /// the vault's reference, which is what the profile stores; the secret itself went to the
+    /// vault and nowhere else.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task EnrollingATypedSecretKeepsOnlyTheReference()
+    {
+        var vault = new RecordingVault();
+        var dialogs = new KeyStoreTests.RecordingDialogs { PromptAnswer = "hunter2" };
+        var editor = new ConnectionEditorModel(() => new ConnectionManagerController(new FakeProfiles(), vault), dialogs: dialogs);
+        editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Ftp);
+        var password = Field(editor, "passwordReference");
+        Assert.True(password.EnrollCommand!.CanExecute(null));
+
+        await editor.EnrollAsync(password, TestContext.Current.CancellationToken);
+
+        Assert.True(dialogs.LastPrompt!.Secret);
+        var enrolled = Assert.Single(vault.Enrolled);
+        Assert.Equal(SecretMaterialPurpose.Password, enrolled.Purpose);
+        Assert.Equal("hunter2"u8.ToArray(), enrolled.Secret);
+        Assert.Equal(enrolled.Reference, password.Value);
+        Assert.Equal(Ui.Format(Ui.ConnectionEditor.VaultReferenceReadyFormat, 1), editor.Status);
+        Assert.True(editor.IsDirty);
+    }
+
+    /// <summary>A field that already names a reference is updated in place, keeping the reference.</summary>
+    [AvaloniaFact]
+    public async Task ReEnrollingUpdatesTheExistingReference()
+    {
+        var vault = new RecordingVault();
+        var dialogs = new KeyStoreTests.RecordingDialogs { PromptAnswer = "hunter3" };
+        var editor = new ConnectionEditorModel(() => new ConnectionManagerController(new FakeProfiles(), vault), dialogs: dialogs);
+        editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Ftp);
+        var password = Field(editor, "passwordReference");
+        var existing = KeyStoreTests.Reference('x');
+        password.Value = existing;
+
+        await editor.EnrollAsync(password, TestContext.Current.CancellationToken);
+
+        Assert.Equal(existing, Assert.Single(vault.Updated).Reference);
+        Assert.Empty(vault.Enrolled);
+        Assert.Equal(existing, password.Value);
+    }
+
+    /// <summary>Deleting a secret asks first; a "no" leaves the vault and the field alone.</summary>
+    [AvaloniaFact]
+    public async Task DeletingASecretAsksFirst()
+    {
+        var vault = new RecordingVault();
+        var dialogs = new KeyStoreTests.RecordingDialogs { Choice = Desktop.Shell.DialogChoice.No };
+        var editor = new ConnectionEditorModel(() => new ConnectionManagerController(new FakeProfiles(), vault), dialogs: dialogs);
+        editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Ftp);
+        var password = Field(editor, "passwordReference");
+        var existing = KeyStoreTests.Reference('x');
+        password.Value = existing;
+        Assert.True(password.DeleteSecretCommand!.CanExecute(null));
+
+        await editor.DeleteSecretAsync(password, TestContext.Current.CancellationToken);
+        Assert.Empty(vault.Deleted);
+        Assert.Equal(existing, password.Value);
+
+        dialogs.Choice = Desktop.Shell.DialogChoice.Yes;
+        await editor.DeleteSecretAsync(password, TestContext.Current.CancellationToken);
+        Assert.Equal(existing, Assert.Single(vault.Deleted).Reference);
+        Assert.Equal(string.Empty, password.Value);
+        Assert.Equal(Ui.ConnectionEditor.VaultSecretDeleted, editor.Status);
+    }
+
+    /// <summary>
     /// Photographs the manager in both appearances, for a human to look at.
     /// </summary>
     /// <remarks>
@@ -244,9 +405,26 @@ public class ConnectionManagerTests
         if (string.IsNullOrWhiteSpace(directory)) return;
 
         Directory.CreateDirectory(directory);
-        using var stream = File.Create(
-            Path.Combine(directory, $"connection-manager-{(dark ? "dark" : "light")}.png"));
-        frame!.Save(stream, new PngBitmapEncoderOptions());
+        using (var stream = File.Create(
+            Path.Combine(directory, $"connection-manager-{(dark ? "dark" : "light")}.png")))
+        {
+            frame!.Save(stream, new PngBitmapEncoderOptions());
+        }
+
+        // And on SFTP, which is where the secret rows are: a reference box with three buttons
+        // under it, twice, plus a fingerprint. The row that wraps or clips is one of these.
+        manager.Editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Sftp);
+        // Taller than the window opens, so every row is in the frame rather than under the scroll.
+        window.Measure(new Size(920, 1100));
+        window.Arrange(new Rect(0, 0, 920, 1100));
+        window.UpdateLayout();
+        var sftp = window.CaptureRenderedFrame();
+        Assert.NotNull(sftp);
+        using (var stream = File.Create(
+            Path.Combine(directory, $"connection-manager-sftp-{(dark ? "dark" : "light")}.png")))
+        {
+            sftp!.Save(stream, new PngBitmapEncoderOptions());
+        }
     }
 
     private static ConnectionManagerController Controller(FakeProfiles profiles) =>
@@ -378,12 +556,7 @@ public class ConnectionManagerTests
                 Failure: Failure));
     }
 
-    /// <summary>The vault, which this screen does not use yet.</summary>
-    /// <remarks>
-    /// A secret reference field names something the vault holds rather than carrying it, so the
-    /// editor's job is the name. Enrolling one belongs with the key store screen, which is not
-    /// ported -- so every call here throws rather than quietly answering.
-    /// </remarks>
+    /// <summary>The vault, for tests that are not about it: every call throws rather than quietly answering.</summary>
     private sealed class FakeVault : IRemoteSecretVaultClient
     {
         public Task<SecretVaultResponse> EnrollAsync(
@@ -401,6 +574,52 @@ public class ConnectionManagerTests
             string reference,
             SecretMaterialPurpose purpose,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    /// <summary>The vault, which answers with a reference and remembers what it was given.</summary>
+    private sealed class RecordingVault : IRemoteSecretVaultClient
+    {
+        private int _count;
+
+        internal List<(string Reference, SecretMaterialPurpose Purpose, byte[] Secret)> Enrolled { get; } = [];
+
+        internal List<(string Reference, SecretMaterialPurpose Purpose, byte[] Secret)> Updated { get; } = [];
+
+        internal List<(string Reference, SecretMaterialPurpose Purpose)> Deleted { get; } = [];
+
+        public Task<SecretVaultResponse> EnrollAsync(
+            SecretMaterialPurpose purpose,
+            ReadOnlyMemory<byte> secret,
+            CancellationToken cancellationToken = default)
+        {
+            var reference = KeyStoreTests.Reference((char)('a' + _count++));
+            Enrolled.Add((reference, purpose, secret.ToArray()));
+            return Task.FromResult(new SecretVaultResponse(
+                SecretVaultIpcContract.CurrentVersion, SecretVaultOperation.Enroll, true, reference, 1));
+        }
+
+        public Task<SecretVaultResponse> UpdateAsync(
+            string reference,
+            SecretMaterialPurpose purpose,
+            ReadOnlyMemory<byte> secret,
+            CancellationToken cancellationToken = default)
+        {
+            Updated.Add((reference, purpose, secret.ToArray()));
+            return Task.FromResult(new SecretVaultResponse(
+                SecretVaultIpcContract.CurrentVersion, SecretVaultOperation.Update, true, reference, 2));
+        }
+
+        public Task<SecretVaultResponse> DeleteAsync(
+            string reference,
+            SecretMaterialPurpose purpose,
+            CancellationToken cancellationToken = default)
+        {
+            Deleted.Add((reference, purpose));
+            return Task.FromResult(new SecretVaultResponse(
+                SecretVaultIpcContract.CurrentVersion, SecretVaultOperation.Delete, true, reference));
+        }
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }

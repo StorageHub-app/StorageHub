@@ -129,6 +129,31 @@ public sealed class ConnectionProfileKeyStoreBindingTests : IDisposable
             (await fixture.KeyStore.DeleteAsync(certificate.Id, certificate.Version)).Status);
     }
 
+    [WindowsOnlyFact]
+    public async Task Deleting_a_profile_releases_its_entry()
+    {
+        // The only connection that used a key is deleted. The key must then be deletable too, or
+        // it is stuck in the store for good with a refusal naming a connection that is gone.
+        var fixture = await CreateFixtureAsync();
+        var certificate = await ImportAsync(fixture, KeyMaterialKind.Pkcs12Certificate, "Partner certificate");
+        var created = await CreateAsync(fixture, FtpsDraft(certificate));
+
+        var deleted = await SendAsync<ConnectionProfileDeleteRequest, ConnectionProfileWriteResponse>(
+            fixture.Service,
+            ConnectionProfileIpcMessageTypes.DeleteRequest,
+            new ConnectionProfileDeleteRequest(
+                ConnectionProfileIpcContract.CurrentVersion,
+                created.Profile!.ConnectionId,
+                created.Profile.Version));
+
+        Assert.Equal(ContractWriteStatus.Succeeded, deleted.Status);
+        var usage = Assert.Single(await fixture.KeyStore.SearchAsync(new KeyStoreSearch()));
+        Assert.Empty(usage.ReferencedByProfileNames);
+        Assert.Equal(
+            KeyStoreWriteStatus.Succeeded,
+            (await fixture.KeyStore.DeleteAsync(certificate.Id, certificate.Version)).Status);
+    }
+
     private static Task<ConnectionProfileWriteResponse> CreateAsync(Fixture fixture, ConnectionProfileDraft draft) =>
         SendAsync<ConnectionProfileCreateRequest, ConnectionProfileWriteResponse>(
             fixture.Service,

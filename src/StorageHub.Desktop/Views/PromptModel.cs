@@ -35,6 +35,15 @@ internal sealed class PromptModel : INotifyPropertyChanged
 
     public static string CancelLabel => Ui.Dialogs.ButtonCancel;
 
+    /// <summary>
+    /// What the box draws in place of each character, or nothing for an ordinary name.
+    /// </summary>
+    /// <remarks>
+    /// The null character is what TextBox reads as "do not mask", so the one property covers
+    /// both cases without the window having to know which prompt it is showing.
+    /// </remarks>
+    public char PasswordChar => _request.Secret ? '●' : '\0';
+
     public string Value
     {
         get => _value;

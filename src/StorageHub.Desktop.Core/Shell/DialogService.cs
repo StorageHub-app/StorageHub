@@ -101,6 +101,15 @@ internal sealed record DialogPromptRequest
     public required string Accept { get; init; }
 
     /// <summary>
+    /// Whether what is typed is a secret, which the box then does not echo.
+    /// </summary>
+    /// <remarks>
+    /// A password, a passphrase or an access key on its way to the vault. The value still comes
+    /// back to the caller, who sends it and drops it; it is the screen that must not show it.
+    /// </remarks>
+    public bool Secret { get; init; }
+
+    /// <summary>
     /// Says whether a value is acceptable, returning the reason it is not.
     /// </summary>
     /// <remarks>

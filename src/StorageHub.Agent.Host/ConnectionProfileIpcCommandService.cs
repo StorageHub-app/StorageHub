@@ -261,6 +261,7 @@ public sealed class ConnectionProfileIpcCommandService : IAgentIpcCommandHandler
                 new ConnectionProfileId(request.ConnectionId),
                 request.ExpectedVersion,
                 cancellationToken).ConfigureAwait(false);
+            await ReleaseKeyStoreBindingsAsync(result, cancellationToken).ConfigureAwait(false);
             return MapWriteResult(ConnectionProfileIpcMessageTypes.DeleteResponse, result);
         }
         catch (DatabaseRecoveryRequiredException)
@@ -440,6 +441,32 @@ public sealed class ConnectionProfileIpcCommandService : IAgentIpcCommandHandler
             {
                 await _keyStore.BindAsync(profile.Id, slot, entry.Id, cancellationToken).ConfigureAwait(false);
             }
+        }
+    }
+
+    /// <summary>
+    /// Releases what a deleted profile bound.
+    /// </summary>
+    /// <remarks>
+    /// A profile is deleted by tombstone, and a tombstone cannot open a connection, so it must not
+    /// pin a key either. Until this ran, deleting the only connection that used a key left the key
+    /// undeletable for good: the store refused with the connection's name and "(deleted)" after it,
+    /// which is a refusal on behalf of something that no longer exists.
+    /// </remarks>
+    private async ValueTask ReleaseKeyStoreBindingsAsync(
+        ConnectionProfileWriteResult result,
+        CancellationToken cancellationToken)
+    {
+        if (_keyStore is null ||
+            result.Status != DomainWriteStatus.Succeeded ||
+            result.Profile is not { } profile)
+        {
+            return;
+        }
+
+        foreach (var slot in AllKeyStoreSlots)
+        {
+            await _keyStore.UnbindAsync(profile.Id, slot, cancellationToken).ConfigureAwait(false);
         }
     }
 

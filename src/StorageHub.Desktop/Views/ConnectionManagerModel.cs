@@ -33,16 +33,22 @@ internal sealed class ConnectionManagerModel : INotifyPropertyChanged
     private string _status = string.Empty;
     private bool _isBusy;
 
+    /// <param name="files">Picks a certificate or a key file to enrol. Null leaves that unavailable.</param>
+    /// <param name="keyStore">Lists what the key store holds, for the editor's material fields.</param>
+    /// <param name="pickKey">Chooses one of those entries; the window supplies a dialog.</param>
     internal ConnectionManagerModel(
         Func<IRemoteStorageAgentClient> storage,
         Func<ConnectionManagerController> controller,
-        IDialogService? dialogs = null)
+        IDialogService? dialogs = null,
+        IFilePickerService? files = null,
+        Func<IKeyStoreAgentClient>? keyStore = null,
+        Func<IReadOnlyList<KeyStoreEntryDocument>, Task<KeyStoreEntryDocument?>>? pickKey = null)
     {
         _storage = storage ?? throw new ArgumentNullException(nameof(storage));
         _controller = controller ?? throw new ArgumentNullException(nameof(controller));
         _dialogs = dialogs;
 
-        Editor = new ConnectionEditorModel(controller, storage);
+        Editor = new ConnectionEditorModel(controller, storage, dialogs, files, keyStore, pickKey);
         Editor.Saved += (_, _) => _ = RefreshAsync();
 
         NewCommand = new RelayCommand(_ => StartNew());

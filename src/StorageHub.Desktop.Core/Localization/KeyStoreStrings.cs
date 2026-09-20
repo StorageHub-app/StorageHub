@@ -52,8 +52,6 @@ internal sealed class KeyStoreStrings : LocalizationModelBase
 
     public string OpenSSHOpensshKeyV1 { get; set; } = "OpenSSH (openssh-key-v1)";
 
-    public string PKCS12CertificatesPfxP12PfxP12 { get; set; } = "PKCS#12 certificates (*.pfx;*.p12)|*.pfx;*.p12";
-
     public string PKCS8 { get; set; } = "PKCS#8";
 
     /// <summary>
@@ -61,8 +59,6 @@ internal sealed class KeyStoreStrings : LocalizationModelBase
     /// else in these models, and this is an ordinary field caption.
     /// </summary>
     public string PrivateKeyFormatLabel { get; set; } = "Private key format";
-
-    public string PrivateKeysKeyPemKeyPem { get; set; } = "Private keys (*.key;*.pem;*)|*.key;*.pem;*";
 
     public string RenameEntry { get; set; } = "Rename entry";
 
@@ -97,4 +93,73 @@ internal sealed class KeyStoreStrings : LocalizationModelBase
     public string UsedBy { get; set; } = "Used by";
 
     public string WhichEnvelopeDoesTheKeyUse { get; set; } = "Which envelope does the key use?";
+
+    // ------------------------------------------------------------- the manager
+    /// <summary>{0} = how many entries are stored.</summary>
+    public string StoredItemsFormat { get; set; } = "{0} stored item(s).";
+
+    public string NothingMatches { get; set; } = "Nothing matches the search.";
+
+    /// <summary>{0} = the entry's display name.</summary>
+    public string ImportedFormat { get; set; } = "Imported '{0}'.";
+
+    /// <summary>{0} = the entry's display name; {1} = the connections that use it.</summary>
+    public string StillUsedByFormat { get; set; } = "'{0}' is still used by {1}.";
+
+    /// <summary>{0} = the connections that use the entry.</summary>
+    public string EntryStillUsedByFormat { get; set; } = "The entry is still used by {0}.";
+
+    /// <summary>{0} = what went wrong.</summary>
+    public string KeyStoreUnavailableFormat { get; set; } = "The key store is unavailable: {0}";
+
+    public string UnknownSubject { get; set; } = "(unknown subject)";
+
+    public string UnknownFingerprint { get; set; } = "(unknown fingerprint)";
+
+    /// <summary>What the Expires column shows for a key, which has none.</summary>
+    public string NoExpiry { get; set; } = "-";
+
+    public string Name { get; set; } = "Name";
+
+    public string Kind { get; set; } = "Kind";
+
+    public string Tags { get; set; } = "Tags";
+
+    public string Refresh { get; set; } = "Refresh";
+
+    public string Use { get; set; } = "Use";
+
+    public string PickerHint { get; set; } =
+        "Only entries of the kind this field accepts are listed. The material itself never leaves the vault.";
+
+    // ------------------------------------------------------------- importing
+    public string ImportCertificateTitle { get; set; } = "Import certificate";
+
+    public string ImportSshKeyTitle { get; set; } = "Import SSH key";
+
+    public string File { get; set; } = "File";
+
+    public string Browse { get; set; } = "Browse…";
+
+    public string Import { get; set; } = "Import";
+
+    public string Importing { get; set; } = "Importing…";
+
+    public string ImportHint { get; set; } =
+        "The file is encrypted into the vault as it is imported. Only an opaque reference is kept, and any number of connections can use it.";
+
+    public string CertificatePasswordHint { get; set; } = "Leave empty if the bundle has no password.";
+
+    public string ChooseTheFileToImport { get; set; } = "Choose the file to import.";
+
+    public string NameRequired { get; set; } = "Give the entry a name.";
+
+    public string NameTooLong { get; set; } =
+        "The name is too long, or contains characters that cannot be stored.";
+
+    public string CertificateFiles { get; set; } = "PKCS#12 certificates";
+
+    public string PrivateKeyFiles { get; set; } = "Private keys";
+
+    public string AllFiles { get; set; } = "All files";
 }

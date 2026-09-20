@@ -217,6 +217,11 @@ public sealed class SqliteKeyStoreRepository : IKeyStoreRepository
             return new KeyStoreWriteResult(KeyStoreWriteStatus.VersionConflict, existing, existing.Version);
         }
 
+        // A profile deleted before the agent released bindings on delete still holds its row, and
+        // the foreign key would refuse on its behalf. Released here, since a tombstone cannot open a
+        // connection and so has no claim on the key.
+        await ReleaseTombstoneBindingsAsync(lease.Connection, id, cancellationToken).ConfigureAwait(false);
+
         // Refuse before deleting rather than relying on the foreign key to raise, so the caller can
         // be told exactly which profiles still bind the entry.
         var consumers = await ReadConsumersAsync(lease.Connection, id, cancellationToken).ConfigureAwait(false);
@@ -297,11 +302,13 @@ public sealed class SqliteKeyStoreRepository : IKeyStoreRepository
     }
 
     /// <summary>
-    /// Names the profiles that bind an entry. Soft-deleted profiles are included and labelled: they
-    /// keep their binding rows, so the foreign key would refuse the delete anyway, and a report that
-    /// disagreed with the constraint would turn a clear refusal into an opaque failure. The profile
-    /// provider column deliberately conflates SSH with SFTP, so rows are joined by identity only.
+    /// Names the live profiles that bind an entry.
     /// </summary>
+    /// <remarks>
+    /// A soft-deleted profile is not one of them: it cannot open a connection, so it has no use for
+    /// the key, and the agent releases its bindings when it deletes it. The profile provider column
+    /// deliberately conflates SSH with SFTP, so rows are joined by identity only.
+    /// </remarks>
     private static async ValueTask<IReadOnlyList<string>> ReadConsumersAsync(
         SqliteConnection connection,
         KeyStoreEntryId id,
@@ -309,10 +316,10 @@ public sealed class SqliteKeyStoreRepository : IKeyStoreRepository
     {
         await using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT DISTINCT p.display_name, p.deleted_utc
+            SELECT DISTINCT p.display_name
             FROM profile_credentials c
             JOIN connection_profiles p ON p.profile_id = c.profile_id
-            WHERE c.credential_id = $id
+            WHERE c.credential_id = $id AND p.deleted_utc IS NULL
             ORDER BY p.display_name COLLATE NOCASE;
             """;
         command.Parameters.AddWithValue("$id", id.ToString());
@@ -320,10 +327,29 @@ public sealed class SqliteKeyStoreRepository : IKeyStoreRepository
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            names.Add(reader.IsDBNull(1) ? reader.GetString(0) : reader.GetString(0) + " (deleted)");
+            names.Add(reader.GetString(0));
         }
 
         return names;
+    }
+
+    /// <summary>
+    /// Drops the binding rows of profiles that were deleted before the agent released them on
+    /// delete, so the foreign key does not refuse on a tombstone's behalf.
+    /// </summary>
+    private static async ValueTask ReleaseTombstoneBindingsAsync(
+        SqliteConnection connection,
+        KeyStoreEntryId id,
+        CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            DELETE FROM profile_credentials
+            WHERE credential_id = $id
+              AND profile_id IN (SELECT profile_id FROM connection_profiles WHERE deleted_utc IS NOT NULL);
+            """;
+        command.Parameters.AddWithValue("$id", id.ToString());
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private static void Bind(SqliteCommand command, KeyStoreEntry entry)

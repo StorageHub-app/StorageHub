@@ -38,6 +38,7 @@ public class LiveSyncTests
     private const string DestinationName = "storagehub-live-sync-destination";
     private const string ProfileName = "storagehub-live-sync";
     private const string RemoteName = "storagehub-live-sync-sftp";
+    private const string KeyName = "storagehub-live-sync-key";
     private const string SftpProfileName = "storagehub-live-sync-over-sftp";
     private const string FileName = "photo.txt";
     private const string Contents = "the bytes that have to arrive";
@@ -330,23 +331,24 @@ public class LiveSyncTests
     /// key material. Enrolling goes through the controller because the key store screen that will
     /// do it is not ported yet, and this is the call it will make.
     /// </remarks>
+    /// <summary>
+    /// The SFTP connection, with its key imported through the key store and borrowed from it.
+    /// </summary>
+    /// <remarks>
+    /// The key store is how a person gets a key into a connection, so it is how this does too:
+    /// one import, then the editor's own "Key Store…" fills the material and passphrase fields
+    /// together. The entry is removed with the connection, after it, since it cannot go first.
+    /// </remarks>
     private static async Task<Guid> MakeSftpConnectionAsync(CancellationToken cancellationToken)
     {
-        var controller = Controller();
-        var key = await File.ReadAllBytesAsync(Lab("STORAGEHUB_SYNCLAB_SFTP_KEY_PATH"), cancellationToken);
+        var imported = await new KeyStoreController(KeyStore, Vault)
+            .ImportAsync(LiveKeyStoreTests.Draft(KeyName), cancellationToken);
+        Assert.True(imported.Changed, $"The key could not be imported: {imported.ErrorMessage}");
 
-        var enrolledKey = await controller.EnrollOrUpdateSecretAsync(
-            SecretMaterialPurpose.SshPrivateKey, null, key, cancellationToken);
-        var enrolledPassphrase = await controller.EnrollOrUpdateSecretAsync(
-            SecretMaterialPurpose.SshPrivateKeyPassphrase,
-            null,
-            Encoding.UTF8.GetBytes(Lab("STORAGEHUB_SYNCLAB_SFTP_KEY_PASSPHRASE")),
-            cancellationToken);
-
-        Assert.True(enrolledKey.Succeeded, "The private key could not be enrolled in the vault.");
-        Assert.True(enrolledPassphrase.Succeeded, "The passphrase could not be enrolled.");
-
-        var editor = new ConnectionEditorModel(Controller);
+        var editor = new ConnectionEditorModel(
+            Controller,
+            keyStore: KeyStore,
+            pickKey: entries => Task.FromResult(entries.FirstOrDefault(entry => entry.DisplayName == KeyName)));
         editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Sftp);
         Field(editor, "profileName").Value = RemoteName;
         Field(editor, "host").Value = "127.0.0.1";
@@ -354,9 +356,11 @@ public class LiveSyncTests
         Field(editor, "initialPath").Value = "/" + Lab("STORAGEHUB_SYNCLAB_SFTP_ROOT");
         Field(editor, "username").Value = Lab("STORAGEHUB_SYNCLAB_SFTP_USERNAME");
         Field(editor, "authenticationMode").Value = "Private key reference";
-        Field(editor, "privateKeyReference").Value = enrolledKey.Reference!;
-        Field(editor, "privateKeyPassphraseReference").Value = enrolledPassphrase.Reference!;
         Field(editor, "hostKeyFingerprint").Value = Lab("STORAGEHUB_SYNCLAB_SFTP_HOST_SHA256");
+
+        await editor.ChooseFromKeyStoreAsync(Field(editor, "privateKeyReference"), cancellationToken);
+        Assert.Equal(imported.Entry!.MaterialReference, Field(editor, "privateKeyReference").Value);
+        Assert.Equal(imported.Entry.PassphraseReference, Field(editor, "privateKeyPassphraseReference").Value);
 
         await editor.SaveAsync(cancellationToken);
         Assert.False(editor.IsNew, $"The agent did not store the SFTP connection: {editor.Status}");
@@ -542,7 +546,19 @@ public class LiveSyncTests
                 .DeleteAsync(entry.ConnectionId, entry.Version, cancellationToken)
                 .ConfigureAwait(false);
         }
+
+        // After the connections, because an entry a connection names cannot be deleted.
+        var store = new KeyStoreController(KeyStore, Vault);
+        var keys = await store.ListAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+        foreach (var key in keys.Entries.Where(static key => key.DisplayName == KeyName))
+        {
+            _ = await store.DeleteAsync(key, cancellationToken).ConfigureAwait(false);
+        }
     }
+
+    private static NamedPipeKeyStoreAgentClient KeyStore() => new();
+
+    private static NamedPipeRemoteSecretVaultClient Vault() => new();
 
     private static void Delete(DirectoryInfo directory)
     {
