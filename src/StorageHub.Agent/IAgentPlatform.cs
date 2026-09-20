@@ -40,6 +40,59 @@ public sealed record AgentPaths(string DataRoot, string RuntimeRoot)
     /// root, so on Linux it is tmpfs and never reaches a disk.
     /// </summary>
     public string RuntimeSecretsDirectory => Path.Combine(RuntimeRoot, "runtime-secrets");
+
+    /// <summary>
+    /// The same paths against a data root that turned out to be somewhere else.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The host resolves a root, then leases a directory, and the directory it gets is the
+    /// authoritative one -- it can differ, because STORAGEHUB_DATA_ROOT is read after the platform
+    /// has already answered. Patching <see cref="DataRoot"/> alone left
+    /// <see cref="RuntimeRoot"/> pointing into the tree that was resolved first, so an agent told
+    /// to use one root wrote its runtime secrets into another. On a machine where the first root
+    /// belonged to somebody else, that is where it stopped: access denied, on a path nobody asked
+    /// for.
+    /// </para>
+    /// <para>
+    /// Runtime state that sat inside the old root moves with it; runtime state that did not stays
+    /// where it is. That distinction is the whole reason the two are separate fields -- Linux puts
+    /// the runtime root on tmpfs, deliberately outside the data root, and moving that would put key
+    /// material on a disk.
+    /// </para>
+    /// </remarks>
+    public AgentPaths WithDataRoot(string dataRoot)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(dataRoot);
+        var moved = Path.GetFullPath(dataRoot);
+        return this with { DataRoot = moved, RuntimeRoot = Rebase(RuntimeRoot, DataRoot, moved) };
+    }
+
+    /// <summary>A path under <paramref name="from"/>, said against <paramref name="to"/> instead.</summary>
+    private static string Rebase(string path, string from, string to)
+    {
+        var full = Path.GetFullPath(path);
+        var oldRoot = Path.GetFullPath(from);
+        if (string.Equals(full, oldRoot, PathComparison)) return to;
+
+        var prefix = oldRoot.EndsWith(Path.DirectorySeparatorChar)
+            ? oldRoot
+            : oldRoot + Path.DirectorySeparatorChar;
+
+        return full.StartsWith(prefix, PathComparison)
+            ? Path.Combine(to, full[prefix.Length..])
+            : full;
+    }
+
+    /// <summary>
+    /// How two paths are compared, which is the platform's answer rather than a choice.
+    /// </summary>
+    /// <remarks>
+    /// Windows and macOS compare without case and Linux compares with it. Getting this wrong in
+    /// either direction is a path that silently fails to move, so it follows the platform.
+    /// </remarks>
+    private static StringComparison PathComparison =>
+        OperatingSystem.IsLinux() ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
 }
 
 /// <summary>

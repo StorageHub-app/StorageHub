@@ -150,6 +150,26 @@ are the honest ones — each names what is missing rather than claiming the row.
 
 ---
 
+## Running the desktop against a live agent
+
+`eng/run-dev-agent.ps1` starts the agent from this working tree and prints the pipe the desktop
+looks for. It is needed because the two ways of running StorageHub collide on one directory:
+
+- The agent owns `%PROGRAMDATA%\StorageHub` and hardens it to whichever account created it. A
+  machine that has ever run the installed service has that directory owned by LocalSystem, so an
+  agent started from a working tree cannot re-protect it and exits with "The StorageHub data
+  directory could not be protected for the current user."
+- The script therefore points the agent at `%LOCALAPPDATA%\StorageHub.Dev` through
+  `STORAGEHUB_DATA_ROOT`, leaving the installed service and its data alone. It is a separate
+  database: connections made in development are not the installed service's.
+
+The desktop needs nothing set. It finds the agent by a pipe named from the current account's SID,
+so an agent running as you is one it can reach.
+
+`STORAGEHUB_LIVE_AGENT=1` turns on the two suites that need a running agent:
+`LiveAgentTests` (something answers) and `LiveConnectionTests` (a connection is made, listed,
+browsed and removed). They are skipped otherwise, so CI stays green without one.
+
 ## The order worth doing the rest in
 
 1. ~~**"This PC"**, so a pane can be a local folder.~~ Done.

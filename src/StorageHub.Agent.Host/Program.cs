@@ -94,11 +94,26 @@ var agentRoot = agentDataDirectory.AgentDirectory;
 // The platform owns what protects the vault, which mode decides. Composing it here rather than
 // naming DPAPI at the call site is what lets the same line serve a Linux host once the composition
 // root moves out of this Windows-only assembly.
-var agentPaths = resolvedPaths with { DataRoot = storageHubRoot };
+// WithDataRoot rather than a with-expression on DataRoot alone: the runtime root was derived from
+// the root the platform resolved first, and the leased directory is the one that is real.
+var agentPaths = resolvedPaths.WithDataRoot(storageHubRoot);
 var concurrencyConfiguration = AgentConcurrencyConfiguration.Load(
     Path.Combine(storageHubRoot, "Desktop"));
 var runtimeSecretFileMaterializer = agentPlatform.CreateRuntimeSecretFileMaterializer(agentPaths);
-_ = runtimeSecretFileMaterializer.ScavengeOrphans(TimeSpan.FromHours(24));
+try
+{
+    // Sweeping key material left by a previous run. Reported rather than thrown: the data
+    // directory above says why it refused and exits with a code, and this failing with a stack
+    // trace instead is the difference between a diagnosable start and a mystery -- which is
+    // exactly how it read when the runtime root pointed at a directory owned by somebody else.
+    _ = runtimeSecretFileMaterializer.ScavengeOrphans(TimeSpan.FromHours(24));
+}
+catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+{
+    Console.Error.WriteLine(
+        $"StorageHub Agent runtime directory rejected: {agentPaths.RuntimeSecretsDirectory}. {error.Message}");
+    return 1;
+}
 
 var initialization = await CodeLogic.CodeLogic.InitializeAsync(options =>
 {
