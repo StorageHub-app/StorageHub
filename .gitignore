@@ -56,3 +56,7 @@ Desktop.ini
 
 # Machine-local Claude Code settings
 .claude/settings.local.json
+
+# The test lab mints throwaway keys, certificates and credentials into here.
+eng/testlab/.fixtures/
+eng/testlab/.env

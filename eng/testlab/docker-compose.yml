@@ -1,0 +1,66 @@
+# The StorageHub test lab: real servers for the integration fixtures to talk to.
+#
+# The fixtures have always been here -- SftpProviderIntegrationTests, SshTerminalIntegrationTests,
+# FtpFtpsProviderIntegrationTests and MinioS3ProviderIntegrationTests all read their endpoints from
+# STORAGEHUB_* variables and skip when they are unset. What was never here was anything to point
+# them at, so in practice they have always skipped. This is that.
+#
+# Everything binds to 127.0.0.1 on purpose. These servers hold throwaway credentials that are
+# written in plain text in the generated .env, and a fixture that is reachable from the network is
+# a fixture somebody else can log into.
+#
+# Start it with eng/testlab/New-TestLab.ps1, which mints the keys and certificates first -- the
+# fingerprints in the fixtures are of those files, so the two cannot be generated independently.
+
+name: storagehub-testlab
+
+services:
+  # ---------------------------------------------------------------- SFTP and SSH
+  # Three servers rather than three users on one, because what is being tested is the server's
+  # policy: which authentication it accepts, and which host key it presents.
+
+  # Password only. The fixture asserts that a private key is refused here, which is the mirror of
+  # the assertion on the key-only server below. The SSH terminal fixture opens a shell here too.
+  sftp-password:
+    build: ./sftp
+    restart: unless-stopped
+    environment:
+      SFTP_USER: "${STORAGEHUB_SFTP_USERNAME}"
+      SFTP_PASSWORD: "${STORAGEHUB_SFTP_PASSWORD}"
+      AUTH_MODE: "password"
+      HOST_KEY_NAME: "hostkey"
+    ports:
+      - "127.0.0.1:${STORAGEHUB_SFTP_PASSWORD_PORT}:22"
+    volumes:
+      - ./.fixtures/ssh:/fixtures:ro
+
+  # Public key only. The fixture asserts that a password is refused here, and that the alternate
+  # client key -- which is never added to authorized_keys -- is refused as well.
+  sftp-key:
+    build: ./sftp
+    restart: unless-stopped
+    environment:
+      SFTP_USER: "${STORAGEHUB_SFTP_USERNAME}"
+      SFTP_PASSWORD: ""
+      AUTH_MODE: "key"
+      HOST_KEY_NAME: "hostkey"
+    ports:
+      - "127.0.0.1:${STORAGEHUB_SFTP_PRIVATE_KEY_PORT}:22"
+    volumes:
+      - ./.fixtures/ssh:/fixtures:ro
+
+  # The same user and password as the first, presenting a different host key. This is what makes
+  # host-key pinning testable: connecting here with the first server's fingerprint must fail, and
+  # it must fail because the key changed rather than because the credentials did.
+  sftp-rotated:
+    build: ./sftp
+    restart: unless-stopped
+    environment:
+      SFTP_USER: "${STORAGEHUB_SFTP_USERNAME}"
+      SFTP_PASSWORD: "${STORAGEHUB_SFTP_PASSWORD}"
+      AUTH_MODE: "password"
+      HOST_KEY_NAME: "hostkey-rotated"
+    ports:
+      - "127.0.0.1:${STORAGEHUB_SFTP_ROTATED_PORT}:22"
+    volumes:
+      - ./.fixtures/ssh:/fixtures:ro
