@@ -47,10 +47,20 @@
         </Button>
       </Grid>
   
-      <!-- The search box carries its own glyph, as the owner-drawn field did. -->
+      <!-- The search box carries its own glyph, as the owner-drawn field did. It had no Text
+           binding at all until now, which made it decoration: it accepted typing and nothing
+           read it. -->
       <Grid DockPanel.Dock="Top" Margin="12,0,12,0">
-        <TextBox PlaceholderText="{Binding SearchPlaceholder}"
-                 Padding="30,8,10,8"/>
+        <TextBox Text="{Binding Search, Mode=TwoWay}"
+                 PlaceholderText="{Binding SearchPlaceholder}"
+                 Padding="30,8,32,8"/>
+        <Button Classes="tool" HorizontalAlignment="Right" VerticalAlignment="Center"
+                Margin="0,0,4,0"
+                IsVisible="{Binding HasSearch}"
+                Command="{Binding ClearSearchCommand}"
+                ToolTip.Tip="{Binding ClearSearchLabel}">
+          <LucideIcon Kind="X" Size="{StaticResource IconSizeSm}"/>
+        </Button>
         <LucideIcon Kind="Search" Size="{StaticResource IconSizeSm}"
                     HorizontalAlignment="Left" VerticalAlignment="Center"
                     Margin="{StaticResource PaddingLg}"/>
@@ -121,7 +131,8 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                       <DataTemplate DataType="vm:ConnectionRowModel">
-                        <Border Classes="card connection-row" Classes.disabled="{Binding !IsEnabled}">
+                        <Border Classes="card connection-row" Classes.disabled="{Binding !IsEnabled}"
+                                ToolTip.Tip="{Binding OpenHint}">
                           <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceSm}">
                             <Border Grid.Column="0" Classes="badge"
                                     Classes.client="{Binding IsClient}"

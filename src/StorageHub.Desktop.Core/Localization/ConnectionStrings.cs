@@ -128,6 +128,12 @@ internal sealed class ConnectionStrings : LocalizationModelBase
 
     public string BadgeClient { get; set; } = "CLIENT";
 
+    public string ClearSearch { get; set; } = "Clear the search";
+
+    public string OpenInActivePane { get; set; } = "Double-click to open in the active pane";
+
+    public string NoMatches { get; set; } = "No connections match that search.";
+
     public string NewGroup { get; set; } = "New group";
 
     public string GroupName { get; set; } = "Group name";

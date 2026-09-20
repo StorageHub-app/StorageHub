@@ -176,5 +176,8 @@
   "connectionNameHint": "Wie diese Verbindung in StorageHub heißt.",
   "folderHint": "Die Gruppe, unter der sie im Verbindungsbereich abgelegt ist.",
   "tagsHint": "Kommagetrennt, für die Suche.",
+  "clearSearch": "Suche löschen",
+  "noMatches": "Keine Verbindungen passen zu dieser Suche.",
+  "openInActivePane": "Doppelklicken, um im aktiven Bereich zu öffnen",
   "culture": "de-DE"
 }

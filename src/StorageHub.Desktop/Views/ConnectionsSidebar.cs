@@ -26,6 +26,16 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     private readonly Func<IReadOnlyList<ConnectionGroupEntry>?>? _load;
     private readonly Action<IReadOnlyList<ConnectionGroupEntry>>? _save;
     private IReadOnlyList<ConnectionCardModel> _cards = [];
+    private string _search = string.Empty;
+
+    /// <summary>
+    /// What the last listing had to say, kept so a search cannot overwrite it.
+    /// </summary>
+    /// <remarks>
+    /// "Nothing is saved" and "nothing answered" are different states that must read differently,
+    /// and rebuilding for a keystroke has no business deciding which one is true.
+    /// </remarks>
+    private string _listingStatus = string.Empty;
     private IReadOnlyList<ConnectionGroupEntry> _arrangement = [];
     private string _status = string.Empty;
     private bool _isEmpty = true;
@@ -49,6 +59,7 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         _save = save;
         Status = Ui.Connections.SidebarEmpty;
         NewGroupCommand = new RelayCommand(_ => _ = AddGroupAsync(), _ => _dialogs is not null);
+        ClearSearchCommand = new RelayCommand(_ => Search = string.Empty);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -67,6 +78,41 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     public ICommand NewCommand { get; }
 
     public ICommand NewGroupCommand { get; }
+
+    public ICommand ClearSearchCommand { get; }
+
+    /// <summary>
+    /// What is typed in the search box, narrowing the panel as it is typed.
+    /// </summary>
+    /// <remarks>
+    /// The matching is <see cref="ConnectionPickerFilter"/>, which is in Desktop.Core, tested, and
+    /// was referenced from nowhere -- the box had no Text binding at all and was decoration. Every
+    /// whitespace-separated term has to match, so typing more narrows rather than widens.
+    /// </remarks>
+    public string Search
+    {
+        get => _search;
+        set
+        {
+            value ??= string.Empty;
+            if (string.Equals(_search, value, StringComparison.Ordinal)) return;
+            _search = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Search)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasSearch)));
+            Rebuild();
+        }
+    }
+
+    public bool HasSearch => _search.Length > 0;
+
+    /// <summary>
+    /// Opens a connection in the pane somebody is looking at.
+    /// </summary>
+    /// <remarks>
+    /// Assigned by the shell, because the panel does not know there are panes. Null leaves a row
+    /// inert, which is what it was before: the rows had no click behaviour at all.
+    /// </remarks>
+    public Action<Guid>? OpenConnection { get; internal set; }
 
     /// <summary>
     /// Opens the Connection Manager, where a saved connection is edited.
@@ -102,6 +148,8 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     public string NewGroupLabel => Ui.Connections.NewGroup;
 
     public string ManageLabel => Ui.Connections.ManagerTitle;
+
+    public string ClearSearchLabel => Ui.Connections.ClearSearch;
 
     public string DragHint => Ui.Connections.DragConnectionHint;
 #pragma warning restore CA1822
@@ -253,8 +301,7 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         {
             _cards = cards;
             _arrangement = ConnectionGrouping.Arrange(_arrangement.Count > 0 ? _arrangement : _load?.Invoke(), cards);
-            IsEmpty = cards.Count == 0;
-            Status = status;
+            _listingStatus = status;
             Rebuild();
         }
 
@@ -270,15 +317,31 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
             .ToDictionary(static card => card.ConnectionId!.Value);
 
         Groups.Clear();
+        var matched = 0;
         foreach (var group in _arrangement)
         {
             var name = group.Name;
+            var rows = group.Members
+                .Where(byId.ContainsKey)
+                .Select(id => byId[id])
+                .Where(card => ConnectionPickerFilter.Matches(card, _search))
+                .Select(card => new ConnectionRowModel(card))
+                .ToArray();
+            matched += rows.Length;
             Groups.Add(new ConnectionGroupModel(
                 name,
-                [.. group.Members.Where(byId.ContainsKey).Select(id => new ConnectionRowModel(byId[id]))],
+                rows,
                 new RelayCommand(_ => _ = RenameGroupAsync(name), _ => _dialogs is not null),
                 new RelayCommand(_ => RemoveGroup(name), _ => _arrangement.Count > 1)));
         }
+
+        // A search that matches nothing reads as an empty panel otherwise, which is the same
+        // picture as having no connections at all and a very different situation. Anything the
+        // listing itself had to say outranks it: an agent that did not answer is the more useful
+        // thing to be told, and is still true whatever is typed in the box.
+        var searchFoundNothing = HasSearch && matched == 0 && _cards.Count > 0;
+        IsEmpty = _cards.Count == 0 || searchFoundNothing;
+        Status = searchFoundNothing ? Ui.Connections.NoMatches : _listingStatus;
     }
 
     private void Persist() => _save?.Invoke(_arrangement);

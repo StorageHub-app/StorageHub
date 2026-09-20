@@ -30,6 +30,9 @@ internal sealed record ConnectionRowModel(ConnectionCardModel Card)
 
     /// <summary>Whether this is a shell rather than storage, which the badge is coloured by.</summary>
     public bool IsClient => Card.Type == Contracts.Ipc.ConnectionProfileType.Client;
+
+    /// <summary>What a double-click does, said where somebody would look for it.</summary>
+    public static string OpenHint => Ui.Connections.OpenInActivePane;
 }
 
 /// <summary>

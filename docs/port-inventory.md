@@ -24,7 +24,7 @@ The catalog declares **62 commands**. `UiCommandCatalog.IsAvailable` admits **37
 
 So 1:1 means **37**, and the menu keeps showing the other 25 unavailable, exactly as it always has.
 
-**Of those 37, this shell handles 6.** That is the real number, and until recently this document
+**Of those 37, this shell handles 19.** That is the real number, and until recently this document
 quoted 1.x's in its place. It is now visible in the product rather than only here: a command is
 offered when it has a handler and dims when it does not, so the count of enabled menu entries is
 the count of handlers. `CommandAvailabilityTests` asserts the two are equal, which makes the menu
@@ -119,7 +119,7 @@ are the honest ones — each names what is missing rather than claiming the row.
 | Menu bar, nine menus, all 62 entries, shortcuts shown | **done** |
 | Toolbar from `ToolbarLayout`, customisable order and label style | **partial** — renders the default preset; the toolbar editor is a screen (below) |
 | Workspace tab strip with per-tab icons | **done** |
-| Status bar: agent state, selection, rate, queue depth | **partial** — agent and queue are live, selection and rate are not |
+| Status bar: agent state, selection, rate, queue depth | **partial** — location, selection, queue depth and agent state are live. The rate is not shown at all: the transfer contract carries no throughput, so the cell could only ever say "0 B/s" |
 | Connections panel, dockable left or right, collapsible, remembered width | **partial** — drawn on the left; the two `View` commands that move and hide it are not wired |
 | Shortcut dispatch that beats focus, and declines inside a text box or SSH | **done** — `ShellCommandRouter`, tunnelling, sharing `UiCommandCatalog.CanDispatch` |
 | Splash while the agent starts | **todo** |

@@ -92,22 +92,165 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
     /// </remarks>
     internal void RouteToActivePane()
     {
+        // Selection, which the pane answers directly.
         Router.Handle(UiCommandIds.EditSelectAll, () => ActivePane()?.SelectAll());
         Router.Handle(UiCommandIds.EditInvertSelection, () => ActivePane()?.InvertSelection());
-        Router.Handle(UiCommandIds.ViewRefresh, () =>
+
+        // Everything else the pane already draws a button for. Routed through the command rather
+        // than the method so the menu entry and the button decline in the same cases -- a rename
+        // with two rows selected, a paste into a terminal -- instead of the menu finding out by
+        // failing.
+        Pane(UiCommandIds.ViewRefresh, static pane => pane.RefreshCommand);
+        Pane(UiCommandIds.EditNewFolder, static pane => pane.NewFolderCommand);
+        Pane(UiCommandIds.EditNewEmptyFile, static pane => pane.NewFileCommand);
+        Pane(UiCommandIds.EditRename, static pane => pane.RenameCommand);
+        Pane(UiCommandIds.EditDelete, static pane => pane.DeleteCommand);
+        Pane(UiCommandIds.GoBack, static pane => pane.BackCommand);
+        Pane(UiCommandIds.GoForward, static pane => pane.ForwardCommand);
+        Pane(UiCommandIds.GoUp, static pane => pane.UpCommand);
+
+        // Cut, copy and paste belong to the workspace: each names two panes, or would if "the
+        // other pane" still meant anything at four. They stage and paste, exactly as the panes'
+        // own buttons do.
+        Workspace(UiCommandIds.EditCopy, static workspace => workspace.StageCopyCommand);
+        Workspace(UiCommandIds.EditCut, static workspace => workspace.StageMoveCommand);
+        Workspace(UiCommandIds.EditPaste, static workspace => workspace.PasteCommand);
+
+        // Moving between panes is the workspace's too: it owns which one is active.
+        Router.Handle(UiCommandIds.GoNextPane, FocusNextPane);
+
+        void Pane(string id, Func<BrowserPaneModel, ICommand?> choose) =>
+            Router.Handle(id, () => Run(ActivePane() is { } pane ? choose(pane) : null));
+
+        void Workspace(string id, Func<WorkspaceModel, ICommand?> choose) =>
+            Router.Handle(id, () => Run(ActiveWorkspace() is { } workspace ? choose(workspace) : null));
+
+        static void Run(ICommand? command)
         {
-            if (ActivePane() is { RefreshCommand: { } refresh } && refresh.CanExecute(null))
-            {
-                refresh.Execute(null);
-            }
-        });
+            if (command?.CanExecute(null) == true) command.Execute(null);
+        }
     }
 
+    /// <summary>
+    /// Makes the next pane in the arrangement the active one, wrapping at the end.
+    /// </summary>
+    /// <remarks>
+    /// The order is the layout's, so tabbing through panes follows the order they are read in
+    /// rather than the order they happened to be created.
+    /// </remarks>
+    private void FocusNextPane()
+    {
+        if (ActiveWorkspace() is not { Panes.Count: > 1 } workspace) return;
+
+        var current = workspace.Panes.IndexOf(workspace.Active);
+        workspace.Panes[(current + 1) % workspace.Panes.Count].IsActive = true;
+    }
+
+    /// <summary>
+    /// Keeps the status bar reporting the pane and the queue, rather than its startup values.
+    /// </summary>
+    /// <remarks>
+    /// Three of its five cells were frozen: only the agent state and the active count were ever
+    /// written, so the location said "No connection" and the selection said "No selection" for the
+    /// life of the process however much was open or picked.
+    /// </remarks>
+    internal void WatchTheStatusBar()
+    {
+        Queue.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(TransferQueueModel.ActiveCount)
+                or nameof(TransferQueueModel.QueuedCount))
+            {
+                ShellStatus = ShellStatus with
+                {
+                    ActiveJobs = Queue.ActiveCount,
+                    QueuedJobs = Queue.QueuedCount
+                };
+            }
+        };
+
+        foreach (var tab in Workspaces)
+        {
+            if (tab.Workspace is { } workspace) Watch(workspace);
+        }
+
+        Workspaces.CollectionChanged += (_, e) =>
+        {
+            foreach (var added in e.NewItems?.OfType<WorkspaceTab>() ?? [])
+            {
+                if (added.Workspace is { } workspace) Watch(workspace);
+            }
+        };
+
+        PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(SelectedWorkspace)) ReportThePane();
+        };
+
+        ReportThePane();
+
+        void Watch(WorkspaceModel workspace)
+        {
+            foreach (var pane in workspace.Panes) WatchPane(pane);
+            workspace.Panes.CollectionChanged += (_, e) =>
+            {
+                foreach (var added in e.NewItems?.OfType<BrowserPaneModel>() ?? []) WatchPane(added);
+                ReportThePane();
+            };
+        }
+
+        void WatchPane(BrowserPaneModel pane)
+        {
+            pane.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName is nameof(BrowserPaneModel.Path)
+                    or nameof(BrowserPaneModel.IsActive)
+                    or nameof(BrowserPaneModel.SelectionSummary))
+                {
+                    ReportThePane();
+                }
+            };
+
+            pane.SelectedRows.CollectionChanged += (_, _) => ReportThePane();
+        }
+    }
+
+    /// <summary>
+    /// What the active pane is showing and what is picked in it.
+    /// </summary>
+    /// <remarks>
+    /// The byte total counts files only. A folder contributes nothing because nobody has counted
+    /// what is inside it, which is what the pane's own summary does and what 1.x did.
+    /// </remarks>
+    private void ReportThePane()
+    {
+        if (ActivePane() is not { } pane)
+        {
+            ShellStatus = ShellStatus with
+            {
+                Location = Ui.Shell.StatusNoConnection,
+                SelectedItems = 0,
+                SelectedBytes = 0
+            };
+            return;
+        }
+
+        var chosen = pane.SelectedRows.Where(static row => !row.IsParentNavigation).ToArray();
+        ShellStatus = ShellStatus with
+        {
+            Location = string.IsNullOrWhiteSpace(pane.Path) ? Ui.Shell.StatusNoConnection : pane.Path,
+            SelectedItems = chosen.Length,
+            SelectedBytes = chosen.Sum(static row => row.Length ?? 0)
+        };
+    }
+
+    /// <summary>The workspace on screen, or none when the tab is a page.</summary>
+    private WorkspaceModel? ActiveWorkspace() =>
+        Workspaces.ElementAtOrDefault(SelectedWorkspace)?.Workspace;
+
     /// <summary>The active pane of the workspace on screen, or none when a page is showing.</summary>
-    private BrowserPaneModel? ActivePane() =>
-        Workspaces.ElementAtOrDefault(SelectedWorkspace)?.Workspace is { Panes.Count: > 0 } workspace
-            ? workspace.Active
-            : null;
+    internal BrowserPaneModel? ActivePane() =>
+        ActiveWorkspace() is { Panes.Count: > 0 } workspace ? workspace.Active : null;
 
     /// <summary>
     /// The id of the last command invoked.
@@ -315,6 +458,14 @@ internal static class ShellPreview
         model.AddWorkspace(WorkspacePreset.All[1]);
         model.SelectedWorkspace = selectedWorkspace;
         model.RouteToActivePane();
+        model.WatchTheStatusBar();
+
+        // The panel knows nothing about panes, so the shell hands it the one thing it needs to
+        // act on a row: what to do with a connection id.
+        model.Sidebar.OpenConnection = id =>
+        {
+            if (model.ActivePane() is { } pane) _ = pane.OpenConnectionAsync(id);
+        };
         return model;
     }
 

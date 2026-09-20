@@ -94,8 +94,9 @@
                    IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNullOrEmpty}}"/>
         <TextBlock Grid.Column="1" Classes="muted" Text="{Binding ShellStatus.SelectionText}"
                    Margin="{StaticResource PaddingLg}"/>
-        <TextBlock Grid.Column="2" Classes="muted" Text="{Binding ShellStatus.TransferRateText}"
-                   Margin="{StaticResource PaddingLg}"/>
+        <!-- Not shown: the transfer contract carries no throughput, so this could only ever say
+             "0 B/s". It comes back when the agent reports a rate, rather than standing there
+             being wrong. -->
         <TextBlock Grid.Column="3" Classes="muted" Text="{Binding ShellStatus.QueueText}"
                    Margin="{StaticResource PaddingLg}"/>
         <TextBlock Grid.Column="4" Classes="agent" Text="{Binding ShellStatus.AgentText}"

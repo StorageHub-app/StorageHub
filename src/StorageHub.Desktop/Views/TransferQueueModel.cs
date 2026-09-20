@@ -179,6 +179,9 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
     /// <summary>Transfers the agent reports as running, for the status bar.</summary>
     internal int ActiveCount => Tabs[0].Count;
 
+    /// <summary>And those waiting behind them, which is the other half of "how busy is it".</summary>
+    internal int QueuedCount => Tabs[1].Count;
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     /// <summary>
@@ -322,6 +325,7 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
 
         Raise(nameof(HasMessage));
         Raise(nameof(ActiveCount));
+        Raise(nameof(QueuedCount));
         Interval = Tabs[0].Count > 0 ? ActivePollMilliseconds : IdlePollMilliseconds;
         RaiseCommands();
     }

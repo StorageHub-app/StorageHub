@@ -176,5 +176,8 @@
   "connectionNameHint": "Hvad denne forbindelse hedder i StorageHub.",
   "folderHint": "Den gruppe, den er placeret i i forbindelsespanelet.",
   "tagsHint": "Kommasepareret, til søgning.",
+  "clearSearch": "Ryd søgningen",
+  "noMatches": "Ingen forbindelser passer til den søgning.",
+  "openInActivePane": "Dobbeltklik for at åbne i den aktive rude",
   "culture": "da-DK"
 }
