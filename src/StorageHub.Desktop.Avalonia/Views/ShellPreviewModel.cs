@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Windows.Input;
 using Avalonia.Input;
+using Avalonia.Threading;
 using Lucide.Avalonia;
 using StorageHub.Desktop.Localization;
 using StorageHub.Desktop.Themes;
@@ -62,6 +63,7 @@ internal sealed record QueueTab(string Title);
 internal sealed class ShellPreviewModel : INotifyPropertyChanged
 {
     private string _status = string.Empty;
+    private ShellStatusSnapshot _shellStatus = ShellStatusSnapshot.Initial;
 
     internal ShellPreviewModel(ShellCommandRouter router)
     {
@@ -106,13 +108,47 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
 
     public int SelectedWorkspace { get; init; }
 
-    public string Location { get; init; } = string.Empty;
+    /// <summary>
+    /// The status bar, as the shell has always modelled it.
+    /// </summary>
+    /// <remarks>
+    /// ShellStatusSnapshot already turns a state into the four strings the bar shows, in the current
+    /// language, and it moved to Desktop.Core with the rest of the presentation models. Binding to it
+    /// rather than to four strings of this view's own is what keeps the Avalonia bar saying exactly
+    /// what the WinForms one says.
+    /// </remarks>
+    public ShellStatusSnapshot ShellStatus
+    {
+        get => _shellStatus;
+        private set
+        {
+            if (_shellStatus == value) return;
+            _shellStatus = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShellStatus)));
+        }
+    }
 
-    public string Selection { get; init; } = string.Empty;
+    /// <summary>
+    /// Watches a real agent and reports its state in the status bar.
+    /// </summary>
+    /// <remarks>
+    /// Opt-in rather than started in the constructor, so the headless tests measure a shell that is
+    /// not polling a socket. The monitor raises on its own thread, and Avalonia requires the
+    /// property change on the UI one.
+    /// </remarks>
+    public void Watch(AgentStatusMonitor monitor)
+    {
+        ArgumentNullException.ThrowIfNull(monitor);
 
-    public string Queue { get; init; } = string.Empty;
+        monitor.StatusChanged += (_, e) => Dispatcher.UIThread.Post(() =>
+            ShellStatus = ShellStatus with
+            {
+                AgentState = e.Status.State,
+                ActiveJobs = e.Status.ActiveTransfers,
+            });
 
-    public string AgentStatus { get; init; } = string.Empty;
+        monitor.Start();
+    }
 }
 
 /// <summary>Builds the shell's model: real commands, stand-in content.</summary>
@@ -161,10 +197,6 @@ internal static class ShellPreview
                 new("Active (0)"), new("Queued (0)"), new("Paused (0)"), new("Failed (0)"),
                 new("Completed (2)"), new("Conflicts (0)"), new("Logs"),
             ],
-            Location = "No connection",
-            Selection = "0 selected",
-            Queue = "Queue: 0",
-            AgentStatus = "Agent: connected",
         };
     }
 

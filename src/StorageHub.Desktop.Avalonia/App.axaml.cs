@@ -18,7 +18,17 @@ public partial class App : global::Avalonia.Application
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = new MainWindow { DataContext = ShellPreview.Sample };
+            var model = ShellPreview.Sample;
+            desktop.MainWindow = new MainWindow { DataContext = model };
+
+            // Started here rather than in the model so the headless tests measure a shell that is
+            // not polling a socket. On Linux this reaches an agent.sock under the runtime root; on
+            // Windows, the named pipe - the desktop no longer knows which.
+            // Held by the shutdown handler rather than by a field: the application outlives
+            // nothing, so a field would only make App disposable for no one to dispose it.
+            var monitor = new AgentStatusMonitor();
+            model.Watch(monitor);
+            desktop.ShutdownRequested += async (_, _) => await monitor.DisposeAsync().ConfigureAwait(false);
         }
 
         base.OnFrameworkInitializationCompleted();

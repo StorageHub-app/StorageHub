@@ -1,7 +1,6 @@
 using System.Text.Json;
 using StorageHub.Ipc;
 using StorageHub.Contracts.Ipc;
-using StorageHub.Ipc.Windows;
 
 namespace StorageHub.Desktop;
 

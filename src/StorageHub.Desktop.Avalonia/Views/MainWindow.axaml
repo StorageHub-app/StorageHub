@@ -84,13 +84,13 @@
         <TextBlock Grid.Column="0" Classes="muted"
                    Text="{Binding Status, FallbackValue={x:Null}, TargetNullValue={x:Null}}"
                    IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
-        <TextBlock Grid.Column="0" Classes="muted" Text="{Binding Location}"
+        <TextBlock Grid.Column="0" Classes="muted" Text="{Binding ShellStatus.Location}"
                    IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNullOrEmpty}}"/>
-        <TextBlock Grid.Column="1" Classes="muted" Text="{Binding Selection}"
+        <TextBlock Grid.Column="1" Classes="muted" Text="{Binding ShellStatus.SelectionText}"
                    Margin="{StaticResource PaddingLg}"/>
-        <TextBlock Grid.Column="2" Classes="muted" Text="{Binding Queue}"
+        <TextBlock Grid.Column="2" Classes="muted" Text="{Binding ShellStatus.QueueText}"
                    Margin="{StaticResource PaddingLg}"/>
-        <TextBlock Grid.Column="3" Text="{Binding AgentStatus}"
+        <TextBlock Grid.Column="3" Text="{Binding ShellStatus.AgentText}"
                    Foreground="{DynamicResource SuccessBrush}"
                    Margin="{StaticResource PaddingLg}"/>
       </Grid>
