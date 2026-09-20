@@ -287,19 +287,19 @@
               <Grid ColumnDefinitions="Auto,*,Auto">
                 <StackPanel Grid.Column="0" Orientation="Horizontal"
                             Spacing="{StaticResource SpaceSm}" VerticalAlignment="Center">
-                  <Button Classes="tool">
+                  <Button Classes="tool" Command="{Binding Queue.RefreshCommand}">
                     <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
                       <LucideIcon Kind="RefreshCw" Size="{StaticResource IconSizeSm}"/>
                       <TextBlock Text="{Binding Queue.RefreshLabel}"/>
                     </StackPanel>
                   </Button>
-                  <Button Classes="tool">
+                  <Button Classes="tool" Command="{Binding Queue.CancelCommand}">
                     <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
                       <LucideIcon Kind="Trash" Size="{StaticResource IconSizeSm}"/>
                       <TextBlock Text="{Binding Queue.CancelLabel}"/>
                     </StackPanel>
                   </Button>
-                  <Button Classes="tool">
+                  <Button Classes="tool" Command="{Binding Queue.RetryCommand}">
                     <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
                       <LucideIcon Kind="Play" Size="{StaticResource IconSizeSm}"/>
                       <TextBlock Text="{Binding Queue.RetryLabel}"/>
@@ -308,28 +308,30 @@
                   <TextBlock Classes="muted" Text="{Binding Queue.ReconcileLabel}"
                              VerticalAlignment="Center" Margin="{StaticResource PaddingLg}"/>
                   <ComboBox ItemsSource="{Binding Queue.ReconcileActions}"
-                            SelectedIndex="0" MinWidth="150"/>
-                  <Button Classes="tool">
+                            SelectedIndex="{Binding Queue.SelectedReconcileAction, Mode=TwoWay}"
+                            MinWidth="150"/>
+                  <Button Classes="tool" Command="{Binding Queue.ApplyReconcileCommand}">
                     <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
                       <LucideIcon Kind="CircleCheck" Size="{StaticResource IconSizeSm}"/>
                       <TextBlock Text="{Binding Queue.ApplyLabel}"/>
                     </StackPanel>
                   </Button>
-                  <Button Classes="tool">
+                  <Button Classes="tool" Command="{Binding Queue.NextConflictCommand}">
                     <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
                       <LucideIcon Kind="ArrowRight" Size="{StaticResource IconSizeSm}"/>
                       <TextBlock Text="{Binding Queue.NextLabel}"/>
                     </StackPanel>
                   </Button>
                 </StackPanel>
-                <TextBlock Grid.Column="2" Classes="muted" Text="{Binding Queue.EmptyMessage}"
+                <TextBlock Grid.Column="2" Classes="muted" Text="{Binding Queue.Message}"
                            VerticalAlignment="Center"/>
               </Grid>
             </Border>
 
-            <TabControl ItemsSource="{Binding QueueTabs}">
+            <TabControl ItemsSource="{Binding Queue.Tabs}"
+                        SelectedIndex="{Binding Queue.SelectedTab, Mode=TwoWay}">
               <TabControl.ItemTemplate>
-                <DataTemplate DataType="vm:QueueTab">
+                <DataTemplate DataType="vm:TransferQueueTab">
                   <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceSm}">
                     <LucideIcon Kind="{Binding Icon}" Size="{StaticResource IconSizeSm}"/>
                     <TextBlock Text="{Binding Title}"/>
@@ -339,8 +341,9 @@
               <!-- Every tab shows the same six columns over a different filter, so one template
                    serves all seven. The rows arrive with the transfer queue client. -->
               <TabControl.ContentTemplate>
-                <DataTemplate DataType="vm:QueueTab">
-                  <TableView ItemsSource="{Binding $parent[Window].((vm:ShellPreviewModel)DataContext).Queue.Rows}">
+                <DataTemplate DataType="vm:TransferQueueTab">
+                  <TableView ItemsSource="{Binding $parent[Window].((vm:ShellPreviewModel)DataContext).Queue.Rows}"
+                             SelectedItem="{Binding $parent[Window].((vm:ShellPreviewModel)DataContext).Queue.Selected, Mode=TwoWay}">
                     <TableView.Columns>
                       <TableViewColumn Header="Operation" Binding="{Binding Operation}" Width="140"/>
                       <TableViewColumn Header="Source" Binding="{Binding Source}" Width="*"/>

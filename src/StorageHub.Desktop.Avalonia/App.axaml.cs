@@ -45,7 +45,16 @@ public partial class App : global::Avalonia.Application
             // and fills in when the agent answers. Awaiting here would hold the shell closed behind
             // a process that may not be running.
             _ = model.Sidebar.RefreshAsync();
-            desktop.ShutdownRequested += async (_, _) => await monitor.DisposeAsync().ConfigureAwait(false);
+
+            // The queue polls on its own timer and reports what the agent holds. Started here for
+            // the same reason the monitor is: a headless test measures a shell that is not talking
+            // to a socket unless it asked to.
+            model.Queue.Start();
+            desktop.ShutdownRequested += async (_, _) =>
+            {
+                await monitor.DisposeAsync().ConfigureAwait(false);
+                await model.Queue.DisposeAsync().ConfigureAwait(false);
+            };
         }
 
         base.OnFrameworkInitializationCompleted();

@@ -102,15 +102,14 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
 
     public IReadOnlyList<WorkspaceTab> Workspaces { get; init; } = [];
 
-    public IReadOnlyList<QueueTab> QueueTabs { get; init; } = [];
-
     public ConnectionsSidebar Sidebar { get; init; } = null!;
 
     public ICommand NewWorkspaceCommand { get; init; } = null!;
 
     public string NewWorkspaceLabel { get; init; } = string.Empty;
 
-    public QueueModel Queue { get; init; } = null!;
+    /// <summary>The transfer queue, reading the agent rather than a stand-in.</summary>
+    public TransferQueueModel Queue { get; init; } = null!;
 
     public int SelectedWorkspace { get; init; }
 
@@ -156,27 +155,6 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         monitor.Start();
     }
 }
-
-/// <summary>One row of the transfer queue.</summary>
-internal sealed record QueueRow(
-    string Operation,
-    string Source,
-    string Destination,
-    string Progress,
-    string Attempt,
-    string Status);
-
-/// <summary>The queue's toolbar wording, and the rows beneath it.</summary>
-internal sealed record QueueModel(
-    string RefreshLabel,
-    string CancelLabel,
-    string RetryLabel,
-    string ReconcileLabel,
-    string ApplyLabel,
-    string NextLabel,
-    string EmptyMessage,
-    IReadOnlyList<string> ReconcileActions,
-    IReadOnlyList<QueueRow> Rows);
 
 /// <summary>Builds the shell's model: real commands, stand-in content.</summary>
 internal static class ShellPreview
@@ -230,11 +208,10 @@ internal static class ShellPreview
                     ]),
             ],
             SelectedWorkspace = selectedWorkspace,
-            QueueTabs = BuildQueueTabs(),
             Sidebar = BuildSidebar(router),
             NewWorkspaceCommand = router.For(UiCommandIds.WorkspaceNewWorkspace),
             NewWorkspaceLabel = Ui.Commands.WorkspaceNewWorkspace,
-            Queue = BuildQueue(),
+            Queue = new TransferQueueModel(static () => new NamedPipeTransferQueueAgentClient()),
         };
     }
 
@@ -250,49 +227,6 @@ internal static class ShellPreview
         router.For(UiCommandIds.ConnectionsNewConnection),
         static () => new NamedPipeRemoteStorageAgentClient());
 
-    private static QueueModel BuildQueue()
-    {
-        var strings = Ui.Transfer;
-        return new(
-            Ui.Commands.ViewRefresh,
-            strings.Cancel,
-            strings.Retry,
-            strings.ReconcileLabel,
-            strings.Apply,
-            strings.Next,
-            strings.NoTransfers,
-            [strings.ReconcileReview, strings.ReconcileRestart, strings.ReconcileMarkCompleted],
-            []);
-    }
-
-    /// <summary>The seven queue views, worded and iconed as the shell has always shown them.</summary>
-    private static IReadOnlyList<QueueTab> BuildQueueTabs()
-    {
-        var strings = Ui.Transfer;
-        return
-        [
-            new(Count(strings.TabActive, 0), LucideIconKind.Play),
-            new(Count(strings.TabQueued, 0), LucideIconKind.Ellipsis),
-            new(Count(strings.TabPaused, 0), LucideIconKind.Pause),
-            new(Count(strings.TabFailed, 0), LucideIconKind.TriangleAlert),
-            new(Count(strings.TabCompleted, 0), LucideIconKind.CircleCheck),
-            new(Count(strings.TabConflicts, 0), LucideIconKind.GitCompare),
-            new(strings.TabLogs, LucideIconKind.ScrollText),
-        ];
-
-        static string Count(string label, int count) =>
-            string.Create(System.Globalization.CultureInfo.CurrentCulture, $"{label} ({count})");
-    }
-
-    /// <summary>
-    /// The menus that have something in them.
-    /// </summary>
-    /// <remarks>
-    /// A menu whose every command is still unwired is dropped rather than shown empty - which is
-    /// what the WinForms shell does, and why its menu bar has eight headers today and not the nine
-    /// the catalog declares: nothing under Transfer is implemented yet. Showing an empty header
-    /// reads as a broken menu rather than as an unfinished feature.
-    /// </remarks>
     private static IReadOnlyList<MenuSection> BuildMenus(ShellCommandRouter router) =>
     [
         .. UiCommandCatalog.Menus
