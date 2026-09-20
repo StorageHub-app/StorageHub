@@ -158,6 +158,8 @@
   <!-- The menu bar sizes its own row. Padding on a menu-bar item has to be horizontal only: the
        bar gives each item a fixed height, so vertical padding makes the content taller than its
        slot and the labels clip at both ends rather than the row growing. -->
+  <!-- The bar under a selected tab. Selection's alone: hover does not draw it. -->
+  <sys:Double x:Key="TabAccentThickness">2</sys:Double>
   <sys:Double x:Key="MenuBarHeight">30</sys:Double>
   <Thickness x:Key="MenuItemPadding">10,0</Thickness>
   <sys:Double x:Key="ToolbarHeight">36</sys:Double>

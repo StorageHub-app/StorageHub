@@ -13,6 +13,51 @@
   -->
 
   <Styles.Resources>
+
+    <!--
+      The tab, drawn here rather than themed on top of Fluent's.
+
+      Fluent shows its accent pipe on hover as well as on selection, at a slightly lower opacity.
+      On a dark bar that reads as selection: hovering a tab made it look like the one you were on,
+      while the tab you were actually on stopped standing out. Since the strip appears three times
+      over - workspaces, the queue, and a page's own sub-tabs - owning the template is cheaper than
+      overriding parts of somebody else's by name.
+    -->
+    <ControlTheme x:Key="{x:Type TabItem}" TargetType="TabItem">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border Name="PART_Root" Background="{TemplateBinding Background}">
+            <Grid RowDefinitions="*,Auto">
+              <ContentPresenter Name="PART_ContentPresenter"
+                                Content="{TemplateBinding Header}"
+                                ContentTemplate="{TemplateBinding HeaderTemplate}"
+                                Margin="{TemplateBinding Padding}"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Center"/>
+              <!-- The accent belongs to selection alone. -->
+              <Border Name="PART_Accent" Grid.Row="1"
+                      Height="{StaticResource TabAccentThickness}"
+                      Background="Transparent"/>
+            </Grid>
+          </Border>
+        </ControlTemplate>
+      </Setter>
+
+      <Style Selector="^:pointerover /template/ Border#PART_Root">
+        <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}"/>
+      </Style>
+      <Style Selector="^:selected /template/ Border#PART_Root">
+        <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}"/>
+      </Style>
+      <Style Selector="^:selected /template/ Border#PART_Accent">
+        <Setter Property="Background" Value="{DynamicResource PrimaryBrush}"/>
+      </Style>
+      <Style Selector="^:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Opacity" Value="0.5"/>
+      </Style>
+    </ControlTheme>
+
     <!-- A tab strip that can carry one extra control after its tabs. Only the workspace strip uses
          it; the queue's tabs are a plain TabControl. -->
     <ControlTheme x:Key="WorkspaceTabControl" TargetType="TabControl">
