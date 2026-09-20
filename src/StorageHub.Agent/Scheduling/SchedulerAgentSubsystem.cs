@@ -1,3 +1,4 @@
+using StorageHub.Contracts.Agent;
 using System.Collections.Concurrent;
 using StorageHub.Domain.Identifiers;
 

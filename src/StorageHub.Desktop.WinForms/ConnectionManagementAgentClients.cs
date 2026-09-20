@@ -1,6 +1,6 @@
 ﻿using System.Security.Cryptography;
 using System.Text.Json;
-using StorageHub.Agent.Ipc;
+using StorageHub.Ipc;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Localization;
 

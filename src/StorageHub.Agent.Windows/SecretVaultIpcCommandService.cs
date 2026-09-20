@@ -1,5 +1,5 @@
 using System.Security.Cryptography;
-using StorageHub.Agent.Ipc;
+using StorageHub.Ipc;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Security;
 

@@ -1,6 +1,6 @@
 using System.IO.Pipes;
 using System.Security.Principal;
-using StorageHub.Agent.Ipc;
+using StorageHub.Ipc;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Testing;
 

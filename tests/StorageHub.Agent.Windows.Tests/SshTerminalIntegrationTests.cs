@@ -1,6 +1,6 @@
 ﻿using System.Text;
 using System.Text.Json;
-using StorageHub.Agent.Ipc;
+using StorageHub.Ipc;
 using StorageHub.Application.Connections;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Domain.Identifiers;

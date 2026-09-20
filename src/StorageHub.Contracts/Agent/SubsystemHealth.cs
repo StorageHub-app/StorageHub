@@ -1,4 +1,4 @@
-namespace StorageHub.Agent;
+namespace StorageHub.Contracts.Agent;
 
 public enum SubsystemHealthLevel
 {

@@ -1,5 +1,5 @@
 using System.Collections.Concurrent;
-using StorageHub.Agent.Ipc;
+using StorageHub.Ipc;
 using StorageHub.Application.Connections;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Contracts.Results;

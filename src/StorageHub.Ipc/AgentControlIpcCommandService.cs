@@ -1,6 +1,6 @@
 using StorageHub.Contracts.Ipc;
 
-namespace StorageHub.Agent.Ipc;
+namespace StorageHub.Ipc;
 
 /// <summary>
 /// Owns the authenticated, current-user-only control commands used by the desktop and installer.

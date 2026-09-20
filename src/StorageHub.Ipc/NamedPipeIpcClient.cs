@@ -3,7 +3,7 @@ using System.Security.Principal;
 using System.Text.Json;
 using StorageHub.Contracts.Ipc;
 
-namespace StorageHub.Agent.Ipc;
+namespace StorageHub.Ipc;
 
 public sealed class NamedPipeIpcClient : IAsyncDisposable
 {

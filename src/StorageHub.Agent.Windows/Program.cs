@@ -3,7 +3,7 @@ using CL.Storage;
 using CL.Storage.Configuration;
 using CodeLogic;
 using StorageHub.Agent;
-using StorageHub.Agent.Ipc;
+using StorageHub.Ipc;
 using StorageHub.Agent.Scheduling;
 using StorageHub.Agent.Sync;
 using StorageHub.Agent.Transfers;

@@ -1,5 +1,5 @@
 using System.Buffers.Binary;
-using StorageHub.Agent.Ipc;
+using StorageHub.Ipc;
 
 namespace StorageHub.Agent.IntegrationTests;
 

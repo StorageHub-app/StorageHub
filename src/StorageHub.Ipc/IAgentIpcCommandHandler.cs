@@ -1,7 +1,7 @@
 using System.Text.Json;
 using StorageHub.Contracts.Ipc;
 
-namespace StorageHub.Agent.Ipc;
+namespace StorageHub.Ipc;
 
 /// <summary>
 /// Extends the agent's normal, non-secret IPC surface. Implementations must never return

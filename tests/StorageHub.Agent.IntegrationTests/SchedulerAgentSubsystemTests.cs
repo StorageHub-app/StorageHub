@@ -1,3 +1,4 @@
+using StorageHub.Contracts.Agent;
 using StorageHub.Agent.Scheduling;
 using StorageHub.Domain.Identifiers;
 

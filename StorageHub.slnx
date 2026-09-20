@@ -10,6 +10,7 @@
     <Project Path="src/StorageHub.Persistence/StorageHub.Persistence.csproj" />
     <Project Path="src/StorageHub.Security/StorageHub.Security.csproj" />
     <Project Path="src/StorageHub.Infrastructure.Windows/StorageHub.Infrastructure.Windows.csproj" />
+    <Project Path="src/StorageHub.Ipc/StorageHub.Ipc.csproj" />
     <Project Path="src/StorageHub.Agent/StorageHub.Agent.csproj" />
     <Project Path="src/StorageHub.Agent.Windows/StorageHub.Agent.Windows.csproj" />
     <Project Path="src/StorageHub.Diagnostics/StorageHub.Diagnostics.csproj" />

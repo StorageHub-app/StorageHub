@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Security.Principal;
 
-namespace StorageHub.Agent.Ipc;
+namespace StorageHub.Ipc;
 
 /// <summary>Builds bounded, per-account names for StorageHub's current-user-only pipes.</summary>
 public static class StorageHubIpcPipeNames

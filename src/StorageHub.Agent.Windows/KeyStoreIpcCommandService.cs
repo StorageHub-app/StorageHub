@@ -1,5 +1,5 @@
 using System.Text;
-using StorageHub.Agent.Ipc;
+using StorageHub.Ipc;
 using StorageHub.Application.Connections;
 using StorageHub.Application.Credentials;
 using StorageHub.Contracts.Ipc;

@@ -1,3 +1,4 @@
+using StorageHub.Contracts.Agent;
 using System.Security.Cryptography;
 using StorageHub.Infrastructure.Windows;
 using StorageHub.Security;

@@ -1,3 +1,4 @@
+using StorageHub.Contracts.Agent;
 using StorageHub.Application;
 
 namespace StorageHub.Agent.IntegrationTests;

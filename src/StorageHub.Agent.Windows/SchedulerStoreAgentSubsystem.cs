@@ -1,3 +1,4 @@
+using StorageHub.Contracts.Agent;
 using Microsoft.Data.Sqlite;
 using StorageHub.Agent.Scheduling;
 using StorageHub.Persistence;

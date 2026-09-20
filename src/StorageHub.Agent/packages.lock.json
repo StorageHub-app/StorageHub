@@ -40,6 +40,12 @@
           "StorageHub.Contracts": "[1.4.6, )"
         }
       },
+      "storagehub.ipc": {
+        "type": "Project",
+        "dependencies": {
+          "StorageHub.Contracts": "[1.4.6, )"
+        }
+      },
       "storagehub.security": {
         "type": "Project"
       },

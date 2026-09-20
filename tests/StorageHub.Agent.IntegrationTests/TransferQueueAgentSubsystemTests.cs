@@ -1,3 +1,4 @@
+using StorageHub.Contracts.Agent;
 using System.Globalization;
 using System.Security.Cryptography;
 using StorageHub.Agent.Transfers;

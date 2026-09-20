@@ -1,4 +1,4 @@
-using StorageHub.Agent.Ipc;
+using StorageHub.Ipc;
 using StorageHub.Agent.Scheduling;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Domain.Identifiers;

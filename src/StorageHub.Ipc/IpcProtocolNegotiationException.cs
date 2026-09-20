@@ -1,4 +1,4 @@
-namespace StorageHub.Agent.Ipc;
+namespace StorageHub.Ipc;
 
 public sealed class IpcProtocolNegotiationException : IOException
 {

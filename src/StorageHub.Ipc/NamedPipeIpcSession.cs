@@ -1,7 +1,7 @@
 using System.IO.Pipes;
 using StorageHub.Contracts.Ipc;
 
-namespace StorageHub.Agent.Ipc;
+namespace StorageHub.Ipc;
 
 public sealed class NamedPipeIpcSession : IAsyncDisposable
 {

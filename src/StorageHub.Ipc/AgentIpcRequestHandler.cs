@@ -1,7 +1,7 @@
 using System.Text.Json;
 using StorageHub.Contracts.Ipc;
 
-namespace StorageHub.Agent.Ipc;
+namespace StorageHub.Ipc;
 
 /// <summary>Handles the recovery-safe control surface exposed by the background agent.</summary>
 public sealed class AgentIpcRequestHandler

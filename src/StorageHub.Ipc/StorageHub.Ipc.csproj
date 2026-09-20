@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\StorageHub.Contracts\StorageHub.Contracts.csproj" />
+  </ItemGroup>
+</Project>

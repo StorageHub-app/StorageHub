@@ -1,6 +1,6 @@
 using StorageHub.Contracts.Ipc;
 
-namespace StorageHub.Agent.Ipc;
+namespace StorageHub.Ipc;
 
 /// <summary>Routes normal IPC commands across independently testable feature handlers.</summary>
 public sealed class CompositeAgentIpcCommandHandler : IAgentIpcCommandHandler

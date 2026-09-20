@@ -2,7 +2,7 @@ using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text.Json;
 
-namespace StorageHub.Agent.Ipc;
+namespace StorageHub.Ipc;
 
 public static class LengthPrefixedJsonChannel
 {

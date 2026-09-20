@@ -1,3 +1,4 @@
+using StorageHub.Contracts.Agent;
 using StorageHub.Sync;
 using StorageHub.Sync.Persistence;
 using StorageHub.Agent;

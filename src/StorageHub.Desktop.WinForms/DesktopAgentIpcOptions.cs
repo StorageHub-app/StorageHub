@@ -1,4 +1,4 @@
-using StorageHub.Agent.Ipc;
+using StorageHub.Ipc;
 
 namespace StorageHub.Desktop;
 

@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
-using StorageHub.Agent.Ipc;
+using StorageHub.Ipc;
 using StorageHub.Agent.Windows;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Persistence;

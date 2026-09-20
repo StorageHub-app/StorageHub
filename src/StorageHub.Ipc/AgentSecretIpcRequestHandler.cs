@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using StorageHub.Contracts.Ipc;
 
-namespace StorageHub.Agent.Ipc;
+namespace StorageHub.Ipc;
 
 public interface IAgentSecretIpcCommandHandler
 {

@@ -1,6 +1,6 @@
 using StorageHub.Contracts.Ipc;
 
-namespace StorageHub.Agent.Ipc;
+namespace StorageHub.Ipc;
 
 /// <summary>
 /// Who may open the agent's pipe.

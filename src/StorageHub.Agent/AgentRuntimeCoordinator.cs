@@ -1,3 +1,4 @@
+using StorageHub.Contracts.Agent;
 using System.Runtime.ExceptionServices;
 using StorageHub.Application;
 

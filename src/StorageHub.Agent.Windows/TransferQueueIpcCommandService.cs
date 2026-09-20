@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Text;
-using StorageHub.Agent.Ipc;
+using StorageHub.Ipc;
 using StorageHub.Agent.Transfers;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Domain.Identifiers;

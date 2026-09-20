@@ -1,5 +1,5 @@
 using System.Text.Json;
-using StorageHub.Agent.Ipc;
+using StorageHub.Ipc;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Contracts.Results;
 using StorageHub.Domain.Capabilities;

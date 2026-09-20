@@ -1,9 +1,10 @@
+using StorageHub.Contracts.Agent;
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.IO.Pipes;
 using System.Security.Cryptography;
 using System.Security.Principal;
-using StorageHub.Agent.Ipc;
+using StorageHub.Ipc;
 using StorageHub.Contracts.Ipc;
 
 namespace StorageHub.Agent.IntegrationTests;

@@ -4,7 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Renci.SshNet;
 using Renci.SshNet.Common;
-using StorageHub.Agent.Ipc;
+using StorageHub.Ipc;
 using StorageHub.Application.Connections;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Domain.Identifiers;

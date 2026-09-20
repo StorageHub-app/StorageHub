@@ -3,9 +3,10 @@ using System.IO.Pipes;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text.Json;
+using StorageHub.Contracts.Agent;
 using StorageHub.Contracts.Ipc;
 
-namespace StorageHub.Agent.Ipc;
+namespace StorageHub.Ipc;
 
 public sealed class NamedPipeIpcServerSubsystem : IAgentSubsystem, IAsyncDisposable
 {
