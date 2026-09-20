@@ -35,6 +35,52 @@ public sealed class SqliteSyncScheduleManagementRepositoryTests : IDisposable
         Assert.False(fetched?.IsBusy);
     }
 
+    /// <summary>
+    /// A schedule can be created in a time zone that is not UTC.
+    /// </summary>
+    /// <remarks>
+    /// Every other test here uses "UTC", where a timestamp's offset is zero and the writer and the
+    /// reader agree by accident. Cronos returns the next occurrence in the schedule's own zone, so
+    /// anywhere else it carried a real offset -- "+02:00" for Copenhagen -- which the reader
+    /// refused, because these columns are UTC and it checks. Creating the schedule then threw
+    /// while reading itself back, and the agent reported the whole service as unavailable.
+    ///
+    /// So this is not really about Copenhagen. It is that the two halves of one round trip agreed
+    /// only for the one zone the tests used, which is the shape of defect a test suite that picks
+    /// a convenient constant will never see. Found by making a schedule from the desktop on a
+    /// machine set to Danish time.
+    /// </remarks>
+    [Theory]
+    [InlineData("Europe/Copenhagen")]
+    [InlineData("America/New_York")]
+    [InlineData("Asia/Kolkata")]
+    public async Task Create_stores_the_next_occurrence_in_utc_whatever_zone_the_schedule_names(
+        string timeZoneId)
+    {
+        var fixture = await CreateFixtureAsync();
+        var profileId = await SeedSyncProfileAsync(fixture, enabled: true);
+        var scheduleId = ScheduledSyncJobId.New();
+
+        // 07:30 every weekday, in a zone whose offset is not zero.
+        var created = await fixture.Repository.CreateAsync(
+            scheduleId,
+            Draft(profileId, "30 7 * * 1-5", enabled: true) with { TimeZoneId = timeZoneId });
+
+        Assert.Equal(SyncScheduleManagementMutationStatus.Applied, created.Status);
+
+        var next = Assert.NotNull(created.Schedule?.NextOccurrenceUtc);
+        Assert.Equal(TimeSpan.Zero, next.Offset);
+
+        // And it is the right instant: 07:30 as that zone reads it, not 07:30 UTC.
+        var zone = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+        var local = TimeZoneInfo.ConvertTime(next, zone);
+        Assert.Equal(7, local.Hour);
+        Assert.Equal(30, local.Minute);
+
+        // It reads back, which is the half that used to throw.
+        Assert.Equal(next, (await fixture.Repository.GetAsync(scheduleId))?.NextOccurrenceUtc);
+    }
+
     [Fact]
     public async Task Update_and_enable_disable_use_revision_cas_and_recalculate_due_state()
     {

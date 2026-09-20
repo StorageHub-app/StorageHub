@@ -199,6 +199,19 @@ $settings = [ordered] @{
     STORAGEHUB_MINIO_ACCESS_KEY          = 'storagehub-testlab'
     STORAGEHUB_MINIO_SECRET_KEY          = 'storagehub-testlab-secret'
     STORAGEHUB_MINIO_BUCKET              = 'storagehub-testlab'
+
+    # The sync engine, driven between the SFTP server and MinIO. Its own prefix rather than the
+    # STORAGEHUB_SFTP_* names above, because SftpProviderIntegrationTests treats any one of those
+    # being set as "configured" and then throws over the rest -- so sharing them would make
+    # configuring this lab break that suite. It points at the key-only server, since the connection
+    # editor accepts an encrypted private key and not a password for SFTP.
+    STORAGEHUB_REQUIRE_SYNC_LAB          = '1'
+    STORAGEHUB_SYNCLAB_SFTP_PORT         = '2223'
+    STORAGEHUB_SYNCLAB_SFTP_ROOT         = 'mounted'
+    STORAGEHUB_SYNCLAB_SFTP_USERNAME     = 'storagehub'
+    STORAGEHUB_SYNCLAB_SFTP_KEY_PATH     = (Resolve-Path $clientKey).Path
+    STORAGEHUB_SYNCLAB_SFTP_KEY_PASSPHRASE = $clientKeyPassphrase
+    STORAGEHUB_SYNCLAB_SFTP_HOST_SHA256  = $hostFingerprint
 }
 
 # compose reads .env from its own directory; the tests read env.ps1. Both are generated from the

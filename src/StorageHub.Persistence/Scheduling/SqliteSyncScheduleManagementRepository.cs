@@ -736,8 +736,22 @@ public sealed class SqliteSyncScheduleManagementRepository : ISyncScheduleManage
         }
     }
 
+    /// <summary>
+    /// A timestamp, as the <c>_utc</c> columns require it.
+    /// </summary>
+    /// <remarks>
+    /// Converted to UTC first, rather than written with whatever offset it arrived carrying. The
+    /// next occurrence comes from Cronos, which returns it in the schedule's own zone -- so a
+    /// schedule in Europe/Copenhagen produced "+02:00", which the reader then refused because
+    /// these columns are UTC and it checks. The effect was that a schedule could not be created in
+    /// any zone but UTC: the insert succeeded, reading it back threw, and the agent reported the
+    /// service as temporarily unavailable.
+    ///
+    /// It survived because every test of this repository used "UTC", where the offset is zero and
+    /// the two halves agree by accident.
+    /// </remarks>
     private static string FormatTimestamp(DateTimeOffset value) =>
-        value.ToString("O", CultureInfo.InvariantCulture);
+        value.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture);
 
     private static async Task TryRollbackAsync(SqliteTransaction transaction)
     {
