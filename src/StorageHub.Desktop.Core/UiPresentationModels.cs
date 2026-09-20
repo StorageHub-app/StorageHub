@@ -327,6 +327,12 @@ public sealed record ShellStatusSnapshot(
         ? Ui.Format(Ui.Shell.StatusQueueFormat, QueuedJobs)
         : Ui.Format(Ui.Shell.StatusQueueActiveFormat, QueuedJobs, ActiveJobs);
 
+    /// <summary>Connected, and nothing is degraded.</summary>
+    public bool AgentIsHealthy => AgentState == AgentConnectionState.Connected;
+
+    /// <summary>Nothing answered. Distinct from starting or reconnecting, which are not yet failures.</summary>
+    public bool AgentIsDown => AgentState == AgentConnectionState.Disconnected;
+
     public string AgentText => AgentState switch
     {
         AgentConnectionState.Starting => Ui.Shell.AgentStarting,

@@ -80,7 +80,7 @@
     </Border>
 
     <Border DockPanel.Dock="Bottom" Classes="statusbar">
-      <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+      <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto">
         <TextBlock Grid.Column="0" Classes="muted"
                    Text="{Binding Status, FallbackValue={x:Null}, TargetNullValue={x:Null}}"
                    IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
@@ -88,10 +88,13 @@
                    IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNullOrEmpty}}"/>
         <TextBlock Grid.Column="1" Classes="muted" Text="{Binding ShellStatus.SelectionText}"
                    Margin="{StaticResource PaddingLg}"/>
-        <TextBlock Grid.Column="2" Classes="muted" Text="{Binding ShellStatus.QueueText}"
+        <TextBlock Grid.Column="2" Classes="muted" Text="{Binding ShellStatus.TransferRateText}"
                    Margin="{StaticResource PaddingLg}"/>
-        <TextBlock Grid.Column="3" Text="{Binding ShellStatus.AgentText}"
-                   Foreground="{DynamicResource SuccessBrush}"
+        <TextBlock Grid.Column="3" Classes="muted" Text="{Binding ShellStatus.QueueText}"
+                   Margin="{StaticResource PaddingLg}"/>
+        <TextBlock Grid.Column="4" Classes="agent" Text="{Binding ShellStatus.AgentText}"
+                   Classes.healthy="{Binding ShellStatus.AgentIsHealthy}"
+                   Classes.down="{Binding ShellStatus.AgentIsDown}"
                    Margin="{StaticResource PaddingLg}"/>
       </Grid>
     </Border>
@@ -102,34 +105,66 @@
       <Border Grid.Column="0" Classes="surface"
               MinWidth="{StaticResource SidebarMinWidth}"
               MaxWidth="{StaticResource SidebarMaxWidth}"
-              Width="260"
-              Padding="{StaticResource PaddingLg}">
+              Width="260">
         <DockPanel>
-          <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto">
-            <TextBlock Classes="title" Text="Connections" VerticalAlignment="Center"/>
-            <Button Grid.Column="1" Classes="primary" Content="New"/>
+          <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto"
+                Margin="{StaticResource PaddingLg}">
+            <TextBlock Classes="title" Text="{Binding Sidebar.Title}" VerticalAlignment="Center"/>
+            <Button Grid.Column="1" Classes="primary" Command="{Binding Sidebar.NewCommand}">
+              <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+                <LucideIcon Kind="Plus" Size="{StaticResource IconSizeSm}"/>
+                <TextBlock Text="{Binding Sidebar.NewLabel}"/>
+              </StackPanel>
+            </Button>
+            <Button Grid.Column="2" Classes="tool" Margin="{StaticResource PaddingSm}"
+                    ToolTip.Tip="{Binding Sidebar.MoreLabel}">
+              <LucideIcon Kind="Ellipsis" Size="{StaticResource IconSizeSm}"/>
+            </Button>
           </Grid>
-          <TextBox DockPanel.Dock="Top" PlaceholderText="Search connections..."
-                   Margin="0,8,0,0"/>
-          <TextBlock DockPanel.Dock="Top" Classes="caption" Text="FAVOURITES"
-                     Margin="0,12,0,4"/>
-          <ItemsControl ItemsSource="{Binding Connections}">
-            <ItemsControl.ItemsPanel>
-              <ItemsPanelTemplate>
-                <StackPanel Spacing="{StaticResource SpaceMd}"/>
-              </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-              <DataTemplate DataType="vm:ConnectionCard">
-                <Border Classes="card" Classes.selected="{Binding IsSelected}">
-                  <StackPanel>
-                    <TextBlock Text="{Binding Name}"/>
-                    <TextBlock Classes="caption" Text="{Binding Detail}"/>
-                  </StackPanel>
-                </Border>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
+
+          <!-- The search box carries its own glyph, as the owner-drawn field did. -->
+          <Grid DockPanel.Dock="Top" Margin="12,0,12,0">
+            <TextBox PlaceholderText="{Binding Sidebar.SearchPlaceholder}"
+                     Padding="30,8,10,8"/>
+            <LucideIcon Kind="Search" Size="{StaticResource IconSizeSm}"
+                        HorizontalAlignment="Left" VerticalAlignment="Center"
+                        Margin="{StaticResource PaddingLg}"/>
+          </Grid>
+
+          <!-- Details for the selected connection, below its own rule. Empty until one is picked,
+               which is the state the shell spends most of its life in. -->
+          <Border DockPanel.Dock="Bottom" Height="200"
+                  BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0"
+                  Padding="{StaticResource PaddingLg}">
+            <TextBlock Classes="muted" Text="{Binding Sidebar.DetailPlaceholder}"
+                       TextWrapping="Wrap"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          </Border>
+
+          <Panel Margin="12,12,12,0">
+            <TextBlock Classes="muted" Text="{Binding Sidebar.EmptyMessage}"
+                       HorizontalAlignment="Center" VerticalAlignment="Top"
+                       Margin="0,24,0,0"
+                       IsVisible="{Binding Sidebar.IsEmpty}"/>
+            <ItemsControl ItemsSource="{Binding Connections}"
+                          IsVisible="{Binding !Sidebar.IsEmpty}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <StackPanel Spacing="{StaticResource SpaceMd}"/>
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="vm:ConnectionCard">
+                  <Border Classes="card" Classes.selected="{Binding IsSelected}">
+                    <StackPanel>
+                      <TextBlock Text="{Binding Name}"/>
+                      <TextBlock Classes="caption" Text="{Binding Detail}"/>
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </Panel>
         </DockPanel>
       </Border>
 
@@ -137,10 +172,24 @@
 
       <Grid Grid.Column="2" RowDefinitions="*,Auto,Auto">
         <TabControl Grid.Row="0" ItemsSource="{Binding Workspaces}"
-                    SelectedIndex="{Binding SelectedWorkspace}">
+                    SelectedIndex="{Binding SelectedWorkspace}"
+                    Theme="{StaticResource WorkspaceTabControl}">
+          <!-- The "+" that adds a workspace. A sibling of the strip rather than a tab in it: the
+               WinForms shell used a sentinel TabPage and vetoed selecting it in
+               WorkspaceTabsSelecting, and Avalonia's TabControl.SelectionChanged cannot be
+               cancelled. Templated into the strip, so it follows the last tab at any width. -->
+          <TabControl.Tag>
+            <Button Classes="tool tab-add" Command="{Binding NewWorkspaceCommand}"
+                    ToolTip.Tip="{Binding NewWorkspaceLabel}">
+              <LucideIcon Kind="Plus" Size="{StaticResource IconSizeSm}"/>
+            </Button>
+          </TabControl.Tag>
           <TabControl.ItemTemplate>
             <DataTemplate DataType="vm:WorkspaceTab">
-              <TextBlock Text="{Binding Title}"/>
+              <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceSm}">
+                <LucideIcon Kind="{Binding Icon}" Size="{StaticResource IconSizeSm}"/>
+                <TextBlock Text="{Binding Title}"/>
+              </StackPanel>
             </DataTemplate>
           </TabControl.ItemTemplate>
           <TabControl.ContentTemplate>
@@ -181,22 +230,81 @@
         <GridSplitter Grid.Row="1" Height="{StaticResource SplitterThickness}"
                       HorizontalAlignment="Stretch"/>
 
-        <Border Grid.Row="2" Classes="surface" Height="200"
+        <Border Grid.Row="2" Classes="surface" Height="240"
                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
-          <TabControl ItemsSource="{Binding QueueTabs}">
-            <TabControl.ItemTemplate>
-              <DataTemplate DataType="vm:QueueTab">
-                <TextBlock Text="{Binding Title}"/>
-              </DataTemplate>
-            </TabControl.ItemTemplate>
-            <!-- Headers only until the queue view exists; without this a TabControl falls back to
-                 rendering the item's ToString, which is how a record ends up on screen. -->
-            <TabControl.ContentTemplate>
-              <DataTemplate DataType="vm:QueueTab">
-                <Border/>
-              </DataTemplate>
-            </TabControl.ContentTemplate>
-          </TabControl>
+          <DockPanel>
+            <!-- The queue's own toolbar, above its tabs, exactly where TransferQueueControl put it. -->
+            <Border DockPanel.Dock="Top" Classes="toolbar">
+              <Grid ColumnDefinitions="Auto,*,Auto">
+                <StackPanel Grid.Column="0" Orientation="Horizontal"
+                            Spacing="{StaticResource SpaceSm}" VerticalAlignment="Center">
+                  <Button Classes="tool">
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+                      <LucideIcon Kind="RefreshCw" Size="{StaticResource IconSizeSm}"/>
+                      <TextBlock Text="{Binding Queue.RefreshLabel}"/>
+                    </StackPanel>
+                  </Button>
+                  <Button Classes="tool">
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+                      <LucideIcon Kind="Trash" Size="{StaticResource IconSizeSm}"/>
+                      <TextBlock Text="{Binding Queue.CancelLabel}"/>
+                    </StackPanel>
+                  </Button>
+                  <Button Classes="tool">
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+                      <LucideIcon Kind="Play" Size="{StaticResource IconSizeSm}"/>
+                      <TextBlock Text="{Binding Queue.RetryLabel}"/>
+                    </StackPanel>
+                  </Button>
+                  <TextBlock Classes="muted" Text="{Binding Queue.ReconcileLabel}"
+                             VerticalAlignment="Center" Margin="{StaticResource PaddingLg}"/>
+                  <ComboBox ItemsSource="{Binding Queue.ReconcileActions}"
+                            SelectedIndex="0" MinWidth="150"/>
+                  <Button Classes="tool">
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+                      <LucideIcon Kind="CircleCheck" Size="{StaticResource IconSizeSm}"/>
+                      <TextBlock Text="{Binding Queue.ApplyLabel}"/>
+                    </StackPanel>
+                  </Button>
+                  <Button Classes="tool">
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+                      <LucideIcon Kind="ArrowRight" Size="{StaticResource IconSizeSm}"/>
+                      <TextBlock Text="{Binding Queue.NextLabel}"/>
+                    </StackPanel>
+                  </Button>
+                </StackPanel>
+                <TextBlock Grid.Column="2" Classes="muted" Text="{Binding Queue.EmptyMessage}"
+                           VerticalAlignment="Center"/>
+              </Grid>
+            </Border>
+
+            <TabControl ItemsSource="{Binding QueueTabs}">
+              <TabControl.ItemTemplate>
+                <DataTemplate DataType="vm:QueueTab">
+                  <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceSm}">
+                    <LucideIcon Kind="{Binding Icon}" Size="{StaticResource IconSizeSm}"/>
+                    <TextBlock Text="{Binding Title}"/>
+                  </StackPanel>
+                </DataTemplate>
+              </TabControl.ItemTemplate>
+              <!-- Every tab shows the same six columns over a different filter, so one template
+                   serves all seven. The rows arrive with the transfer queue client. -->
+              <TabControl.ContentTemplate>
+                <DataTemplate DataType="vm:QueueTab">
+                  <TableView ItemsSource="{Binding $parent[Window].((vm:ShellPreviewModel)DataContext).Queue.Rows}">
+                    <TableView.Columns>
+                      <TableViewColumn Header="Operation" Binding="{Binding Operation}" Width="140"/>
+                      <TableViewColumn Header="Source" Binding="{Binding Source}" Width="*"/>
+                      <TableViewColumn Header="Destination" Binding="{Binding Destination}" Width="*"/>
+                      <TableViewColumn Header="Progress" Binding="{Binding Progress}" Width="160"/>
+                      <TableViewColumn Header="Attempt" Binding="{Binding Attempt}" Width="90"/>
+                      <TableViewColumn Header="Status" Binding="{Binding Status}" Width="160"/>
+                    </TableView.Columns>
+                  </TableView>
+                </DataTemplate>
+              </TabControl.ContentTemplate>
+            </TabControl>
+          </DockPanel>
         </Border>
       </Grid>
     </Grid>

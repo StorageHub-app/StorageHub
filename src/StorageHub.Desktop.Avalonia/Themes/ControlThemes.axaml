@@ -12,6 +12,29 @@
     a border colour.
   -->
 
+  <Styles.Resources>
+    <!-- A tab strip that can carry one extra control after its tabs. Only the workspace strip uses
+         it; the queue's tabs are a plain TabControl. -->
+    <ControlTheme x:Key="WorkspaceTabControl" TargetType="TabControl">
+      <Setter Property="Template">
+        <ControlTemplate>
+          <DockPanel>
+            <DockPanel DockPanel.Dock="Top" Background="{DynamicResource SurfaceBrush}">
+              <ItemsPresenter DockPanel.Dock="Left"
+                              Name="PART_ItemsPresenter"
+                              ItemsPanel="{TemplateBinding ItemsPanel}"/>
+              <ContentPresenter Content="{TemplateBinding Tag}"
+                                HorizontalAlignment="Left" VerticalAlignment="Center"/>
+            </DockPanel>
+            <ContentPresenter Name="PART_SelectedContentHost"
+                              Content="{TemplateBinding SelectedContent}"
+                              ContentTemplate="{TemplateBinding SelectedContentTemplate}"/>
+          </DockPanel>
+        </ControlTemplate>
+      </Setter>
+    </ControlTheme>
+  </Styles.Resources>
+
   <Style Selector="Window">
     <Setter Property="Background" Value="{DynamicResource CanvasBrush}"/>
     <Setter Property="FontFamily" Value="{DynamicResource AppFontUi}"/>
@@ -178,6 +201,21 @@
     <Setter Property="Width" Value="1"/>
     <Setter Property="Margin" Value="{StaticResource PaddingSm}"/>
     <Setter Property="VerticalAlignment" Value="Stretch"/>
+  </Style>
+
+  <Style Selector="Button.tab-add">
+    <Setter Property="Margin" Value="{StaticResource PaddingSm}"/>
+  </Style>
+
+  <!-- The agent cell is coloured by state, not painted green and hoped for. -->
+  <Style Selector="TextBlock.agent">
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+  </Style>
+  <Style Selector="TextBlock.agent.healthy">
+    <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}"/>
+  </Style>
+  <Style Selector="TextBlock.agent.down">
+    <Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/>
   </Style>
 
   <Style Selector="TableView">

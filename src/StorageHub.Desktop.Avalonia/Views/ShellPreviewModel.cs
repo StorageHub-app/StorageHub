@@ -42,13 +42,14 @@ internal sealed record PaneItem(string Name, string Size, string Type);
 
 internal sealed record WorkspaceTab(
     string Title,
+    LucideIconKind Icon,
     string LeftTitle,
     bool LeftIsActive,
     IReadOnlyList<PaneItem> Left,
     string RightTitle,
     IReadOnlyList<PaneItem> Right);
 
-internal sealed record QueueTab(string Title);
+internal sealed record QueueTab(string Title, LucideIconKind Icon);
 
 /// <summary>
 /// The shell's shape. The menus and toolbar are real; the content they act on is not yet.
@@ -106,6 +107,14 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
 
     public IReadOnlyList<QueueTab> QueueTabs { get; init; } = [];
 
+    public SidebarModel Sidebar { get; init; } = null!;
+
+    public ICommand NewWorkspaceCommand { get; init; } = null!;
+
+    public string NewWorkspaceLabel { get; init; } = string.Empty;
+
+    public QueueModel Queue { get; init; } = null!;
+
     public int SelectedWorkspace { get; init; }
 
     /// <summary>
@@ -151,6 +160,38 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
     }
 }
 
+/// <summary>The connections sidebar's own wording and commands.</summary>
+internal sealed record SidebarModel(
+    string Title,
+    string NewLabel,
+    string MoreLabel,
+    string SearchPlaceholder,
+    string EmptyMessage,
+    string DetailPlaceholder,
+    bool IsEmpty,
+    ICommand NewCommand);
+
+/// <summary>One row of the transfer queue.</summary>
+internal sealed record QueueRow(
+    string Operation,
+    string Source,
+    string Destination,
+    string Progress,
+    string Attempt,
+    string Status);
+
+/// <summary>The queue's toolbar wording, and the rows beneath it.</summary>
+internal sealed record QueueModel(
+    string RefreshLabel,
+    string CancelLabel,
+    string RetryLabel,
+    string ReconcileLabel,
+    string ApplyLabel,
+    string NextLabel,
+    string EmptyMessage,
+    IReadOnlyList<string> ReconcileActions,
+    IReadOnlyList<QueueRow> Rows);
+
 /// <summary>Builds the shell's model: real commands, stand-in content.</summary>
 internal static class ShellPreview
 {
@@ -171,10 +212,11 @@ internal static class ShellPreview
             ],
             Workspaces =
             [
-                new("Welcome", "Overview", false, [], "Recent", []),
-                new("Sync tasks", "Profiles", false, [], "Runs", []),
+                new("Welcome", LucideIconKind.House, "Overview", false, [], "Recent", []),
+                new("Sync tasks", LucideIconKind.ArrowLeftRight, "Profiles", false, [], "Runs", []),
                 new(
                     "Workspace 1",
+                    LucideIconKind.Folder,
                     "Pane 1 (Active)",
                     true,
                     [
@@ -192,12 +234,56 @@ internal static class ShellPreview
                     ]),
             ],
             SelectedWorkspace = 2,
-            QueueTabs =
-            [
-                new("Active (0)"), new("Queued (0)"), new("Paused (0)"), new("Failed (0)"),
-                new("Completed (2)"), new("Conflicts (0)"), new("Logs"),
-            ],
+            QueueTabs = BuildQueueTabs(),
+            Sidebar = BuildSidebar(router),
+            NewWorkspaceCommand = router.For(UiCommandIds.WorkspaceNewWorkspace),
+            NewWorkspaceLabel = Ui.Commands.WorkspaceNewWorkspace,
+            Queue = BuildQueue(),
         };
+    }
+
+    private static SidebarModel BuildSidebar(ShellCommandRouter router) => new(
+        Ui.Connections.PanelTitle,
+        Ui.Connections.NewConnection,
+        Ui.Connections.PanelOptions,
+        Ui.Connections.SearchPlaceholder,
+        Ui.Connections.SidebarEmpty,
+        Ui.Connections.DetailEmpty,
+        IsEmpty: false,
+        router.For(UiCommandIds.ConnectionsNewConnection));
+
+    private static QueueModel BuildQueue()
+    {
+        var strings = Ui.Transfer;
+        return new(
+            Ui.Commands.ViewRefresh,
+            strings.Cancel,
+            strings.Retry,
+            strings.ReconcileLabel,
+            strings.Apply,
+            strings.Next,
+            strings.NoTransfers,
+            [strings.ReconcileReview, strings.ReconcileRestart, strings.ReconcileMarkCompleted],
+            []);
+    }
+
+    /// <summary>The seven queue views, worded and iconed as the shell has always shown them.</summary>
+    private static IReadOnlyList<QueueTab> BuildQueueTabs()
+    {
+        var strings = Ui.Transfer;
+        return
+        [
+            new(Count(strings.TabActive, 0), LucideIconKind.Play),
+            new(Count(strings.TabQueued, 0), LucideIconKind.Ellipsis),
+            new(Count(strings.TabPaused, 0), LucideIconKind.Pause),
+            new(Count(strings.TabFailed, 0), LucideIconKind.TriangleAlert),
+            new(Count(strings.TabCompleted, 0), LucideIconKind.CircleCheck),
+            new(Count(strings.TabConflicts, 0), LucideIconKind.GitCompare),
+            new(strings.TabLogs, LucideIconKind.ScrollText),
+        ];
+
+        static string Count(string label, int count) =>
+            string.Create(System.Globalization.CultureInfo.CurrentCulture, $"{label} ({count})");
     }
 
     private static IReadOnlyList<MenuSection> BuildMenus(ShellCommandRouter router) =>

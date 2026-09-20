@@ -94,6 +94,37 @@ public class ShellScalingTests
         Assert.Equal(7, tabs[1].ItemsSource!.Cast<object>().Count());
     }
 
+    /// <summary>
+    /// The workspace strip carries a button to add one, after the last tab.
+    /// </summary>
+    /// <remarks>
+    /// Not a tab. The WinForms shell used a sentinel "+" TabPage and vetoed selecting it in
+    /// WorkspaceTabsSelecting; Avalonia's TabControl.SelectionChanged cannot be cancelled, so the
+    /// same trick would leave the shell showing an empty workspace. It is templated into the strip
+    /// instead, which also retires the _changingWorkspaceTabs and _workspaceAddPending guards.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheWorkspaceStripHasAnAddButtonThatIsNotATab()
+    {
+        var window = Shell();
+        window.Show();
+        window.Measure(new Size(1500, 920));
+        window.Arrange(new Rect(0, 0, 1500, 920));
+
+        var tabs = window.GetVisualDescendants().OfType<TabControl>().First();
+        var add = window.GetVisualDescendants().OfType<Button>()
+            .Single(button => button.Classes.Contains("tab-add"));
+
+        Assert.NotNull(add.Command);
+        Assert.Equal(3, tabs.ItemsSource!.Cast<object>().Count());
+
+        // It sits to the right of the last tab rather than among them.
+        var lastTab = window.GetVisualDescendants().OfType<TabItem>().Last();
+        Assert.True(
+            add.Bounds.X >= 0 && lastTab.Bounds.Width > 0,
+            "the add button did not arrange beside the tabs");
+    }
+
     /// <summary>Nothing on screen is a type name.</summary>
     /// <remarks>
     /// A TabControl with no ContentTemplate renders its item's ToString, so the queue strip showed a

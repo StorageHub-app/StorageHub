@@ -49,6 +49,28 @@ public class ShellStatusTests
     }
 
     /// <summary>
+    /// Only a connected agent is green.
+    /// </summary>
+    /// <remarks>
+    /// The cell was painted SuccessBrush unconditionally, so a shell that had reached nothing still
+    /// showed "Agent: starting" in green. The state decides the colour now, beside the text.
+    /// </remarks>
+    [AvaloniaTheory]
+    [InlineData(AgentConnectionState.Connected, true, false)]
+    [InlineData(AgentConnectionState.Starting, false, false)]
+    [InlineData(AgentConnectionState.Reconnecting, false, false)]
+    [InlineData(AgentConnectionState.RecoveryOnly, false, false)]
+    [InlineData(AgentConnectionState.Disconnected, false, true)]
+    public void OnlyAConnectedAgentReadsAsHealthy(
+        AgentConnectionState state, bool healthy, bool down)
+    {
+        var snapshot = ShellStatusSnapshot.Initial with { AgentState = state };
+
+        Assert.Equal(healthy, snapshot.AgentIsHealthy);
+        Assert.Equal(down, snapshot.AgentIsDown);
+    }
+
+    /// <summary>
     /// The agent's state reaches the bar without the view knowing the states exist.
     /// </summary>
     /// <remarks>
