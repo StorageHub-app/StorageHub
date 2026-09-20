@@ -175,6 +175,10 @@
                 ToolTip.Tip="{Binding DeleteLabel}">
           <LucideIcon Kind="Trash" Size="{StaticResource IconSizeSm}"/>
         </Button>
+        <Button Classes="tool" Command="{Binding PropertiesCommand}"
+                ToolTip.Tip="{Binding PropertiesLabel}">
+          <LucideIcon Kind="Info" Size="{StaticResource IconSizeSm}"/>
+        </Button>
       </StackPanel>
 
       <!--

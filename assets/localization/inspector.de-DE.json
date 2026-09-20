@@ -42,5 +42,17 @@
   "loadedVersionsFormat": "{0:N0} Version(en) geladen.",
   "loadedMetadataFormat": "{0:N0} Metadatenfeld(er) geladen.",
   "loadedTagsFormat": "{0:N0} Tag(s) geladen.",
+  "windowTitleFormat": "Objektinspektor — {0}",
+  "loadedSummaryFormat": "{0:N0} Version(en), {1:N0} Metadatenfeld(er) und {2:N0} Schlagwort/-wörter geladen.",
+  "loadedWithFailuresFormat": "Objekt geladen, {0:N0} Detailabschnitt(e) nicht verfügbar.",
+  "size": "Größe",
+  "name": "Name",
+  "value": "Wert",
+  "tags": "Schlagwörter",
+  "refresh": "Aktualisieren",
+  "close": "Schließen",
+  "yes": "Ja",
+  "no": "Nein",
+  "notReported": "—",
   "culture": "de-DE"
 }

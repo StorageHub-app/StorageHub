@@ -1,0 +1,102 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
+        x:Class="StorageHub.Desktop.Views.ObjectInspectorWindow"
+        x:DataType="vm:ObjectInspectorModel"
+        Title="{Binding Title}"
+        Width="1120" Height="720"
+        MinWidth="860" MinHeight="560"
+        WindowStartupLocation="CenterOwner">
+
+  <!--
+    A heading that says what is being looked at and that nothing here changes it, three tabs, and
+    a status line. The tabs keep their own notice because the three sections fail independently:
+    a provider that has versions and refuses tags shows the versions and says so under Tags.
+  -->
+
+  <Border Classes="surface">
+    <DockPanel>
+
+      <Border DockPanel.Dock="Top" Classes="toolbar" Padding="{StaticResource PaddingLg}">
+        <StackPanel Spacing="{StaticResource SpaceXs}">
+          <TextBlock Classes="title" Text="{Binding Path}" TextTrimming="CharacterEllipsis"
+                     AutomationProperties.Name="{Binding PathAccessibleName}"/>
+          <TextBlock Classes="muted" Text="{Binding Identity}" TextTrimming="CharacterEllipsis"/>
+          <TextBlock Classes="status success" Text="{Binding SafetyNotice}" TextWrapping="Wrap"
+                     AutomationProperties.Name="{Binding SafetyAccessibleName}"/>
+        </StackPanel>
+      </Border>
+
+      <Border DockPanel.Dock="Bottom" Classes="statusbar" Padding="{StaticResource PaddingMd}">
+        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{StaticResource SpaceSm}">
+          <TextBlock Grid.Column="0" Classes="status"
+                     Classes.success="{Binding Status.IsSuccess}"
+                     Classes.warning="{Binding Status.IsWarning}"
+                     Classes.danger="{Binding Status.IsDanger}"
+                     Text="{Binding Status.Text}" TextTrimming="CharacterEllipsis"
+                     VerticalAlignment="Center"
+                     AutomationProperties.Name="{Binding StatusAccessibleName}"/>
+          <Button Grid.Column="1" Content="{Binding RefreshLabel}" Command="{Binding RefreshCommand}"/>
+          <Button Grid.Column="2" Content="{Binding CloseLabel}" Command="{Binding CloseCommand}"
+                  IsCancel="True"/>
+        </Grid>
+      </Border>
+
+      <TabControl Margin="{StaticResource PaddingLg}" SelectedIndex="{Binding SelectedTab, Mode=TwoWay}"
+                  AutomationProperties.Name="{Binding TabsAccessibleName}">
+        <TabItem Header="{Binding VersionsTabLabel}">
+          <DockPanel>
+            <TextBlock DockPanel.Dock="Top" Classes="status"
+                       Classes.warning="{Binding VersionsNotice.IsWarning}"
+                       Text="{Binding VersionsNotice.Text}" TextWrapping="Wrap" Margin="0,8,0,8"/>
+            <Button DockPanel.Dock="Bottom" Content="{Binding LoadMoreLabel}"
+                    Command="{Binding LoadMoreCommand}" HorizontalAlignment="Right"
+                    Margin="0,8,0,0"
+                    AutomationProperties.Name="{Binding LoadMoreAccessibleName}"/>
+            <TableView ItemsSource="{Binding Versions}"
+                       AutomationProperties.Name="{Binding VersionsAccessibleName}">
+              <TableView.Columns>
+                <TableViewColumn Header="{Binding ColumnCurrent}" Binding="{Binding Current}" Width="70"/>
+                <TableViewColumn Header="{Binding ColumnVersion}" Binding="{Binding VersionId}" Width="150*"/>
+                <TableViewColumn Header="{Binding ColumnSize}" Binding="{Binding Size}" Width="90"/>
+                <TableViewColumn Header="{Binding ColumnModified}" Binding="{Binding Modified}" Width="170"/>
+                <TableViewColumn Header="{Binding ColumnDeleteMarker}" Binding="{Binding DeleteMarker}" Width="100"/>
+                <TableViewColumn Header="{Binding ColumnEntityTag}" Binding="{Binding EntityTag}" Width="120*"/>
+              </TableView.Columns>
+            </TableView>
+          </DockPanel>
+        </TabItem>
+
+        <TabItem Header="{Binding MetadataTabLabel}">
+          <DockPanel>
+            <TextBlock DockPanel.Dock="Top" Classes="status"
+                       Classes.warning="{Binding MetadataNotice.IsWarning}"
+                       Text="{Binding MetadataNotice.Text}" TextWrapping="Wrap" Margin="0,8,0,8"/>
+            <TableView ItemsSource="{Binding Metadata}"
+                       AutomationProperties.Name="{Binding MetadataAccessibleName}">
+              <TableView.Columns>
+                <TableViewColumn Header="{Binding ColumnName}" Binding="{Binding Name}" Width="35*"/>
+                <TableViewColumn Header="{Binding ColumnValue}" Binding="{Binding Value}" Width="65*"/>
+              </TableView.Columns>
+            </TableView>
+          </DockPanel>
+        </TabItem>
+
+        <TabItem Header="{Binding TagsTabLabel}">
+          <DockPanel>
+            <TextBlock DockPanel.Dock="Top" Classes="status"
+                       Classes.warning="{Binding TagsNotice.IsWarning}"
+                       Text="{Binding TagsNotice.Text}" TextWrapping="Wrap" Margin="0,8,0,8"/>
+            <TableView ItemsSource="{Binding Tags}"
+                       AutomationProperties.Name="{Binding TagsAccessibleName}">
+              <TableView.Columns>
+                <TableViewColumn Header="{Binding ColumnName}" Binding="{Binding Name}" Width="40*"/>
+                <TableViewColumn Header="{Binding ColumnValue}" Binding="{Binding Value}" Width="60*"/>
+              </TableView.Columns>
+            </TableView>
+          </DockPanel>
+        </TabItem>
+      </TabControl>
+    </DockPanel>
+  </Border>
+</Window>

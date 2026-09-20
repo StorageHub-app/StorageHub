@@ -42,5 +42,17 @@
   "loadedVersionsFormat": "Indlæste {0:N0} version(er).",
   "loadedMetadataFormat": "Indlæste {0:N0} metadatafelt(er).",
   "loadedTagsFormat": "Indlæste {0:N0} tag(s).",
+  "windowTitleFormat": "Objektinspektør — {0}",
+  "loadedSummaryFormat": "Indlæste {0:N0} version(er), {1:N0} metadatafelt(er) og {2:N0} mærkat(er).",
+  "loadedWithFailuresFormat": "Objektet er indlæst med {0:N0} utilgængelig(e) detaljesektion(er).",
+  "size": "Størrelse",
+  "name": "Navn",
+  "value": "Værdi",
+  "tags": "Mærkater",
+  "refresh": "Opdatér",
+  "close": "Luk",
+  "yes": "Ja",
+  "no": "Nej",
+  "notReported": "—",
   "culture": "da-DK"
 }

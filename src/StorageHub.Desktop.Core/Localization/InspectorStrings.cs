@@ -108,4 +108,33 @@ internal sealed class InspectorStrings : LocalizationModelBase
 
     /// <summary>{0} = how many tags were loaded.</summary>
     public string LoadedTagsFormat { get; set; } = "Loaded {0:N0} tag(s).";
+
+    /// <summary>{0} = the object's path, possibly shortened from the left.</summary>
+    public string WindowTitleFormat { get; set; } = "Object Inspector — {0}";
+
+    /// <summary>{0} = versions, {1} = metadata fields, {2} = tags.</summary>
+    public string LoadedSummaryFormat { get; set; } =
+        "Loaded {0:N0} version(s), {1:N0} metadata field(s), and {2:N0} tag(s).";
+
+    /// <summary>{0} = how many of the three sections could not be loaded.</summary>
+    public string LoadedWithFailuresFormat { get; set; } = "Object loaded with {0:N0} unavailable detail section(s).";
+
+    public string Size { get; set; } = "Size";
+
+    public string Name { get; set; } = "Name";
+
+    public string Value { get; set; } = "Value";
+
+    public string Tags { get; set; } = "Tags";
+
+    public string Refresh { get; set; } = "Refresh";
+
+    public string Close { get; set; } = "Close";
+
+    public string Yes { get; set; } = "Yes";
+
+    public string No { get; set; } = "No";
+
+    /// <summary>What a cell shows when the provider reported nothing for it.</summary>
+    public string NotReported { get; set; } = "—";
 }

@@ -88,6 +88,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     /// </remarks>
     private readonly Func<PaneMutationController>? _mutations;
     private readonly IDialogService? _dialogs;
+    private readonly Func<ObjectInspectorAddress, Task>? _inspect;
     private PagedListingIndex? _index;
     private int _paneNumber = 1;
     private bool _showConnectionBar = true;
@@ -118,13 +119,18 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     /// ported -- so the mismatch is reported and the user is told to restart StorageHub, which is
     /// the same fallback 1.x used when it had no controller to hand.
     /// </param>
+    /// <param name="inspect">
+    /// Opens the object inspector for a file. The shell supplies the window; a test supplies a
+    /// recorder. Null leaves Properties unavailable.
+    /// </param>
     internal BrowserPaneModel(
         IRemoteStorageAgentClient? client = null,
         Func<ILocalFileBrowserDataSource?>? localSource = null,
         Func<PaneMutationController>? mutations = null,
         IDialogService? dialogs = null,
         Func<ISshTerminalAgentClient>? terminals = null,
-        Func<IAgentLifecycleController?>? agentLifecycle = null)
+        Func<IAgentLifecycleController?>? agentLifecycle = null,
+        Func<ObjectInspectorAddress, Task>? inspect = null)
     {
         _terminals = terminals;
         _agentLifecycle = agentLifecycle;
@@ -132,11 +138,16 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         _localSource = localSource ?? (static () => null);
         _mutations = mutations;
         _dialogs = dialogs;
+        _inspect = inspect;
         SelectedRows.CollectionChanged += (_, _) =>
         {
             Raise(nameof(HasSelection));
             Raise(nameof(SelectionSummary));
+            (RenameCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (DeleteCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (PropertiesCommand as RelayCommand)?.RaiseCanExecuteChanged();
         };
+        PropertiesCommand = new RelayCommand(_ => _ = InspectAsync(), _ => CanInspect);
 
         NewFolderCommand = new RelayCommand(
             _ => _ = CreateAsync(container: true), _ => CanMutateHere);
@@ -548,6 +559,9 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
 
     public ICommand DeleteCommand { get; }
 
+    /// <summary>Opens the read-only object inspector on the one selected file.</summary>
+    public ICommand PropertiesCommand { get; }
+
     /// <summary>
     /// Whether this pane is somewhere things can be made and removed.
     /// </summary>
@@ -570,6 +584,51 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     public static string RenameLabel => Ui.Shell.RenameWorkspaceAccept;
 
     public static string DeleteLabel => Ui.Commands.EditDelete;
+
+    public static string PropertiesLabel => Ui.Commands.EditProperties;
+
+    /// <summary>
+    /// Whether the selection is one file on a saved connection, which is what can be inspected.
+    /// </summary>
+    /// <remarks>
+    /// The same rules as <see cref="InspectAsync"/> applies, so the button dims where the menu
+    /// path would refuse with a sentence.
+    /// </remarks>
+    internal bool CanInspect =>
+        _inspect is not null &&
+        !IsTerminal &&
+        PaneTransferSnapshots.SelectionFor(_source, SelectedRows) is { IsSuccess: true } selection &&
+        PaneInspection.CanInspect(Here(), selection.Value.Items);
+
+    /// <summary>
+    /// Opens the inspector on the selected file, or says why it cannot.
+    /// </summary>
+    /// <remarks>
+    /// The rules live in <see cref="PaneInspection"/>: exactly one file, on a saved connection the
+    /// agent has identified, with an identity the contract accepts. Each refusal is a sentence in
+    /// the status rather than a dialog, because it answers a menu click, not a question.
+    /// </remarks>
+    internal async Task InspectAsync(CancellationToken cancellationToken = default)
+    {
+        if (_inspect is null) return;
+
+        var selection = PaneTransferSnapshots.SelectionFor(_source, SelectedRows);
+        if (selection.IsFailure)
+        {
+            Status = selection.Error.Message;
+            return;
+        }
+
+        var address = PaneInspection.AddressFor(Here(), selection.Value.Items, out var problem);
+        if (address is null)
+        {
+            Status = problem!;
+            return;
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        await _inspect(address).ConfigureAwait(true);
+    }
 
     public ICommand UpCommand { get; }
 

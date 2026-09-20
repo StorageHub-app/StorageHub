@@ -1,6 +1,9 @@
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Threading;
+using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Shell;
+using StorageHub.Desktop.Views;
 
 namespace StorageHub.Desktop.Services;
 
@@ -33,4 +36,16 @@ internal static class ShellServices
 
     internal static IClipboardService Clipboard { get; } =
         new AvaloniaClipboardService(() => MainWindow());
+
+    /// <summary>
+    /// Opens the object inspector over the shell.
+    /// </summary>
+    /// <remarks>
+    /// Here rather than in App because panes are made on demand, by a factory, and there is no
+    /// moment at which App could subscribe to each one. The pane asks; this answers with a window
+    /// over whichever main window is open, on the UI thread, since the pane's await may resume
+    /// anywhere.
+    /// </remarks>
+    internal static Task InspectObjectAsync(ObjectInspectorAddress address) =>
+        Dispatcher.UIThread.InvokeAsync(() => ObjectInspectorWindow.ShowAsync(MainWindow(), address));
 }

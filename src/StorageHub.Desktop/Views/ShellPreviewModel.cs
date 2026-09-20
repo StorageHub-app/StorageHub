@@ -111,6 +111,7 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         Pane(UiCommandIds.EditNewEmptyFile, static pane => pane.NewFileCommand);
         Pane(UiCommandIds.EditRename, static pane => pane.RenameCommand);
         Pane(UiCommandIds.EditDelete, static pane => pane.DeleteCommand);
+        Pane(UiCommandIds.EditProperties, static pane => pane.PropertiesCommand);
         Pane(UiCommandIds.GoBack, static pane => pane.BackCommand);
         Pane(UiCommandIds.GoForward, static pane => pane.ForwardCommand);
         Pane(UiCommandIds.GoUp, static pane => pane.UpCommand);
@@ -480,7 +481,8 @@ internal static class ShellPreview
                         // One terminal client per session, not per pane: the protocol keeps two
                         // pipe connections open for as long as a shell is running, and the pane
                         // disposes them with the session.
-                        terminals: terminals),
+                        terminals: terminals,
+                        inspect: Services.ShellServices.InspectObjectAsync),
                     static () => new NamedPipeTransferQueueAgentClient(),
                     static () => new NamedPipeRemoteStorageAgentClient(),
                     static () => new NamedPipeObjectInspectorAgentClient(),

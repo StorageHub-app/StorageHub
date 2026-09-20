@@ -24,7 +24,7 @@ The catalog declares **62 commands**. `UiCommandCatalog.IsAvailable` admits **37
 
 So 1:1 means **37**, and the menu keeps showing the other 25 unavailable, exactly as it always has.
 
-**Of those 37, this shell handles 21.** That is the real number, and until recently this document
+**Of those 37, this shell handles 22.** That is the real number, and until recently this document
 quoted 1.x's in its place. It is now visible in the product rather than only here: a command is
 offered when it has a handler and dims when it does not, so the count of enabled menu entries is
 the count of handlers. `CommandAvailabilityTests` asserts the two are equal, which makes the menu
@@ -71,7 +71,7 @@ git show winforms-reference:src/StorageHub.Desktop.WinForms/SyncProfileEditorFor
 
 ### What is still there to port
 
-Roughly 4,700 lines of screens have no counterpart here yet. In descending order, from
+Roughly 4,200 lines of screens have no counterpart here yet. In descending order, from
 `winforms-reference`:
 
 | Lines | File | Block |
@@ -79,7 +79,6 @@ Roughly 4,700 lines of screens have no counterpart here yet. In descending order
 | 809 | `TerminalView.cs` | SSH -- the painter, and the only piece missing |
 | 622 | `SshTerminalForm.cs` | SSH |
 | 532 | `SettingsImportForm.cs` | settings |
-| 505 | `ObjectInspectorForm.cs` | properties |
 | 487 | `ConnectionPicker.cs` | grouped, filter-as-you-type |
 | 483 | `ExternalEditorController.cs` | mostly portable once its prompt is behind an interface |
 | 358 | `SettingsExportForm.cs` | settings |
@@ -176,7 +175,7 @@ are the honest ones — each names what is missing rather than claiming the row.
 | New folder, new empty file | **done** — one `PaneMutationController` for both a bucket and a disk, and the name box refuses what the storage would |
 | Rename, batch rename | **partial** — renaming one item is done, including a case-only rename on this computer. Batch rename is a screen of its own and is not built |
 | Delete, with a review dialog listing what goes | **done** — it confirms and says how far it got if it stops part way. It deletes rather than recycling: 1.x used a Windows-only Recycle Bin API with no cross-platform equivalent, so the confirmation says so |
-| Properties: versions, metadata, tags (Object Inspector) | **todo** |
+| Properties: versions, metadata, tags (Object Inspector) | **done** — `ObjectInspectorWindow` over the controller Core already had. Opened from the pane's toolbar or Edit > Properties for one file on a saved connection; each of the three sections keeps its own failure |
 | Open in an external editor, with an unsafe-edit warning | **todo** — `ExternalEditorController` is still in the shell; it takes `IWin32Window` five times and calls `MessageBox.Show` eight, all of which the dialog vocabulary now answers |
 
 ### Workspaces
@@ -253,8 +252,9 @@ They are skipped otherwise, so CI stays green without one.
    the index rather than bound to it, so a very large listing is held twice; collecting that back
    needs `IndexedView` to be an `IList` before a TableView will read it by index.
 4. ~~**File operations** — new folder, new file, rename, delete.~~ Done, through one
-   `PaneMutationController` in Core. Batch rename and properties (the Object Inspector) are what
-   remain of this group.
+   `PaneMutationController` in Core. Properties is done too: the Object Inspector, opened from
+   the pane's toolbar or from Edit, over the controller Core already had. Batch rename is what
+   remains of this group.
 5. ~~**Connection Manager**.~~ Done for listing, editing, creating and deleting, and for
    enrolling and borrowing secrets now that the key store is in. Host-key trust from the editor
    is what remains.
