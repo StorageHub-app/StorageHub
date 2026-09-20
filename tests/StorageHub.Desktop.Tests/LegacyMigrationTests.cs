@@ -9,9 +9,8 @@ namespace StorageHub.Desktop.Tests;
 /// </summary>
 /// <remarks>
 /// The migration is one-way and runs once, on a machine whose settings nobody has a copy of, so
-/// these are the tests that make "no settings loss" a fact rather than a hope. The acid test is
-/// <see cref="CustomKeyboardShortcutsSurviveTheMigration"/>: shortcut overrides are keyed by
-/// command id, and the command ids were re-derived in the same body of work.
+/// these are the tests that make "no settings loss" a fact rather than a hope - with one deliberate
+/// exception recorded in <see cref="LegacyShortcutsAreDroppedButTheRestOfTheFileMigrates"/>.
 /// </remarks>
 public sealed class LegacyMigrationTests : IDisposable
 {
@@ -79,32 +78,47 @@ public sealed class LegacyMigrationTests : IDisposable
     }
 
     /// <summary>
-    /// The command ids these are keyed by were re-derived from the English menu labels during this
-    /// work. If a single one of them moved, a user's rebindings would come back as defaults and
-    /// nothing would say so.
+    /// A 1.x file's shortcut overrides are not carried across, and everything else still is.
     /// </summary>
+    /// <remarks>
+    /// This used to assert the opposite, and the change is deliberate. A 1.x file stored each chord
+    /// as the numeric WinForms key enum; the shell now uses a different enum, numbered differently,
+    /// so those numbers cannot be reinterpreted - they would come back as other keys entirely.
+    /// StorageHub 2.0 drops them and falls back to the defaults, which a user can see and correct,
+    /// rather than silently rebinding their commands to whatever the numbers happen to mean now.
+    ///
+    /// What matters is that dropping them costs only them: the rest of the file still migrates.
+    /// </remarks>
     [Fact]
-    public void CustomKeyboardShortcutsSurviveTheMigration()
+    public void LegacyShortcutsAreDroppedButTheRestOfTheFileMigrates()
     {
         WriteLegacy(new
         {
             schemaVersion = 15,
             sshHostKeyDiscovery = 2,
+            confirmBeforeDeletingItems = false,
             shortcuts = new Dictionary<string, int>
             {
                 [UiCommandIds.EditCopy] = (int)(Keys.Control | Keys.Shift | Keys.C),
-                [UiCommandIds.EditPaste] = (int)Keys.None,
                 [UiCommandIds.ViewRefresh] = (int)Keys.F9
             }
         });
 
         var store = new DesktopConfigStore(_directory);
         store.Preflight();
-        var bindings = ShortcutSettings.Resolve(ShortcutKeys.ToKeys(store.Load().Shortcuts));
+        var loaded = store.Load();
+        var bindings = ShortcutSettings.Resolve(ShortcutKeys.ToKeys(loaded.Shortcuts));
 
-        Assert.Equal(Keys.Control | Keys.Shift | Keys.C, bindings[UiCommandIds.EditCopy]);
-        Assert.Equal(Keys.None, bindings[UiCommandIds.EditPaste]);
-        Assert.Equal(Keys.F9, bindings[UiCommandIds.ViewRefresh]);
+        // The setting beside them came across.
+        Assert.False(loaded.ConfirmBeforeDeletingItems);
+
+        // The rebindings did not, so these are the catalog's defaults.
+        Assert.Equal(
+            ShortcutKeys.ToKeys(UiCommandCatalog.GetDefinition(UiCommandIds.EditCopy).Shortcut),
+            bindings[UiCommandIds.EditCopy]);
+        Assert.Equal(
+            ShortcutKeys.ToKeys(UiCommandCatalog.GetDefinition(UiCommandIds.ViewRefresh).Shortcut),
+            bindings[UiCommandIds.ViewRefresh]);
     }
 
     [Fact]

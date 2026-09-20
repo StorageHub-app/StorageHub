@@ -82,7 +82,7 @@ public sealed class DesktopPreferenceSectionMapperTests
         var shortcuts = ShortcutSettings.Resolve(null);
         var document = Document() with
         {
-            Shortcuts = shortcuts,
+            Shortcuts = ShortcutChord.Format(ShortcutKeys.ToGestures(shortcuts)),
             DesktopGeneral = DesktopPreferenceSectionMapper.CaptureGeneral(DesktopUpdatePreferences.Defaults)
         };
 
@@ -209,7 +209,7 @@ public sealed class DesktopPreferenceSectionMapperTests
         var conflicting = ShortcutSettings.Resolve(null);
         var first = conflicting.Keys.First();
         conflicting[conflicting.Keys.Skip(1).First()] = conflicting[first];
-        var document = Document() with { Shortcuts = conflicting };
+        var document = Document() with { Shortcuts = ShortcutChord.Format(ShortcutKeys.ToGestures(conflicting)) };
 
         var result = DesktopPreferenceSectionMapper.Apply(current, document, [SettingsSectionId.Shortcuts]);
 
@@ -283,7 +283,7 @@ public sealed class DesktopPreferenceSectionMapperTests
     private static SettingsExportDocument FullDocument() => Document() with
     {
         DesktopGeneral = DesktopPreferenceSectionMapper.CaptureGeneral(DesktopUpdatePreferences.Defaults),
-        Shortcuts = ShortcutSettings.Resolve(null),
+        Shortcuts = ShortcutChord.Format(ShortcutKeys.ToGestures(ShortcutSettings.Resolve(null))),
         ConnectionDefaults = ConnectionDefaultSettings.Normalize(null),
         MachineSpecific = new MachineSpecificSection(@"C:\other\editor.exe", [], [], null)
     };

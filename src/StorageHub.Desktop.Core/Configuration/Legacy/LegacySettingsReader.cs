@@ -131,8 +131,7 @@ internal sealed class LegacySettingsReader
                     document.SchemaVersion < 9 || document.ReconnectRemotePanesAutomatically,
                     document.SchemaVersion < 10 || document.ConfirmBeforeClearingTransferHistory,
                     document.SchemaVersion < 11 || document.ConfirmBeforeDeletingItems,
-                    document.SchemaVersion >= 12 && document.Shortcuts is not null
-                        ? ShortcutKeys.ToGestures(ShortcutSettings.Resolve(document.Shortcuts)) : null,
+                    null,
                     document.SchemaVersion >= 13 && document.PinnedWorkspaces is not null
                         ? WorkspaceShortcutSettings.Resolve(
                             document.PinnedWorkspaces, WorkspaceShortcutSettings.MaximumPinned)
@@ -202,7 +201,13 @@ internal sealed class LegacySettingsReader
         bool ReconnectRemotePanesAutomatically = true,
         bool ConfirmBeforeClearingTransferHistory = true,
         bool ConfirmBeforeDeletingItems = true,
-        Dictionary<string, Keys>? Shortcuts = null,
+        // A 1.x file's "shortcuts" object is deliberately absent from this record. It held the
+        // numeric WinForms key enum, which is a different enum from the one the shell uses now and
+        // numbered differently, so those numbers cannot be reinterpreted - they would come back as
+        // other keys entirely. Leaving the member out means the property is simply ignored, which
+        // is the point: declaring it with a mismatched type made the whole document fail to
+        // deserialize, and a user upgrading from 1.x lost every setting rather than their
+        // rebindings. StorageHub 2.0 drops the rebindings and migrates the rest.
         List<WorkspaceShortcutEntry>? PinnedWorkspaces = null,
         List<WorkspaceShortcutEntry>? RecentWorkspaces = null,
         int? DefaultWorkspacePaneCount = null,

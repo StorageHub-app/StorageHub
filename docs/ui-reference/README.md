@@ -134,3 +134,30 @@ someone else has since changed has to be refused rather than silently win.
 Source: `ConnectionManagerForm`, `ConnectionDetailView`/`Rows`, `ConnectionAppearanceField`. The
 field descriptors it builds rows from are `ConnectionEditorDraftFactory`, already in Desktop.Core.
 
+## 09 — The connections sidebar, in full (`09-connections-sidebar.png`)
+
+What the sidebar looks like with connections in it, which is considerably more than a list.
+
+Connections are **grouped twice over**. A section header with an icon and a rule (`★ Favorites`,
+`☁ Storage`) holds collapsible groups, each with its own header carrying a chevron, a name and a
+count — `▾ Favorites · 2`, `▾ Cloud · 1`, `▾ Servers · 1`, `▾ Studio · 2`. The same connection
+appears under both Favorites and its storage group, so the list is a projection, not a partition.
+
+A card is a coloured rounded icon tile, a name, a muted line combining provider, folder and health
+("Local / UNC · Studio · Not tested"), and tag chips underneath. The selected card takes an accent
+border and reveals inline edit and delete icons on its right.
+
+The detail pane along the bottom is a real panel, not a caption. It carries a provider badge and the
+connection's name, then collapsible sections of key/value rows — Server over Provider, Bucket,
+Region, Service, Path; Authentication below it — and a row of actions: Open, Test, Edit, and Delete
+styled as the destructive one.
+
+That grouped, variable-height projection is the risk the plan flagged: in the WinForms shell the
+grouping is computed *during paint*, by `MeasureConnectionItem` returning a different height for the
+first item in a group and `IsFirstConnectionInGroup`/`ConnectionGroupSortKey` deciding membership as
+each row is drawn. The DataTemplate is the easy half; the grouping is a data-model problem wearing a
+paint problem's clothes.
+
+Source: `ConnectionSidebarControl` (983 lines), `ConnectionsPanelControl`, `ConnectionCardFactory`,
+`ConnectionDetailView`.
+

@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using StorageHub.Contracts.Ipc;
 
@@ -70,7 +70,16 @@ internal sealed record SettingsExportDocument(
     string Application,
     string? MachineFingerprint = null,
     DesktopGeneralSection? DesktopGeneral = null,
-    IReadOnlyDictionary<string, Keys>? Shortcuts = null,
+    /// <summary>
+    /// Keyboard shortcuts, as the same canonical chord text <c>config.shortcuts.json</c> uses.
+    /// </summary>
+    /// <remarks>
+    /// Format 1 wrote the numeric WinForms key value. That enum is Win32 virtual-key
+    /// codes with modifier bits; the one the shell uses now is unrelated and numbered differently,
+    /// so the old numbers cannot be read as the new enum and must not be tried. StorageHub 2.0
+    /// requires format 2 and says so rather than importing a file it would misread.
+    /// </remarks>
+    IReadOnlyDictionary<string, string>? Shortcuts = null,
     IReadOnlyDictionary<string, string>? ConnectionDefaults = null,
     MachineSpecificSection? MachineSpecific = null,
     IReadOnlyList<ConnectionExportEntry>? Connections = null,
@@ -119,7 +128,19 @@ internal sealed record SettingsExportReadResult(
 
 internal static class SettingsExportSerializer
 {
-    internal const int CurrentSchemaVersion = 1;
+    /// <summary>
+    /// The export format this build writes and reads.
+    /// </summary>
+    /// <remarks>
+    /// Raised to 2 for StorageHub 2.0, when shortcuts stopped being written as numeric WinForms key
+    /// codes. Nothing below 2 is accepted: a format 1 file's shortcut values would deserialize into
+    /// the wrong keys entirely, and importing settings that quietly rebind everything is worse than
+    /// refusing the file.
+    /// </remarks>
+    internal const int CurrentSchemaVersion = 2;
+
+    /// <summary>The oldest format this build will read.</summary>
+    internal const int MinimumSchemaVersion = 2;
 
     /// <summary>
     /// Distinguishes a StorageHub export from any other JSON that happens to parse. Checked
@@ -192,6 +213,13 @@ internal static class SettingsExportSerializer
         if (document.SchemaVersion < 1)
         {
             return Failed(SettingsExportReadFailure.NotAnExport, NotAnExportMessage);
+        }
+
+        if (document.SchemaVersion < MinimumSchemaVersion)
+        {
+            return Failed(
+                SettingsExportReadFailure.UnsupportedVersion,
+                $"This file was written by StorageHub 1.x (format {document.SchemaVersion}). Export your settings again from this version.");
         }
 
         if (document.SchemaVersion > CurrentSchemaVersion)

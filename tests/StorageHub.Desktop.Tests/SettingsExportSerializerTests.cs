@@ -36,7 +36,7 @@ public sealed class SettingsExportSerializerTests
         var document = SettingsExportSerializer.Create(
             DateTimeOffset.UnixEpoch, "StorageHub 1.0.0", "fingerprint") with
         {
-            Shortcuts = new Dictionary<string, Keys> { ["edit.copy"] = Keys.Control | Keys.C }
+            Shortcuts = new Dictionary<string, string> { ["edit.copy"] = "Ctrl+C" }
         };
 
         var restored = Read(SettingsExportSerializer.Serialize(document));
@@ -124,7 +124,16 @@ public sealed class SettingsExportSerializerTests
 
         Assert.Contains(SettingsExportSerializer.FormatId, json, StringComparison.Ordinal);
         Assert.Contains("\n", json, StringComparison.Ordinal);
-        Assert.Contains("\"schemaVersion\": 1", json, StringComparison.Ordinal);
+        Assert.Contains(
+            $"\"schemaVersion\": {SettingsExportSerializer.CurrentSchemaVersion}",
+            json,
+            StringComparison.Ordinal);
+
+        // Chord text rather than a key enum's number. Asserted by reading it back rather than by
+        // looking for "Ctrl+C" in the file: System.Text.Json's default encoder escapes '+' as
+        // +, so the chord is stored readably enough to diff but not literally.
+        var restored = SettingsExportSerializer.Read(Encoding.UTF8.GetBytes(json));
+        Assert.Equal("Ctrl+C", restored.Document!.Shortcuts!["edit.copy"]);
     }
 
     [Fact]
@@ -185,7 +194,7 @@ public sealed class SettingsExportSerializerTests
             ConfirmBeforeClearingTransferHistory: true,
             ConfirmBeforeDeletingItems: false,
             DefaultWorkspacePaneCount: 3),
-        Shortcuts = new Dictionary<string, Keys> { ["edit.copy"] = Keys.Control | Keys.C },
+        Shortcuts = new Dictionary<string, string> { ["edit.copy"] = "Ctrl+C" },
         ConnectionDefaults = new Dictionary<string, string> { ["Sftp.port"] = "22" },
         MachineSpecific = new MachineSpecificSection(
             @"C:\Tools\editor.exe",
