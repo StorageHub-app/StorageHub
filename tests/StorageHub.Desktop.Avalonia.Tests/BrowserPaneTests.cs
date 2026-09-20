@@ -147,7 +147,10 @@ public class BrowserPaneTests
         await pane.NavigateAsync("no-such-folder", TestContext.Current.CancellationToken);
 
         Assert.Equal("/", pane.Path);
-        Assert.Equal(["reports", "empty", "render.exr"], pane.Rows.Select(row => row.Name));
+
+        // Folders first, then by name: the pane's order, not the provider's. PagedListingIndex
+        // decides it, which is how a bucket and a disk come out in the same order.
+        Assert.Equal(["empty", "reports", "render.exr"], pane.Rows.Select(row => row.Name));
         Assert.True(pane.HasStatus);
         await pane.DisposeAsync();
     }

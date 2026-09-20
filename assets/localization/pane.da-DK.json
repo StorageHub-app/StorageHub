@@ -128,5 +128,6 @@
   "clearStaged": "Ryd de klargjorte elementer",
   "terminalPending": "Terminalen for denne forbindelse er ikke åbnet endnu.",
   "terminalConnectHint": "SSH-klienter åbner en terminal her i stedet for en filliste.",
+  "columnType": "Type",
   "culture": "da-DK"
 }

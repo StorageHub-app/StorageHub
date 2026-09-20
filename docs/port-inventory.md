@@ -56,12 +56,12 @@ are the honest ones — each names what is missing rather than claiming the row.
 | Browse a saved connection: list, enter, back, forward, up | **done** |
 | "This PC": local drives and folders in a pane | **done** — one `IPaneSource` for both, so a disk and a bucket differ in one object |
 | Address bar, typed and focusable (`Go > Focus address`) | **partial** — shows the path, not yet editable |
-| Sort by any column, filter as you type | **todo** — `PagedListingIndex` is in Core and tested |
+| Sort by any column, filter as you type | **done** — through `PagedListingIndex`, so a bucket and a disk come out in the same order |
 | Directory tree beside the listing | **todo** — the pane draws one; the `View` command that toggles it is inert |
 | Association icons per file type | **todo** — needs `IFileIconProvider`; `WindowsShellIconProvider` is the Windows half |
 | Hidden files toggle | **dropped** — inert in 1.x |
 | Paging a large listing, with prefetch | **partial** — the controller pages; the pane does not ask for more yet |
-| Select all, invert selection | **todo** — commands exist, pane needs them |
+| Select all, invert selection | **done** — buttons in the pane, and the menu entries now reach the active one |
 | An SSH connection opens a terminal instead of a listing | **partial** — the pane becomes one, hides its listing chrome and is refused as a transfer endpoint; the VT painter is the piece left |
 
 ### Transfers
@@ -155,7 +155,9 @@ are the honest ones — each names what is missing rather than claiming the row.
 1. ~~**"This PC"**, so a pane can be a local folder.~~ Done.
 2. ~~**Panes and presets**, one to four.~~ Done. What is left of workspaces is saving and opening a
    `.shw`, reconnecting its panes, and the drag gestures for split and swap.
-3. **Sort, filter, select-all and invert** in the pane, over `PagedListingIndex`.
+3. ~~**Sort, filter, select-all and invert** in the pane.~~ Done. The rows are still copied out of
+   the index rather than bound to it, so a very large listing is held twice; collecting that back
+   needs `IndexedView` to be an `IList` before a TableView will read it by index.
 4. **File operations** — new, rename, delete, properties — which also lands the dialog screens.
 5. **Connection Manager**, the largest screen left.
 6. **The terminal painter**, which is what an SSH pane is still missing. `VtTerminalEmulator` and

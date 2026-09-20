@@ -128,5 +128,6 @@
   "clearStaged": "Vorgemerkte Elemente verwerfen",
   "terminalPending": "Das Terminal für diese Verbindung ist noch nicht geöffnet.",
   "terminalConnectHint": "SSH-Clients öffnen hier ein Terminal statt einer Dateiliste.",
+  "columnType": "Typ",
   "culture": "de-DE"
 }

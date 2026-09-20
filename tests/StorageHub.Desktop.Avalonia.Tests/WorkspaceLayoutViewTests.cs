@@ -1,11 +1,14 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Headless.XUnit;
 using Avalonia.Media.Imaging;
 using Avalonia.VisualTree;
 using Lucide.Avalonia;
 using StorageHub.Contracts.Ipc;
+using StorageHub.Desktop.Localization;
 using StorageHub.Desktop.Themes;
 using StorageHub.Desktop.Views;
 using Xunit;
@@ -120,6 +123,38 @@ public class WorkspaceLayoutViewTests
     }
 
     /// <summary>
+    /// Select all and invert reach the pane that is active, not the one that was.
+    /// </summary>
+    /// <remarks>
+    /// Both have had a menu entry and a shortcut since the shell chrome landed and neither had
+    /// anywhere to go. With four panes, binding them to a pane at startup would have left three
+    /// panes whose menu entries did nothing, so they resolve the pane when they run.
+    /// </remarks>
+    [AvaloniaFact]
+    public void SelectAllAndInvertActOnTheActivePane()
+    {
+        var preview = ShellPreview.SampleOnWorkspace;
+        var window = new MainWindow { DataContext = preview, Width = 1500, Height = 920 };
+        window.Show();
+        var workspace = preview.Workspaces
+            .Select(static tab => tab.Workspace)
+            .First(static candidate => candidate is not null)!;
+        Lay(window);
+
+        Assert.True(preview.Router.IsHandled(UiCommandIds.EditSelectAll));
+        Assert.True(preview.Router.IsHandled(UiCommandIds.EditInvertSelection));
+        Assert.True(preview.Router.IsHandled(UiCommandIds.ViewRefresh));
+
+        // Nothing is listed in a preview pane, so what this proves is where the command lands:
+        // it runs against the active pane and does not throw against an empty one.
+        workspace.Panes[1].IsActive = true;
+        preview.Router.For(UiCommandIds.EditSelectAll).Execute(null);
+
+        Assert.Empty(workspace.Panes[1].SelectedRows);
+        Assert.Same(workspace.Panes[1], workspace.Active);
+    }
+
+    /// <summary>
     /// Photographs each arrangement, for a human to look at.
     /// </summary>
     /// <remarks>
@@ -201,6 +236,70 @@ public class WorkspaceLayoutViewTests
         frame!.Save(stream, new PngBitmapEncoderOptions());
     }
 
+    /// <summary>
+    /// Every column shows its heading before anything has been listed.
+    /// </summary>
+    /// <remarks>
+    /// A TableViewColumn is a definition rather than a control, so it has no DataContext and its
+    /// heading has to be pushed onto it. The first attempt looked for the table in the visual tree
+    /// and found nothing, because nothing is there until the control is measured -- so a pane that
+    /// had not listed anything drew five blank columns and no assertion on the view model noticed.
+    /// </remarks>
+    [AvaloniaFact]
+    public void EveryColumnShowsItsHeadingBeforeTheFirstListing()
+    {
+        var (window, _) = Shell();
+        Lay(window);
+
+        var table = Panes(window)[0].GetVisualDescendants().OfType<TableView>().Single();
+        var headings = table.Columns.Select(static column => column.Header as string).ToArray();
+
+        Assert.Equal(5, headings.Length);
+        Assert.All(headings, heading => Assert.False(string.IsNullOrWhiteSpace(heading)));
+
+        // Exactly one arrow, on the column being sorted by.
+        Assert.Single(headings, heading => heading!.Contains('\u25b2') || heading.Contains('\u25bc'));
+        Assert.StartsWith(Ui.Pane.ColumnName, headings[0], StringComparison.Ordinal);
+        Assert.Equal(Ui.Pane.ColumnStatus, headings[4]);
+    }
+
+    /// <summary>Clicking a heading sorts by that column, and clicking it again reverses it.</summary>
+    [AvaloniaFact]
+    public void ClickingAHeadingSortsByThatColumn()
+    {
+        var (window, workspace) = Shell();
+        Lay(window);
+        var pane = workspace.Panes[0];
+        var view = Panes(window).Single(control => ReferenceEquals(control.DataContext, pane));
+        var headers = view.GetVisualDescendants().OfType<TableViewColumnHeader>().ToArray();
+
+        Assert.Equal(5, headers.Length);
+
+        Click(headers[1]);
+        Assert.Equal(BrowserSortColumn.Size, pane.SortColumn);
+        Assert.True(pane.SortAscending);
+
+        Click(headers[1]);
+        Assert.False(pane.SortAscending);
+
+        Click(headers[3]);
+        Assert.Equal(BrowserSortColumn.Modified, pane.SortColumn);
+        Assert.True(pane.SortAscending);
+    }
+
+    /// <summary>
+    /// A tap on a control, raised on it rather than aimed at it.
+    /// </summary>
+    /// <remarks>
+    /// Driving the headless pointer instead would be more faithful, but a TableViewColumnHeader
+    /// reports bounds that are its desired size rather than the arranged strip -- a star-width
+    /// column measures 32 wide there and 500 on screen -- so a click computed from them lands in
+    /// the listing below. What this asserts is the part the pane owns: a tap whose source is a
+    /// heading sorts by that heading's column.
+    /// </remarks>
+    private static void Click(Control target) =>
+        target.RaiseEvent(new TappedEventArgs(InputElement.TappedEvent, null!) { Source = target });
+
     private static BrowserPaneView[] Panes(Window window) =>
         [.. window.GetVisualDescendants().OfType<BrowserPaneView>()];
 
@@ -219,7 +318,11 @@ public class WorkspaceLayoutViewTests
     private static (Window Window, WorkspaceModel Workspace) Shell()
     {
         var preview = ShellPreview.SampleOnWorkspace;
-        var window = new MainWindow { DataContext = preview };
+
+        // A real size before it is shown, not only a manual Arrange afterwards: hit testing uses
+        // the window the platform actually made, so a click aimed at a control positioned by a
+        // measurement the window never had lands outside it and is silently ignored.
+        var window = new MainWindow { DataContext = preview, Width = 1500, Height = 920 };
         window.Show();
         var workspace = preview.Workspaces
             .Select(static tab => tab.Workspace)

@@ -77,6 +77,34 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
     public ShellCommandRouter Router { get; }
 
     /// <summary>
+    /// Points the listing commands at whichever pane is active.
+    /// </summary>
+    /// <remarks>
+    /// These have menu entries and shortcuts already; what they lacked was somewhere to go. They
+    /// resolve the pane when they run rather than being bound to one, because "the active pane" is
+    /// a question with a different answer after every click -- and with four panes, binding them to
+    /// a pane at startup would mean three panes whose menu entries did nothing.
+    /// </remarks>
+    internal void RouteToActivePane()
+    {
+        Router.Handle(UiCommandIds.EditSelectAll, () => ActivePane()?.SelectAll());
+        Router.Handle(UiCommandIds.EditInvertSelection, () => ActivePane()?.InvertSelection());
+        Router.Handle(UiCommandIds.ViewRefresh, () =>
+        {
+            if (ActivePane() is { RefreshCommand: { } refresh } && refresh.CanExecute(null))
+            {
+                refresh.Execute(null);
+            }
+        });
+    }
+
+    /// <summary>The active pane of the workspace on screen, or none when a page is showing.</summary>
+    private BrowserPaneModel? ActivePane() =>
+        Workspaces.ElementAtOrDefault(SelectedWorkspace)?.Workspace is { Panes.Count: > 0 } workspace
+            ? workspace.Active
+            : null;
+
+    /// <summary>
     /// The id of the last command invoked.
     /// </summary>
     /// <remarks>
@@ -177,7 +205,7 @@ internal static class ShellPreview
         // is accepted, rather than leaving somebody to watch a tab count that updates on its own
         // schedule two seconds later.
         var queue = new TransferQueueModel(static () => new NamedPipeTransferQueueAgentClient());
-        return new ShellPreviewModel(router)
+        var model = new ShellPreviewModel(router)
         {
             Menus = BuildMenus(router),
             Toolbar = BuildToolbar(router),
@@ -217,7 +245,11 @@ internal static class ShellPreview
             NewWorkspaceLabel = Ui.Commands.WorkspaceNewWorkspace,
             Queue = queue,
         };
+
+        model.RouteToActivePane();
+        return model;
     }
+
 
     /// <summary>
     /// The sidebar, asking a real agent.

@@ -155,6 +155,8 @@ internal sealed class PaneStrings : LocalizationModelBase
 
     public string ColumnSize { get; set; } = "Size";
 
+    public string ColumnType { get; set; } = "Type";
+
     public string ColumnModified { get; set; } = "Modified";
 
     public string ColumnStatus { get; set; } = "Status";

@@ -53,7 +53,19 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     private PaneConnection? _connection;
     private PaneContentKind _contentKind = PaneContentKind.ConnectionsHome;
     private string _path = "/";
+    private string? _note;
     private BrowserListItem? _selected;
+
+    /// <remarks>
+    /// Built on the first listing rather than in the constructor, because it opens a SQLite file
+    /// and a pane that is never pointed anywhere should not leave one behind. Four panes in a
+    /// workspace would otherwise be four databases created before anything was browsed.
+    /// </remarks>
+    private PagedListingIndex? _index;
+    private BrowserSortColumn _sortColumn = BrowserSortColumn.Name;
+    private bool _sortAscending = true;
+    private string _filter = string.Empty;
+    private bool _isAtRoot = true;
 
     /// <param name="localSource">
     /// How This PC lists drives and folders. A factory so a test can hand over a directory tree in
@@ -70,6 +82,14 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             Raise(nameof(HasSelection));
             Raise(nameof(SelectionSummary));
         };
+
+        SortByCommand = new RelayCommand(column =>
+        {
+            if (column is BrowserSortColumn chosen) SortBy(chosen);
+        });
+        SelectAllCommand = new RelayCommand(_ => SelectAll(), _ => Selectable().Count > 0);
+        InvertSelectionCommand = new RelayCommand(_ => InvertSelection(), _ => Selectable().Count > 0);
+        ClearFilterCommand = new RelayCommand(_ => Filter = string.Empty, _ => HasFilter);
 
         OpenCommand = new RelayCommand(_ => _ = OpenSelectedAsync(), _ => Selected?.IsContainer == true);
         UpCommand = new RelayCommand(_ => _ = UpAsync(), _ => _source?.CanGoUp == true);
@@ -155,6 +175,9 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         }
     }
 
+    /// <summary>The listing index, built the first time there is a listing to put in it.</summary>
+    private PagedListingIndex Index => _index ??= new PagedListingIndex();
+
     /// <summary>The pane's heading: the connection, or an invitation to choose one.</summary>
     public string Title => _connection?.Name ?? Ui.Pane.SelectProfileToConnect;
 
@@ -194,6 +217,51 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
                     UiFormatting.FormatBytes(chosen.Sum(static row => row.Length ?? 0)));
         }
     }
+
+    /// <summary>Which column the listing is ordered by.</summary>
+    public BrowserSortColumn SortColumn => _sortColumn;
+
+    /// <summary>Whether that order runs A to Z, smallest first, oldest first.</summary>
+    public bool SortAscending => _sortAscending;
+
+    /// <summary>
+    /// What is typed in the filter box, narrowing the listing as it is typed.
+    /// </summary>
+    /// <remarks>
+    /// It narrows what is shown, not what was fetched: the index still holds every row, so
+    /// clearing the box restores the listing without asking the agent for it again. Wildcards are
+    /// the index's, which is what makes a filter mean the same thing here as it did in 1.x.
+    /// </remarks>
+    public string Filter
+    {
+        get => _filter;
+        set
+        {
+            value ??= string.Empty;
+            if (string.Equals(_filter, value, StringComparison.Ordinal)) return;
+            _filter = value;
+            Raise(nameof(Filter));
+            Raise(nameof(HasFilter));
+            ApplyView();
+        }
+    }
+
+    public bool HasFilter => _filter.Length > 0;
+
+    /// <summary>The column headings, each carrying the sort arrow when it is the sorted one.</summary>
+    public string NameHeader => Heading(BrowserSortColumn.Name, Ui.Pane.ColumnName);
+
+    /// <inheritdoc cref="NameHeader"/>
+    public string SizeHeader => Heading(BrowserSortColumn.Size, Ui.Pane.ColumnSize);
+
+    /// <inheritdoc cref="NameHeader"/>
+    public string TypeHeader => Heading(BrowserSortColumn.Type, Ui.Pane.ColumnType);
+
+    /// <inheritdoc cref="NameHeader"/>
+    public string ModifiedHeader => Heading(BrowserSortColumn.Modified, Ui.Pane.ColumnModified);
+
+    /// <inheritdoc cref="NameHeader"/>
+    public string StatusHeader => Heading(BrowserSortColumn.Status, Ui.Pane.ColumnStatus);
 
     /// <summary>Where this pane is pointed, for a transfer to describe.</summary>
     internal IPaneSource? Source => _source;
@@ -283,11 +351,27 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
 
     public static string PasteHint => Ui.Pane.ReviewAndPaste;
 
+    public static string FilterPlaceholder => Ui.Pane.FilterPlaceholder;
+
+    public static string FilterAccessibleName => Ui.Pane.FilterAccessibleName;
+
+    public static string SelectAllLabel => Ui.Pane.SelectAll;
+
+    public static string InvertSelectionLabel => Ui.Pane.InvertSelection;
+
     public static string TerminalPending => Ui.Pane.TerminalPending;
 
     public static string TerminalConnectHint => Ui.Pane.TerminalConnectHint;
 
     public ICommand OpenCommand { get; }
+
+    public ICommand SortByCommand { get; }
+
+    public ICommand SelectAllCommand { get; }
+
+    public ICommand InvertSelectionCommand { get; }
+
+    public ICommand ClearFilterCommand { get; }
 
     public ICommand UpCommand { get; }
 
@@ -490,6 +574,11 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         }
 
         await _controller.DisposeAsync().ConfigureAwait(false);
+
+        // The index owns a SQLite file. A workspace that switched from four panes to two would
+        // otherwise leave two behind until the next start swept them.
+        _index?.Dispose();
+        _index = null;
     }
 
     /// <summary>
@@ -511,29 +600,147 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
 
         Path = listing.DisplayPath;
         _hasMore = listing.HasMore;
+        _isAtRoot = listing.IsAtRoot;
+        _note = listing.Note;
+
+        // A new folder is a new listing, so the filter goes with the old one. Carrying it across
+        // would leave somebody in an empty folder that is not empty, with the reason two controls
+        // away from where they are looking.
+        _filter = string.Empty;
+        Raise(nameof(Filter));
+        Raise(nameof(HasFilter));
+
+        Index.Reset(listing.Rows);
+        ApplyView();
+        Raise(nameof(Title));
+    }
+
+    /// <summary>
+    /// Rebuilds the visible rows from the index, in the current order and under the current filter.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The ordering and the wildcard matching are <see cref="PagedListingIndex"/>'s, which is in
+    /// Desktop.Core with its own suite and is what 1.x sorted through. That matters more than it
+    /// sounds: "containers first, then by name, case-insensitively, ties broken by the order the
+    /// provider gave" is four rules, and a pane that re-derived them would sort a folder
+    /// differently from the shell it replaces.
+    /// </para>
+    /// <para>
+    /// The rows are copied out rather than bound to the view, so a listing is held twice for now.
+    /// The index exists to keep a large listing off the heap, and collecting that benefit means
+    /// binding the view itself -- which needs <c>IndexedView</c> to be an <c>IList</c> before a
+    /// TableView will read it by index instead of enumerating it.
+    /// </para>
+    /// </remarks>
+    private void ApplyView()
+    {
+        // What was selected, by location: the index hands back decoded copies rather than the
+        // instances that went in, and BrowserListItem is a record, so this compares by value.
+        var chosen = SelectedRows
+            .Where(static row => row.Location is not null)
+            .Select(static row => row.Location!)
+            .ToHashSet(StringComparer.Ordinal);
+
         Rows.Clear();
+        SelectedRows.Clear();
 
         // The ".." row is part of the listing rather than a button, which is how every file
-        // manager since Norton Commander has done it and what makes double-click enough.
-        if (!listing.IsAtRoot)
+        // manager since Norton Commander has done it and what makes double-click enough. It is not
+        // in the index: it is navigation, so it survives a filter that matches nothing.
+        if (!_isAtRoot)
         {
             Rows.Add(BrowserParentNavigation.Item);
         }
 
-        foreach (var row in listing.Rows)
+        var matched = 0;
+        foreach (var row in Index.CreateView(_sortColumn, _sortAscending, NullIfEmpty(_filter)))
         {
             Rows.Add(row);
+            matched++;
+            if (row.Location is not null && chosen.Contains(row.Location)) SelectedRows.Add(row);
         }
 
         // A navigation can succeed and still have something to say. Asking for a folder that has
         // been deleted lands on the nearest parent that does exist, and the message is the only
         // thing that explains why the listing is not the one that was asked for.
-        Status = listing.Note is { Length: > 0 } note
+        Status = _note is { Length: > 0 } note
             ? note
-            : Rows.Count == 0 ? Ui.Pane.FolderIsEmpty : string.Empty;
-        Raise(nameof(Title));
+            : matched > 0 ? string.Empty
+            : HasFilter ? Ui.Pane.NoItemsMatchFilter
+            : Ui.Pane.FolderIsEmpty;
+
+        Raise(nameof(NameHeader));
+        Raise(nameof(SizeHeader));
+        Raise(nameof(TypeHeader));
+        Raise(nameof(ModifiedHeader));
+        Raise(nameof(StatusHeader));
         RaiseCommands();
     }
+
+    /// <summary>
+    /// Orders by a column, or reverses the order when it is already the one.
+    /// </summary>
+    /// <remarks>
+    /// A new column starts ascending rather than keeping the previous direction, because "sort by
+    /// size" means largest-last until somebody says otherwise, and inheriting a descending name
+    /// sort would answer a question nobody asked.
+    /// </remarks>
+    internal void SortBy(BrowserSortColumn column)
+    {
+        if (_sortColumn == column)
+        {
+            _sortAscending = !_sortAscending;
+        }
+        else
+        {
+            _sortColumn = column;
+            _sortAscending = true;
+        }
+
+        Raise(nameof(SortColumn));
+        Raise(nameof(SortAscending));
+        ApplyView();
+    }
+
+    /// <summary>Selects everything the filter is showing, which is never the way back out.</summary>
+    internal void SelectAll()
+    {
+        SelectedRows.Clear();
+        foreach (var row in Selectable()) SelectedRows.Add(row);
+    }
+
+    /// <summary>
+    /// Selects what was not selected, and clears what was.
+    /// </summary>
+    /// <remarks>
+    /// Over the visible rows only. Inverting against rows a filter is hiding would select things
+    /// nobody can see, which is the one way a filter could make a delete worse than no filter.
+    /// </remarks>
+    internal void InvertSelection()
+    {
+        var before = SelectedRows.ToHashSet();
+        SelectedRows.Clear();
+        foreach (var row in Selectable())
+        {
+            if (!before.Contains(row)) SelectedRows.Add(row);
+        }
+    }
+
+    /// <summary>The visible rows a selection can contain: everything but the parent.</summary>
+    private IReadOnlyList<BrowserListItem> Selectable() =>
+        [.. Rows.Where(static row => !row.IsParentNavigation)];
+
+    /// <summary>A column heading, carrying the sort arrow when it is the column being sorted by.</summary>
+    /// <remarks>
+    /// The glyph is appended rather than translated: an arrow means the same thing in every
+    /// language this shell ships in, and a format string per direction would be two more strings
+    /// for each to get wrong.
+    /// </remarks>
+    private string Heading(BrowserSortColumn column, string text) =>
+        _sortColumn == column ? text + (_sortAscending ? " \u25b2" : " \u25bc") : text;
+
+    private static string? NullIfEmpty(string value) => value.Length == 0 ? null : value;
 
     /// <summary>
     /// Which kind of pane a connection produces.
