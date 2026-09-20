@@ -614,7 +614,7 @@ internal sealed class NewWorkspaceForm : Form
         for (var index = 0; index < WorkspacePreset.All.Count; index++)
         {
             var preset = WorkspacePreset.All[index];
-            var preview = WorkspacePreset.CreatePreview(preset, 104, 68, StorageHubTheme.Primary);
+            var preview = WorkspacePresetPreview.CreatePreview(preset, 104, 68, StorageHubTheme.Primary);
             _previews.Add(preview);
             var button = new StorageHubButton
             {

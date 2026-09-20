@@ -127,7 +127,7 @@ public sealed class SettingsForm : Form
         // Held so settings this dialog does not present -- the pinned and recent workspace
         // lists, which the shell writes -- survive a save from here.
         _preferences = preferences;
-        _shortcuts = new ShortcutSettingsControl(preferences.Shortcuts);
+        _shortcuts = new ShortcutSettingsControl(ShortcutKeys.ToKeys(preferences.Shortcuts));
         _toolbar = new ToolbarSettingsControl(preferences.ToolbarItems, preferences.ToolbarLabels);
         _appliedAppearance = preferences.Appearance;
         _appliedLanguage = preferences.Language;
@@ -1925,7 +1925,7 @@ public sealed class SettingsForm : Form
                 _reconnectRemotePanes.Checked,
                 _confirmBeforeClearingTransferHistory.Checked,
                 _confirmBeforeDeletingItems.Checked,
-                _shortcuts.ReadShortcuts(),
+                ShortcutKeys.ToGestures(_shortcuts.ReadShortcuts()),
                 // The pinned and recent lists are written by the shell, not this dialog, and are
                 // carried through untouched so saving settings never drops them.
                 _preferences.PinnedWorkspaces,

@@ -1,4 +1,4 @@
-﻿namespace StorageHub.Desktop.Tests;
+namespace StorageHub.Desktop.Tests;
 
 /// <summary>
 /// Capture and apply are two halves of one mapping. These cover the half that is easy to get
@@ -300,7 +300,7 @@ public sealed class DesktopPreferenceSectionMapperTests
         DefaultWorkspacePaneCount = 3,
         ConfirmBeforeDeletingItems = false,
         ExternalEditorPath = @"C:\Tools\current.exe",
-        Shortcuts = ShortcutSettings.Resolve(null),
+        Shortcuts = ShortcutKeys.ToGestures(ShortcutSettings.Resolve(null)),
         SshTerminal = new SshTerminalPreferences("screen-256color")
     };
 

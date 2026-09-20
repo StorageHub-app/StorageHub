@@ -1,4 +1,4 @@
-﻿using StorageHub.Security;
+using StorageHub.Security;
 using StorageHub.Desktop.Localization;
 
 namespace StorageHub.Desktop;
@@ -54,7 +54,7 @@ internal sealed class SettingsExportService
 
         if (selected.Contains(SettingsSectionId.Shortcuts))
         {
-            document = document with { Shortcuts = ShortcutSettings.Resolve(preferences.Shortcuts) };
+            document = document with { Shortcuts = ShortcutSettings.Resolve(ShortcutKeys.ToKeys(preferences.Shortcuts)) };
         }
 
         if (selected.Contains(SettingsSectionId.ConnectionDefaults))

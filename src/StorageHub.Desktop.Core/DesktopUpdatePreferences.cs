@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+using Avalonia.Input;
+using System.Text.Json;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Localization;
 
@@ -109,7 +110,7 @@ internal sealed record DesktopUpdatePreferences(
     bool ReconnectRemotePanesAutomatically = true,
     bool ConfirmBeforeClearingTransferHistory = true,
     bool ConfirmBeforeDeletingItems = true,
-    IReadOnlyDictionary<string, Keys>? Shortcuts = null,
+    IReadOnlyDictionary<string, KeyGesture?>? Shortcuts = null,
     IReadOnlyList<WorkspaceShortcutEntry>? PinnedWorkspaces = null,
     IReadOnlyList<WorkspaceShortcutEntry>? RecentWorkspaces = null,
     /// <summary>

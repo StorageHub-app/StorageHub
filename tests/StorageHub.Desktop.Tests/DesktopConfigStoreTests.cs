@@ -185,7 +185,7 @@ public sealed class DesktopConfigStoreTests : IDisposable
         }));
 
         store.Preflight();
-        var resolved = ShortcutSettings.Resolve(store.Load().Shortcuts);
+        var resolved = ShortcutSettings.Resolve(ShortcutKeys.ToKeys(store.Load().Shortcuts));
 
         Assert.Equal(Keys.Control | Keys.Shift | Keys.C, resolved[UiCommandIds.EditCopy]);
         Assert.Equal(

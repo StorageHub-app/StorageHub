@@ -132,7 +132,7 @@ internal sealed class LegacySettingsReader
                     document.SchemaVersion < 10 || document.ConfirmBeforeClearingTransferHistory,
                     document.SchemaVersion < 11 || document.ConfirmBeforeDeletingItems,
                     document.SchemaVersion >= 12 && document.Shortcuts is not null
-                        ? ShortcutSettings.Resolve(document.Shortcuts) : null,
+                        ? ShortcutKeys.ToGestures(ShortcutSettings.Resolve(document.Shortcuts)) : null,
                     document.SchemaVersion >= 13 && document.PinnedWorkspaces is not null
                         ? WorkspaceShortcutSettings.Resolve(
                             document.PinnedWorkspaces, WorkspaceShortcutSettings.MaximumPinned)

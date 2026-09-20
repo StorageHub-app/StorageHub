@@ -406,7 +406,7 @@ public sealed class MainForm : Form
 
     internal string ShortcutDisplay(string commandId)
     {
-        var keys = ShortcutSettings.Resolve(_updater.Preferences.Shortcuts).GetValueOrDefault(commandId);
+        var keys = ShortcutSettings.Resolve(ShortcutKeys.ToKeys(_updater.Preferences.Shortcuts)).GetValueOrDefault(commandId);
         return keys == Keys.None ? string.Empty : ShortcutSettings.Format(keys);
     }
 
@@ -426,7 +426,7 @@ public sealed class MainForm : Form
 
     internal bool TryDispatchShortcut(Keys keyData)
     {
-        var bindings = ShortcutSettings.Resolve(_updater.Preferences.Shortcuts);
+        var bindings = ShortcutSettings.Resolve(ShortcutKeys.ToKeys(_updater.Preferences.Shortcuts));
         var command = ShortcutSettings.Commands.FirstOrDefault(candidate => bindings[candidate.Id] == keyData && keyData != Keys.None);
         if (command is null) return false;
         var focused = (Control)this;

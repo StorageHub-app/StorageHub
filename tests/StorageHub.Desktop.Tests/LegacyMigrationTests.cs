@@ -100,7 +100,7 @@ public sealed class LegacyMigrationTests : IDisposable
 
         var store = new DesktopConfigStore(_directory);
         store.Preflight();
-        var bindings = ShortcutSettings.Resolve(store.Load().Shortcuts);
+        var bindings = ShortcutSettings.Resolve(ShortcutKeys.ToKeys(store.Load().Shortcuts));
 
         Assert.Equal(Keys.Control | Keys.Shift | Keys.C, bindings[UiCommandIds.EditCopy]);
         Assert.Equal(Keys.None, bindings[UiCommandIds.EditPaste]);

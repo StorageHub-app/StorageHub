@@ -515,7 +515,7 @@ public sealed class DesktopUpdaterTests
         {
             PinnedWorkspaces = MaximumLengthEntries(0, WorkspaceShortcutSettings.MaximumPinned),
             RecentWorkspaces = MaximumLengthEntries(1_000, WorkspaceShortcutSettings.MaximumRecent),
-            Shortcuts = ShortcutSettings.Resolve(null),
+            Shortcuts = ShortcutKeys.ToGestures(ShortcutSettings.Resolve(null)),
             ConnectionDefaults = ConnectionDefaultSettings.Normalize(null)
         });
 

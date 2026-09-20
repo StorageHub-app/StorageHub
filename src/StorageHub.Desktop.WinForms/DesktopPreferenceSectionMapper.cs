@@ -1,4 +1,4 @@
-﻿using StorageHub.Contracts.Ipc;
+using StorageHub.Contracts.Ipc;
 
 namespace StorageHub.Desktop;
 
@@ -128,7 +128,7 @@ internal static class DesktopPreferenceSectionMapper
             }
             else
             {
-                updated = updated with { Shortcuts = ShortcutSettings.Resolve(shortcuts) };
+                updated = updated with { Shortcuts = ShortcutKeys.ToGestures(ShortcutSettings.Resolve(shortcuts)) };
                 applied.Add(SettingsSectionId.Shortcuts);
             }
         }
