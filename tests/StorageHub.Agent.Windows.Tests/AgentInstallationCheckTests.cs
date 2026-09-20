@@ -154,15 +154,21 @@ public sealed class AgentInstallationCheckTests
     }
 
     /// <summary>
-    /// Switching mode moves the data root, so the connections are not gone -- they are in the
-    /// other root. Saying so is the difference between a scare and a setting.
+    /// A database from the old per-user layout is pointed at rather than left to be missed.
     /// </summary>
+    /// <remarks>
+    /// This used to assert the two live roots were compared against each other, because the service
+    /// ran out of ProgramData and a session agent out of the user's LocalAppData. Both modes share
+    /// one machine root now, which removes that failure rather than changes it; what survives is an
+    /// upgrade from a build that did split them, where a populated database is still sitting in the
+    /// user's profile and nothing reads it. Saying so is the difference between a scare and a
+    /// setting.
+    /// </remarks>
     [WindowsOnlyFact]
-    public void APopulatedDatabaseLeftInTheOtherModesRootIsPointedAt()
+    public void APopulatedDatabaseFromTheOldPerUserLayoutIsPointedAt()
     {
         var probe = FakeProbe.HealthyService();
-        var sessionDatabase = AgentHostLayout.ResolveDatabasePath(AgentHostMode.UserSession);
-        probe.Files[sessionDatabase] = 512 * 1024;
+        probe.Files[AgentHostLayout.LegacyPerUserDatabasePath] = 512 * 1024;
 
         var report = AgentInstallationCheck.Inspect(
             AgentHostMode.WindowsService,
@@ -170,9 +176,23 @@ public sealed class AgentInstallationCheckTests
             AgentExecutable,
             probe);
 
-        var stray = Single(report, "Database from the other mode");
+        var stray = Single(report, "Database from an earlier layout");
         Assert.Equal(InstallationCheckStatus.Warning, stray.Status);
-        Assert.Equal(sessionDatabase, stray.Location);
+        Assert.Equal(AgentHostLayout.LegacyPerUserDatabasePath, stray.Location);
+    }
+
+    /// <summary>Both Windows modes now read the same database, which is the point of the change.</summary>
+    [WindowsOnlyFact]
+    public void EveryWindowsModeResolvesTheSameDataRoot()
+    {
+        var service = AgentHostLayout.ResolveDataRoot(AgentHostMode.WindowsService);
+
+        Assert.Equal(service, AgentHostLayout.ResolveDataRoot(AgentHostMode.UserSession));
+        Assert.Equal(service, AgentHostLayout.ResolveDataRoot(AgentHostMode.AppSession));
+        Assert.StartsWith(
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+            service,
+            StringComparison.OrdinalIgnoreCase);
     }
 
     [WindowsOnlyFact]

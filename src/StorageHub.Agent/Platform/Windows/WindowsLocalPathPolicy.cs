@@ -41,6 +41,12 @@ public sealed class WindowsLocalPathPolicy : ILocalPathPolicy
 
     public IEnumerable<(string Folder, string Reason)> ProtectedRoots()
     {
+        // Both roots: the agent's data moved to ProgramData, and the per-user folder still holds
+        // the desktop's preferences and the Explorer drop broker's staging. Transferring into
+        // either would have StorageHub writing over its own state.
+        yield return (
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "StorageHub"),
+            "StorageHub's own data folder cannot be a transfer destination.");
         yield return (
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "StorageHub"),
             "StorageHub's own data folder cannot be a transfer destination.");

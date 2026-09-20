@@ -238,18 +238,25 @@ public static class AgentInstallationCheck
     }
 
     /// <summary>
-    /// Looks for a database belonging to the mode that is <em>not</em> in use.
-    ///
-    /// Switching mode moves the data root, so a populated database left behind in the other root
-    /// is the difference between "my connections are gone" and "my connections are over there".
-    /// Saying which is which is most of the value of the whole check.
+    /// Looks for a database left behind by a build that split the data root by mode.
     /// </summary>
+    /// <remarks>
+    /// This used to compare the two roots against each other, because the service ran out of
+    /// ProgramData and a session agent out of the user's LocalAppData - so changing mode moved the
+    /// whole installation and the symptom was always "my connections are gone". Both modes now share
+    /// one machine root, which removes that failure entirely; what is left is the one-way version of
+    /// it, an upgrade from a build that did split them. Saying where that database is remains most
+    /// of the value of the check.
+    /// </remarks>
     private static InstallationFinding? CheckStrayDataRoot(AgentHostMode mode, IInstallationProbe probe)
     {
-        var other = mode == AgentHostMode.WindowsService
-            ? AgentHostMode.UserSession
-            : AgentHostMode.WindowsService;
-        var path = AgentHostLayout.ResolveDatabasePath(other);
+        _ = mode;
+        var path = AgentHostLayout.LegacyPerUserDatabasePath;
+        if (string.Equals(path, AgentHostLayout.ResolveDatabasePath(mode), StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
         // Only a database this account can actually read and size is worth pointing at. One it
         // cannot see says nothing either way, and a guess here is the scare the check exists to
         // prevent.
@@ -258,12 +265,12 @@ public static class AgentInstallationCheck
             return null;
         }
 
-        var name = other == AgentHostMode.WindowsService ? "service" : "session";
         return new InstallationFinding(
-            "Database from the other mode",
+            "Database from an earlier layout",
             InstallationCheckStatus.Warning,
-            $"A populated {name} database is still on disk. Nothing reads it in this mode, so anything saved "
-                + "into it is not missing -- it is only out of reach until that mode is selected again.",
+            "A populated database from an earlier StorageHub is still in your user profile. The agent now "
+                + "keeps one database per machine, so anything saved into that one is not missing -- it is "
+                + "out of reach until it is copied across.",
             path);
     }
 

@@ -75,10 +75,13 @@ public static class AgentHostLayout
     private const string MachineSecretPipePrefix = "StorageHub.Agent.Secrets.v1.machine";
 
     /// <summary>
-    /// Where the database, vault and logs live. A service running as LocalSystem would otherwise
-    /// resolve LocalApplicationData to the system profile, silently presenting an empty
-    /// installation rather than the user's saved connections.
+    /// Where the database, vault and logs live. One root per machine on Windows, whatever the mode.
     /// </summary>
+    /// <remarks>
+    /// This is the agent's data, not the desktop's. Preferences - theme, shortcuts, the toolbar -
+    /// stay per-user, because only the desktop reads them and it always runs as the user. What moved
+    /// is the state both a service and a session agent have to see.
+    /// </remarks>
     public static string ResolveDataRoot(AgentHostMode mode)
     {
         if (!Enum.IsDefined(mode))
@@ -86,9 +89,21 @@ public static class AgentHostLayout
             throw new ArgumentOutOfRangeException(nameof(mode));
         }
 
-        var baseFolder = mode == AgentHostMode.WindowsService
-            ? Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData)
-            : Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        // Every Windows mode shares one root under %PROGRAMDATA%.
+        //
+        // It used to depend on the mode - the service under ProgramData, a session agent under
+        // %LOCALAPPDATA% - and that is the source of a recurring class of problem rather than a
+        // safeguard. The two roots are invisible to each other, so anything that changes the mode
+        // moves the whole installation: install the service and the desktop's saved connections
+        // vanish; uninstall it and they come back while the ones added since do not. A service runs
+        // as LocalSystem and cannot read a user's LocalAppData at all, so there is no repair path
+        // either, and the symptom every time is an empty installation rather than an error.
+        //
+        // The trade is real and deliberate: one root is machine-wide, so a second Windows user on
+        // the same machine shares this installation instead of having one of their own. For a
+        // single-user machine, which is what StorageHub is installed on, that is the behaviour
+        // people already expect. STORAGEHUB_DATA_ROOT still overrides it.
+        var baseFolder = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
         if (string.IsNullOrWhiteSpace(baseFolder))
         {
             throw new InvalidOperationException("Windows did not report a data folder for this mode.");
@@ -104,6 +119,21 @@ public static class AgentHostLayout
     /// </summary>
     public static string ResolveAgentDirectory(AgentHostMode mode) =>
         Path.Combine(ResolveDataRoot(mode), AgentDirectoryName);
+
+    /// <summary>
+    /// Where a session agent kept its data before the roots were merged.
+    /// </summary>
+    /// <remarks>
+    /// Nothing writes here any more. It is still worth knowing about: an installation upgraded from
+    /// a build that split the root by mode has a populated database sitting in it, and the agent
+    /// now looks somewhere else entirely. Pointing at it is the difference between "my connections
+    /// are gone" and "my connections are over there".
+    /// </remarks>
+    public static string LegacyPerUserDatabasePath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "StorageHub",
+        AgentDirectoryName,
+        DatabaseFileName);
 
     /// <summary>The agent database for a mode, whether or not it exists yet.</summary>
     public static string ResolveDatabasePath(AgentHostMode mode) =>
