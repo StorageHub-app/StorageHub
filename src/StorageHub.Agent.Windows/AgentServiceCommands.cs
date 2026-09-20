@@ -20,10 +20,7 @@ public static class AgentServiceCommands
     internal const string InstallArgument = "--install-service";
     internal const string UninstallArgument = "--uninstall-service";
 
-    /// <summary>Applied, but some secrets could not be read and must be entered again.</summary>
-    private const int PartialMigrationExitCode = 6;
-
-    public static async Task<int> ExecuteAsync(string[] args)
+    public static int Execute(string[] args)
     {
         try
         {
@@ -33,14 +30,9 @@ public static class AgentServiceCommands
                 return 5;
             }
 
-            var machine = AgentDataLocation.For(AgentHostMode.WindowsService);
-            var user = AgentDataLocation.For(
-                AgentHostMode.UserSession,
-                ResolveInvokingUserRoot(args) ?? AgentHostLayout.ResolveDataRoot(AgentHostMode.UserSession));
-
             return args.Contains(UninstallArgument, StringComparer.OrdinalIgnoreCase)
-                ? await RemoveAsync(machine, user).ConfigureAwait(false)
-                : await InstallAsync(user, machine).ConfigureAwait(false);
+                ? Remove()
+                : Install();
         }
         catch (Exception error)
         {
@@ -50,36 +42,36 @@ public static class AgentServiceCommands
     }
 
     /// <summary>
-    /// Applies the named repair and reports through the exit code, because the runas verb needs
-    /// UseShellExecute and that means the caller cannot read this process.s console.
+    /// Registers the service against the one data root this platform has.
     /// </summary>
-    private static async Task<int> InstallAsync(AgentDataLocation user, AgentDataLocation machine)
+    /// <remarks>
+    /// There is nothing to move. Installing used to copy the database and re-protect every vault
+    /// entry from the user location into the machine one, because the two modes read different
+    /// roots; uninstalling copied it back. Both roots are %PROGRAMDATA%\StorageHub now, so the
+    /// copy has no source and no destination - it would be a directory onto itself.
+    /// </remarks>
+    private static int Install()
     {
-        var report = await AgentModeMigration.MigrateAsync(user, machine).ConfigureAwait(false);
-        Console.WriteLine(report.Summary);
-
         using var identity = WindowsIdentity.GetCurrent();
         var owner = identity.User ??
             throw new InvalidOperationException("The current Windows account SID is unavailable.");
-        AgentServiceInstaller.Install(Environment.ProcessPath!, machine.DataRoot, owner);
-        Console.WriteLine("The StorageHub agent service is installed and running.");
 
-        // A partial migration still leaves a working service, so it is reported rather than failed:
-        // the connections whose secrets did not survive can be re-entered, and saying so beats
-        // rolling back a service the operator asked for.
-        return report.Succeeded ? 0 : PartialMigrationExitCode;
+        AgentServiceInstaller.Install(
+            Environment.ProcessPath!,
+            AgentHostLayout.ResolveDataRoot(AgentHostMode.WindowsService),
+            owner);
+        Console.WriteLine("The StorageHub agent service is installed and running.");
+        return 0;
     }
 
     /// <summary>
-    /// Stops the service, brings the installation back to the user location, and only then removes
-    /// the registration.
-    ///
-    /// Stopping first is what makes the copy trustworthy -- a database read out from under a
-    /// running agent is a database missing whatever it wrote in the meantime -- and the service is
-    /// being deleted anyway, so there is nothing to preserve by leaving it up. Deleting last means
-    /// a failed migration leaves the machine in the mode it was already in, rather than in neither.
+    /// Stops the service and removes the registration, leaving the data where it is.
     /// </summary>
-    private static async Task<int> RemoveAsync(AgentDataLocation machine, AgentDataLocation user)
+    /// <remarks>
+    /// The data root does not belong to the service - a session agent reads the same one - so
+    /// removing the service is a change of how the agent starts, not of where anything lives.
+    /// </remarks>
+    private static int Remove()
     {
         if (!AgentServiceInstaller.Describe().Installed)
         {
@@ -88,31 +80,8 @@ public static class AgentServiceCommands
         }
 
         AgentServiceInstaller.Stop();
-        var report = await AgentModeMigration.MigrateAsync(machine, user).ConfigureAwait(false);
-        Console.WriteLine(report.Summary);
-
         AgentServiceInstaller.Uninstall();
         Console.WriteLine("The StorageHub agent service was removed.");
-        return report.Succeeded ? 0 : PartialMigrationExitCode;
-    }
-
-    /// <summary>
-    /// The user data root to migrate to and from. Passed explicitly because an elevated launch can
-    /// arrive with a different profile than the desktop that requested it, and guessing would
-    /// silently migrate the wrong account's installation -- or nothing at all.
-    /// </summary>
-    private static string? ResolveInvokingUserRoot(string[] args)
-    {
-        const string prefix = "--user-data-root=";
-        foreach (var argument in args)
-        {
-            if (argument.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            {
-                var value = argument[prefix.Length..].Trim().Trim('"');
-                return string.IsNullOrWhiteSpace(value) ? null : value;
-            }
-        }
-
-        return null;
+        return 0;
     }
 }

@@ -109,19 +109,13 @@ internal sealed class AgentHostModeController(string agentExecutablePath)
             return ApplySessionMode(desired);
         }
 
-        // The user root travels with both verbs. The elevated process can arrive with a different
-        // profile than the desktop that asked for it, and on the way back it is the destination --
-        // guessing it would restore the installation into the wrong account, or nowhere.
+        // The root no longer travels with the verb. It used to, because the elevated process can
+        // arrive with a different profile than the desktop that asked for it and the installation
+        // was copied between the two accounts' locations. There is one root per machine now, so the
+        // elevated process finds the same one this desktop is using.
         var arguments = desired == AgentHostMode.WindowsService
-            ? new[]
-            {
-                "--install-service",
-                $"--user-data-root={AgentHostLayout.ResolveDataRoot(AgentHostMode.UserSession)}"
-            }
-            : [
-                "--uninstall-service",
-                $"--user-data-root={AgentHostLayout.ResolveDataRoot(AgentHostMode.UserSession)}"
-            ];
+            ? new[] { "--install-service" }
+            : new[] { "--uninstall-service" };
 
         if (desired == AgentHostMode.WindowsService)
         {

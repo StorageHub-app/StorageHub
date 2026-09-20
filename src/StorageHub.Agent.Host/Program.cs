@@ -38,7 +38,7 @@ if (OperatingSystem.IsWindows() &&
     (args.Contains("--install-service", StringComparer.OrdinalIgnoreCase) ||
      args.Contains("--uninstall-service", StringComparer.OrdinalIgnoreCase)))
 {
-    return await AgentServiceCommands.ExecuteAsync(args).ConfigureAwait(false);
+    return AgentServiceCommands.Execute(args);
 }
 
 // The selection lives in AgentPlatforms, because the desktop needs the same answer and answering
