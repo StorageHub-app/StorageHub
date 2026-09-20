@@ -176,5 +176,10 @@
   "moveRightOfPane": "Flyt til højre for den",
   "moveBelowPane": "Flyt under den",
   "workspaceTabFormat": "Arbejdsområde {0}",
+  "newNameLabel": "Nyt navn",
+  "deleteItemsCaption": "Slet elementer",
+  "deleteItemsPromptFormat": "Slet {0}?",
+  "deleteItemsDetail": "Elementerne fjernes fra det lager, de ligger på. Dette kan ikke fortrydes.",
+  "deletedItemsFormat": "Slettede {0:N0} element(er).",
   "culture": "da-DK"
 }

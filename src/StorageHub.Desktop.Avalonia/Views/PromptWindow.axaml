@@ -1,0 +1,35 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
+        x:Class="StorageHub.Desktop.Views.PromptWindow"
+        x:DataType="vm:PromptModel"
+        Title="{Binding Title}"
+        Width="420" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner">
+
+  <!--
+    One box and two buttons. The accept button is dim while the name is one the storage would
+    refuse, with the reason underneath: a dialog that lets somebody press Create onto a refusal has
+    made them do the work twice.
+  -->
+
+  <Border Classes="surface" Padding="{StaticResource PaddingLg}">
+    <StackPanel Spacing="{StaticResource SpaceSm}">
+      <TextBlock Text="{Binding Label}"/>
+      <TextBox x:Name="PART_Value"
+               Text="{Binding Value, Mode=TwoWay}"
+               AutomationProperties.Name="{Binding Label}"/>
+      <TextBlock Classes="caption danger"
+                 IsVisible="{Binding HasError}"
+                 Text="{Binding Error}"
+                 TextWrapping="Wrap"/>
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                  Spacing="{StaticResource SpaceSm}" Margin="0,8,0,0">
+        <Button Content="{Binding CancelLabel}" Command="{Binding CancelCommand}"/>
+        <Button Classes="primary" Content="{Binding Accept}"
+                IsDefault="True" Command="{Binding AcceptCommand}"/>
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</Window>

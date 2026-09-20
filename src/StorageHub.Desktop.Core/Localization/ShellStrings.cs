@@ -298,6 +298,27 @@ internal sealed class ShellStrings : LocalizationModelBase
 
     public string RenameItem { get; set; } = "Rename item";
 
+    public string NewNameLabel { get; set; } = "New name";
+
+    public string DeleteItemsCaption { get; set; } = "Delete items";
+
+    /// <summary>{0} = what is selected, named or counted.</summary>
+    public string DeleteItemsPromptFormat { get; set; } = "Delete {0}?";
+
+    /// <summary>
+    /// Said plainly, because it is true on both platforms and was not true in 1.x.
+    /// </summary>
+    /// <remarks>
+    /// The WinForms shell sent local deletions to the Recycle Bin through a Windows-only API.
+    /// There is no cross-platform equivalent, so 2.0 deletes rather than pretending to a
+    /// recoverable one it cannot offer on Linux -- and says so before it does.
+    /// </remarks>
+    public string DeleteItemsDetail { get; set; } =
+        "The items are removed from the storage they are on. This cannot be undone.";
+
+    /// <summary>{0} = how many were removed.</summary>
+    public string DeletedItemsFormat { get; set; } = "Deleted {0:N0} item(s).";
+
     public string NewEmptyFile { get; set; } = "New empty file";
 
     public string NewFolderTitle { get; set; } = "New folder";

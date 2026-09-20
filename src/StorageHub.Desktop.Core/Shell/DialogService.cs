@@ -79,6 +79,38 @@ internal sealed record DialogRequest
 }
 
 /// <summary>
+/// One question that wants a name back.
+/// </summary>
+/// <remarks>
+/// Separate from <see cref="DialogRequest"/> rather than a field on it, because the answer is a
+/// different shape: a prompt returns text or nothing, and a message returns a choice. Folding them
+/// together would give every call site a nullable string it has to ignore.
+/// </remarks>
+internal sealed record DialogPromptRequest
+{
+    /// <summary>The window's title: "New folder", "Rename item".</summary>
+    public required string Title { get; init; }
+
+    /// <summary>What the box is for, beside it: "Folder name", "New name".</summary>
+    public required string Label { get; init; }
+
+    /// <summary>What the box starts with, selected so typing replaces it.</summary>
+    public string Value { get; init; } = string.Empty;
+
+    /// <summary>The accept button: "Create", "Rename".</summary>
+    public required string Accept { get; init; }
+
+    /// <summary>
+    /// Says whether a value is acceptable, returning the reason it is not.
+    /// </summary>
+    /// <remarks>
+    /// Checked as it is typed, so the accept button is dim with the reason showing rather than
+    /// enabled onto a refusal. Null means anything non-empty will do.
+    /// </remarks>
+    public Func<string, string?>? Validate { get; init; }
+}
+
+/// <summary>
 /// Puts a message in front of the person and, when it asks something, reports the answer.
 /// </summary>
 /// <remarks>
@@ -97,6 +129,9 @@ internal interface IDialogService
 
     /// <summary>Asks, and reports what was chosen.</summary>
     Task<DialogChoice> ConfirmAsync(DialogRequest request, CancellationToken cancellationToken = default);
+
+    /// <summary>Asks for a name, and reports it -- or nothing, when the dialog was dismissed.</summary>
+    Task<string?> PromptAsync(DialogPromptRequest request, CancellationToken cancellationToken = default);
 }
 
 /// <summary>What <see cref="DialogRequest.Default"/> means when it is not given.</summary>

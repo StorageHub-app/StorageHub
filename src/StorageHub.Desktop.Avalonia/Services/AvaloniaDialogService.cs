@@ -53,4 +53,35 @@ internal sealed class AvaloniaDialogService(Func<Window?> owner) : IDialogServic
             return window.Result;
         }).ConfigureAwait(false);
     }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// The same shape as <see cref="ConfirmAsync"/>, including the window with no owner: a shell
+    /// that has lost its main window should still be able to ask, rather than throw somewhere the
+    /// caller cannot see.
+    /// </remarks>
+    public async Task<string?> PromptAsync(
+        DialogPromptRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        return await Dispatcher.UIThread.InvokeAsync(async () =>
+        {
+            var model = new PromptModel(request);
+            var window = new PromptWindow { DataContext = model };
+            if (_owner() is { } parent)
+            {
+                await window.ShowDialog(parent).ConfigureAwait(true);
+                return model.Answer;
+            }
+
+            var closed = new TaskCompletionSource();
+            window.Closed += (_, _) => closed.TrySetResult();
+            window.Show();
+            await closed.Task.ConfigureAwait(true);
+            return model.Answer;
+        }).ConfigureAwait(false);
+    }
 }

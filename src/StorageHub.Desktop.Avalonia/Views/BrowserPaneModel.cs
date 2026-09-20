@@ -4,6 +4,7 @@ using System.Windows.Input;
 using Lucide.Avalonia;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Localization;
+using StorageHub.Desktop.Shell;
 
 namespace StorageHub.Desktop.Views;
 
@@ -74,6 +75,8 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     /// and a pane that is never pointed anywhere should not leave one behind. Four panes in a
     /// workspace would otherwise be four databases created before anything was browsed.
     /// </remarks>
+    private readonly Func<PaneMutationController>? _mutations;
+    private readonly IDialogService? _dialogs;
     private PagedListingIndex? _index;
     private int _paneNumber = 1;
     private bool _showConnectionBar = true;
@@ -82,21 +85,42 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     private string _filter = string.Empty;
     private bool _isAtRoot = true;
 
+    /// <param name="mutations">
+    /// How the pane creates, renames and deletes. Null leaves those commands unavailable, which is
+    /// what a pane in a test that is not about file operations wants.
+    /// </param>
+    /// <param name="dialogs">
+    /// Where the name prompt and the delete confirmation go. Null has the same effect as null
+    /// mutations: nothing to ask with is nothing to do.
+    /// </param>
     /// <param name="localSource">
     /// How This PC lists drives and folders. A factory so a test can hand over a directory tree in
     /// memory; null means the real filesystem.
     /// </param>
     internal BrowserPaneModel(
         IRemoteStorageAgentClient? client = null,
-        Func<ILocalFileBrowserDataSource?>? localSource = null)
+        Func<ILocalFileBrowserDataSource?>? localSource = null,
+        Func<PaneMutationController>? mutations = null,
+        IDialogService? dialogs = null)
     {
         _controller = new RemoteBrowserController(client);
         _localSource = localSource ?? (static () => null);
+        _mutations = mutations;
+        _dialogs = dialogs;
         SelectedRows.CollectionChanged += (_, _) =>
         {
             Raise(nameof(HasSelection));
             Raise(nameof(SelectionSummary));
         };
+
+        NewFolderCommand = new RelayCommand(
+            _ => _ = CreateAsync(container: true), _ => CanMutateHere);
+        NewFileCommand = new RelayCommand(
+            _ => _ = CreateAsync(container: false), _ => CanMutateHere);
+        RenameCommand = new RelayCommand(
+            _ => _ = RenameAsync(), _ => CanMutateHere && Chosen().Count == 1);
+        DeleteCommand = new RelayCommand(
+            _ => _ = DeleteAsync(), _ => CanMutateHere && Chosen().Count > 0);
 
         SortByCommand = new RelayCommand(column =>
         {
@@ -488,6 +512,37 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
 
     public ICommand ClearFilterCommand { get; }
 
+    public ICommand NewFolderCommand { get; }
+
+    public ICommand NewFileCommand { get; }
+
+    public ICommand RenameCommand { get; }
+
+    public ICommand DeleteCommand { get; }
+
+    /// <summary>
+    /// Whether this pane is somewhere things can be made and removed.
+    /// </summary>
+    /// <remarks>
+    /// A terminal has no folder; the connections list is a pane state rather than a location; and
+    /// a pane with nothing behind it to ask has nothing to do. All three come out here rather than
+    /// as three refusals after the fact.
+    /// </remarks>
+    internal bool CanMutateHere =>
+        _mutations is not null &&
+        _dialogs is not null &&
+        !IsTerminal &&
+        PaneTransferSnapshots.ContextFor(_source) is { IsSuccess: true, Value.Kind:
+            PaneTransferContextKind.ThisPc or PaneTransferContextKind.SavedConnection };
+
+    public static string NewFolderLabel => Ui.Shell.NewFolderTitle;
+
+    public static string NewFileLabel => Ui.Shell.NewEmptyFile;
+
+    public static string RenameLabel => Ui.Shell.RenameWorkspaceAccept;
+
+    public static string DeleteLabel => Ui.Commands.EditDelete;
+
     public ICommand UpCommand { get; }
 
     public ICommand BackCommand { get; }
@@ -610,6 +665,155 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             ?? new PaneConnection(connectionId, string.Empty, LucideIconKind.Cloud);
         return OpenAsync(choice, cancellationToken);
     }
+
+    /// <summary>
+    /// Asks for a name and makes an empty folder or file in this pane's folder.
+    /// </summary>
+    /// <remarks>
+    /// The listing is reloaded rather than having the new item added to it, because what a
+    /// provider actually stored is its answer: a name can come back normalised, and a folder on a
+    /// bucket may not exist as a listable thing at all until something is put in it.
+    /// </remarks>
+    internal async Task CreateAsync(bool container, CancellationToken cancellationToken = default)
+    {
+        if (!CanMutateHere || Here() is not { } location) return;
+
+        var name = await _dialogs!.PromptAsync(
+            new DialogPromptRequest
+            {
+                Title = container ? Ui.Shell.NewFolderTitle : Ui.Shell.NewEmptyFile,
+                Label = container ? Ui.Shell.FolderName : Ui.Shell.FileName,
+                Value = container ? string.Empty : Ui.Shell.DefaultFileName,
+                Accept = Ui.Shell.Create,
+                Validate = PaneItemNameRules.Validate
+            },
+            cancellationToken).ConfigureAwait(true);
+        if (string.IsNullOrEmpty(name)) return;
+
+        await using var mutations = _mutations!();
+        var result = container
+            ? await mutations.CreateFolderAsync(location, name, cancellationToken).ConfigureAwait(true)
+            : await mutations.CreateFileAsync(location, name, cancellationToken).ConfigureAwait(true);
+
+        if (result.IsFailure)
+        {
+            Status = Ui.Format(Ui.Shell.ItemCreateFailedFormat, result.Error.Message);
+            return;
+        }
+
+        await MoveAsync(PaneNavigationKind.Refresh, cancellationToken: cancellationToken)
+            .ConfigureAwait(true);
+        Status = Ui.Format(
+            container ? Ui.Shell.CreatedFolderFormat : Ui.Shell.CreatedFileFormat, name);
+    }
+
+    /// <summary>Asks for a new name for the one selected item, and applies it.</summary>
+    internal async Task RenameAsync(CancellationToken cancellationToken = default)
+    {
+        if (!CanMutateHere || Here() is not { } location) return;
+        if (Chosen() is not [var row])
+        {
+            Status = Ui.Shell.SelectOneToRename;
+            return;
+        }
+
+        var item = PaneTransferSnapshots.ItemFor(row);
+        if (item.IsFailure)
+        {
+            Status = item.Error.Message;
+            return;
+        }
+
+        var name = await _dialogs!.PromptAsync(
+            new DialogPromptRequest
+            {
+                Title = Ui.Shell.RenameItem,
+                Label = Ui.Shell.NewNameLabel,
+                Value = row.Name,
+                Accept = Ui.Shell.RenameWorkspaceAccept,
+                Validate = PaneItemNameRules.Validate
+            },
+            cancellationToken).ConfigureAwait(true);
+        if (string.IsNullOrEmpty(name)) return;
+
+        await using var mutations = _mutations!();
+        var result = await mutations
+            .RenameAsync(location, item.Value, name, cancellationToken)
+            .ConfigureAwait(true);
+
+        if (result.IsFailure)
+        {
+            Status = result.Error.Message;
+            return;
+        }
+
+        await MoveAsync(PaneNavigationKind.Refresh, cancellationToken: cancellationToken)
+            .ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Confirms, then removes what is selected.
+    /// </summary>
+    /// <remarks>
+    /// The confirmation says the deletion cannot be undone, because in 2.0 it cannot: the WinForms
+    /// shell sent local deletions to the Recycle Bin through a Windows-only API and there is no
+    /// cross-platform equivalent, so the honest thing is to say so rather than to offer a recovery
+    /// that exists on one platform.
+    /// </remarks>
+    internal async Task DeleteAsync(CancellationToken cancellationToken = default)
+    {
+        if (!CanMutateHere || Here() is not { } location) return;
+
+        var selection = PaneTransferSnapshots.SelectionFor(_source, SelectedRows);
+        if (selection.IsFailure)
+        {
+            Status = selection.Error.Message;
+            return;
+        }
+
+        var items = selection.Value.Items;
+        if (items.Count == 0) return;
+
+        var summary = items.Count == 1
+            ? items[0].Name
+            : Ui.Format(Ui.Dialogs.SelectedItemsFormat, items.Count);
+        var choice = await _dialogs!.ConfirmAsync(
+            new DialogRequest
+            {
+                Title = Ui.Shell.DeleteItemsCaption,
+                Message = Ui.Format(Ui.Shell.DeleteItemsPromptFormat, summary),
+                Detail = Ui.Shell.DeleteItemsDetail,
+                Severity = DialogSeverity.Warning,
+                Buttons = DialogButtons.YesNo
+            },
+            cancellationToken).ConfigureAwait(true);
+        if (choice != DialogChoice.Yes) return;
+
+        await using var mutations = _mutations!();
+        var outcome = await mutations
+            .DeleteAsync(location, items, cancellationToken)
+            .ConfigureAwait(true);
+
+        await MoveAsync(PaneNavigationKind.Refresh, cancellationToken: cancellationToken)
+            .ConfigureAwait(true);
+
+        // How far it got matters as much as whether it finished: "three of five were deleted, then
+        // this happened" is a different situation from "nothing was deleted".
+        Status = outcome switch
+        {
+            { IsSuccess: true } => Ui.Format(Ui.Shell.DeletedItemsFormat, outcome.Deleted),
+            { Deleted: 0 } => Ui.Format(Ui.Shell.ItemsDeleteFailedFormat, outcome.Failure!.Message),
+            _ => Ui.Format(Ui.Shell.DeletedThenStoppedFormat, outcome.Deleted, outcome.Failure!.Message)
+        };
+    }
+
+    /// <summary>Where this pane is, as a location a mutation can act on.</summary>
+    private PaneTransferContext? Here() =>
+        PaneTransferSnapshots.ContextFor(_source) is { IsSuccess: true } context ? context.Value : null;
+
+    /// <summary>The selected rows a file operation can act on: never the way back out.</summary>
+    private IReadOnlyList<BrowserListItem> Chosen() =>
+        [.. SelectedRows.Where(static row => !row.IsParentNavigation)];
 
     /// <summary>Goes to a path, or says why it could not.</summary>
     internal async Task NavigateAsync(string relativePath, CancellationToken cancellationToken = default)

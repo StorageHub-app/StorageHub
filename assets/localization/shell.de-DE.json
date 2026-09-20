@@ -176,5 +176,10 @@
   "moveRightOfPane": "Rechts davon einfügen",
   "moveBelowPane": "Darunter einfügen",
   "workspaceTabFormat": "Arbeitsbereich {0}",
+  "newNameLabel": "Neuer Name",
+  "deleteItemsCaption": "Elemente löschen",
+  "deleteItemsPromptFormat": "{0} löschen?",
+  "deleteItemsDetail": "Die Elemente werden aus dem Speicher entfernt, auf dem sie liegen. Das lässt sich nicht rückgängig machen.",
+  "deletedItemsFormat": "{0:N0} Element(e) gelöscht.",
   "culture": "de-DE"
 }

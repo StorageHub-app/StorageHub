@@ -102,9 +102,9 @@ are the honest ones — each names what is missing rather than claiming the row.
 
 | What 1.x does | Status |
 |---|---|
-| New folder, new empty file | **todo** — `PaneItemNameRules` is in Core |
-| Rename, batch rename | **todo** |
-| Delete, with a review dialog listing what goes | **todo** |
+| New folder, new empty file | **done** — one `PaneMutationController` for both a bucket and a disk, and the name box refuses what the storage would |
+| Rename, batch rename | **partial** — renaming one item is done, including a case-only rename on this computer. Batch rename is a screen of its own and is not built |
+| Delete, with a review dialog listing what goes | **done** — it confirms and says how far it got if it stops part way. It deletes rather than recycling: 1.x used a Windows-only Recycle Bin API with no cross-platform equivalent, so the confirmation says so |
 | Properties: versions, metadata, tags (Object Inspector) | **todo** |
 | Open in an external editor, with an unsafe-edit warning | **todo** — `ExternalEditorController` is still in the shell; it takes `IWin32Window` five times and calls `MessageBox.Show` eight, all of which the dialog vocabulary now answers |
 
@@ -159,7 +159,9 @@ are the honest ones — each names what is missing rather than claiming the row.
 3. ~~**Sort, filter, select-all and invert** in the pane.~~ Done. The rows are still copied out of
    the index rather than bound to it, so a very large listing is held twice; collecting that back
    needs `IndexedView` to be an `IList` before a TableView will read it by index.
-4. **File operations** — new, rename, delete, properties — which also lands the dialog screens.
+4. ~~**File operations** — new folder, new file, rename, delete.~~ Done, through one
+   `PaneMutationController` in Core. Batch rename and properties (the Object Inspector) are what
+   remain of this group.
 5. **Connection Manager**, the largest screen left.
 6. **The terminal painter**, which is what an SSH pane is still missing. `VtTerminalEmulator` and
    `VtKeyEncoder` are in Core with three suites; what is not written is the `Control` that renders a

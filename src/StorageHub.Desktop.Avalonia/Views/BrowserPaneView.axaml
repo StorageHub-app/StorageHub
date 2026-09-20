@@ -148,6 +148,36 @@
       </Grid>
 
       <!--
+        What can be done to what is in this pane. Beside the address rather than in a context menu
+        only, because a file manager whose only way to make a folder is a right-click is one people
+        keep a second file manager open beside.
+      -->
+      <StackPanel DockPanel.Dock="Top" Orientation="Horizontal"
+                  Spacing="{StaticResource SpaceXs}"
+                  IsVisible="{Binding IsListing}"
+                  Margin="{StaticResource PaddingMd}, 0, {StaticResource PaddingMd}, {StaticResource PaddingMd}">
+        <Button Classes="tool" Command="{Binding NewFolderCommand}"
+                ToolTip.Tip="{Binding NewFolderLabel}">
+          <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+            <LucideIcon Kind="FolderPlus" Size="{StaticResource IconSizeSm}"/>
+            <TextBlock Text="{Binding NewFolderLabel}"/>
+          </StackPanel>
+        </Button>
+        <Button Classes="tool" Command="{Binding NewFileCommand}"
+                ToolTip.Tip="{Binding NewFileLabel}">
+          <LucideIcon Kind="FilePlus" Size="{StaticResource IconSizeSm}"/>
+        </Button>
+        <Button Classes="tool" Command="{Binding RenameCommand}"
+                ToolTip.Tip="{Binding RenameLabel}">
+          <LucideIcon Kind="PencilLine" Size="{StaticResource IconSizeSm}"/>
+        </Button>
+        <Button Classes="tool" Command="{Binding DeleteCommand}"
+                ToolTip.Tip="{Binding DeleteLabel}">
+          <LucideIcon Kind="Trash" Size="{StaticResource IconSizeSm}"/>
+        </Button>
+      </StackPanel>
+
+      <!--
         Where the pane is, and what it is showing of it, on one row. Two rows read more clearly on
         a wide single pane and cost a listing's worth of height on four - the 1.x pane put the path
         and the filter side by side for exactly that reason, and four panes make the argument

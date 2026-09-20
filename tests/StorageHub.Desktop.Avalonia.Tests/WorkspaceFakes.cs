@@ -58,6 +58,124 @@ internal static class WorkspaceFakes
             container,
             EntityTag: container ? null : "etag-" + name);
 
+    /// <summary>
+    /// One agent that both lists and mutates, recording what it was asked.
+    /// </summary>
+    /// <remarks>
+    /// Both surfaces on one object because a file operation is two halves that have to agree: the
+    /// mutation happens, and then the pane lists again to see what the provider actually stored.
+    /// Counting the listings is how a test can say the second half happened at all.
+    /// </remarks>
+    internal sealed class RecordingAgent(ConnectionSummary[] connections)
+        : IRemoteStorageAgentClient, IObjectInspectorAgentClient
+    {
+        internal int Listings { get; private set; }
+
+        internal List<string> CreatedDirectories { get; } = [];
+
+        internal List<string> CreatedFiles { get; } = [];
+
+        internal List<(string From, string To)> Renames { get; } = [];
+
+        internal List<string> Deletes { get; } = [];
+
+        internal StorageIpcFailure? Failure { get; set; }
+
+        public Task<ConnectionListResponse> ListConnectionsAsync(
+            ConnectionListRequest request,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ConnectionListResponse(StorageIpcContract.CurrentVersion, connections));
+
+        public Task<ConnectionTestResponse> TestConnectionAsync(
+            ConnectionTestRequest request,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ConnectionTestResponse(
+                StorageIpcContract.CurrentVersion, request.ConnectionId, Succeeded: true, 1));
+
+        public Task<StorageListPageResponse> ListStorageAsync(
+            StorageListPageRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            Listings++;
+            StorageListItem[] entries = request.RelativePath switch
+            {
+                "" => [Entry("reports", container: true), Entry("render.exr", 1024)],
+                "reports" => [Entry("q1.pdf", 2048, parent: "reports")],
+                _ => []
+            };
+
+            return Task.FromResult(new StorageListPageResponse(
+                StorageIpcContract.CurrentVersion,
+                request.ConnectionId,
+                request.RelativePath,
+                entries,
+                ContinuationToken: null,
+                RootIdentity: "root"));
+        }
+
+        public Task<StorageDirectoryCreateResponse> CreateDirectoryAsync(
+            StorageDirectoryCreateRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            if (Failure is null) CreatedDirectories.Add(request.Address.RelativePath);
+            return Task.FromResult(new StorageDirectoryCreateResponse(
+                EditableFileIpcContract.CurrentVersion, request.Address, Failure is null, Failure));
+        }
+
+        public Task<StorageFileCreateResponse> CreateFileAsync(
+            StorageFileCreateRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            if (Failure is null) CreatedFiles.Add(request.Address.RelativePath);
+            return Task.FromResult(new StorageFileCreateResponse(
+                EditableFileIpcContract.CurrentVersion, request.Address, Failure is null, Failure));
+        }
+
+        public Task<StorageItemRenameResponse> RenameItemAsync(
+            StorageItemRenameRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            if (Failure is null)
+            {
+                Renames.Add((request.Source.RelativePath, request.Destination.RelativePath));
+            }
+
+            return Task.FromResult(new StorageItemRenameResponse(
+                EditableFileIpcContract.CurrentVersion,
+                request.Source,
+                request.Destination,
+                Failure is null,
+                Failure));
+        }
+
+        public Task<StorageItemDeleteResponse> DeleteItemAsync(
+            StorageItemDeleteRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            if (Failure is null) Deletes.Add(request.Address.RelativePath);
+            return Task.FromResult(new StorageItemDeleteResponse(
+                EditableFileIpcContract.CurrentVersion, request.Address, Failure is null, Failure));
+        }
+
+        public Task<ObjectVersionListResponse> ListVersionsAsync(
+            ObjectVersionListRequest request,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<ObjectMetadataGetResponse> GetMetadataAsync(
+            ObjectMetadataGetRequest request,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<ObjectTagsGetResponse> GetTagsAsync(
+            ObjectTagsGetRequest request,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<StorageDirectoryEnsureResponse> EnsureDirectoryAsync(
+            StorageDirectoryEnsureRequest request,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
     internal sealed class FakeBrowsingAgent(ConnectionSummary[] connections) : IRemoteStorageAgentClient
     {
         internal Dictionary<(Guid Connection, string Path), Page> Listings { get; } = [];

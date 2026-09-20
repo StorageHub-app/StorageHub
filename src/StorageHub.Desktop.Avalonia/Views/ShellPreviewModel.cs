@@ -270,7 +270,12 @@ internal static class ShellPreview
                 LucideIconKind.Folder,
                 null,
                 new WorkspaceModel(
-                    static () => new BrowserPaneModel(),
+                    // A pane makes its own inspector client per operation, for the same reason a
+                    // transfer does: one held open is one that broke when the agent restarted.
+                    static () => new BrowserPaneModel(
+                        mutations: static () => new PaneMutationController(
+                            static () => new NamedPipeObjectInspectorAgentClient()),
+                        dialogs: Services.ShellServices.Dialogs),
                     static () => new NamedPipeTransferQueueAgentClient(),
                     static () => new NamedPipeRemoteStorageAgentClient(),
                     static () => new NamedPipeObjectInspectorAgentClient(),
