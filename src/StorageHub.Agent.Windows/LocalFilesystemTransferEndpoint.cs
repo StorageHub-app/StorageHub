@@ -150,7 +150,7 @@ internal sealed class LocalFilesystemTransferEndpoint
             {
                 var candidate = Path.GetFullPath(Path.Combine(root, address.CanonicalRelativePath.Replace('/', Path.DirectorySeparatorChar)));
                 var prefix = root.EndsWith(Path.DirectorySeparatorChar) ? root : root + Path.DirectorySeparatorChar;
-                if (!candidate.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return Fail<string>("local-source.escape", "The source path escapes its approved root.");
+                if (!candidate.StartsWith(prefix, LocalPathPolicy.Current.PathComparison)) return Fail<string>("local-source.escape", "The source path escapes its approved root.");
                 return StorageResult<string>.Success(candidate);
             }
             catch (Exception error) when (error is ArgumentException or NotSupportedException or IOException) { return Fail<string>("local-source.address", "The source path is invalid."); }

@@ -132,7 +132,9 @@ internal static class LocalUserPathTransferEndpoint
 
             if (!IsWritable(canonical))
             {
-                return Fail<string>("local-user.read-only", "The local transfer folder is not writable by your Windows account.");
+                return Fail<string>(
+                    "local-user.read-only",
+                    $"The local transfer folder is not writable by {LocalPathPolicy.Current.AccountDescription}.");
             }
 
             return StorageResult<string>.Success(canonical);
@@ -149,7 +151,8 @@ internal static class LocalUserPathTransferEndpoint
     /// </summary>
     private static bool IsProtected(string canonical, out string reason)
     {
-        foreach (var (folder, message) in ProtectedRoots())
+        var comparison = LocalPathPolicy.Current.PathComparison;
+        foreach (var (folder, message) in LocalPathPolicy.Current.ProtectedRoots())
         {
             if (string.IsNullOrWhiteSpace(folder))
             {
@@ -157,8 +160,8 @@ internal static class LocalUserPathTransferEndpoint
             }
 
             var guarded = Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder));
-            if (string.Equals(canonical, guarded, StringComparison.OrdinalIgnoreCase) ||
-                canonical.StartsWith(guarded + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(canonical, guarded, comparison) ||
+                canonical.StartsWith(guarded + Path.DirectorySeparatorChar, comparison))
             {
                 reason = message;
                 return true;
@@ -167,28 +170,6 @@ internal static class LocalUserPathTransferEndpoint
 
         reason = string.Empty;
         return false;
-    }
-
-    private static IEnumerable<(string Folder, string Reason)> ProtectedRoots()
-    {
-        yield return (
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "StorageHub"),
-            "StorageHub's own data folder cannot be a transfer destination.");
-        yield return (
-            Environment.GetFolderPath(Environment.SpecialFolder.Windows),
-            "Windows system folders cannot be a transfer destination.");
-        yield return (
-            Environment.GetFolderPath(Environment.SpecialFolder.System),
-            "Windows system folders cannot be a transfer destination.");
-        yield return (
-            Environment.GetFolderPath(Environment.SpecialFolder.SystemX86),
-            "Windows system folders cannot be a transfer destination.");
-        yield return (
-            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
-            "Installed program folders cannot be a transfer destination.");
-        yield return (
-            Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
-            "Installed program folders cannot be a transfer destination.");
     }
 
     /// <summary>
@@ -419,15 +400,15 @@ internal static class LocalUserPathTransferEndpoint
             try
             {
                 var prefix = root + Path.DirectorySeparatorChar;
-                if (!string.Equals(target, root, StringComparison.OrdinalIgnoreCase) &&
-                    !target.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                if (!string.Equals(target, root, LocalPathPolicy.Current.PathComparison) &&
+                    !target.StartsWith(prefix, LocalPathPolicy.Current.PathComparison))
                 {
                     return StorageResult.Fail(new StorageFailure(
                         "local-user.escape", StorageFailureKind.Validation,
                         "The local path escapes its approved folder."));
                 }
 
-                var relative = string.Equals(target, root, StringComparison.OrdinalIgnoreCase)
+                var relative = string.Equals(target, root, LocalPathPolicy.Current.PathComparison)
                     ? string.Empty
                     : target[prefix.Length..];
                 var current = root;
@@ -493,7 +474,7 @@ internal static class LocalUserPathTransferEndpoint
                 var candidate = Path.GetFullPath(Path.Combine(
                     root, address.CanonicalRelativePath.Replace('/', Path.DirectorySeparatorChar)));
                 var prefix = root + Path.DirectorySeparatorChar;
-                if (!candidate.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                if (!candidate.StartsWith(prefix, LocalPathPolicy.Current.PathComparison))
                 {
                     return Fail<string>("local-user.escape", "The local path escapes its approved folder.");
                 }

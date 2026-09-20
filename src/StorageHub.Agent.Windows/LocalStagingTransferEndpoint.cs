@@ -84,7 +84,7 @@ internal static class LocalStagingTransferEndpoint
     {
         var exports = Path.TrimEndingDirectorySeparator(Path.GetFullPath(Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "StorageHub", "ShellExports")));
-        return string.Equals(Path.GetDirectoryName(root), exports, StringComparison.OrdinalIgnoreCase) &&
+        return string.Equals(Path.GetDirectoryName(root), exports, LocalPathPolicy.Current.PathComparison) &&
                !string.IsNullOrWhiteSpace(Path.GetFileName(root));
     }
 
@@ -168,7 +168,7 @@ internal static class LocalStagingTransferEndpoint
             {
                 var candidate = Path.GetFullPath(Path.Combine(root, address.CanonicalRelativePath.Replace('/', Path.DirectorySeparatorChar)));
                 var prefix = root + Path.DirectorySeparatorChar;
-                if (!candidate.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                if (!candidate.StartsWith(prefix, LocalPathPolicy.Current.PathComparison))
                     return Fail<string>("local-stage.escape", "The staged path escapes its approved root.");
                 return StorageResult<string>.Success(candidate);
             }
