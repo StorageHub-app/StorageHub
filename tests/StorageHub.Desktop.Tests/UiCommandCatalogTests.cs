@@ -150,15 +150,15 @@ public sealed class UiCommandCatalogTests
     [InlineData(UiCommandIds.SyncComparePanes, Keys.Control | Keys.D)]
     public void CriticalCommandsExposeKeyboardShortcuts(string commandId, Keys shortcut)
     {
-        Assert.Equal(shortcut, UiCommandCatalog.GetDefinition(commandId).Shortcut);
+        Assert.Equal(shortcut, ShortcutKeys.ToKeys(UiCommandCatalog.GetDefinition(commandId).Shortcut));
     }
 
     [Fact]
     public void KeyboardShortcutsDoNotInvokeCompetingCommands()
     {
         var conflicts = UiCommandCatalog.Definitions
-            .Where(definition => definition.Shortcut != Keys.None)
-            .GroupBy(definition => definition.Shortcut)
+            .Where(definition => definition.Shortcut is not null)
+            .GroupBy(definition => definition.Shortcut!)
             .Where(group => group.Count() > 1)
             .Select(group => string.Join(", ", group.Select(definition => definition.Label)));
 

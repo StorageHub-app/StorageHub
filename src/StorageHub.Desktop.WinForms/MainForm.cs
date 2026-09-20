@@ -472,7 +472,7 @@ public sealed class MainForm : Form
         };
         foreach (var menuId in UiCommandCatalog.Menus)
         {
-            var menuName = MenuTitle(menuId);
+            var menuName = UiCommandCatalog.MenuTitle(menuId);
             var root = new ToolStripMenuItem(menuName)
             {
                 AccessibleName = $"{menuName} menu",
@@ -551,25 +551,6 @@ public sealed class MainForm : Form
             default:
                 break;
         }
-    }
-
-    /// <summary>The menu's title in the current language.</summary>
-    private static string MenuTitle(UiMenuId menu)
-    {
-        var shell = Ui.Shell;
-        return menu switch
-        {
-            UiMenuId.Workspace => shell.MenuWorkspace,
-            UiMenuId.Edit => shell.MenuEdit,
-            UiMenuId.View => shell.MenuView,
-            UiMenuId.Go => shell.MenuGo,
-            UiMenuId.Connections => shell.MenuConnections,
-            UiMenuId.Transfer => shell.MenuTransfer,
-            UiMenuId.Sync => shell.MenuSync,
-            UiMenuId.Tools => shell.MenuTools,
-            UiMenuId.Help => shell.MenuHelp,
-            _ => menu.ToString()
-        };
     }
 
     private static void ClearDynamicSection(ToolStripMenuItem root, string section)

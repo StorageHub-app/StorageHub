@@ -35,5 +35,7 @@
          nobody outside this pair consumes, and the pair stops existing when WinForms is deleted. -->
     <InternalsVisibleTo Include="StorageHub.Desktop" />
     <InternalsVisibleTo Include="StorageHub.Desktop.Tests" />
+    <InternalsVisibleTo Include="StorageHub.Desktop.Avalonia" />
+    <InternalsVisibleTo Include="StorageHub.Desktop.Avalonia.Tests" />
   </ItemGroup>
 </Project>

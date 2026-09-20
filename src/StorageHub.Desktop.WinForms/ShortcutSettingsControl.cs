@@ -31,7 +31,7 @@ internal sealed class ShortcutSettingsControl : UserControl
             var row = _commands.Rows[_commands.Rows.Add(
                 Ui.Format(Ui.Settings.ShortcutCommandLabelFormat, command.Menu, command.Label),
                 ShortcutSettings.Format(_shortcuts[command.Id]),
-                ShortcutSettings.Format(command.Shortcut))];
+                ShortcutSettings.Format(ShortcutKeys.ToKeys(command.Shortcut)))];
             row.Tag = command.Id;
         }
         _capture = new ShortcutCaptureBox { Width = 180, AccessibleName = Ui.Settings.ShortcutCaptureAccessibleName, PlaceholderText = Ui.Settings.ShortcutCapturePlaceholder };

@@ -1,3 +1,4 @@
+using Avalonia.Input;
 using StorageHub.Desktop.Localization;
 
 namespace StorageHub.Desktop;
@@ -29,7 +30,7 @@ internal sealed record UiCommandSpec(
     UiMenuId Menu,
     Func<CommandStrings, string> Label,
     Func<CommandStrings, string> Description,
-    Keys Shortcut = Keys.None,
+    KeyGesture? Shortcut = null,
     UiGlyph? Glyph = null,
     UiIconTone Tone = UiIconTone.Text);
 
@@ -39,7 +40,7 @@ internal sealed record UiCommandDefinition(
     UiMenuId Menu,
     string Label,
     string Description,
-    Keys Shortcut = Keys.None,
+    KeyGesture? Shortcut = null,
     UiGlyph? Glyph = null,
     UiIconTone Tone = UiIconTone.Text);
 
@@ -55,7 +56,7 @@ internal static class UiCommandCatalog
             UiMenuId.Workspace,
             static strings => strings.WorkspaceNewWorkspace,
             static strings => strings.WorkspaceNewWorkspaceDescription,
-            Keys.Control | Keys.T,
+            new KeyGesture(Key.T, KeyModifiers.Control),
             UiGlyph.Add,
             UiIconTone.Primary),
         new(
@@ -63,7 +64,7 @@ internal static class UiCommandCatalog
             UiMenuId.Workspace,
             static strings => strings.WorkspaceOpenWorkspace,
             static strings => strings.WorkspaceOpenWorkspaceDescription,
-            Keys.Control | Keys.O,
+            new KeyGesture(Key.O, KeyModifiers.Control),
             UiGlyph.Folder,
             UiIconTone.Text),
         new(
@@ -71,7 +72,7 @@ internal static class UiCommandCatalog
             UiMenuId.Workspace,
             static strings => strings.WorkspaceSaveWorkspace,
             static strings => strings.WorkspaceSaveWorkspaceDescription,
-            Keys.Control | Keys.S,
+            new KeyGesture(Key.S, KeyModifiers.Control),
             UiGlyph.Save,
             UiIconTone.Text),
         new(
@@ -79,7 +80,7 @@ internal static class UiCommandCatalog
             UiMenuId.Workspace,
             static strings => strings.WorkspaceSaveWorkspaceAs,
             static strings => strings.WorkspaceSaveWorkspaceAsDescription,
-            Keys.Control | Keys.Shift | Keys.S,
+            new KeyGesture(Key.S, KeyModifiers.Control | KeyModifiers.Shift),
             UiGlyph.Save,
             UiIconTone.Text),
         new(
@@ -87,7 +88,7 @@ internal static class UiCommandCatalog
             UiMenuId.Workspace,
             static strings => strings.WorkspaceRenameWorkspace,
             static strings => strings.WorkspaceRenameWorkspaceDescription,
-            Keys.None,
+            null,
             UiGlyph.Rename,
             UiIconTone.Text),
         new(
@@ -95,7 +96,7 @@ internal static class UiCommandCatalog
             UiMenuId.Workspace,
             static strings => strings.WorkspaceCloseWorkspace,
             static strings => strings.WorkspaceCloseWorkspaceDescription,
-            Keys.Control | Keys.W,
+            new KeyGesture(Key.W, KeyModifiers.Control),
             UiGlyph.Close,
             UiIconTone.Text),
         new(
@@ -103,7 +104,7 @@ internal static class UiCommandCatalog
             UiMenuId.Workspace,
             static strings => strings.WorkspaceExit,
             static strings => strings.WorkspaceExitDescription,
-            Keys.None,
+            null,
             UiGlyph.Exit,
             UiIconTone.Text),
         new(
@@ -111,7 +112,7 @@ internal static class UiCommandCatalog
             UiMenuId.Edit,
             static strings => strings.EditNewFolder,
             static strings => strings.EditNewFolderDescription,
-            Keys.Control | Keys.Shift | Keys.N,
+            new KeyGesture(Key.N, KeyModifiers.Control | KeyModifiers.Shift),
             UiGlyph.Folder,
             UiIconTone.Text),
         new(
@@ -119,7 +120,7 @@ internal static class UiCommandCatalog
             UiMenuId.Edit,
             static strings => strings.EditNewEmptyFile,
             static strings => strings.EditNewEmptyFileDescription,
-            Keys.Control | Keys.Alt | Keys.N,
+            new KeyGesture(Key.N, KeyModifiers.Control | KeyModifiers.Alt),
             UiGlyph.File,
             UiIconTone.Text),
         new(
@@ -127,7 +128,7 @@ internal static class UiCommandCatalog
             UiMenuId.Edit,
             static strings => strings.EditCut,
             static strings => strings.EditCutDescription,
-            Keys.Control | Keys.X,
+            new KeyGesture(Key.X, KeyModifiers.Control),
             UiGlyph.Cut,
             UiIconTone.Text),
         new(
@@ -135,7 +136,7 @@ internal static class UiCommandCatalog
             UiMenuId.Edit,
             static strings => strings.EditCopy,
             static strings => strings.EditCopyDescription,
-            Keys.Control | Keys.C,
+            new KeyGesture(Key.C, KeyModifiers.Control),
             UiGlyph.Copy,
             UiIconTone.Text),
         new(
@@ -143,7 +144,7 @@ internal static class UiCommandCatalog
             UiMenuId.Edit,
             static strings => strings.EditPaste,
             static strings => strings.EditPasteDescription,
-            Keys.Control | Keys.V,
+            new KeyGesture(Key.V, KeyModifiers.Control),
             UiGlyph.Paste,
             UiIconTone.Text),
         new(
@@ -151,7 +152,7 @@ internal static class UiCommandCatalog
             UiMenuId.Edit,
             static strings => strings.EditRename,
             static strings => strings.EditRenameDescription,
-            Keys.F2,
+            new KeyGesture(Key.F2),
             UiGlyph.Rename,
             UiIconTone.Text),
         new(
@@ -159,7 +160,7 @@ internal static class UiCommandCatalog
             UiMenuId.Edit,
             static strings => strings.EditBatchRename,
             static strings => strings.EditBatchRenameDescription,
-            Keys.None,
+            null,
             UiGlyph.Profiles,
             UiIconTone.Text),
         new(
@@ -167,7 +168,7 @@ internal static class UiCommandCatalog
             UiMenuId.Edit,
             static strings => strings.EditDelete,
             static strings => strings.EditDeleteDescription,
-            Keys.Delete,
+            new KeyGesture(Key.Delete),
             UiGlyph.Delete,
             UiIconTone.Danger),
         new(
@@ -175,7 +176,7 @@ internal static class UiCommandCatalog
             UiMenuId.Edit,
             static strings => strings.EditSelectAll,
             static strings => strings.EditSelectAllDescription,
-            Keys.Control | Keys.A,
+            new KeyGesture(Key.A, KeyModifiers.Control),
             UiGlyph.SelectAll,
             UiIconTone.Text),
         new(
@@ -183,7 +184,7 @@ internal static class UiCommandCatalog
             UiMenuId.Edit,
             static strings => strings.EditInvertSelection,
             static strings => strings.EditInvertSelectionDescription,
-            Keys.Control | Keys.I,
+            new KeyGesture(Key.I, KeyModifiers.Control),
             UiGlyph.Invert,
             UiIconTone.Text),
         new(
@@ -191,7 +192,7 @@ internal static class UiCommandCatalog
             UiMenuId.Edit,
             static strings => strings.EditProperties,
             static strings => strings.EditPropertiesDescription,
-            Keys.Alt | Keys.Enter,
+            new KeyGesture(Key.Enter, KeyModifiers.Alt),
             UiGlyph.Properties,
             UiIconTone.Text),
         new(
@@ -199,7 +200,7 @@ internal static class UiCommandCatalog
             UiMenuId.View,
             static strings => strings.ViewRefresh,
             static strings => strings.ViewRefreshDescription,
-            Keys.F5,
+            new KeyGesture(Key.F5),
             UiGlyph.Refresh,
             UiIconTone.Text),
         new(
@@ -207,7 +208,7 @@ internal static class UiCommandCatalog
             UiMenuId.View,
             static strings => strings.ViewConnectionsPanel,
             static strings => strings.ViewConnectionsPanelDescription,
-            Keys.Control | Keys.B,
+            new KeyGesture(Key.B, KeyModifiers.Control),
             UiGlyph.Connections,
             UiIconTone.Text),
         new(
@@ -215,7 +216,7 @@ internal static class UiCommandCatalog
             UiMenuId.View,
             static strings => strings.ViewMoveConnectionsPanel,
             static strings => strings.ViewMoveConnectionsPanelDescription,
-            Keys.None,
+            null,
             UiGlyph.Layers,
             UiIconTone.Text),
         new(
@@ -223,7 +224,7 @@ internal static class UiCommandCatalog
             UiMenuId.View,
             static strings => strings.ViewDirectoryTree,
             static strings => strings.ViewDirectoryTreeDescription,
-            Keys.None,
+            null,
             UiGlyph.Tree,
             UiIconTone.Text),
         new(
@@ -231,7 +232,7 @@ internal static class UiCommandCatalog
             UiMenuId.View,
             static strings => strings.ViewTransferQueue,
             static strings => strings.ViewTransferQueueDescription,
-            Keys.None,
+            null,
             UiGlyph.Queue,
             UiIconTone.Text),
         new(
@@ -239,7 +240,7 @@ internal static class UiCommandCatalog
             UiMenuId.View,
             static strings => strings.ViewSessionLog,
             static strings => strings.ViewSessionLogDescription,
-            Keys.None,
+            null,
             UiGlyph.Log,
             UiIconTone.Text),
         new(
@@ -247,7 +248,7 @@ internal static class UiCommandCatalog
             UiMenuId.View,
             static strings => strings.ViewHiddenFiles,
             static strings => strings.ViewHiddenFilesDescription,
-            Keys.None,
+            null,
             UiGlyph.Hidden,
             UiIconTone.Text),
         new(
@@ -255,7 +256,7 @@ internal static class UiCommandCatalog
             UiMenuId.View,
             static strings => strings.ViewTheme,
             static strings => strings.ViewThemeDescription,
-            Keys.None,
+            null,
             UiGlyph.Theme,
             UiIconTone.Text),
         new(
@@ -263,7 +264,7 @@ internal static class UiCommandCatalog
             UiMenuId.Go,
             static strings => strings.GoBack,
             static strings => strings.GoBackDescription,
-            Keys.Alt | Keys.Left,
+            new KeyGesture(Key.Left, KeyModifiers.Alt),
             UiGlyph.Back,
             UiIconTone.Text),
         new(
@@ -271,7 +272,7 @@ internal static class UiCommandCatalog
             UiMenuId.Go,
             static strings => strings.GoForward,
             static strings => strings.GoForwardDescription,
-            Keys.Alt | Keys.Right,
+            new KeyGesture(Key.Right, KeyModifiers.Alt),
             UiGlyph.Forward,
             UiIconTone.Text),
         new(
@@ -279,7 +280,7 @@ internal static class UiCommandCatalog
             UiMenuId.Go,
             static strings => strings.GoUp,
             static strings => strings.GoUpDescription,
-            Keys.Alt | Keys.Up,
+            new KeyGesture(Key.Up, KeyModifiers.Alt),
             UiGlyph.Up,
             UiIconTone.Text),
         new(
@@ -287,7 +288,7 @@ internal static class UiCommandCatalog
             UiMenuId.Go,
             static strings => strings.GoFocusAddress,
             static strings => strings.GoFocusAddressDescription,
-            Keys.Control | Keys.L,
+            new KeyGesture(Key.L, KeyModifiers.Control),
             UiGlyph.Link,
             UiIconTone.Text),
         new(
@@ -295,7 +296,7 @@ internal static class UiCommandCatalog
             UiMenuId.Go,
             static strings => strings.GoNextPane,
             static strings => strings.GoNextPaneDescription,
-            Keys.F6,
+            new KeyGesture(Key.F6),
             UiGlyph.Layers,
             UiIconTone.Text),
         new(
@@ -303,7 +304,7 @@ internal static class UiCommandCatalog
             UiMenuId.Go,
             static strings => strings.GoHome,
             static strings => strings.GoHomeDescription,
-            Keys.None,
+            null,
             UiGlyph.Home,
             UiIconTone.Text),
         new(
@@ -311,7 +312,7 @@ internal static class UiCommandCatalog
             UiMenuId.Go,
             static strings => strings.GoHistory,
             static strings => strings.GoHistoryDescription,
-            Keys.None,
+            null,
             UiGlyph.History,
             UiIconTone.Text),
         new(
@@ -319,7 +320,7 @@ internal static class UiCommandCatalog
             UiMenuId.Go,
             static strings => strings.GoFavorites,
             static strings => strings.GoFavoritesDescription,
-            Keys.None,
+            null,
             UiGlyph.Favorite,
             UiIconTone.Warning),
         new(
@@ -327,7 +328,7 @@ internal static class UiCommandCatalog
             UiMenuId.Connections,
             static strings => strings.ConnectionsNewConnection,
             static strings => strings.ConnectionsNewConnectionDescription,
-            Keys.Control | Keys.Shift | Keys.M,
+            new KeyGesture(Key.M, KeyModifiers.Control | KeyModifiers.Shift),
             UiGlyph.Add,
             UiIconTone.Text),
         new(
@@ -335,7 +336,7 @@ internal static class UiCommandCatalog
             UiMenuId.Connections,
             static strings => strings.ConnectionsKeyStore,
             static strings => strings.ConnectionsKeyStoreDescription,
-            Keys.Control | Keys.Shift | Keys.K,
+            new KeyGesture(Key.K, KeyModifiers.Control | KeyModifiers.Shift),
             UiGlyph.Key,
             UiIconTone.Text),
         new(
@@ -343,7 +344,7 @@ internal static class UiCommandCatalog
             UiMenuId.Connections,
             static strings => strings.ConnectionsQuickConnect,
             static strings => strings.ConnectionsQuickConnectDescription,
-            Keys.Control | Keys.K,
+            new KeyGesture(Key.K, KeyModifiers.Control),
             UiGlyph.Connect,
             UiIconTone.Text),
         new(
@@ -351,7 +352,7 @@ internal static class UiCommandCatalog
             UiMenuId.Connections,
             static strings => strings.ConnectionsReconnect,
             static strings => strings.ConnectionsReconnectDescription,
-            Keys.None,
+            null,
             UiGlyph.Refresh,
             UiIconTone.Text),
         new(
@@ -359,7 +360,7 @@ internal static class UiCommandCatalog
             UiMenuId.Connections,
             static strings => strings.ConnectionsDisconnect,
             static strings => strings.ConnectionsDisconnectDescription,
-            Keys.None,
+            null,
             UiGlyph.Disconnect,
             UiIconTone.Text),
         new(
@@ -367,7 +368,7 @@ internal static class UiCommandCatalog
             UiMenuId.Connections,
             static strings => strings.ConnectionsTestConnection,
             static strings => strings.ConnectionsTestConnectionDescription,
-            Keys.None,
+            null,
             UiGlyph.Test,
             UiIconTone.Success),
         new(
@@ -375,7 +376,7 @@ internal static class UiCommandCatalog
             UiMenuId.Transfer,
             static strings => strings.TransferStartQueue,
             static strings => strings.TransferStartQueueDescription,
-            Keys.F7,
+            new KeyGesture(Key.F7),
             UiGlyph.Run,
             UiIconTone.Success),
         new(
@@ -383,7 +384,7 @@ internal static class UiCommandCatalog
             UiMenuId.Transfer,
             static strings => strings.TransferPauseAll,
             static strings => strings.TransferPauseAllDescription,
-            Keys.F8,
+            new KeyGesture(Key.F8),
             UiGlyph.Pause,
             UiIconTone.Text),
         new(
@@ -391,7 +392,7 @@ internal static class UiCommandCatalog
             UiMenuId.Transfer,
             static strings => strings.TransferResumeAll,
             static strings => strings.TransferResumeAllDescription,
-            Keys.None,
+            null,
             UiGlyph.Run,
             UiIconTone.Text),
         new(
@@ -399,7 +400,7 @@ internal static class UiCommandCatalog
             UiMenuId.Transfer,
             static strings => strings.TransferCancelSelected,
             static strings => strings.TransferCancelSelectedDescription,
-            Keys.None,
+            null,
             UiGlyph.Stop,
             UiIconTone.Danger),
         new(
@@ -407,7 +408,7 @@ internal static class UiCommandCatalog
             UiMenuId.Transfer,
             static strings => strings.TransferSpeedLimits,
             static strings => strings.TransferSpeedLimitsDescription,
-            Keys.None,
+            null,
             UiGlyph.Speed,
             UiIconTone.Text),
         new(
@@ -415,7 +416,7 @@ internal static class UiCommandCatalog
             UiMenuId.Sync,
             static strings => strings.SyncComparePanes,
             static strings => strings.SyncComparePanesDescription,
-            Keys.Control | Keys.D,
+            new KeyGesture(Key.D, KeyModifiers.Control),
             UiGlyph.Compare,
             UiIconTone.Text),
         new(
@@ -423,7 +424,7 @@ internal static class UiCommandCatalog
             UiMenuId.Sync,
             static strings => strings.SyncReviewRun,
             static strings => strings.SyncReviewRunDescription,
-            Keys.Control | Keys.Shift | Keys.P,
+            new KeyGesture(Key.P, KeyModifiers.Control | KeyModifiers.Shift),
             UiGlyph.Test,
             UiIconTone.Text),
         new(
@@ -431,7 +432,7 @@ internal static class UiCommandCatalog
             UiMenuId.Sync,
             static strings => strings.SyncSyncProfiles,
             static strings => strings.SyncSyncProfilesDescription,
-            Keys.None,
+            null,
             UiGlyph.Profiles,
             UiIconTone.Text),
         new(
@@ -439,7 +440,7 @@ internal static class UiCommandCatalog
             UiMenuId.Sync,
             static strings => strings.SyncSchedules,
             static strings => strings.SyncSchedulesDescription,
-            Keys.Control | Keys.Alt | Keys.S,
+            new KeyGesture(Key.S, KeyModifiers.Control | KeyModifiers.Alt),
             UiGlyph.Schedule,
             UiIconTone.Text),
         new(
@@ -447,7 +448,7 @@ internal static class UiCommandCatalog
             UiMenuId.Tools,
             static strings => strings.ToolsSearch,
             static strings => strings.ToolsSearchDescription,
-            Keys.Control | Keys.F,
+            new KeyGesture(Key.F, KeyModifiers.Control),
             UiGlyph.Search,
             UiIconTone.Text),
         new(
@@ -455,7 +456,7 @@ internal static class UiCommandCatalog
             UiMenuId.Tools,
             static strings => strings.ToolsBackgroundAgent,
             static strings => strings.ToolsBackgroundAgentDescription,
-            Keys.None,
+            null,
             UiGlyph.Server,
             UiIconTone.Text),
         new(
@@ -463,7 +464,7 @@ internal static class UiCommandCatalog
             UiMenuId.Tools,
             static strings => strings.ToolsChecksums,
             static strings => strings.ToolsChecksumsDescription,
-            Keys.None,
+            null,
             UiGlyph.Checksum,
             UiIconTone.Text),
         new(
@@ -471,7 +472,7 @@ internal static class UiCommandCatalog
             UiMenuId.Tools,
             static strings => strings.ToolsSettings,
             static strings => strings.ToolsSettingsDescription,
-            Keys.Control | Keys.Oemcomma,
+            new KeyGesture(Key.OemComma, KeyModifiers.Control),
             UiGlyph.Settings,
             UiIconTone.Text),
         new(
@@ -479,7 +480,7 @@ internal static class UiCommandCatalog
             UiMenuId.Tools,
             static strings => strings.ToolsExportSettings,
             static strings => strings.ToolsExportSettingsDescription,
-            Keys.None,
+            null,
             UiGlyph.Upload,
             UiIconTone.Text),
         new(
@@ -487,7 +488,7 @@ internal static class UiCommandCatalog
             UiMenuId.Tools,
             static strings => strings.ToolsImportSettings,
             static strings => strings.ToolsImportSettingsDescription,
-            Keys.None,
+            null,
             UiGlyph.Download,
             UiIconTone.Text),
         new(
@@ -495,7 +496,7 @@ internal static class UiCommandCatalog
             UiMenuId.Tools,
             static strings => strings.ToolsLogs,
             static strings => strings.ToolsLogsDescription,
-            Keys.None,
+            null,
             UiGlyph.Log,
             UiIconTone.Text),
         new(
@@ -503,7 +504,7 @@ internal static class UiCommandCatalog
             UiMenuId.Tools,
             static strings => strings.ToolsDiagnostics,
             static strings => strings.ToolsDiagnosticsDescription,
-            Keys.None,
+            null,
             UiGlyph.Diagnostics,
             UiIconTone.Text),
         new(
@@ -511,7 +512,7 @@ internal static class UiCommandCatalog
             UiMenuId.Help,
             static strings => strings.HelpCheckForUpdates,
             static strings => strings.HelpCheckForUpdatesDescription,
-            Keys.None,
+            null,
             UiGlyph.Refresh,
             UiIconTone.Text),
         new(
@@ -519,7 +520,7 @@ internal static class UiCommandCatalog
             UiMenuId.Help,
             static strings => strings.HelpKeyboardShortcuts,
             static strings => strings.HelpKeyboardShortcutsDescription,
-            Keys.None,
+            null,
             UiGlyph.Keyboard,
             UiIconTone.Text),
         new(
@@ -527,7 +528,7 @@ internal static class UiCommandCatalog
             UiMenuId.Help,
             static strings => strings.HelpDocumentation,
             static strings => strings.HelpDocumentationDescription,
-            Keys.None,
+            null,
             UiGlyph.Documentation,
             UiIconTone.Text),
         new(
@@ -535,7 +536,7 @@ internal static class UiCommandCatalog
             UiMenuId.Help,
             static strings => strings.HelpReportIssue,
             static strings => strings.HelpReportIssueDescription,
-            Keys.None,
+            null,
             UiGlyph.Bug,
             UiIconTone.Text),
         new(
@@ -543,7 +544,7 @@ internal static class UiCommandCatalog
             UiMenuId.Help,
             static strings => strings.HelpAboutStorageHub,
             static strings => strings.HelpAboutStorageHubDescription,
-            Keys.None,
+            null,
             UiGlyph.Info,
             UiIconTone.Text),
     ];
@@ -556,6 +557,25 @@ internal static class UiCommandCatalog
     /// rather than cached, so a language change is picked up by the next menu that is built.
     /// </summary>
     internal static IReadOnlyList<UiCommandDefinition> Definitions => Resolve(Ui.Commands);
+
+    /// <summary>The menu's title in the current language.</summary>
+    internal static string MenuTitle(UiMenuId menu)
+    {
+        var shell = Ui.Shell;
+        return menu switch
+        {
+            UiMenuId.Workspace => shell.MenuWorkspace,
+            UiMenuId.Edit => shell.MenuEdit,
+            UiMenuId.View => shell.MenuView,
+            UiMenuId.Go => shell.MenuGo,
+            UiMenuId.Connections => shell.MenuConnections,
+            UiMenuId.Transfer => shell.MenuTransfer,
+            UiMenuId.Sync => shell.MenuSync,
+            UiMenuId.Tools => shell.MenuTools,
+            UiMenuId.Help => shell.MenuHelp,
+            _ => menu.ToString()
+        };
+    }
 
     /// <summary>The commands in one menu, in order.</summary>
     internal static IEnumerable<UiCommandDefinition> ForMenu(UiMenuId menu) =>

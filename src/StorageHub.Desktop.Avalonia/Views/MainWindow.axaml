@@ -24,22 +24,57 @@
           <TextBlock Text="{Binding Header}"/>
         </DataTemplate>
       </Menu.ItemTemplate>
+      <!-- One container theme drives every entry in every menu, which is what lets the nine menus
+           come straight from the catalog. InputGesture only displays the shortcut; dispatch comes
+           from Window.KeyBindings built from the same catalog, and the two must not drift. -->
+      <Menu.Styles>
+        <Style Selector="MenuItem > MenuItem" x:DataType="vm:CommandEntry">
+          <Setter Property="Header" Value="{Binding Label}"/>
+          <Setter Property="InputGesture" Value="{Binding Shortcut}"/>
+          <Setter Property="ToolTip.Tip" Value="{Binding Description}"/>
+          <Setter Property="ItemsSource" Value="{x:Null}"/>
+          <Setter Property="Icon">
+            <Template>
+              <LucideIcon Kind="{Binding Icon}"
+                          Size="{StaticResource IconSizeSm}"
+                          Classes.primary="{Binding IsPrimary}"
+                          Classes.danger="{Binding IsDanger}"/>
+            </Template>
+          </Setter>
+        </Style>
+      </Menu.Styles>
+      <Menu.ItemContainerTheme>
+        <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}"
+                        x:DataType="vm:MenuSection">
+          <Setter Property="ItemsSource" Value="{Binding Items}"/>
+        </ControlTheme>
+      </Menu.ItemContainerTheme>
     </Menu>
 
     <!-- Avalonia has no ToolBar; an ItemsControl over the resolved command ids is the shape, and it
          keeps the toolbar data-driven the way UiCommandCatalog already made it. -->
     <Border DockPanel.Dock="Top" Classes="toolbar">
-      <ItemsControl ItemsSource="{Binding ToolbarCommands}">
+      <ItemsControl ItemsSource="{Binding Toolbar}">
         <ItemsControl.ItemsPanel>
           <ItemsPanelTemplate>
             <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}"/>
           </ItemsPanelTemplate>
         </ItemsControl.ItemsPanel>
-        <ItemsControl.ItemTemplate>
-          <DataTemplate DataType="vm:ToolbarCommand">
-            <Button Classes="tool" Content="{Binding Label}" ToolTip.Tip="{Binding Description}"/>
+        <!-- Two templates matched by type, so ToolbarLayout's separator entries need no flag and no
+             converter: the layout is a list of ids with "|" in it, exactly as it is persisted. -->
+        <ItemsControl.DataTemplates>
+          <DataTemplate DataType="vm:CommandEntry">
+            <Button Classes="tool" ToolTip.Tip="{Binding Description}">
+              <LucideIcon Kind="{Binding Icon}"
+                          Size="{StaticResource IconSizeMd}"
+                          Classes.primary="{Binding IsPrimary}"
+                          Classes.danger="{Binding IsDanger}"/>
+            </Button>
           </DataTemplate>
-        </ItemsControl.ItemTemplate>
+          <DataTemplate DataType="vm:ToolbarSeparator">
+            <Border Classes="toolbar-separator"/>
+          </DataTemplate>
+        </ItemsControl.DataTemplates>
       </ItemsControl>
     </Border>
 

@@ -19,7 +19,7 @@ internal static class ShortcutSettings
     internal static Dictionary<string, Keys> Resolve(IReadOnlyDictionary<string, Keys>? overrides)
     {
         var commands = Commands;
-        var result = commands.ToDictionary(command => command.Id, command => command.Shortcut, StringComparer.Ordinal);
+        var result = commands.ToDictionary(command => command.Id, command => ShortcutKeys.ToKeys(command.Shortcut), StringComparer.Ordinal);
         if (overrides is null) return result;
         foreach (var command in commands)
             if (overrides.TryGetValue(command.Id, out var keys)) result[command.Id] = keys;
@@ -46,7 +46,7 @@ internal static class ShortcutSettings
         var assigned = new Dictionary<Keys, string>();
         foreach (var command in Commands)
         {
-            var keys = shortcuts.GetValueOrDefault(command.Id, command.Shortcut);
+            var keys = shortcuts.GetValueOrDefault(command.Id, ShortcutKeys.ToKeys(command.Shortcut));
             if (!IsValid(keys)) return Ui.Format(Ui.Validation.ChooseCtrlAltWithAKeyFormat, command.Label);
             if (keys == Keys.None) continue;
             if (assigned.TryGetValue(keys, out var other))

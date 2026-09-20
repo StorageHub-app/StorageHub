@@ -1,5 +1,9 @@
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Markup.Xaml;
+using Lucide.Avalonia;
+using StorageHub.Desktop.Localization;
+using StorageHub.Desktop.Themes;
 
 namespace StorageHub.Desktop.Views;
 
@@ -8,15 +12,38 @@ public partial class MainWindow : Window
     public MainWindow() => AvaloniaXamlLoader.Load(this);
 }
 
-public sealed record MenuSection(string Header);
+/// <summary>One command, as the menu and the toolbar need it.</summary>
+/// <remarks>
+/// Flattened from <see cref="UiCommandDefinition"/> at build time rather than bound through to it,
+/// because the view wants an icon kind and the catalog deliberately knows only about a
+/// <see cref="UiGlyph"/> - which icon set draws that glyph is <see cref="IconCatalog"/>'s business.
+/// </remarks>
+internal sealed record CommandEntry(
+    string Id,
+    string Label,
+    string Description,
+    KeyGesture? Shortcut,
+    LucideIconKind? Icon,
+    UiIconTone Tone)
+{
+    internal bool IsPrimary => Tone == UiIconTone.Primary;
 
-public sealed record ToolbarCommand(string Label, string Description);
+    internal bool IsDanger => Tone == UiIconTone.Danger;
+}
 
-public sealed record ConnectionCard(string Name, string Detail, bool IsSelected);
+internal sealed record MenuSection(string Header, IReadOnlyList<CommandEntry> Items);
 
-public sealed record PaneItem(string Name, string Size, string Type);
+/// <summary>A toolbar divider. Its own type so the toolbar can template it separately.</summary>
+internal sealed record ToolbarSeparator
+{
+    internal static ToolbarSeparator Instance { get; } = new();
+}
 
-public sealed record WorkspaceTab(
+internal sealed record ConnectionCard(string Name, string Detail, bool IsSelected);
+
+internal sealed record PaneItem(string Name, string Size, string Type);
+
+internal sealed record WorkspaceTab(
     string Title,
     string LeftTitle,
     bool LeftIsActive,
@@ -24,21 +51,23 @@ public sealed record WorkspaceTab(
     string RightTitle,
     IReadOnlyList<PaneItem> Right);
 
-public sealed record QueueTab(string Title);
+internal sealed record QueueTab(string Title);
 
 /// <summary>
-/// The shell's shape, with stand-in content.
+/// The shell's shape. The menus and toolbar are real; the content they act on is not yet.
 /// </summary>
 /// <remarks>
-/// A view model in outline only. The real one is written per screen as each is ported, against the
-/// controllers and agent clients that already exist in Desktop.Core; what this carries is the
-/// structure those will fill, so the layout can be measured and photographed before any of them do.
+/// Every menu entry, shortcut, tooltip and icon below comes from UiCommandCatalog and ToolbarLayout,
+/// so this is the shipping command set in the shipping order, in the current language - not a
+/// hand-written imitation that would drift the moment a command was added. What is still stand-in is
+/// the data: connections, pane rows and queue tabs. Those arrive per screen as each is ported, and
+/// the commands are not wired to anything yet - a Command per entry is the next step.
 /// </remarks>
-public sealed class ShellPreviewModel
+internal sealed class ShellPreviewModel
 {
     public IReadOnlyList<MenuSection> Menus { get; init; } = [];
 
-    public IReadOnlyList<ToolbarCommand> ToolbarCommands { get; init; } = [];
+    public IReadOnlyList<object> Toolbar { get; init; } = [];
 
     public IReadOnlyList<ConnectionCard> Connections { get; init; } = [];
 
@@ -57,28 +86,20 @@ public sealed class ShellPreviewModel
     public string AgentStatus { get; init; } = string.Empty;
 }
 
-/// <summary>Stand-in content, so the shell has something to lay out and photograph.</summary>
-public static class ShellPreview
+/// <summary>Builds the shell's model: real commands, stand-in content.</summary>
+internal static class ShellPreview
 {
-    public static ShellPreviewModel Sample { get; } = new()
+    internal static ShellPreviewModel Sample { get; } = Build();
+
+    private static ShellPreviewModel Build() => new()
     {
-        // The nine menus UiCommandCatalog declares.
-        Menus =
-        [
-            new("Workspace"), new("Edit"), new("View"), new("Go"), new("Connections"),
-            new("Transfer"), new("Sync"), new("Tools"), new("Help"),
-        ],
-        ToolbarCommands =
-        [
-            new("New", "New workspace"), new("Open", "Open"), new("Save", "Save workspace"),
-            new("Back", "Back"), new("Forward", "Forward"), new("Refresh", "Refresh"),
-            new("Copy", "Copy"), new("Move", "Move"), new("Delete", "Delete"),
-        ],
+        Menus = BuildMenus(),
+        Toolbar = BuildToolbar(),
         Connections =
         [
-            new("Design Archive", "Local / UNC · Studio", false),
-            new("Studio Assets (S3)", "S3 / Object Storage · Cloud", true),
-            new("Site Backups", "Local / UNC · Servers", false),
+            new("Design Archive", "Local / UNC \u00b7 Studio", false),
+            new("Studio Assets (S3)", "S3 / Object Storage \u00b7 Cloud", true),
+            new("Site Backups", "Local / UNC \u00b7 Servers", false),
         ],
         Workspaces =
         [
@@ -113,4 +134,26 @@ public static class ShellPreview
         Queue = "Queue: 0",
         AgentStatus = "Agent: connected",
     };
+
+    private static IReadOnlyList<MenuSection> BuildMenus() =>
+    [
+        .. UiCommandCatalog.Menus.Select(menu => new MenuSection(
+            UiCommandCatalog.MenuTitle(menu),
+            [.. UiCommandCatalog.ForMenu(menu).Select(ToEntry)])),
+    ];
+
+    private static IReadOnlyList<object> BuildToolbar() =>
+    [
+        .. ToolbarLayout.Resolve(null).Select(object (id) => id == ToolbarLayout.Separator
+            ? ToolbarSeparator.Instance
+            : ToEntry(UiCommandCatalog.GetDefinition(id))),
+    ];
+
+    private static CommandEntry ToEntry(UiCommandDefinition definition) => new(
+        definition.Id,
+        definition.Label,
+        definition.Description,
+        definition.Shortcut,
+        IconCatalog.Resolve(definition.Glyph),
+        definition.Tone);
 }

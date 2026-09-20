@@ -189,7 +189,7 @@ public sealed class DesktopConfigStoreTests : IDisposable
 
         Assert.Equal(Keys.Control | Keys.Shift | Keys.C, resolved[UiCommandIds.EditCopy]);
         Assert.Equal(
-            UiCommandCatalog.Definitions.Single(command => command.Id == UiCommandIds.EditPaste).Shortcut,
+            ShortcutKeys.ToKeys(UiCommandCatalog.Definitions.Single(command => command.Id == UiCommandIds.EditPaste).Shortcut),
             resolved[UiCommandIds.EditPaste]);
     }
 

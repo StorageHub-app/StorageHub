@@ -45,6 +45,15 @@
           "Avalonia": "12.1.2"
         }
       },
+      "Lucide.Avalonia": {
+        "type": "Direct",
+        "requested": "[0.2.23, )",
+        "resolved": "0.2.23",
+        "contentHash": "+sHMP+iyjSAQXI3bgquaiC2e150OU1qiPyrxnhMlvbt8xy7icGjagmrFc0/Y2XLAfWSiAVPVE/mwOJmhSjSpUA==",
+        "dependencies": {
+          "Avalonia": "11.3.17"
+        }
+      },
       "Avalonia.Angle.Windows.Natives": {
         "type": "Transitive",
         "resolved": "2.1.27548.20260419",

@@ -12,10 +12,17 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- The shell's view models are internal, as the WinForms shell's were, and its tests measure
+         the real tree rather than a public facade of it. -->
+    <InternalsVisibleTo Include="StorageHub.Desktop.Avalonia.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Avalonia" />
     <PackageReference Include="Avalonia.Desktop" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
     <PackageReference Include="Avalonia.Fonts.Inter" />
+    <PackageReference Include="Lucide.Avalonia" />
     <ProjectReference Include="..\StorageHub.Desktop.Core\StorageHub.Desktop.Core.csproj" />
   </ItemGroup>
 </Project>

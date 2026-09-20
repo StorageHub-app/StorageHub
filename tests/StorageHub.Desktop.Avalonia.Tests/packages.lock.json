@@ -412,6 +412,7 @@
           "Avalonia.Desktop": "[12.1.2, )",
           "Avalonia.Fonts.Inter": "[12.1.2, )",
           "Avalonia.Themes.Fluent": "[12.1.2, )",
+          "Lucide.Avalonia": "[0.2.23, )",
           "StorageHub.Desktop.Core": "[1.4.6, )"
         }
       },
@@ -527,6 +528,15 @@
         "requested": "[0.13.0, )",
         "resolved": "0.13.0",
         "contentHash": "Nkve+Yi0+ol3ntSBRHeW0ka9cJQ8vndSUvvkXqF9LVqwpoqWueyxu/HS275r98RDOmF7/mzRnZW5XXUBXob+TA=="
+      },
+      "Lucide.Avalonia": {
+        "type": "CentralTransitive",
+        "requested": "[0.2.23, )",
+        "resolved": "0.2.23",
+        "contentHash": "+sHMP+iyjSAQXI3bgquaiC2e150OU1qiPyrxnhMlvbt8xy7icGjagmrFc0/Y2XLAfWSiAVPVE/mwOJmhSjSpUA==",
+        "dependencies": {
+          "Avalonia": "11.3.17"
+        }
       },
       "Microsoft.Data.Sqlite": {
         "type": "CentralTransitive",

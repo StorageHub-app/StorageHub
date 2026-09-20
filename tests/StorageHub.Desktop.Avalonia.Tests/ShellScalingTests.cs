@@ -191,7 +191,9 @@ public class ShellScalingTests
             Directory.CreateDirectory(directory);
             var file = Path.Combine(
                 directory,
-                $"shell-{(OperatingSystem.IsWindows() ? "windows" : "linux")}-{appearance}-{scaling:0.00}x.png");
+                string.Create(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    $"shell-{(OperatingSystem.IsWindows() ? "windows" : "linux")}-{appearance}-{scaling:0.00}x.png"));
             using var stream = File.Create(file);
             frame!.Save(stream, new global::Avalonia.Media.Imaging.PngBitmapEncoderOptions());
         }

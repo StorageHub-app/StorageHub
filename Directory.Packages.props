@@ -10,6 +10,9 @@
     <PackageVersion Include="Avalonia.Desktop" Version="12.1.2" />
     <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.2" />
     <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.1.2" />
+    <!-- Lucide, MIT: ~1500 stroked 24x24 glyphs with round caps, the same authoring model the
+         hand-drawn UiIconFactory set used, at twenty times the coverage. -->
+    <PackageVersion Include="Lucide.Avalonia" Version="0.2.23" />
     <PackageVersion Include="Avalonia.Headless.XUnit" Version="12.1.2" />
     <PackageVersion Include="CodeLogic" Version="4.8.19" />
     <PackageVersion Include="CodeLogic.Storage" Version="4.8.91" />

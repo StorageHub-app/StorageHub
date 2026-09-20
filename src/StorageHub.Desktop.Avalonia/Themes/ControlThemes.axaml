@@ -149,6 +149,37 @@
     <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
   </Style>
 
+  <!-- Icons are geometry, so tone is just the stroke brush and an appearance change repaints it.
+       The WinForms set had to re-rasterize every tracked glyph and re-tint it through a weak
+       registry to achieve the same thing. -->
+  <!-- A top-level menu gained a submenu chevron the moment its items came from the catalog, because
+       Fluent draws one for any MenuItem that has children. A menu bar's roots always have children,
+       so the indicator says nothing and costs a menu's worth of width. -->
+  <Style Selector="Menu > MenuItem /template/ Path">
+    <Setter Property="IsVisible" Value="False"/>
+  </Style>
+
+  <Style Selector="LucideIcon">
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+    <Setter Property="StrokeWidth" Value="1.75"/>
+  </Style>
+  <Style Selector="LucideIcon.primary">
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}"/>
+  </Style>
+  <Style Selector="LucideIcon.danger">
+    <Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/>
+  </Style>
+  <Style Selector="Button.tool:pointerover LucideIcon">
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+  </Style>
+
+  <Style Selector="Border.toolbar-separator">
+    <Setter Property="Background" Value="{DynamicResource BorderBrush}"/>
+    <Setter Property="Width" Value="1"/>
+    <Setter Property="Margin" Value="{StaticResource PaddingSm}"/>
+    <Setter Property="VerticalAlignment" Value="Stretch"/>
+  </Style>
+
   <Style Selector="TableView">
     <Setter Property="Background" Value="Transparent"/>
     <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
