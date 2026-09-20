@@ -45,16 +45,8 @@ public enum AgentHostMode
 /// </summary>
 public static class AgentHostLayout
 {
-    /// <summary>The service's registered name, used by the SCM and by the desktop's status check.</summary>
-    public const string ServiceName = "StorageHubAgent";
-
-    public const string ServiceDisplayName = "StorageHub Agent";
-
     /// <summary>Overrides the resolved data root; already honoured by the agent at startup.</summary>
     public const string DataRootVariable = "STORAGEHUB_DATA_ROOT";
-
-    /// <summary>Command-line switch that runs the agent under the service control manager.</summary>
-    public const string ServiceArgument = "--service";
 
     /// <summary>
     /// The name of the per-user autostart registration.
@@ -74,8 +66,6 @@ public static class AgentHostLayout
     /// launches it and cannot reference the agent executable.s own types.
     /// </summary>
 
-    private const string MachinePipePrefix = "StorageHub.Agent.v1.machine";
-    private const string MachineSecretPipePrefix = "StorageHub.Agent.Secrets.v1.machine";
 
     /// <summary>
     /// Where the database, vault and logs live. One root per machine on Windows, whatever the mode.
@@ -166,19 +156,4 @@ public static class AgentHostLayout
             ? throw new ArgumentOutOfRangeException(nameof(mode))
             : (Ipc.Windows.StorageHubIpcPipeNames.Normal, Ipc.Windows.StorageHubIpcPipeNames.Secret);
 
-    /// <summary>
-    /// True when this process is already running with the privileges a service install needs.
-    /// Installing or removing a service is an administrative act, so the desktop has to know
-    /// whether to ask Windows to elevate before offering the choice.
-    /// </summary>
-    public static bool IsElevated()
-    {
-        if (!OperatingSystem.IsWindows())
-        {
-            return false;
-        }
-
-        using var identity = WindowsIdentity.GetCurrent();
-        return new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator);
-    }
 }

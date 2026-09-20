@@ -69,17 +69,15 @@ public sealed class LinuxAgentHostPlatform : IAgentHostPlatform
     /// Always a session agent.
     /// </summary>
     /// <remarks>
-    /// --service is refused rather than ignored. Silently starting a session agent for a caller who
-    /// asked for a service would be the worst of both: it appears to work, and stops at sign-out.
+    /// There is one kind of agent, so the arguments no longer decide which it is. This used to
+    /// refuse --service, because Windows had a service mode and silently starting a session agent
+    /// for somebody who asked for one would appear to work and then stop at sign-out. Neither
+    /// platform has that mode now.
     /// </remarks>
     public AgentHostMode ResolveHostMode(IReadOnlyList<string> arguments)
     {
         ArgumentNullException.ThrowIfNull(arguments);
-        return arguments.Contains(AgentHostLayout.ServiceArgument, StringComparer.OrdinalIgnoreCase)
-            ? throw new PlatformNotSupportedException(
-                "The Linux agent has no service mode; it runs as a per-user process. "
-                    + "Register it with systemd --user instead.")
-            : AgentHostMode.UserSession;
+        return AgentHostMode.UserSession;
     }
 
     /// <summary>Nothing competes for the data root but another agent, which the lock catches.</summary>
