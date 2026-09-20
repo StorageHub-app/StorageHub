@@ -36,8 +36,6 @@ internal sealed record ToolbarSeparator
     internal static ToolbarSeparator Instance { get; } = new();
 }
 
-internal sealed record ConnectionCard(string Name, string Detail, bool IsSelected);
-
 internal sealed record PaneItem(string Name, string Size, string Type);
 
 internal sealed record WorkspaceTab(
@@ -102,13 +100,11 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
 
     public IReadOnlyList<object> Toolbar { get; init; } = [];
 
-    public IReadOnlyList<ConnectionCard> Connections { get; init; } = [];
-
     public IReadOnlyList<WorkspaceTab> Workspaces { get; init; } = [];
 
     public IReadOnlyList<QueueTab> QueueTabs { get; init; } = [];
 
-    public SidebarModel Sidebar { get; init; } = null!;
+    public ConnectionsSidebar Sidebar { get; init; } = null!;
 
     public ICommand NewWorkspaceCommand { get; init; } = null!;
 
@@ -161,17 +157,6 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
     }
 }
 
-/// <summary>The connections sidebar's own wording and commands.</summary>
-internal sealed record SidebarModel(
-    string Title,
-    string NewLabel,
-    string MoreLabel,
-    string SearchPlaceholder,
-    string EmptyMessage,
-    string DetailPlaceholder,
-    bool IsEmpty,
-    ICommand NewCommand);
-
 /// <summary>One row of the transfer queue.</summary>
 internal sealed record QueueRow(
     string Operation,
@@ -208,12 +193,6 @@ internal static class ShellPreview
         {
             Menus = BuildMenus(router),
             Toolbar = BuildToolbar(router),
-            Connections =
-            [
-                new("Design Archive", "Local / UNC \u00b7 Studio", false),
-                new("Studio Assets (S3)", "S3 / Object Storage \u00b7 Cloud", true),
-                new("Site Backups", "Local / UNC \u00b7 Servers", false),
-            ],
             Workspaces =
             [
                 new(
@@ -259,15 +238,17 @@ internal static class ShellPreview
         };
     }
 
-    private static SidebarModel BuildSidebar(ShellCommandRouter router) => new(
-        Ui.Connections.PanelTitle,
-        Ui.Connections.NewConnection,
-        Ui.Connections.PanelOptions,
-        Ui.Connections.SearchPlaceholder,
-        Ui.Connections.SidebarEmpty,
-        Ui.Connections.DetailEmpty,
-        IsEmpty: false,
-        router.For(UiCommandIds.ConnectionsNewConnection));
+    /// <summary>
+    /// The sidebar, asking a real agent.
+    /// </summary>
+    /// <remarks>
+    /// The client factory is passed rather than a client: each call opens a connection and closes
+    /// it, which is what every other desktop agent client already does. Holding one open would mean
+    /// holding one that broke when the agent restarted.
+    /// </remarks>
+    private static ConnectionsSidebar BuildSidebar(ShellCommandRouter router) => new(
+        router.For(UiCommandIds.ConnectionsNewConnection),
+        static () => new NamedPipeRemoteStorageAgentClient());
 
     private static QueueModel BuildQueue()
     {

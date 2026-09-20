@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
+        xmlns:core="clr-namespace:StorageHub.Desktop;assembly=StorageHub.Desktop.Core"
         x:Class="StorageHub.Desktop.Views.MainWindow"
         x:DataType="vm:ShellPreviewModel"
         Title="StorageHub"
@@ -144,11 +145,11 @@
           </Border>
 
           <Panel Margin="12,12,12,0">
-            <TextBlock Classes="muted" Text="{Binding Sidebar.EmptyMessage}"
+            <TextBlock Classes="muted" Text="{Binding Sidebar.Status}"
                        HorizontalAlignment="Center" VerticalAlignment="Top"
                        Margin="0,24,0,0"
                        IsVisible="{Binding Sidebar.IsEmpty}"/>
-            <ItemsControl ItemsSource="{Binding Connections}"
+            <ItemsControl ItemsSource="{Binding Sidebar.Connections}"
                           IsVisible="{Binding !Sidebar.IsEmpty}">
               <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
@@ -156,11 +157,12 @@
                 </ItemsPanelTemplate>
               </ItemsControl.ItemsPanel>
               <ItemsControl.ItemTemplate>
-                <DataTemplate DataType="vm:ConnectionCard">
-                  <Border Classes="card" Classes.selected="{Binding IsSelected}">
+                <DataTemplate DataType="core:ConnectionCardModel">
+                  <Border Classes="card" Classes.selected="{Binding !IsEnabled}">
                     <StackPanel>
                       <TextBlock Text="{Binding Name}"/>
-                      <TextBlock Classes="caption" Text="{Binding Detail}"/>
+                      <TextBlock Classes="caption" Text="{Binding Endpoint}"/>
+                      <TextBlock Classes="caption" Text="{Binding State}"/>
                     </StackPanel>
                   </Border>
                 </DataTemplate>

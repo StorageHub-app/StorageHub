@@ -3,7 +3,6 @@ using System.Text.Json;
 using StorageHub.Ipc;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Localization;
-using StorageHub.Ipc.Windows;
 
 namespace StorageHub.Desktop;
 

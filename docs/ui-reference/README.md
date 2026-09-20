@@ -109,3 +109,28 @@ This is `StorageHubChoiceField`'s job in the old shell — roughly 900 lines wit
 collection, popup, keyboard navigation and accessible object. It becomes a `ComboBox` with a
 `ControlTheme`, which is the single largest deletion in the port and improves accessibility rather
 than costing it.
+
+## 08 — Connection editor (`08-connection-editor.png`)
+
+The dialog behind every saved connection, and a third row shape again.
+
+A fixed header first: **Type** and **Provider / protocol** as two drop-downs, with a line under them
+describing whatever provider is chosen ("Local disks, mapped drives, and Windows network shares").
+Changing the provider rebuilds everything below it. Then tabs — General, Authentication,
+TLS / SSH Trust — and inside, a section heading with its own hint (**Endpoint**, `C:\Data or \\server\share`).
+
+The rows differ from the settings page: the label sits in a left column, the control fills the rest,
+and the muted description runs *underneath the control* rather than beside the label. A required
+field marks itself with a red asterisk after the label.
+
+Two rows are not fields at all. **Icon and colour** pairs a "Choose icon..." button with a grid of
+colour swatches, and **Connection badge** is a live preview — `LOCAL · provider color #4C8BF5` —
+showing how the connection will read in the sidebar and in a pane header.
+
+The footer carries a status on the left ("Loaded version 1", in green) against Cancel and Save
+profile on the right. That version is optimistic-concurrency state, not decoration: saving a profile
+someone else has since changed has to be refused rather than silently win.
+
+Source: `ConnectionManagerForm`, `ConnectionDetailView`/`Rows`, `ConnectionAppearanceField`. The
+field descriptors it builds rows from are `ConnectionEditorDraftFactory`, already in Desktop.Core.
+

@@ -28,6 +28,11 @@ public partial class App : global::Avalonia.Application
             // nothing, so a field would only make App disposable for no one to dispose it.
             var monitor = new AgentStatusMonitor();
             model.Watch(monitor);
+
+            // Fire and forget, deliberately: the window opens on whatever the sidebar already says
+            // and fills in when the agent answers. Awaiting here would hold the shell closed behind
+            // a process that may not be running.
+            _ = model.Sidebar.RefreshAsync();
             desktop.ShutdownRequested += async (_, _) => await monitor.DisposeAsync().ConfigureAwait(false);
         }
 
