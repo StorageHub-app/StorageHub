@@ -1,37 +1,42 @@
-﻿#Requires -Version 5.1
+#Requires -Version 5.1
 <#
 .SYNOPSIS
     Runs the StorageHub agent from this working tree, for the desktop to talk to.
 
 .DESCRIPTION
-    The desktop finds the agent by a named pipe derived from the current account's SID, so a
-    development agent only has to be running as you for the desktop to reach it. What it also needs
-    is somewhere it is allowed to write.
+    The desktop finds the agent by a named pipe derived from the current account's SID, so an agent
+    running as you is one the desktop can reach. Nothing has to be configured on either side.
 
-    By default the agent owns %PROGRAMDATA%\StorageHub and hardens it to the account that created
-    it. A machine that has ever run the installed service therefore has that directory owned by
-    LocalSystem, and an agent started from a working tree cannot re-protect it -- it exits with
-    "The StorageHub data directory could not be protected for the current user." So this points the
-    agent at a development root under LOCALAPPDATA instead, which leaves the installed service and
-    its data untouched.
-
-    The development root is a separate database: connections made here are not the ones the
-    installed service has. That is the point -- it is a working tree, not an installation.
+    By default this uses the agent's normal data root, %PROGRAMDATA%\StorageHub, which is what an
+    installed StorageHub would use: connections made here are the ones you will have. Pass
+    -DataRoot to keep a separate database instead, which is worth doing when a test is about to
+    write things you do not want to keep.
 
 .PARAMETER DataRoot
-    Where the development agent keeps its database, vault and runtime state.
+    Somewhere other than %PROGRAMDATA%\StorageHub to keep the database, vault and runtime state.
+    A separate root is a separate set of connections.
 
 .PARAMETER Foreground
     Run in this window instead of in the background, which is what you want when it will not start
     and you need to read why.
 
+.NOTES
+    If the agent exits with "The StorageHub data directory could not be protected for the current
+    user", the data root belongs to another account. That is what a pre-2.0 installation leaves
+    behind: StorageHub used to run its agent as a machine-wide service under LocalSystem, which
+    hardened that directory to itself. Clear it with eng/remove-legacy-agent-service.ps1.
+
 .EXAMPLE
     ./eng/run-dev-agent.ps1
     Builds and starts the agent in the background, and prints the pipe the desktop will look for.
+
+.EXAMPLE
+    ./eng/run-dev-agent.ps1 -DataRoot "$env:LOCALAPPDATA\StorageHub.Scratch"
+    The same, on a database of its own.
 #>
 [CmdletBinding()]
 param(
-    [string] $DataRoot = (Join-Path $env:LOCALAPPDATA 'StorageHub.Dev'),
+    [string] $DataRoot,
     [switch] $Foreground
 )
 
@@ -43,7 +48,7 @@ $project = Join-Path $repository 'src/StorageHub.Agent.Host/StorageHub.Agent.Hos
 # with a file-in-use error that reads like a broken project rather than a running process.
 $running = Get-Process -Name 'StorageHub.Agent.Host' -ErrorAction SilentlyContinue
 if ($running) {
-    Write-Host "Stopping $($running.Count) running development agent(s)."
+    Write-Host "Stopping $(@($running).Count) running agent(s) from this tree."
     $running | Stop-Process -Force
     Start-Sleep -Seconds 1
 }
@@ -55,16 +60,25 @@ if ($LASTEXITCODE -ne 0) { throw "The agent host did not build (exit $LASTEXITCO
 $exe = Join-Path $repository 'src/StorageHub.Agent.Host/bin/Debug/net10.0/StorageHub.Agent.Host.exe'
 if (-not (Test-Path $exe)) { throw "The agent host was not found at $exe." }
 
-$env:STORAGEHUB_DATA_ROOT = $DataRoot
-Write-Host "Data root: $DataRoot"
+if ($DataRoot) {
+    $env:STORAGEHUB_DATA_ROOT = $DataRoot
+    $logDirectory = $DataRoot
+    Write-Host "Data root: $DataRoot (a database of its own)"
+} else {
+    # Left unset rather than set to the same value: what the agent resolves is the agent's answer,
+    # and repeating it here would be a second place for it to be wrong.
+    Remove-Item Env:\STORAGEHUB_DATA_ROOT -ErrorAction SilentlyContinue
+    $logDirectory = Join-Path $env:TEMP 'StorageHub.AgentHost'
+    Write-Host "Data root: the agent's own ($(Join-Path $env:ProgramData 'StorageHub'))"
+}
 
 if ($Foreground) {
     & $exe
     exit $LASTEXITCODE
 }
 
-$log = Join-Path $DataRoot 'agent-host.log'
-New-Item -ItemType Directory -Force -Path $DataRoot | Out-Null
+New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
+$log = Join-Path $logDirectory 'agent-host.log'
 $agent = Start-Process -FilePath $exe `
     -RedirectStandardOutput $log `
     -RedirectStandardError "$log.err" `
@@ -78,7 +92,7 @@ if (-not (Get-Process -Id $agent.Id -ErrorAction SilentlyContinue)) {
     exit 1
 }
 
-# Named after the account's SID, so this is also the check that the desktop will look for the same
+# Named from the account's SID, so this is also the check that the desktop will look for the same
 # one: if it is missing, the agent is running but not listening where the desktop expects.
 $pipes = [System.IO.Directory]::GetFiles('\\.\pipe\') | Where-Object { $_ -like '*StorageHub.Agent.v1.user-*' }
 Write-Host "Agent running as process $($agent.Id)." -ForegroundColor Green

@@ -152,23 +152,25 @@ are the honest ones — each names what is missing rather than claiming the row.
 
 ## Running the desktop against a live agent
 
-`eng/run-dev-agent.ps1` starts the agent from this working tree and prints the pipe the desktop
-looks for. It is needed because the two ways of running StorageHub collide on one directory:
+`eng/run-dev-agent.ps1` builds the agent from this working tree and starts it. The desktop needs
+nothing configured: it finds the agent by a pipe named from the current account's SID, so an agent
+running as you is one it can reach.
 
-- The agent owns `%PROGRAMDATA%\StorageHub` and hardens it to whichever account created it. A
-  machine that has ever run the installed service has that directory owned by LocalSystem, so an
-  agent started from a working tree cannot re-protect it and exits with "The StorageHub data
-  directory could not be protected for the current user."
-- The script therefore points the agent at `%LOCALAPPDATA%\StorageHub.Dev` through
-  `STORAGEHUB_DATA_ROOT`, leaving the installed service and its data alone. It is a separate
-  database: connections made in development are not the installed service's.
+By default the agent uses its normal data root, `%PROGRAMDATA%\StorageHub` -- the connections made
+are the ones you will have. `-DataRoot` keeps a separate database instead.
 
-The desktop needs nothing set. It finds the agent by a pipe named from the current account's SID,
-so an agent running as you is one it can reach.
+If the agent exits with "The StorageHub data directory could not be protected for the current
+user", that root belongs to another account. It is what a pre-2.0 installation leaves behind:
+StorageHub used to run its agent as a machine-wide service under LocalSystem, which listened on
+`StorageHub.Agent.v1.machine` and hardened the data root to itself. The desktop no longer looks for
+that pipe and the agent cannot take that directory, so both halves have to go:
+`eng/remove-legacy-agent-service.ps1`, elevated. It deletes the old database and vault, and there
+is no migration -- the old vault is protected with the machine's DPAPI key and the new one with
+yours, so the entries could not be read across the move even if the files were kept.
 
-`STORAGEHUB_LIVE_AGENT=1` turns on the two suites that need a running agent:
-`LiveAgentTests` (something answers) and `LiveConnectionTests` (a connection is made, listed,
-browsed and removed). They are skipped otherwise, so CI stays green without one.
+`STORAGEHUB_LIVE_AGENT=1` turns on the suites that need a running agent: `LiveAgentTests`
+(something answers) and `LiveConnectionTests` (a connection is made, listed, browsed and removed).
+They are skipped otherwise, so CI stays green without one.
 
 ## The order worth doing the rest in
 
