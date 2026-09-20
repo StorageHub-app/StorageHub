@@ -30,6 +30,10 @@ public sealed class DesktopPreferenceSectionMapperTests
         // language your copy of StorageHub speaks, and the export format is frozen anyway.
         [nameof(DesktopUpdatePreferences.Language)] = "reader's own choice",
 
+        // Keyed by this machine's own connection ids, so the arrangement means nothing on another:
+        // importing it would produce a panel of empty groups named after somebody else's projects.
+        [nameof(DesktopUpdatePreferences.ConnectionGroups)] = "keyed by this machine's connections",
+
         // Keyed by this machine's own connection folders, so the map means nothing on another
         // machine with different folders.
         [nameof(DesktopUpdatePreferences.FolderIcons)] = "keyed by local folders"

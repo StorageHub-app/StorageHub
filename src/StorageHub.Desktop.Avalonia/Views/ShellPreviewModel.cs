@@ -6,6 +6,8 @@ using Avalonia.Threading;
 using Lucide.Avalonia;
 using StorageHub.Desktop.Localization;
 using StorageHub.Desktop.Themes;
+using StorageHub.Desktop.Configuration;
+using StorageHub.Desktop.Framework;
 
 namespace StorageHub.Desktop.Views;
 
@@ -313,7 +315,47 @@ internal static class ShellPreview
     /// </remarks>
     private static ConnectionsSidebar BuildSidebar(ShellCommandRouter router) => new(
         router.For(UiCommandIds.ConnectionsNewConnection),
-        static () => new NamedPipeRemoteStorageAgentClient());
+        static () => new NamedPipeRemoteStorageAgentClient(),
+        Services.ShellServices.Dialogs,
+        LoadGroups,
+        SaveGroups);
+
+    /// <summary>
+    /// The connections panel's saved arrangement.
+    /// </summary>
+    /// <remarks>
+    /// Read and written through the settings file rather than held anywhere, because the panel is
+    /// the only thing that arranges it and a shell that did not close cleanly should still reopen
+    /// the way it was left. A settings file that cannot be read means an unarranged panel, which
+    /// groups by folder path and is the state a new installation is in anyway.
+    /// </remarks>
+    private static IReadOnlyList<ConnectionGroupEntry>? LoadGroups()
+    {
+        try
+        {
+            var store = new DesktopConfigStore(DesktopFrameworkPaths.Resolve().ApplicationRoot);
+            store.Preflight();
+            return store.Load().ConnectionGroups;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    private static void SaveGroups(IReadOnlyList<ConnectionGroupEntry> groups)
+    {
+        try
+        {
+            var store = new DesktopConfigStore(DesktopFrameworkPaths.Resolve().ApplicationRoot);
+            store.Preflight();
+            store.Save(store.Load() with { ConnectionGroups = groups });
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            // The panel is arranged either way; only remembering it is lost.
+        }
+    }
 
     private static IReadOnlyList<MenuSection> BuildMenus(ShellCommandRouter router) =>
     [

@@ -1,4 +1,4 @@
-{
+﻿{
   "aDestinationFolderOrNonFileItem": "Ein Zielordner oder ein Nicht-Datei-Element verwendet bereits einen der gewählten Namen.",
   "aDestinationFolderOrNonFileItem2": "Ein Zielordner oder ein Nicht-Datei-Element steht in Konflikt mit einer Quelldatei.",
   "aDestinationIsRequiredForDirectNavigation": "Für die direkte Navigation ist ein Ziel erforderlich.",
@@ -226,5 +226,6 @@
   "noneOfTheSelectedNamesContain": "Keiner der ausgewählten Namen enthält diesen Text.",
   "chooseCtrlAltWithAKeyFormat": "Wählen Sie Strg/Alt mit einer Taste, eine Funktionstaste oder Entf für {0}.",
   "isAlreadyAssignedToClearThatFormat": "{0} ist bereits {1} zugewiesen. Heben Sie diese Zuweisung zuerst auf.",
+  "aGroupNameIsRequired": "Ein Gruppenname ist erforderlich.",
   "culture": "de-DE"
 }

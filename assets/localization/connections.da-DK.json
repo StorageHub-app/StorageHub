@@ -152,5 +152,14 @@
   "terminalSessionClosed": "SSH-sessionen blev lukket.",
   "terminalLostAgent": "Mistede kontakten til baggrundsagenten.",
   "terminalCouldNotSendInput": "Kunne ikke sende input til baggrundsagenten.",
+  "defaultGroup": "Forbindelser",
+  "badgeStorage": "LAGER",
+  "badgeClient": "KLIENT",
+  "newGroup": "Ny gruppe",
+  "groupName": "Gruppenavn",
+  "renameGroup": "Omdøb gruppe",
+  "removeGroup": "Fjern gruppe",
+  "groupAccessibleNameFormat": "{0}, {1:N0} forbindelse(r)",
+  "dragConnectionHint": "Træk en forbindelse for at flytte den til en anden gruppe",
   "culture": "da-DK"
 }

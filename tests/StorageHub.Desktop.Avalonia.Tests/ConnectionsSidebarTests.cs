@@ -53,11 +53,15 @@ public class ConnectionsSidebarTests
         await sidebar.RefreshAsync(TestContext.Current.CancellationToken);
 
         Assert.False(sidebar.IsEmpty);
-        Assert.Equal(["Studio Assets", "Site Backups"], sidebar.Connections.Select(card => card.Name));
+
+        // In a group now rather than in a flat list. With nothing arranged there is one group, so
+        // this also says that an unarranged panel is one group and not one per connection.
+        var group = Assert.Single(sidebar.Groups);
+        Assert.Equal(["Studio Assets", "Site Backups"], group.Connections.Select(row => row.Name));
 
         // The projection is ConnectionCardFactory's, so the second line reads the same here as it
         // does everywhere else the same connections are listed.
-        Assert.All(sidebar.Connections, card => Assert.Contains("bucket/prefix", card.Endpoint, StringComparison.Ordinal));
+        Assert.All(group.Connections, row => Assert.Contains("bucket/prefix", row.Endpoint, StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -117,7 +121,7 @@ public class ConnectionsSidebarTests
         await sidebar.RefreshAsync(TestContext.Current.CancellationToken);
 
         Assert.True(client.LastRequest!.IncludeDisabled);
-        Assert.Single(sidebar.Connections);
-        Assert.False(sidebar.Connections[0].IsEnabled);
+        var row = Assert.Single(Assert.Single(sidebar.Groups).Connections);
+        Assert.False(row.IsEnabled);
     }
 }

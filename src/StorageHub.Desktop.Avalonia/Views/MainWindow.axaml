@@ -106,70 +106,11 @@
          of width arithmetic, is a swap of two Grid.Column values here. -->
     <Grid ColumnDefinitions="Auto,Auto,*">
       <Border Grid.Column="0" Classes="surface"
+              BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0"
               MinWidth="{StaticResource SidebarMinWidth}"
               MaxWidth="{StaticResource SidebarMaxWidth}"
               Width="260">
-        <DockPanel>
-          <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto"
-                Margin="{StaticResource PaddingLg}">
-            <TextBlock Classes="title" Text="{Binding Sidebar.Title}" VerticalAlignment="Center"/>
-            <Button Grid.Column="1" Classes="primary" Command="{Binding Sidebar.NewCommand}">
-              <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
-                <LucideIcon Kind="Plus" Size="{StaticResource IconSizeSm}"/>
-                <TextBlock Text="{Binding Sidebar.NewLabel}"/>
-              </StackPanel>
-            </Button>
-            <Button Grid.Column="2" Classes="tool" Margin="{StaticResource PaddingSm}"
-                    ToolTip.Tip="{Binding Sidebar.MoreLabel}">
-              <LucideIcon Kind="Ellipsis" Size="{StaticResource IconSizeSm}"/>
-            </Button>
-          </Grid>
-
-          <!-- The search box carries its own glyph, as the owner-drawn field did. -->
-          <Grid DockPanel.Dock="Top" Margin="12,0,12,0">
-            <TextBox PlaceholderText="{Binding Sidebar.SearchPlaceholder}"
-                     Padding="30,8,10,8"/>
-            <LucideIcon Kind="Search" Size="{StaticResource IconSizeSm}"
-                        HorizontalAlignment="Left" VerticalAlignment="Center"
-                        Margin="{StaticResource PaddingLg}"/>
-          </Grid>
-
-          <!-- Details for the selected connection, below its own rule. Empty until one is picked,
-               which is the state the shell spends most of its life in. -->
-          <Border DockPanel.Dock="Bottom" Height="200"
-                  BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0"
-                  Padding="{StaticResource PaddingLg}">
-            <TextBlock Classes="muted" Text="{Binding Sidebar.DetailPlaceholder}"
-                       TextWrapping="Wrap"
-                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
-          </Border>
-
-          <Panel Margin="12,12,12,0">
-            <TextBlock Classes="muted" Text="{Binding Sidebar.Status}"
-                       HorizontalAlignment="Center" VerticalAlignment="Top"
-                       Margin="0,24,0,0"
-                       IsVisible="{Binding Sidebar.IsEmpty}"/>
-            <ItemsControl ItemsSource="{Binding Sidebar.Connections}"
-                          IsVisible="{Binding !Sidebar.IsEmpty}">
-              <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                  <StackPanel Spacing="{StaticResource SpaceMd}"/>
-                </ItemsPanelTemplate>
-              </ItemsControl.ItemsPanel>
-              <ItemsControl.ItemTemplate>
-                <DataTemplate DataType="core:ConnectionCardModel">
-                  <Border Classes="card" Classes.selected="{Binding !IsEnabled}">
-                    <StackPanel>
-                      <TextBlock Text="{Binding Name}"/>
-                      <TextBlock Classes="caption" Text="{Binding Endpoint}"/>
-                      <TextBlock Classes="caption" Text="{Binding State}"/>
-                    </StackPanel>
-                  </Border>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-          </Panel>
-        </DockPanel>
+        <vm:ConnectionsPanelView DataContext="{Binding Sidebar}"/>
       </Border>
 
       <GridSplitter Grid.Column="1" Width="{StaticResource SplitterThickness}"/>

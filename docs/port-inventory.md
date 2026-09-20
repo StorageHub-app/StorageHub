@@ -82,7 +82,7 @@ are the honest ones — each names what is missing rather than claiming the row.
 
 | What 1.x does | Status |
 |---|---|
-| Sidebar: grouped by folder, favourites, per-row menu, search | **partial** — lists and searches on live data; grouping, favourites and the row menu are not there |
+| Sidebar: grouped by folder, favourites, per-row menu, search | **partial** — groups are there and are better than 1.x: made by hand, reordered by dragging, remembered, and seeded from each connection's folder path so an upgrade keeps its organisation. Every row wears a STORAGE or CLIENT badge, which is what became of the fixed Storage/Clients split. Favourites and the per-row menu are not there, and the search box does not filter yet |
 | Connection Manager: create, edit, delete, test, 1,784 lines of provider fields | **todo** — the largest screen left after the pane |
 | Connection picker in a pane's header | **done** as a plain list; 1.x groups it and filters as you type |
 | Per-connection icon and accent colour | **partial** — resolved and drawn; no picker |

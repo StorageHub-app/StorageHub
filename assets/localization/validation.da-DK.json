@@ -1,4 +1,4 @@
-{
+﻿{
   "aDestinationFolderOrNonFileItem": "En destinationsmappe eller et ikke-fil-element bruger allerede et af de valgte navne.",
   "aDestinationFolderOrNonFileItem2": "En destinationsmappe eller et ikke-fil-element er i konflikt med en kildefil.",
   "aDestinationIsRequiredForDirectNavigation": "Der kræves en destination til direkte navigation.",
@@ -226,5 +226,6 @@
   "noneOfTheSelectedNamesContain": "Ingen af de valgte navne indeholder den tekst.",
   "chooseCtrlAltWithAKeyFormat": "Vælg Ctrl/Alt sammen med en tast, en funktionstast eller Delete til {0}.",
   "isAlreadyAssignedToClearThatFormat": "{0} er allerede tildelt {1}. Ryd den tildeling først.",
+  "aGroupNameIsRequired": "Et gruppenavn er påkrævet.",
   "culture": "da-DK"
 }

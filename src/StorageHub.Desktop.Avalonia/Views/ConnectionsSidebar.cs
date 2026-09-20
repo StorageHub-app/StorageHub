@@ -4,6 +4,7 @@ using System.Windows.Input;
 using Avalonia.Threading;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Localization;
+using StorageHub.Desktop.Shell;
 
 namespace StorageHub.Desktop.Views;
 
@@ -21,21 +22,51 @@ namespace StorageHub.Desktop.Views;
 internal sealed class ConnectionsSidebar : INotifyPropertyChanged
 {
     private readonly Func<IRemoteStorageAgentClient>? _client;
+    private readonly IDialogService? _dialogs;
+    private readonly Func<IReadOnlyList<ConnectionGroupEntry>?>? _load;
+    private readonly Action<IReadOnlyList<ConnectionGroupEntry>>? _save;
+    private IReadOnlyList<ConnectionCardModel> _cards = [];
+    private IReadOnlyList<ConnectionGroupEntry> _arrangement = [];
     private string _status = string.Empty;
     private bool _isEmpty = true;
 
-    internal ConnectionsSidebar(ICommand newCommand, Func<IRemoteStorageAgentClient>? client = null)
+    /// <param name="load">Where the saved arrangement comes from. Null means nothing is remembered.</param>
+    /// <param name="save">
+    /// Where a rearrangement goes. Called on every drag, which is cheap: the file is small and the
+    /// alternative is losing an arrangement to a shell that did not close cleanly.
+    /// </param>
+    internal ConnectionsSidebar(
+        ICommand newCommand,
+        Func<IRemoteStorageAgentClient>? client = null,
+        IDialogService? dialogs = null,
+        Func<IReadOnlyList<ConnectionGroupEntry>?>? load = null,
+        Action<IReadOnlyList<ConnectionGroupEntry>>? save = null)
     {
         NewCommand = newCommand;
         _client = client;
+        _dialogs = dialogs;
+        _load = load;
+        _save = save;
         Status = Ui.Connections.SidebarEmpty;
+        NewGroupCommand = new RelayCommand(_ => _ = AddGroupAsync(), _ => _dialogs is not null);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public ObservableCollection<ConnectionCardModel> Connections { get; } = [];
+    /// <summary>
+    /// The panel's groups, in the order they are shown.
+    /// </summary>
+    /// <remarks>
+    /// This replaced a flat list, which replaced nothing -- the WinForms sidebar split the panel
+    /// into Storage and Clients, which is the provider's classification standing in for an
+    /// organising principle. Somebody with four buckets and two shells for one project wants those
+    /// six things together, and no amount of sorting inside two fixed lists gives them that.
+    /// </remarks>
+    public ObservableCollection<ConnectionGroupModel> Groups { get; } = [];
 
     public ICommand NewCommand { get; }
+
+    public ICommand NewGroupCommand { get; }
 
     // A binding target has to be an instance property, and these are resolved per call rather than
     // captured so that they follow a language change. CA1822 sees only that they touch no field.
@@ -49,6 +80,10 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     public string SearchPlaceholder => Ui.Connections.SearchPlaceholder;
 
     public string DetailPlaceholder => Ui.Connections.DetailEmpty;
+
+    public string NewGroupLabel => Ui.Connections.NewGroup;
+
+    public string DragHint => Ui.Connections.DragConnectionHint;
 #pragma warning restore CA1822
 
     /// <summary>
@@ -100,7 +135,9 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
                 return;
             }
 
-            Apply([.. response.Connections.Select(ConnectionCardFactory.Create)], Ui.Connections.SidebarEmpty);
+            Apply(
+                [.. response.Connections.Select(ConnectionCardFactory.Create)],
+                Ui.Connections.SidebarEmpty);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -108,19 +145,123 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         }
     }
 
+    /// <summary>
+    /// Files a connection into a group, at a position, and remembers it.
+    /// </summary>
+    /// <remarks>
+    /// The arrangement is recomputed and the groups rebuilt rather than the two collections being
+    /// edited, because a drag can cross groups and a rebuild cannot leave a copy behind.
+    /// </remarks>
+    internal void Move(Guid connectionId, string groupName, int index)
+    {
+        _arrangement = ConnectionGrouping.Move(_arrangement, connectionId, groupName, index);
+        Persist();
+        Rebuild();
+    }
+
+    /// <summary>Moves a whole group up or down the panel.</summary>
+    internal void ReorderGroup(string name, int index)
+    {
+        _arrangement = ConnectionGrouping.Reorder(_arrangement, name, index);
+        Persist();
+        Rebuild();
+    }
+
+    /// <summary>Asks for a name and adds an empty group to file things into.</summary>
+    internal async Task AddGroupAsync(CancellationToken cancellationToken = default)
+    {
+        if (_dialogs is null) return;
+        var name = await _dialogs.PromptAsync(
+            new DialogPromptRequest
+            {
+                Title = Ui.Connections.NewGroup,
+                Label = Ui.Connections.GroupName,
+                Accept = Ui.Shell.Create,
+                Validate = candidate => Taken(candidate)
+            },
+            cancellationToken).ConfigureAwait(true);
+        if (string.IsNullOrWhiteSpace(name)) return;
+
+        _arrangement = ConnectionGrouping.Add(_arrangement, name);
+        Persist();
+        Rebuild();
+    }
+
+    internal async Task RenameGroupAsync(string from, CancellationToken cancellationToken = default)
+    {
+        if (_dialogs is null) return;
+        var name = await _dialogs.PromptAsync(
+            new DialogPromptRequest
+            {
+                Title = Ui.Connections.RenameGroup,
+                Label = Ui.Connections.GroupName,
+                Value = from,
+                Accept = Ui.Shell.RenameWorkspaceAccept,
+                Validate = candidate => Taken(candidate, from)
+            },
+            cancellationToken).ConfigureAwait(true);
+        if (string.IsNullOrWhiteSpace(name)) return;
+
+        _arrangement = ConnectionGrouping.Rename(_arrangement, from, name);
+        Persist();
+        Rebuild();
+    }
+
+    /// <summary>Removes a group, keeping everything that was filed in it.</summary>
+    internal void RemoveGroup(string name)
+    {
+        _arrangement = ConnectionGrouping.Remove(_arrangement, name);
+        Persist();
+        Rebuild();
+    }
+
+    /// <summary>Why a group cannot be called this, or nothing.</summary>
+    private string? Taken(string candidate, string? except = null)
+    {
+        var trimmed = candidate?.Trim() ?? string.Empty;
+        if (trimmed.Length == 0) return Ui.Validation.AGroupNameIsRequired;
+
+        var clashes = _arrangement.Any(group =>
+            !string.Equals(group.Name, except, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(group.Name, trimmed, StringComparison.OrdinalIgnoreCase));
+        return clashes ? Ui.Shell.NameAlreadyExists : null;
+    }
+
     private void Apply(IReadOnlyList<ConnectionCardModel> cards, string status)
     {
         void Update()
         {
-            Connections.Clear();
-            foreach (var card in cards) Connections.Add(card);
+            _cards = cards;
+            _arrangement = ConnectionGrouping.Arrange(_arrangement.Count > 0 ? _arrangement : _load?.Invoke(), cards);
             IsEmpty = cards.Count == 0;
             Status = status;
+            Rebuild();
         }
 
         if (Dispatcher.UIThread.CheckAccess()) Update();
         else Dispatcher.UIThread.Post(Update);
     }
+
+    /// <summary>Turns the arrangement into what the panel draws.</summary>
+    private void Rebuild()
+    {
+        var byId = _cards
+            .Where(static card => card.ConnectionId is not null)
+            .ToDictionary(static card => card.ConnectionId!.Value);
+
+        Groups.Clear();
+        foreach (var group in _arrangement)
+        {
+            var name = group.Name;
+            Groups.Add(new ConnectionGroupModel(
+                name,
+                [.. group.Members.Where(byId.ContainsKey).Select(id => new ConnectionRowModel(byId[id]))],
+                new RelayCommand(_ => _ = RenameGroupAsync(name), _ => _dialogs is not null),
+                new RelayCommand(_ => RemoveGroup(name), _ => _arrangement.Count > 1)));
+        }
+    }
+
+    private void Persist() => _save?.Invoke(_arrangement);
 
     private void Set<T>(ref T field, T value, string name)
     {

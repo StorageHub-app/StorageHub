@@ -1,4 +1,4 @@
-﻿using CodeLogic.Core.Localization;
+using CodeLogic.Core.Localization;
 
 namespace StorageHub.Desktop.Localization;
 
@@ -81,6 +81,33 @@ internal sealed class ConnectionStrings : LocalizationModelBase
     public string GroupUnsorted { get; set; } = "Unsorted";
 
     public string SidebarAccessibleName { get; set; } = "Saved connection groups";
+
+    // ------------------------------------------------------------------- groups
+    /// <summary>
+    /// The group a connection lands in before anybody has filed it.
+    /// </summary>
+    /// <remarks>
+    /// A name rather than "Ungrouped", because it is an ordinary group that can be renamed,
+    /// reordered and dragged out of. What makes it the default is only where new connections go.
+    /// </remarks>
+    public string DefaultGroup { get; set; } = "Connections";
+
+    public string BadgeStorage { get; set; } = "STORAGE";
+
+    public string BadgeClient { get; set; } = "CLIENT";
+
+    public string NewGroup { get; set; } = "New group";
+
+    public string GroupName { get; set; } = "Group name";
+
+    public string RenameGroup { get; set; } = "Rename group";
+
+    public string RemoveGroup { get; set; } = "Remove group";
+
+    /// <summary>{0} = the group's name, {1} = how many connections are in it.</summary>
+    public string GroupAccessibleNameFormat { get; set; } = "{0}, {1:N0} connection(s)";
+
+    public string DragConnectionHint { get; set; } = "Drag a connection to file it in another group";
 
     public string SidebarEmpty { get; set; } = "No saved connections yet";
 

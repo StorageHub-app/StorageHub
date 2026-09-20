@@ -152,5 +152,14 @@
   "terminalSessionClosed": "Die SSH-Sitzung wurde beendet.",
   "terminalLostAgent": "Die Verbindung zum Hintergrundagenten ging verloren.",
   "terminalCouldNotSendInput": "Eingaben konnten nicht an den Hintergrundagenten gesendet werden.",
+  "defaultGroup": "Verbindungen",
+  "badgeStorage": "SPEICHER",
+  "badgeClient": "CLIENT",
+  "newGroup": "Neue Gruppe",
+  "groupName": "Gruppenname",
+  "renameGroup": "Gruppe umbenennen",
+  "removeGroup": "Gruppe entfernen",
+  "groupAccessibleNameFormat": "{0}, {1:N0} Verbindung(en)",
+  "dragConnectionHint": "Ziehen Sie eine Verbindung in eine andere Gruppe",
   "culture": "de-DE"
 }

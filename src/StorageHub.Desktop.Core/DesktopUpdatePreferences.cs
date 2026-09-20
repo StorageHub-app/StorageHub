@@ -144,6 +144,13 @@ internal sealed record DesktopUpdatePreferences(
     /// </summary>
     IReadOnlyDictionary<string, string>? FolderIcons = null,
     /// <summary>
+    /// How the connections panel is organised: groups somebody made, in the order they put them,
+    /// each holding connection ids. Null means nothing has been arranged, and the panel groups by
+    /// each connection's folder path -- which is what organised the sidebar before groups existed,
+    /// so an upgraded installation reappears the way it was left.
+    /// </summary>
+    IReadOnlyList<ConnectionGroupEntry>? ConnectionGroups = null,
+    /// <summary>
     /// The main toolbar's buttons, as command ids with "|" for a divider. Null means nothing was
     /// customised and the default preset is shown; an empty list means the same, because somebody
     /// who removes every button should get the toolbar back rather than lose the route to Settings

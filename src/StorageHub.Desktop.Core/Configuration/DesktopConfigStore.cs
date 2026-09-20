@@ -261,7 +261,34 @@ internal sealed class DesktopConfigStore
             ToolbarItems: general.ToolbarItems,
             ToolbarLabels: Enum.IsDefined(general.ToolbarLabels)
                 ? general.ToolbarLabels
-                : ToolbarLabelStyle.IconsOnly);
+                : ToolbarLabelStyle.IconsOnly,
+            ConnectionGroups: ReadGroups(general.ConnectionGroups));
+    }
+
+    /// <summary>
+    /// Turns the saved groups into an arrangement, dropping anything that is not one.
+    /// </summary>
+    /// <remarks>
+    /// A member that will not parse as an id is skipped rather than failing the load: the panel
+    /// reconciles its groups against the agent's connections anyway, so an unrecognisable id is
+    /// already something it knows how to survive.
+    /// </remarks>
+    private static List<ConnectionGroupEntry>? ReadGroups(List<DesktopConnectionGroup>? saved)
+    {
+        if (saved is null) return null;
+
+        var groups = new List<ConnectionGroupEntry>();
+        foreach (var group in saved)
+        {
+            if (string.IsNullOrWhiteSpace(group.Name)) continue;
+            var members = (group.Members ?? [])
+                .Select(static member => Guid.TryParse(member, out var id) ? id : Guid.Empty)
+                .Where(static id => id != Guid.Empty)
+                .ToArray();
+            groups.Add(new ConnectionGroupEntry(group.Name.Trim(), members));
+        }
+
+        return groups;
     }
 
     private void Write(bool force)
@@ -307,7 +334,14 @@ internal sealed class DesktopConfigStore
             ToolbarItems = preferences.ToolbarItems is null
                 ? null
                 : ToolbarLayout.Sanitise(preferences.ToolbarItems).ToList(),
-            ToolbarLabels = preferences.ToolbarLabels
+            ToolbarLabels = preferences.ToolbarLabels,
+            ConnectionGroups = preferences.ConnectionGroups?
+                .Select(static group => new DesktopConnectionGroup
+                {
+                    Name = group.Name,
+                    Members = [.. group.Members.Select(static id => id.ToString("D"))]
+                })
+                .ToList()
         };
 
         var shortcuts = new DesktopShortcutsConfig

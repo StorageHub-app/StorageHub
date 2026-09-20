@@ -24,6 +24,8 @@ internal sealed class ValidationStrings : LocalizationModelBase
 
     public string APrivateKeyPassphraseVaultReferenceIs2 { get; set; } = "A private-key passphrase vault reference is required.";
 
+    public string AGroupNameIsRequired { get; set; } = "A group name is required.";
+
     public string AProfileNameIsRequired { get; set; } = "A profile name is required.";
 
     public string ASavedConnectionIDAndVerifiedRoot { get; set; } = "A saved connection ID and verified root identity are required.";

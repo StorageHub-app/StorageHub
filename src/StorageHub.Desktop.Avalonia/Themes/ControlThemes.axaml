@@ -315,6 +315,82 @@
   </Style>
 
   <!--
+    A group in the connections panel: a quiet heading, and rows that sit under it.
+  -->
+  <Style Selector="Grid.group-header">
+    <Setter Property="Margin" Value="0,0,0,4"/>
+  </Style>
+
+  <Style Selector="TextBlock.group-title">
+    <Setter Property="FontWeight" Value="SemiBold"/>
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+  </Style>
+
+  <!--
+    What is left of the Storage and Clients split: two or three letters beside the name. Storage is
+    the quiet case because most connections are storage, and a badge on every row in the accent
+    would make the accent mean nothing.
+  -->
+  <Style Selector="Border.badge">
+    <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="CornerRadius" Value="{StaticResource DenseFieldRadius}"/>
+    <Setter Property="Padding" Value="4,1"/>
+    <Setter Property="Margin" Value="0,2,0,0"/>
+  </Style>
+
+  <Style Selector="Border.badge TextBlock">
+    <Setter Property="FontSize" Value="10"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+  </Style>
+
+  <Style Selector="Border.badge.client">
+    <Setter Property="Background" Value="{DynamicResource PrimaryBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
+  </Style>
+
+  <Style Selector="Border.badge.client TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource OnPrimaryBrush}"/>
+  </Style>
+
+  <!-- A connection nobody can open reads as unavailable rather than as missing. -->
+  <Style Selector="Border.connection-row.disabled">
+    <Setter Property="Opacity" Value="0.55"/>
+  </Style>
+
+  <!-- The group's own open/closed arrow, which is a ToggleButton and not a checkbox. -->
+  <Style Selector="ToggleButton.disclosure">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="Padding" Value="2"/>
+    <Setter Property="Width" Value="18"/>
+    <Setter Property="Height" Value="18"/>
+    <Setter Property="Content" Value="&#x25B8;"/>
+  </Style>
+
+  <Style Selector="ToggleButton.disclosure:checked">
+    <Setter Property="Content" Value="&#x25BE;"/>
+  </Style>
+
+  <!--
+    Through /template/, for the third time in this file: Fluent paints a ToggleButton's checked
+    state inside its own template, so a transparent background set on the button itself loses and
+    an open group wears the stock accent as a filled square.
+  -->
+  <Style Selector="ToggleButton.disclosure /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource TextMutedBrush}"/>
+  </Style>
+
+  <Style Selector="ToggleButton.disclosure:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}"/>
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource TextBrush}"/>
+  </Style>
+
+  <!--
     A pane's title bar: quiet, and a shade off the pane behind it so four panes read as four
     things rather than one grid of listings.
   -->

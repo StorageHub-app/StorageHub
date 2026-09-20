@@ -4,6 +4,20 @@ using StorageHub.Contracts.Ipc;
 
 namespace StorageHub.Desktop.Configuration;
 
+/// <summary>
+/// One connections-panel group as it is written down.
+/// </summary>
+/// <remarks>
+/// Members are ids as text rather than Guids, because a settings file that somebody has edited by
+/// hand should lose one bad entry rather than fail to load at all.
+/// </remarks>
+public sealed class DesktopConnectionGroup
+{
+    public string Name { get; set; } = string.Empty;
+
+    public List<string>? Members { get; set; }
+}
+
 /// <summary>Schema versions written by this application, as opposed to the legacy ladder.</summary>
 internal static class DesktopConfigSchema
 {
@@ -91,6 +105,9 @@ internal sealed class DesktopConfig : ConfigModelBase
     /// default preset.
     /// </summary>
     public List<string>? ToolbarItems { get; set; }
+
+    /// <summary>The connections panel's groups, in the order they are shown.</summary>
+    public List<DesktopConnectionGroup>? ConnectionGroups { get; set; }
 
     public ToolbarLabelStyle ToolbarLabels { get; set; } = ToolbarLabelStyle.IconsOnly;
 }
