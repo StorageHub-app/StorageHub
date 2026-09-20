@@ -402,6 +402,7 @@
           "StorageHub.Contracts": "[1.4.6, )",
           "StorageHub.Domain": "[1.4.6, )",
           "StorageHub.Ipc": "[1.4.6, )",
+          "StorageHub.Ipc.Windows": "[1.4.6, )",
           "StorageHub.Storage": "[1.4.6, )",
           "StorageHub.Sync": "[1.4.6, )",
           "StorageHub.Transfers": "[1.4.6, )",
@@ -417,6 +418,7 @@
           "StorageHub.Agent": "[1.4.6, )",
           "StorageHub.Application": "[1.4.6, )",
           "StorageHub.Infrastructure.Windows": "[1.4.6, )",
+          "StorageHub.Ipc.Windows": "[1.4.6, )",
           "StorageHub.Persistence": "[1.4.6, )",
           "StorageHub.Security": "[1.4.6, )",
           "StorageHub.Storage": "[1.4.6, )",
@@ -452,6 +454,12 @@
         "type": "Project",
         "dependencies": {
           "StorageHub.Contracts": "[1.4.6, )"
+        }
+      },
+      "storagehub.ipc.windows": {
+        "type": "Project",
+        "dependencies": {
+          "StorageHub.Ipc": "[1.4.6, )"
         }
       },
       "storagehub.persistence": {

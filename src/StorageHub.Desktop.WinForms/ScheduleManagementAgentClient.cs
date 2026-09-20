@@ -1,7 +1,8 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using StorageHub.Ipc;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Localization;
+using StorageHub.Ipc.Windows;
 
 namespace StorageHub.Desktop;
 
@@ -435,7 +436,7 @@ public sealed class NamedPipeScheduleManagementAgentClient : IScheduleManagement
     private static NamedPipeScheduleIpcTransport CreateTransport(ScheduleManagementAgentClientOptions options)
     {
         ValidateOptions(options);
-        return new NamedPipeScheduleIpcTransport(new NamedPipeIpcClient(DesktopAgentIpcOptions.Create(
+        return new NamedPipeScheduleIpcTransport(WindowsNamedPipeIpc.CreateClient(DesktopAgentIpcOptions.Create(
             options.PipeName,
             "StorageHub.Desktop.ScheduleManagement",
             options.ConnectTimeout)));
@@ -460,9 +461,9 @@ public sealed class NamedPipeScheduleManagementAgentClient : IScheduleManagement
         }
     }
 
-    private sealed class NamedPipeScheduleIpcTransport(NamedPipeIpcClient client) : IStorageIpcTransport
+    private sealed class NamedPipeScheduleIpcTransport(IpcClient client) : IStorageIpcTransport
     {
-        private readonly NamedPipeIpcClient _client = client ?? throw new ArgumentNullException(nameof(client));
+        private readonly IpcClient _client = client ?? throw new ArgumentNullException(nameof(client));
         public bool IsConnected => _client.IsConnected;
         public async Task ConnectAsync(CancellationToken cancellationToken = default) =>
             _ = await _client.ConnectAsync(cancellationToken).ConfigureAwait(false);

@@ -1,8 +1,9 @@
-﻿using System.Security.Cryptography;
+using System.Security.Cryptography;
 using System.Text.Json;
 using StorageHub.Ipc;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Localization;
+using StorageHub.Ipc.Windows;
 
 namespace StorageHub.Desktop;
 
@@ -450,13 +451,13 @@ public sealed class NamedPipeRemoteConnectionProfileClient : IRemoteConnectionPr
 
     private static ProfileNamedPipeTransport CreateTransport(RemoteStorageAgentClientOptions options)
     {
-        return new ProfileNamedPipeTransport(new NamedPipeIpcClient(DesktopAgentIpcOptions.Create(
+        return new ProfileNamedPipeTransport(WindowsNamedPipeIpc.CreateClient(DesktopAgentIpcOptions.Create(
             options.PipeName,
             "StorageHub.Desktop.ConnectionManager",
             options.ConnectTimeout)));
     }
 
-    private sealed class ProfileNamedPipeTransport(NamedPipeIpcClient client) : IStorageIpcTransport
+    private sealed class ProfileNamedPipeTransport(IpcClient client) : IStorageIpcTransport
     {
         public bool IsConnected => client.IsConnected;
         public async Task ConnectAsync(CancellationToken cancellationToken = default) =>
@@ -759,7 +760,7 @@ public sealed class NamedPipeRemoteSecretVaultClient : IRemoteSecretVaultClient
             throw new ArgumentOutOfRangeException(nameof(options));
         }
 
-        return new SecretNamedPipeTransport(new NamedPipeIpcClient(
+        return new SecretNamedPipeTransport(WindowsNamedPipeIpc.CreateClient(
             DesktopAgentIpcOptions.Create(
                 options.PipeName,
                 "StorageHub.Desktop.SecretEnrollment",
@@ -769,7 +770,7 @@ public sealed class NamedPipeRemoteSecretVaultClient : IRemoteSecretVaultClient
             }));
     }
 
-    private sealed class SecretNamedPipeTransport(NamedPipeIpcClient client) : ISecretIpcTransport
+    private sealed class SecretNamedPipeTransport(IpcClient client) : ISecretIpcTransport
     {
         public bool IsConnected => client.IsConnected;
         public async Task ConnectAsync(CancellationToken cancellationToken = default) =>

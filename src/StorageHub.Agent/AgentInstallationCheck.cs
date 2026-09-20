@@ -120,6 +120,13 @@ public interface IInstallationProbe
 /// machine data root, a staged binary tree, a service registration and a named pipe -- five
 /// places, none of which an operator can reasonably be asked to inspect by hand.
 /// </summary>
+/// <remarks>
+/// Windows-only, and now declared so. Every finding it reports is about a Windows installation: a
+/// service registered with the SCM, its recovery actions, the staged copy Velopack leaves behind,
+/// and the named pipe the desktop looks for. The Linux agent has none of those, and gets its own
+/// checks rather than a weakened version of these.
+/// </remarks>
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
 public static class AgentInstallationCheck
 {
     /// <summary>

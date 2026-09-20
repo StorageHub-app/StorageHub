@@ -101,29 +101,6 @@ internal static class IpcProtocolValidation
         }
     }
 
-    public static void ValidatePipeName(string pipeName)
-    {
-        if (string.IsNullOrWhiteSpace(pipeName))
-        {
-            throw new ArgumentException("A named-pipe name is required.", nameof(pipeName));
-        }
-
-        if (pipeName.Length > 180)
-        {
-            throw new ArgumentException("The named-pipe name cannot exceed 180 characters.", nameof(pipeName));
-        }
-
-        foreach (var character in pipeName)
-        {
-            if (!(char.IsAsciiLetterOrDigit(character) || character is '-' or '_' or '.'))
-            {
-                throw new ArgumentException(
-                    "The named-pipe name may contain only ASCII letters, digits, dots, dashes, and underscores.",
-                    nameof(pipeName));
-            }
-        }
-    }
-
     public static void ValidateIdentity(string value, string parameterName)
     {
         if (string.IsNullOrWhiteSpace(value))

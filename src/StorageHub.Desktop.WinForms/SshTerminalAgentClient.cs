@@ -1,6 +1,7 @@
 using System.Text.Json;
 using StorageHub.Ipc;
 using StorageHub.Contracts.Ipc;
+using StorageHub.Ipc.Windows;
 
 namespace StorageHub.Desktop;
 
@@ -30,7 +31,7 @@ public interface ISshTerminalIpcTransport : IAsyncDisposable
 /// <summary>
 /// Talks to the agent over two persistent pipe connections rather than one per call.
 ///
-/// The old client built a fresh <see cref="NamedPipeIpcClient"/> for every request -- a full
+/// The old client built a fresh <see cref="IpcClient"/> for every request -- a full
 /// connect, handshake and teardown for each keystroke and each poll. It uses two connections and
 /// not one because the per-connection protocol is strictly serial: an in-flight long-poll read
 /// would otherwise hold the gate and delay a keystroke by up to the whole wait budget. The read
@@ -109,12 +110,12 @@ public sealed class NamedPipeSshTerminalAgentClient : ISshTerminalAgentClient
     }
 
     private static SshTerminalNamedPipeTransport CreateTransport(string role) =>
-        new(new NamedPipeIpcClient(new NamedPipeIpcClientOptions
+        new(WindowsNamedPipeIpc.CreateClient(new IpcClientOptions
         {
-            PipeName = AgentStatusMonitor.DefaultPipeName,
+            Endpoint = new NamedPipeEndpoint(AgentStatusMonitor.DefaultPipeName),
             // As everywhere else: the access mode has to match the pipe the name resolved to, or a
             // service-hosted agent is unreachable and every terminal fails to open.
-            Access = DesktopAgentHost.PipeAccess,
+            TrustModel = DesktopAgentHost.PipeAccess,
             ClientName = $"StorageHub.Desktop.SshTerminal.{role}",
             ClientVersion = DesktopApplicationVersion.Current,
             ConnectTimeout = TimeSpan.FromSeconds(2),
@@ -206,7 +207,7 @@ public sealed class NamedPipeSshTerminalAgentClient : ISshTerminalAgentClient
         }
     }
 
-    private sealed class SshTerminalNamedPipeTransport(NamedPipeIpcClient client) : ISshTerminalIpcTransport
+    private sealed class SshTerminalNamedPipeTransport(IpcClient client) : ISshTerminalIpcTransport
     {
         public bool IsConnected => client.IsConnected;
 

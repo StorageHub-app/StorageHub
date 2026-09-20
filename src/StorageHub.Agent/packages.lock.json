@@ -46,6 +46,12 @@
           "StorageHub.Contracts": "[1.4.6, )"
         }
       },
+      "storagehub.ipc.windows": {
+        "type": "Project",
+        "dependencies": {
+          "StorageHub.Ipc": "[1.4.6, )"
+        }
+      },
       "storagehub.security": {
         "type": "Project"
       },

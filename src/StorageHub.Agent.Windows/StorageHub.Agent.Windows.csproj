@@ -12,6 +12,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\StorageHub.Ipc.Windows\StorageHub.Ipc.Windows.csproj" />
     <ProjectReference Include="..\StorageHub.Agent\StorageHub.Agent.csproj" />
     <ProjectReference Include="..\StorageHub.Application\StorageHub.Application.csproj" />
     <ProjectReference Include="..\StorageHub.Infrastructure.Windows\StorageHub.Infrastructure.Windows.csproj" />

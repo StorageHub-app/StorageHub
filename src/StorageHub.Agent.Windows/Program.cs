@@ -4,6 +4,7 @@ using CL.Storage.Configuration;
 using CodeLogic;
 using StorageHub.Agent;
 using StorageHub.Ipc;
+using StorageHub.Ipc.Windows;
 using StorageHub.Agent.Scheduling;
 using StorageHub.Agent.Sync;
 using StorageHub.Agent.Transfers;
@@ -59,8 +60,8 @@ if (hostMode == AgentHostMode.UserSession && AgentServiceInstaller.Describe().In
 
 var pipeNames = AgentHostLayout.ResolvePipeNames(hostMode);
 var pipeAccess = hostMode == AgentHostMode.WindowsService
-    ? IpcPipeAccess.MachineService
-    : IpcPipeAccess.CurrentUserOnly;
+    ? IpcTrustModel.MachineService
+    : IpcTrustModel.SameUser;
 var permittedClientSids = hostMode == AgentHostMode.WindowsService
     ? AgentServiceClients.ReadPermittedSids(configuredStorageHubRoot)
     : [];
@@ -272,12 +273,12 @@ var requestHandler = new AgentIpcRequestHandler(
         new AgentControlIpcCommandService(
             () => shutdown.TrySetResult(),
             Environment.ProcessId)));
-var ipc = new NamedPipeIpcServerSubsystem(
-    new NamedPipeIpcServerOptions
+var ipc = WindowsNamedPipeIpc.CreateServer(
+    new IpcServerOptions
     {
-        PipeName = pipeNames.Normal,
-        Access = pipeAccess,
-        PermittedUserSids = permittedClientSids,
+        Endpoint = new NamedPipeEndpoint(pipeNames.Normal),
+        TrustModel = pipeAccess,
+        PermittedPrincipals = permittedClientSids,
         AgentVersion = applicationVersion,
         AgentInstanceId = agentInstanceId,
         // The desktop intentionally owns independent clients for workspaces, queue,
@@ -290,12 +291,12 @@ var ipc = new NamedPipeIpcServerSubsystem(
     requestHandler.HandleSessionAsync);
 var secretRequestHandler = new AgentSecretIpcRequestHandler(
     new SecretVaultIpcCommandService(() => vaultSubsystem.Vault));
-var secretIpc = new NamedPipeIpcServerSubsystem(
-    new NamedPipeIpcServerOptions
+var secretIpc = WindowsNamedPipeIpc.CreateServer(
+    new IpcServerOptions
     {
-        PipeName = pipeNames.Secret,
-        Access = pipeAccess,
-        PermittedUserSids = permittedClientSids,
+        Endpoint = new NamedPipeEndpoint(pipeNames.Secret),
+        TrustModel = pipeAccess,
+        PermittedPrincipals = permittedClientSids,
         AgentVersion = applicationVersion,
         AgentInstanceId = agentInstanceId,
         MaxConcurrentClients = 8,

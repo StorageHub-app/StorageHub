@@ -6,12 +6,15 @@ using System.Security.Cryptography;
 using System.Security.Principal;
 using StorageHub.Ipc;
 using StorageHub.Contracts.Ipc;
+using StorageHub.Ipc.Windows;
+using StorageHub.Testing;
 
 namespace StorageHub.Agent.IntegrationTests;
 
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
 public sealed class NamedPipeIpcTests
 {
-    [Fact]
+    [WindowsOnlyFact]
     public async Task EstablishedSessionsAllowBoundedLongRunningStorageRequests()
     {
         var options = CreateServerOptions() with
@@ -20,28 +23,28 @@ public sealed class NamedPipeIpcTests
             SessionIdleTimeout = TimeSpan.FromMinutes(3)
         };
 
-        await using var server = new NamedPipeIpcServerSubsystem(options);
+        await using var server = WindowsNamedPipeIpc.CreateServer(options);
 
         _ = Assert.Throws<ArgumentOutOfRangeException>(() =>
-            new NamedPipeIpcServerSubsystem(options with
+            WindowsNamedPipeIpc.CreateServer(options with
             {
                 RequestTimeout = TimeSpan.FromMinutes(5) + TimeSpan.FromTicks(1)
             }));
         _ = Assert.Throws<ArgumentOutOfRangeException>(() =>
-            new NamedPipeIpcServerSubsystem(options with
+            WindowsNamedPipeIpc.CreateServer(options with
             {
                 HandshakeTimeout = TimeSpan.FromMinutes(1) + TimeSpan.FromTicks(1)
             }));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task NormalAndSecretServersHaveDistinctSubsystemNames()
     {
         var normalOptions = CreateServerOptions();
-        await using var normal = new NamedPipeIpcServerSubsystem(normalOptions);
-        await using var secret = new NamedPipeIpcServerSubsystem(normalOptions with
+        await using var normal = WindowsNamedPipeIpc.CreateServer(normalOptions);
+        await using var secret = WindowsNamedPipeIpc.CreateServer(normalOptions with
         {
-            PipeName = $"storagehub-secret-tests-{Guid.NewGuid():N}",
+            Endpoint = new NamedPipeEndpoint($"storagehub-secret-tests-{Guid.NewGuid():N}"),
             FrameKind = IpcFrameKind.Secret
         });
 
@@ -49,7 +52,7 @@ public sealed class NamedPipeIpcTests
         _ = new AgentRuntimeCoordinator([normal, secret]);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void CurrentAccountPipeNamesUseStableSidHash()
     {
         if (!OperatingSystem.IsWindows())
@@ -79,7 +82,7 @@ public sealed class NamedPipeIpcTests
         Assert.True(secret.Length < 128);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task DuplicatePipeStartFailurePropagatesAndCanRetry()
     {
         if (!OperatingSystem.IsWindows())
@@ -88,12 +91,12 @@ public sealed class NamedPipeIpcTests
         }
 
         var options = CreateServerOptions() with { MaxConcurrentClients = 1 };
-        await using var server = new NamedPipeIpcServerSubsystem(options);
+        await using var server = WindowsNamedPipeIpc.CreateServer(options);
         var initialization = await server.InitializeAsync(CancellationToken.None);
         Assert.True(initialization.IsReady);
 
         using (var blocker = new NamedPipeServerStream(
-            options.PipeName,
+            PipeNameOf(options),
             PipeDirection.InOut,
             maxNumberOfServerInstances: 1,
             PipeTransmissionMode.Byte,
@@ -110,18 +113,18 @@ public sealed class NamedPipeIpcTests
 
         await server.StartAsync(CancellationToken.None);
         Assert.True(server.IsRunning);
-        await using var client = new NamedPipeIpcClient(CreateClientOptions(options.PipeName));
+        await using var client = WindowsNamedPipeIpc.CreateClient(CreateClientOptions(options.Endpoint));
         Assert.True((await client.ConnectAsync()).Accepted);
 
         await server.StopAsync(CancellationToken.None);
         Assert.False(server.IsRunning);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task NegotiatesProtocolAndRoundTripsNormalEnvelope()
     {
         var options = CreateServerOptions();
-        await using var server = new NamedPipeIpcServerSubsystem(
+        await using var server = WindowsNamedPipeIpc.CreateServer(
             options,
             static async (session, cancellationToken) =>
             {
@@ -137,7 +140,7 @@ public sealed class NamedPipeIpcTests
             });
         await StartAsync(server);
 
-        await using var client = new NamedPipeIpcClient(CreateClientOptions(options.PipeName));
+        await using var client = WindowsNamedPipeIpc.CreateClient(CreateClientOptions(options.Endpoint));
         var hello = await client.ConnectAsync();
         var requestId = Guid.NewGuid();
         await client.SendAsync(
@@ -151,17 +154,20 @@ public sealed class NamedPipeIpcTests
         Assert.Equal(requestId, response.RequestId);
         Assert.Equal(2, response.Sequence);
         Assert.Equal(new TestPayload("hello-received"), response.DeserializePayload<TestPayload>());
-        Assert.Equal(OperatingSystem.IsWindows(), NamedPipeIpcServerSubsystem.UsesCurrentUserOnlySecurity);
-        Assert.Equal(OperatingSystem.IsWindows(), NamedPipeIpcClient.UsesCurrentUserOnlySecurity);
+        // Replaces two assertions that the host was Windows. What they were really about is
+        // whether this endpoint can be trusted to carry secrets, which the transport answers.
+        Assert.True(WindowsNamedPipeIpc.Transport.SupportsConfidentialChannel(
+            options.Endpoint,
+            IpcTrustModel.SameUser));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task RejectsIncompatibleMajorProtocolVersion()
     {
         var options = CreateServerOptions();
-        await using var server = new NamedPipeIpcServerSubsystem(options);
+        await using var server = WindowsNamedPipeIpc.CreateServer(options);
         await StartAsync(server);
-        await using var client = new NamedPipeIpcClient(CreateClientOptions(options.PipeName) with
+        await using var client = WindowsNamedPipeIpc.CreateClient(CreateClientOptions(options.Endpoint) with
         {
             ProtocolVersion = new ProtocolVersion(2, 0),
             MaxConnectAttempts = 1
@@ -174,14 +180,14 @@ public sealed class NamedPipeIpcTests
         Assert.False(client.IsConnected);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task RetriesConnectionAndPerformsFreshHandshakeWhenServerAppears()
     {
         var options = CreateServerOptions();
-        await using var server = new NamedPipeIpcServerSubsystem(
+        await using var server = WindowsNamedPipeIpc.CreateServer(
             options,
             static (_, cancellationToken) => Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken));
-        await using var client = new NamedPipeIpcClient(CreateClientOptions(options.PipeName) with
+        await using var client = WindowsNamedPipeIpc.CreateClient(CreateClientOptions(options.Endpoint) with
         {
             ConnectTimeout = TimeSpan.FromMilliseconds(250),
             InitialReconnectDelay = TimeSpan.FromMilliseconds(50),
@@ -201,14 +207,14 @@ public sealed class NamedPipeIpcTests
         Assert.True(client.LastConnectionAttemptCount > 1);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task BoundsConcurrentAuthenticatedClients()
     {
         const int maximumClients = 2;
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var entered = new ConcurrentQueue<Guid>();
         var options = CreateServerOptions() with { MaxConcurrentClients = maximumClients };
-        await using var server = new NamedPipeIpcServerSubsystem(
+        await using var server = WindowsNamedPipeIpc.CreateServer(
             options,
             async (session, cancellationToken) =>
             {
@@ -216,9 +222,9 @@ public sealed class NamedPipeIpcTests
                 await release.Task.WaitAsync(cancellationToken);
             });
         await StartAsync(server);
-        await using var first = new NamedPipeIpcClient(CreateClientOptions(options.PipeName));
-        await using var second = new NamedPipeIpcClient(CreateClientOptions(options.PipeName));
-        await using var third = new NamedPipeIpcClient(CreateClientOptions(options.PipeName) with
+        await using var first = WindowsNamedPipeIpc.CreateClient(CreateClientOptions(options.Endpoint));
+        await using var second = WindowsNamedPipeIpc.CreateClient(CreateClientOptions(options.Endpoint));
+        await using var third = WindowsNamedPipeIpc.CreateClient(CreateClientOptions(options.Endpoint) with
         {
             MaxConnectAttempts = 1,
             ConnectTimeout = TimeSpan.FromSeconds(5)
@@ -236,15 +242,15 @@ public sealed class NamedPipeIpcTests
         release.TrySetResult();
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task NormalChannelRejectsSecretMessageTypes()
     {
         var options = CreateServerOptions();
-        await using var server = new NamedPipeIpcServerSubsystem(
+        await using var server = WindowsNamedPipeIpc.CreateServer(
             options,
             static (_, cancellationToken) => Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken));
         await StartAsync(server);
-        await using var client = new NamedPipeIpcClient(CreateClientOptions(options.PipeName));
+        await using var client = WindowsNamedPipeIpc.CreateClient(CreateClientOptions(options.Endpoint));
         await client.ConnectAsync();
 
         var secretEnvelope = IpcEnvelope.Create(
@@ -257,11 +263,11 @@ public sealed class NamedPipeIpcTests
             async () => await client.SendAsync(secretEnvelope));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task DedicatedSecretChannelRoundTripsOnlyTypedBoundedSecretEnvelopes()
     {
         var options = CreateServerOptions() with { FrameKind = IpcFrameKind.Secret };
-        await using var server = new NamedPipeIpcServerSubsystem(
+        await using var server = WindowsNamedPipeIpc.CreateServer(
             options,
             static async (session, cancellationToken) =>
             {
@@ -283,8 +289,8 @@ public sealed class NamedPipeIpcTests
             });
         await StartAsync(server);
 
-        await using var client = new NamedPipeIpcClient(
-            CreateClientOptions(options.PipeName) with { FrameKind = IpcFrameKind.Secret });
+        await using var client = WindowsNamedPipeIpc.CreateClient(
+            CreateClientOptions(options.Endpoint) with { FrameKind = IpcFrameKind.Secret });
         await client.ConnectAsync();
         var requestId = Guid.NewGuid();
         await client.SendSecretAsync(new SecretIpcRequestEnvelope(
@@ -307,16 +313,16 @@ public sealed class NamedPipeIpcTests
             await client.SendAsync(IpcEnvelope.Create("test.request", Guid.NewGuid(), 2, new TestPayload("no"))));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task SecretRequestHandlerZerosMaterialAfterDedicatedCommandCompletes()
     {
         var command = new RecordingSecretCommandHandler();
         var handler = new AgentSecretIpcRequestHandler(command);
         var options = CreateServerOptions() with { FrameKind = IpcFrameKind.Secret };
-        await using var server = new NamedPipeIpcServerSubsystem(options, handler.HandleSessionAsync);
+        await using var server = WindowsNamedPipeIpc.CreateServer(options, handler.HandleSessionAsync);
         await StartAsync(server);
-        await using var client = new NamedPipeIpcClient(
-            CreateClientOptions(options.PipeName) with { FrameKind = IpcFrameKind.Secret });
+        await using var client = WindowsNamedPipeIpc.CreateClient(
+            CreateClientOptions(options.Endpoint) with { FrameKind = IpcFrameKind.Secret });
         await client.ConnectAsync();
         var requestId = Guid.NewGuid();
         await client.SendSecretAsync(new SecretIpcRequestEnvelope(
@@ -337,13 +343,13 @@ public sealed class NamedPipeIpcTests
         Assert.All(command.Material, value => Assert.Equal(0, value));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task StopCancelsSessionsAndLeavesSubsystemHealthyToDispose()
     {
         var sessionStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var sessionCancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var options = CreateServerOptions();
-        await using var server = new NamedPipeIpcServerSubsystem(
+        await using var server = WindowsNamedPipeIpc.CreateServer(
             options,
             async (_, cancellationToken) =>
             {
@@ -358,7 +364,7 @@ public sealed class NamedPipeIpcTests
                 }
             });
         await StartAsync(server);
-        await using var client = new NamedPipeIpcClient(CreateClientOptions(options.PipeName));
+        await using var client = WindowsNamedPipeIpc.CreateClient(CreateClientOptions(options.Endpoint));
         await client.ConnectAsync();
         await sessionStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
@@ -371,15 +377,15 @@ public sealed class NamedPipeIpcTests
         Assert.Equal(SubsystemHealthLevel.Degraded, health.Level);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task ClientDisposalUnblocksPendingReceive()
     {
         var options = CreateServerOptions();
-        await using var server = new NamedPipeIpcServerSubsystem(
+        await using var server = WindowsNamedPipeIpc.CreateServer(
             options,
             static (_, cancellationToken) => Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken));
         await StartAsync(server);
-        var client = new NamedPipeIpcClient(CreateClientOptions(options.PipeName));
+        var client = WindowsNamedPipeIpc.CreateClient(CreateClientOptions(options.Endpoint));
         await client.ConnectAsync();
         var pendingReceive = client.ReceiveAsync().AsTask();
 
@@ -389,7 +395,7 @@ public sealed class NamedPipeIpcTests
         Assert.False(client.IsConnected);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task IdleSessionIsClosedWithoutPoisoningSubsystemHealth()
     {
         var options = CreateServerOptions() with
@@ -397,12 +403,12 @@ public sealed class NamedPipeIpcTests
             SessionIdleTimeout = TimeSpan.FromMilliseconds(100),
             RequestTimeout = TimeSpan.FromSeconds(1)
         };
-        await using var server = new NamedPipeIpcServerSubsystem(
+        await using var server = WindowsNamedPipeIpc.CreateServer(
             options,
             static async (session, cancellationToken) =>
                 _ = await session.ReceiveAsync(cancellationToken));
         await StartAsync(server);
-        await using var client = new NamedPipeIpcClient(CreateClientOptions(options.PipeName));
+        await using var client = WindowsNamedPipeIpc.CreateClient(CreateClientOptions(options.Endpoint));
         await client.ConnectAsync();
         await WaitUntilAsync(() => server.ActiveClientCount == 1, TimeSpan.FromSeconds(5));
 
@@ -412,7 +418,7 @@ public sealed class NamedPipeIpcTests
         Assert.Equal(SubsystemHealthLevel.Healthy, health.Level);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task RequestDeadlineCancelsOnlyTheSlowSession()
     {
         var requestStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -421,7 +427,7 @@ public sealed class NamedPipeIpcTests
             SessionIdleTimeout = TimeSpan.FromSeconds(1),
             RequestTimeout = TimeSpan.FromMilliseconds(100)
         };
-        await using var server = new NamedPipeIpcServerSubsystem(
+        await using var server = WindowsNamedPipeIpc.CreateServer(
             options,
             async (session, cancellationToken) =>
             {
@@ -430,7 +436,7 @@ public sealed class NamedPipeIpcTests
                 await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
             });
         await StartAsync(server);
-        await using var client = new NamedPipeIpcClient(CreateClientOptions(options.PipeName));
+        await using var client = WindowsNamedPipeIpc.CreateClient(CreateClientOptions(options.Endpoint));
         await client.ConnectAsync();
         await client.SendAsync(IpcEnvelope.Create(
             "test.request",
@@ -445,11 +451,11 @@ public sealed class NamedPipeIpcTests
         Assert.Equal(SubsystemHealthLevel.Healthy, health.Level);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task MalformedClientFrameIsSessionLocalAndServerContinuesAccepting()
     {
         var options = CreateServerOptions();
-        await using var server = new NamedPipeIpcServerSubsystem(options);
+        await using var server = WindowsNamedPipeIpc.CreateServer(options);
         await StartAsync(server);
         var pipeOptions = PipeOptions.Asynchronous;
         if (OperatingSystem.IsWindows())
@@ -459,7 +465,7 @@ public sealed class NamedPipeIpcTests
 
         await using (var malformed = new NamedPipeClientStream(
             ".",
-            options.PipeName,
+            PipeNameOf(options),
             PipeDirection.InOut,
             pipeOptions))
         {
@@ -473,15 +479,15 @@ public sealed class NamedPipeIpcTests
         await Task.Delay(100);
         var health = await server.CheckHealthAsync(CancellationToken.None);
         Assert.Equal(SubsystemHealthLevel.Healthy, health.Level);
-        await using var valid = new NamedPipeIpcClient(CreateClientOptions(options.PipeName));
+        await using var valid = WindowsNamedPipeIpc.CreateClient(CreateClientOptions(options.Endpoint));
         Assert.True((await valid.ConnectAsync()).Accepted);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task MissingHandshakePayloadIsSessionLocalAndServerContinuesAccepting()
     {
         var options = CreateServerOptions();
-        await using var server = new NamedPipeIpcServerSubsystem(options);
+        await using var server = WindowsNamedPipeIpc.CreateServer(options);
         await StartAsync(server);
         var pipeOptions = PipeOptions.Asynchronous;
         if (OperatingSystem.IsWindows())
@@ -491,7 +497,7 @@ public sealed class NamedPipeIpcTests
 
         await using (var malformed = new NamedPipeClientStream(
             ".",
-            options.PipeName,
+            PipeNameOf(options),
             PipeDirection.InOut,
             pipeOptions))
         {
@@ -509,11 +515,11 @@ public sealed class NamedPipeIpcTests
         await Task.Delay(100);
         var health = await server.CheckHealthAsync(CancellationToken.None);
         Assert.Equal(SubsystemHealthLevel.Healthy, health.Level);
-        await using var valid = new NamedPipeIpcClient(CreateClientOptions(options.PipeName));
+        await using var valid = WindowsNamedPipeIpc.CreateClient(CreateClientOptions(options.Endpoint));
         Assert.True((await valid.ConnectAsync()).Accepted);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task AgentRequestHandlerReturnsStatusAndSafeUnsupportedError()
     {
         var options = CreateServerOptions();
@@ -525,9 +531,9 @@ public sealed class NamedPipeIpcTests
             ActiveSyncRuns: 1,
             "Ready");
         var handler = new AgentIpcRequestHandler(() => snapshot);
-        await using var server = new NamedPipeIpcServerSubsystem(options, handler.HandleSessionAsync);
+        await using var server = WindowsNamedPipeIpc.CreateServer(options, handler.HandleSessionAsync);
         await StartAsync(server);
-        await using var client = new NamedPipeIpcClient(CreateClientOptions(options.PipeName));
+        await using var client = WindowsNamedPipeIpc.CreateClient(CreateClientOptions(options.Endpoint));
         await client.ConnectAsync();
 
         var statusRequestId = Guid.NewGuid();
@@ -557,16 +563,16 @@ public sealed class NamedPipeIpcTests
             errorResponse.DeserializePayload<IpcErrorResponse>().Code);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task AgentRequestHandlerDispatchesInjectedReadOnlyCommand()
     {
         var options = CreateServerOptions();
         var handler = new AgentIpcRequestHandler(
             () => throw new InvalidOperationException("Status was not requested."),
             new EchoCommandHandler());
-        await using var server = new NamedPipeIpcServerSubsystem(options, handler.HandleSessionAsync);
+        await using var server = WindowsNamedPipeIpc.CreateServer(options, handler.HandleSessionAsync);
         await StartAsync(server);
-        await using var client = new NamedPipeIpcClient(CreateClientOptions(options.PipeName));
+        await using var client = WindowsNamedPipeIpc.CreateClient(CreateClientOptions(options.Endpoint));
         await client.ConnectAsync();
 
         var requestId = Guid.NewGuid();
@@ -583,7 +589,7 @@ public sealed class NamedPipeIpcTests
         Assert.Equal("read-only-ok", response.DeserializePayload<TestPayload>().Value);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task FailingInjectedCommandDoesNotDisableRecoveryStatus()
     {
         var options = CreateServerOptions();
@@ -595,9 +601,9 @@ public sealed class NamedPipeIpcTests
             ActiveSyncRuns: 0,
             "Recovery mode");
         var handler = new AgentIpcRequestHandler(() => snapshot, new ThrowingCommandHandler());
-        await using var server = new NamedPipeIpcServerSubsystem(options, handler.HandleSessionAsync);
+        await using var server = WindowsNamedPipeIpc.CreateServer(options, handler.HandleSessionAsync);
         await StartAsync(server);
-        await using var client = new NamedPipeIpcClient(CreateClientOptions(options.PipeName));
+        await using var client = WindowsNamedPipeIpc.CreateClient(CreateClientOptions(options.Endpoint));
         await client.ConnectAsync();
 
         await client.SendAsync(IpcEnvelope.Create(
@@ -622,20 +628,27 @@ public sealed class NamedPipeIpcTests
         Assert.Equal(snapshot, status.DeserializePayload<AgentStatusSnapshot>());
     }
 
-    private static NamedPipeIpcServerOptions CreateServerOptions() => new()
+    /// <summary>
+    /// The raw pipe name, for the cases that drive a NamedPipeServerStream or client stream
+    /// directly rather than through the transport - a squatter, a malformed frame, a blocked slot.
+    /// </summary>
+    private static string PipeNameOf(IpcServerOptions options) =>
+        ((NamedPipeEndpoint)options.Endpoint).PipeName;
+
+    private static IpcServerOptions CreateServerOptions() => new()
     {
-        PipeName = $"storagehub-tests-{Guid.NewGuid():N}",
+        Endpoint = new NamedPipeEndpoint($"storagehub-tests-{Guid.NewGuid():N}"),
         AgentInstanceId = Guid.NewGuid(),
         AgentVersion = "1.0.0-tests",
         HandshakeTimeout = TimeSpan.FromSeconds(2)
     };
 
-    private static NamedPipeIpcClientOptions CreateClientOptions(string pipeName) => new()
+    private static IpcClientOptions CreateClientOptions(IpcEndpoint endpoint) => new()
     {
-        PipeName = pipeName,
+        Endpoint = endpoint,
         // These tests stand up a pipe owned by the account running them, which is what a session
         // agent does.
-        Access = IpcPipeAccess.CurrentUserOnly,
+        TrustModel = IpcTrustModel.SameUser,
         ClientName = "StorageHub.Tests",
         ClientVersion = "1.0.0-tests",
         ClientInstanceId = Guid.NewGuid(),
@@ -643,7 +656,7 @@ public sealed class NamedPipeIpcTests
         MaxConnectAttempts = 3
     };
 
-    private static async Task StartAsync(NamedPipeIpcServerSubsystem server)
+    private static async Task StartAsync(IpcServerSubsystem server)
     {
         var result = await server.InitializeAsync(CancellationToken.None);
         Assert.True(result.IsReady);

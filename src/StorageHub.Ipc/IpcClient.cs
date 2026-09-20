@@ -1,33 +1,38 @@
-using System.IO.Pipes;
-using System.Security.Principal;
 using System.Text.Json;
 using StorageHub.Contracts.Ipc;
 
 namespace StorageHub.Ipc;
 
-public sealed class NamedPipeIpcClient : IAsyncDisposable
+public sealed class IpcClient : IAsyncDisposable
 {
-    private readonly NamedPipeIpcClientOptions _options;
+    private readonly IIpcTransport _transport;
+    private readonly IpcClientOptions _options;
+    private readonly IIpcServerAuthenticator _serverAuthenticator;
     private readonly SemaphoreSlim _connectionGate = new(1, 1);
     private readonly SemaphoreSlim _readGate = new(1, 1);
     private readonly SemaphoreSlim _writeGate = new(1, 1);
-    private NamedPipeClientStream? _stream;
+    private IIpcConnection? _connection;
     private HelloResponse? _serverHello;
     private long _lastReceivedSequence;
     private long _lastSentSequence;
     private int _lastConnectionAttemptCount;
     private bool _disposed;
 
-    public NamedPipeIpcClient(NamedPipeIpcClientOptions options)
+    public IpcClient(
+        IIpcTransport transport,
+        IpcClientOptions options,
+        IIpcServerAuthenticator serverAuthenticator)
     {
+        ArgumentNullException.ThrowIfNull(transport);
         ArgumentNullException.ThrowIfNull(options);
-        ValidateOptions(options);
+        ArgumentNullException.ThrowIfNull(serverAuthenticator);
+        ValidateOptions(transport, options);
+        _transport = transport;
         _options = options;
+        _serverAuthenticator = serverAuthenticator;
     }
 
-    public bool IsConnected => !_disposed && _stream is { IsConnected: true };
-
-    public static bool UsesCurrentUserOnlySecurity => OperatingSystem.IsWindows();
+    public bool IsConnected => !_disposed && _connection is { IsConnected: true };
 
     public int LastConnectionAttemptCount => Volatile.Read(ref _lastConnectionAttemptCount);
 
@@ -44,7 +49,7 @@ public sealed class NamedPipeIpcClient : IAsyncDisposable
                 return _serverHello;
             }
 
-            DisconnectCore();
+            await DisconnectCoreAsync().ConfigureAwait(false);
             return await ConnectCoreAsync(cancellationToken).ConfigureAwait(false);
         }
         finally
@@ -59,7 +64,7 @@ public sealed class NamedPipeIpcClient : IAsyncDisposable
         await _connectionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            DisconnectCore();
+            await DisconnectCoreAsync().ConfigureAwait(false);
             return await ConnectCoreAsync(cancellationToken).ConfigureAwait(false);
         }
         finally
@@ -179,7 +184,7 @@ public sealed class NamedPipeIpcClient : IAsyncDisposable
         await _connectionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            DisconnectCore();
+            await DisconnectCoreAsync().ConfigureAwait(false);
         }
         finally
         {
@@ -198,7 +203,7 @@ public sealed class NamedPipeIpcClient : IAsyncDisposable
         await _connectionGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
         try
         {
-            DisconnectCore();
+            await DisconnectCoreAsync().ConfigureAwait(false);
         }
         finally
         {
@@ -212,9 +217,9 @@ public sealed class NamedPipeIpcClient : IAsyncDisposable
         _writeGate.Dispose();
     }
 
-    private static void ValidateOptions(NamedPipeIpcClientOptions options)
+    private static void ValidateOptions(IIpcTransport transport, IpcClientOptions options)
     {
-        IpcProtocolValidation.ValidatePipeName(options.PipeName);
+        transport.ValidateEndpoint(options.Endpoint, options.TrustModel);
         IpcProtocolValidation.ValidateIdentity(options.ClientName, nameof(options.ClientName));
         IpcProtocolValidation.ValidateIdentity(options.ClientVersion, nameof(options.ClientVersion));
         if (options.ClientInstanceId == Guid.Empty)
@@ -228,10 +233,15 @@ public sealed class NamedPipeIpcClient : IAsyncDisposable
             throw new ArgumentOutOfRangeException(nameof(options), "The IPC frame kind is invalid.");
         }
 
-        if (options.FrameKind == IpcFrameKind.Secret && !OperatingSystem.IsWindows())
+        // This used to ask whether the host was Windows. The requirement was never Windows: it is
+        // that the channel reaches one account and cannot be observed or impersonated by another.
+        if (options.FrameKind == IpcFrameKind.Secret &&
+            !transport.SupportsConfidentialChannel(options.Endpoint, options.TrustModel))
         {
-            throw new PlatformNotSupportedException(
-                "Secret IPC requires Windows current-user-only named-pipe security.");
+            throw new ArgumentException(
+                $"The {transport.Name} transport cannot carry a secret channel on {options.Endpoint} "
+                    + $"under {options.TrustModel} trust.",
+                nameof(options));
         }
 
         if (options.MaxConnectAttempts is < 1 or > 100)
@@ -262,20 +272,21 @@ public sealed class NamedPipeIpcClient : IAsyncDisposable
         {
             cancellationToken.ThrowIfCancellationRequested();
             Volatile.Write(ref _lastConnectionAttemptCount, attempt);
-            var candidate = CreateClientStream();
             using var attemptCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             attemptCancellation.CancelAfter(_options.ConnectTimeout);
+            IIpcConnection? candidate = null;
             try
             {
-                await candidate.ConnectAsync(attemptCancellation.Token).ConfigureAwait(false);
-                if (OperatingSystem.IsWindows() && _options.Access == IpcPipeAccess.MachineService)
-                {
-                    // Before the handshake, so nothing is disclosed to an impostor.
-                    EnsureTrustedServer(candidate, _options.PipeName);
-                }
+                candidate = await _transport.ConnectAsync(
+                    new IpcConnectOptions { Endpoint = _options.Endpoint, TrustModel = _options.TrustModel },
+                    attemptCancellation.Token).ConfigureAwait(false);
 
-                var hello = await NegotiateAsync(candidate, attemptCancellation.Token).ConfigureAwait(false);
-                _stream = candidate;
+                // Before the handshake, so nothing is disclosed to an impostor.
+                _serverAuthenticator.EnsureTrusted(candidate, _options.Endpoint);
+
+                var hello = await NegotiateAsync(candidate.Stream, attemptCancellation.Token).ConfigureAwait(false);
+                _connection = candidate;
+                candidate = null;
                 _serverHello = hello;
                 _lastReceivedSequence = 0;
                 _lastSentSequence = 0;
@@ -283,20 +294,20 @@ public sealed class NamedPipeIpcClient : IAsyncDisposable
             }
             catch (OperationCanceledException error) when (!cancellationToken.IsCancellationRequested)
             {
-                candidate.Dispose();
                 finalTransientError = new TimeoutException(
-                    $"Timed out connecting to local pipe '{_options.PipeName}'.",
+                    $"Timed out connecting to {_options.Endpoint}.",
                     error);
             }
             catch (IOException error) when (error is not IpcProtocolNegotiationException)
             {
-                candidate.Dispose();
                 finalTransientError = error;
             }
-            catch
+            finally
             {
-                candidate.Dispose();
-                throw;
+                if (candidate is not null)
+                {
+                    await candidate.DisposeAsync().ConfigureAwait(false);
+                }
             }
 
             if (attempt == _options.MaxConnectAttempts)
@@ -316,60 +327,11 @@ public sealed class NamedPipeIpcClient : IAsyncDisposable
         }
 
         throw finalTransientError ?? new IOException(
-            $"Could not connect to local pipe '{_options.PipeName}'.");
-    }
-
-    private NamedPipeClientStream CreateClientStream()
-    {
-        var pipeOptions = PipeOptions.Asynchronous;
-        if (OperatingSystem.IsWindows() && _options.Access != IpcPipeAccess.MachineService)
-        {
-            pipeOptions |= PipeOptions.CurrentUserOnly;
-        }
-
-        return new NamedPipeClientStream(
-            ".",
-            _options.PipeName,
-            PipeDirection.InOut,
-            pipeOptions);
-    }
-
-    /// <summary>
-    /// Confirms a machine-service pipe really belongs to the agent before anything is sent.
-    ///
-    /// CurrentUserOnly normally does this for free by comparing the server's owner to the caller.
-    /// A service runs as LocalSystem, so that comparison has to be replaced rather than dropped:
-    /// Windows lets any process create a further instance of an existing pipe name, so without
-    /// this an unprivileged squatter could answer on the machine-wide name and be handed
-    /// credentials over the secret channel.
-    /// </summary>
-    /// <summary>
-    /// Whether a pipe owned by <paramref name="owner"/> may be trusted to be the agent service.
-    ///
-    /// Separated from the stream so the rule can be tested for every kind of owner. Deciding it
-    /// against a pipe this process creates cannot be: the answer then depends on whether whoever
-    /// runs the tests happens to be an administrator, which is how the first version of this
-    /// passed locally and failed on a build agent.
-    /// </summary>
-    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
-    public static bool IsTrustedServerOwner(SecurityIdentifier? owner) =>
-        owner is not null &&
-        (owner.IsWellKnown(WellKnownSidType.LocalSystemSid) ||
-            owner.IsWellKnown(WellKnownSidType.BuiltinAdministratorsSid));
-
-    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
-    private static void EnsureTrustedServer(NamedPipeClientStream stream, string pipeName)
-    {
-        var owner = stream.GetAccessControl().GetOwner(typeof(SecurityIdentifier)) as SecurityIdentifier;
-        if (!IsTrustedServerOwner(owner))
-        {
-            throw new IOException(
-                $"Local pipe '{pipeName}' is not owned by the StorageHub service account.");
-        }
+            $"Could not connect to {_options.Endpoint}.");
     }
 
     private async Task<HelloResponse> NegotiateAsync(
-        NamedPipeClientStream stream,
+        Stream stream,
         CancellationToken cancellationToken)
     {
         var requestId = Guid.NewGuid();
@@ -434,9 +396,9 @@ public sealed class NamedPipeIpcClient : IAsyncDisposable
         return response;
     }
 
-    private NamedPipeClientStream GetConnectedStream() =>
-        IsConnected && _stream is not null
-            ? _stream
+    private Stream GetConnectedStream() =>
+        IsConnected && _connection is not null
+            ? _connection.Stream
             : throw new InvalidOperationException("The local IPC client is not connected.");
 
     private void EnsureFrameKind(IpcFrameKind required)
@@ -444,14 +406,18 @@ public sealed class NamedPipeIpcClient : IAsyncDisposable
         if (_options.FrameKind != required)
         {
             throw new InvalidOperationException(
-                $"This named-pipe client is configured for {_options.FrameKind} frames, not {required} frames.");
+                $"This IPC client is configured for {_options.FrameKind} frames, not {required} frames.");
         }
     }
 
-    private void DisconnectCore()
+    private async ValueTask DisconnectCoreAsync()
     {
-        _stream?.Dispose();
-        _stream = null;
+        if (_connection is not null)
+        {
+            await _connection.DisposeAsync().ConfigureAwait(false);
+        }
+
+        _connection = null;
         _serverHello = null;
         _lastReceivedSequence = 0;
         _lastSentSequence = 0;

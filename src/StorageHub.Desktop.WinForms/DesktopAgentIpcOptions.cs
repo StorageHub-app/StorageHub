@@ -1,4 +1,5 @@
 using StorageHub.Ipc;
+using StorageHub.Ipc.Windows;
 
 namespace StorageHub.Desktop;
 
@@ -21,16 +22,16 @@ internal static class DesktopAgentIpcOptions
     private static readonly string ClientVersionValue =
         typeof(DesktopAgentIpcOptions).Assembly.GetName().Version?.ToString() ?? "0.1.0";
 
-    internal static NamedPipeIpcClientOptions Create(
+    internal static IpcClientOptions Create(
         string pipeName,
         string clientName,
         TimeSpan connectTimeout) =>
         new()
         {
-            PipeName = pipeName,
+            Endpoint = new NamedPipeEndpoint(pipeName),
             // Must match the agent's mode: a machine pipe cannot be opened with
             // current-user-only security, and the client verifies the server's owner instead.
-            Access = DesktopAgentHost.PipeAccess,
+            TrustModel = DesktopAgentHost.PipeAccess,
             ClientName = clientName,
             ClientVersion = ClientVersionValue,
             ConnectTimeout = connectTimeout,

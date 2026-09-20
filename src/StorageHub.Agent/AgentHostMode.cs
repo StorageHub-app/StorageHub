@@ -107,12 +107,20 @@ public static class AgentHostLayout
     /// that one machine-wide agent serves whoever is signed in. Access is then decided by the
     /// pipe's ACL rather than by the name being unguessable.
     /// </summary>
+    /// <remarks>
+    /// Windows-only, and CA1416 now says so rather than leaving it to be discovered at runtime.
+    /// Both halves are: the machine names address a Windows service, and the per-user names hash a
+    /// Windows account SID. An endpoint on Linux is a socket path under XDG_RUNTIME_DIR whose
+    /// privacy comes from the directory's mode, so this does not generalise - it is replaced by
+    /// IAgentPlatform.ResolveEndpoint rather than extended.
+    /// </remarks>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     public static (string Normal, string Secret) ResolvePipeNames(AgentHostMode mode) =>
         !Enum.IsDefined(mode)
             ? throw new ArgumentOutOfRangeException(nameof(mode))
             : mode == AgentHostMode.WindowsService
                 ? (MachinePipePrefix, MachineSecretPipePrefix)
-                : (Ipc.StorageHubIpcPipeNames.Normal, Ipc.StorageHubIpcPipeNames.Secret);
+                : (Ipc.Windows.StorageHubIpcPipeNames.Normal, Ipc.Windows.StorageHubIpcPipeNames.Secret);
 
     /// <summary>
     /// True when this process is already running with the privileges a service install needs.

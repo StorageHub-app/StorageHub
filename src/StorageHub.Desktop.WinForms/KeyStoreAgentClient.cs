@@ -1,7 +1,8 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using StorageHub.Ipc;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Localization;
+using StorageHub.Ipc.Windows;
 
 namespace StorageHub.Desktop;
 
@@ -288,7 +289,7 @@ public sealed class NamedPipeKeyStoreAgentClient : IKeyStoreAgentClient
     private static NamedPipeKeyStoreIpcTransport CreateTransport(KeyStoreAgentClientOptions options)
     {
         ValidateOptions(options);
-        return new NamedPipeKeyStoreIpcTransport(new NamedPipeIpcClient(
+        return new NamedPipeKeyStoreIpcTransport(WindowsNamedPipeIpc.CreateClient(
             DesktopAgentIpcOptions.Create(
                 options.PipeName,
                 "StorageHub.Desktop.KeyStore",
@@ -318,9 +319,9 @@ public sealed class NamedPipeKeyStoreAgentClient : IKeyStoreAgentClient
         }
     }
 
-    private sealed class NamedPipeKeyStoreIpcTransport(NamedPipeIpcClient client) : IStorageIpcTransport
+    private sealed class NamedPipeKeyStoreIpcTransport(IpcClient client) : IStorageIpcTransport
     {
-        private readonly NamedPipeIpcClient _client = client ?? throw new ArgumentNullException(nameof(client));
+        private readonly IpcClient _client = client ?? throw new ArgumentNullException(nameof(client));
 
         public bool IsConnected => _client.IsConnected;
 

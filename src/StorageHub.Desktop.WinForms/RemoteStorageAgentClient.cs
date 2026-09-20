@@ -1,7 +1,8 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using StorageHub.Ipc;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Localization;
+using StorageHub.Ipc.Windows;
 
 namespace StorageHub.Desktop;
 
@@ -467,7 +468,7 @@ public sealed class NamedPipeRemoteStorageAgentClient : IRemoteStorageAgentClien
     private static NamedPipeStorageIpcTransport CreateTransport(RemoteStorageAgentClientOptions options)
     {
         ValidateOptions(options);
-        return new NamedPipeStorageIpcTransport(new NamedPipeIpcClient(DesktopAgentIpcOptions.Create(
+        return new NamedPipeStorageIpcTransport(WindowsNamedPipeIpc.CreateClient(DesktopAgentIpcOptions.Create(
             options.PipeName,
             "StorageHub.Desktop.StorageBrowser",
             options.ConnectTimeout)));
@@ -497,9 +498,9 @@ public sealed class NamedPipeRemoteStorageAgentClient : IRemoteStorageAgentClien
         }
     }
 
-    private sealed class NamedPipeStorageIpcTransport(NamedPipeIpcClient client) : IStorageIpcTransport
+    private sealed class NamedPipeStorageIpcTransport(IpcClient client) : IStorageIpcTransport
     {
-        private readonly NamedPipeIpcClient _client = client ?? throw new ArgumentNullException(nameof(client));
+        private readonly IpcClient _client = client ?? throw new ArgumentNullException(nameof(client));
 
         public bool IsConnected => _client.IsConnected;
 

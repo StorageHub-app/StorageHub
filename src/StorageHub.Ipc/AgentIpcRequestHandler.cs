@@ -18,7 +18,7 @@ public sealed class AgentIpcRequestHandler
     }
 
     public async Task HandleSessionAsync(
-        NamedPipeIpcSession session,
+        IpcSession session,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(session);

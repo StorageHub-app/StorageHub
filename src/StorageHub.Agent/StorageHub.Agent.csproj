@@ -9,6 +9,7 @@
     <!-- ServiceBase and ServiceController: the agent hosts a Windows service, and the
          desktop reads its state to show the current mode. -->
     <PackageReference Include="System.ServiceProcess.ServiceController" />
+    <ProjectReference Include="..\StorageHub.Ipc.Windows\StorageHub.Ipc.Windows.csproj" />
     <ProjectReference Include="..\StorageHub.Application\StorageHub.Application.csproj" />
     <ProjectReference Include="..\StorageHub.Contracts\StorageHub.Contracts.csproj" />
     <ProjectReference Include="..\StorageHub.Ipc\StorageHub.Ipc.csproj" />

@@ -1,11 +1,10 @@
-using System.IO.Pipes;
 using StorageHub.Contracts.Ipc;
 
 namespace StorageHub.Ipc;
 
-public sealed class NamedPipeIpcSession : IAsyncDisposable
+public sealed class IpcSession : IAsyncDisposable
 {
-    private readonly NamedPipeServerStream _stream;
+    private readonly IIpcConnection _connection;
     private readonly CancellationTokenSource _sessionCancellation;
     private readonly TimeSpan _idleTimeout;
     private readonly TimeSpan _requestTimeout;
@@ -16,8 +15,8 @@ public sealed class NamedPipeIpcSession : IAsyncDisposable
     private long _lastSentSequence;
     private bool _disposed;
 
-    internal NamedPipeIpcSession(
-        NamedPipeServerStream stream,
+    internal IpcSession(
+        IIpcConnection connection,
         HelloRequest clientHello,
         ProtocolVersion negotiatedProtocolVersion,
         CancellationTokenSource sessionCancellation,
@@ -25,7 +24,7 @@ public sealed class NamedPipeIpcSession : IAsyncDisposable
         TimeSpan requestTimeout,
         IpcFrameKind frameKind)
     {
-        _stream = stream;
+        _connection = connection;
         _sessionCancellation = sessionCancellation;
         _idleTimeout = idleTimeout;
         _requestTimeout = requestTimeout;
@@ -39,7 +38,7 @@ public sealed class NamedPipeIpcSession : IAsyncDisposable
 
     public ProtocolVersion NegotiatedProtocolVersion { get; }
 
-    public bool IsConnected => !_disposed && _stream.IsConnected;
+    public bool IsConnected => !_disposed && _connection.IsConnected;
 
     public async ValueTask<IpcEnvelope> ReceiveAsync(CancellationToken cancellationToken = default)
     {
@@ -52,7 +51,7 @@ public sealed class NamedPipeIpcSession : IAsyncDisposable
         try
         {
             var envelope = await LengthPrefixedJsonChannel.ReadAsync<IpcEnvelope>(
-                _stream,
+                _connection.Stream,
                 IpcFrameLimits.NormalMaxBytes,
                 cancellationToken: operationCancellation.Token).ConfigureAwait(false);
             IpcProtocolValidation.ValidateNormalEnvelope(envelope, _lastReceivedSequence);
@@ -80,7 +79,7 @@ public sealed class NamedPipeIpcSession : IAsyncDisposable
         {
             IpcProtocolValidation.ValidateNormalEnvelope(envelope, _lastSentSequence);
             await LengthPrefixedJsonChannel.WriteAsync(
-                _stream,
+                _connection.Stream,
                 envelope,
                 IpcFrameLimits.NormalMaxBytes,
                 cancellationToken: operationCancellation.Token).ConfigureAwait(false);
@@ -105,7 +104,7 @@ public sealed class NamedPipeIpcSession : IAsyncDisposable
         try
         {
             var envelope = await LengthPrefixedJsonChannel.ReadAsync<SecretIpcRequestEnvelope>(
-                _stream,
+                _connection.Stream,
                 IpcFrameLimits.SecretMaxBytes,
                 cancellationToken: operationCancellation.Token).ConfigureAwait(false);
             IpcProtocolValidation.ValidateSecretEnvelope(
@@ -141,7 +140,7 @@ public sealed class NamedPipeIpcSession : IAsyncDisposable
                 envelope.Sequence,
                 _lastSentSequence);
             await LengthPrefixedJsonChannel.WriteAsync(
-                _stream,
+                _connection.Stream,
                 envelope,
                 IpcFrameLimits.SecretMaxBytes,
                 cancellationToken: operationCancellation.Token).ConfigureAwait(false);
@@ -154,18 +153,17 @@ public sealed class NamedPipeIpcSession : IAsyncDisposable
         }
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         if (_disposed)
         {
-            return ValueTask.CompletedTask;
+            return;
         }
 
         _disposed = true;
-        _stream.Dispose();
+        await _connection.DisposeAsync().ConfigureAwait(false);
         _readGate.Dispose();
         _writeGate.Dispose();
-        return ValueTask.CompletedTask;
     }
 
     private void EnsureFrameKind(IpcFrameKind required)

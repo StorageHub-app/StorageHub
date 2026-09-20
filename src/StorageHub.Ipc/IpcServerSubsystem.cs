@@ -1,25 +1,22 @@
 using System.Collections.Concurrent;
-using System.IO.Pipes;
-using System.Security.AccessControl;
-using System.Security.Principal;
 using System.Text.Json;
 using StorageHub.Contracts.Agent;
 using StorageHub.Contracts.Ipc;
 
 namespace StorageHub.Ipc;
 
-public sealed class NamedPipeIpcServerSubsystem : IAgentSubsystem, IAsyncDisposable
+public sealed class IpcServerSubsystem : IAgentSubsystem, IAsyncDisposable
 {
-    private const int MaximumPipeInstances = 254;
-    private readonly NamedPipeIpcServerOptions _options;
-    private readonly Func<NamedPipeIpcSession, CancellationToken, Task>? _sessionHandler;
+    private readonly IIpcTransport _transport;
+    private readonly IpcServerOptions _options;
+    private readonly IIpcPeerAuthorizer _peerAuthorizer;
+    private readonly Func<IpcSession, CancellationToken, Task>? _sessionHandler;
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     private readonly SemaphoreSlim _clientSlots;
-    private readonly object _pendingListenerGate = new();
-    private readonly ConcurrentDictionary<int, NamedPipeServerStream> _activePipes = new();
+    private readonly ConcurrentDictionary<int, IIpcConnection> _activeConnections = new();
     private readonly ConcurrentDictionary<int, Task> _sessionTasks = new();
     private CancellationTokenSource? _lifetime;
-    private NamedPipeServerStream? _pendingListener;
+    private IIpcListener? _listener;
     private Task? _acceptLoop;
     private Exception? _lastFailure;
     private int _nextSessionId;
@@ -29,13 +26,19 @@ public sealed class NamedPipeIpcServerSubsystem : IAgentSubsystem, IAsyncDisposa
     private bool _initialized;
     private bool _disposed;
 
-    public NamedPipeIpcServerSubsystem(
-        NamedPipeIpcServerOptions options,
-        Func<NamedPipeIpcSession, CancellationToken, Task>? sessionHandler = null)
+    public IpcServerSubsystem(
+        IIpcTransport transport,
+        IpcServerOptions options,
+        IIpcPeerAuthorizer peerAuthorizer,
+        Func<IpcSession, CancellationToken, Task>? sessionHandler = null)
     {
+        ArgumentNullException.ThrowIfNull(transport);
         ArgumentNullException.ThrowIfNull(options);
-        ValidateOptions(options);
+        ArgumentNullException.ThrowIfNull(peerAuthorizer);
+        ValidateOptions(transport, options);
+        _transport = transport;
         _options = options;
+        _peerAuthorizer = peerAuthorizer;
         _sessionHandler = sessionHandler;
         _clientSlots = new SemaphoreSlim(options.MaxConcurrentClients, options.MaxConcurrentClients);
     }
@@ -51,8 +54,6 @@ public sealed class NamedPipeIpcServerSubsystem : IAgentSubsystem, IAsyncDisposa
     public int ActiveClientCount => Volatile.Read(ref _activeClientCount);
 
     public int PeakClientCount => Volatile.Read(ref _peakClientCount);
-
-    public static bool UsesCurrentUserOnlySecurity => OperatingSystem.IsWindows();
 
     public async Task<SubsystemInitializationResult> InitializeAsync(CancellationToken cancellationToken)
     {
@@ -74,8 +75,7 @@ public sealed class NamedPipeIpcServerSubsystem : IAgentSubsystem, IAsyncDisposa
         ObjectDisposedException.ThrowIf(_disposed, this);
         await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         CancellationTokenSource? lifetime = null;
-        NamedPipeServerStream? firstListener = null;
-        var ownsClientSlot = false;
+        IIpcListener? listener = null;
         try
         {
             if (!_initialized)
@@ -96,18 +96,17 @@ public sealed class NamedPipeIpcServerSubsystem : IAgentSubsystem, IAsyncDisposa
 
             Volatile.Write(ref _lastFailure, null);
             lifetime = new CancellationTokenSource();
-            await _clientSlots.WaitAsync(cancellationToken).ConfigureAwait(false);
-            ownsClientSlot = true;
-            firstListener = CreateServerStream();
+
+            // The endpoint is published here rather than inside the accept loop, so that by the
+            // time this returns a client which connects immediately finds it already there.
+            listener = _transport.Listen(ToListenOptions(_options));
 
             _lifetime = lifetime;
             lifetime = null;
+            _listener = listener;
+            listener = null;
             Volatile.Write(ref _isRunning, 1);
-
-            var listener = firstListener;
-            firstListener = null;
-            ownsClientSlot = false;
-            _acceptLoop = AcceptConnectionsAsync(listener, _lifetime.Token);
+            _acceptLoop = AcceptConnectionsAsync(_listener, _lifetime.Token);
         }
         catch (Exception error)
         {
@@ -117,10 +116,9 @@ public sealed class NamedPipeIpcServerSubsystem : IAgentSubsystem, IAsyncDisposa
                 Volatile.Write(ref _lastFailure, error);
             }
 
-            firstListener?.Dispose();
-            if (ownsClientSlot)
+            if (listener is not null)
             {
-                _clientSlots.Release();
+                await listener.DisposeAsync().ConfigureAwait(false);
             }
 
             lifetime?.Dispose();
@@ -149,10 +147,15 @@ public sealed class NamedPipeIpcServerSubsystem : IAgentSubsystem, IAsyncDisposa
 
             Volatile.Write(ref _isRunning, 0);
             _lifetime?.Cancel();
-            DisposePendingListener();
-            foreach (var pipe in _activePipes.Values)
+            if (_listener is not null)
             {
-                pipe.Dispose();
+                await _listener.DisposeAsync().ConfigureAwait(false);
+                _listener = null;
+            }
+
+            foreach (var connection in _activeConnections.Values)
+            {
+                await connection.DisposeAsync().ConfigureAwait(false);
             }
 
             if (_acceptLoop is not null)
@@ -209,66 +212,41 @@ public sealed class NamedPipeIpcServerSubsystem : IAgentSubsystem, IAsyncDisposa
         _lifecycleGate.Dispose();
     }
 
-    private static void ValidateOptions(NamedPipeIpcServerOptions options)
+    private static IpcListenOptions ToListenOptions(IpcServerOptions options) => new()
     {
-        IpcProtocolValidation.ValidatePipeName(options.PipeName);
+        Endpoint = options.Endpoint,
+        TrustModel = options.TrustModel,
+        PermittedPrincipals = options.PermittedPrincipals,
+        MaxConcurrentClients = options.MaxConcurrentClients,
+    };
+
+    private static void ValidateOptions(IIpcTransport transport, IpcServerOptions options)
+    {
+        // The whole listen configuration, not just the address: a machine-service endpoint with
+        // nobody permitted has to be refused here rather than at StartAsync, or the agent starts,
+        // reports itself healthy, and refuses every client.
+        transport.ValidateListenOptions(ToListenOptions(options));
         if (!Enum.IsDefined(options.FrameKind))
         {
             throw new ArgumentOutOfRangeException(nameof(options), "The IPC frame kind is invalid.");
         }
 
-        if (options.FrameKind == IpcFrameKind.Secret && !OperatingSystem.IsWindows())
+        // This used to ask whether the host was Windows. The requirement was never Windows: it is
+        // that the channel reaches one account and cannot be observed or impersonated by another,
+        // which a transport can answer for its own endpoints.
+        if (options.FrameKind == IpcFrameKind.Secret &&
+            !transport.SupportsConfidentialChannel(options.Endpoint, options.TrustModel))
         {
-            throw new PlatformNotSupportedException(
-                "Secret IPC requires Windows named-pipe security.");
-        }
-
-        if (!Enum.IsDefined(options.Access))
-        {
-            throw new ArgumentOutOfRangeException(nameof(options), "The IPC pipe access mode is invalid.");
-        }
-
-        if (options.Access == IpcPipeAccess.MachineService)
-        {
-            if (!OperatingSystem.IsWindows())
-            {
-                throw new PlatformNotSupportedException(
-                    "Machine-service pipe security requires Windows.");
-            }
-
-            // Refuse rather than publish a pipe the desktop cannot open: an empty list would leave
-            // only LocalSystem and Administrators on the ACL, which looks like a working agent and
-            // fails at every connect.
-            if (options.PermittedUserSids.Count == 0)
-            {
-                throw new ArgumentException(
-                    "Machine-service pipe security requires at least one permitted account.",
-                    nameof(options));
-            }
-
-            foreach (var sid in options.PermittedUserSids)
-            {
-                if (string.IsNullOrWhiteSpace(sid) || !IsResolvableSid(sid))
-                {
-                    throw new ArgumentException(
-                        "A permitted account SID is not a valid security identifier.",
-                        nameof(options));
-                }
-            }
+            throw new ArgumentException(
+                $"The {transport.Name} transport cannot carry a secret channel on {options.Endpoint} " +
+                $"under {options.TrustModel} trust.",
+                nameof(options));
         }
 
         IpcProtocolValidation.ValidateIdentity(options.AgentVersion, nameof(options.AgentVersion));
         if (options.AgentInstanceId == Guid.Empty)
         {
             throw new ArgumentException("The agent instance ID must not be empty.", nameof(options));
-        }
-
-        if (options.MaxConcurrentClients is < 1 or > MaximumPipeInstances)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(options),
-                options.MaxConcurrentClients,
-                $"The maximum concurrent client count must be between 1 and {MaximumPipeInstances}.");
         }
 
         IpcProtocolValidation.ValidatePositiveTimeout(options.HandshakeTimeout, nameof(options.HandshakeTimeout));
@@ -281,36 +259,37 @@ public sealed class NamedPipeIpcServerSubsystem : IAgentSubsystem, IAsyncDisposa
     }
 
     private async Task AcceptConnectionsAsync(
-        NamedPipeServerStream firstListener,
+        IIpcListener listener,
         CancellationToken cancellationToken)
     {
-        NamedPipeServerStream? suppliedListener = firstListener;
         while (!cancellationToken.IsCancellationRequested)
         {
-            var ownsSlot = suppliedListener is not null;
+            var ownsSlot = false;
             var handedOff = false;
-            var listener = suppliedListener;
-            suppliedListener = null;
+            IIpcConnection? connection = null;
             try
             {
-                if (listener is null)
+                await _clientSlots.WaitAsync(cancellationToken).ConfigureAwait(false);
+                ownsSlot = true;
+
+                connection = await listener.AcceptAsync(cancellationToken).ConfigureAwait(false);
+
+                // Where the operating system does not enforce the address itself, this is the
+                // check that keeps another account out. Where it does, it has already run.
+                if (!_peerAuthorizer.IsAuthorized(connection.Peer, out _))
                 {
-                    await _clientSlots.WaitAsync(cancellationToken).ConfigureAwait(false);
-                    ownsSlot = true;
-                    listener = CreateServerStream();
+                    await connection.DisposeAsync().ConfigureAwait(false);
+                    connection = null;
+                    continue;
                 }
 
-                SetPendingListener(listener);
-                await listener.WaitForConnectionAsync(cancellationToken).ConfigureAwait(false);
-                ClearPendingListener(listener);
-
                 var sessionId = Interlocked.Increment(ref _nextSessionId);
-                _activePipes[sessionId] = listener;
-                var sessionTask = RunSessionAsync(sessionId, listener, cancellationToken);
+                _activeConnections[sessionId] = connection;
+                var sessionTask = RunSessionAsync(sessionId, connection, cancellationToken);
                 _sessionTasks[sessionId] = sessionTask;
                 _ = ObserveSessionAsync(sessionId, sessionTask);
                 handedOff = true;
-                listener = null;
+                connection = null;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -326,15 +305,14 @@ public sealed class NamedPipeIpcServerSubsystem : IAgentSubsystem, IAsyncDisposa
             }
             catch (Exception error)
             {
-                RecordFatalAcceptLoopFailure(error);
+                await RecordFatalAcceptLoopFailureAsync(error).ConfigureAwait(false);
                 return;
             }
             finally
             {
-                if (listener is not null)
+                if (connection is not null)
                 {
-                    ClearPendingListener(listener);
-                    listener.Dispose();
+                    await connection.DisposeAsync().ConfigureAwait(false);
                 }
 
                 if (ownsSlot && !handedOff)
@@ -345,7 +323,7 @@ public sealed class NamedPipeIpcServerSubsystem : IAgentSubsystem, IAsyncDisposa
         }
     }
 
-    private void RecordFatalAcceptLoopFailure(Exception error)
+    private async Task RecordFatalAcceptLoopFailureAsync(Exception error)
     {
         Volatile.Write(ref _lastFailure, error);
         Volatile.Write(ref _isRunning, 0);
@@ -357,94 +335,21 @@ public sealed class NamedPipeIpcServerSubsystem : IAgentSubsystem, IAsyncDisposa
         {
         }
 
-        foreach (var pipe in _activePipes.Values)
+        foreach (var connection in _activeConnections.Values)
         {
-            pipe.Dispose();
+            await connection.DisposeAsync().ConfigureAwait(false);
         }
-    }
-
-    private NamedPipeServerStream CreateServerStream()
-    {
-        var pipeOptions = PipeOptions.Asynchronous;
-        if (OperatingSystem.IsWindows() && _options.Access == IpcPipeAccess.MachineService)
-        {
-            // A service and its clients are different accounts, so CurrentUserOnly would make the
-            // pipe unreachable. The ACL takes over as the boundary: LocalSystem and Administrators
-            // to administer it, the accounts that opted in to use it, and no one else. Notably no
-            // Everyone or Authenticated Users ACE -- the pipe name is machine-wide and therefore
-            // guessable, so the name grants nothing on its own.
-            return NamedPipeServerStreamAcl.Create(
-                _options.PipeName,
-                PipeDirection.InOut,
-                _options.MaxConcurrentClients,
-                PipeTransmissionMode.Byte,
-                pipeOptions,
-                inBufferSize: 0,
-                outBufferSize: 0,
-                CreateMachineServicePipeSecurity(_options.PermittedUserSids));
-        }
-
-        if (OperatingSystem.IsWindows())
-        {
-            pipeOptions |= PipeOptions.CurrentUserOnly;
-        }
-
-        return new NamedPipeServerStream(
-            _options.PipeName,
-            PipeDirection.InOut,
-            _options.MaxConcurrentClients,
-            PipeTransmissionMode.Byte,
-            pipeOptions);
-    }
-
-    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
-    private static bool IsResolvableSid(string sid)
-    {
-        try
-        {
-            _ = new SecurityIdentifier(sid);
-            return true;
-        }
-        catch (ArgumentException)
-        {
-            return false;
-        }
-    }
-
-    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
-    private static PipeSecurity CreateMachineServicePipeSecurity(IReadOnlyList<string> permittedUserSids)
-    {
-        var security = new PipeSecurity();
-        foreach (var wellKnown in new[] { WellKnownSidType.LocalSystemSid, WellKnownSidType.BuiltinAdministratorsSid })
-        {
-            security.AddAccessRule(new PipeAccessRule(
-                new SecurityIdentifier(wellKnown, null),
-                PipeAccessRights.FullControl,
-                AccessControlType.Allow));
-        }
-
-        foreach (var sid in permittedUserSids)
-        {
-            // ReadWrite plus Synchronize is everything a client needs and nothing more; it cannot
-            // change the pipe's own security the way FullControl would.
-            security.AddAccessRule(new PipeAccessRule(
-                new SecurityIdentifier(sid),
-                PipeAccessRights.ReadWrite | PipeAccessRights.Synchronize,
-                AccessControlType.Allow));
-        }
-
-        return security;
     }
 
     private async Task RunSessionAsync(
         int sessionId,
-        NamedPipeServerStream pipe,
+        IIpcConnection connection,
         CancellationToken cancellationToken)
     {
         try
         {
             using var sessionCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            var session = await NegotiateSessionAsync(pipe, sessionCancellation).ConfigureAwait(false);
+            var session = await NegotiateSessionAsync(connection, sessionCancellation).ConfigureAwait(false);
             if (session is null)
             {
                 return;
@@ -495,20 +400,20 @@ public sealed class NamedPipeIpcServerSubsystem : IAgentSubsystem, IAsyncDisposa
         }
         finally
         {
-            _activePipes.TryRemove(sessionId, out _);
-            pipe.Dispose();
+            _activeConnections.TryRemove(sessionId, out _);
+            await connection.DisposeAsync().ConfigureAwait(false);
             _clientSlots.Release();
         }
     }
 
-    private async Task<NamedPipeIpcSession?> NegotiateSessionAsync(
-        NamedPipeServerStream pipe,
+    private async Task<IpcSession?> NegotiateSessionAsync(
+        IIpcConnection connection,
         CancellationTokenSource sessionCancellation)
     {
         using var handshakeCancellation = CancellationTokenSource.CreateLinkedTokenSource(sessionCancellation.Token);
         handshakeCancellation.CancelAfter(_options.HandshakeTimeout);
         var envelope = await LengthPrefixedJsonChannel.ReadAsync<IpcEnvelope>(
-            pipe,
+            connection.Stream,
             IpcFrameLimits.NormalMaxBytes,
             cancellationToken: handshakeCancellation.Token).ConfigureAwait(false);
         IpcProtocolValidation.ValidateHandshakeEnvelope(envelope, IpcProtocol.HelloRequestMessageType);
@@ -559,14 +464,14 @@ public sealed class NamedPipeIpcServerSubsystem : IAgentSubsystem, IAsyncDisposa
             0,
             response);
         await LengthPrefixedJsonChannel.WriteAsync(
-            pipe,
+            connection.Stream,
             responseEnvelope,
             IpcFrameLimits.NormalMaxBytes,
             cancellationToken: handshakeCancellation.Token).ConfigureAwait(false);
 
         return accepted
-            ? new NamedPipeIpcSession(
-                pipe,
+            ? new IpcSession(
+                connection,
                 hello,
                 negotiatedVersion,
                 sessionCancellation,
@@ -596,34 +501,6 @@ public sealed class NamedPipeIpcServerSubsystem : IAgentSubsystem, IAsyncDisposa
     {
         await sessionTask.ConfigureAwait(false);
         _sessionTasks.TryRemove(sessionId, out _);
-    }
-
-    private void SetPendingListener(NamedPipeServerStream listener)
-    {
-        lock (_pendingListenerGate)
-        {
-            _pendingListener = listener;
-        }
-    }
-
-    private void ClearPendingListener(NamedPipeServerStream listener)
-    {
-        lock (_pendingListenerGate)
-        {
-            if (ReferenceEquals(_pendingListener, listener))
-            {
-                _pendingListener = null;
-            }
-        }
-    }
-
-    private void DisposePendingListener()
-    {
-        lock (_pendingListenerGate)
-        {
-            _pendingListener?.Dispose();
-            _pendingListener = null;
-        }
     }
 
     private static async Task IgnoreExpectedShutdownExceptionAsync(Task task)

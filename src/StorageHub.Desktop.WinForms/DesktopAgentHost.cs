@@ -41,9 +41,9 @@ internal static class DesktopAgentHost
 
     internal static string SecretPipeName => AgentHostLayout.ResolvePipeNames(Mode).Secret;
 
-    internal static IpcPipeAccess PipeAccess => Mode == AgentHostMode.WindowsService
-        ? IpcPipeAccess.MachineService
-        : IpcPipeAccess.CurrentUserOnly;
+    internal static IpcTrustModel PipeAccess => Mode == AgentHostMode.WindowsService
+        ? IpcTrustModel.MachineService
+        : IpcTrustModel.SameUser;
 
     /// <summary>True when the desktop owns the agent's lifetime and may start one.</summary>
     internal static bool DesktopStartsAgent => Mode != AgentHostMode.WindowsService;

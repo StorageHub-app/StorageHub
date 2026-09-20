@@ -3,6 +3,7 @@ using System.Security.Principal;
 using StorageHub.Ipc;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Testing;
+using StorageHub.Ipc.Windows;
 
 namespace StorageHub.Agent.IntegrationTests;
 
@@ -15,14 +16,14 @@ namespace StorageHub.Agent.IntegrationTests;
 [System.Runtime.Versioning.SupportedOSPlatform("windows")]
 public sealed class MachineServicePipeSecurityTests
 {
-    private static NamedPipeIpcServerOptions Options(
-        IpcPipeAccess access,
+    private static IpcServerOptions Options(
+        IpcTrustModel access,
         params string[] permitted) => new()
         {
-            PipeName = $"StorageHub.Test.{Guid.NewGuid():N}",
+            Endpoint = new NamedPipeEndpoint($"StorageHub.Test.{Guid.NewGuid():N}"),
             AgentVersion = "1.0.0",
-            Access = access,
-            PermittedUserSids = permitted
+            TrustModel = access,
+            PermittedPrincipals = permitted
         };
 
     /// <summary>
@@ -33,7 +34,7 @@ public sealed class MachineServicePipeSecurityTests
     public void A_machine_service_pipe_refuses_to_start_with_nobody_permitted()
     {
         var error = Assert.Throws<ArgumentException>(
-            () => new NamedPipeIpcServerSubsystem(Options(IpcPipeAccess.MachineService)));
+            () => WindowsNamedPipeIpc.CreateServer(Options(IpcTrustModel.MachineService)));
 
         Assert.Contains("permitted account", error.Message, StringComparison.OrdinalIgnoreCase);
     }
@@ -42,16 +43,20 @@ public sealed class MachineServicePipeSecurityTests
     public void A_machine_service_pipe_refuses_a_malformed_account()
     {
         _ = Assert.Throws<ArgumentException>(
-            () => new NamedPipeIpcServerSubsystem(Options(IpcPipeAccess.MachineService, "not-a-sid")));
+            () => WindowsNamedPipeIpc.CreateServer(Options(IpcTrustModel.MachineService, "not-a-sid")));
     }
 
     [WindowsOnlyFact]
     public void The_default_access_stays_current_user_only()
     {
-        Assert.Equal(IpcPipeAccess.CurrentUserOnly, Options(IpcPipeAccess.CurrentUserOnly).Access);
+        Assert.Equal(IpcTrustModel.SameUser, Options(IpcTrustModel.SameUser).TrustModel);
         Assert.Equal(
-            IpcPipeAccess.CurrentUserOnly,
-            new NamedPipeIpcServerOptions { PipeName = "StorageHub.Test.Default", AgentVersion = "1.0.0" }.Access);
+            IpcTrustModel.SameUser,
+            new IpcServerOptions
+            {
+                Endpoint = new NamedPipeEndpoint("StorageHub.Test.Default"),
+                AgentVersion = "1.0.0",
+            }.TrustModel);
     }
 
     /// <summary>
@@ -63,17 +68,18 @@ public sealed class MachineServicePipeSecurityTests
     {
         using var current = WindowsIdentity.GetCurrent();
         var me = current.User!.Value;
-        var options = Options(IpcPipeAccess.MachineService, me);
-        await using var server = new NamedPipeIpcServerSubsystem(options);
+        var options = Options(IpcTrustModel.MachineService, me);
+        await using var server = WindowsNamedPipeIpc.CreateServer(options);
         _ = await server.InitializeAsync(CancellationToken.None);
         await server.StartAsync(CancellationToken.None);
         try
         {
-            // Deliberately a raw client rather than NamedPipeIpcClient: a pipe this process
+            // Deliberately a raw client rather than IpcClient: a pipe this process
             // creates is owned by whoever runs the tests, so the real client would accept or
             // refuse it depending on the environment. Ownership is proven separately below; what
             // is being proven here is the ACL itself.
-            using var probe = new NamedPipeClientStream(".", options.PipeName, PipeDirection.InOut);
+            var pipeName = ((NamedPipeEndpoint)options.Endpoint).PipeName;
+            using var probe = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut);
             await probe.ConnectAsync(2000, CancellationToken.None);
             var rules = probe.GetAccessControl()
                 .GetAccessRules(true, false, typeof(SecurityIdentifier))
@@ -111,21 +117,21 @@ public sealed class MachineServicePipeSecurityTests
     [WindowsOnlyFact]
     public void Only_the_service_accounts_are_trusted_to_own_the_machine_pipe()
     {
-        Assert.True(NamedPipeIpcClient.IsTrustedServerOwner(
+        Assert.True(WindowsPipeOwnerAuthenticator.IsTrustedServerOwner(
             new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null)));
-        Assert.True(NamedPipeIpcClient.IsTrustedServerOwner(
+        Assert.True(WindowsPipeOwnerAuthenticator.IsTrustedServerOwner(
             new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null)));
 
         // Constructed SIDs only. Asserting about the account running the tests would reintroduce
         // the environment dependency this test exists to remove.
-        Assert.False(NamedPipeIpcClient.IsTrustedServerOwner(
+        Assert.False(WindowsPipeOwnerAuthenticator.IsTrustedServerOwner(
             new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null)));
-        Assert.False(NamedPipeIpcClient.IsTrustedServerOwner(
+        Assert.False(WindowsPipeOwnerAuthenticator.IsTrustedServerOwner(
             new SecurityIdentifier(WellKnownSidType.AuthenticatedUserSid, null)));
-        Assert.False(NamedPipeIpcClient.IsTrustedServerOwner(
+        Assert.False(WindowsPipeOwnerAuthenticator.IsTrustedServerOwner(
             new SecurityIdentifier(WellKnownSidType.WorldSid, null)));
 
         // An unreadable owner must fail closed rather than be treated as absent-and-fine.
-        Assert.False(NamedPipeIpcClient.IsTrustedServerOwner(null));
+        Assert.False(WindowsPipeOwnerAuthenticator.IsTrustedServerOwner(null));
     }
 }

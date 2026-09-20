@@ -1,6 +1,7 @@
 using System.Text.Json;
 using StorageHub.Ipc;
 using StorageHub.Contracts.Ipc;
+using StorageHub.Ipc.Windows;
 
 namespace StorageHub.Desktop;
 
@@ -114,7 +115,7 @@ public sealed class AgentStatusMonitor : IAsyncDisposable
             // The 8s poll cadence is itself the retry, so a status poll takes a single
             // attempt. Retrying here would spend seconds per cycle re-probing a pipe
             // that is simply absent while the agent is stopped.
-            await using var client = new NamedPipeIpcClient(
+            await using var client = WindowsNamedPipeIpc.CreateClient(
                 DesktopAgentIpcOptions.Create(
                     DefaultPipeName,
                     "StorageHub.Desktop",

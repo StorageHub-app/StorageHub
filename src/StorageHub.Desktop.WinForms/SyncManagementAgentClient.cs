@@ -1,6 +1,7 @@
 using System.Text.Json;
 using StorageHub.Ipc;
 using StorageHub.Contracts.Ipc;
+using StorageHub.Ipc.Windows;
 
 namespace StorageHub.Desktop;
 
@@ -702,7 +703,7 @@ public sealed class NamedPipeSyncManagementAgentClient : ISyncManagementAgentCli
     private static NamedPipeSyncIpcTransport CreateTransport(SyncManagementAgentClientOptions options)
     {
         ValidateOptions(options);
-        return new NamedPipeSyncIpcTransport(new NamedPipeIpcClient(DesktopAgentIpcOptions.Create(
+        return new NamedPipeSyncIpcTransport(WindowsNamedPipeIpc.CreateClient(DesktopAgentIpcOptions.Create(
             options.PipeName,
             "StorageHub.Desktop.SyncManagement",
             options.ConnectTimeout)));
@@ -727,9 +728,9 @@ public sealed class NamedPipeSyncManagementAgentClient : ISyncManagementAgentCli
         }
     }
 
-    private sealed class NamedPipeSyncIpcTransport(NamedPipeIpcClient client) : IStorageIpcTransport
+    private sealed class NamedPipeSyncIpcTransport(IpcClient client) : IStorageIpcTransport
     {
-        private readonly NamedPipeIpcClient _client = client ?? throw new ArgumentNullException(nameof(client));
+        private readonly IpcClient _client = client ?? throw new ArgumentNullException(nameof(client));
         public bool IsConnected => _client.IsConnected;
         public async Task ConnectAsync(CancellationToken cancellationToken = default) =>
             _ = await _client.ConnectAsync(cancellationToken).ConfigureAwait(false);

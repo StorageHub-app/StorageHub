@@ -1,7 +1,8 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using StorageHub.Ipc;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Localization;
+using StorageHub.Ipc.Windows;
 
 namespace StorageHub.Desktop;
 
@@ -555,7 +556,7 @@ public sealed class NamedPipeObjectInspectorAgentClient : IObjectInspectorAgentC
         ObjectInspectorAgentClientOptions options)
     {
         ValidateOptions(options);
-        return new NamedPipeObjectInspectorIpcTransport(new NamedPipeIpcClient(
+        return new NamedPipeObjectInspectorIpcTransport(WindowsNamedPipeIpc.CreateClient(
             DesktopAgentIpcOptions.Create(
                 options.PipeName,
                 "StorageHub.Desktop.ObjectInspector",
@@ -585,10 +586,10 @@ public sealed class NamedPipeObjectInspectorAgentClient : IObjectInspectorAgentC
         }
     }
 
-    private sealed class NamedPipeObjectInspectorIpcTransport(NamedPipeIpcClient client)
+    private sealed class NamedPipeObjectInspectorIpcTransport(IpcClient client)
         : IStorageIpcTransport
     {
-        private readonly NamedPipeIpcClient _client =
+        private readonly IpcClient _client =
             client ?? throw new ArgumentNullException(nameof(client));
 
         public bool IsConnected => _client.IsConnected;
