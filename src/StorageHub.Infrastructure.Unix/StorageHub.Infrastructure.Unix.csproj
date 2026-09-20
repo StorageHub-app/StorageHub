@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- LibraryImport generates its marshalling stubs with unsafe code. The interop here is geteuid
+         and statx, both taking blittable arguments; nothing in this project dereferences a pointer. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../StorageHub.Security/StorageHub.Security.csproj" />
+  </ItemGroup>
+</Project>

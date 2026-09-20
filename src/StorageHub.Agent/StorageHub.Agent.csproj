@@ -13,6 +13,7 @@
     <ProjectReference Include="..\StorageHub.Application\StorageHub.Application.csproj" />
     <ProjectReference Include="..\StorageHub.Contracts\StorageHub.Contracts.csproj" />
     <ProjectReference Include="..\StorageHub.Ipc\StorageHub.Ipc.csproj" />
+    <ProjectReference Include="..\StorageHub.Security\StorageHub.Security.csproj" />
     <ProjectReference Include="..\StorageHub.Domain\StorageHub.Domain.csproj" />
     <ProjectReference Include="..\StorageHub.Storage\StorageHub.Storage.csproj" />
     <ProjectReference Include="..\StorageHub.Sync\StorageHub.Sync.csproj" />

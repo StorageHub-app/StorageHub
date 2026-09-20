@@ -1,6 +1,8 @@
 using StorageHub.Agent;
 using StorageHub.Ipc;
+using StorageHub.Infrastructure.Unix;
 using StorageHub.Ipc.Unix;
+using StorageHub.Security;
 
 namespace StorageHub.Agent.Linux;
 
@@ -58,6 +60,27 @@ public sealed class LinuxAgentPlatform : IAgentPlatform
 
         var endpoints = UnixDomainSocketIpc.EndpointsForCurrentUser();
         return channel == AgentIpcChannel.Secret ? endpoints.Secret : endpoints.Normal;
+    }
+
+    /// <summary>
+    /// A master key file only this user can read, rather than the session keyring.
+    /// </summary>
+    /// <remarks>
+    /// libsecret is the obvious choice and the wrong one: a lingering agent is designed to run with
+    /// nobody signed in, where there is no session bus and no unlocked keyring, so every vault read
+    /// would fail exactly when unattended work depends on it.
+    /// </remarks>
+    public ISecretProtector CreateSecretProtector(AgentHostMode mode, AgentPaths paths)
+    {
+        EnsureSupported(mode);
+        ArgumentNullException.ThrowIfNull(paths);
+        return new UnixKeyFileSecretProtector(Path.Combine(paths.AgentDirectory, "secrets"));
+    }
+
+    public IRuntimeSecretFileMaterializer CreateRuntimeSecretFileMaterializer(AgentPaths paths)
+    {
+        ArgumentNullException.ThrowIfNull(paths);
+        return new UnixRuntimeSecretFileMaterializer(paths.RuntimeSecretsDirectory);
     }
 
     public IpcTrustModel ResolveTrustModel(AgentHostMode mode)

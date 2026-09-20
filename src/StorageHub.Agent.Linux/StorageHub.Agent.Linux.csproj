@@ -2,6 +2,7 @@
   <ItemGroup>
     <ProjectReference Include="../StorageHub.Agent/StorageHub.Agent.csproj" />
     <ProjectReference Include="../StorageHub.Ipc.Unix/StorageHub.Ipc.Unix.csproj" />
+    <ProjectReference Include="../StorageHub.Infrastructure.Unix/StorageHub.Infrastructure.Unix.csproj" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="StorageHub.Agent.Linux.Tests" />

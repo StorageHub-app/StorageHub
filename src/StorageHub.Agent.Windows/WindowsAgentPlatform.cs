@@ -1,7 +1,9 @@
 using Microsoft.Win32;
 using StorageHub.Agent;
 using StorageHub.Ipc;
+using StorageHub.Infrastructure.Windows;
 using StorageHub.Ipc.Windows;
+using StorageHub.Security;
 
 namespace StorageHub.Agent.Windows;
 
@@ -140,6 +142,29 @@ public sealed class WindowsAgentPlatform : IAgentPlatform
 
         var (normal, secret) = AgentHostLayout.ResolvePipeNames(mode);
         return new NamedPipeEndpoint(channel == AgentIpcChannel.Secret ? secret : normal);
+    }
+
+    /// <summary>
+    /// DPAPI, scoped to match the mode.
+    /// </summary>
+    /// <remarks>
+    /// A service runs as LocalSystem and cannot reach the user's own key, so it protects with the
+    /// machine's - which any administrator can read, and which is the price of running with nobody
+    /// signed in.
+    /// </remarks>
+    public ISecretProtector CreateSecretProtector(AgentHostMode mode, AgentPaths paths)
+    {
+        EnsureSupported(mode);
+        ArgumentNullException.ThrowIfNull(paths);
+        return new WindowsDpapiProtector(mode == AgentHostMode.WindowsService
+            ? DpapiProtectionScope.LocalMachine
+            : DpapiProtectionScope.CurrentUser);
+    }
+
+    public IRuntimeSecretFileMaterializer CreateRuntimeSecretFileMaterializer(AgentPaths paths)
+    {
+        ArgumentNullException.ThrowIfNull(paths);
+        return new WindowsRuntimeSecretFileMaterializer(paths.RuntimeSecretsDirectory);
     }
 
     public IpcTrustModel ResolveTrustModel(AgentHostMode mode)

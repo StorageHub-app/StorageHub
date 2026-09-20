@@ -1,3 +1,5 @@
+using StorageHub.Infrastructure.Unix;
+
 namespace StorageHub.Ipc.Unix;
 
 /// <summary>
@@ -21,9 +23,6 @@ public static class UnixIpcSocketDirectory
     /// </remarks>
     public const int MaximumSocketPathLength = 107;
 
-    private const UnixFileMode PrivateDirectoryMode =
-        UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute;
-
     /// <summary>
     /// The directory StorageHub's sockets belong in for this user.
     /// </summary>
@@ -43,19 +42,8 @@ public static class UnixIpcSocketDirectory
     }
 
     /// <summary>Creates the directory private if it is missing, then proves it is private.</summary>
-    public static void EnsurePrivate(string directory)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(directory);
-
-        if (!Directory.Exists(directory))
-        {
-            // Created with the mode rather than chmod-ed afterwards, so there is no window in
-            // which the directory exists and is readable by anyone else.
-            Directory.CreateDirectory(directory, PrivateDirectoryMode);
-        }
-
-        Verify(directory);
-    }
+    public static void EnsurePrivate(string directory) =>
+        UnixFileSystem.EnsurePrivateDirectory(directory);
 
     /// <summary>
     /// Refuses a directory that is not exactly 0700, not owned by this user, or a symlink.
@@ -65,36 +53,8 @@ public static class UnixIpcSocketDirectory
     /// parent entry first could point it at a directory they control, and the agent would publish
     /// its socket - including the secret channel - somewhere they can reach.
     /// </remarks>
-    public static void Verify(string directory)
-    {
-        var info = new DirectoryInfo(directory);
-        if (!info.Exists)
-        {
-            throw new IOException($"The StorageHub socket directory '{directory}' does not exist.");
-        }
-
-        if (info.LinkTarget is not null)
-        {
-            throw new IOException(
-                $"The StorageHub socket directory '{directory}' is a symbolic link, which is not trusted.");
-        }
-
-        var mode = File.GetUnixFileMode(directory);
-        if (mode != PrivateDirectoryMode)
-        {
-            throw new IOException(
-                $"The StorageHub socket directory '{directory}' must be accessible only by its owner "
-                    + $"(expected {PrivateDirectoryMode}, found {mode}).");
-        }
-
-        var owner = UnixPeerCredentials.OwnerUserId(directory);
-        var self = UnixPeerCredentials.EffectiveUserId();
-        if (owner != self)
-        {
-            throw new IOException(
-                $"The StorageHub socket directory '{directory}' is owned by uid {owner}, not {self}.");
-        }
-    }
+    public static void Verify(string directory) =>
+        UnixFileSystem.VerifyPrivate(directory, UnixFileSystem.PrivateDirectoryMode, "socket directory");
 
     /// <summary>Rejects a socket path this transport will not address.</summary>
     public static void ValidateSocketPath(string socketPath)

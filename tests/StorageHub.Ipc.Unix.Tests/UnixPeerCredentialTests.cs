@@ -1,4 +1,5 @@
 using StorageHub.Ipc;
+using StorageHub.Infrastructure.Unix;
 using StorageHub.Ipc.Unix;
 using StorageHub.Testing;
 
@@ -64,7 +65,7 @@ public sealed class UnixPeerCredentialTests
         File.WriteAllText(file, string.Empty);
         try
         {
-            Assert.Equal(UnixPeerCredentials.EffectiveUserId(), UnixPeerCredentials.OwnerUserId(file));
+            Assert.Equal(UnixPeerCredentials.EffectiveUserId(), UnixFileSystem.OwnerUserId(file));
         }
         finally
         {

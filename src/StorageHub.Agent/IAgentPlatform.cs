@@ -1,4 +1,5 @@
 using StorageHub.Ipc;
+using StorageHub.Security;
 
 namespace StorageHub.Agent;
 
@@ -73,8 +74,6 @@ public interface IAutostartRegistration
 /// CA1416 enforces the rest: an implementation lives in an assembly marked for its platform, so
 /// reaching one without a guard is a build error rather than a runtime surprise.
 ///
-/// Secret protection is not here yet. It is the one remaining piece of the mode that has to move
-/// together with the data root, and it arrives with the Linux protector.
 /// </remarks>
 public interface IAgentPlatform
 {
@@ -106,4 +105,24 @@ public interface IAgentPlatform
     /// caller has. Windows does, through UAC. The Linux agent is designed never to need one.
     /// </summary>
     bool CanElevate { get; }
+
+    /// <summary>
+    /// What protects the vault's entries at rest.
+    /// </summary>
+    /// <remarks>
+    /// Takes the mode because the two move together: a Windows service protects with a machine key
+    /// its administrators can read, while a session agent protects with the user's own. Getting
+    /// that pairing wrong does not fail - it writes a vault the other mode cannot open, which is
+    /// why the scheme is stamped into every envelope and a mismatch is refused rather than decoded.
+    /// </remarks>
+    ISecretProtector CreateSecretProtector(AgentHostMode mode, AgentPaths paths);
+
+    /// <summary>
+    /// Where a provider's key material is written for the life of one connection.
+    /// </summary>
+    /// <remarks>
+    /// Plaintext, necessarily: SSH.NET and the TLS stack want a path, not bytes. What differs by
+    /// platform is how briefly it exists and how private it is while it does.
+    /// </remarks>
+    IRuntimeSecretFileMaterializer CreateRuntimeSecretFileMaterializer(AgentPaths paths);
 }

@@ -7,5 +7,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../StorageHub.Ipc/StorageHub.Ipc.csproj" />
+    <ProjectReference Include="../StorageHub.Infrastructure.Unix/StorageHub.Infrastructure.Unix.csproj" />
   </ItemGroup>
 </Project>
