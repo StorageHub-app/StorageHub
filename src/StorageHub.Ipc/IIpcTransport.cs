@@ -31,23 +31,12 @@ public sealed record IpcListenOptions
 {
     public required IpcEndpoint Endpoint { get; init; }
 
-    public required IpcTrustModel TrustModel { get; init; }
-
-    /// <summary>
-    /// Principals allowed to connect under <see cref="IpcTrustModel.MachineService"/>, in whatever
-    /// form that transport's authority uses. Ignored for <see cref="IpcTrustModel.SameUser"/>,
-    /// where the address itself is the boundary.
-    /// </summary>
-    public IReadOnlyList<string> PermittedPrincipals { get; init; } = [];
-
     public required int MaxConcurrentClients { get; init; }
 }
 
 public sealed record IpcConnectOptions
 {
     public required IpcEndpoint Endpoint { get; init; }
-
-    public required IpcTrustModel TrustModel { get; init; }
 }
 
 /// <summary>
@@ -70,26 +59,26 @@ public interface IIpcTransport
     /// This replaces a check that asked whether the host was Windows. The requirement was never
     /// Windows; it is that the channel reaches one account and cannot be observed or impersonated
     /// by another. A named pipe restricted to the creating account satisfies that, and so does a
-    /// socket in a directory only its owner may enter. A machine-service endpoint does not, on
-    /// either system, because its address is public and its clients are other accounts.
+    /// socket in a directory only its owner may enter. Both are what these transports publish, so
+    /// the answer turns on the endpoint alone.
     /// </remarks>
-    bool SupportsConfidentialChannel(IpcEndpoint endpoint, IpcTrustModel trustModel);
+    bool SupportsConfidentialChannel(IpcEndpoint endpoint);
 
     /// <summary>
-    /// Rejects an endpoint this transport cannot address or cannot secure as asked, at
-    /// configuration time rather than at the first connection.
+    /// Rejects an endpoint this transport cannot address, at configuration time rather than at the
+    /// first connection.
     /// </summary>
-    void ValidateEndpoint(IpcEndpoint endpoint, IpcTrustModel trustModel);
+    void ValidateEndpoint(IpcEndpoint endpoint);
 
     /// <summary>
     /// Rejects a listen configuration this transport cannot honour, at construction time.
     /// </summary>
     /// <remarks>
     /// Separate from <see cref="ValidateEndpoint"/> because the endpoint can be perfectly valid
-    /// while the access configuration is not - a machine-service endpoint with nobody permitted
-    /// being the case that matters. Publishing that would leave an agent that looks healthy and
-    /// refuses every connection, so it has to fail where it is configured rather than where it is
-    /// started.
+    /// while the rest of the configuration is not - a client limit past what the transport can
+    /// instantiate being the case that matters. Publishing that would leave an agent that looks
+    /// healthy and fails at accept, so it has to fail where it is configured rather than where it
+    /// is started.
     /// </remarks>
     void ValidateListenOptions(IpcListenOptions options);
 

@@ -219,7 +219,7 @@ public sealed class IpcClient : IAsyncDisposable
 
     private static void ValidateOptions(IIpcTransport transport, IpcClientOptions options)
     {
-        transport.ValidateEndpoint(options.Endpoint, options.TrustModel);
+        transport.ValidateEndpoint(options.Endpoint);
         IpcProtocolValidation.ValidateIdentity(options.ClientName, nameof(options.ClientName));
         IpcProtocolValidation.ValidateIdentity(options.ClientVersion, nameof(options.ClientVersion));
         if (options.ClientInstanceId == Guid.Empty)
@@ -236,11 +236,10 @@ public sealed class IpcClient : IAsyncDisposable
         // This used to ask whether the host was Windows. The requirement was never Windows: it is
         // that the channel reaches one account and cannot be observed or impersonated by another.
         if (options.FrameKind == IpcFrameKind.Secret &&
-            !transport.SupportsConfidentialChannel(options.Endpoint, options.TrustModel))
+            !transport.SupportsConfidentialChannel(options.Endpoint))
         {
             throw new ArgumentException(
-                $"The {transport.Name} transport cannot carry a secret channel on {options.Endpoint} "
-                    + $"under {options.TrustModel} trust.",
+                $"The {transport.Name} transport cannot carry a secret channel on {options.Endpoint}.",
                 nameof(options));
         }
 
@@ -278,7 +277,7 @@ public sealed class IpcClient : IAsyncDisposable
             try
             {
                 candidate = await _transport.ConnectAsync(
-                    new IpcConnectOptions { Endpoint = _options.Endpoint, TrustModel = _options.TrustModel },
+                    new IpcConnectOptions { Endpoint = _options.Endpoint },
                     attemptCancellation.Token).ConfigureAwait(false);
 
                 // Before the handshake, so nothing is disclosed to an impostor.

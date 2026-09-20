@@ -10,9 +10,9 @@ namespace StorageHub.Desktop.Avalonia.Tests;
 /// </summary>
 /// <remarks>
 /// This used to be a Windows question with a named pipe for an answer: DesktopAgentHost read the
-/// service control manager itself, built a pipe name, and mapped the mode to a trust model inline.
-/// None of that could run on Linux, which is what kept the desktop Windows-only even after the
-/// agent was portable. It now asks IAgentPlatform, so these assertions hold on both.
+/// service control manager itself and built a pipe name inline. None of that could run on Linux,
+/// which is what kept the desktop Windows-only even after the agent was portable. It now asks
+/// IAgentPlatform, so these assertions hold on both.
 /// </remarks>
 public class DesktopAgentHostTests
 {
@@ -31,17 +31,6 @@ public class DesktopAgentHostTests
         // traffic behind the same connection cap as everything else.
         Assert.NotEqual(DesktopAgentHost.NormalEndpoint, DesktopAgentHost.SecretEndpoint);
     }
-
-    /// <summary>
-    /// Always same-user, because there is only ever one agent and it is this account's.
-    /// </summary>
-    /// <remarks>
-    /// This followed the mode, because a Windows service published a machine-wide pipe that had to
-    /// be reached with a machine trust model. Nothing publishes one now.
-    /// </remarks>
-    [Fact]
-    public void TheTrustModelIsAlwaysSameUser() =>
-        Assert.Equal(IpcTrustModel.SameUser, DesktopAgentHost.TrustModel);
 
     [Fact]
     public void TheEndpointIsTheOneThisPlatformPublishes()

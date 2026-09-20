@@ -1,6 +1,4 @@
 using System.IO.Pipes;
-using System.Security.AccessControl;
-using System.Security.Principal;
 
 namespace StorageHub.Ipc.Windows;
 
@@ -14,21 +12,21 @@ public sealed class NamedPipeIpcTransport : IIpcTransport
     public string Name => "named-pipe";
 
     /// <summary>
-    /// A same-user pipe carries secrets; a machine-service pipe does not.
+    /// Every pipe this transport publishes carries secrets.
     /// </summary>
     /// <remarks>
     /// CurrentUserOnly means the pipe is reachable only by the account that created it, and the
     /// client checks the owner matches itself, so neither observation nor impersonation is open to
-    /// another account. A machine-service pipe is reachable by every permitted account and named
-    /// machine-wide, which is the opposite of what a secret channel needs.
+    /// another account. Both ends set it unconditionally, so there is no second kind of pipe to
+    /// ask about.
     /// </remarks>
-    public bool SupportsConfidentialChannel(IpcEndpoint endpoint, IpcTrustModel trustModel)
+    public bool SupportsConfidentialChannel(IpcEndpoint endpoint)
     {
         ArgumentNullException.ThrowIfNull(endpoint);
-        return endpoint is NamedPipeEndpoint && trustModel == IpcTrustModel.SameUser;
+        return endpoint is NamedPipeEndpoint;
     }
 
-    public void ValidateEndpoint(IpcEndpoint endpoint, IpcTrustModel trustModel)
+    public void ValidateEndpoint(IpcEndpoint endpoint)
     {
         ArgumentNullException.ThrowIfNull(endpoint);
         if (endpoint is not NamedPipeEndpoint pipe)
@@ -39,16 +37,12 @@ public sealed class NamedPipeIpcTransport : IIpcTransport
         }
 
         ValidatePipeName(pipe.PipeName);
-        if (!Enum.IsDefined(trustModel))
-        {
-            throw new ArgumentOutOfRangeException(nameof(trustModel), "The IPC trust model is invalid.");
-        }
     }
 
     public void ValidateListenOptions(IpcListenOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        ValidateEndpoint(options.Endpoint, options.TrustModel);
+        ValidateEndpoint(options.Endpoint);
 
         if (options.MaxConcurrentClients is < 1 or > MaximumPipeInstances)
         {
@@ -57,41 +51,13 @@ public sealed class NamedPipeIpcTransport : IIpcTransport
                 options.MaxConcurrentClients,
                 $"The maximum concurrent client count must be between 1 and {MaximumPipeInstances}.");
         }
-
-        if (options.TrustModel != IpcTrustModel.MachineService)
-        {
-            return;
-        }
-
-        // Refuse rather than publish a pipe the desktop cannot open: an empty list would leave
-        // only LocalSystem and Administrators on the ACL, which looks like a working agent and
-        // fails at every connect.
-        if (options.PermittedPrincipals.Count == 0)
-        {
-            throw new ArgumentException(
-                "Machine-service pipe security requires at least one permitted account.",
-                nameof(options));
-        }
-
-        foreach (var sid in options.PermittedPrincipals)
-        {
-            if (string.IsNullOrWhiteSpace(sid) || !IsResolvableSid(sid))
-            {
-                throw new ArgumentException(
-                    "A permitted account SID is not a valid security identifier.",
-                    nameof(options));
-            }
-        }
     }
 
     public IIpcListener Listen(IpcListenOptions options)
     {
         ValidateListenOptions(options);
         var pipe = (NamedPipeEndpoint)options.Endpoint;
-        var security = options.TrustModel == IpcTrustModel.MachineService
-            ? CreateMachineServicePipeSecurity(options.PermittedPrincipals)
-            : null;
-        return new NamedPipeIpcListener(pipe, options.MaxConcurrentClients, security);
+        return new NamedPipeIpcListener(pipe, options.MaxConcurrentClients);
     }
 
     public async ValueTask<IIpcConnection> ConnectAsync(
@@ -99,16 +65,13 @@ public sealed class NamedPipeIpcTransport : IIpcTransport
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(options);
-        ValidateEndpoint(options.Endpoint, options.TrustModel);
+        ValidateEndpoint(options.Endpoint);
         var pipe = (NamedPipeEndpoint)options.Endpoint;
 
-        var pipeOptions = PipeOptions.Asynchronous;
-        if (options.TrustModel != IpcTrustModel.MachineService)
-        {
-            pipeOptions |= PipeOptions.CurrentUserOnly;
-        }
-
-        var stream = new NamedPipeClientStream(".", pipe.PipeName, PipeDirection.InOut, pipeOptions);
+        // CurrentUserOnly unconditionally: the agent is this account's, and Windows comparing the
+        // server's owner to the caller is the whole boundary.
+        const PipeOptions ClientOptions = PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly;
+        var stream = new NamedPipeClientStream(".", pipe.PipeName, PipeDirection.InOut, ClientOptions);
         try
         {
             await stream.ConnectAsync(cancellationToken).ConfigureAwait(false);
@@ -150,42 +113,5 @@ public sealed class NamedPipeIpcTransport : IIpcTransport
                     nameof(pipeName));
             }
         }
-    }
-
-    internal static bool IsResolvableSid(string sid)
-    {
-        try
-        {
-            _ = new SecurityIdentifier(sid);
-            return true;
-        }
-        catch (ArgumentException)
-        {
-            return false;
-        }
-    }
-
-    private static PipeSecurity CreateMachineServicePipeSecurity(IReadOnlyList<string> permittedUserSids)
-    {
-        var security = new PipeSecurity();
-        foreach (var wellKnown in new[] { WellKnownSidType.LocalSystemSid, WellKnownSidType.BuiltinAdministratorsSid })
-        {
-            security.AddAccessRule(new PipeAccessRule(
-                new SecurityIdentifier(wellKnown, null),
-                PipeAccessRights.FullControl,
-                AccessControlType.Allow));
-        }
-
-        foreach (var sid in permittedUserSids)
-        {
-            // ReadWrite plus Synchronize is everything a client needs and nothing more; it cannot
-            // change the pipe's own security the way FullControl would.
-            security.AddAccessRule(new PipeAccessRule(
-                new SecurityIdentifier(sid),
-                PipeAccessRights.ReadWrite | PipeAccessRights.Synchronize,
-                AccessControlType.Allow));
-        }
-
-        return security;
     }
 }

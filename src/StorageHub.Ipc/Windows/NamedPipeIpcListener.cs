@@ -17,19 +17,14 @@ internal sealed class NamedPipeIpcListener : IIpcListener
 {
     private readonly NamedPipeEndpoint _endpoint;
     private readonly int _maxConcurrentClients;
-    private readonly PipeSecurity? _security;
     private readonly object _pendingGate = new();
     private NamedPipeServerStream? _pending;
     private bool _disposed;
 
-    internal NamedPipeIpcListener(
-        NamedPipeEndpoint endpoint,
-        int maxConcurrentClients,
-        PipeSecurity? security)
+    internal NamedPipeIpcListener(NamedPipeEndpoint endpoint, int maxConcurrentClients)
     {
         _endpoint = endpoint;
         _maxConcurrentClients = maxConcurrentClients;
-        _security = security;
         _pending = CreateInstance();
     }
 
@@ -95,30 +90,14 @@ internal sealed class NamedPipeIpcListener : IIpcListener
 
     private NamedPipeServerStream CreateInstance()
     {
-        const PipeOptions BaseOptions = PipeOptions.Asynchronous;
-        if (_security is not null)
-        {
-            // A service and its clients are different accounts, so CurrentUserOnly would make the
-            // pipe unreachable. The ACL takes over as the boundary: LocalSystem and Administrators
-            // to administer it, the accounts that opted in to use it, and no one else. Notably no
-            // Everyone or Authenticated Users ACE -- the pipe name is machine-wide and therefore
-            // guessable, so the name grants nothing on its own.
-            return NamedPipeServerStreamAcl.Create(
-                _endpoint.PipeName,
-                PipeDirection.InOut,
-                _maxConcurrentClients,
-                PipeTransmissionMode.Byte,
-                BaseOptions,
-                inBufferSize: 0,
-                outBufferSize: 0,
-                _security);
-        }
-
+        // There was a branch here that built the pipe from an explicit ACL, for a service whose
+        // clients were other accounts. One agent remains and it is this account's, so the pipe is
+        // always the kernel-restricted kind and nothing has to describe who may open it.
         return new NamedPipeServerStream(
             _endpoint.PipeName,
             PipeDirection.InOut,
             _maxConcurrentClients,
             PipeTransmissionMode.Byte,
-            BaseOptions | PipeOptions.CurrentUserOnly);
+            PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
     }
 }

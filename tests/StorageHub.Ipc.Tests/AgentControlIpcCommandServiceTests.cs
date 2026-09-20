@@ -84,7 +84,6 @@ public sealed class AgentControlIpcCommandServiceTests
     private static IpcClientOptions CreateClientOptions(IpcEndpoint endpoint) => new()
     {
         Endpoint = endpoint,
-        TrustModel = IpcTrustModel.SameUser,
         ClientName = "StorageHub.Control.Tests",
         ClientVersion = "1.0.0-tests",
         ClientInstanceId = Guid.NewGuid(),

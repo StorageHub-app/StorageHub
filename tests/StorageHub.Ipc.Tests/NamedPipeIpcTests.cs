@@ -156,9 +156,7 @@ public sealed class NamedPipeIpcTests
         Assert.Equal(new TestPayload("hello-received"), response.DeserializePayload<TestPayload>());
         // Replaces two assertions that the host was Windows. What they were really about is
         // whether this endpoint can be trusted to carry secrets, which the transport answers.
-        Assert.True(WindowsNamedPipeIpc.Transport.SupportsConfidentialChannel(
-            options.Endpoint,
-            IpcTrustModel.SameUser));
+        Assert.True(WindowsNamedPipeIpc.Transport.SupportsConfidentialChannel(options.Endpoint));
     }
 
     [WindowsOnlyFact]
@@ -646,9 +644,6 @@ public sealed class NamedPipeIpcTests
     private static IpcClientOptions CreateClientOptions(IpcEndpoint endpoint) => new()
     {
         Endpoint = endpoint,
-        // These tests stand up a pipe owned by the account running them, which is what a session
-        // agent does.
-        TrustModel = IpcTrustModel.SameUser,
         ClientName = "StorageHub.Tests",
         ClientVersion = "1.0.0-tests",
         ClientInstanceId = Guid.NewGuid(),

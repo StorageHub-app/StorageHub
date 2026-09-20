@@ -17,29 +17,12 @@ public abstract record IpcEndpoint
     public sealed override string ToString() => Moniker;
 }
 
-/// <summary>
-/// Who is allowed to reach an endpoint.
-/// </summary>
-/// <remarks>
-/// The numeric values are those of the <c>IpcPipeAccess</c> this replaces, because a desktop
-/// settings file records the agent's host mode and a mode maps to one of these.
-/// </remarks>
-public enum IpcTrustModel
-{
-    /// <summary>
-    /// Only the account that owns the agent. Windows restricts the pipe to the creating account
-    /// and the client checks the server's owner matches itself; a Unix socket sits in a directory
-    /// only that user can enter, and both ends compare the peer's uid to their own.
-    /// </summary>
-    SameUser = 0,
-
-    /// <summary>
-    /// A machine-wide service whose clients sign in as somebody else, so the address grants
-    /// nothing and an explicit access list is the boundary. Windows only: the Linux agent is a
-    /// per-user process by design and has no counterpart to this.
-    /// </summary>
-    MachineService = 1,
-}
+// There was an IpcTrustModel here, choosing between SameUser and MachineService. Only one agent
+// exists now and it belongs to the signed-in account, so every endpoint is same-user and the choice
+// decided nothing: Windows restricts the pipe to the creating account and the client checks the
+// server's owner matches itself, while a Unix socket sits in a directory only that user can enter
+// and both ends compare the peer's uid. That is unconditional, and saying so beats a one-member
+// enum threaded through every option record.
 
 /// <summary>
 /// Who is on the other end, as the operating system reports it rather than as the peer claims.

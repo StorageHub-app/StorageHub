@@ -53,8 +53,6 @@ internal static class DesktopAgentHost
     internal static IpcEndpoint SecretEndpoint =>
         Platform.ResolveEndpoint(Mode, AgentIpcChannel.Secret);
 
-    internal static IpcTrustModel TrustModel => Platform.ResolveTrustModel(Mode);
-
     /// <summary>
     /// True when the desktop owns the agent's lifetime and may start one.
     /// </summary>

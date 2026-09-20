@@ -149,15 +149,6 @@ public sealed class LinuxAgentPlatformTests : IDisposable
     }
 
     [LinuxOnlyFact]
-    public void EveryModeIsSameUserTrust()
-    {
-        var platform = new LinuxAgentPlatform();
-
-        Assert.Equal(IpcTrustModel.SameUser, platform.ResolveTrustModel(AgentHostMode.UserSession));
-        Assert.Equal(IpcTrustModel.SameUser, platform.ResolveTrustModel(AgentHostMode.AppSession));
-    }
-
-    [LinuxOnlyFact]
     public void NothingHereAsksForPrivilegeItWasNotStartedWith()
     {
         Assert.False(new LinuxAgentPlatform().CanElevate);

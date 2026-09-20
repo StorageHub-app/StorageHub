@@ -78,15 +78,4 @@ public sealed class WindowsAgentHostPlatform : IAgentHostPlatform
         }
     }
 
-    /// <summary>
-    /// None. A same-user pipe is already restricted to this account by the kernel.
-    /// </summary>
-    /// <remarks>
-    /// This listed the SIDs allowed onto a machine-wide pipe, which only a service published.
-    /// </remarks>
-    public IReadOnlyList<string> ResolvePermittedPrincipals(AgentHostMode mode, string dataRoot)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(dataRoot);
-        return [];
-    }
 }

@@ -88,9 +88,7 @@ public sealed class UnixSocketIpcTests : IDisposable
     public async Task TheSecretChannelRoundTripsOnASocketInAPrivateDirectory()
     {
         var options = ServerOptions("agent-secret.sock") with { FrameKind = IpcFrameKind.Secret };
-        Assert.True(UnixDomainSocketIpc.Transport.SupportsConfidentialChannel(
-            options.Endpoint,
-            IpcTrustModel.SameUser));
+        Assert.True(UnixDomainSocketIpc.Transport.SupportsConfidentialChannel(options.Endpoint));
 
         await using var server = UnixDomainSocketIpc.CreateServer(
             options,
@@ -138,11 +136,10 @@ public sealed class UnixSocketIpcTests : IDisposable
     public void AnAbstractNamespaceSocketIsRefused()
     {
         // No filesystem entry means no permissions, so any process in the network namespace could
-        // connect. This is the one way to get the trust model silently wrong on Linux.
+        // connect. This is the one way to lose the boundary silently on Linux.
         var error = Assert.Throws<ArgumentException>(() =>
             UnixDomainSocketIpc.Transport.ValidateEndpoint(
-                new UnixSocketEndpoint("\0storagehub-abstract"),
-                IpcTrustModel.SameUser));
+                new UnixSocketEndpoint("\0storagehub-abstract")));
 
         Assert.Contains("abstract-namespace", error.Message, StringComparison.OrdinalIgnoreCase);
     }
@@ -152,9 +149,7 @@ public sealed class UnixSocketIpcTests : IDisposable
     {
         var tooLong = "/tmp/" + new string('p', UnixIpcSocketDirectory.MaximumSocketPathLength);
         var error = Assert.Throws<ArgumentException>(() =>
-            UnixDomainSocketIpc.Transport.ValidateEndpoint(
-                new UnixSocketEndpoint(tooLong),
-                IpcTrustModel.SameUser));
+            UnixDomainSocketIpc.Transport.ValidateEndpoint(new UnixSocketEndpoint(tooLong)));
 
         Assert.Contains("byte limit", error.Message, StringComparison.OrdinalIgnoreCase);
     }
@@ -163,22 +158,7 @@ public sealed class UnixSocketIpcTests : IDisposable
     public void ARelativePathIsRefused()
     {
         _ = Assert.Throws<ArgumentException>(() =>
-            UnixDomainSocketIpc.Transport.ValidateEndpoint(
-                new UnixSocketEndpoint("agent.sock"),
-                IpcTrustModel.SameUser));
-    }
-
-    [LinuxOnlyFact]
-    public void ThereIsNoMachineServiceModeOnUnix()
-    {
-        // The Linux agent is a per-user process by design, so there is nothing for an access list
-        // to describe and an endpoint claiming otherwise would have no boundary at all.
-        var error = Assert.Throws<ArgumentException>(() =>
-            UnixDomainSocketIpc.Transport.ValidateEndpoint(
-                new UnixSocketEndpoint(Path.Combine(_directory, "agent.sock")),
-                IpcTrustModel.MachineService));
-
-        Assert.Contains("machine-service", error.Message, StringComparison.OrdinalIgnoreCase);
+            UnixDomainSocketIpc.Transport.ValidateEndpoint(new UnixSocketEndpoint("agent.sock")));
     }
 
     [LinuxOnlyFact]
@@ -220,8 +200,7 @@ public sealed class UnixSocketIpcTests : IDisposable
             UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
 
         Assert.False(UnixDomainSocketIpc.Transport.SupportsConfidentialChannel(
-            new UnixSocketEndpoint(Path.Combine(loose, "agent-secret.sock")),
-            IpcTrustModel.SameUser));
+            new UnixSocketEndpoint(Path.Combine(loose, "agent-secret.sock"))));
     }
 
     [LinuxOnlyFact]
@@ -267,7 +246,6 @@ public sealed class UnixSocketIpcTests : IDisposable
     private static IpcClientOptions ClientOptions(IpcEndpoint endpoint) => new()
     {
         Endpoint = endpoint,
-        TrustModel = IpcTrustModel.SameUser,
         ClientName = "StorageHub.Tests",
         ClientVersion = "1.0.0-tests",
         ClientInstanceId = Guid.NewGuid(),

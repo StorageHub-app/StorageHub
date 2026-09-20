@@ -104,18 +104,13 @@ public interface IAgentPlatform
     /// How a client checks that the thing that answered is the agent, for a given mode.
     /// </summary>
     /// <remarks>
-    /// Mode-dependent because the property being verified is: a same-user endpoint is already
-    /// restricted to this account, while a machine-wide one has to have its owner checked. Pairing a
-    /// machine endpoint with the same-user check would compile, connect, and silently skip the check
-    /// that stops a squatter collecting secrets.
+    /// This took a host mode, because the property being verified used to depend on it: a service
+    /// published a machine-wide endpoint whose owner had to be checked. Only same-user endpoints
+    /// exist now, so <see cref="ServerAuthenticator"/> below is the whole answer.
     /// </remarks>
-    IIpcServerAuthenticator ResolveServerAuthenticator(AgentHostMode mode);
-
     AgentPaths ResolvePaths(AgentHostMode mode);
 
     IpcEndpoint ResolveEndpoint(AgentHostMode mode, AgentIpcChannel channel);
-
-    IpcTrustModel ResolveTrustModel(AgentHostMode mode);
 
     IIpcTransport Transport { get; }
 

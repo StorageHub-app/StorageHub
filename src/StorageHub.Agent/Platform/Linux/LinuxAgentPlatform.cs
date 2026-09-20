@@ -47,12 +47,6 @@ public sealed class LinuxAgentPlatform : IAgentPlatform
     public AgentHostMode DiscoverHostMode() =>
         Autostart.IsRegistered ? AgentHostMode.UserSession : AgentHostMode.AppSession;
 
-    public IIpcServerAuthenticator ResolveServerAuthenticator(AgentHostMode mode)
-    {
-        _ = ResolveTrustModel(mode);
-        return UnixDomainSocketIpc.ServerAuthenticator;
-    }
-
     /// <summary>
     /// Nothing here asks for privilege it was not started with.
     /// </summary>
@@ -103,12 +97,6 @@ public sealed class LinuxAgentPlatform : IAgentPlatform
     {
         ArgumentNullException.ThrowIfNull(paths);
         return new UnixRuntimeSecretFileMaterializer(paths.RuntimeSecretsDirectory);
-    }
-
-    public IpcTrustModel ResolveTrustModel(AgentHostMode mode)
-    {
-        EnsureSupported(mode);
-        return IpcTrustModel.SameUser;
     }
 
     private static void EnsureSupported(AgentHostMode mode)

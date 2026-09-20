@@ -95,5 +95,4 @@ public sealed class LinuxAgentHostPlatform : IAgentHostPlatform
     }
 
     /// <summary>Empty: a Unix socket admits one user, and its directory is the whole boundary.</summary>
-    public IReadOnlyList<string> ResolvePermittedPrincipals(AgentHostMode mode, string dataRoot) => [];
 }

@@ -34,9 +34,6 @@ internal static class DesktopAgentIpcOptions
         new()
         {
             Endpoint = endpoint,
-            // Must match the agent's mode: a machine endpoint cannot be opened with same-user
-            // security, and the client verifies the server's owner instead.
-            TrustModel = DesktopAgentHost.TrustModel,
             ClientName = clientName,
             ClientVersion = ClientVersionValue,
             ConnectTimeout = connectTimeout,
@@ -57,6 +54,6 @@ internal static class DesktopAgentIpcOptions
         return new IpcClient(
             DesktopAgentHost.Platform.Transport,
             options,
-            DesktopAgentHost.Platform.ResolveServerAuthenticator(DesktopAgentHost.Mode));
+            DesktopAgentHost.Platform.ServerAuthenticator);
     }
 }

@@ -5,10 +5,8 @@ namespace StorageHub.Ipc.Windows;
 /// </summary>
 /// <remarks>
 /// The server and the client take a transport and an authenticator rather than choosing one, which
-/// is what lets a second transport exist. That leaves a caller free to pair a machine-service
-/// endpoint with the same-user authenticator, which would compile, connect, and quietly skip the
-/// owner check that stops a squatter collecting secrets. Choosing the pair from the trust model in
-/// one place removes that possibility from every call site.
+/// is what lets a second transport exist. Assembling the matching set once, here, is what keeps a
+/// call site from having to know which pieces belong together.
 /// </remarks>
 [System.Runtime.Versioning.SupportedOSPlatform("windows")]
 public static class WindowsNamedPipeIpc
@@ -23,14 +21,11 @@ public static class WindowsNamedPipeIpc
     public static IIpcPeerAuthorizer PeerAuthorizer { get; } = new WindowsPipeAccessControlAuthorizer();
 
     /// <summary>
-    /// How a client decides the thing that answered is the agent: a same-user pipe is already
-    /// restricted to this account, while a machine-service pipe is machine-wide and must have its
-    /// owner checked.
+    /// How a client decides the thing that answered is the agent. Nothing to do: the pipe is
+    /// restricted to the creating account, so Windows has already refused anyone who could have
+    /// squatted on the name.
     /// </summary>
-    public static IIpcServerAuthenticator AuthenticatorFor(IpcTrustModel trustModel) =>
-        trustModel == IpcTrustModel.MachineService
-            ? new WindowsPipeOwnerAuthenticator()
-            : new WindowsSameUserPipeAuthenticator();
+    public static IIpcServerAuthenticator ServerAuthenticator { get; } = new WindowsSameUserPipeAuthenticator();
 
     public static IpcServerSubsystem CreateServer(
         IpcServerOptions options,
@@ -40,6 +35,6 @@ public static class WindowsNamedPipeIpc
     public static IpcClient CreateClient(IpcClientOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        return new IpcClient(Transport, options, AuthenticatorFor(options.TrustModel));
+        return new IpcClient(Transport, options, ServerAuthenticator);
     }
 }

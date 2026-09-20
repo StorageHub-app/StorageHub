@@ -66,15 +66,10 @@ public interface IAgentHostPlatform
     /// <summary>Claims the data root, or throws <see cref="AgentDataDirectoryException"/>.</summary>
     IAgentDataDirectory AcquireDataDirectory(AgentHostMode mode, string dataRoot);
 
-    /// <summary>
-    /// Accounts admitted to a machine-service endpoint, in the transport's own form.
-    /// </summary>
-    /// <remarks>
-    /// Only meaningful where an endpoint is reachable by more than one account, which on Linux it
-    /// is not - so this is empty there, and the socket's directory is the whole boundary.
-    /// </remarks>
-    IReadOnlyList<string> ResolvePermittedPrincipals(AgentHostMode mode, string dataRoot);
-
+    // There was a ResolvePermittedPrincipals here, listing the accounts admitted to a
+    // machine-service endpoint. Every endpoint now belongs to one account and the operating system
+    // restricts it without being told who may open it, so both platforms answered with an empty
+    // list and the caller passed it to a transport that ignored it.
 }
 
 /// <summary>A data root the agent will not accept.</summary>

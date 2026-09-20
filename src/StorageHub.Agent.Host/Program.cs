@@ -74,8 +74,6 @@ if (hostPlatform.DescribeStartupRefusal(hostMode) is { } refusal)
 
 var normalEndpoint = agentPlatform.ResolveEndpoint(hostMode, AgentIpcChannel.Normal);
 var secretEndpoint = agentPlatform.ResolveEndpoint(hostMode, AgentIpcChannel.Secret);
-var trustModel = agentPlatform.ResolveTrustModel(hostMode);
-var permittedClients = hostPlatform.ResolvePermittedPrincipals(hostMode, configuredStorageHubRoot);
 
 hostPlatform.AttachToServiceManager(hostMode, shutdown);
 
@@ -270,8 +268,6 @@ var ipc = new IpcServerSubsystem(
     new IpcServerOptions
     {
         Endpoint = normalEndpoint,
-        TrustModel = trustModel,
-        PermittedPrincipals = permittedClients,
         AgentVersion = applicationVersion,
         AgentInstanceId = agentInstanceId,
         // The desktop intentionally owns independent clients for workspaces, queue,
@@ -290,8 +286,6 @@ var secretIpc = new IpcServerSubsystem(
     new IpcServerOptions
     {
         Endpoint = secretEndpoint,
-        TrustModel = trustModel,
-        PermittedPrincipals = permittedClients,
         AgentVersion = applicationVersion,
         AgentInstanceId = agentInstanceId,
         MaxConcurrentClients = 8,

@@ -215,16 +215,14 @@ public sealed class IpcServerSubsystem : IAgentSubsystem, IAsyncDisposable
     private static IpcListenOptions ToListenOptions(IpcServerOptions options) => new()
     {
         Endpoint = options.Endpoint,
-        TrustModel = options.TrustModel,
-        PermittedPrincipals = options.PermittedPrincipals,
         MaxConcurrentClients = options.MaxConcurrentClients,
     };
 
     private static void ValidateOptions(IIpcTransport transport, IpcServerOptions options)
     {
-        // The whole listen configuration, not just the address: a machine-service endpoint with
-        // nobody permitted has to be refused here rather than at StartAsync, or the agent starts,
-        // reports itself healthy, and refuses every client.
+        // The whole listen configuration, not just the address: a client limit the transport
+        // cannot instantiate has to be refused here rather than at StartAsync, or the agent starts,
+        // reports itself healthy, and fails at accept.
         transport.ValidateListenOptions(ToListenOptions(options));
         if (!Enum.IsDefined(options.FrameKind))
         {
@@ -235,11 +233,10 @@ public sealed class IpcServerSubsystem : IAgentSubsystem, IAsyncDisposable
         // that the channel reaches one account and cannot be observed or impersonated by another,
         // which a transport can answer for its own endpoints.
         if (options.FrameKind == IpcFrameKind.Secret &&
-            !transport.SupportsConfidentialChannel(options.Endpoint, options.TrustModel))
+            !transport.SupportsConfidentialChannel(options.Endpoint))
         {
             throw new ArgumentException(
-                $"The {transport.Name} transport cannot carry a secret channel on {options.Endpoint} " +
-                $"under {options.TrustModel} trust.",
+                $"The {transport.Name} transport cannot carry a secret channel on {options.Endpoint}.",
                 nameof(options));
         }
 

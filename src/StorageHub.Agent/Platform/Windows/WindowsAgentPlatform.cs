@@ -107,12 +107,7 @@ public sealed class WindowsAgentPlatform : IAgentPlatform
 
     public IIpcPeerAuthorizer PeerAuthorizer => WindowsNamedPipeIpc.PeerAuthorizer;
 
-    /// <summary>
-    /// Chosen from the mode rather than fixed, because a service pipe is machine-wide and must have
-    /// its owner checked while a session pipe is already restricted to this account.
-    /// </summary>
-    public IIpcServerAuthenticator ServerAuthenticator =>
-        WindowsNamedPipeIpc.AuthenticatorFor(IpcTrustModel.SameUser);
+    public IIpcServerAuthenticator ServerAuthenticator => WindowsNamedPipeIpc.ServerAuthenticator;
 
     public IAutostartRegistration Autostart { get; } = new WindowsRunKeyAutostart();
 
@@ -159,9 +154,6 @@ public sealed class WindowsAgentPlatform : IAgentPlatform
         }
     }
 
-    public IIpcServerAuthenticator ResolveServerAuthenticator(AgentHostMode mode) =>
-        WindowsNamedPipeIpc.AuthenticatorFor(ResolveTrustModel(mode));
-
     public IpcEndpoint ResolveEndpoint(AgentHostMode mode, AgentIpcChannel channel)
     {
         EnsureSupported(mode);
@@ -196,20 +188,6 @@ public sealed class WindowsAgentPlatform : IAgentPlatform
     {
         ArgumentNullException.ThrowIfNull(paths);
         return new WindowsRuntimeSecretFileMaterializer(paths.RuntimeSecretsDirectory);
-    }
-
-    /// <summary>
-    /// Always the same user, because there is only ever one agent and it is this account's.
-    /// </summary>
-    /// <remarks>
-    /// A machine-wide pipe with a SID-based ACL existed for the service. Nothing publishes one now,
-    /// and a same-user pipe is restricted by the kernel without StorageHub describing who may open
-    /// it - which is both simpler and harder to get wrong.
-    /// </remarks>
-    public IpcTrustModel ResolveTrustModel(AgentHostMode mode)
-    {
-        EnsureSupported(mode);
-        return IpcTrustModel.SameUser;
     }
 
     private static void EnsureSupported(AgentHostMode mode)

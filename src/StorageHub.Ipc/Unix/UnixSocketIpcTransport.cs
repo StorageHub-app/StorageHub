@@ -20,10 +20,7 @@ public sealed class UnixSocketIpcTransport : IIpcTransport
 {
     public string Name => "unix-socket";
 
-    /// <summary>
-    /// A socket in a private directory carries secrets; a machine-service endpoint does not exist
-    /// here at all.
-    /// </summary>
+    /// <summary>A socket in a private directory carries secrets.</summary>
     /// <remarks>
     /// The Windows check this replaces asked whether the host was Windows, and the answer here would
     /// have been no. The actual requirement is that the channel reaches one account and cannot be
@@ -31,10 +28,10 @@ public sealed class UnixSocketIpcTransport : IIpcTransport
     /// as a named pipe does - arguably better, since the Windows pipe namespace is global and its
     /// names are enumerable, while this path is not even listable by another user.
     /// </remarks>
-    public bool SupportsConfidentialChannel(IpcEndpoint endpoint, IpcTrustModel trustModel)
+    public bool SupportsConfidentialChannel(IpcEndpoint endpoint)
     {
         ArgumentNullException.ThrowIfNull(endpoint);
-        if (endpoint is not UnixSocketEndpoint socket || trustModel != IpcTrustModel.SameUser)
+        if (endpoint is not UnixSocketEndpoint socket)
         {
             return false;
         }
@@ -60,7 +57,7 @@ public sealed class UnixSocketIpcTransport : IIpcTransport
         }
     }
 
-    public void ValidateEndpoint(IpcEndpoint endpoint, IpcTrustModel trustModel)
+    public void ValidateEndpoint(IpcEndpoint endpoint)
     {
         ArgumentNullException.ThrowIfNull(endpoint);
         if (endpoint is not UnixSocketEndpoint socket)
@@ -70,29 +67,13 @@ public sealed class UnixSocketIpcTransport : IIpcTransport
                 nameof(endpoint));
         }
 
-        if (!Enum.IsDefined(trustModel))
-        {
-            throw new ArgumentOutOfRangeException(nameof(trustModel), "The IPC trust model is invalid.");
-        }
-
-        // A machine-wide service is a Windows shape. The Linux agent is a per-user process by
-        // design - that is what makes the vault, the socket and the data root all one account's -
-        // so there is nothing here for an access list to describe, and pretending otherwise would
-        // publish an endpoint with no boundary at all.
-        if (trustModel == IpcTrustModel.MachineService)
-        {
-            throw new ArgumentException(
-                "The Unix socket transport has no machine-service mode; the Linux agent runs per user.",
-                nameof(trustModel));
-        }
-
         UnixIpcSocketDirectory.ValidateSocketPath(socket.SocketPath);
     }
 
     public void ValidateListenOptions(IpcListenOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        ValidateEndpoint(options.Endpoint, options.TrustModel);
+        ValidateEndpoint(options.Endpoint);
 
         if (options.MaxConcurrentClients < 1)
         {
@@ -100,13 +81,6 @@ public sealed class UnixSocketIpcTransport : IIpcTransport
                 nameof(options),
                 options.MaxConcurrentClients,
                 "The maximum concurrent client count must be at least 1.");
-        }
-
-        if (options.PermittedPrincipals.Count != 0)
-        {
-            throw new ArgumentException(
-                "The Unix socket transport admits only the owning user, so an access list has no meaning.",
-                nameof(options));
         }
     }
 
@@ -137,7 +111,7 @@ public sealed class UnixSocketIpcTransport : IIpcTransport
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(options);
-        ValidateEndpoint(options.Endpoint, options.TrustModel);
+        ValidateEndpoint(options.Endpoint);
         var endpoint = (UnixSocketEndpoint)options.Endpoint;
 
         // Verified before connecting, not after: if the directory is not private then whatever is
