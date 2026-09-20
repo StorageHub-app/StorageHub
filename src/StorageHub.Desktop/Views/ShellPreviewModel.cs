@@ -329,6 +329,33 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
     /// <summary>The transfer queue, reading the agent rather than a stand-in.</summary>
     public TransferQueueModel Queue { get; init; } = null!;
 
+    /// <summary>
+    /// The Sync tasks tab and its two sub-tabs.
+    /// </summary>
+    /// <remarks>
+    /// Held so the shell can send somebody to the right one: previewing a profile in the editor
+    /// produces a run, and the run belongs on the review sub-tab rather than left to be found.
+    /// </remarks>
+    internal TabbedPageModel? SyncPage { get; set; }
+
+    internal SyncTasksModel? SyncTasks =>
+        SyncPage?.Tabs.Select(static tab => tab.Content).OfType<SyncTasksModel>().FirstOrDefault();
+
+    internal SyncRunHistoryModel? SyncRunHistory =>
+        SyncPage?.Tabs.Select(static tab => tab.Content).OfType<SyncRunHistoryModel>().FirstOrDefault();
+
+    /// <summary>Shows a run on the review sub-tab, whichever tab is currently open.</summary>
+    internal void ReviewRun(Guid syncRunId)
+    {
+        if (SyncPage is not { } page || SyncRunHistory is not { } history) return;
+
+        SelectedWorkspace = Workspaces
+            .Select(static (tab, index) => (tab, index))
+            .FirstOrDefault(entry => ReferenceEquals(entry.tab.Page, page)).index;
+        page.SelectedIndex = 1;
+        _ = history.LoadRunAsync(syncRunId);
+    }
+
     /// <summary>Which tab is showing. Settable, because adding a workspace moves to it.</summary>
     public int SelectedWorkspace
     {
@@ -466,10 +493,7 @@ internal static class ShellPreview
             Ui.Shell.TabWelcome,
             LucideIconKind.House,
             OverviewModel.Create(ShellStatusSnapshot.Initial)));
-        model.Workspaces.Add(new WorkspaceTab(
-            Ui.Shell.TabSyncTasks,
-            LucideIconKind.ArrowLeftRight,
-            new TabbedPageModel(
+        var syncPage = new TabbedPageModel(
             [
                 // The tasks screen asks the agent for the saved profiles and the runs behind them.
                 // A client per load rather than one held open, for the reason the panes and the
@@ -486,7 +510,18 @@ internal static class ShellPreview
                     SyncRunHistoryModel.Create(
                         static () => new NamedPipeSyncManagementAgentClient(),
                         Services.ShellServices.Dialogs)),
-            ])));
+            ]);
+        model.SyncPage = syncPage;
+        model.Workspaces.Add(new WorkspaceTab(
+            Ui.Shell.TabSyncTasks, LucideIconKind.ArrowLeftRight, syncPage));
+
+        // The tasks screen's own Run history button goes to the sub-tab beside it. It knows the
+        // page it is on no more than the panel knows what a pane is, so the shell says what it does.
+        if (model.SyncTasks is { } tasks)
+        {
+            tasks.RunHistoryCommand = new RelayCommand(_ => syncPage.SelectedIndex = 1);
+        }
+
         model.AddWorkspace(WorkspacePreset.All[1]);
         model.SelectedWorkspace = selectedWorkspace;
         model.RouteToActivePane();

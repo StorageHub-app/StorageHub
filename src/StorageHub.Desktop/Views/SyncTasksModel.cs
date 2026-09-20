@@ -21,7 +21,33 @@ internal sealed record PageTab(string Title, object Content);
 /// settings sections, a connection editor - reuses the same shape instead of growing another
 /// TabControl in the shell.
 /// </remarks>
-internal sealed record TabbedPageModel(IReadOnlyList<PageTab> Tabs);
+internal sealed class TabbedPageModel(IReadOnlyList<PageTab> tabs) : INotifyPropertyChanged
+{
+    private int _selectedIndex;
+
+    public IReadOnlyList<PageTab> Tabs { get; } = tabs;
+
+    /// <summary>
+    /// Which sub-tab is showing.
+    /// </summary>
+    /// <remarks>
+    /// Settable because one screen sends you to another: previewing a profile produces a run, and
+    /// the run belongs on the review tab. Leaving the person to find it themselves is how 1.x's
+    /// editor came to embed a second copy of the review control.
+    /// </remarks>
+    public int SelectedIndex
+    {
+        get => _selectedIndex;
+        set
+        {
+            if (_selectedIndex == value) return;
+            _selectedIndex = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedIndex)));
+        }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+}
 
 /// <summary>A row of the saved sync tasks table.</summary>
 internal sealed record SyncTaskRow(string Name, string Behavior, string State, string Updated);
@@ -50,6 +76,9 @@ internal sealed class SyncTasksModel : INotifyPropertyChanged
     private readonly SyncTasksController? _controller;
     private string _status = Ui.Sync.NoTasksConfigured;
     private bool _isBusy;
+    private ICommand? _newProfileCommand;
+    private ICommand? _schedulesCommand;
+    private ICommand? _runHistoryCommand;
 
     /// <param name="controller">
     /// How it reaches the agent. Null leaves a screen that shows its empty state and never loads,
@@ -93,6 +122,33 @@ internal sealed class SyncTasksModel : INotifyPropertyChanged
     }
 
     public ICommand RefreshCommand { get; }
+
+    /// <summary>
+    /// What the three buttons across the top do, supplied by the shell.
+    /// </summary>
+    /// <remarks>
+    /// Settable rather than built here, as the connections panel's Manage button is: opening a
+    /// window needs an owner, and a page inside a tab has no business knowing what a window is.
+    /// Left unset they are simply unavailable, which is what a layout test wants and what the
+    /// menu already does for a command with no handler.
+    /// </remarks>
+    public ICommand? NewProfileCommand
+    {
+        get => _newProfileCommand;
+        set { if (Set(ref _newProfileCommand, value)) { } }
+    }
+
+    public ICommand? SchedulesCommand
+    {
+        get => _schedulesCommand;
+        set { if (Set(ref _schedulesCommand, value)) { } }
+    }
+
+    public ICommand? RunHistoryCommand
+    {
+        get => _runHistoryCommand;
+        set { if (Set(ref _runHistoryCommand, value)) { } }
+    }
 
     /// <summary>
     /// Loads the profiles and the recent runs.

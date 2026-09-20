@@ -42,6 +42,17 @@ public partial class App : global::Avalonia.Application
             model.Sidebar.ManageCommand = new RelayCommand(
                 _ => ShowConnections(desktop, model, startNew: false));
 
+            // The sync profile editor, from the menu and from the tasks screen's New button.
+            // Review & run opens the same window: in 1.x it was a second entry point into the same
+            // form, and previewing is what its primary button already does.
+            model.Router.Handle(UiCommandIds.SyncSyncProfiles, () => ShowSyncEditor(desktop, model));
+            model.Router.Handle(UiCommandIds.SyncReviewRun, () => ShowSyncEditor(desktop, model));
+            if (model.SyncTasks is { } syncTasks)
+            {
+                syncTasks.NewProfileCommand = new RelayCommand(
+                    _ => ShowSyncEditor(desktop, model, startNew: true));
+            }
+
             // Whatever was saved last time, before the window is shown, so the shell opens in the
             // scheme rather than flashing the default and changing.
             Views.SettingsWindow.ApplySavedScheme();
@@ -107,6 +118,43 @@ public partial class App : global::Avalonia.Application
         }
 
         window.Closed += (_, _) => _ = model.Sidebar.RefreshAsync();
+        if (desktop.MainWindow is { } owner) _ = window.ShowDialog(owner);
+        else window.Show();
+    }
+
+    /// <summary>
+    /// Opens the sync profile editor, and takes a preview through to the review tab.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Previewing produces a run, and a run is reviewed and approved on the Run history screen --
+    /// which already exists, and is where approving is guarded. 1.x solved this by embedding a
+    /// second copy of the review control inside the editor, so a run could be approved from two
+    /// places with two sets of buttons to keep in agreement. Here the editor hands the run over and
+    /// the shell switches to the one screen that reviews runs.
+    /// </para>
+    /// <para>
+    /// The tasks screen is refreshed on close for the same reason the connections panel is: the
+    /// window is modal, so nothing can be looking at the list while it is open.
+    /// </para>
+    /// </remarks>
+    private static void ShowSyncEditor(
+        IClassicDesktopStyleApplicationLifetime desktop,
+        ShellPreviewModel model,
+        bool startNew = false)
+    {
+        var window = Views.SyncProfileEditorWindow.ForCurrentAgent();
+        if (window.DataContext is Views.SyncProfileEditorModel editor)
+        {
+            if (startNew) editor.BeginNewProfile();
+            editor.PreviewReady += (_, run) =>
+            {
+                window.Close();
+                model.ReviewRun(run.SyncRunId);
+            };
+        }
+
+        window.Closed += (_, _) => _ = model.SyncTasks?.RefreshAsync();
         if (desktop.MainWindow is { } owner) _ = window.ShowDialog(owner);
         else window.Show();
     }

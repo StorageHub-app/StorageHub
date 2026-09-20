@@ -168,7 +168,7 @@ are the honest ones — each names what is missing rather than claiming the row.
 
 | What 1.x does | Status |
 |---|---|
-| Sync profiles: create, edit, preview a run | **todo** — screen is stand-in |
+| Sync profiles: create, edit, preview a run | **done** — the fourteen fields, the nine behaviours as a list that says which of them delete things, and a preview that hands its run to the review screen instead of embedding a second copy of it. Why a draft will not save is now said one field at a time: `SyncProfileDraftRules` names the field, and the contract still has the last word so the two can disagree without the screen offering to save something the agent will refuse. Not carried over: the two Browse buttons, which opened `SyncLocationPickerForm` — that screen is not ported, and the roots are typed |
 | Schedules: create, edit, enable, delete | **todo** |
 | Run history and review, dispatch an approved revision | **done** — history a page at a time, a run's plan and its conflicts, and an approval carrying the revision and digest the reviewer was shown. The checks that make that safe are in `SyncRunReviewController` with a suite of their own; the plan page is refused outright if it does not belong to the plan on screen. Approving confirms first, and defaults to Cancel. A loaded run re-reads itself — closely while the agent is acting on it, occasionally otherwise, not at all once it has settled. An operation still names its connection by id rather than by name, which needs the connection client this screen does not hold |
 | Compare panes | **dropped** — inert in 1.x |

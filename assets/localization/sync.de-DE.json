@@ -283,5 +283,11 @@
   "noPlanOperations": "Dieser Plan hat nichts zu tun.",
   "noConflicts": "In diesem Lauf wurden keine Konflikte gefunden.",
   "approveDetailFormat": "Dieser Plan hat {0} Vorgang/Vorgänge.",
-  "approveDestructiveFormat": "Dieser Plan hat {0} Vorgang/Vorgänge, davon {1} mit Datenverlust."
+  "approveDestructiveFormat": "Dieser Plan hat {0} Vorgang/Vorgänge, davon {1} mit Datenverlust.",
+  "profileNameRequired": "Geben Sie dieser Synchronisierungsaufgabe einen Namen.",
+  "locationConnectionRequired": "Wählen Sie eine gespeicherte Verbindung.",
+  "locationsOverlap": "Beide Speicherorte sind derselbe Ordner, oder einer liegt im anderen. Wählen Sie Ordner, die sich nicht überschneiden.",
+  "textTooLongFormat": "Verwenden Sie höchstens {0} Zeichen.",
+  "rangeFormat": "Geben Sie einen Wert von {0} bis {1} ein.",
+  "tooManyFiltersFormat": "Verwenden Sie höchstens {0} Filter."
 }

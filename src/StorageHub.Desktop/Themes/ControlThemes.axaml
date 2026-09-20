@@ -376,6 +376,28 @@
     <Setter Property="Foreground" Value="{DynamicResource OnPrimaryBrush}"/>
   </Style>
 
+  <!--
+    A badge that has to be read rather than merely noticed. The sync behaviour list puts "mirror,
+    deleting whatever is not on the other side" next to "compare only"; nine equally grey badges
+    would be nine words nobody reads before choosing.
+  -->
+  <Style Selector="Border.badge.danger">
+    <Setter Property="Background" Value="{DynamicResource DangerBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource DangerBrush}"/>
+  </Style>
+
+  <Style Selector="Border.badge.danger TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource OnPrimaryBrush}"/>
+  </Style>
+
+  <Style Selector="Border.badge.success">
+    <Setter Property="BorderBrush" Value="{DynamicResource SuccessBrush}"/>
+  </Style>
+
+  <Style Selector="Border.badge.success TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}"/>
+  </Style>
+
   <!-- A connection nobody can open reads as unavailable rather than as missing. -->
   <Style Selector="Border.connection-row.disabled">
     <Setter Property="Opacity" Value="0.55"/>

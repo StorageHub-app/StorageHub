@@ -32,7 +32,16 @@ internal sealed record SyncBehaviorOption(
     string Title,
     string Summary,
     string Badge,
-    SyncBehaviorRisk Risk);
+    SyncBehaviorRisk Risk)
+{
+    /// <summary>Whether choosing this one means something can be deleted.</summary>
+    public bool IsDestructive => Risk == SyncBehaviorRisk.Destructive;
+
+    /// <summary>Whether choosing it means nothing is written at all.</summary>
+    public bool IsReadOnly => Risk == SyncBehaviorRisk.ReadOnly;
+
+    public override string ToString() => Title;
+}
 
 /// <summary>
 /// The nine sync behaviours, named and described.

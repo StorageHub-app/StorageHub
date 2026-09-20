@@ -15,14 +15,15 @@
       </StackPanel>
 
       <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceMd}">
-        <Button Classes="primary" Content="{Binding NewProfileLabel}"/>
-        <Button>
+        <Button Classes="primary" Content="{Binding NewProfileLabel}"
+                Command="{Binding NewProfileCommand}"/>
+        <Button Command="{Binding SchedulesCommand}">
           <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
             <LucideIcon Kind="CalendarClock" Size="{StaticResource IconSizeSm}"/>
             <TextBlock Text="{Binding SchedulesLabel}"/>
           </StackPanel>
         </Button>
-        <Button>
+        <Button Command="{Binding RunHistoryCommand}">
           <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
             <LucideIcon Kind="ArrowLeftRight" Size="{StaticResource IconSizeSm}"/>
             <TextBlock Text="{Binding RunHistoryLabel}"/>

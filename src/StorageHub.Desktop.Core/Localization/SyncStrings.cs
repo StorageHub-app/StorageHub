@@ -708,4 +708,24 @@ internal sealed class SyncStrings : LocalizationModelBase
     /// <summary>{0} = how many operations the plan holds, {1} = how many of them remove data.</summary>
     public string ApproveDestructiveFormat { get; set; } =
         "This plan has {0} operation(s), {1} of which remove data.";
+
+    // ------------------------------------------------------- why a draft cannot be saved
+    // One sentence per field. The WinForms editor showed CompleteLocationsHint for every one of a
+    // dozen distinct failures, at the bottom of a form with twelve fields on it, so a blank name
+    // and a buffer size of zero read exactly alike.
+    public string ProfileNameRequired { get; set; } = "Give this synchronization task a name.";
+
+    public string LocationConnectionRequired { get; set; } = "Choose a saved connection.";
+
+    public string LocationsOverlap { get; set; } =
+        "Both locations are the same folder, or one is inside the other. Choose folders that do not overlap.";
+
+    /// <summary>{0} = the greatest number of characters allowed.</summary>
+    public string TextTooLongFormat { get; set; } = "Use at most {0} characters.";
+
+    /// <summary>{0} = the smallest value allowed, {1} = the greatest.</summary>
+    public string RangeFormat { get; set; } = "Enter a value from {0} to {1}.";
+
+    /// <summary>{0} = the greatest number of filters allowed.</summary>
+    public string TooManyFiltersFormat { get; set; } = "Use at most {0} filters.";
 }

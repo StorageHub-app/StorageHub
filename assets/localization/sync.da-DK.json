@@ -283,5 +283,11 @@
   "noPlanOperations": "Denne plan har intet at udføre.",
   "noConflicts": "Der blev ikke fundet konflikter i denne kørsel.",
   "approveDetailFormat": "Denne plan har {0} handling(er).",
-  "approveDestructiveFormat": "Denne plan har {0} handling(er), hvoraf {1} fjerner data."
+  "approveDestructiveFormat": "Denne plan har {0} handling(er), hvoraf {1} fjerner data.",
+  "profileNameRequired": "Giv denne synkroniseringsopgave et navn.",
+  "locationConnectionRequired": "Vælg en gemt forbindelse.",
+  "locationsOverlap": "Begge placeringer er den samme mappe, eller den ene ligger inde i den anden. Vælg mapper, der ikke overlapper.",
+  "textTooLongFormat": "Brug højst {0} tegn.",
+  "rangeFormat": "Angiv en værdi fra {0} til {1}.",
+  "tooManyFiltersFormat": "Brug højst {0} filtre."
 }

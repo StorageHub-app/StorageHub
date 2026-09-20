@@ -1,0 +1,234 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
+        xmlns:core="clr-namespace:StorageHub.Desktop;assembly=StorageHub.Desktop.Core"
+        x:Class="StorageHub.Desktop.Views.SyncProfileEditorWindow"
+        x:DataType="vm:SyncProfileEditorModel"
+        Title="{Binding Heading}"
+        Width="1040" Height="760"
+        WindowStartupLocation="CenterOwner">
+
+  <!--
+    Compare against docs/ui-reference/05-sync-profile-editor.png. Three numbered steps down one
+    column rather than the tabbed form 1.x used: the steps are in the order the decisions have to be
+    made in, and the limits in step three only make sense once the behaviour in step two is chosen.
+
+    Every field that can be refused has its complaint underneath it. The WinForms editor had one
+    line at the foot of the window for all fourteen.
+  -->
+
+  <Border Classes="surface">
+    <DockPanel>
+
+      <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto"
+            Margin="{StaticResource PaddingLg}">
+        <StackPanel Grid.Column="0" Spacing="{StaticResource SpaceXs}">
+          <TextBlock Classes="heading" Text="{Binding Heading}"/>
+          <TextBlock Classes="muted" Text="{Binding Subheading}" TextWrapping="Wrap"/>
+        </StackPanel>
+        <ComboBox Grid.Column="1" ItemsSource="{Binding Profiles}"
+                  SelectedItem="{Binding SelectedProfile, Mode=TwoWay}"
+                  MinWidth="260" VerticalAlignment="Center"
+                  AutomationProperties.Name="{Binding SavedProfileLabel}"
+                  Margin="{StaticResource PaddingMd}"/>
+        <Button Grid.Column="2" Content="{Binding NewProfileLabel}"
+                Command="{Binding NewProfileCommand}"
+                VerticalAlignment="Center"/>
+      </Grid>
+
+      <!--
+        The foot carries the status and both actions. Review and run is the primary one: saving is
+        what you do on the way to previewing, not the point of the screen.
+      -->
+      <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto,Auto,Auto"
+            Margin="{StaticResource PaddingLg}">
+        <TextBlock Grid.Column="0" Classes="status"
+                   Classes.primary="{Binding Status.IsPrimary}"
+                   Classes.success="{Binding Status.IsSuccess}"
+                   Classes.warning="{Binding Status.IsWarning}"
+                   Classes.danger="{Binding Status.IsDanger}"
+                   Text="{Binding Status.Text}" TextWrapping="Wrap"
+                   VerticalAlignment="Center"
+                   AutomationProperties.Name="{Binding ProfileStatusAccessibleName}"/>
+        <Button Grid.Column="1" Content="{Binding RefreshLabel}"
+                Command="{Binding RefreshCommand}" Margin="{StaticResource PaddingSm}"/>
+        <Button Grid.Column="2" Content="{Binding SaveLabel}"
+                Command="{Binding SaveCommand}" Margin="{StaticResource PaddingSm}"/>
+        <Button Grid.Column="3" Classes="primary" Content="{Binding PreviewLabel}"
+                Command="{Binding PreviewCommand}" Margin="{StaticResource PaddingSm}"/>
+      </Grid>
+
+      <ScrollViewer>
+        <StackPanel Margin="{StaticResource PagePadding}" Spacing="{StaticResource SpaceXl}">
+
+          <StackPanel Spacing="{StaticResource SpaceSm}">
+            <TextBlock Classes="title" Text="{Binding ProfileNameLabel}"/>
+            <!-- Stretched to its maximum rather than sized to its content: a box that grows as
+                 you type starts the width of the word in it, which reads as a disabled field. -->
+            <TextBox Text="{Binding Name, Mode=TwoWay}" Width="520"
+                     HorizontalAlignment="Left"/>
+            <TextBlock Classes="status danger" Text="{Binding NameProblem}"
+                       IsVisible="{Binding HasNameProblem}" TextWrapping="Wrap"/>
+            <TextBlock Classes="muted" Text="{Binding ProfileNameHint}"/>
+            <CheckBox Content="{Binding EnabledLabel}" IsChecked="{Binding Enabled, Mode=TwoWay}"/>
+            <TextBlock Classes="muted" Text="{Binding DisabledProfilesHint}" TextWrapping="Wrap"/>
+          </StackPanel>
+
+          <!-- Step 1 -->
+          <StackPanel Spacing="{StaticResource SpaceSm}">
+            <TextBlock Classes="title" Text="{Binding StepLocations}"/>
+            <TextBlock Classes="muted" Text="{Binding LocationsRelativeHint}" TextWrapping="Wrap"/>
+
+            <Grid ColumnDefinitions="*,Auto,*" Margin="0,8,0,0">
+              <StackPanel Grid.Column="0" Spacing="{StaticResource SpaceXs}">
+                <TextBlock Classes="caption" Text="{Binding LocationALabel}"/>
+                <ComboBox ItemsSource="{Binding Connections}"
+                          SelectedItem="{Binding LocationA, Mode=TwoWay}"
+                          HorizontalAlignment="Stretch"
+                          AutomationProperties.Name="{Binding ConnectionLabel}"/>
+                <TextBox Text="{Binding LocationARoot, Mode=TwoWay}"
+                         PlaceholderText="{Binding FolderLabel}"
+                         AutomationProperties.Name="{Binding LocationAAccessibleName}"/>
+                <TextBlock Classes="status danger" Text="{Binding LocationAProblem}"
+                           IsVisible="{Binding HasLocationAProblem}" TextWrapping="Wrap"/>
+              </StackPanel>
+
+              <Button Grid.Column="1" Content="{Binding SwapLabel}"
+                      Command="{Binding SwapCommand}"
+                      VerticalAlignment="Center" Margin="{StaticResource PaddingMd}"/>
+
+              <StackPanel Grid.Column="2" Spacing="{StaticResource SpaceXs}">
+                <TextBlock Classes="caption" Text="{Binding LocationBLabel}"/>
+                <ComboBox ItemsSource="{Binding Connections}"
+                          SelectedItem="{Binding LocationB, Mode=TwoWay}"
+                          HorizontalAlignment="Stretch"
+                          AutomationProperties.Name="{Binding ConnectionLabel}"/>
+                <TextBox Text="{Binding LocationBRoot, Mode=TwoWay}"
+                         PlaceholderText="{Binding FolderLabel}"
+                         AutomationProperties.Name="{Binding LocationBAccessibleName}"/>
+                <TextBlock Classes="status danger" Text="{Binding LocationBProblem}"
+                           IsVisible="{Binding HasLocationBProblem}" TextWrapping="Wrap"/>
+              </StackPanel>
+            </Grid>
+            <TextBlock Classes="muted" Text="{Binding EmptyMeansRoot}"/>
+          </StackPanel>
+
+          <!-- Step 2 -->
+          <StackPanel Spacing="{StaticResource SpaceSm}">
+            <TextBlock Classes="title" Text="{Binding StepBehavior}"/>
+            <TextBlock Classes="muted" Text="{Binding BehaviorHint}" TextWrapping="Wrap"/>
+
+            <!--
+              A list rather than a drop-down. Nine behaviours of which three delete things is not a
+              choice to make from a collapsed row of text, so each carries its summary and a badge
+              saying what it can do.
+            -->
+            <ListBox ItemsSource="{Binding Behaviors}"
+                     SelectedItem="{Binding Behavior, Mode=TwoWay}"
+                     MaxHeight="260"
+                     AutomationProperties.Name="{Binding BehaviorAccessibleName}">
+              <ListBox.ItemTemplate>
+                <DataTemplate DataType="core:SyncBehaviorOption">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Grid.Column="0" Spacing="{StaticResource SpaceXs}">
+                      <TextBlock Text="{Binding Title}"/>
+                      <TextBlock Classes="muted" Text="{Binding Summary}" TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <Border Grid.Column="1" Classes="badge"
+                            Classes.danger="{Binding IsDestructive}"
+                            Classes.success="{Binding IsReadOnly}"
+                            VerticalAlignment="Center">
+                      <TextBlock Classes="caption" Text="{Binding Badge}"/>
+                    </Border>
+                  </Grid>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+
+            <TextBlock Classes="caption" Text="{Binding ConflictPolicyLabel}" Margin="0,8,0,0"/>
+            <ComboBox ItemsSource="{Binding ConflictPolicies}"
+                      SelectedItem="{Binding ConflictPolicy, Mode=TwoWay}"
+                      MinWidth="280" HorizontalAlignment="Left"
+                      AutomationProperties.Name="{Binding ConflictPolicyLabel}"/>
+            <TextBlock Classes="muted" Text="{Binding ConflictPolicyHint}" TextWrapping="Wrap"/>
+          </StackPanel>
+
+          <!-- Step 3 -->
+          <StackPanel Spacing="{StaticResource SpaceSm}">
+            <TextBlock Classes="title" Text="{Binding StepSafety}"/>
+
+            <Grid ColumnDefinitions="*,*" Margin="0,4,0,0">
+              <StackPanel Grid.Column="0" Spacing="{StaticResource SpaceXs}"
+                          Margin="{StaticResource PaddingSm}">
+                <TextBlock Classes="caption" Text="{Binding IncludeGlobsLabel}"/>
+                <TextBox Text="{Binding IncludeGlobs, Mode=TwoWay}"
+                         AcceptsReturn="True" Height="96"
+                         AutomationProperties.Name="{Binding IncludeGlobsLabel}"/>
+                <TextBlock Classes="status danger" Text="{Binding IncludeGlobsProblem}"
+                           IsVisible="{Binding HasIncludeGlobsProblem}" TextWrapping="Wrap"/>
+              </StackPanel>
+              <StackPanel Grid.Column="1" Spacing="{StaticResource SpaceXs}"
+                          Margin="{StaticResource PaddingSm}">
+                <TextBlock Classes="caption" Text="{Binding ExcludeGlobsLabel}"/>
+                <TextBox Text="{Binding ExcludeGlobs, Mode=TwoWay}"
+                         AcceptsReturn="True" Height="96"
+                         AutomationProperties.Name="{Binding ExcludeGlobsLabel}"/>
+                <TextBlock Classes="status danger" Text="{Binding ExcludeGlobsProblem}"
+                           IsVisible="{Binding HasExcludeGlobsProblem}" TextWrapping="Wrap"/>
+              </StackPanel>
+            </Grid>
+            <TextBlock Classes="muted" Text="{Binding GlobHint}"/>
+            <TextBlock Classes="muted" Text="{Binding FiltersHint}" TextWrapping="Wrap"/>
+
+            <CheckBox Content="{Binding IncludeHiddenFilesLabel}"
+                      IsChecked="{Binding IncludeHiddenFiles, Mode=TwoWay}" Margin="0,8,0,0"/>
+            <TextBlock Classes="muted" Text="{Binding HiddenFilesHint}" TextWrapping="Wrap"/>
+
+            <Grid ColumnDefinitions="*,*,*" Margin="0,8,0,0">
+              <StackPanel Grid.Column="0" Spacing="{StaticResource SpaceXs}"
+                          Margin="{StaticResource PaddingSm}">
+                <TextBlock Classes="caption" Text="{Binding MaximumDeletesLabel}"/>
+                <NumericUpDown Value="{Binding MaximumDeletionCount, Mode=TwoWay}"
+                               Minimum="1" Maximum="1000000" Increment="10"
+                               FormatString="N0"
+                               AutomationProperties.Name="{Binding MaximumDeletesLabel}"/>
+                <TextBlock Classes="status danger" Text="{Binding DeletionCountProblem}"
+                           IsVisible="{Binding HasDeletionCountProblem}" TextWrapping="Wrap"/>
+                <TextBlock Classes="muted" Text="{Binding ItemLimitHint}" TextWrapping="Wrap"/>
+              </StackPanel>
+              <StackPanel Grid.Column="1" Spacing="{StaticResource SpaceXs}"
+                          Margin="{StaticResource PaddingSm}">
+                <TextBlock Classes="caption" Text="{Binding MaximumPercentLabel}"/>
+                <NumericUpDown Value="{Binding MaximumDeletionPercentage, Mode=TwoWay}"
+                               Minimum="1" Maximum="100" Increment="1"
+                               AutomationProperties.Name="{Binding MaximumPercentLabel}"/>
+                <TextBlock Classes="status danger" Text="{Binding DeletionPercentageProblem}"
+                           IsVisible="{Binding HasDeletionPercentageProblem}" TextWrapping="Wrap"/>
+                <TextBlock Classes="muted" Text="{Binding PercentageLimitHint}" TextWrapping="Wrap"/>
+              </StackPanel>
+              <StackPanel Grid.Column="2" Spacing="{StaticResource SpaceXs}"
+                          Margin="{StaticResource PaddingSm}">
+                <TextBlock Classes="caption" Text="{Binding TransferBufferLabel}"/>
+                <NumericUpDown Value="{Binding TransferBufferSize, Mode=TwoWay}"
+                               Minimum="1" Maximum="1048576" Increment="1024"
+                               FormatString="N0"
+                               AutomationProperties.Name="{Binding TransferBufferLabel}"/>
+                <TextBlock Classes="status danger" Text="{Binding TransferBufferProblem}"
+                           IsVisible="{Binding HasTransferBufferProblem}" TextWrapping="Wrap"/>
+                <TextBlock Classes="muted" Text="{Binding TransferBufferHint}" TextWrapping="Wrap"/>
+              </StackPanel>
+            </Grid>
+
+            <CheckBox Content="{Binding NonAtomicLabel}"
+                      IsChecked="{Binding AllowNonAtomicWrites, Mode=TwoWay}" Margin="0,8,0,0"/>
+            <TextBlock Classes="muted" Text="{Binding NonAtomicHint}" TextWrapping="Wrap"/>
+            <TextBlock Classes="status warning" Text="{Binding NonAtomicWarning}"
+                       IsVisible="{Binding NonAtomicWarningVisible}" TextWrapping="Wrap"/>
+          </StackPanel>
+
+        </StackPanel>
+      </ScrollViewer>
+
+    </DockPanel>
+  </Border>
+</Window>
