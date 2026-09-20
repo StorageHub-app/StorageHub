@@ -8,7 +8,7 @@ namespace StorageHub.Desktop;
 
 public sealed record ScheduleManagementAgentClientOptions
 {
-    public string PipeName { get; init; } = AgentStatusMonitor.DefaultPipeName;
+    public IpcEndpoint Endpoint { get; init; } = AgentStatusMonitor.DefaultEndpoint;
     public TimeSpan ConnectTimeout { get; init; } = TimeSpan.FromSeconds(2);
     public TimeSpan RequestTimeout { get; init; } = TimeSpan.FromSeconds(15);
 }
@@ -436,8 +436,8 @@ public sealed class NamedPipeScheduleManagementAgentClient : IScheduleManagement
     private static NamedPipeScheduleIpcTransport CreateTransport(ScheduleManagementAgentClientOptions options)
     {
         ValidateOptions(options);
-        return new NamedPipeScheduleIpcTransport(WindowsNamedPipeIpc.CreateClient(DesktopAgentIpcOptions.Create(
-            options.PipeName,
+        return new NamedPipeScheduleIpcTransport(DesktopAgentIpcOptions.CreateClient(DesktopAgentIpcOptions.Create(
+            options.Endpoint,
             "StorageHub.Desktop.ScheduleManagement",
             options.ConnectTimeout)));
     }
@@ -445,10 +445,7 @@ public sealed class NamedPipeScheduleManagementAgentClient : IScheduleManagement
     private static void ValidateOptions(ScheduleManagementAgentClientOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        if (string.IsNullOrWhiteSpace(options.PipeName) || options.PipeName.Length > 180)
-        {
-            throw new ArgumentException(Ui.Validation.AValidLocalAgentPipeNameIs, nameof(options));
-        }
+        ArgumentNullException.ThrowIfNull(options.Endpoint);
 
         if (options.ConnectTimeout <= TimeSpan.Zero || options.ConnectTimeout > TimeSpan.FromSeconds(15))
         {

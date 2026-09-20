@@ -19,7 +19,7 @@ public sealed class AgentMonitorStatusEventArgs(AgentMonitorStatus status) : Eve
 
 public sealed class AgentStatusMonitor : IAsyncDisposable
 {
-    public static string DefaultPipeName => DesktopAgentHost.NormalPipeName;
+    public static IpcEndpoint DefaultEndpoint => DesktopAgentHost.NormalEndpoint;
 
     private readonly TimeSpan _pollInterval;
     private readonly TimeSpan _connectTimeout;
@@ -115,9 +115,9 @@ public sealed class AgentStatusMonitor : IAsyncDisposable
             // The 8s poll cadence is itself the retry, so a status poll takes a single
             // attempt. Retrying here would spend seconds per cycle re-probing a pipe
             // that is simply absent while the agent is stopped.
-            await using var client = WindowsNamedPipeIpc.CreateClient(
+            await using var client = DesktopAgentIpcOptions.CreateClient(
                 DesktopAgentIpcOptions.Create(
-                    DefaultPipeName,
+                    DefaultEndpoint,
                     "StorageHub.Desktop",
                     _connectTimeout) with
                 {

@@ -53,6 +53,18 @@ public static class AgentHostLayout
     public const string ServiceArgument = "--service";
 
     /// <summary>
+    /// The name of the per-user autostart registration.
+    /// </summary>
+    /// <remarks>
+    /// Shared so that whatever writes it and whatever reads it cannot disagree. They did: the
+    /// desktop has always written "StorageHub.Agent" under HKCU Run, while the agent platform's own
+    /// registration defaulted to "StorageHub" - so an agent that registered its own autostart wrote
+    /// a value the desktop would never find, and the desktop would report the session mode as
+    /// AppSession however the machine was actually set up. On Linux this is the systemd unit's name.
+    /// </remarks>
+    public const string AutostartEntryName = "StorageHub.Agent";
+
+    /// <summary>
     /// Command-line switch that applies one named installation repair and reports through the
     /// exit code. Declared here rather than beside the other service commands because the desktop
     /// launches it and cannot reference the agent executable.s own types.

@@ -8,7 +8,7 @@ namespace StorageHub.Desktop;
 
 public sealed record KeyStoreAgentClientOptions
 {
-    public string PipeName { get; init; } = AgentStatusMonitor.DefaultPipeName;
+    public IpcEndpoint Endpoint { get; init; } = AgentStatusMonitor.DefaultEndpoint;
     public TimeSpan ConnectTimeout { get; init; } = TimeSpan.FromSeconds(2);
     public TimeSpan RequestTimeout { get; init; } = TimeSpan.FromSeconds(30);
 }
@@ -289,9 +289,9 @@ public sealed class NamedPipeKeyStoreAgentClient : IKeyStoreAgentClient
     private static NamedPipeKeyStoreIpcTransport CreateTransport(KeyStoreAgentClientOptions options)
     {
         ValidateOptions(options);
-        return new NamedPipeKeyStoreIpcTransport(WindowsNamedPipeIpc.CreateClient(
+        return new NamedPipeKeyStoreIpcTransport(DesktopAgentIpcOptions.CreateClient(
             DesktopAgentIpcOptions.Create(
-                options.PipeName,
+                options.Endpoint,
                 "StorageHub.Desktop.KeyStore",
                 options.ConnectTimeout)));
     }
@@ -299,10 +299,7 @@ public sealed class NamedPipeKeyStoreAgentClient : IKeyStoreAgentClient
     private static void ValidateOptions(KeyStoreAgentClientOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        if (string.IsNullOrWhiteSpace(options.PipeName) || options.PipeName.Length > 180)
-        {
-            throw new ArgumentException(Ui.Validation.AValidLocalAgentPipeNameIs, nameof(options));
-        }
+        ArgumentNullException.ThrowIfNull(options.Endpoint);
 
         if (options.ConnectTimeout <= TimeSpan.Zero || options.ConnectTimeout > TimeSpan.FromSeconds(15))
         {

@@ -8,7 +8,7 @@ namespace StorageHub.Desktop;
 
 public sealed record RemoteStorageAgentClientOptions
 {
-    public string PipeName { get; init; } = AgentStatusMonitor.DefaultPipeName;
+    public IpcEndpoint Endpoint { get; init; } = AgentStatusMonitor.DefaultEndpoint;
 
     public TimeSpan ConnectTimeout { get; init; } = TimeSpan.FromSeconds(2);
 
@@ -468,8 +468,8 @@ public sealed class NamedPipeRemoteStorageAgentClient : IRemoteStorageAgentClien
     private static NamedPipeStorageIpcTransport CreateTransport(RemoteStorageAgentClientOptions options)
     {
         ValidateOptions(options);
-        return new NamedPipeStorageIpcTransport(WindowsNamedPipeIpc.CreateClient(DesktopAgentIpcOptions.Create(
-            options.PipeName,
+        return new NamedPipeStorageIpcTransport(DesktopAgentIpcOptions.CreateClient(DesktopAgentIpcOptions.Create(
+            options.Endpoint,
             "StorageHub.Desktop.StorageBrowser",
             options.ConnectTimeout)));
     }
@@ -477,10 +477,7 @@ public sealed class NamedPipeRemoteStorageAgentClient : IRemoteStorageAgentClien
     private static void ValidateOptions(RemoteStorageAgentClientOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        if (string.IsNullOrWhiteSpace(options.PipeName) || options.PipeName.Length > 180)
-        {
-            throw new ArgumentException(Ui.Validation.AValidLocalAgentPipeNameIs, nameof(options));
-        }
+        ArgumentNullException.ThrowIfNull(options.Endpoint);
 
         if (options.ConnectTimeout <= TimeSpan.Zero || options.ConnectTimeout > TimeSpan.FromSeconds(15))
         {

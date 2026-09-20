@@ -8,7 +8,7 @@ namespace StorageHub.Desktop;
 
 public sealed record ObjectInspectorAgentClientOptions
 {
-    public string PipeName { get; init; } = AgentStatusMonitor.DefaultPipeName;
+    public IpcEndpoint Endpoint { get; init; } = AgentStatusMonitor.DefaultEndpoint;
     public TimeSpan ConnectTimeout { get; init; } = TimeSpan.FromSeconds(2);
     public TimeSpan RequestTimeout { get; init; } = TimeSpan.FromSeconds(30);
 }
@@ -556,9 +556,9 @@ public sealed class NamedPipeObjectInspectorAgentClient : IObjectInspectorAgentC
         ObjectInspectorAgentClientOptions options)
     {
         ValidateOptions(options);
-        return new NamedPipeObjectInspectorIpcTransport(WindowsNamedPipeIpc.CreateClient(
+        return new NamedPipeObjectInspectorIpcTransport(DesktopAgentIpcOptions.CreateClient(
             DesktopAgentIpcOptions.Create(
-                options.PipeName,
+                options.Endpoint,
                 "StorageHub.Desktop.ObjectInspector",
                 options.ConnectTimeout)));
     }
@@ -566,10 +566,7 @@ public sealed class NamedPipeObjectInspectorAgentClient : IObjectInspectorAgentC
     private static void ValidateOptions(ObjectInspectorAgentClientOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        if (string.IsNullOrWhiteSpace(options.PipeName) || options.PipeName.Length > 180)
-        {
-            throw new ArgumentException(Ui.Validation.AValidLocalAgentPipeNameIs, nameof(options));
-        }
+        ArgumentNullException.ThrowIfNull(options.Endpoint);
 
         if (options.ConnectTimeout <= TimeSpan.Zero || options.ConnectTimeout > TimeSpan.FromSeconds(15))
         {

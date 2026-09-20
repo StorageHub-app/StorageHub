@@ -36,6 +36,23 @@ public sealed class LinuxAgentPlatform : IAgentPlatform
     public IAutostartRegistration Autostart { get; } = new SystemdUserAutostart();
 
     /// <summary>
+    /// A registered systemd user unit means the agent outlives the app; otherwise it does not.
+    /// </summary>
+    /// <remarks>
+    /// There is no service mode to discover here, which is the decision the plan already recorded:
+    /// no system unit and no root. So the question reduces to the same one Windows asks of its
+    /// logon entry.
+    /// </remarks>
+    public AgentHostMode DiscoverHostMode() =>
+        Autostart.IsRegistered ? AgentHostMode.UserSession : AgentHostMode.AppSession;
+
+    public IIpcServerAuthenticator ResolveServerAuthenticator(AgentHostMode mode)
+    {
+        _ = ResolveTrustModel(mode);
+        return UnixDomainSocketIpc.ServerAuthenticator;
+    }
+
+    /// <summary>
     /// Nothing here asks for privilege it was not started with.
     /// </summary>
     /// <remarks>

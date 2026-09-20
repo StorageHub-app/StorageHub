@@ -1,6 +1,8 @@
 using StorageHub.Ipc;
 using StorageHub.Contracts.Ipc;
 
+using StorageHub.Agent;
+
 namespace StorageHub.Desktop.Tests;
 
 public sealed class PresentationModelTests
@@ -143,19 +145,36 @@ public sealed class PresentationModelTests
     [Fact]
     public void AgentMonitorUsesBoundedNonBlockingDefaults()
     {
-        // Every client must agree on the pipe the agent is actually publishing, which now depends
-        // on the host mode: asserting the per-user name outright would only hold on a machine with
-        // no StorageHub service, and would quietly stop testing anything on one that has it.
-        var normal = DesktopAgentHost.NormalPipeName;
-        var secret = DesktopAgentHost.SecretPipeName;
+        // Every client must agree on the endpoint the agent is actually publishing, which depends
+        // on the host mode: asserting a per-user name outright would only hold on a machine with
+        // no StorageHub service, and would quietly stop testing anything on one that has it. It is
+        // an endpoint rather than a pipe name now, so the same assertions hold on Linux.
+        var normal = DesktopAgentHost.NormalEndpoint;
+        var secret = DesktopAgentHost.SecretEndpoint;
         Assert.NotEqual(normal, secret);
-        Assert.Equal(normal, AgentStatusMonitor.DefaultPipeName);
-        Assert.Equal(normal, new RemoteStorageAgentClientOptions().PipeName);
-        Assert.Equal(normal, new ObjectInspectorAgentClientOptions().PipeName);
-        Assert.Equal(normal, new SyncManagementAgentClientOptions().PipeName);
-        Assert.Equal(normal, new ScheduleManagementAgentClientOptions().PipeName);
-        Assert.Equal(secret, new RemoteSecretVaultClientOptions().PipeName);
+        Assert.Equal(normal, AgentStatusMonitor.DefaultEndpoint);
+        Assert.Equal(normal, new RemoteStorageAgentClientOptions().Endpoint);
+        Assert.Equal(normal, new ObjectInspectorAgentClientOptions().Endpoint);
+        Assert.Equal(normal, new SyncManagementAgentClientOptions().Endpoint);
+        Assert.Equal(normal, new ScheduleManagementAgentClientOptions().Endpoint);
+        Assert.Equal(secret, new RemoteSecretVaultClientOptions().Endpoint);
         Assert.Throws<ArgumentOutOfRangeException>(() => new AgentStatusMonitor(connectTimeout: TimeSpan.FromSeconds(6)));
         Assert.Throws<ArgumentOutOfRangeException>(() => new AgentStatusMonitor(pollInterval: TimeSpan.FromMilliseconds(500)));
+    }
+
+    /// <summary>
+    /// Whatever writes the autostart registration and whatever reads it must use one name.
+    /// </summary>
+    /// <remarks>
+    /// They did not. The desktop has always written "StorageHub.Agent" under HKCU Run, while the
+    /// agent platform's own registration defaulted to "StorageHub" - so an agent that registered its
+    /// own autostart wrote a value the desktop would never find, and the desktop would report
+    /// AppSession however the machine was actually set up. The symptom would have been an agent that
+    /// silently stopped outliving the app.
+    /// </remarks>
+    [Fact]
+    public void TheAutostartEntryHasOneName()
+    {
+        Assert.Equal(AgentHostLayout.AutostartEntryName, new PackagedDesktopLifecycleOptions().RunEntryName);
     }
 }

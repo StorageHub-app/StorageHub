@@ -608,8 +608,8 @@ public sealed class NamedPipeTransferQueueAgentClient : ITransferQueueAgentClien
     private static NamedPipeTransferIpcTransport CreateTransport(RemoteStorageAgentClientOptions options)
     {
         ValidateOptions(options);
-        return new NamedPipeTransferIpcTransport(WindowsNamedPipeIpc.CreateClient(DesktopAgentIpcOptions.Create(
-            options.PipeName,
+        return new NamedPipeTransferIpcTransport(DesktopAgentIpcOptions.CreateClient(DesktopAgentIpcOptions.Create(
+            options.Endpoint,
             "StorageHub.Desktop.TransferQueue",
             options.ConnectTimeout)));
     }
@@ -617,10 +617,7 @@ public sealed class NamedPipeTransferQueueAgentClient : ITransferQueueAgentClien
     private static void ValidateOptions(RemoteStorageAgentClientOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        if (string.IsNullOrWhiteSpace(options.PipeName) || options.PipeName.Length > 180)
-        {
-            throw new ArgumentException(Ui.Validation.AValidLocalAgentPipeNameIs, nameof(options));
-        }
+        ArgumentNullException.ThrowIfNull(options.Endpoint);
 
         if (options.ConnectTimeout <= TimeSpan.Zero || options.ConnectTimeout > TimeSpan.FromSeconds(15))
         {

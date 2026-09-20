@@ -23,7 +23,7 @@ public sealed class WindowsRunKeyAutostart : IAutostartRegistration
 
     private readonly string _valueName;
 
-    public WindowsRunKeyAutostart(string valueName = "StorageHub")
+    public WindowsRunKeyAutostart(string valueName = AgentHostLayout.AutostartEntryName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(valueName);
         _valueName = valueName;
@@ -133,6 +133,35 @@ public sealed class WindowsAgentPlatform : IAgentPlatform
         // sockets and key material on tmpfs without every caller knowing which is which.
         return new AgentPaths(dataRoot, Path.Combine(dataRoot, "Runtime"));
     }
+
+    /// <summary>
+    /// A service if one is installed, otherwise whichever session mode the logon entry implies.
+    /// </summary>
+    /// <remarks>
+    /// The logon entry is read rather than stored because it is the only durable difference between
+    /// an agent that outlives the app and one that does not, and Windows is the authority on whether
+    /// it exists.
+    /// </remarks>
+    public AgentHostMode DiscoverHostMode()
+    {
+        try
+        {
+            if (AgentServiceInstaller.Describe().Installed) return AgentHostMode.WindowsService;
+
+            return Autostart.IsRegistered
+                ? AgentHostMode.UserSession
+                : AgentHostMode.AppSession;
+        }
+        catch (Exception)
+        {
+            // The service control manager could not be asked. Assume the mode that needs no
+            // service and no privilege, which is also how every installation before this behaved.
+            return AgentHostMode.UserSession;
+        }
+    }
+
+    public IIpcServerAuthenticator ResolveServerAuthenticator(AgentHostMode mode) =>
+        WindowsNamedPipeIpc.AuthenticatorFor(ResolveTrustModel(mode));
 
     public IpcEndpoint ResolveEndpoint(AgentHostMode mode, AgentIpcChannel channel)
     {

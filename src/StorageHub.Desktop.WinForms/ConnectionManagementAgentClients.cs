@@ -451,8 +451,8 @@ public sealed class NamedPipeRemoteConnectionProfileClient : IRemoteConnectionPr
 
     private static ProfileNamedPipeTransport CreateTransport(RemoteStorageAgentClientOptions options)
     {
-        return new ProfileNamedPipeTransport(WindowsNamedPipeIpc.CreateClient(DesktopAgentIpcOptions.Create(
-            options.PipeName,
+        return new ProfileNamedPipeTransport(DesktopAgentIpcOptions.CreateClient(DesktopAgentIpcOptions.Create(
+            options.Endpoint,
             "StorageHub.Desktop.ConnectionManager",
             options.ConnectTimeout)));
     }
@@ -502,7 +502,7 @@ public interface ISecretIpcTransport : IAsyncDisposable
 
 public sealed record RemoteSecretVaultClientOptions
 {
-    public string PipeName { get; init; } = DesktopAgentHost.SecretPipeName;
+    public IpcEndpoint Endpoint { get; init; } = DesktopAgentHost.SecretEndpoint;
     public TimeSpan ConnectTimeout { get; init; } = TimeSpan.FromSeconds(2);
     public TimeSpan RequestTimeout { get; init; } = TimeSpan.FromSeconds(30);
 }
@@ -760,9 +760,9 @@ public sealed class NamedPipeRemoteSecretVaultClient : IRemoteSecretVaultClient
             throw new ArgumentOutOfRangeException(nameof(options));
         }
 
-        return new SecretNamedPipeTransport(WindowsNamedPipeIpc.CreateClient(
+        return new SecretNamedPipeTransport(DesktopAgentIpcOptions.CreateClient(
             DesktopAgentIpcOptions.Create(
-                options.PipeName,
+                options.Endpoint,
                 "StorageHub.Desktop.SecretEnrollment",
                 options.ConnectTimeout) with
             {

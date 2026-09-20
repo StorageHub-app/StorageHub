@@ -110,12 +110,12 @@ public sealed class NamedPipeSshTerminalAgentClient : ISshTerminalAgentClient
     }
 
     private static SshTerminalNamedPipeTransport CreateTransport(string role) =>
-        new(WindowsNamedPipeIpc.CreateClient(new IpcClientOptions
+        new(DesktopAgentIpcOptions.CreateClient(new IpcClientOptions
         {
-            Endpoint = new NamedPipeEndpoint(AgentStatusMonitor.DefaultPipeName),
+            Endpoint = AgentStatusMonitor.DefaultEndpoint,
             // As everywhere else: the access mode has to match the pipe the name resolved to, or a
             // service-hosted agent is unreachable and every terminal fails to open.
-            TrustModel = DesktopAgentHost.PipeAccess,
+            TrustModel = DesktopAgentHost.TrustModel,
             ClientName = $"StorageHub.Desktop.SshTerminal.{role}",
             ClientVersion = DesktopApplicationVersion.Current,
             ConnectTimeout = TimeSpan.FromSeconds(2),

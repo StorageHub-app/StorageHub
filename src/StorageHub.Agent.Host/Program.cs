@@ -44,21 +44,10 @@ if (OperatingSystem.IsWindows() &&
     return await AgentServiceCommands.ExecuteAsync(args).ConfigureAwait(false);
 }
 
-// Written as if/else rather than a ternary because CA1416 narrows on a guard, not on the false
-// branch of one: it has to see IsLinux() asserted before a Linux type is constructed.
-IAgentPlatform agentPlatform;
-IAgentHostPlatform hostPlatform;
-if (OperatingSystem.IsWindows())
-{
-    agentPlatform = new StorageHub.Agent.Windows.WindowsAgentPlatform();
-    hostPlatform = new StorageHub.Agent.Windows.WindowsAgentHostPlatform();
-}
-else if (OperatingSystem.IsLinux())
-{
-    agentPlatform = new StorageHub.Agent.Linux.LinuxAgentPlatform();
-    hostPlatform = new StorageHub.Agent.Linux.LinuxAgentHostPlatform();
-}
-else
+// The selection lives in AgentPlatforms, because the desktop needs the same answer and answering
+// it twice is how the two came to disagree about the autostart entry's name.
+if (!AgentPlatforms.TryCreate(out var agentPlatform, out var hostPlatform) ||
+    agentPlatform is null || hostPlatform is null)
 {
     Console.Error.WriteLine("The StorageHub agent runs on Windows and Linux.");
     return 3;

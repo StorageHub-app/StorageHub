@@ -86,6 +86,30 @@ public interface IAgentPlatform
     /// </summary>
     IReadOnlySet<AgentHostMode> SupportedHostModes { get; }
 
+    /// <summary>
+    /// Which mode an agent on this machine is actually in.
+    /// </summary>
+    /// <remarks>
+    /// Discovered rather than remembered, and asked by the desktop rather than by the agent: the
+    /// agent knows its own mode because it was started in it, while the desktop has to find out
+    /// which agent is there before it can pick an endpoint and a trust model. A stored preference
+    /// would be the wrong answer whenever it disagreed with the machine - a service installed since
+    /// it was written, or an autostart entry removed - and the failure looks like "the agent is
+    /// offline" rather than like a stale setting.
+    /// </remarks>
+    AgentHostMode DiscoverHostMode();
+
+    /// <summary>
+    /// How a client checks that the thing that answered is the agent, for a given mode.
+    /// </summary>
+    /// <remarks>
+    /// Mode-dependent because the property being verified is: a same-user endpoint is already
+    /// restricted to this account, while a machine-wide one has to have its owner checked. Pairing a
+    /// machine endpoint with the same-user check would compile, connect, and silently skip the check
+    /// that stops a squatter collecting secrets.
+    /// </remarks>
+    IIpcServerAuthenticator ResolveServerAuthenticator(AgentHostMode mode);
+
     AgentPaths ResolvePaths(AgentHostMode mode);
 
     IpcEndpoint ResolveEndpoint(AgentHostMode mode, AgentIpcChannel channel);

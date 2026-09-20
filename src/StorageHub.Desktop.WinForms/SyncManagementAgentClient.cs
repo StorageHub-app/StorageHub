@@ -7,7 +7,7 @@ namespace StorageHub.Desktop;
 
 public sealed record SyncManagementAgentClientOptions
 {
-    public string PipeName { get; init; } = AgentStatusMonitor.DefaultPipeName;
+    public IpcEndpoint Endpoint { get; init; } = AgentStatusMonitor.DefaultEndpoint;
     public TimeSpan ConnectTimeout { get; init; } = TimeSpan.FromSeconds(2);
     public TimeSpan RequestTimeout { get; init; } = TimeSpan.FromMinutes(2);
 }
@@ -703,8 +703,8 @@ public sealed class NamedPipeSyncManagementAgentClient : ISyncManagementAgentCli
     private static NamedPipeSyncIpcTransport CreateTransport(SyncManagementAgentClientOptions options)
     {
         ValidateOptions(options);
-        return new NamedPipeSyncIpcTransport(WindowsNamedPipeIpc.CreateClient(DesktopAgentIpcOptions.Create(
-            options.PipeName,
+        return new NamedPipeSyncIpcTransport(DesktopAgentIpcOptions.CreateClient(DesktopAgentIpcOptions.Create(
+            options.Endpoint,
             "StorageHub.Desktop.SyncManagement",
             options.ConnectTimeout)));
     }
@@ -712,10 +712,7 @@ public sealed class NamedPipeSyncManagementAgentClient : ISyncManagementAgentCli
     private static void ValidateOptions(SyncManagementAgentClientOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
-        if (string.IsNullOrWhiteSpace(options.PipeName) || options.PipeName.Length > 180)
-        {
-            throw new ArgumentException("A valid local agent pipe name is required.", nameof(options));
-        }
+        ArgumentNullException.ThrowIfNull(options.Endpoint);
 
         if (options.ConnectTimeout <= TimeSpan.Zero || options.ConnectTimeout > TimeSpan.FromSeconds(15))
         {
