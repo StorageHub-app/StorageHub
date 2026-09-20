@@ -474,7 +474,7 @@ if (Test-Path -LiteralPath $outputRootPath -PathType Leaf) {
 }
 
 $dotnetCommand = @(Get-Command dotnet -CommandType Application -ErrorAction Stop)[0]
-$desktopProject = Join-Path $repoRoot 'src\StorageHub.Desktop.WinForms\StorageHub.Desktop.WinForms.csproj'
+$desktopProject = Join-Path $repoRoot 'src\StorageHub.Desktop\StorageHub.Desktop.csproj'
 $agentProject = Join-Path $repoRoot 'src\StorageHub.Agent.Host\StorageHub.Agent.Host.csproj'
 $licensePath = Join-Path $repoRoot 'LICENSE'
 $readmePath = Join-Path $repoRoot 'README.md'

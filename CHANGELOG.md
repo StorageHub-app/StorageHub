@@ -18,6 +18,35 @@ chosen is written down in [Versioning and merges](docs/versioning.md).
 
 ## Unreleased
 
+**StorageHub 2.0: a new shell, and one place its data lives.** The desktop is
+rewritten on AvaloniaUI and runs on Windows and Linux from the same source. The
+WinForms shell is gone -- 35,686 lines of it -- and with it the DPI machinery,
+the 250-line theme walker and 5,334 lines of owner-drawn controls, replaced by
+styles over stock controls.
+
+MAJOR is the right number because of where data lives, which is what
+[Versioning and merges](docs/versioning.md) reserves it for. Every Windows mode
+now resolves `%PROGRAMDATA%\StorageHub`, and the agent runs as you rather than
+as a machine-wide service. An installation that still has the old service must
+remove it: the desktop no longer looks for the pipe it publishes, and the agent
+cannot take a data root that LocalSystem owns. `eng/remove-legacy-agent-service.ps1`
+does both halves, elevated. There is no migration of the old vault and there
+cannot be -- it is protected with the machine's DPAPI key and the new one with
+yours, so its entries could not be read across the move even if the files were
+kept.
+
+What is better rather than merely different: the connections panel holds groups
+you make and drag between, instead of a fixed Storage/Clients split, with a
+badge on each row saying which it is. A workspace holds one to four panes in six
+arrangements. Transfers stage and paste, so "the other pane" no longer has to
+mean anything. Panes browse this computer through the same object they browse a
+bucket with. Twenty-two colour schemes, identical on both platforms.
+
+Still being ported, and tracked in [the port inventory](docs/port-inventory.md):
+the SSH terminal's painter, the sync screens, drag and drop, the key store and
+the object inspector.
+
+
 **Updating no longer kills a service-hosted agent.** Before applying an update
 the desktop asked the agent to shut down, so that files were not swapped
 underneath it. It asked unconditionally -- and a service-hosted agent answers

@@ -12,8 +12,8 @@ reach it. Several rows are deliberately *not* going to be reproduced; those say 
 
 ## The one number that matters
 
-The catalog declares **62 commands**. `UiCommandCatalog.IsAvailable` says **37 of them are wired**
-in 1.x. The other **25 have always been inert** — they are drawn, and they do nothing:
+The catalog declares **62 commands**. `UiCommandCatalog.IsAvailable` admits **37**; the other
+**25 have always been inert** in 1.x too -- drawn, and doing nothing:
 
 > `ViewDirectoryTree` · `ViewTransferQueue` · `ViewSessionLog` · `ViewHiddenFiles` · `ViewTheme` ·
 > `GoHome` · `GoHistory` · `GoFavorites` · `ConnectionsQuickConnect` · `ConnectionsReconnect` ·
@@ -22,9 +22,35 @@ in 1.x. The other **25 have always been inert** — they are drawn, and they do 
 > `SyncComparePanes` · `ToolsSearch` · `ToolsChecksums` · `ToolsLogs` · `ToolsDiagnostics` ·
 > `HelpKeyboardShortcuts` · `HelpDocumentation` · `HelpReportIssue`
 
-So 1:1 means **37**, and the menu can keep showing the other 25 exactly as it always has. Worth
-knowing before promising any of them: several sound like core features (Hidden files, Directory
-tree, Transfer queue toggle, Cancel selected) and are not.
+So 1:1 means **37**, and the menu keeps showing the other 25 unavailable, exactly as it always has.
+
+**Of those 37, this shell handles 6.** That is the real number, and until recently this document
+quoted 1.x's in its place. It is now visible in the product rather than only here: a command is
+offered when it has a handler and dims when it does not, so the count of enabled menu entries is
+the count of handlers. `CommandAvailabilityTests` asserts the two are equal, which makes the menu
+the port's progress meter.
+
+Worth knowing before promising any of the 25: several sound like core features -- Hidden files,
+Directory tree, Transfer queue toggle, Cancel selected -- and are not.
+
+---
+
+## Where the old shell went
+
+`src/StorageHub.Desktop.WinForms` is deleted. It is preserved whole on the **`1.x` branch**, which
+is where to read it from while porting what remains:
+
+```
+git show 1.x:src/StorageHub.Desktop.WinForms/SyncProfileEditorForm.cs
+```
+
+`~14,200 lines of screens` have no Avalonia counterpart yet. They are the rows marked **todo**
+below, and the reason 2.0 is not finished.
+
+The desktop is two projects now: `StorageHub.Desktop`, which draws, and `StorageHub.Desktop.Core`,
+which does not and is where both platforms' logic lives. The Windows-only integrations -- registry,
+COM registration, the named-pipe lifecycle client -- sit in `Desktop.Core/Windows/` behind
+`[SupportedOSPlatform("windows")]` rather than in a project of their own.
 
 ---
 
