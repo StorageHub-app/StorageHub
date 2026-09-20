@@ -1,6 +1,7 @@
 using StorageHub.Application.Connections;
 using StorageHub.Domain.Identifiers;
 using StorageHub.Security;
+using StorageHub.Testing;
 
 namespace StorageHub.Application.Tests.Connections;
 
@@ -223,7 +224,7 @@ public sealed class ConnectionProfileTests
         Assert.Throws<ArgumentException>(() => ConnectionProfile.Create(
             ConnectionProfileId.New(),
             Metadata("Mismatch"),
-            new LocalEndpoint("C:\\Data"),
+            new LocalEndpoint(TestPaths.LocalRoot),
             new NoAuthentication(),
             OperationalOptions(),
             DateTimeOffset.UtcNow,
@@ -236,7 +237,7 @@ public sealed class ConnectionProfileTests
         var data = new TheoryData<ConnectionProfile>
         {
             ConnectionProfile.Create(ConnectionProfileId.New(), Metadata("Local"),
-                new LocalEndpoint("C:\\Data"), new NoAuthentication(), OperationalOptions(), now),
+                new LocalEndpoint(TestPaths.LocalRoot), new NoAuthentication(), OperationalOptions(), now),
             ConnectionProfile.Create(ConnectionProfileId.New(), Metadata("S3"),
                 new S3Endpoint("archive", "eu-north-1"),
                 new S3AccessKeyAuthentication(

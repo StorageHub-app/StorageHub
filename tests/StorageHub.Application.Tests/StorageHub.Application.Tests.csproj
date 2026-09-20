@@ -18,6 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../StorageHub.Testing/StorageHub.Testing.csproj" />
     <ProjectReference Include="..\..\src\StorageHub.Application\StorageHub.Application.csproj" />
     <ProjectReference Include="..\..\src\StorageHub.Domain\StorageHub.Domain.csproj" />
     <ProjectReference Include="..\..\src\StorageHub.Security\StorageHub.Security.csproj" />

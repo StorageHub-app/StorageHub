@@ -120,6 +120,12 @@
       "storagehub.security": {
         "type": "Project"
       },
+      "storagehub.testing": {
+        "type": "Project",
+        "dependencies": {
+          "xunit": "[2.9.3, )"
+        }
+      },
       "CodeLogic": {
         "type": "CentralTransitive",
         "requested": "[4.8.19, )",

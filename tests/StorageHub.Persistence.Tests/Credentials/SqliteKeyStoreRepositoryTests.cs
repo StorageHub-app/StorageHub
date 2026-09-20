@@ -5,6 +5,7 @@ using StorageHub.Persistence.Connections;
 using StorageHub.Persistence.Credentials;
 using StorageHub.Security;
 using Xunit;
+using StorageHub.Testing;
 
 namespace StorageHub.Persistence.Tests.Credentials;
 
@@ -274,7 +275,7 @@ public sealed class SqliteKeyStoreRepositoryTests : IDisposable
         var profile = ConnectionProfile.Create(
             ConnectionProfileId.New(),
             new ConnectionProfileMetadata(name),
-            new LocalEndpoint("C:\\Data"),
+            new LocalEndpoint(TestPaths.LocalRoot),
             new NoAuthentication(),
             new ConnectionOperationalOptions(
                 TimeSpan.FromSeconds(10),

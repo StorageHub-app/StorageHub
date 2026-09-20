@@ -4,6 +4,7 @@ using StorageHub.Domain.Identifiers;
 using StorageHub.Persistence.Connections;
 using StorageHub.Security;
 using Xunit;
+using StorageHub.Testing;
 
 namespace StorageHub.Persistence.Tests.Connections;
 
@@ -43,7 +44,7 @@ public sealed class SqliteConnectionProfileRepositoryTests : IDisposable
         var profiles = new[]
         {
             ConnectionProfile.Create(ConnectionProfileId.New(), new ConnectionProfileMetadata("Local provider"),
-                new LocalEndpoint("C:\\Storage"), new NoAuthentication(), OptionsForConnection(), now),
+                new LocalEndpoint(TestPaths.OtherLocalRoot), new NoAuthentication(), OptionsForConnection(), now),
             ConnectionProfile.Create(ConnectionProfileId.New(), new ConnectionProfileMetadata("S3 provider"),
                 new S3Endpoint("backups", "eu-west-1", new Uri("https://s3.example.test"), true,
                     TlsCertificatePolicy.Pinned),
@@ -204,7 +205,7 @@ public sealed class SqliteConnectionProfileRepositoryTests : IDisposable
         ConnectionProfile.Create(
             ConnectionProfileId.New(),
             new ConnectionProfileMetadata(name, folder, tags),
-            new LocalEndpoint("C:\\Data"),
+            new LocalEndpoint(TestPaths.LocalRoot),
             new NoAuthentication(),
             OptionsForConnection(),
             DateTimeOffset.UtcNow);

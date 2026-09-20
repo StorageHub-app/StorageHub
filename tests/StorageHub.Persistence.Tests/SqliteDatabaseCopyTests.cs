@@ -3,6 +3,7 @@ using StorageHub.Application.Connections;
 using StorageHub.Domain.Identifiers;
 using StorageHub.Persistence.Connections;
 using Xunit;
+using StorageHub.Testing;
 
 namespace StorageHub.Persistence.Tests;
 
@@ -133,7 +134,7 @@ public sealed class SqliteDatabaseCopyTests : IDisposable
         var profile = ConnectionProfile.Create(
             ConnectionProfileId.New(),
             new ConnectionProfileMetadata("Migration fixture"),
-            new LocalEndpoint("C:\\Data"),
+            new LocalEndpoint(TestPaths.LocalRoot),
             new NoAuthentication(),
             new ConnectionOperationalOptions(
                 TimeSpan.FromSeconds(30),
