@@ -1,0 +1,115 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
+        x:Class="StorageHub.Desktop.Views.SettingsWindow"
+        x:DataType="vm:SettingsModel"
+        Title="{Binding Title}"
+        Width="880" Height="620"
+        MinWidth="720" MinHeight="480"
+        WindowStartupLocation="CenterOwner">
+
+  <!--
+    The old dialog's shape: a navigation list on the left, one page on the right, and Apply beside
+    OK and Cancel. What is different is that the rows are data - SettingsPageCatalog names them and
+    one template below draws all three kinds. SettingsForm was 1,827 lines, most of them a widget
+    per setting, and FitSettingsPageContent and MeasureNavigationWidth existed to compensate for
+    laying them out by hand. Neither is ported: a Grid does it.
+  -->
+
+  <DockPanel>
+
+    <Border DockPanel.Dock="Bottom" Classes="toolbar"
+            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0"
+            Padding="{StaticResource PagePadding}">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Grid.Column="0" Classes="muted" VerticalAlignment="Center"
+                   Text="{Binding DirtyLabel}"/>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource SpaceMd}">
+          <Button Classes="primary" MinWidth="88"
+                  Content="{Binding SaveLabel}" Command="{Binding SaveCommand}"/>
+          <Button MinWidth="88" Content="{Binding ApplyLabel}" Command="{Binding ApplyCommand}"/>
+          <Button MinWidth="88" Content="{Binding CancelLabel}" Command="{Binding CancelCommand}"/>
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <Border DockPanel.Dock="Left" Classes="surface" Width="220"
+            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0">
+      <DockPanel>
+        <TextBlock DockPanel.Dock="Top" Classes="title"
+                   Margin="{StaticResource PagePadding}"
+                   Text="{Binding NavigationTitle}"/>
+        <ListBox ItemsSource="{Binding Pages}"
+                 SelectedIndex="{Binding SelectedPage}"
+                 Background="Transparent"
+                 BorderThickness="0">
+          <ListBox.ItemTemplate>
+            <DataTemplate DataType="vm:SettingsPageModel">
+              <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceMd}">
+                <LucideIcon Kind="{Binding Icon}" Size="{StaticResource IconSizeSm}"
+                            VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Title}" VerticalAlignment="Center"/>
+              </StackPanel>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </DockPanel>
+    </Border>
+
+    <ScrollViewer>
+      <ContentControl Content="{Binding Pages[0]}"
+                      Name="PART_Page"
+                      Margin="{StaticResource PagePadding}">
+        <ContentControl.ContentTemplate>
+          <DataTemplate DataType="vm:SettingsPageModel">
+            <StackPanel Spacing="{StaticResource SpaceLg}">
+              <StackPanel Spacing="{StaticResource SpaceXs}">
+                <TextBlock Classes="title" Text="{Binding Title}"/>
+                <TextBlock Classes="muted" Text="{Binding Description}" TextWrapping="Wrap"/>
+              </StackPanel>
+
+              <ItemsControl ItemsSource="{Binding Rows}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate DataType="vm:SettingsRowModel">
+
+                    <!-- One template, three kinds. The row owns the label and the hint; only the
+                         control on the right changes, and exactly one of the three is visible. -->
+                    <Border Classes="card" Margin="0,0,0,8" Padding="{StaticResource PagePadding}">
+                      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpaceXl}">
+                        <StackPanel Grid.Column="0" Spacing="{StaticResource SpaceXs}"
+                                    VerticalAlignment="Center">
+                          <TextBlock Text="{Binding Label}" TextWrapping="Wrap"/>
+                          <TextBlock Classes="caption" Text="{Binding Hint}" TextWrapping="Wrap"
+                                     IsVisible="{Binding HasHint}"/>
+                        </StackPanel>
+
+                        <Panel Grid.Column="1" VerticalAlignment="Center" MinWidth="180">
+                          <ToggleSwitch IsChecked="{Binding IsOn, Mode=TwoWay}"
+                                        IsVisible="{Binding IsToggle}"
+                                        HorizontalAlignment="Right"
+                                        OnContent="" OffContent=""/>
+                          <ComboBox ItemsSource="{Binding Choices}"
+                                    SelectedIndex="{Binding SelectedChoice, Mode=TwoWay}"
+                                    IsVisible="{Binding IsChoice}"
+                                    HorizontalAlignment="Stretch"/>
+                          <NumericUpDown Value="{Binding NumberValue, Mode=TwoWay}"
+                                         Minimum="{Binding Minimum}"
+                                         Maximum="{Binding Maximum}"
+                                         Increment="1"
+                                         FormatString="0"
+                                         IsVisible="{Binding IsNumber}"
+                                         HorizontalAlignment="Stretch"/>
+                        </Panel>
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </DataTemplate>
+        </ContentControl.ContentTemplate>
+      </ContentControl>
+    </ScrollViewer>
+
+  </DockPanel>
+</Window>

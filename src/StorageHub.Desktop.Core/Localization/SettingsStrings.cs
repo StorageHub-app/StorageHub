@@ -280,7 +280,8 @@ internal sealed class SettingsStrings : LocalizationModelBase
 
     public string ThemeAccessibleName { get; set; } = "Application appearance";
 
-    public string ThemeHint { get; set; } = "System follows Windows. Changes preview immediately.";
+    public string ThemeHint { get; set; } =
+        "Follow the desktop's own setting, or pin one. Changes preview immediately.";
 
     // ---------------------------------------------------------------- workspace
     public string DefaultPaneLayout { get; set; } = "Default pane layout";
@@ -527,7 +528,7 @@ internal sealed class SettingsStrings : LocalizationModelBase
 
     public string ThemeDark { get; set; } = "Dark";
 
-    public string ThemeSystem { get; set; } = "Follow Windows";
+    public string ThemeSystem { get; set; } = "Follow the system";
 
     public string Language { get; set; } = "Language";
 
@@ -567,6 +568,28 @@ internal sealed class SettingsStrings : LocalizationModelBase
 
     public string ShortcutSelectCommandHint { get; set; } =
         "Select a command, press the new keys, then choose Assign.";
+
+
+    // ------------------------------------------------- 2.0: the Avalonia settings page
+    /// <summary>
+    /// New in 2.0. Everything else on this page is the WinForms dialog's own wording, already
+    /// translated; these are the rows that dialog did not have.
+    /// </summary>
+    public string ColorScheme { get; set; } = "Color scheme";
+
+    public string ColorSchemeHint { get; set; } = "Twenty-two schemes, identical on Windows and Linux. Changes preview immediately.";
+
+    public string ConnectionsPanelSide { get; set; } = "Connections panel";
+
+    public string PanelSideLeft { get; set; } = "On the left";
+
+    public string PanelSideRight { get; set; } = "On the right";
+
+    public string ShowFavoritesInTheirFolders { get; set; } = "Also list favorites under their own folder";
+
+    public string PageConfirmationsDescription { get; set; } = "Choose which actions StorageHub asks about before carrying them out.";
+
+    public string SettingsUnsaved { get; set; } = "Unsaved changes";
 
     public string ShortcutUpdatedHint { get; set; } = "Shortcut updated. Choose Apply or OK to save.";
 

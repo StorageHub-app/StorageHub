@@ -163,6 +163,10 @@ internal static class ColorSchemeCatalog
     private static readonly Dictionary<string, ColorScheme> ById =
         All.ToDictionary(scheme => scheme.Id, StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>Whether this is an id the catalog can resolve to a real scheme.</summary>
+    internal static bool Knows(string? id) =>
+        !string.IsNullOrWhiteSpace(id) && ById.ContainsKey(id.Trim());
+
     /// <summary>
     /// The scheme with this id, or the house scheme for <paramref name="preferDark"/>.
     /// </summary>

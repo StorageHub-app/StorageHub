@@ -154,7 +154,16 @@ internal sealed record DesktopUpdatePreferences(
     /// Whether toolbar buttons show their label. Icons only is how the toolbar has always looked,
     /// so it stays the default.
     /// </summary>
-    ToolbarLabelStyle ToolbarLabels = ToolbarLabelStyle.IconsOnly)
+    ToolbarLabelStyle ToolbarLabels = ToolbarLabelStyle.IconsOnly,
+    /// <summary>
+    /// The colour scheme's id, or null to follow <see cref="Appearance"/> with the house schemes.
+    /// </summary>
+    /// <remarks>
+    /// Null rather than "storagehub-dark" so an installation that has never opened Settings keeps
+    /// following the system, which is what it did before schemes existed. Last in the list, as
+    /// every addition to this record has to be.
+    /// </remarks>
+    string? ColorScheme = null)
 {
     /// <summary>Kept in step with the <c>ConnectionsPanelWidth</c> parameter default above.</summary>
     internal const int DefaultConnectionsPanelWidth = 300;

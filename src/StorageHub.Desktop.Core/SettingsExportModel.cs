@@ -34,7 +34,11 @@ internal sealed record DesktopGeneralSection(
     // Command ids and a display style, both stable across machines and languages, so a
     // toolbar somebody arranged is worth carrying to their other computer.
     IReadOnlyList<string>? ToolbarItems = null,
-    ToolbarLabelStyle ToolbarLabels = ToolbarLabelStyle.IconsOnly);
+    ToolbarLabelStyle ToolbarLabels = ToolbarLabelStyle.IconsOnly,
+    // The scheme's id, which is a name rather than a colour, so it means the same on the other
+    // machine. Appended with a default, like everything added to this record: a file exported
+    // before schemes existed still imports, and lands on "follow the appearance".
+    string? ColorScheme = null);
 
 /// <summary>
 /// Settings that name something on one computer: a path, or a reference into that machine's

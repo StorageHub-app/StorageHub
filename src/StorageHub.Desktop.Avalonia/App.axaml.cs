@@ -21,6 +21,18 @@ public partial class App : global::Avalonia.Application
             var model = ShellPreview.Sample;
             desktop.MainWindow = new MainWindow { DataContext = model };
 
+            // The first command with somewhere to go. Settings opens over the shell, edits a
+            // working copy, and writes through DesktopConfigStore on Apply.
+            model.Router.Handle(UiCommandIds.ToolsSettings, () =>
+            {
+                var settings = Views.SettingsWindow.ForCurrentUser();
+                _ = settings.ShowDialog(desktop.MainWindow);
+            });
+
+            // Whatever was saved last time, before the window is shown, so the shell opens in the
+            // scheme rather than flashing the default and changing.
+            Views.SettingsWindow.ApplySavedScheme();
+
             // Started here rather than in the model so the headless tests measure a shell that is
             // not polling a socket. On Linux this reaches an agent.sock under the runtime root; on
             // Windows, the named pipe - the desktop no longer knows which.

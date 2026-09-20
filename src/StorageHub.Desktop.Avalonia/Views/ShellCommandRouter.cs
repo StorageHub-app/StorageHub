@@ -52,6 +52,7 @@ internal sealed class ShellCommand(string id, Action<string> invoke) : ICommand
 internal sealed class ShellCommandRouter
 {
     private readonly Dictionary<string, ShellCommand> _commands = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Action> _handlers = new(StringComparer.Ordinal);
     private readonly HashSet<TopLevel> _attached = [];
 
     internal ShellCommandRouter()
@@ -69,6 +70,25 @@ internal sealed class ShellCommandRouter
     internal string? LastInvoked { get; private set; }
 
     internal ShellCommand For(string id) => _commands[id];
+
+    /// <summary>
+    /// Says what a command actually does.
+    /// </summary>
+    /// <remarks>
+    /// Registered rather than switched on, so a screen owns its own commands and the router keeps
+    /// knowing nothing about them. An id with no handler still raises <see cref="Invoked"/>, which
+    /// is what puts it in the status bar - the stand-in that proves the path works while the rest
+    /// of the handlers are still in MainForm.
+    /// </remarks>
+    internal void Handle(string id, Action handler)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        ArgumentNullException.ThrowIfNull(handler);
+        _handlers[id] = handler;
+    }
+
+    /// <summary>Whether an id has somewhere to go, for a test and for a menu that dims.</summary>
+    internal bool IsHandled(string id) => _handlers.ContainsKey(id);
 
     /// <summary>Attaches to a window, tunnelling so the shell sees a key before the focus does.</summary>
     internal void Attach(TopLevel topLevel)
@@ -126,6 +146,10 @@ internal sealed class ShellCommandRouter
     {
         LastInvoked = id;
         Invoked?.Invoke(this, id);
+        if (_handlers.TryGetValue(id, out var handler))
+        {
+            handler();
+        }
     }
 }
 

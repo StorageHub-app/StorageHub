@@ -51,7 +51,8 @@ internal static class DesktopPreferenceSectionMapper
             preferences.DefaultWorkspacePaneCount,
             preferences.ShowFavoritesInTheirFolders,
             preferences.ToolbarItems,
-            preferences.ToolbarLabels);
+            preferences.ToolbarLabels,
+            preferences.ColorScheme);
     }
 
     /// <summary>
@@ -179,6 +180,11 @@ internal static class DesktopPreferenceSectionMapper
             PerConnectionConcurrency = general.PerConnectionConcurrency,
             MaximumSyncConcurrency = general.MaximumSyncConcurrency,
             Appearance = Enum.IsDefined(general.Appearance) ? general.Appearance : current.Appearance,
+            // A scheme this build does not have is dropped rather than stored: the file may come
+            // from a newer StorageHub, and Settings would otherwise show a selection it cannot make.
+            ColorScheme = Themes.ColorSchemeCatalog.Knows(general.ColorScheme)
+                ? general.ColorScheme
+                : current.ColorScheme,
             DefaultWorkspaceLayout = Enum.IsDefined(general.DefaultWorkspaceLayout)
                 ? general.DefaultWorkspaceLayout
                 : current.DefaultWorkspaceLayout,
