@@ -54,8 +54,8 @@
         "dependencies": {
           "CodeLogic": "[4.8.19, )",
           "Cronos": "[0.13.0, )",
-          "StorageHub.Domain": "[1.4.2, )",
-          "StorageHub.Security": "[1.4.2, )"
+          "StorageHub.Domain": "[1.4.6, )",
+          "StorageHub.Security": "[1.4.6, )"
         }
       },
       "storagehub.contracts": {
@@ -64,7 +64,7 @@
       "storagehub.domain": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[1.4.2, )"
+          "StorageHub.Contracts": "[1.4.6, )"
         }
       },
       "storagehub.security": {
@@ -73,23 +73,23 @@
       "storagehub.storage": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[1.4.2, )",
-          "StorageHub.Domain": "[1.4.2, )"
+          "StorageHub.Contracts": "[1.4.6, )",
+          "StorageHub.Domain": "[1.4.6, )"
         }
       },
       "storagehub.sync": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Domain": "[1.4.2, )",
-          "StorageHub.Storage": "[1.4.2, )",
-          "StorageHub.Transfers": "[1.4.2, )"
+          "StorageHub.Domain": "[1.4.6, )",
+          "StorageHub.Storage": "[1.4.6, )",
+          "StorageHub.Transfers": "[1.4.6, )"
         }
       },
       "storagehub.transfers": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Domain": "[1.4.2, )",
-          "StorageHub.Storage": "[1.4.2, )"
+          "StorageHub.Domain": "[1.4.6, )",
+          "StorageHub.Storage": "[1.4.6, )"
         }
       },
       "CodeLogic": {
@@ -103,6 +103,13 @@
         "requested": "[0.13.0, )",
         "resolved": "0.13.0",
         "contentHash": "Nkve+Yi0+ol3ntSBRHeW0ka9cJQ8vndSUvvkXqF9LVqwpoqWueyxu/HS275r98RDOmF7/mzRnZW5XXUBXob+TA=="
+      }
+    },
+    "net10.0/linux-x64": {
+      "SQLitePCLRaw.lib.e_sqlite3": {
+        "type": "Transitive",
+        "resolved": "2.1.12",
+        "contentHash": "fWi8Dbknuhgg72fWinIdjXVaqO1hHL4YBBwVLnr7e1c9TAZwJ0QE38j9syW1hwx6HaqEVTwI+O07WPdZn8Rp0w=="
       }
     },
     "net10.0/win-x64": {

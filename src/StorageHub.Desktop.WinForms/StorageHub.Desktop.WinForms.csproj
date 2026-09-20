@@ -7,6 +7,10 @@
     <RootNamespace>StorageHub.Desktop</RootNamespace>
     <AssemblyName>StorageHub.Desktop</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Every other production project restores both runtime graphs, but there is no WinForms
+         runtime pack for linux-x64, so a Release build resolving one fails outright. This shell is
+         replaced by the Avalonia one, at which point the override goes with it. -->
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
     <ApplicationIcon>..\..\assets\branding\storagehub.ico</ApplicationIcon>
   </PropertyGroup>
 

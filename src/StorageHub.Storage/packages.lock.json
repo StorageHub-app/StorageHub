@@ -8,10 +8,11 @@
       "storagehub.domain": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[1.4.2, )"
+          "StorageHub.Contracts": "[1.4.6, )"
         }
       }
     },
+    "net10.0/linux-x64": {},
     "net10.0/win-x64": {}
   }
 }

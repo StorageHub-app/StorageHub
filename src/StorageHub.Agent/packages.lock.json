@@ -27,8 +27,8 @@
         "dependencies": {
           "CodeLogic": "[4.8.19, )",
           "Cronos": "[0.13.0, )",
-          "StorageHub.Domain": "[1.4.2, )",
-          "StorageHub.Security": "[1.4.2, )"
+          "StorageHub.Domain": "[1.4.6, )",
+          "StorageHub.Security": "[1.4.6, )"
         }
       },
       "storagehub.contracts": {
@@ -37,7 +37,7 @@
       "storagehub.domain": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[1.4.2, )"
+          "StorageHub.Contracts": "[1.4.6, )"
         }
       },
       "storagehub.security": {
@@ -46,23 +46,23 @@
       "storagehub.storage": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[1.4.2, )",
-          "StorageHub.Domain": "[1.4.2, )"
+          "StorageHub.Contracts": "[1.4.6, )",
+          "StorageHub.Domain": "[1.4.6, )"
         }
       },
       "storagehub.sync": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Domain": "[1.4.2, )",
-          "StorageHub.Storage": "[1.4.2, )",
-          "StorageHub.Transfers": "[1.4.2, )"
+          "StorageHub.Domain": "[1.4.6, )",
+          "StorageHub.Storage": "[1.4.6, )",
+          "StorageHub.Transfers": "[1.4.6, )"
         }
       },
       "storagehub.transfers": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Domain": "[1.4.2, )",
-          "StorageHub.Storage": "[1.4.2, )"
+          "StorageHub.Domain": "[1.4.6, )",
+          "StorageHub.Storage": "[1.4.6, )"
         }
       },
       "CodeLogic": {
@@ -70,6 +70,22 @@
         "requested": "[4.8.19, )",
         "resolved": "4.8.19",
         "contentHash": "XRUvqBICo7AfpK0X7B4mp2YoA+iAks10bs9GegLEylighHlSLib60z/AkbYELdJmaqBrZe7WqmG+zFT85zdgOg=="
+      }
+    },
+    "net10.0/linux-x64": {
+      "System.ServiceProcess.ServiceController": {
+        "type": "Direct",
+        "requested": "[10.0.12, )",
+        "resolved": "10.0.12",
+        "contentHash": "sFV+RM/yPtshiCAEIuTm8Dt4F7VuKRbL50PnGC9nXHolk/jw+z3T8zx7axKTBC8mqtQU2ZmjsoPC9b1iwOilNQ==",
+        "dependencies": {
+          "System.Diagnostics.EventLog": "10.0.12"
+        }
+      },
+      "System.Diagnostics.EventLog": {
+        "type": "Transitive",
+        "resolved": "10.0.12",
+        "contentHash": "sOZM+VyRj1pg/ItlHsvrSbjws6oGqZveTzTNBGZ9ziwRDyKsOF3ub6vhvOdxotCIqtlnyHAIwP5sLNvgiZC+pQ=="
       }
     },
     "net10.0/win-x64": {

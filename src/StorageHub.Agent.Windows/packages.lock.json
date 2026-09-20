@@ -344,12 +344,12 @@
         "type": "Project",
         "dependencies": {
           "Cronos": "[0.13.0, )",
-          "StorageHub.Application": "[1.4.2, )",
-          "StorageHub.Contracts": "[1.4.2, )",
-          "StorageHub.Domain": "[1.4.2, )",
-          "StorageHub.Storage": "[1.4.2, )",
-          "StorageHub.Sync": "[1.4.2, )",
-          "StorageHub.Transfers": "[1.4.2, )",
+          "StorageHub.Application": "[1.4.6, )",
+          "StorageHub.Contracts": "[1.4.6, )",
+          "StorageHub.Domain": "[1.4.6, )",
+          "StorageHub.Storage": "[1.4.6, )",
+          "StorageHub.Sync": "[1.4.6, )",
+          "StorageHub.Transfers": "[1.4.6, )",
           "System.ServiceProcess.ServiceController": "[10.0.12, )"
         }
       },
@@ -358,8 +358,8 @@
         "dependencies": {
           "CodeLogic": "[4.8.19, )",
           "Cronos": "[0.13.0, )",
-          "StorageHub.Domain": "[1.4.2, )",
-          "StorageHub.Security": "[1.4.2, )"
+          "StorageHub.Domain": "[1.4.6, )",
+          "StorageHub.Security": "[1.4.6, )"
         }
       },
       "storagehub.contracts": {
@@ -368,13 +368,13 @@
       "storagehub.domain": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[1.4.2, )"
+          "StorageHub.Contracts": "[1.4.6, )"
         }
       },
       "storagehub.infrastructure.windows": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Security": "[1.4.2, )"
+          "StorageHub.Security": "[1.4.6, )"
         }
       },
       "storagehub.persistence": {
@@ -382,10 +382,10 @@
         "dependencies": {
           "Microsoft.Data.Sqlite": "[9.0.18, )",
           "SQLitePCLRaw.bundle_e_sqlite3": "[2.1.12, )",
-          "StorageHub.Application": "[1.4.2, )",
-          "StorageHub.Security": "[1.4.2, )",
-          "StorageHub.Sync": "[1.4.2, )",
-          "StorageHub.Transfers": "[1.4.2, )"
+          "StorageHub.Application": "[1.4.6, )",
+          "StorageHub.Security": "[1.4.6, )",
+          "StorageHub.Sync": "[1.4.6, )",
+          "StorageHub.Transfers": "[1.4.6, )"
         }
       },
       "storagehub.security": {
@@ -394,8 +394,8 @@
       "storagehub.storage": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[1.4.2, )",
-          "StorageHub.Domain": "[1.4.2, )"
+          "StorageHub.Contracts": "[1.4.6, )",
+          "StorageHub.Domain": "[1.4.6, )"
         }
       },
       "storagehub.storage.codelogic": {
@@ -404,26 +404,26 @@
           "CodeLogic": "[4.8.19, )",
           "CodeLogic.Storage": "[4.8.91, )",
           "SSH.NET": "[2026.0.0, )",
-          "StorageHub.Application": "[1.4.2, )",
-          "StorageHub.Contracts": "[1.4.2, )",
-          "StorageHub.Domain": "[1.4.2, )",
-          "StorageHub.Security": "[1.4.2, )",
-          "StorageHub.Storage": "[1.4.2, )"
+          "StorageHub.Application": "[1.4.6, )",
+          "StorageHub.Contracts": "[1.4.6, )",
+          "StorageHub.Domain": "[1.4.6, )",
+          "StorageHub.Security": "[1.4.6, )",
+          "StorageHub.Storage": "[1.4.6, )"
         }
       },
       "storagehub.sync": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Domain": "[1.4.2, )",
-          "StorageHub.Storage": "[1.4.2, )",
-          "StorageHub.Transfers": "[1.4.2, )"
+          "StorageHub.Domain": "[1.4.6, )",
+          "StorageHub.Storage": "[1.4.6, )",
+          "StorageHub.Transfers": "[1.4.6, )"
         }
       },
       "storagehub.transfers": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Domain": "[1.4.2, )",
-          "StorageHub.Storage": "[1.4.2, )"
+          "StorageHub.Domain": "[1.4.6, )",
+          "StorageHub.Storage": "[1.4.6, )"
         }
       },
       "Cronos": {
@@ -442,6 +442,40 @@
           "SQLitePCLRaw.bundle_e_sqlite3": "2.1.10",
           "SQLitePCLRaw.core": "2.1.10"
         }
+      },
+      "System.ServiceProcess.ServiceController": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.12, )",
+        "resolved": "10.0.12",
+        "contentHash": "sFV+RM/yPtshiCAEIuTm8Dt4F7VuKRbL50PnGC9nXHolk/jw+z3T8zx7axKTBC8mqtQU2ZmjsoPC9b1iwOilNQ==",
+        "dependencies": {
+          "System.Diagnostics.EventLog": "10.0.12"
+        }
+      }
+    },
+    "net10.0-windows10.0.19041/linux-x64": {
+      "SQLitePCLRaw.lib.e_sqlite3": {
+        "type": "Transitive",
+        "resolved": "2.1.12",
+        "contentHash": "fWi8Dbknuhgg72fWinIdjXVaqO1hHL4YBBwVLnr7e1c9TAZwJ0QE38j9syW1hwx6HaqEVTwI+O07WPdZn8Rp0w=="
+      },
+      "System.Diagnostics.EventLog": {
+        "type": "Transitive",
+        "resolved": "10.0.12",
+        "contentHash": "sOZM+VyRj1pg/ItlHsvrSbjws6oGqZveTzTNBGZ9ziwRDyKsOF3ub6vhvOdxotCIqtlnyHAIwP5sLNvgiZC+pQ=="
+      },
+      "System.Management": {
+        "type": "Transitive",
+        "resolved": "7.0.2",
+        "contentHash": "/qEUN91mP/MUQmJnM5y5BdT7ZoPuVrtxnFlbJ8a3kBJGhe2wCzBfnPFtK2wTtEEcf3DMGR9J00GZZfg6HRI6yA==",
+        "dependencies": {
+          "System.CodeDom": "7.0.0"
+        }
+      },
+      "System.Security.Cryptography.ProtectedData": {
+        "type": "Transitive",
+        "resolved": "4.5.0",
+        "contentHash": "wLBKzFnDCxP12VL9ANydSYhk59fC4cvOr9ypYQLPnAj48NQIhqnjdD2yhP8yEKyBJEjERWS9DisKL7rX5eU25Q=="
       },
       "System.ServiceProcess.ServiceController": {
         "type": "CentralTransitive",

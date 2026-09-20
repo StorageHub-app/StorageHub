@@ -1,12 +1,12 @@
-<Project>
+﻿<Project>
   <Import Project="$(MSBuildThisFileDirectory)..\Directory.Build.props" />
 
   <PropertyGroup>
     <!--
-      Production projects are restored with the Windows runtime graph available
-      so the committed lock files cover both normal builds and the self-contained
-      win-x64 installer payload. Test projects remain runtime-neutral.
+      Production projects are restored with both runtime graphs available so the
+      committed lock files cover normal builds and the self-contained installer
+      payloads for each platform. Test projects remain runtime-neutral.
     -->
-    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
   </PropertyGroup>
 </Project>

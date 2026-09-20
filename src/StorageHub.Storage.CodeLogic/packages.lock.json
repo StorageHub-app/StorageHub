@@ -305,8 +305,8 @@
         "dependencies": {
           "CodeLogic": "[4.8.19, )",
           "Cronos": "[0.13.0, )",
-          "StorageHub.Domain": "[1.4.2, )",
-          "StorageHub.Security": "[1.4.2, )"
+          "StorageHub.Domain": "[1.4.6, )",
+          "StorageHub.Security": "[1.4.6, )"
         }
       },
       "storagehub.contracts": {
@@ -315,7 +315,7 @@
       "storagehub.domain": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[1.4.2, )"
+          "StorageHub.Contracts": "[1.4.6, )"
         }
       },
       "storagehub.security": {
@@ -324,8 +324,8 @@
       "storagehub.storage": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[1.4.2, )",
-          "StorageHub.Domain": "[1.4.2, )"
+          "StorageHub.Contracts": "[1.4.6, )",
+          "StorageHub.Domain": "[1.4.6, )"
         }
       },
       "Cronos": {
@@ -333,6 +333,21 @@
         "requested": "[0.13.0, )",
         "resolved": "0.13.0",
         "contentHash": "Nkve+Yi0+ol3ntSBRHeW0ka9cJQ8vndSUvvkXqF9LVqwpoqWueyxu/HS275r98RDOmF7/mzRnZW5XXUBXob+TA=="
+      }
+    },
+    "net10.0/linux-x64": {
+      "System.Management": {
+        "type": "Transitive",
+        "resolved": "7.0.2",
+        "contentHash": "/qEUN91mP/MUQmJnM5y5BdT7ZoPuVrtxnFlbJ8a3kBJGhe2wCzBfnPFtK2wTtEEcf3DMGR9J00GZZfg6HRI6yA==",
+        "dependencies": {
+          "System.CodeDom": "7.0.0"
+        }
+      },
+      "System.Security.Cryptography.ProtectedData": {
+        "type": "Transitive",
+        "resolved": "4.5.0",
+        "contentHash": "wLBKzFnDCxP12VL9ANydSYhk59fC4cvOr9ypYQLPnAj48NQIhqnjdD2yhP8yEKyBJEjERWS9DisKL7rX5eU25Q=="
       }
     },
     "net10.0/win-x64": {
