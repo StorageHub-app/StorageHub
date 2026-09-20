@@ -148,7 +148,7 @@ internal sealed class UpdateCheckerForm : Form
 
     private async Task PrimaryClickedAsync()
     {
-        var action = NextAction(_updater.Snapshot.State);
+        var action = DesktopUpdatePresentation.NextAction(_updater.Snapshot.State);
         _operation.Dispose();
         _operation = new CancellationTokenSource();
         try
@@ -196,7 +196,7 @@ internal sealed class UpdateCheckerForm : Form
             ? Ui.Updates.ChannelStableReleasesAndReleaseCandidates
             : Ui.Updates.ChannelStableReleasesOnly;
 
-        _headline.Text = DescribeHeadline(snapshot);
+        _headline.Text = DesktopUpdatePresentation.DescribeHeadline(snapshot);
         _headline.ForeColor = snapshot.State switch
         {
             DesktopUpdateState.ReadyToRestart => StorageHubTheme.Success,
@@ -205,7 +205,7 @@ internal sealed class UpdateCheckerForm : Form
             DesktopUpdateState.Failed => StorageHubTheme.Danger,
             _ => StorageHubTheme.Text
         };
-        _detail.Text = DescribeDetail(snapshot);
+        _detail.Text = DesktopUpdatePresentation.DescribeDetail(snapshot);
 
         // The service notice is gone with the service it described: an agent running as
         // LocalSystem kept its own copy of itself and could stay on the previous build until
@@ -219,7 +219,7 @@ internal sealed class UpdateCheckerForm : Form
             _progress.Value = Math.Clamp(snapshot.ProgressPercent ?? 0, 0, 100);
         }
 
-        var action = NextAction(snapshot.State);
+        var action = DesktopUpdatePresentation.NextAction(snapshot.State);
         _primary.Text = action switch
         {
             UpdateAction.Download => Ui.Updates.DownloadUpdate,
@@ -230,67 +230,4 @@ internal sealed class UpdateCheckerForm : Form
         _primary.Enabled = action != UpdateAction.None;
         _close.Text = snapshot.State == DesktopUpdateState.Downloading ? Ui.Updates.Cancel : "Close";
     }
-
-    /// <summary>
-    /// What the one action button should do next. Keeping this a pure function of state is what
-    /// lets the window drive check, download, and install without a separate wizard for each.
-    /// </summary>
-    internal static UpdateAction NextAction(DesktopUpdateState state) => state switch
-    {
-        DesktopUpdateState.UpdateAvailable => UpdateAction.Download,
-        DesktopUpdateState.ReadyToRestart => UpdateAction.Restart,
-        DesktopUpdateState.Checking or DesktopUpdateState.Downloading or
-            DesktopUpdateState.Installing => UpdateAction.None,
-        DesktopUpdateState.Disabled or DesktopUpdateState.Unavailable => UpdateAction.None,
-        _ => UpdateAction.Check
-    };
-
-    internal static string DescribeHeadline(DesktopUpdateSnapshot snapshot) => snapshot.State switch
-    {
-        DesktopUpdateState.Checking => Ui.Updates.CheckingForUpdates,
-        DesktopUpdateState.UpdateAvailable => $"StorageHub {snapshot.Version} is available",
-        DesktopUpdateState.Downloading => $"Downloading StorageHub {snapshot.Version}…",
-        DesktopUpdateState.ReadyToRestart => $"StorageHub {snapshot.Version} is ready to install",
-        DesktopUpdateState.Installing => Ui.Updates.Installing,
-        DesktopUpdateState.UpToDate => Ui.Updates.StorageHubIsUpToDate,
-        DesktopUpdateState.Unavailable => Ui.Updates.UpdatesAreNotAvailableForThisBuild,
-        DesktopUpdateState.Disabled => Ui.Updates.AutomaticUpdatesAreTurnedOff,
-        DesktopUpdateState.Failed => Ui.Updates.TheUpdateCouldNotBeCompleted,
-        _ => Ui.Updates.Updates
-    };
-
-    /// <summary>
-    /// What an update does not cover when the agent runs as a service, or null when it does.
-    ///
-    /// The updater is unelevated, and the copy the service runs from is machine-owned so that
-    /// the user it runs beside cannot replace a binary executing as SYSTEM. So an update moves
-    /// the application and leaves the service on the version it was staged with. Saying so here
-    /// is the difference between an informed restart and discovering later that the agent is a
-    /// release behind.
-    /// </summary>
-
-    internal static string DescribeDetail(DesktopUpdateSnapshot snapshot) => snapshot.State switch
-    {
-        DesktopUpdateState.UpdateAvailable =>
-            Ui.Updates.TheReleaseHasNotBeenDownloadedYet,
-        DesktopUpdateState.ReadyToRestart =>
-            Ui.Updates.TheDownloadIsIntegrityCheckedRestartingInstalls,
-        DesktopUpdateState.UpToDate =>
-            Ui.Updates.NoNewerReleaseWasFoundOnThe,
-        DesktopUpdateState.Unavailable =>
-            Ui.Updates.PortableAndDeveloperBuildsAreNeverModified,
-        DesktopUpdateState.Disabled =>
-            Ui.Updates.AutomaticChecksAreDisabledInSettingsYou,
-        DesktopUpdateState.Failed => snapshot.Message,
-        DesktopUpdateState.Idle => Ui.Updates.CheckWhetherANewerStorageHubReleaseIs,
-        _ => snapshot.Message
-    };
-}
-
-internal enum UpdateAction
-{
-    Check = 1,
-    Download = 2,
-    Restart = 3,
-    None = 4
 }

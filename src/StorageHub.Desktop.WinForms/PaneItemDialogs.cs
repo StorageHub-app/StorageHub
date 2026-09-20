@@ -4,29 +4,6 @@ using StorageHub.Desktop.Localization;
 
 namespace StorageHub.Desktop;
 
-internal static partial class PaneItemNameRules
-{
-    private const int MaximumNameLength = 255;
-    private static readonly SearchValues<char> InvalidCharacters = SearchValues.Create(['<', '>', ':', '"', '/', '\\', '|', '?', '*']);
-
-    internal static string? Validate(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value)) return Ui.Validation.EnterAName;
-        if (!string.Equals(value, value.Trim(), StringComparison.Ordinal) || value.EndsWith('.'))
-            return Ui.Validation.NamesCannotBeginOrEndWithSpaces;
-        if (value.Length > MaximumNameLength)
-            return Ui.Format(Ui.Validation.NamesCannotExceedCharactersFormat, MaximumNameLength);
-        if (value is "." or ".." || value.Any(char.IsControl) || value.AsSpan().ContainsAny(InvalidCharacters))
-            return Ui.Validation.TheNameContainsCharactersThatAreNot;
-        var stem = value.Split('.')[0];
-        if (ReservedWindowsName().IsMatch(stem)) return Ui.Validation.ThatNameIsReservedByWindows;
-        return null;
-    }
-
-    [GeneratedRegex("^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
-    private static partial Regex ReservedWindowsName();
-}
-
 internal sealed class PaneItemNameDialog : Form
 {
     private readonly StorageHubTextField _name;
