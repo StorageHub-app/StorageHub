@@ -315,7 +315,13 @@ public sealed class SftpS3SyncLabIntegrationTests : IAsyncLifetime
     {
         var failure = await RunMirrorAsync(source, destination, label, false);
         Assert.True(failure.IsFailure, $"{label} was expected to fail closed.");
-        Assert.Equal("transfer.conditional_mutation.unsupported", failure.Error.Code);
+
+        // The sync executor's preflight, not the transfer executor's mid-operation check. Both
+        // refuse; the difference is when. Through the agent the transfer-layer refusal arrived
+        // after the run had been approved and dispatched, so it surfaced as "provider state is
+        // uncertain, reconciliation required" -- alarming, and untrue, because nothing had been
+        // written. It is answered at plan time now, so the preview refuses and says what to do.
+        Assert.Equal("sync.create.conditional_unsupported", failure.Error.Code);
     }
 
     private static async Task AssertMirrorAsync(

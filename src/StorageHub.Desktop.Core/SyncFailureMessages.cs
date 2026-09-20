@@ -30,6 +30,7 @@ internal static class SyncFailureMessages
             "storage.connection.unavailable" => Ui.Sync.EndpointUnreachable,
             "storage.profile.store_unavailable" => Ui.Sync.EndpointUnreachable,
             "sync.scan.root_not_found" => Ui.Sync.LocationMissing,
+            "sync.preview.operation_blocked" => Ui.Sync.OperationNotSafeHere,
             _ => null
         };
         if (known is not null)

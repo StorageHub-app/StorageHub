@@ -497,8 +497,14 @@ public static class SyncPlanExecutor
                         operation.Destination,
                         StorageFeature.WriteStream,
                         operation.Kind);
-                    return destination.IsFailure
-                        ? destination
+                    if (destination.IsFailure)
+                    {
+                        return destination;
+                    }
+
+                    var creation = ValidateCreateSafety(request, operation);
+                    return creation.IsFailure
+                        ? creation
                         : ValidateOverwriteSafety(request, operation);
                 }
 
@@ -577,6 +583,47 @@ public static class SyncPlanExecutor
             operation.Kind == SyncPlanOperationKind.Delete ||
             request.TransferOptions.Overwrite && operation.Kind == SyncPlanOperationKind.Copy &&
                 operation.DestinationExisted);
+
+    /// <summary>
+    /// Whether the destination can create a file without racing whatever might be there by now.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The case <see cref="ValidateOverwriteSafety"/> returns early on: a copy to somewhere the
+    /// scan found nothing. <c>TransferExecutor</c> requires native
+    /// <see cref="StorageFeature.ConditionalCreate"/> for that, because between the scan and the
+    /// write somebody else may have put a file there, and a plain write would silently destroy it.
+    /// </para>
+    /// <para>
+    /// It already refused -- but at execution, after the operation had begun, so the run ended as
+    /// <c>NeedsReconciliation</c> with "provider state is treated as uncertain" when nothing had
+    /// been written and nothing was uncertain. SFTP reports ConditionalCreate as unsupported, so
+    /// every sync to an SFTP destination ended that way, with no indication of what to do about it.
+    /// </para>
+    /// <para>
+    /// Checked here, beside the overwrite case, it is a preflight refusal: the preview fails with a
+    /// reason, before anybody approves anything. Enabling non-atomic destination writes is the
+    /// documented way to sync to an endpoint that cannot do this, and the message says so.
+    /// </para>
+    /// </remarks>
+    private static StorageResult ValidateCreateSafety(
+        SyncPlanExecutionRequest request,
+        SyncPlanOperation operation)
+    {
+        if (operation.DestinationExisted || request.TransferOptions.AllowNonAtomicDestinationWrites)
+        {
+            return StorageResult.Success();
+        }
+
+        var session = request.Sessions[operation.Destination!.ProfileId];
+        return session.Capabilities[StorageFeature.ConditionalCreate].Level == FeatureSupportLevel.Native
+            ? StorageResult.Success()
+            : UnsafeMutation(
+                "sync.create.conditional_unsupported",
+                "The destination cannot create a file without risking the loss of something that " +
+                "appeared since the scan. Allow non-atomic destination writes on this profile to " +
+                "synchronize to it anyway.");
+    }
 
     private static StorageResult ValidateOverwriteSafety(
         SyncPlanExecutionRequest request,

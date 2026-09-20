@@ -289,5 +289,6 @@
   "locationsOverlap": "Begge placeringer er den samme mappe, eller den ene ligger inde i den anden. Vælg mapper, der ikke overlapper.",
   "textTooLongFormat": "Brug højst {0} tegn.",
   "rangeFormat": "Angiv en værdi fra {0} til {1}.",
-  "tooManyFiltersFormat": "Brug højst {0} filtre."
+  "tooManyFiltersFormat": "Brug højst {0} filtre.",
+  "operationNotSafeHere": "Denne plan kræver en handling, som disse placeringer ikke kan udføre sikkert. En destination, der ikke kan oprette eller erstatte en fil i ét trin, f.eks. SFTP eller FTP, kræver \"Tillad ikke-atomare skrivninger på destinationen\" på denne opgave."
 }

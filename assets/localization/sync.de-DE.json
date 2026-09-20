@@ -289,5 +289,6 @@
   "locationsOverlap": "Beide Speicherorte sind derselbe Ordner, oder einer liegt im anderen. Wählen Sie Ordner, die sich nicht überschneiden.",
   "textTooLongFormat": "Verwenden Sie höchstens {0} Zeichen.",
   "rangeFormat": "Geben Sie einen Wert von {0} bis {1} ein.",
-  "tooManyFiltersFormat": "Verwenden Sie höchstens {0} Filter."
+  "tooManyFiltersFormat": "Verwenden Sie höchstens {0} Filter.",
+  "operationNotSafeHere": "Dieser Plan benötigt einen Vorgang, den diese Speicherorte nicht sicher ausführen können. Ein Ziel, das eine Datei nicht in einem Schritt anlegen oder ersetzen kann, etwa SFTP oder FTP, benötigt \"Nicht-atomare Schreibvorgänge am Ziel zulassen\" für diese Aufgabe."
 }

@@ -728,4 +728,18 @@ internal sealed class SyncStrings : LocalizationModelBase
 
     /// <summary>{0} = the greatest number of filters allowed.</summary>
     public string TooManyFiltersFormat { get; set; } = "Use at most {0} filters.";
+
+    /// <summary>
+    /// Why a plan was refused on capability grounds.
+    /// </summary>
+    /// <remarks>
+    /// The agent replaces the detail with generic category text before it crosses the pipe, so this
+    /// names the cause that is nearly always responsible -- a destination that cannot create or
+    /// replace a file in one step -- and the setting that allows it anyway. SFTP and FTP are both
+    /// in that position.
+    /// </remarks>
+    public string OperationNotSafeHere { get; set; } =
+        "This plan needs an operation these locations cannot perform safely. A destination that " +
+        "cannot create or replace a file in a single step, such as SFTP or FTP, needs " +
+        "\"Allow non-atomic destination writes\" on this task.";
 }

@@ -738,6 +738,13 @@ public sealed class SqliteSyncOrchestrationTests : IAsyncLifetime, IDisposable
                     new(StorageFeature.PaginatedList, FeatureSupport.Native()),
                     new(StorageFeature.ReadStream, FeatureSupport.Native()),
                     new(StorageFeature.WriteStream, FeatureSupport.Native()),
+
+                    // Declared with WriteStream, as the recording double below already does and as
+                    // a real local endpoint reports. Without it this is a destination that can be
+                    // written to and cannot create a file, which no endpoint actually is -- and the
+                    // plan executor now says so at preflight rather than letting the transfer fail
+                    // halfway.
+                    new(StorageFeature.ConditionalCreate, FeatureSupport.Native()),
                 ],
                 StorageCaseSensitivity.Sensitive);
         }
