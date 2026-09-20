@@ -4,6 +4,7 @@ using Microsoft.Win32;
 
 namespace StorageHub.Desktop;
 
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
 public sealed class WindowsCurrentUserRunEntryStore : ICurrentUserRunEntryStore
 {
     internal const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
@@ -44,6 +45,7 @@ public sealed class WindowsCurrentUserRunEntryStore : ICurrentUserRunEntryStore
     }
 }
 
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
 public sealed class WindowsHiddenAgentProcessLauncher : IAgentProcessLauncher
 {
     public bool TryLaunchHidden(string executablePath, string workingDirectory, string argument)
@@ -67,6 +69,7 @@ public sealed class WindowsHiddenAgentProcessLauncher : IAgentProcessLauncher
     }
 }
 
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
 public sealed class WindowsPackagedAgentProcessMonitor : IPackagedAgentProcessMonitor
 {
     public bool IsRunning(string executablePath)

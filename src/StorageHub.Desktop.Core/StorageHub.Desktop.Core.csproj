@@ -38,7 +38,6 @@
          every moved type to public instead would be a worse trade: it would publish an API surface
          nobody outside this pair consumes, and the pair stops existing when WinForms is deleted. -->
     <InternalsVisibleTo Include="StorageHub.Desktop" />
-    <InternalsVisibleTo Include="StorageHub.Desktop.Windows" />
     <InternalsVisibleTo Include="StorageHub.Desktop.Tests" />
     <InternalsVisibleTo Include="StorageHub.Desktop.Core.Tests" />
   </ItemGroup>

@@ -5,6 +5,12 @@ using Microsoft.Win32;
 
 namespace StorageHub.Desktop;
 
+/// <remarks>
+/// The attribute used to be implied by a Windows-only project; these files lived in one of
+/// their own. Said in the code instead, it is checked at every call site rather than at a
+/// project boundary, which is what a guard is for.
+/// </remarks>
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
 internal static class ExplorerDropBrokerInstaller
 {
     internal const string ClassId = "{D7AE012A-EC7C-4CC3-AD34-7EE7155518CE}";

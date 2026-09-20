@@ -5,6 +5,7 @@ using StorageHub.Contracts.Ipc;
 
 namespace StorageHub.Desktop;
 
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
 public sealed class NamedPipePackagedAgentLifecycleClient : IPackagedAgentLifecycleClient
 {
     private static readonly TimeSpan ProbeInterval = TimeSpan.FromMilliseconds(125);

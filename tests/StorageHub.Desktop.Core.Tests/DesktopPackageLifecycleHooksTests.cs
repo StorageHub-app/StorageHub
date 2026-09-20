@@ -1,3 +1,4 @@
+using StorageHub.Testing;
 using static StorageHub.Desktop.Tests.LifecycleFixtures;
 
 namespace StorageHub.Desktop.Tests;
@@ -9,10 +10,15 @@ namespace StorageHub.Desktop.Tests;
 /// Split from PackagedDesktopLifecycleTests when the lifecycle moved to Desktop.Core. The policy it
 /// tests is portable; these four are not, because the hooks unregister a COM server in the registry
 /// and that is the one thing about them that is Windows.
+///
+/// They used to live in a Windows-only test project, whose target framework said so on their
+/// behalf. That project is gone, so they say it themselves -- which is the more useful place for
+/// it, since it now also skips them on Linux rather than failing to compile there.
 /// </remarks>
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
 public sealed class DesktopPackageLifecycleHooksTests
 {
-    [Fact]
+    [WindowsOnlyFact]
     public void VelopackHooksRegisterRefreshStopAndUnregisterWithoutADataDeletionSurface()
     {
         var fixture = CreateFixture(shutdownResult: true);
@@ -45,7 +51,7 @@ public sealed class DesktopPackageLifecycleHooksTests
     /// failure actions, left it stopped -- so every update ended with "the background agent did
     /// not become ready in time". It happened four times on one machine in a single evening.
     /// </summary>
-    [Fact]
+    [WindowsOnlyFact]
     public void AnUpdateLeavesAServiceHostedAgentAlone()
     {
         var fixture = CreateFixture(desktopOwnsAgent: false);
@@ -55,7 +61,7 @@ public sealed class DesktopPackageLifecycleHooksTests
         Assert.Empty(fixture.AgentClient.ShutdownReasons);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void AnUpdateStillStopsAnAgentTheDesktopStarted()
     {
         var fixture = CreateFixture(desktopOwnsAgent: true, shutdownResult: true);
@@ -68,7 +74,7 @@ public sealed class DesktopPackageLifecycleHooksTests
     }
 
     /// <summary>Removing the service stops it, through the control manager rather than behind it.</summary>
-    [Fact]
+    [WindowsOnlyFact]
     public void UninstallingLeavesAServiceHostedAgentToTheServiceControlManager()
     {
         var fixture = CreateFixture(desktopOwnsAgent: false);
@@ -78,7 +84,7 @@ public sealed class DesktopPackageLifecycleHooksTests
         Assert.Empty(fixture.AgentClient.ShutdownReasons);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void UninstallingStopsAnAgentTheDesktopStarted()
     {
         var fixture = CreateFixture(desktopOwnsAgent: true, shutdownResult: true);
