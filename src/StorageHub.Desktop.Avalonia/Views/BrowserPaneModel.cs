@@ -39,6 +39,11 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     internal BrowserPaneModel(IRemoteStorageAgentClient? client = null)
     {
         _controller = new RemoteBrowserController(client);
+        SelectedRows.CollectionChanged += (_, _) =>
+        {
+            Raise(nameof(HasSelection));
+            Raise(nameof(SelectionSummary));
+        };
 
         OpenCommand = new RelayCommand(_ => _ = OpenSelectedAsync(), _ => Selected?.IsContainer == true);
         UpCommand = new RelayCommand(_ => _ = UpAsync(), _ => _controller.CanGoUp);
@@ -50,6 +55,16 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     public ObservableCollection<PaneConnection> Connections { get; } = [];
 
     public ObservableCollection<BrowserListItem> Rows { get; } = [];
+
+    /// <summary>
+    /// Every row somebody has chosen.
+    /// </summary>
+    /// <remarks>
+    /// Bound to the table's selection, so it is the table that owns the collection's contents. A
+    /// transfer acts on all of these; <see cref="Selected"/> is only which one the keyboard is on
+    /// and which one Open would enter.
+    /// </remarks>
+    public ObservableCollection<BrowserListItem> SelectedRows { get; } = [];
 
     /// <summary>The path as the address bar shows it: always rooted, never empty.</summary>
     public string Path
@@ -128,6 +143,69 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             RaiseCommands();
         }
     }
+
+    /// <summary>Whether anything a transfer could act on is selected.</summary>
+    public bool HasSelection => SelectedRows.Any(static row => !row.IsParentNavigation);
+
+    /// <summary>
+    /// "3 selected, 1.2 MB", in the shell's own wording.
+    /// </summary>
+    /// <remarks>
+    /// The same format string the status bar uses, so a pane and the bar below it never disagree
+    /// about what is selected. A folder contributes no bytes because nobody has counted what is
+    /// inside it yet, which is also what the old shell did.
+    /// </remarks>
+    public string SelectionSummary
+    {
+        get
+        {
+            var chosen = SelectedRows.Where(static row => !row.IsParentNavigation).ToArray();
+            return chosen.Length == 0
+                ? string.Empty
+                : Ui.Format(
+                    Ui.Shell.StatusSelectionFormat,
+                    chosen.Length,
+                    UiFormatting.FormatBytes(chosen.Sum(static row => row.Length ?? 0)));
+        }
+    }
+
+    /// <summary>What the browser is currently showing, for a transfer to describe.</summary>
+    internal RemoteBrowserSnapshot? Snapshot => _controller.CurrentSnapshot;
+
+    /// <summary>
+    /// Copy and move, which the workspace owns and the pane only shows.
+    /// </summary>
+    /// <remarks>
+    /// Assigned by WorkspaceModel rather than built here, because a transfer needs both panes and
+    /// a pane knows nothing about the other one. The pane draws two buttons; what they do, and
+    /// which pane is the destination, is a decision one level up.
+    /// </remarks>
+    public ICommand? CopyCommand
+    {
+        get;
+        internal set
+        {
+            field = value;
+            Raise(nameof(CopyCommand));
+        }
+    }
+
+    /// <inheritdoc cref="CopyCommand"/>
+    public ICommand? MoveCommand
+    {
+        get;
+        internal set
+        {
+            field = value;
+            Raise(nameof(MoveCommand));
+        }
+    }
+
+    public static string RefreshLabel => Ui.Commands.ViewRefresh;
+
+    public static string CopyLabel => Ui.Commands.EditCopy;
+
+    public static string MoveLabel => Ui.Pane.Move;
 
     public ICommand OpenCommand { get; }
 

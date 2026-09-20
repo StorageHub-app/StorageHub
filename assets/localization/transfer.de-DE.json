@@ -49,6 +49,7 @@
   "noReconciliationNeeded": "Keine Übertragung erfordert einen Abgleich.",
   "noTransfers": "Keine Übertragungen in dieser Ansicht.",
   "transferCountFormat": "{0} Übertragung(en).",
+  "queuedFormat": "{0:N0} Übertragung(en) eingereiht.",
   "clearedHistoryFormat": "{0:N0} Verlaufseintrag/-einträge gelöscht.",
   "updatedTransfersFormat": "{0} Übertragung(en) aktualisiert.",
   "updatedWithConflictsFormat": "{0} aktualisiert; {1} geändert oder prüfbedürftig.",

@@ -245,7 +245,7 @@
                      the splitter between them is the only part of this that is still layout. -->
                 <Grid ColumnDefinitions="*,Auto,*" Margin="{StaticResource PaddingMd}"
                       IsVisible="{Binding Page, Converter={x:Static ObjectConverters.IsNull}}">
-                <ContentControl Grid.Column="0" Content="{Binding Left}">
+                <ContentControl Grid.Column="0" Content="{Binding Workspace.Left}">
                   <ContentControl.ContentTemplate>
                     <DataTemplate DataType="vm:BrowserPaneModel">
                       <vm:BrowserPaneView/>
@@ -253,7 +253,7 @@
                   </ContentControl.ContentTemplate>
                 </ContentControl>
                 <GridSplitter Grid.Column="1" Width="{StaticResource SplitterThickness}"/>
-                <ContentControl Grid.Column="2" Content="{Binding Right}">
+                <ContentControl Grid.Column="2" Content="{Binding Workspace.Right}">
                   <ContentControl.ContentTemplate>
                     <DataTemplate DataType="vm:BrowserPaneModel">
                       <vm:BrowserPaneView/>

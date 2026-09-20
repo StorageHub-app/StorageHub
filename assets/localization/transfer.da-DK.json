@@ -49,6 +49,7 @@
   "noReconciliationNeeded": "Ingen overførsler kræver afstemning.",
   "noTransfers": "Ingen overførsler i denne visning.",
   "transferCountFormat": "{0} overførsel/overførsler.",
+  "queuedFormat": "Sætter {0:N0} overførsel/overførsler i kø.",
   "clearedHistoryFormat": "Ryddede {0:N0} historikpost(er).",
   "updatedTransfersFormat": "Opdaterede {0} overførsel/overførsler.",
   "updatedWithConflictsFormat": "Opdaterede {0}; {1} er ændret eller kræver gennemsyn.",

@@ -48,8 +48,7 @@ internal sealed record WorkspaceTab(
     string Title,
     LucideIconKind Icon,
     object? Page,
-    BrowserPaneModel? Left = null,
-    BrowserPaneModel? Right = null);
+    WorkspaceModel? Workspace = null);
 
 internal sealed record QueueTab(string Title, LucideIconKind Icon);
 
@@ -173,6 +172,11 @@ internal static class ShellPreview
     private static ShellPreviewModel Build(int selectedWorkspace = 0)
     {
         var router = new ShellCommandRouter();
+
+        // The queue is built first so the workspace can tell it to refresh the moment a transfer
+        // is accepted, rather than leaving somebody to watch a tab count that updates on its own
+        // schedule two seconds later.
+        var queue = new TransferQueueModel(static () => new NamedPipeTransferQueueAgentClient());
         return new ShellPreviewModel(router)
         {
             Menus = BuildMenus(router),
@@ -198,14 +202,19 @@ internal static class ShellPreview
                     "Workspace 1",
                     LucideIconKind.Folder,
                     null,
-                    new BrowserPaneModel { IsActive = true },
-                    new BrowserPaneModel()),
+                    new WorkspaceModel(
+                        new BrowserPaneModel { IsActive = true },
+                        new BrowserPaneModel(),
+                        static () => new NamedPipeTransferQueueAgentClient(),
+                        static () => new NamedPipeRemoteStorageAgentClient(),
+                        static () => new NamedPipeObjectInspectorAgentClient(),
+                        queue.RefreshAsync)),
             ],
             SelectedWorkspace = selectedWorkspace,
             Sidebar = BuildSidebar(router),
             NewWorkspaceCommand = router.For(UiCommandIds.WorkspaceNewWorkspace),
             NewWorkspaceLabel = Ui.Commands.WorkspaceNewWorkspace,
-            Queue = new TransferQueueModel(static () => new NamedPipeTransferQueueAgentClient()),
+            Queue = queue,
         };
     }
 

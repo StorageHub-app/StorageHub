@@ -36,8 +36,30 @@
           </ComboBox.ItemTemplate>
         </ComboBox>
 
-        <Button Grid.Column="1" Classes="tool" Command="{Binding RefreshCommand}">
+        <Button Grid.Column="1" Classes="tool" Command="{Binding RefreshCommand}"
+                ToolTip.Tip="{Binding RefreshLabel}">
           <LucideIcon Kind="RefreshCw" Size="{StaticResource IconSizeSm}"/>
+        </Button>
+      </Grid>
+
+      <!-- Copy and move act on this pane's selection and land in the other one. The commands come
+           from the workspace, which is the only thing that knows there is another pane. -->
+      <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto,Auto"
+            ColumnSpacing="{StaticResource SpaceSm}"
+            Margin="{StaticResource PaddingMd}">
+        <TextBlock Grid.Column="0" Classes="caption" VerticalAlignment="Center"
+                   Text="{Binding SelectionSummary}"/>
+        <Button Grid.Column="1" Classes="tool" Command="{Binding CopyCommand}">
+          <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+            <LucideIcon Kind="Copy" Size="{StaticResource IconSizeSm}"/>
+            <TextBlock Text="{Binding CopyLabel}"/>
+          </StackPanel>
+        </Button>
+        <Button Grid.Column="2" Classes="tool" Command="{Binding MoveCommand}">
+          <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+            <LucideIcon Kind="ArrowRight" Size="{StaticResource IconSizeSm}"/>
+            <TextBlock Text="{Binding MoveLabel}"/>
+          </StackPanel>
         </Button>
       </Grid>
 
@@ -66,7 +88,9 @@
       </Border>
 
       <TableView ItemsSource="{Binding Rows}"
-                 SelectedItem="{Binding Selected, Mode=TwoWay}">
+                 SelectedItem="{Binding Selected, Mode=TwoWay}"
+                 SelectedItems="{Binding SelectedRows}"
+                 SelectionMode="Multiple">
         <TableView.Columns>
           <TableViewColumn Header="Name" Binding="{Binding Name}" Width="*"/>
           <TableViewColumn Header="Size" Binding="{Binding Size}" Width="110"/>

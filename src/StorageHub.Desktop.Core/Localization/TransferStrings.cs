@@ -130,6 +130,12 @@ internal sealed class TransferStrings : LocalizationModelBase
     /// <summary>{0} = how many transfers this view holds.</summary>
     public string TransferCountFormat { get; set; } = "{0} transfer(s).";
 
+    /// <summary>
+    /// {0} = how many were queued. Shown by the pane that queued them, so it says what happened
+    /// without somebody having to look down at the queue to find out.
+    /// </summary>
+    public string QueuedFormat { get; set; } = "Queued {0:N0} transfer(s).";
+
     /// <summary>{0} = how many records were removed.</summary>
     public string ClearedHistoryFormat { get; set; } = "Cleared {0:N0} history record(s).";
 

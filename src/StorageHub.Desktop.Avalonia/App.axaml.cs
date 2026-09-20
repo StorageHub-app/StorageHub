@@ -54,9 +54,7 @@ public partial class App : global::Avalonia.Application
             // Each pane reads the connections it can be pointed at. Fire and forget, for the same
             // reason the sidebar is: the window opens on what it already has and fills in when the
             // agent answers, rather than being held closed behind a process that may not be running.
-            foreach (var pane in model.Workspaces
-                .SelectMany(static tab => new[] { tab.Left, tab.Right })
-                .OfType<BrowserPaneModel>())
+            foreach (var pane in model.Workspaces.SelectMany(Panes))
             {
                 _ = pane.LoadConnectionsAsync();
             }
@@ -64,15 +62,19 @@ public partial class App : global::Avalonia.Application
             {
                 await monitor.DisposeAsync().ConfigureAwait(false);
                 await model.Queue.DisposeAsync().ConfigureAwait(false);
-                foreach (var pane in model.Workspaces
-                    .SelectMany(static tab => new[] { tab.Left, tab.Right })
-                    .OfType<BrowserPaneModel>())
+                foreach (var workspace in model.Workspaces
+                    .Select(static tab => tab.Workspace)
+                    .OfType<WorkspaceModel>())
                 {
-                    await pane.DisposeAsync().ConfigureAwait(false);
+                    await workspace.DisposeAsync().ConfigureAwait(false);
                 }
             };
         }
 
         base.OnFrameworkInitializationCompleted();
     }
+
+    /// <summary>Both panes of a workspace tab, or none for a tab that is a page.</summary>
+    private static IEnumerable<BrowserPaneModel> Panes(WorkspaceTab tab) =>
+        tab.Workspace is { } workspace ? [workspace.Left, workspace.Right] : [];
 }
