@@ -194,7 +194,20 @@
           </TabControl.ItemTemplate>
           <TabControl.ContentTemplate>
             <DataTemplate DataType="vm:WorkspaceTab">
-              <Grid ColumnDefinitions="*,Auto,*" Margin="{StaticResource PaddingMd}">
+              <!-- A tab either carries a page of its own - Welcome, Sync tasks - or it is a
+                   workspace, which is the pane grid. One template, chosen by whether Page is set. -->
+              <Panel>
+                <ContentControl Content="{Binding Page}"
+                                IsVisible="{Binding Page, Converter={x:Static ObjectConverters.IsNotNull}}">
+                  <ContentControl.DataTemplates>
+                    <DataTemplate DataType="vm:OverviewModel">
+                      <vm:OverviewView/>
+                    </DataTemplate>
+                  </ContentControl.DataTemplates>
+                </ContentControl>
+
+                <Grid ColumnDefinitions="*,Auto,*" Margin="{StaticResource PaddingMd}"
+                      IsVisible="{Binding Page, Converter={x:Static ObjectConverters.IsNull}}">
                 <Border Grid.Column="0" Classes="pane" Classes.active="{Binding LeftIsActive}">
                   <DockPanel>
                     <TextBlock DockPanel.Dock="Top" Text="{Binding LeftTitle}"
@@ -222,7 +235,8 @@
                     </TableView>
                   </DockPanel>
                 </Border>
-              </Grid>
+                </Grid>
+              </Panel>
             </DataTemplate>
           </TabControl.ContentTemplate>
         </TabControl>

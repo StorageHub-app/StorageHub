@@ -1,0 +1,146 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
+             x:Class="StorageHub.Desktop.Views.OverviewView"
+             x:DataType="vm:OverviewModel">
+
+  <!--
+    The Welcome tab. Compare against docs/ui-reference/01-welcome-overview.png; every number below
+    is a token, so this is the same layout at every scaling on both platforms.
+  -->
+
+  <ScrollViewer>
+    <StackPanel Margin="{StaticResource PagePadding}" Spacing="{StaticResource SpaceXl}">
+
+      <StackPanel Spacing="{StaticResource SpaceXs}">
+        <TextBlock Classes="heading" Text="{Binding Headline}"/>
+        <TextBlock Classes="muted" Text="{Binding Subheading}"/>
+      </StackPanel>
+
+      <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceMd}">
+        <Button Classes="primary" Content="{Binding NewWorkspaceLabel}"/>
+        <Button>
+          <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+            <LucideIcon Kind="Network" Size="{StaticResource IconSizeSm}"/>
+            <TextBlock Text="{Binding ConnectionsLabel}"/>
+          </StackPanel>
+        </Button>
+        <Button>
+          <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+            <LucideIcon Kind="ArrowLeftRight" Size="{StaticResource IconSizeSm}"/>
+            <TextBlock Text="{Binding SyncTasksLabel}"/>
+          </StackPanel>
+        </Button>
+        <Button>
+          <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+            <LucideIcon Kind="RefreshCw" Size="{StaticResource IconSizeSm}"/>
+            <TextBlock Text="{Binding RefreshLabel}"/>
+          </StackPanel>
+        </Button>
+      </StackPanel>
+
+      <!-- Four cards across, each keeping its share of the width at any window size. -->
+      <ItemsControl ItemsSource="{Binding Metrics}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <UniformGrid Rows="1"/>
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate DataType="vm:MetricCard">
+            <Border Classes="metric"
+                    Classes.primary="{Binding IsPrimary}"
+                    Classes.success="{Binding IsSuccess}"
+                    Classes.warning="{Binding IsWarning}"
+                    Classes.danger="{Binding IsDanger}"
+                    Margin="{StaticResource PaddingSm}">
+              <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceMd}">
+                <LucideIcon Kind="{Binding Icon}" Size="{StaticResource IconSizeXl}"
+                            VerticalAlignment="Center"
+                            Classes.primary="{Binding IsPrimary}"
+                            Classes.success="{Binding IsSuccess}"
+                            Classes.warning="{Binding IsWarning}"
+                            Classes.danger="{Binding IsDanger}"/>
+                <StackPanel VerticalAlignment="Center">
+                  <TextBlock Classes="metric-value" Text="{Binding Value}"
+                             Classes.primary="{Binding IsPrimary}"
+                             Classes.success="{Binding IsSuccess}"
+                             Classes.warning="{Binding IsWarning}"
+                             Classes.danger="{Binding IsDanger}"/>
+                  <TextBlock Classes="caption" Text="{Binding Caption}"/>
+                </StackPanel>
+              </StackPanel>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <Border Classes="section">
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Top" Orientation="Horizontal"
+                      Spacing="{StaticResource SpaceMd}" Margin="{StaticResource PaddingMd}">
+            <LucideIcon Kind="Plus" Size="{StaticResource IconSizeLg}" Classes="primary"
+                        VerticalAlignment="Center"/>
+            <StackPanel>
+              <TextBlock Classes="title" Text="{Binding WorkspacesTitle}"/>
+              <TextBlock Classes="caption" Text="{Binding WorkspacesSubtitle}"/>
+            </StackPanel>
+          </StackPanel>
+          <TableView ItemsSource="{Binding Workspaces}" Height="140">
+            <TableView.Columns>
+              <TableViewColumn Header="{Binding ColumnName}" Binding="{Binding Name}" Width="*"/>
+              <TableViewColumn Header="{Binding ColumnLocation}" Binding="{Binding Location}" Width="*"/>
+              <TableViewColumn Header="{Binding ColumnState}" Binding="{Binding State}" Width="200"/>
+            </TableView.Columns>
+          </TableView>
+        </DockPanel>
+      </Border>
+
+      <Grid ColumnDefinitions="*,Auto,*">
+        <Border Grid.Column="0" Classes="section">
+          <DockPanel>
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal"
+                        Spacing="{StaticResource SpaceMd}" Margin="{StaticResource PaddingMd}">
+              <LucideIcon Kind="Network" Size="{StaticResource IconSizeLg}" Classes="primary"
+                          VerticalAlignment="Center"/>
+              <StackPanel>
+                <TextBlock Classes="title" Text="{Binding ConnectionsTitle}"/>
+                <TextBlock Classes="caption" Text="{Binding ConnectionsSubtitle}"/>
+              </StackPanel>
+            </StackPanel>
+            <TableView ItemsSource="{Binding RecentConnections}" Height="140">
+              <TableView.Columns>
+                <TableViewColumn Header="{Binding ColumnName}" Binding="{Binding Name}" Width="*"/>
+                <TableViewColumn Header="{Binding ColumnProvider}" Binding="{Binding Provider}" Width="120"/>
+                <TableViewColumn Header="{Binding ColumnDetails}" Binding="{Binding Details}" Width="*"/>
+              </TableView.Columns>
+            </TableView>
+          </DockPanel>
+        </Border>
+
+        <Panel Grid.Column="1" Width="{StaticResource SpaceLg}"/>
+
+        <Border Grid.Column="2" Classes="section">
+          <DockPanel>
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal"
+                        Spacing="{StaticResource SpaceMd}" Margin="{StaticResource PaddingMd}">
+              <LucideIcon Kind="TriangleAlert" Size="{StaticResource IconSizeLg}" Classes="warning"
+                          VerticalAlignment="Center"/>
+              <StackPanel>
+                <TextBlock Classes="title" Text="{Binding AttentionTitle}"/>
+                <TextBlock Classes="caption" Text="{Binding AttentionSubtitle}"/>
+              </StackPanel>
+            </StackPanel>
+            <TableView ItemsSource="{Binding Attention}" Height="140">
+              <TableView.Columns>
+                <TableViewColumn Header="{Binding ColumnName}" Binding="{Binding Name}" Width="*"/>
+                <TableViewColumn Header="{Binding ColumnState}" Binding="{Binding State}" Width="120"/>
+                <TableViewColumn Header="{Binding ColumnUpdated}" Binding="{Binding Updated}" Width="*"/>
+              </TableView.Columns>
+            </TableView>
+          </DockPanel>
+        </Border>
+      </Grid>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

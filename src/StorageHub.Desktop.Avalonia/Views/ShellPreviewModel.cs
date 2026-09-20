@@ -43,6 +43,7 @@ internal sealed record PaneItem(string Name, string Size, string Type);
 internal sealed record WorkspaceTab(
     string Title,
     LucideIconKind Icon,
+    object? Page,
     string LeftTitle,
     bool LeftIsActive,
     IReadOnlyList<PaneItem> Left,
@@ -212,11 +213,16 @@ internal static class ShellPreview
             ],
             Workspaces =
             [
-                new("Welcome", LucideIconKind.House, "Overview", false, [], "Recent", []),
-                new("Sync tasks", LucideIconKind.ArrowLeftRight, "Profiles", false, [], "Runs", []),
+                new(
+                    Ui.Shell.TabWelcome,
+                    LucideIconKind.House,
+                    OverviewModel.Create(ShellStatusSnapshot.Initial),
+                    "Overview", false, [], "Recent", []),
+                new("Sync tasks", LucideIconKind.ArrowLeftRight, null, "Profiles", false, [], "Runs", []),
                 new(
                     "Workspace 1",
                     LucideIconKind.Folder,
+                    null,
                     "Pane 1 (Active)",
                     true,
                     [
@@ -233,7 +239,7 @@ internal static class ShellPreview
                         new("Studio Assets (S3)", string.Empty, "S3"),
                     ]),
             ],
-            SelectedWorkspace = 2,
+            SelectedWorkspace = 0,
             QueueTabs = BuildQueueTabs(),
             Sidebar = BuildSidebar(router),
             NewWorkspaceCommand = router.For(UiCommandIds.WorkspaceNewWorkspace),

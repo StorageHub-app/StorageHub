@@ -218,6 +218,61 @@
     <Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/>
   </Style>
 
+  <!-- An overview metric card: a surface with a coloured rail down its left edge, which is what
+       UiCard drew by hand and re-tinted through the theme walker. -->
+  <Style Selector="Border.metric">
+    <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+    <Setter Property="BorderThickness" Value="2,1,1,1"/>
+    <Setter Property="CornerRadius" Value="{StaticResource CardRadius}"/>
+    <Setter Property="Padding" Value="{StaticResource PaddingLg}"/>
+  </Style>
+  <Style Selector="Border.metric.primary">
+    <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
+  </Style>
+  <Style Selector="Border.metric.success">
+    <Setter Property="BorderBrush" Value="{DynamicResource SuccessBrush}"/>
+  </Style>
+  <Style Selector="Border.metric.warning">
+    <Setter Property="BorderBrush" Value="{DynamicResource WarningBrush}"/>
+  </Style>
+  <Style Selector="Border.metric.danger">
+    <Setter Property="BorderBrush" Value="{DynamicResource DangerBrush}"/>
+  </Style>
+
+  <Style Selector="TextBlock.metric-value">
+    <Setter Property="FontSize" Value="{StaticResource FontSizeHeading}"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+  </Style>
+  <Style Selector="TextBlock.metric-value.primary">
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}"/>
+  </Style>
+  <Style Selector="TextBlock.metric-value.success">
+    <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}"/>
+  </Style>
+  <Style Selector="TextBlock.metric-value.warning">
+    <Setter Property="Foreground" Value="{DynamicResource WarningBrush}"/>
+  </Style>
+  <Style Selector="TextBlock.metric-value.danger">
+    <Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/>
+  </Style>
+
+  <Style Selector="LucideIcon.success">
+    <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}"/>
+  </Style>
+  <Style Selector="LucideIcon.warning">
+    <Setter Property="Foreground" Value="{DynamicResource WarningBrush}"/>
+  </Style>
+
+  <!-- A titled block on a page, as the overview and the sync pages use. -->
+  <Style Selector="Border.section">
+    <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="CornerRadius" Value="{StaticResource CardRadius}"/>
+    <Setter Property="Padding" Value="{StaticResource PaddingMd}"/>
+  </Style>
+
   <Style Selector="TableView">
     <Setter Property="Background" Value="Transparent"/>
     <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
