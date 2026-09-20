@@ -56,13 +56,29 @@
           SkipUnchangedFiles="true" />
   </Target>
 
+  <!-- The Explorer drop broker is a native x64 COM DLL, so building it needs the Visual Studio C++
+       toolchain. Requiring that of every build meant a plain `dotnet build` of this project could
+       not succeed without Visual Studio installed, and `dotnet test` on the solution inherited the
+       same requirement through StorageHub.Desktop.Tests. It is opt-in instead: CI and
+       eng/package-windows.ps1 pass -p:StorageHubBuildShellExtension=true. A build without it
+       produces a shell whose broker is absent, which MainForm already reports rather than
+       assuming. -->
   <PropertyGroup>
+    <StorageHubBuildShellExtension Condition="'$(StorageHubBuildShellExtension)' == ''">false</StorageHubBuildShellExtension>
+    <StorageHubCanBuildShellExtension>false</StorageHubCanBuildShellExtension>
+    <StorageHubCanBuildShellExtension Condition="'$(StorageHubBuildShellExtension)' == 'true' and '$(DesignTimeBuild)' != 'true' and $([MSBuild]::IsOSPlatform('Windows'))">true</StorageHubCanBuildShellExtension>
     <StorageHubVsWhere>$(MSBuildProgramFiles32)\Microsoft Visual Studio\Installer\vswhere.exe</StorageHubVsWhere>
     <StorageHubNativeProject>$(MSBuildProjectDirectory)\..\StorageHub.ShellExtension.Native\StorageHub.ShellExtension.Native.vcxproj</StorageHubNativeProject>
     <StorageHubNativeOutput>$(MSBuildProjectDirectory)\..\StorageHub.ShellExtension.Native\x64\$(Configuration)\StorageHub.ShellExtension.Native.dll</StorageHubNativeOutput>
   </PropertyGroup>
+  <Target Name="ReportExplorerDropBrokerSkipped"
+          AfterTargets="Build"
+          Condition="'$(StorageHubCanBuildShellExtension)' != 'true' and '$(DesignTimeBuild)' != 'true'">
+    <Message Importance="High"
+             Text="StorageHub Explorer integration was not built. Pass -p:StorageHubBuildShellExtension=true on Windows with the Visual Studio C++ build tools to include it." />
+  </Target>
   <Target Name="ResolveStorageHubNativeMsBuild"
-          Condition="'$(DesignTimeBuild)' != 'true'">
+          Condition="'$(StorageHubCanBuildShellExtension)' == 'true'">
     <Error Condition="!Exists('$(StorageHubVsWhere)')"
            Text="StorageHub Explorer integration requires Visual Studio C++ build tools, but vswhere.exe was not found." />
     <Exec Command="&quot;$(StorageHubVsWhere)&quot; -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -find MSBuild\**\Bin\MSBuild.exe"
@@ -79,7 +95,7 @@
   <Target Name="BuildAndStageExplorerDropBroker"
           AfterTargets="Build"
           DependsOnTargets="ResolveStorageHubNativeMsBuild"
-          Condition="'$(DesignTimeBuild)' != 'true'">
+          Condition="'$(StorageHubCanBuildShellExtension)' == 'true'">
     <Exec Command="&quot;$(StorageHubNativeMsBuild)&quot; &quot;$(StorageHubNativeProject)&quot; /p:Configuration=$(Configuration) /p:Platform=x64 /m" />
     <Error Condition="!Exists('$(StorageHubNativeOutput)')"
            Text="The StorageHub Explorer drop broker build did not produce $(StorageHubNativeOutput)." />
@@ -90,7 +106,7 @@
   <Target Name="StageExplorerDropBrokerForPublish"
           AfterTargets="Publish"
           DependsOnTargets="BuildAndStageExplorerDropBroker"
-          Condition="'$(DesignTimeBuild)' != 'true'">
+          Condition="'$(StorageHubCanBuildShellExtension)' == 'true'">
     <Copy SourceFiles="$(StorageHubNativeOutput)"
           DestinationFolder="$(PublishDir)"
           SkipUnchangedFiles="true" />

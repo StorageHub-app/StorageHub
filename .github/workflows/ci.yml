@@ -73,7 +73,11 @@ jobs:
       - name: Build Release
         shell: pwsh
         run: |
-          dotnet build StorageHub.slnx --configuration Release --no-restore
+          # The Explorer drop broker is opt-in so a clone without the Visual Studio C++ build tools
+          # can still build and test. CI has the toolchain, and the native smoke test below expects
+          # this build to have produced the broker DLL.
+          dotnet build StorageHub.slnx --configuration Release --no-restore `
+            -p:StorageHubBuildShellExtension=true
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Test Release

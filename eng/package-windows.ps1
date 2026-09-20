@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 
 [CmdletBinding()]
 param(
@@ -684,12 +684,17 @@ try {
         -ArgumentList $agentRestoreArguments `
         -Description 'Restore locked win-x64 StorageHub Agent dependencies'
 
+    # The Explorer drop broker is opt-in so that a clone without the Visual Studio C++ build tools
+    # can still build and test the solution. A release must always carry it, and the project's
+    # publish target fails the build if the DLL does not reach the publish directory.
     $desktopArguments = @(
         'publish',
         $desktopProject,
         '--output',
         $desktopPublish
-    ) + $commonPublishArguments
+    ) + $commonPublishArguments + @(
+        '-p:StorageHubBuildShellExtension=true'
+    )
     Invoke-NativeCommand `
         -FilePath $dotnetCommand.Source `
         -ArgumentList $desktopArguments `
