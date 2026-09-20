@@ -19,6 +19,23 @@ namespace StorageHub.Desktop;
 internal static class SettingsExportFingerprint
 {
     /// <summary>
+    /// What identifies the account this export belongs to.
+    /// </summary>
+    /// <remarks>
+    /// The SID on Windows rather than the user name: it is unique per account per machine and
+    /// survives a rename. Linux has no equivalent that is both stable and cheap to read from here,
+    /// so it falls back to the user name, which a rename does change. Getting this wrong only makes
+    /// an export look foreign, and treating a foreign export as foreign is the safe direction.
+    /// </remarks>
+    private static string? ResolveAccount()
+    {
+        if (!OperatingSystem.IsWindows()) return Environment.UserName;
+
+        using var identity = WindowsIdentity.GetCurrent();
+        return identity.User?.Value;
+    }
+
+    /// <summary>
     /// Domain-separates the hash so it can never collide with another digest in this codebase,
     /// and pins the inputs: changing either would need a new label, not a silent redefinition.
     /// </summary>
@@ -34,10 +51,7 @@ internal static class SettingsExportFingerprint
     {
         try
         {
-            using var identity = WindowsIdentity.GetCurrent();
-            // The account SID rather than the user name: it is unique per account per machine and
-            // survives a rename.
-            var account = identity.User?.Value;
+            var account = ResolveAccount();
             if (string.IsNullOrEmpty(account)) return null;
 
             // Unit separators, so "machine" + "user" and "machine" + "user" cannot

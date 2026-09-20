@@ -25,6 +25,10 @@
     <!-- Colour is the one System.Drawing type the shell's models genuinely need, and Avalonia.Base
          supplies it. Aliasing it here is what lets a presentation model name an accent colour
          without the assembly knowing what a window is. -->
+    <!-- The same global using the WinForms shell declares. Files that moved across were written
+         against it, and adding it here is what lets them move unchanged rather than each growing a
+         using directive that will be pointless once there is only one shell. -->
+    <Using Include="StorageHub.Desktop.Configuration" />
     <Using Include="Avalonia.Media.Color" Alias="Color" />
   </ItemGroup>
 

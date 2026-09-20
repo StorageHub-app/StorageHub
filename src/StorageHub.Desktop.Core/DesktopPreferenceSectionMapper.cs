@@ -119,17 +119,17 @@ internal static class DesktopPreferenceSectionMapper
 
         if (selected.Contains(SettingsSectionId.Shortcuts) && document.Shortcuts is { } shortcuts)
         {
-            // Validated before resolving. ShortcutSettings.Resolve silently falls back to the full
+            // Validated before resolving. ShortcutBindings.Resolve silently falls back to the full
             // default set when given an invalid map, which during an import would wipe every
             // shortcut the user had without a word.
-            var bindings = ShortcutKeys.ToKeys(ShortcutChord.Parse(shortcuts));
-            if (ShortcutSettings.Validate(bindings) is { } error)
+            var bindings = ShortcutChord.Parse(shortcuts);
+            if (ShortcutBindings.Validate(bindings) is { } error)
             {
                 blocked[SettingsSectionId.Shortcuts] = error;
             }
             else
             {
-                updated = updated with { Shortcuts = ShortcutKeys.ToGestures(ShortcutSettings.Resolve(bindings)) };
+                updated = updated with { Shortcuts = ShortcutBindings.Resolve(bindings) };
                 applied.Add(SettingsSectionId.Shortcuts);
             }
         }

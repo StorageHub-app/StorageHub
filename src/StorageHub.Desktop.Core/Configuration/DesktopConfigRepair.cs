@@ -147,9 +147,7 @@ internal static class DesktopConfigRepair
             SshTerminal = preferences.SshTerminal is null
                 ? null
                 : SshTerminalPreferences.Resolve(preferences.SshTerminal),
-            Shortcuts = preferences.Shortcuts is null
-                ? null
-                : ShortcutKeys.ToGestures(ShortcutSettings.Resolve(ShortcutKeys.ToKeys(preferences.Shortcuts))),
+            Shortcuts = preferences.Shortcuts is null ? null : ShortcutBindings.Resolve(preferences.Shortcuts),
             PinnedWorkspaces = preferences.PinnedWorkspaces is null
                 ? null
                 : WorkspaceShortcutSettings.Resolve(preferences.PinnedWorkspaces, WorkspaceShortcutSettings.MaximumPinned),
@@ -185,7 +183,7 @@ internal static class DesktopConfigRepair
     internal static string? Validate(DesktopUpdatePreferences preferences)
     {
         ArgumentNullException.ThrowIfNull(preferences);
-        if (preferences.Shortcuts is not null && ShortcutSettings.Validate(ShortcutKeys.ToKeys(preferences.Shortcuts)) is { } shortcutError)
+        if (preferences.Shortcuts is not null && ShortcutBindings.Validate(preferences.Shortcuts) is { } shortcutError)
             return shortcutError;
         if (WorkspaceShortcutSettings.Validate(
                 preferences.PinnedWorkspaces, WorkspaceShortcutSettings.MaximumPinned) is { } pinnedError)

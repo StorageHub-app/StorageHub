@@ -57,7 +57,7 @@ internal sealed class SettingsExportService
             document = document with
             {
                 Shortcuts = ShortcutChord.Format(
-                    ShortcutKeys.ToGestures(ShortcutSettings.Resolve(ShortcutKeys.ToKeys(preferences.Shortcuts)))),
+                    ShortcutBindings.Resolve(preferences.Shortcuts)),
             };
         }
 
