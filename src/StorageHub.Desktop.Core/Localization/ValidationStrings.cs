@@ -1,4 +1,4 @@
-﻿using CodeLogic.Core.Localization;
+using CodeLogic.Core.Localization;
 
 namespace StorageHub.Desktop.Localization;
 
@@ -401,7 +401,7 @@ internal sealed class ValidationStrings : LocalizationModelBase
 
     public string TheTrustRequestIsOutsideTheConnection { get; set; } = "The trust request is outside the connection-trust contract bounds.";
 
-    public string TheUpdateCandidateDidNotOriginateFrom { get; set; } = "The update candidate did not originate from Velopack.";
+    public string TheUpdateCandidateDidNotOriginateFrom { get; set; } = "The update candidate did not come from the update feed.";
 
     public string TheseSettingsAreTooLargeToExport { get; set; } = "These settings are too large to export.";
 
@@ -449,7 +449,7 @@ internal sealed class ValidationStrings : LocalizationModelBase
 
     public string UpdatesCheckFailedTryAgainLater { get; set; } = "Updates: check failed; try again later";
 
-    public string UpdatesCheckingGitHub { get; set; } = "Updates: checking GitHub…";
+    public string UpdatesCheckingGitHub { get; set; } = "Updates: checking…";
 
     public string UpdatesCouldNotStartTheInstaller { get; set; } = "Updates: could not start the installer";
 

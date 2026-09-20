@@ -328,7 +328,7 @@ internal sealed class SettingsStrings : LocalizationModelBase
     public string DownloadAutomatically { get; set; } = "Download available updates automatically";
 
     public string DownloadAutomaticallyHint { get; set; } =
-        "Downloads the matching integrity-checked Velopack package silently after an automatic check.";
+        "Downloads the matching installer after an automatic check, and verifies it before offering to apply it.";
 
     public string RestartAutomatically { get; set; } = "Install silently and restart automatically";
 

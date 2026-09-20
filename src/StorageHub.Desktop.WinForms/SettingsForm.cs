@@ -831,7 +831,7 @@ public sealed class SettingsForm : Form
             MaximumSize = new Size(ScaledContentWidth, 0),
             Text = Ui.Format(
                 Ui.Settings.UpdateSourceFormat,
-                VelopackDesktopUpdateEngineFactory.TrustedRepositoryUrl,
+                StorageHubLinks.Project,
                 DesktopApplicationVersion.Current),
             ForeColor = StorageHubTheme.TextMuted,
             Margin = this.LogicalToDeviceUnits(new Padding(0, 14, 0, 0)),

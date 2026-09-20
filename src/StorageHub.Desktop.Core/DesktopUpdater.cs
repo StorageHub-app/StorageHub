@@ -1,5 +1,3 @@
-using Velopack;
-using Velopack.Sources;
 using StorageHub.Desktop.Localization;
 
 namespace StorageHub.Desktop;
@@ -51,76 +49,6 @@ internal interface IDesktopUpdateEngineFactory
     IDesktopUpdateEngine Create(bool includePrereleases);
 }
 
-internal sealed class VelopackDesktopUpdateEngineFactory : IDesktopUpdateEngineFactory
-{
-    internal const string TrustedRepositoryUrl = "https://github.com/StorageHub-app/StorageHub";
-
-    public IDesktopUpdateEngine Create(bool includePrereleases) =>
-        new VelopackDesktopUpdateEngine(includePrereleases);
-}
-
-internal sealed class VelopackDesktopUpdateEngine : IDesktopUpdateEngine
-{
-    private static readonly TimeSpan CheckTimeout = TimeSpan.FromSeconds(20);
-    private readonly UpdateManager _manager;
-
-    internal VelopackDesktopUpdateEngine(bool includePrereleases)
-    {
-        var source = new GithubSource(
-            VelopackDesktopUpdateEngineFactory.TrustedRepositoryUrl,
-            accessToken: null,
-            prerelease: includePrereleases);
-        _manager = new UpdateManager(
-            source,
-            new UpdateOptions
-            {
-                AllowVersionDowngrade = false
-            });
-    }
-
-    public bool IsInstalled => _manager.IsInstalled && !_manager.IsPortable;
-
-    public string CurrentVersion => _manager.CurrentVersion?.ToString() ?? DesktopApplicationVersion.Current;
-
-    public async Task<DesktopUpdateCandidate?> CheckForUpdatesAsync(CancellationToken cancellationToken)
-    {
-        var updates = await _manager.CheckForUpdatesAsync()
-            .WaitAsync(CheckTimeout, cancellationToken)
-            .ConfigureAwait(false);
-        return updates is null
-            ? null
-            : new DesktopUpdateCandidate(
-                updates.TargetFullRelease.Version.ToString(),
-                updates);
-    }
-
-    public Task DownloadAsync(
-        DesktopUpdateCandidate candidate,
-        IProgress<int> progress,
-        CancellationToken cancellationToken)
-    {
-        var updates = RequireUpdateInfo(candidate);
-        return _manager.DownloadUpdatesAsync(
-            updates,
-            value => progress.Report(Math.Clamp(value, 0, 100)),
-            cancellationToken);
-    }
-
-    public void PrepareSilentApplyAndRestart(DesktopUpdateCandidate candidate)
-    {
-        var updates = RequireUpdateInfo(candidate);
-        _manager.WaitExitThenApplyUpdates(
-            updates.TargetFullRelease,
-            silent: true,
-            restart: true,
-            restartArgs: []);
-    }
-
-    private static UpdateInfo RequireUpdateInfo(DesktopUpdateCandidate candidate) =>
-        candidate.EngineValue as UpdateInfo
-        ?? throw new InvalidOperationException(Ui.Validation.TheUpdateCandidateDidNotOriginateFrom);
-}
-
 internal sealed class DesktopUpdater : IDisposable
 {
     private readonly DesktopConfigStore _preferencesStore;
@@ -138,7 +66,7 @@ internal sealed class DesktopUpdater : IDisposable
         IDesktopUpdateEngineFactory? engineFactory = null)
     {
         _preferencesStore = preferencesStore ?? throw new ArgumentNullException(nameof(preferencesStore));
-        _engineFactory = engineFactory ?? new VelopackDesktopUpdateEngineFactory();
+        _engineFactory = engineFactory ?? new Updates.StorageHubUpdateEngineFactory();
         _preferences = preferencesStore.Load();
     }
 

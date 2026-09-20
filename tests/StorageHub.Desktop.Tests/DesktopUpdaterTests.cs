@@ -360,7 +360,7 @@ public sealed class DesktopUpdaterTests
     {
         Assert.Equal(
             "https://github.com/StorageHub-app/StorageHub",
-            VelopackDesktopUpdateEngineFactory.TrustedRepositoryUrl);
+            StorageHubLinks.Project);
         Assert.DoesNotContain(
             typeof(DesktopUpdatePreferences).GetProperties(),
             property => property.Name.Contains("Url", StringComparison.OrdinalIgnoreCase) ||

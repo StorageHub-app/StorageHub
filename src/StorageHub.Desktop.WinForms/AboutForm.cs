@@ -143,7 +143,7 @@ internal sealed class AboutForm : Form
     /// Where the project lives. The same address the updater trusts for releases, so About cannot
     /// come to disagree with the place new versions are fetched from.
     /// </summary>
-    internal static string ProjectUrl => VelopackDesktopUpdateEngineFactory.TrustedRepositoryUrl;
+    internal static string ProjectUrl => StorageHubLinks.Project;
 
     internal static void ShowFor(IWin32Window owner)
     {
