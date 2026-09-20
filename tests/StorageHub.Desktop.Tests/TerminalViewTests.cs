@@ -175,6 +175,185 @@ public class TerminalViewTests
         Window(view).CaptureRenderedFrame()!.Save(stream, new PngBitmapEncoderOptions());
     }
 
+    // ---------------------------------------------------------------- scrollback
+
+    /// <summary>
+    /// A screen with history starts at the live end, and reads back by lines.
+    /// </summary>
+    /// <remarks>
+    /// The viewport is a line number: the document's last rows are on screen until somebody
+    /// scrolls, and each wheel notch or page moves it by whole lines rather than pixels.
+    /// </remarks>
+    [AvaloniaFact]
+    public void AScreenWithHistoryStartsAtTheLiveEndAndScrollsByLines()
+    {
+        var emulator = Emulator(Lines(100));
+        var view = Rendered(emulator);
+        var document = emulator.Document;
+
+        Assert.True(document.ScrollbackCount > 0, "the emulator kept no history");
+        Assert.True(view.FollowsTail);
+        Assert.Equal(document.LastLineNumber - view.VisibleRows + 1, view.ViewportTopLine);
+
+        view.ScrollByLines(-10);
+        Assert.Equal(document.LastLineNumber - view.VisibleRows + 1 - 10, view.ViewportTopLine);
+        Assert.False(view.FollowsTail);
+
+        view.ScrollByPages(-100);
+        Assert.Equal(document.FirstLineNumber, view.ViewportTopLine);
+
+        view.ScrollToBottom();
+        Assert.True(view.FollowsTail);
+        Assert.Equal(document.LastLineNumber - view.VisibleRows + 1, view.ViewportTopLine);
+    }
+
+    /// <summary>
+    /// New output never moves the view while somebody is reading back through history.
+    /// </summary>
+    /// <remarks>
+    /// The unconditional scroll-to-caret this replaces is what made the 1.x terminal unusable
+    /// while output was flowing: every line that arrived yanked the view back to the bottom.
+    /// </remarks>
+    [AvaloniaFact]
+    public void OutputDoesNotMoveAViewThatHasScrolledBack()
+    {
+        var emulator = Emulator(Lines(100));
+        var view = Rendered(emulator);
+        view.ScrollByLines(-20);
+        var held = view.ViewportTopLine;
+
+        emulator.Feed(Lines(10));
+        view.FollowOutput();
+
+        Assert.Equal(held, view.ViewportTopLine);
+        Assert.False(view.FollowsTail);
+
+        // And one that is at the end stays at the end.
+        view.ScrollToBottom();
+        emulator.Feed(Lines(10));
+        view.FollowOutput();
+        Assert.Equal(emulator.Document.LastLineNumber - view.VisibleRows + 1, view.ViewportTopLine);
+    }
+
+    /// <summary>The scroll bar sees lines: one document line is one cell height of extent.</summary>
+    [AvaloniaFact]
+    public void TheScrollBarCountsLines()
+    {
+        var emulator = Emulator(Lines(100));
+        var view = Rendered(emulator);
+        Assert.True(view.IsLogicalScrollEnabled);
+        Assert.Equal(emulator.Document.TotalLineCount * view.CellSize.Height, view.Extent.Height, 0.5);
+        Assert.Equal(view.CellSize.Height, view.ScrollSize.Height, 0.5);
+
+        // Setting the offset is scrolling, and reads back as the line it landed on.
+        view.Offset = new Vector(0, 0);
+        Assert.Equal(emulator.Document.FirstLineNumber, view.ViewportTopLine);
+        Assert.False(view.FollowsTail);
+
+        view.Offset = new Vector(0, view.Extent.Height);
+        Assert.True(view.FollowsTail);
+    }
+
+    /// <summary>What is drawn follows the viewport, not the screen.</summary>
+    [AvaloniaFact]
+    public void ScrollingBackChangesWhatIsDrawn()
+    {
+        var emulator = Emulator(Lines(100));
+        var view = Rendered(emulator);
+        var atEnd = Capture(view);
+
+        view.ScrollByPages(-2);
+        Window(view).UpdateLayout();
+
+        Assert.NotEqual(atEnd, Capture(view));
+    }
+
+    // ---------------------------------------------------------------- selection
+
+    /// <summary>A selection is its text, without the padding a row carries to its width.</summary>
+    [AvaloniaFact]
+    public void ASelectionIsItsText()
+    {
+        var emulator = Emulator("first line\r\nsecond line\r\n");
+        var view = Rendered(emulator);
+        var top = emulator.Document.FirstLineNumber;
+
+        Assert.False(view.HasSelection);
+        view.Select(top, 6, top + 1, 6);
+
+        Assert.True(view.HasSelection);
+        Assert.Equal("line" + Environment.NewLine + "second", view.SelectedText);
+
+        // Backwards is the same selection.
+        view.Select(top + 1, 6, top, 6);
+        Assert.Equal("line" + Environment.NewLine + "second", view.SelectedText);
+
+        view.ClearSelection();
+        Assert.False(view.HasSelection);
+        Assert.Equal(string.Empty, view.SelectedText);
+    }
+
+    /// <summary>A double-click takes the word: letters, digits and underscores, as a shell would.</summary>
+    [AvaloniaFact]
+    public void AWordIsSelectedAsAShellWouldSplitIt()
+    {
+        var emulator = Emulator("run my_script.sh --now");
+        var view = Rendered(emulator);
+        var top = emulator.Document.FirstLineNumber;
+
+        view.SelectWordAt(top, 5);
+        Assert.Equal("my_script", view.SelectedText);
+
+        view.SelectWordAt(top, 20);
+        Assert.Equal("now", view.SelectedText);
+
+        view.SelectLine(top);
+        Assert.Equal("run my_script.sh --now", view.SelectedText);
+    }
+
+    /// <summary>A hit test maps a point to the cell under it, through the padding and the viewport.</summary>
+    [AvaloniaFact]
+    public void AHitTestLandsOnTheCellUnderThePoint()
+    {
+        var emulator = Emulator(Lines(100));
+        var view = Rendered(emulator);
+        var cell = view.CellSize;
+        var padding = view.Padding;
+
+        var (line, column) = view.HitTest(new Point(
+            padding.Left + (cell.Width * 4) + 1, padding.Top + (cell.Height * 2) + 1));
+
+        Assert.Equal(view.ViewportTopLine + 2, line);
+        Assert.Equal(4, column);
+
+        // Above the control is a line before the viewport, which is what lets a drag past the
+        // top edge select into history; off the left is the first column. Neither throws.
+        var (above, zero) = view.HitTest(new Point(-100, -100));
+        Assert.True(above < view.ViewportTopLine && above >= emulator.Document.FirstLineNumber);
+        Assert.Equal(0, zero);
+    }
+
+    /// <summary>Selected cells are drawn inverted, so a selection is visible.</summary>
+    [AvaloniaFact]
+    public void ASelectionReachesThePixels()
+    {
+        var emulator = Emulator("hello world");
+        var view = Rendered(emulator);
+        var lightBefore = Pixels(view).Count(pixel => Close(pixel, new VtRgb(226, 232, 240)));
+
+        view.Select(emulator.Document.FirstLineNumber, 0, emulator.Document.FirstLineNumber, 5);
+        Window(view).UpdateLayout();
+
+        // Inverted default-on-default is the foreground colour as a background, which is a lot of
+        // light pixels where there were only the strokes of five letters.
+        var light = Pixels(view).Count(pixel => Close(pixel, new VtRgb(226, 232, 240)));
+        Assert.True(light > lightBefore * 2, $"{light} light pixels selected against {lightBefore} before");
+    }
+
+    /// <summary>Numbered lines, each ended the way a remote shell ends one.</summary>
+    private static string Lines(int count) =>
+        string.Concat(Enumerable.Range(1, count).Select(static index => $"line {index}\r\n"));
+
     /// <summary>An emulator that has been fed some output, through the real parser.</summary>
     private static VtTerminalEmulator Emulator(string output)
     {

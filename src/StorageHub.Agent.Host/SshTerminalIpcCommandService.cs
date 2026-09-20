@@ -282,8 +282,9 @@ public sealed class SshTerminalIpcCommandService : IAgentIpcCommandHandler, IAsy
             };
             client.HostKeyReceived += (_, args) =>
             {
-                var fingerprint = $"SHA256:{args.FingerPrintSHA256}";
-                args.CanTrust = trusted.Contains(fingerprint);
+                // By bytes rather than by spelling: the store keeps a hexadecimal fingerprint as
+                // hexadecimal and a base64 one as base64, and the library reports base64.
+                args.CanTrust = SshFingerprints.IsTrusted(SHA256.HashData(args.HostKey), trusted);
             };
             await client.ConnectAsync(cancellationToken).ConfigureAwait(false);
             var shell = client.CreateShellStream(

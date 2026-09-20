@@ -278,8 +278,13 @@
           -->
           <Border Classes="terminal" IsVisible="{Binding HasTerminal}"
                   CornerRadius="{StaticResource FieldRadius}" ClipToBounds="True">
-            <vm:TerminalView Session="{Binding Terminal}"
-                             AutomationProperties.Name="{Binding TerminalOutputAccessibleName}"/>
+            <!-- The scroll bar is the viewer's; the painter drives it in lines through
+                 ILogicalScrollable, so the thumb is the screen's share of the scrollback. -->
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto">
+              <vm:TerminalView Session="{Binding Terminal}"
+                               AutomationProperties.Name="{Binding TerminalOutputAccessibleName}"/>
+            </ScrollViewer>
           </Border>
 
           <!-- What a terminal pane shows before it has a session: a connection has not been

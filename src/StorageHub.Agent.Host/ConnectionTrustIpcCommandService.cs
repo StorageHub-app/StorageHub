@@ -501,29 +501,7 @@ public sealed class ConnectionTrustIpcCommandService : IAgentIpcCommandHandler
                 record.Version == expectedVersion);
 
     private static bool EquivalentFingerprint(string left, string right) =>
-        TryDecodeFingerprint(left, out var leftBytes) &&
-        TryDecodeFingerprint(right, out var rightBytes) &&
-        leftBytes.AsSpan().SequenceEqual(rightBytes);
-
-    private static bool TryDecodeFingerprint(string value, out byte[] bytes)
-    {
-        var normalized = value.Trim();
-        var hexadecimal = normalized.Replace(":", string.Empty, StringComparison.Ordinal);
-        try
-        {
-            bytes = hexadecimal.Length == 64 && hexadecimal.All(Uri.IsHexDigit)
-                ? Convert.FromHexString(hexadecimal)
-                : normalized.StartsWith("SHA256:", StringComparison.OrdinalIgnoreCase)
-                    ? Convert.FromBase64String(normalized[7..].PadRight((normalized.Length - 7 + 3) / 4 * 4, '='))
-                    : [];
-            return bytes.Length == 32;
-        }
-        catch (FormatException)
-        {
-            bytes = [];
-            return false;
-        }
-    }
+        SshFingerprints.Equivalent(left, right);
 
     private static ConnectionTrustRecordDocument ToDocument(TrustRecord record) => new(
         record.TrustId,

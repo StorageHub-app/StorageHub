@@ -71,12 +71,11 @@ git show winforms-reference:src/StorageHub.Desktop.WinForms/SyncProfileEditorFor
 
 ### What is still there to port
 
-Roughly 4,200 lines of screens have no counterpart here yet. In descending order, from
+Roughly 3,400 lines of screens have no counterpart here yet. In descending order, from
 `winforms-reference`:
 
 | Lines | File | Block |
 |---:|---|---|
-| 809 | `TerminalView.cs` | SSH -- the painter, and the only piece missing |
 | 622 | `SshTerminalForm.cs` | SSH |
 | 532 | `SettingsImportForm.cs` | settings |
 | 487 | `ConnectionPicker.cs` | grouped, filter-as-you-type |
@@ -132,7 +131,7 @@ are the honest ones — each names what is missing rather than claiming the row.
 | Hidden files toggle | **dropped** — inert in 1.x |
 | Paging a large listing, with prefetch | **partial** — the controller pages; the pane does not ask for more yet |
 | Select all, invert selection | **done** — buttons in the pane, and the menu entries now reach the active one |
-| An SSH connection opens a terminal instead of a listing | **partial** — the pane becomes one, hides its listing chrome and is refused as a transfer endpoint; the VT painter is the piece left |
+| An SSH connection opens a terminal instead of a listing | **done** — the pane becomes one, and `TerminalView` paints the emulator's screen, follows the live end only while it is there, scrolls the history through the pane's own scroll bar, selects by drag, double and triple click, and copies with Ctrl+Shift+C. Mouse reporting to the remote program is not ported |
 
 ### Transfers
 
@@ -258,8 +257,9 @@ They are skipped otherwise, so CI stays green without one.
 5. ~~**Connection Manager**.~~ Done for listing, editing, creating and deleting, and for
    enrolling and borrowing secrets now that the key store is in. Host-key trust from the editor
    is what remains.
-6. **The terminal painter**, which is what an SSH pane is still missing. `VtTerminalEmulator` and
-   `VtKeyEncoder` are in Core with three suites; what is not written is the `Control` that renders a
-   screen buffer into a `DrawingContext` and implements `ILogicalScrollable`.
-7. **Sync**: profiles, schedules, run review.
+6. ~~**The terminal painter**.~~ Done: `TerminalView` renders the screen buffer, drives the pane's
+   scroll bar through `ILogicalScrollable` in lines, and selects and copies. Mouse reporting to
+   the remote program is what remains of the SSH pane.
+7. ~~**Sync**: profiles, schedules, run review.~~ Done, and proven against the live agent and the
+   lab's servers.
 8. The rest of Settings, and the update window.
