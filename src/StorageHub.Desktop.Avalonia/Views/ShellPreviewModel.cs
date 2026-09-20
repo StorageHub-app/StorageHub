@@ -198,7 +198,10 @@ internal static class ShellPreview
 {
     internal static ShellPreviewModel Sample { get; } = Build();
 
-    private static ShellPreviewModel Build()
+    /// <summary>The same shell, opened on Sync tasks, so that screen can be photographed too.</summary>
+    internal static ShellPreviewModel SampleOnSyncTasks { get; } = Build(selectedWorkspace: 1);
+
+    private static ShellPreviewModel Build(int selectedWorkspace = 0)
     {
         var router = new ShellCommandRouter();
         return new ShellPreviewModel(router)
@@ -218,7 +221,15 @@ internal static class ShellPreview
                     LucideIconKind.House,
                     OverviewModel.Create(ShellStatusSnapshot.Initial),
                     "Overview", false, [], "Recent", []),
-                new("Sync tasks", LucideIconKind.ArrowLeftRight, null, "Profiles", false, [], "Runs", []),
+                new(
+                    Ui.Shell.TabSyncTasks,
+                    LucideIconKind.ArrowLeftRight,
+                    new TabbedPageModel(
+                    [
+                        new PageTab(Ui.Sync.TasksTitle, SyncTasksModel.Create()),
+                        new PageTab(Ui.Sync.RunHistoryAndReview, SyncRunHistoryModel.Create()),
+                    ]),
+                    "Profiles", false, [], "Runs", []),
                 new(
                     "Workspace 1",
                     LucideIconKind.Folder,
@@ -239,7 +250,7 @@ internal static class ShellPreview
                         new("Studio Assets (S3)", string.Empty, "S3"),
                     ]),
             ],
-            SelectedWorkspace = 0,
+            SelectedWorkspace = selectedWorkspace,
             QueueTabs = BuildQueueTabs(),
             Sidebar = BuildSidebar(router),
             NewWorkspaceCommand = router.For(UiCommandIds.WorkspaceNewWorkspace),

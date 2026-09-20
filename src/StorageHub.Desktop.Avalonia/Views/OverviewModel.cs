@@ -13,6 +13,9 @@ namespace StorageHub.Desktop.Views;
 /// </remarks>
 internal enum MetricTone
 {
+    /// <summary>No colour of its own. A count that is neither good nor bad, such as disabled tasks.</summary>
+    Neutral,
+
     Primary,
     Success,
     Warning,
@@ -26,6 +29,8 @@ internal sealed record MetricCard(
     LucideIconKind Icon,
     MetricTone Tone)
 {
+    internal bool IsNeutral => Tone == MetricTone.Neutral;
+
     internal bool IsPrimary => Tone == MetricTone.Primary;
 
     internal bool IsSuccess => Tone == MetricTone.Success;

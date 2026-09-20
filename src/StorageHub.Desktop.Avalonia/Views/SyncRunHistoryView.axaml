@@ -1,0 +1,83 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
+             x:Class="StorageHub.Desktop.Views.SyncRunHistoryView"
+             x:DataType="vm:SyncRunHistoryModel">
+
+  <!--
+    Compare against docs/ui-reference/04-sync-run-history.png. The disabled buttons are the point:
+    Next page, Approve & dispatch and Load next operations are unavailable until a run is loaded, and
+    that comes from the model rather than from the view deciding how things look.
+  -->
+
+  <DockPanel Margin="{StaticResource PaddingLg}">
+
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto"
+          Margin="{StaticResource PaddingMd}">
+      <TextBlock Grid.Column="0" Classes="muted" Text="{Binding RunIdLabel}"
+                 VerticalAlignment="Center" Margin="{StaticResource PaddingMd}"/>
+      <TextBox Grid.Column="1" Text="{Binding RunIdPlaceholder}" MaxWidth="360"
+               HorizontalAlignment="Left" MinWidth="320"/>
+      <Button Grid.Column="2" Classes="primary" Content="{Binding LoadRunLabel}"
+              Margin="{StaticResource PaddingSm}"/>
+      <Button Grid.Column="3" Content="{Binding RefreshHistoryLabel}"
+              Margin="{StaticResource PaddingSm}"/>
+      <Button Grid.Column="4" Content="{Binding NextPageLabel}"
+              IsEnabled="{Binding CanPageForward}"
+              Margin="{StaticResource PaddingSm}"/>
+      <TextBlock Grid.Column="5" Text="{Binding HistoryStatus}"
+                 Foreground="{DynamicResource SuccessBrush}"
+                 VerticalAlignment="Center" Margin="{StaticResource PaddingLg}"/>
+    </Grid>
+
+    <Grid ColumnDefinitions="*,Auto,*">
+      <TableView Grid.Column="0" ItemsSource="{Binding Runs}">
+        <TableView.Columns>
+          <TableViewColumn Header="{Binding ColumnUpdated}" Binding="{Binding Updated}" Width="*"/>
+          <TableViewColumn Header="{Binding ColumnRun}" Binding="{Binding Run}" Width="*"/>
+          <TableViewColumn Header="{Binding ColumnPhase}" Binding="{Binding Phase}" Width="*"/>
+          <TableViewColumn Header="{Binding ColumnDispatch}" Binding="{Binding Dispatch}" Width="*"/>
+          <TableViewColumn Header="{Binding ColumnConflicts}" Binding="{Binding Conflicts}" Width="*"/>
+        </TableView.Columns>
+      </TableView>
+
+      <GridSplitter Grid.Column="1" Width="{StaticResource SplitterThickness}"/>
+
+      <DockPanel Grid.Column="2" Margin="{StaticResource PaddingLg}">
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto">
+          <StackPanel Grid.Column="0">
+            <TextBlock Classes="title" Text="{Binding PlanEmptyTitle}"/>
+            <TextBlock Classes="muted" Text="{Binding PlanEmptyHint}" TextWrapping="Wrap"/>
+          </StackPanel>
+          <Button Grid.Column="1" Content="{Binding RefreshStatusLabel}"
+                  Margin="{StaticResource PaddingSm}" VerticalAlignment="Top"/>
+          <Button Grid.Column="2" Content="{Binding ApproveLabel}"
+                  IsEnabled="{Binding CanApprove}"
+                  Margin="{StaticResource PaddingSm}" VerticalAlignment="Top"/>
+        </Grid>
+
+        <Button DockPanel.Dock="Bottom" Content="{Binding LoadMoreLabel}"
+                IsEnabled="{Binding CanLoadMore}"
+                HorizontalAlignment="Right" Margin="{StaticResource PaddingMd}"/>
+
+        <TabControl Margin="0,12,0,0">
+          <TabItem Header="{Binding PlanTabLabel}">
+            <TableView ItemsSource="{Binding Plan}">
+              <TableView.Columns>
+                <TableViewColumn Header="#" Binding="{Binding Index}" Width="60"/>
+                <TableViewColumn Header="Action" Binding="{Binding Action}" Width="140"/>
+                <TableViewColumn Header="From location" Binding="{Binding From}" Width="*"/>
+                <TableViewColumn Header="To location" Binding="{Binding To}" Width="*"/>
+                <TableViewColumn Header="Expected bytes" Binding="{Binding ExpectedBytes}" Width="140"/>
+                <TableViewColumn Header="Approval" Binding="{Binding Approval}" Width="140"/>
+              </TableView.Columns>
+            </TableView>
+          </TabItem>
+          <TabItem Header="{Binding ConflictsTabLabel}">
+            <Border/>
+          </TabItem>
+        </TabControl>
+      </DockPanel>
+    </Grid>
+  </DockPanel>
+</UserControl>

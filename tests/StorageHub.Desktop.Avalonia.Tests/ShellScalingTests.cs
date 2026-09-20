@@ -189,6 +189,7 @@ public class ShellScalingTests
     [InlineData(1.25, "dark")]
     [InlineData(2.0, "dark")]
     [InlineData(1.25, "light")]
+    [InlineData(1.25, "sync")]
     public void TheShellCanBePhotographedAtEveryScaling(double scaling, string appearance)
     {
         var variant = appearance == "light" ? ThemeVariant.Light : ThemeVariant.Dark;
@@ -209,6 +210,7 @@ public class ShellScalingTests
         global::Avalonia.Application.Current!.RequestedThemeVariant = variant;
 
         var window = Shell();
+        if (appearance == "sync") window.DataContext = ShellPreview.SampleOnSyncTasks;
         window.Show();
         window.Measure(new Size(1500 * scaling, 920 * scaling));
         window.Arrange(new Rect(0, 0, 1500 * scaling, 920 * scaling));

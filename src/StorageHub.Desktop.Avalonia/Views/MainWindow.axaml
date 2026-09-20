@@ -203,6 +203,37 @@
                     <DataTemplate DataType="vm:OverviewModel">
                       <vm:OverviewView/>
                     </DataTemplate>
+                    <DataTemplate DataType="vm:SyncTasksModel">
+                      <vm:SyncTasksView/>
+                    </DataTemplate>
+                    <DataTemplate DataType="vm:SyncRunHistoryModel">
+                      <vm:SyncRunHistoryView/>
+                    </DataTemplate>
+                    <!-- A page that is itself tabbed. Sync tasks is the first, and the shape is
+                         reusable rather than a second tab control written into the shell. -->
+                    <DataTemplate DataType="vm:TabbedPageModel">
+                      <TabControl ItemsSource="{Binding Tabs}" Classes="subtabs">
+                        <TabControl.ItemTemplate>
+                          <DataTemplate DataType="vm:PageTab">
+                            <TextBlock Text="{Binding Title}"/>
+                          </DataTemplate>
+                        </TabControl.ItemTemplate>
+                        <TabControl.ContentTemplate>
+                          <DataTemplate DataType="vm:PageTab">
+                            <ContentControl Content="{Binding Content}">
+                              <ContentControl.DataTemplates>
+                                <DataTemplate DataType="vm:SyncTasksModel">
+                                  <vm:SyncTasksView/>
+                                </DataTemplate>
+                                <DataTemplate DataType="vm:SyncRunHistoryModel">
+                                  <vm:SyncRunHistoryView/>
+                                </DataTemplate>
+                              </ContentControl.DataTemplates>
+                            </ContentControl>
+                          </DataTemplate>
+                        </TabControl.ContentTemplate>
+                      </TabControl>
+                    </DataTemplate>
                   </ContentControl.DataTemplates>
                 </ContentControl>
 

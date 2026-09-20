@@ -1,0 +1,114 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
+             x:Class="StorageHub.Desktop.Views.SyncTasksView"
+             x:DataType="vm:SyncTasksModel">
+
+  <!-- Compare against docs/ui-reference/03-sync-tasks.png. -->
+
+  <ScrollViewer>
+    <StackPanel Margin="{StaticResource PagePadding}" Spacing="{StaticResource SpaceXl}">
+
+      <StackPanel Spacing="{StaticResource SpaceXs}">
+        <TextBlock Classes="heading" Text="{Binding Headline}"/>
+        <TextBlock Classes="muted" Text="{Binding Subheading}"/>
+      </StackPanel>
+
+      <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceMd}">
+        <Button Classes="primary" Content="{Binding NewProfileLabel}"/>
+        <Button>
+          <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+            <LucideIcon Kind="CalendarClock" Size="{StaticResource IconSizeSm}"/>
+            <TextBlock Text="{Binding SchedulesLabel}"/>
+          </StackPanel>
+        </Button>
+        <Button>
+          <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+            <LucideIcon Kind="ArrowLeftRight" Size="{StaticResource IconSizeSm}"/>
+            <TextBlock Text="{Binding RunHistoryLabel}"/>
+          </StackPanel>
+        </Button>
+        <Button>
+          <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+            <LucideIcon Kind="RefreshCw" Size="{StaticResource IconSizeSm}"/>
+            <TextBlock Text="{Binding RefreshLabel}"/>
+          </StackPanel>
+        </Button>
+      </StackPanel>
+
+      <ItemsControl ItemsSource="{Binding Metrics}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <UniformGrid Rows="1"/>
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate DataType="vm:MetricCard">
+            <Border Classes="metric"
+                    Classes.primary="{Binding IsPrimary}"
+                    Classes.success="{Binding IsSuccess}"
+                    Classes.warning="{Binding IsWarning}"
+                    Classes.danger="{Binding IsDanger}"
+                    Margin="{StaticResource PaddingSm}">
+              <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceMd}">
+                <LucideIcon Kind="{Binding Icon}" Size="{StaticResource IconSizeXl}"
+                            VerticalAlignment="Center"
+                            Classes.primary="{Binding IsPrimary}"
+                            Classes.success="{Binding IsSuccess}"
+                            Classes.warning="{Binding IsWarning}"
+                            Classes.danger="{Binding IsDanger}"/>
+                <StackPanel VerticalAlignment="Center">
+                  <TextBlock Classes="metric-value" Text="{Binding Value}"
+                             Classes.primary="{Binding IsPrimary}"
+                             Classes.success="{Binding IsSuccess}"
+                             Classes.warning="{Binding IsWarning}"
+                             Classes.danger="{Binding IsDanger}"/>
+                  <TextBlock Classes="caption" Text="{Binding Caption}"/>
+                </StackPanel>
+              </StackPanel>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <Border Classes="section">
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Top" Orientation="Horizontal"
+                      Spacing="{StaticResource SpaceMd}" Margin="{StaticResource PaddingMd}">
+            <LucideIcon Kind="ArrowLeftRight" Size="{StaticResource IconSizeLg}" Classes="primary"
+                        VerticalAlignment="Center"/>
+            <TextBlock Classes="title" Text="{Binding SavedTasksTitle}" VerticalAlignment="Center"/>
+          </StackPanel>
+          <TableView ItemsSource="{Binding Tasks}" Height="170">
+            <TableView.Columns>
+              <TableViewColumn Header="{Binding ColumnName}" Binding="{Binding Name}" Width="*"/>
+              <TableViewColumn Header="{Binding ColumnBehavior}" Binding="{Binding Behavior}" Width="180"/>
+              <TableViewColumn Header="{Binding ColumnState}" Binding="{Binding State}" Width="180"/>
+              <TableViewColumn Header="{Binding ColumnUpdated}" Binding="{Binding Updated}" Width="*"/>
+            </TableView.Columns>
+          </TableView>
+        </DockPanel>
+      </Border>
+
+      <Border Classes="section">
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Top" Orientation="Horizontal"
+                      Spacing="{StaticResource SpaceMd}" Margin="{StaticResource PaddingMd}">
+            <LucideIcon Kind="Play" Size="{StaticResource IconSizeLg}" Classes="primary"
+                        VerticalAlignment="Center"/>
+            <TextBlock Classes="title" Text="{Binding LastSyncsTitle}" VerticalAlignment="Center"/>
+          </StackPanel>
+          <TableView ItemsSource="{Binding LastSyncs}" Height="120">
+            <TableView.Columns>
+              <TableViewColumn Header="{Binding ColumnName}" Binding="{Binding Name}" Width="*"/>
+              <TableViewColumn Header="{Binding ColumnState}" Binding="{Binding State}" Width="240"/>
+              <TableViewColumn Header="{Binding ColumnUpdated}" Binding="{Binding Updated}" Width="*"/>
+            </TableView.Columns>
+          </TableView>
+        </DockPanel>
+      </Border>
+
+      <TextBlock Classes="muted" Text="{Binding Footer}"/>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>
