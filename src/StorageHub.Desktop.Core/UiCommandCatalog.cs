@@ -590,6 +590,61 @@ internal static class UiCommandCatalog
                ?? throw new KeyNotFoundException($"No command is registered with the id '{id}'.");
     }
 
+    /// <summary>
+    /// Whether a declared command is actually wired up yet.
+    /// </summary>
+    /// <remarks>
+    /// Keyed on the id rather than the label, so the set does not change with the language,
+    /// and so a command that is renamed keeps its place here.
+    /// </remarks>
+    internal static bool IsAvailable(string commandId) => commandId is
+        UiCommandIds.WorkspaceNewWorkspace or
+        UiCommandIds.WorkspaceOpenWorkspace or
+        UiCommandIds.WorkspaceSaveWorkspace or
+        UiCommandIds.WorkspaceSaveWorkspaceAs or
+        UiCommandIds.WorkspaceRenameWorkspace or
+        UiCommandIds.WorkspaceCloseWorkspace or
+        UiCommandIds.WorkspaceExit or
+        UiCommandIds.EditCut or
+        UiCommandIds.EditCopy or
+        UiCommandIds.EditPaste or
+        UiCommandIds.EditNewFolder or
+        UiCommandIds.EditNewEmptyFile or
+        UiCommandIds.EditRename or
+        UiCommandIds.EditBatchRename or
+        UiCommandIds.EditDelete or
+        UiCommandIds.EditSelectAll or
+        UiCommandIds.EditInvertSelection or
+        UiCommandIds.EditProperties or
+        UiCommandIds.ViewRefresh or
+        UiCommandIds.ViewConnectionsPanel or
+        UiCommandIds.ViewMoveConnectionsPanel or
+        UiCommandIds.GoBack or
+        UiCommandIds.GoForward or
+        UiCommandIds.GoUp or
+        UiCommandIds.GoFocusAddress or
+        UiCommandIds.GoNextPane or
+        UiCommandIds.ConnectionsNewConnection or
+        UiCommandIds.ConnectionsKeyStore or
+        UiCommandIds.ToolsBackgroundAgent or
+        UiCommandIds.SyncReviewRun or
+        UiCommandIds.SyncSyncProfiles or
+        UiCommandIds.SyncSchedules or
+        UiCommandIds.ToolsSettings or
+        UiCommandIds.ToolsExportSettings or
+        UiCommandIds.ToolsImportSettings or
+        UiCommandIds.HelpCheckForUpdates or
+        UiCommandIds.HelpAboutStorageHub;
+
+    internal static bool IsPaneCommand(UiCommandDefinition command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        return command.Menu is UiMenuId.Edit or UiMenuId.Go || command.Id == UiCommandIds.ViewRefresh;
+    }
+
+    internal static bool CanDispatch(UiCommandDefinition command, bool sshFocused, bool textFocused, bool hasPane) =>
+        !sshFocused && !textFocused && (!IsPaneCommand(command) || hasPane);
+
     private static IReadOnlyList<UiCommandDefinition> Resolve(CommandStrings strings) =>
         [.. Specs.Select(spec => new UiCommandDefinition(
             spec.Id,

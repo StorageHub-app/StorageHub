@@ -31,6 +31,7 @@
         <Style Selector="MenuItem > MenuItem" x:DataType="vm:CommandEntry">
           <Setter Property="Header" Value="{Binding Label}"/>
           <Setter Property="InputGesture" Value="{Binding Shortcut}"/>
+          <Setter Property="Command" Value="{Binding Command}"/>
           <Setter Property="ToolTip.Tip" Value="{Binding Description}"/>
           <Setter Property="ItemsSource" Value="{x:Null}"/>
           <Setter Property="Icon">
@@ -64,7 +65,7 @@
              converter: the layout is a list of ids with "|" in it, exactly as it is persisted. -->
         <ItemsControl.DataTemplates>
           <DataTemplate DataType="vm:CommandEntry">
-            <Button Classes="tool" ToolTip.Tip="{Binding Description}">
+            <Button Classes="tool" Command="{Binding Command}" ToolTip.Tip="{Binding Description}">
               <LucideIcon Kind="{Binding Icon}"
                           Size="{StaticResource IconSizeMd}"
                           Classes.primary="{Binding IsPrimary}"
@@ -80,7 +81,11 @@
 
     <Border DockPanel.Dock="Bottom" Classes="statusbar">
       <Grid ColumnDefinitions="*,Auto,Auto,Auto">
-        <TextBlock Grid.Column="0" Classes="muted" Text="{Binding Location}"/>
+        <TextBlock Grid.Column="0" Classes="muted"
+                   Text="{Binding Status, FallbackValue={x:Null}, TargetNullValue={x:Null}}"
+                   IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+        <TextBlock Grid.Column="0" Classes="muted" Text="{Binding Location}"
+                   IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNullOrEmpty}}"/>
         <TextBlock Grid.Column="1" Classes="muted" Text="{Binding Selection}"
                    Margin="{StaticResource PaddingLg}"/>
         <TextBlock Grid.Column="2" Classes="muted" Text="{Binding Queue}"

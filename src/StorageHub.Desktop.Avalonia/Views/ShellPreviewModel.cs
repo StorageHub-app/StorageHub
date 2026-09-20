@@ -1,16 +1,11 @@
-using Avalonia.Controls;
+using System.ComponentModel;
+using System.Windows.Input;
 using Avalonia.Input;
-using Avalonia.Markup.Xaml;
 using Lucide.Avalonia;
 using StorageHub.Desktop.Localization;
 using StorageHub.Desktop.Themes;
 
 namespace StorageHub.Desktop.Views;
-
-public partial class MainWindow : Window
-{
-    public MainWindow() => AvaloniaXamlLoader.Load(this);
-}
 
 /// <summary>One command, as the menu and the toolbar need it.</summary>
 /// <remarks>
@@ -24,7 +19,8 @@ internal sealed record CommandEntry(
     string Description,
     KeyGesture? Shortcut,
     LucideIconKind? Icon,
-    UiIconTone Tone)
+    UiIconTone Tone,
+    ICommand Command)
 {
     internal bool IsPrimary => Tone == UiIconTone.Primary;
 
@@ -63,8 +59,41 @@ internal sealed record QueueTab(string Title);
 /// the data: connections, pane rows and queue tabs. Those arrive per screen as each is ported, and
 /// the commands are not wired to anything yet - a Command per entry is the next step.
 /// </remarks>
-internal sealed class ShellPreviewModel
+internal sealed class ShellPreviewModel : INotifyPropertyChanged
 {
+    private string _status = string.Empty;
+
+    internal ShellPreviewModel(ShellCommandRouter router)
+    {
+        Router = router;
+        Router.Invoked += (_, id) => Status = id;
+    }
+
+    /// <summary>Dispatch for every command, whether it arrives by menu, toolbar or keystroke.</summary>
+    public ShellCommandRouter Router { get; }
+
+    /// <summary>
+    /// The id of the last command invoked.
+    /// </summary>
+    /// <remarks>
+    /// Stand-in feedback, and deliberately visible: until the handlers move out of MainForm there is
+    /// nothing for a command to do, and a menu that silently does nothing is indistinguishable from
+    /// one that is not wired at all. The status bar showing the id proves the whole path - menu or
+    /// toolbar or shortcut, through the focus rules, to a command.
+    /// </remarks>
+    public string Status
+    {
+        get => _status;
+        private set
+        {
+            if (_status == value) return;
+            _status = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Status)));
+        }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
     public IReadOnlyList<MenuSection> Menus { get; init; } = [];
 
     public IReadOnlyList<object> Toolbar { get; init; } = [];
@@ -91,69 +120,78 @@ internal static class ShellPreview
 {
     internal static ShellPreviewModel Sample { get; } = Build();
 
-    private static ShellPreviewModel Build() => new()
+    private static ShellPreviewModel Build()
     {
-        Menus = BuildMenus(),
-        Toolbar = BuildToolbar(),
-        Connections =
-        [
-            new("Design Archive", "Local / UNC \u00b7 Studio", false),
-            new("Studio Assets (S3)", "S3 / Object Storage \u00b7 Cloud", true),
-            new("Site Backups", "Local / UNC \u00b7 Servers", false),
-        ],
-        Workspaces =
-        [
-            new("Welcome", "Overview", false, [], "Recent", []),
-            new("Sync tasks", "Profiles", false, [], "Runs", []),
-            new(
-                "Workspace 1",
-                "Pane 1 (Active)",
-                true,
-                [
-                    new("C:\\", "930,5 GiB", "Local disk drive"),
-                    new("D:\\", "447,1 GiB", "Local disk drive"),
-                    new("reports", string.Empty, "Folder"),
-                    new("render-0421.exr", "184,2 MiB", "EXR image"),
-                ],
-                "Pane 2",
-                [
-                    new("Design Archive", string.Empty, "LOCAL"),
-                    new("Field Recordings", string.Empty, "LOCAL"),
-                    new("Site Backups", string.Empty, "LOCAL"),
-                    new("Studio Assets (S3)", string.Empty, "S3"),
-                ]),
-        ],
-        SelectedWorkspace = 2,
-        QueueTabs =
-        [
-            new("Active (0)"), new("Queued (0)"), new("Paused (0)"), new("Failed (0)"),
-            new("Completed (2)"), new("Conflicts (0)"), new("Logs"),
-        ],
-        Location = "No connection",
-        Selection = "0 selected",
-        Queue = "Queue: 0",
-        AgentStatus = "Agent: connected",
-    };
+        var router = new ShellCommandRouter();
+        return new ShellPreviewModel(router)
+        {
+            Menus = BuildMenus(router),
+            Toolbar = BuildToolbar(router),
+            Connections =
+            [
+                new("Design Archive", "Local / UNC \u00b7 Studio", false),
+                new("Studio Assets (S3)", "S3 / Object Storage \u00b7 Cloud", true),
+                new("Site Backups", "Local / UNC \u00b7 Servers", false),
+            ],
+            Workspaces =
+            [
+                new("Welcome", "Overview", false, [], "Recent", []),
+                new("Sync tasks", "Profiles", false, [], "Runs", []),
+                new(
+                    "Workspace 1",
+                    "Pane 1 (Active)",
+                    true,
+                    [
+                        new("C:\\", "930,5 GiB", "Local disk drive"),
+                        new("D:\\", "447,1 GiB", "Local disk drive"),
+                        new("reports", string.Empty, "Folder"),
+                        new("render-0421.exr", "184,2 MiB", "EXR image"),
+                    ],
+                    "Pane 2",
+                    [
+                        new("Design Archive", string.Empty, "LOCAL"),
+                        new("Field Recordings", string.Empty, "LOCAL"),
+                        new("Site Backups", string.Empty, "LOCAL"),
+                        new("Studio Assets (S3)", string.Empty, "S3"),
+                    ]),
+            ],
+            SelectedWorkspace = 2,
+            QueueTabs =
+            [
+                new("Active (0)"), new("Queued (0)"), new("Paused (0)"), new("Failed (0)"),
+                new("Completed (2)"), new("Conflicts (0)"), new("Logs"),
+            ],
+            Location = "No connection",
+            Selection = "0 selected",
+            Queue = "Queue: 0",
+            AgentStatus = "Agent: connected",
+        };
+    }
 
-    private static IReadOnlyList<MenuSection> BuildMenus() =>
+    private static IReadOnlyList<MenuSection> BuildMenus(ShellCommandRouter router) =>
     [
         .. UiCommandCatalog.Menus.Select(menu => new MenuSection(
             UiCommandCatalog.MenuTitle(menu),
-            [.. UiCommandCatalog.ForMenu(menu).Select(ToEntry)])),
+            [
+                .. UiCommandCatalog.ForMenu(menu)
+                    .Where(definition => UiCommandCatalog.IsAvailable(definition.Id))
+                    .Select(definition => ToEntry(definition, router)),
+            ])),
     ];
 
-    private static IReadOnlyList<object> BuildToolbar() =>
+    private static IReadOnlyList<object> BuildToolbar(ShellCommandRouter router) =>
     [
         .. ToolbarLayout.Resolve(null).Select(object (id) => id == ToolbarLayout.Separator
             ? ToolbarSeparator.Instance
-            : ToEntry(UiCommandCatalog.GetDefinition(id))),
+            : ToEntry(UiCommandCatalog.GetDefinition(id), router)),
     ];
 
-    private static CommandEntry ToEntry(UiCommandDefinition definition) => new(
+    private static CommandEntry ToEntry(UiCommandDefinition definition, ShellCommandRouter router) => new(
         definition.Id,
         definition.Label,
         definition.Description,
         definition.Shortcut,
         IconCatalog.Resolve(definition.Glyph),
-        definition.Tone);
+        definition.Tone,
+        router.For(definition.Id));
 }

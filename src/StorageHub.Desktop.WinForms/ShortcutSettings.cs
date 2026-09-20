@@ -14,7 +14,7 @@ internal static class ShortcutSettings
     /// does not move.
     /// </remarks>
     internal static IReadOnlyList<UiCommandDefinition> Commands =>
-        [.. UiCommandCatalog.Definitions.Where(command => MainForm.IsAvailableCommand(command.Id))];
+        [.. UiCommandCatalog.Definitions.Where(command => UiCommandCatalog.IsAvailable(command.Id))];
 
     internal static Dictionary<string, Keys> Resolve(IReadOnlyDictionary<string, Keys>? overrides)
     {
@@ -55,13 +55,4 @@ internal static class ShortcutSettings
         }
         return null;
     }
-
-    internal static bool IsPaneCommand(UiCommandDefinition command)
-    {
-        ArgumentNullException.ThrowIfNull(command);
-        return command.Menu is UiMenuId.Edit or UiMenuId.Go || command.Id == UiCommandIds.ViewRefresh;
-    }
-
-    internal static bool CanDispatch(UiCommandDefinition command, bool sshFocused, bool textFocused, bool hasPane) =>
-        !sshFocused && !textFocused && (!IsPaneCommand(command) || hasPane);
 }

@@ -445,8 +445,8 @@ public sealed class MainForm : Form
                 or StorageHubChoiceField or StorageHubNumberField or StorageHubTextField;
         }
         var pane = GetActivePane();
-        if (ShortcutSettings.IsPaneCommand(command) && pane?.IsSshClient == true) return false;
-        if (!ShortcutSettings.CanDispatch(command, sshFocused, textFocused, pane is not null)) return false;
+        if (UiCommandCatalog.IsPaneCommand(command) && pane?.IsSshClient == true) return false;
+        if (!UiCommandCatalog.CanDispatch(command, sshFocused, textFocused, pane is not null)) return false;
         var item = _menu.Items.OfType<ToolStripMenuItem>()
             .SelectMany(root => root.DropDownItems.OfType<ToolStripMenuItem>())
             .FirstOrDefault(candidate => Equals(candidate.Tag, command.Id));
@@ -487,7 +487,7 @@ public sealed class MainForm : Form
             };
             foreach (var definition in UiCommandCatalog.ForMenu(menuId))
             {
-                if (!IsAvailableCommand(definition.Id))
+                if (!UiCommandCatalog.IsAvailable(definition.Id))
                 {
                     continue;
                 }
@@ -2364,51 +2364,6 @@ public sealed class MainForm : Form
         }
     }
 
-    /// <summary>
-    /// Whether a declared command is actually wired up yet.
-    /// </summary>
-    /// <remarks>
-    /// Keyed on the id rather than the label, so the set does not change with the language,
-    /// and so a command that is renamed keeps its place here.
-    /// </remarks>
-    internal static bool IsAvailableCommand(string commandId) => commandId is
-        UiCommandIds.WorkspaceNewWorkspace or
-        UiCommandIds.WorkspaceOpenWorkspace or
-        UiCommandIds.WorkspaceSaveWorkspace or
-        UiCommandIds.WorkspaceSaveWorkspaceAs or
-        UiCommandIds.WorkspaceRenameWorkspace or
-        UiCommandIds.WorkspaceCloseWorkspace or
-        UiCommandIds.WorkspaceExit or
-        UiCommandIds.EditCut or
-        UiCommandIds.EditCopy or
-        UiCommandIds.EditPaste or
-        UiCommandIds.EditNewFolder or
-        UiCommandIds.EditNewEmptyFile or
-        UiCommandIds.EditRename or
-        UiCommandIds.EditBatchRename or
-        UiCommandIds.EditDelete or
-        UiCommandIds.EditSelectAll or
-        UiCommandIds.EditInvertSelection or
-        UiCommandIds.EditProperties or
-        UiCommandIds.ViewRefresh or
-        UiCommandIds.ViewConnectionsPanel or
-        UiCommandIds.ViewMoveConnectionsPanel or
-        UiCommandIds.GoBack or
-        UiCommandIds.GoForward or
-        UiCommandIds.GoUp or
-        UiCommandIds.GoFocusAddress or
-        UiCommandIds.GoNextPane or
-        UiCommandIds.ConnectionsNewConnection or
-        UiCommandIds.ConnectionsKeyStore or
-        UiCommandIds.ToolsBackgroundAgent or
-        UiCommandIds.SyncReviewRun or
-        UiCommandIds.SyncSyncProfiles or
-        UiCommandIds.SyncSchedules or
-        UiCommandIds.ToolsSettings or
-        UiCommandIds.ToolsExportSettings or
-        UiCommandIds.ToolsImportSettings or
-        UiCommandIds.HelpCheckForUpdates or
-        UiCommandIds.HelpAboutStorageHub;
 
     private enum PaneNavigation
     {

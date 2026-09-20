@@ -57,9 +57,15 @@ public class IconCatalogTests
         var model = ShellPreview.Sample;
 
         Assert.Equal(UiCommandCatalog.Menus.Count, model.Menus.Count);
+
+        // Declared but not yet wired commands are left out, as MainForm leaves them out: a menu
+        // entry that does nothing is worse than an absent one.
         Assert.Equal(
-            UiCommandCatalog.Definitions.Count,
+            UiCommandCatalog.Definitions.Count(definition => UiCommandCatalog.IsAvailable(definition.Id)),
             model.Menus.Sum(section => section.Items.Count));
+        Assert.All(
+            model.Menus.SelectMany(section => section.Items),
+            entry => Assert.True(UiCommandCatalog.IsAvailable(entry.Id)));
 
         // Every entry carries its tooltip and its shortcut through, which is what the menu displays.
         Assert.All(model.Menus.SelectMany(section => section.Items), entry =>
