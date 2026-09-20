@@ -207,6 +207,7 @@
   "enabledTasks": "Aktiverede opgaver",
   "disabledTasks": "Deaktiverede opgaver",
   "lastSyncs": "Seneste synkroniseringer",
+  "unknownProfile": "Slettet opgave",
   "runsThisSession": "Kørsler i denne session",
   "taskDisabled": "Deaktiveret",
   "columnName": "Navn",

@@ -539,6 +539,15 @@ internal sealed class SyncStrings : LocalizationModelBase
 
     public string LastSyncs { get; set; } = "Last syncs";
 
+    /// <summary>
+    /// Shown for a run whose profile is not in the list beside it.
+    /// </summary>
+    /// <remarks>
+    /// A run outlives the profile it was made from: deleting a profile does not delete its history.
+    /// Showing the bare id instead would put a GUID in a column of names.
+    /// </remarks>
+    public string UnknownProfile { get; set; } = "Deleted task";
+
     public string RunsThisSession { get; set; } = "Runs this session";
 
     public string TaskDisabled { get; set; } = "Disabled";

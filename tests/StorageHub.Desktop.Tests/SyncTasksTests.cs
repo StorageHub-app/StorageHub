@@ -23,8 +23,8 @@ public class SyncTasksTests
     {
         var model = SyncTasksModel.Create();
 
-        Assert.Equal(Ui.Sync.TasksTitle, model.Headline);
-        Assert.Equal(Ui.Sync.NewSyncProfile, model.NewProfileLabel);
+        Assert.Equal(Ui.Sync.TasksTitle, SyncTasksModel.Headline);
+        Assert.Equal(Ui.Sync.NewSyncProfile, SyncTasksModel.NewProfileLabel);
         Assert.Equal(
             [Ui.Sync.EnabledTasks, Ui.Sync.DisabledTasks, Ui.Sync.RunsThisSession],
             model.Metrics.Select(metric => metric.Caption));

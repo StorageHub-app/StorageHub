@@ -471,7 +471,13 @@ internal static class ShellPreview
             LucideIconKind.ArrowLeftRight,
             new TabbedPageModel(
             [
-                new PageTab(Ui.Sync.TasksTitle, SyncTasksModel.Create()),
+                // The tasks screen asks the agent for the saved profiles and the runs behind them.
+                // A client per load rather than one held open, for the reason the panes and the
+                // queue already hold: a connection kept across an agent restart is one that has to
+                // be found broken before it can be replaced.
+                new PageTab(
+                    Ui.Sync.TasksTitle,
+                    SyncTasksModel.Create(static () => new NamedPipeSyncManagementAgentClient())),
                 new PageTab(Ui.Sync.RunHistoryAndReview, SyncRunHistoryModel.Create()),
             ])));
         model.AddWorkspace(WorkspacePreset.All[1]);

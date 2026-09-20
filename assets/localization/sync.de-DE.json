@@ -207,6 +207,7 @@
   "enabledTasks": "Aktivierte Aufgaben",
   "disabledTasks": "Deaktivierte Aufgaben",
   "lastSyncs": "Letzte Synchronisierungen",
+  "unknownProfile": "Gelöschte Aufgabe",
   "runsThisSession": "Läufe in dieser Sitzung",
   "taskDisabled": "Deaktiviert",
   "columnName": "Name",

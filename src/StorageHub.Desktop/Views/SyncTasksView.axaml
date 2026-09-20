@@ -28,7 +28,7 @@
             <TextBlock Text="{Binding RunHistoryLabel}"/>
           </StackPanel>
         </Button>
-        <Button>
+        <Button Command="{Binding RefreshCommand}">
           <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
             <LucideIcon Kind="RefreshCw" Size="{StaticResource IconSizeSm}"/>
             <TextBlock Text="{Binding RefreshLabel}"/>
@@ -108,7 +108,7 @@
         </DockPanel>
       </Border>
 
-      <TextBlock Classes="muted" Text="{Binding Footer}"/>
+      <TextBlock Classes="muted" Text="{Binding Status}"/>
     </StackPanel>
   </ScrollViewer>
 </UserControl>
