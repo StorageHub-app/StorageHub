@@ -4,6 +4,7 @@ using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.VisualTree;
 using Lucide.Avalonia;
+using StorageHub.Desktop.Themes;
 using StorageHub.Desktop.Views;
 using Xunit;
 
@@ -47,14 +48,20 @@ public class FilledButtonContrastTests
 
                 // Everything the button draws, not just the label: the icon has its own muted
                 // default, which is exactly what made the plus sign invisible too.
+                // Whatever the active scheme says belongs on its accent, not a literal white:
+                // half the shipped schemes have a pastel accent that only a dark label sits on.
+                var expected = ColorSchemeApplier.Resolve(
+                    global::Avalonia.Application.Current!,
+                    ColorTokens.OnPrimary);
+
                 foreach (var text in button.GetVisualDescendants().OfType<TextBlock>())
                 {
-                    Assert.Equal(Brushes.White.Color, Solid(text.Foreground, variant));
+                    Assert.Equal(expected, Solid(text.Foreground, variant));
                 }
 
                 foreach (var icon in button.GetVisualDescendants().OfType<LucideIcon>())
                 {
-                    Assert.Equal(Brushes.White.Color, Solid(icon.Foreground, variant));
+                    Assert.Equal(expected, Solid(icon.Foreground, variant));
                 }
             }
         }

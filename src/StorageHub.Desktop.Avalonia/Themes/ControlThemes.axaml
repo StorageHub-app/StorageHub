@@ -121,7 +121,7 @@
   </Style>
   <Style Selector="Button.primary">
     <Setter Property="Background" Value="{DynamicResource PrimaryBrush}"/>
-    <Setter Property="Foreground" Value="White"/>
+    <Setter Property="Foreground" Value="{DynamicResource OnPrimaryBrush}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
   </Style>
   <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
@@ -141,10 +141,10 @@
     what the button set. These say it again for the two filled variants.
   -->
   <Style Selector="Button.primary TextBlock">
-    <Setter Property="Foreground" Value="White"/>
+    <Setter Property="Foreground" Value="{DynamicResource OnPrimaryBrush}"/>
   </Style>
   <Style Selector="Button.primary LucideIcon">
-    <Setter Property="Foreground" Value="White"/>
+    <Setter Property="Foreground" Value="{DynamicResource OnPrimaryBrush}"/>
   </Style>
   <Style Selector="Button.danger TextBlock">
     <Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/>

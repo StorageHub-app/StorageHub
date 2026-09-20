@@ -33,6 +33,7 @@
       <Color x:Key="PrimaryColor">#FF4C8BF5</Color>
       <Color x:Key="PrimaryHoverColor">#FF6BA0F8</Color>
       <Color x:Key="PrimaryPressedColor">#FF3872D6</Color>
+      <Color x:Key="OnPrimaryColor">#FFFFFFFF</Color>
 
       <!-- FluentTheme derives its own chrome from this ramp: the selected-tab pipe, focus adorners,
            checkbox and radio fills, slider tracks and scrollbar thumbs. Left alone it paints them in
@@ -70,6 +71,7 @@
       <Color x:Key="PrimaryColor">#FF1867C0</Color>
       <Color x:Key="PrimaryHoverColor">#FF297BD6</Color>
       <Color x:Key="PrimaryPressedColor">#FF12529A</Color>
+      <Color x:Key="OnPrimaryColor">#FFFFFFFF</Color>
 
       <!-- FluentTheme derives its own chrome from this ramp: the selected-tab pipe, focus adorners,
            checkbox and radio fills, slider tracks and scrollbar thumbs. Left alone it paints them in
@@ -102,6 +104,7 @@
     tree - and what deletes the 250-line recursive theme walker the WinForms shell needed.
   -->
   <SolidColorBrush x:Key="CanvasBrush" Color="{DynamicResource CanvasColor}"/>
+  <SolidColorBrush x:Key="OnPrimaryBrush" Color="{DynamicResource OnPrimaryColor}"/>
   <SolidColorBrush x:Key="SurfaceBrush" Color="{DynamicResource SurfaceColor}"/>
   <SolidColorBrush x:Key="SurfaceMutedBrush" Color="{DynamicResource SurfaceMutedColor}"/>
   <SolidColorBrush x:Key="ElevatedBrush" Color="{DynamicResource ElevatedColor}"/>
