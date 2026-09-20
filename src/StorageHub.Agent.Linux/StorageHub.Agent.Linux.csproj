@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../StorageHub.Agent/StorageHub.Agent.csproj" />
+    <ProjectReference Include="../StorageHub.Ipc.Unix/StorageHub.Ipc.Unix.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="StorageHub.Agent.Linux.Tests" />
+  </ItemGroup>
+</Project>
