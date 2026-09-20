@@ -1,0 +1,80 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
+             xmlns:core="clr-namespace:StorageHub.Desktop;assembly=StorageHub.Desktop.Core"
+             x:Class="StorageHub.Desktop.Views.BrowserPaneView"
+             x:DataType="vm:BrowserPaneModel">
+
+  <!--
+    One pane: which connection, where in it, and what is there. The order down the panel is the
+    order somebody works in - choose a connection, see the path, move through it, read the listing -
+    and it is the order BrowserPaneControl put them in too.
+
+    The ".." row is part of the listing rather than a button beside it, which is how every file
+    manager since Norton Commander has done it and what makes a double-click enough to go up.
+  -->
+
+  <Border Classes="pane" Classes.active="{Binding IsActive}">
+    <DockPanel>
+
+      <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto"
+            ColumnSpacing="{StaticResource SpaceSm}"
+            Margin="{StaticResource PaddingMd}">
+        <ComboBox Grid.Column="0"
+                  ItemsSource="{Binding Connections}"
+                  SelectedItem="{Binding Connection, Mode=TwoWay}"
+                  PlaceholderText="{Binding Title}"
+                  HorizontalAlignment="Stretch">
+          <ComboBox.ItemTemplate>
+            <DataTemplate DataType="vm:PaneConnection">
+              <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceSm}">
+                <LucideIcon Kind="{Binding Icon}" Size="{StaticResource IconSizeSm}"
+                            VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+              </StackPanel>
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+
+        <Button Grid.Column="1" Classes="tool" Command="{Binding RefreshCommand}">
+          <LucideIcon Kind="RefreshCw" Size="{StaticResource IconSizeSm}"/>
+        </Button>
+      </Grid>
+
+      <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,Auto,Auto,*"
+            ColumnSpacing="{StaticResource SpaceXs}"
+            Margin="{StaticResource PaddingMd}, 0, {StaticResource PaddingMd}, {StaticResource PaddingMd}">
+        <Button Grid.Column="0" Classes="tool" Command="{Binding BackCommand}">
+          <LucideIcon Kind="ArrowLeft" Size="{StaticResource IconSizeSm}"/>
+        </Button>
+        <Button Grid.Column="1" Classes="tool" Command="{Binding ForwardCommand}">
+          <LucideIcon Kind="ArrowRight" Size="{StaticResource IconSizeSm}"/>
+        </Button>
+        <Button Grid.Column="2" Classes="tool" Command="{Binding UpCommand}">
+          <LucideIcon Kind="ArrowUp" Size="{StaticResource IconSizeSm}"/>
+        </Button>
+        <TextBox Grid.Column="3" Text="{Binding Path}" IsReadOnly="True"
+                 VerticalAlignment="Center"/>
+      </Grid>
+
+      <!-- Sits over the table rather than replacing it: a failed navigation keeps the listing
+           somebody was looking at, so a typo in a path costs nothing to recover from. -->
+      <Border DockPanel.Dock="Bottom" Classes="toolbar"
+              IsVisible="{Binding HasStatus}"
+              Padding="{StaticResource PaddingMd}">
+        <TextBlock Classes="muted" Text="{Binding Status}" TextWrapping="Wrap"/>
+      </Border>
+
+      <TableView ItemsSource="{Binding Rows}"
+                 SelectedItem="{Binding Selected, Mode=TwoWay}">
+        <TableView.Columns>
+          <TableViewColumn Header="Name" Binding="{Binding Name}" Width="*"/>
+          <TableViewColumn Header="Size" Binding="{Binding Size}" Width="110"/>
+          <TableViewColumn Header="Type" Binding="{Binding Type}" Width="160"/>
+          <TableViewColumn Header="Modified" Binding="{Binding Modified}" Width="150"/>
+        </TableView.Columns>
+      </TableView>
+
+    </DockPanel>
+  </Border>
+</UserControl>

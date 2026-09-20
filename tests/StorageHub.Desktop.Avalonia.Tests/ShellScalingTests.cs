@@ -259,6 +259,7 @@ public class ShellScalingTests
     [InlineData(2.0, "dark")]
     [InlineData(1.25, "light")]
     [InlineData(1.25, "sync")]
+    [InlineData(1.25, "workspace")]
     public void TheShellCanBePhotographedAtEveryScaling(double scaling, string appearance)
     {
         var variant = appearance == "light" ? ThemeVariant.Light : ThemeVariant.Dark;
@@ -280,6 +281,7 @@ public class ShellScalingTests
 
         var window = Shell();
         if (appearance == "sync") window.DataContext = ShellPreview.SampleOnSyncTasks;
+        if (appearance == "workspace") window.DataContext = ShellPreview.SampleOnWorkspace;
         window.Show();
         window.Measure(new Size(1500 * scaling, 920 * scaling));
         window.Arrange(new Rect(0, 0, 1500 * scaling, 920 * scaling));

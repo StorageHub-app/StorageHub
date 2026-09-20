@@ -241,35 +241,25 @@
                   </ContentControl.DataTemplates>
                 </ContentControl>
 
+                <!-- The two panes of a workspace. Each is a real browser on its own connection;
+                     the splitter between them is the only part of this that is still layout. -->
                 <Grid ColumnDefinitions="*,Auto,*" Margin="{StaticResource PaddingMd}"
                       IsVisible="{Binding Page, Converter={x:Static ObjectConverters.IsNull}}">
-                <Border Grid.Column="0" Classes="pane" Classes.active="{Binding LeftIsActive}">
-                  <DockPanel>
-                    <TextBlock DockPanel.Dock="Top" Text="{Binding LeftTitle}"
-                               FontWeight="SemiBold" Margin="{StaticResource PaddingMd}"/>
-                    <TableView ItemsSource="{Binding Left}">
-                      <TableView.Columns>
-                        <TableViewColumn Header="Name" Binding="{Binding Name}" Width="*"/>
-                        <TableViewColumn Header="Size" Binding="{Binding Size}" Width="100"/>
-                        <TableViewColumn Header="Type" Binding="{Binding Type}" Width="140"/>
-                      </TableView.Columns>
-                    </TableView>
-                  </DockPanel>
-                </Border>
+                <ContentControl Grid.Column="0" Content="{Binding Left}">
+                  <ContentControl.ContentTemplate>
+                    <DataTemplate DataType="vm:BrowserPaneModel">
+                      <vm:BrowserPaneView/>
+                    </DataTemplate>
+                  </ContentControl.ContentTemplate>
+                </ContentControl>
                 <GridSplitter Grid.Column="1" Width="{StaticResource SplitterThickness}"/>
-                <Border Grid.Column="2" Classes="pane">
-                  <DockPanel>
-                    <TextBlock DockPanel.Dock="Top" Text="{Binding RightTitle}"
-                               FontWeight="SemiBold" Margin="{StaticResource PaddingMd}"/>
-                    <TableView ItemsSource="{Binding Right}">
-                      <TableView.Columns>
-                        <TableViewColumn Header="Name" Binding="{Binding Name}" Width="*"/>
-                        <TableViewColumn Header="Size" Binding="{Binding Size}" Width="100"/>
-                        <TableViewColumn Header="Type" Binding="{Binding Type}" Width="140"/>
-                      </TableView.Columns>
-                    </TableView>
-                  </DockPanel>
-                </Border>
+                <ContentControl Grid.Column="2" Content="{Binding Right}">
+                  <ContentControl.ContentTemplate>
+                    <DataTemplate DataType="vm:BrowserPaneModel">
+                      <vm:BrowserPaneView/>
+                    </DataTemplate>
+                  </ContentControl.ContentTemplate>
+                </ContentControl>
                 </Grid>
               </Panel>
             </DataTemplate>

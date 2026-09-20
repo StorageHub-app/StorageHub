@@ -216,9 +216,14 @@
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
     <Setter Property="BorderThickness" Value="1"/>
   </Style>
+  <!--
+    The active pane is marked by colour alone, never by a thicker border. Two panes sit side by
+    side and the whole point of them is comparing one listing against the other; a border that
+    grows by a pixel moves every row in that pane down by one, so the two stop lining up exactly
+    when somebody is looking hardest.
+  -->
   <Style Selector="Border.pane.active">
     <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
-    <Setter Property="BorderThickness" Value="2"/>
   </Style>
 
   <Style Selector="Menu">

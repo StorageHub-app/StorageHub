@@ -36,17 +36,20 @@ internal sealed record ToolbarSeparator
     internal static ToolbarSeparator Instance { get; } = new();
 }
 
-internal sealed record PaneItem(string Name, string Size, string Type);
-
+/// <summary>
+/// One workspace tab: either a page, or the two panes a workspace is.
+/// </summary>
+/// <remarks>
+/// The panes are real browsers now, each with its own connection to the agent. They were two lists
+/// of invented rows and a pair of titles, which was enough to photograph the shell and nothing
+/// else.
+/// </remarks>
 internal sealed record WorkspaceTab(
     string Title,
     LucideIconKind Icon,
     object? Page,
-    string LeftTitle,
-    bool LeftIsActive,
-    IReadOnlyList<PaneItem> Left,
-    string RightTitle,
-    IReadOnlyList<PaneItem> Right);
+    BrowserPaneModel? Left = null,
+    BrowserPaneModel? Right = null);
 
 internal sealed record QueueTab(string Title, LucideIconKind Icon);
 
@@ -164,6 +167,9 @@ internal static class ShellPreview
     /// <summary>The same shell, opened on Sync tasks, so that screen can be photographed too.</summary>
     internal static ShellPreviewModel SampleOnSyncTasks { get; } = Build(selectedWorkspace: 1);
 
+    /// <summary>And on the workspace, which is where the two browser panes are.</summary>
+    internal static ShellPreviewModel SampleOnWorkspace { get; } = Build(selectedWorkspace: 2);
+
     private static ShellPreviewModel Build(int selectedWorkspace = 0)
     {
         var router = new ShellCommandRouter();
@@ -176,8 +182,7 @@ internal static class ShellPreview
                 new(
                     Ui.Shell.TabWelcome,
                     LucideIconKind.House,
-                    OverviewModel.Create(ShellStatusSnapshot.Initial),
-                    "Overview", false, [], "Recent", []),
+                    OverviewModel.Create(ShellStatusSnapshot.Initial)),
                 new(
                     Ui.Shell.TabSyncTasks,
                     LucideIconKind.ArrowLeftRight,
@@ -185,27 +190,16 @@ internal static class ShellPreview
                     [
                         new PageTab(Ui.Sync.TasksTitle, SyncTasksModel.Create()),
                         new PageTab(Ui.Sync.RunHistoryAndReview, SyncRunHistoryModel.Create()),
-                    ]),
-                    "Profiles", false, [], "Runs", []),
+                    ])),
+                // Two panes, each on its own connection to the agent. A client per pane rather
+                // than one shared: the browser controller holds a listing position, and two panes
+                // sharing one would have the second navigation cancel the first.
                 new(
                     "Workspace 1",
                     LucideIconKind.Folder,
                     null,
-                    "Pane 1 (Active)",
-                    true,
-                    [
-                        new("C:\\", "930,5 GiB", "Local disk drive"),
-                        new("D:\\", "447,1 GiB", "Local disk drive"),
-                        new("reports", string.Empty, "Folder"),
-                        new("render-0421.exr", "184,2 MiB", "EXR image"),
-                    ],
-                    "Pane 2",
-                    [
-                        new("Design Archive", string.Empty, "LOCAL"),
-                        new("Field Recordings", string.Empty, "LOCAL"),
-                        new("Site Backups", string.Empty, "LOCAL"),
-                        new("Studio Assets (S3)", string.Empty, "S3"),
-                    ]),
+                    new BrowserPaneModel { IsActive = true },
+                    new BrowserPaneModel()),
             ],
             SelectedWorkspace = selectedWorkspace,
             Sidebar = BuildSidebar(router),

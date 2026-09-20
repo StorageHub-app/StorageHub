@@ -50,10 +50,26 @@ public partial class App : global::Avalonia.Application
             // the same reason the monitor is: a headless test measures a shell that is not talking
             // to a socket unless it asked to.
             model.Queue.Start();
+
+            // Each pane reads the connections it can be pointed at. Fire and forget, for the same
+            // reason the sidebar is: the window opens on what it already has and fills in when the
+            // agent answers, rather than being held closed behind a process that may not be running.
+            foreach (var pane in model.Workspaces
+                .SelectMany(static tab => new[] { tab.Left, tab.Right })
+                .OfType<BrowserPaneModel>())
+            {
+                _ = pane.LoadConnectionsAsync();
+            }
             desktop.ShutdownRequested += async (_, _) =>
             {
                 await monitor.DisposeAsync().ConfigureAwait(false);
                 await model.Queue.DisposeAsync().ConfigureAwait(false);
+                foreach (var pane in model.Workspaces
+                    .SelectMany(static tab => new[] { tab.Left, tab.Right })
+                    .OfType<BrowserPaneModel>())
+                {
+                    await pane.DisposeAsync().ConfigureAwait(false);
+                }
             };
         }
 

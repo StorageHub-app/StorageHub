@@ -1573,24 +1573,7 @@ public sealed class BrowserPaneControl : UserControl
     private void PresentRemoteSnapshot(RemoteBrowserSnapshot snapshot, bool appendPage = false)
     {
         _addressBox.Text = snapshot.DisplayPath;
-        var pageItems = snapshot.Entries.Select(static entry => new BrowserListItem(
-            entry.Name,
-            entry.Size is null ? string.Empty : UiFormatting.FormatBytes(entry.Size.Value),
-            DescribeRemoteType(entry),
-            entry.LastModifiedUtc is null
-                ? string.Empty
-                : entry.LastModifiedUtc.Value.LocalDateTime.ToString(
-                    "g",
-                    System.Globalization.CultureInfo.CurrentCulture),
-            string.Empty,
-            entry.RelativePath,
-            entry.IsContainer,
-            entry.Kind,
-            entry.Size,
-            entry.NativeItemId,
-            entry.VersionId,
-            entry.EntityTag,
-            entry.LastModifiedUtc));
+        var pageItems = snapshot.Entries.Select(BrowserRowFactory.FromRemote);
         if (appendPage)
         {
             AppendItems(pageItems);
@@ -1875,16 +1858,6 @@ public sealed class BrowserPaneControl : UserControl
             }
         }
     }
-
-    private static string DescribeRemoteType(StorageListItem entry) => entry.Kind switch
-    {
-        StorageItemKind.Directory => Ui.Pane.Folder,
-        StorageItemKind.Prefix => Ui.Pane.ColumnPrefix,
-        StorageItemKind.SymbolicLink => Ui.Pane.SymbolicLink,
-        StorageItemKind.File when !string.IsNullOrWhiteSpace(entry.ContentType) => entry.ContentType,
-        StorageItemKind.File => LocalBrowserPresentation.DescribeFileType(Path.GetExtension(entry.Name)),
-        _ => Ui.Pane.StorageItem
-    };
 
     private static StorageProviderKind MapProvider(StorageConnectionProvider provider) => provider switch
     {
