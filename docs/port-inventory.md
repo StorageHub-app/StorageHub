@@ -35,17 +35,55 @@ Directory tree, Transfer queue toggle, Cancel selected -- and are not.
 
 ---
 
-## Where the old shell went
+## Where the old shell went, and how to read it
 
-`src/StorageHub.Desktop.WinForms` is deleted. It is preserved whole on the **`1.x` branch**, which
-is where to read it from while porting what remains:
+`src/StorageHub.Desktop.WinForms` is deleted. Two branches keep it, and they are for different
+things:
+
+| Branch | Commit | What it is |
+|---|---|---|
+| **`winforms-reference`** | `522514f` | **Use this one to port from.** The last tree holding both shells, with the WinForms screens beside the `Desktop.Core` they were extracted into. 74 files, 35,686 lines. |
+| `1.x` | `2db3820` | The 1.0 product, from before the port began. 157 files, 62,069 lines -- because `Desktop.Core` did not exist yet and all of its logic was still inside the shell. Keep it for shipping a 1.x fix; do not port from it. |
+
+Reading a screen costs one command and no checkout:
 
 ```
-git show 1.x:src/StorageHub.Desktop.WinForms/SyncProfileEditorForm.cs
+git show winforms-reference:src/StorageHub.Desktop.WinForms/SyncProfileEditorForm.cs
 ```
 
-`~14,200 lines of screens` have no Avalonia counterpart yet. They are the rows marked **todo**
-below, and the reason 2.0 is not finished.
+A whole-tree diff of what a screen used is as easy:
+
+```
+git grep -n "ISyncManagementAgentClient" winforms-reference -- src/StorageHub.Desktop.WinForms
+```
+
+### What is still there to port
+
+Roughly 14,200 lines of screens have no counterpart here yet. In descending order, from
+`winforms-reference`:
+
+| Lines | File | Block |
+|---:|---|---|
+| 1,153 | `SyncProfileEditorForm.cs` | sync |
+| 1,111 | `ScheduleManagerForm.cs` | sync |
+| 809 | `TerminalView.cs` | SSH -- the painter, and the only piece missing |
+| 683 | `KeyStoreForm.cs` (+3 nested prompts) | key store |
+| 622 | `SshTerminalForm.cs` | SSH |
+| 559 | `SyncRunReviewControl.cs` | sync |
+| 532 | `SettingsImportForm.cs` | settings |
+| 505 | `ObjectInspectorForm.cs` | properties |
+| 487 | `ConnectionPicker.cs` | grouped, filter-as-you-type |
+| 483 | `ExternalEditorController.cs` | mostly portable once its prompt is behind an interface |
+| 404 | `SyncRunsControl.cs` | sync |
+| 358 | `SettingsExportForm.cs` | settings |
+| 353 | `ToolbarSettingsControl.cs` | settings |
+| 329 | `ActivityLogControl.cs` | queue |
+| 254 | `AgentControlForm.cs` | lifecycle |
+| 233 | `UpdateCheckerForm.cs` | lifecycle |
+| 178 | `AboutForm.cs` | dialog |
+| 154 | `TransferProgressColumn.cs` | a bar behind the text |
+
+Plus the smaller dialogs and the trapped types listed under the plan's step 4.
 
 The desktop is two projects now: `StorageHub.Desktop`, which draws, and `StorageHub.Desktop.Core`,
 which does not and is where both platforms' logic lives. The Windows-only integrations -- registry,
