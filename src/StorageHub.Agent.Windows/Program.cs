@@ -107,6 +107,11 @@ catch (Exception error) when (error is ArgumentException or NotSupportedExceptio
 using var agentDataDirectoryLifetime = agentDataDirectoryLease;
 var storageHubRoot = agentDataDirectoryLease.RootDirectory;
 var agentRoot = agentDataDirectoryLease.AgentDirectory;
+// The platform owns what protects the vault, which mode decides. Composing it here rather than
+// naming DPAPI at the call site is what lets the same line serve a Linux host once the composition
+// root moves out of this Windows-only assembly.
+var agentPlatform = new WindowsAgentPlatform();
+var agentPaths = new AgentPaths(storageHubRoot, Path.Combine(storageHubRoot, "Runtime"));
 var concurrencyConfiguration = AgentConcurrencyConfiguration.Load(
     Path.Combine(storageHubRoot, "Desktop"));
 var runtimeSecretFileMaterializer = new WindowsRuntimeSecretFileMaterializer(
@@ -140,9 +145,7 @@ var databaseOptions = new SqliteDatabaseOptions(
 var databaseSubsystem = new DatabaseAgentSubsystem(databaseOptions);
 using var vaultSubsystem = new SecretVaultAgentSubsystem(
     Path.Combine(agentRoot, "vault"),
-    hostMode == AgentHostMode.WindowsService
-        ? DpapiProtectionScope.LocalMachine
-        : DpapiProtectionScope.CurrentUser);
+    () => agentPlatform.CreateSecretProtector(hostMode, agentPaths));
 var schedulerDatabase = new SingleWriterSqliteDatabase(databaseOptions);
 var schedulerStore = new SqliteScheduledSyncJobStore(schedulerDatabase);
 var scheduleManagementRepository = new SqliteSyncScheduleManagementRepository(schedulerDatabase);
