@@ -1,4 +1,5 @@
 using System.Text.Json;
+using StorageHub.Testing;
 
 namespace StorageHub.Agent.Windows.Tests;
 
@@ -8,7 +9,7 @@ public sealed class AgentConcurrencyConfigurationTests : IDisposable
         Path.GetTempPath(),
         $"storagehub-concurrency-config-{Guid.NewGuid():N}");
 
-    [Fact]
+    [WindowsOnlyFact]
     public void Loads_bounded_desktop_policy_for_every_agent_worker_type()
     {
         Directory.CreateDirectory(_directory);
@@ -31,7 +32,7 @@ public sealed class AgentConcurrencyConfigurationTests : IDisposable
         Assert.Equal(5, result.MaximumSyncs);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void Rejects_out_of_bounds_policy_as_a_complete_unit()
     {
         Directory.CreateDirectory(_directory);
@@ -47,7 +48,7 @@ public sealed class AgentConcurrencyConfigurationTests : IDisposable
     /// After the desktop's settings migration the policy lives in <c>config.json</c>, and reading
     /// the old file instead would leave the agent at default concurrency with nothing to say so.
     /// </summary>
-    [Fact]
+    [WindowsOnlyFact]
     public void Reads_the_migrated_config_file()
     {
         Directory.CreateDirectory(_directory);
@@ -72,7 +73,7 @@ public sealed class AgentConcurrencyConfigurationTests : IDisposable
     /// A migration leaves <c>settings.json.migrated</c> behind, but an interrupted one can leave
     /// the original too. The desktop's current answer wins.
     /// </summary>
-    [Fact]
+    [WindowsOnlyFact]
     public void Prefers_the_new_file_when_both_are_present()
     {
         Directory.CreateDirectory(_directory);
@@ -97,7 +98,7 @@ public sealed class AgentConcurrencyConfigurationTests : IDisposable
     }
 
     /// <summary>An installation that has not migrated yet still gets its policy honoured.</summary>
-    [Fact]
+    [WindowsOnlyFact]
     public void Falls_back_to_the_legacy_file_when_there_is_no_new_one()
     {
         Directory.CreateDirectory(_directory);
@@ -113,7 +114,7 @@ public sealed class AgentConcurrencyConfigurationTests : IDisposable
         Assert.Equal(7, AgentConcurrencyConfiguration.Load(_directory).MaximumTransfers);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void Defaults_when_the_desktop_has_never_run()
     {
         Directory.CreateDirectory(_directory);
@@ -125,7 +126,7 @@ public sealed class AgentConcurrencyConfigurationTests : IDisposable
     /// A file the agent cannot trust is not a reason to fall through to an older one: a superseded
     /// answer is not a better answer than the defaults.
     /// </summary>
-    [Fact]
+    [WindowsOnlyFact]
     public void An_out_of_bounds_new_file_does_not_fall_back_to_the_legacy_file()
     {
         Directory.CreateDirectory(_directory);
@@ -144,7 +145,7 @@ public sealed class AgentConcurrencyConfigurationTests : IDisposable
         Assert.Equal(AgentConcurrencyConfiguration.Defaults, AgentConcurrencyConfiguration.Load(_directory));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void An_oversize_file_is_ignored()
     {
         Directory.CreateDirectory(_directory);

@@ -9,6 +9,7 @@ using StorageHub.Persistence.Sync;
 using StorageHub.Sync;
 using StorageHub.Sync.Persistence;
 using StorageHub.Transfers;
+using StorageHub.Testing;
 
 namespace StorageHub.Agent.Windows.Tests;
 
@@ -19,7 +20,7 @@ public sealed class SyncManagementIpcCommandServiceTests : IDisposable
         Path.GetTempPath(),
         $"storagehub-sync-ipc-{Guid.NewGuid():N}");
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Profile_create_get_list_and_update_use_repository_revision_cas()
     {
         var fixture = await CreateFixtureAsync();
@@ -68,7 +69,7 @@ public sealed class SyncManagementIpcCommandServiceTests : IDisposable
         Assert.Equal(2, stale.ActualRevision);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Profile_handler_rejects_noncanonical_roots_without_persisting()
     {
         var fixture = await CreateFixtureAsync();
@@ -87,7 +88,7 @@ public sealed class SyncManagementIpcCommandServiceTests : IDisposable
         Assert.Empty(await fixture.Profiles.ListAsync());
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Plan_pages_are_bounded_and_omit_root_version_and_entity_tag_evidence()
     {
         var fixture = await CreateFixtureAsync();
@@ -120,7 +121,7 @@ public sealed class SyncManagementIpcCommandServiceTests : IDisposable
         Assert.DoesNotContain("NativeItem", payload, StringComparison.OrdinalIgnoreCase);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Conflict_pages_extract_only_bounded_safe_reason_and_page_by_offset()
     {
         var fixture = await CreateFixtureAsync();
@@ -153,7 +154,7 @@ public sealed class SyncManagementIpcCommandServiceTests : IDisposable
         });
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Manual_preview_is_idempotency_bound_and_maps_immutable_run_summary()
     {
         var fixture = await CreateFixtureAsync();
@@ -176,7 +177,7 @@ public sealed class SyncManagementIpcCommandServiceTests : IDisposable
         Assert.Equal(seeded.Plan.Operations.Length, response.Plan?.OperationCount);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Manual_preview_gate_rejects_a_third_scan_and_releases_cancelled_permits()
     {
         var fixture = await CreateFixtureAsync();
@@ -257,7 +258,7 @@ public sealed class SyncManagementIpcCommandServiceTests : IDisposable
         _ = await Task.WhenAll(fourth, fifth);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Approval_response_claims_only_durable_dispatch_and_uses_exact_revision_and_sha()
     {
         var fixture = await CreateFixtureAsync();
@@ -293,7 +294,7 @@ public sealed class SyncManagementIpcCommandServiceTests : IDisposable
         Assert.DoesNotContain("ProviderExecutionCompleted", json, StringComparison.OrdinalIgnoreCase);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Orchestration_failure_messages_are_sanitized_before_normal_ipc()
     {
         var fixture = await CreateFixtureAsync();

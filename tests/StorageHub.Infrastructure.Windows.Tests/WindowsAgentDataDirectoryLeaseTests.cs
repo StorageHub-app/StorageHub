@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Security.AccessControl;
 using System.Security.Principal;
+using StorageHub.Testing;
 
 namespace StorageHub.Infrastructure.Windows.Tests;
 
@@ -10,7 +11,7 @@ public sealed class WindowsAgentDataDirectoryLeaseTests : IDisposable
         Path.GetTempPath(),
         $"storagehub-agent-root-{Guid.NewGuid():N}");
 
-    [Fact]
+    [WindowsOnlyFact]
     public void Acquire_protects_agent_tree_without_rewriting_siblings_and_holds_per_user_lock()
     {
         var dataRoot = Path.Combine(_testRoot, "data");
@@ -45,7 +46,7 @@ public sealed class WindowsAgentDataDirectoryLeaseTests : IDisposable
         Assert.Equal(WindowsAgentDataDirectoryFailure.InUse, error.Failure);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void Different_data_roots_still_share_one_user_instance_lock()
     {
         var lockRoot = Path.Combine(_testRoot, "instance");
@@ -59,7 +60,7 @@ public sealed class WindowsAgentDataDirectoryLeaseTests : IDisposable
         Assert.Equal(WindowsAgentDataDirectoryFailure.InUse, error.Failure);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void Instance_lock_can_live_inside_default_data_root()
     {
         var dataRoot = Path.Combine(_testRoot, "data");
@@ -72,7 +73,7 @@ public sealed class WindowsAgentDataDirectoryLeaseTests : IDisposable
             AccessControlSections.Owner | AccessControlSections.Access));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Lease_can_be_released_on_another_thread_and_reacquired()
     {
         var dataRoot = Path.Combine(_testRoot, "data");
@@ -85,7 +86,7 @@ public sealed class WindowsAgentDataDirectoryLeaseTests : IDisposable
         Assert.Equal(Path.GetFullPath(dataRoot), second.RootDirectory);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void Relative_unc_and_volume_root_paths_are_rejected()
     {
         var lockRoot = Path.Combine(_testRoot, "instance");
@@ -97,7 +98,7 @@ public sealed class WindowsAgentDataDirectoryLeaseTests : IDisposable
             WindowsAgentDataDirectoryFailure.VolumeRoot);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void Data_and_application_trees_must_be_disjoint()
     {
         var applicationRoot = Path.Combine(_testRoot, "StorageHub.Desktop");
@@ -121,7 +122,7 @@ public sealed class WindowsAgentDataDirectoryLeaseTests : IDisposable
                 applicationRoot));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void Packaged_agent_resolves_the_complete_velopack_owned_tree()
     {
         var applicationRoot = Path.Combine(_testRoot, "StorageHub.Desktop");
@@ -141,7 +142,7 @@ public sealed class WindowsAgentDataDirectoryLeaseTests : IDisposable
                 resolvedRoot));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void Non_packaged_agent_keeps_its_exact_application_directory()
     {
         var applicationDirectory = Path.Combine(_testRoot, "bin", "Release", "net10.0-windows");
@@ -152,7 +153,7 @@ public sealed class WindowsAgentDataDirectoryLeaseTests : IDisposable
         Assert.Equal(Path.GetFullPath(applicationDirectory), resolvedRoot);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void Application_tree_must_not_contain_the_fixed_instance_lock()
     {
         var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -165,7 +166,7 @@ public sealed class WindowsAgentDataDirectoryLeaseTests : IDisposable
             Path.Combine(localAppData, "StorageHub.Desktop"));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void Reparse_point_in_ancestor_path_is_rejected()
     {
         Directory.CreateDirectory(_testRoot);
@@ -191,7 +192,7 @@ public sealed class WindowsAgentDataDirectoryLeaseTests : IDisposable
         }
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void Reparse_point_anywhere_below_existing_data_root_is_rejected()
     {
         Directory.CreateDirectory(_testRoot);
@@ -219,7 +220,7 @@ public sealed class WindowsAgentDataDirectoryLeaseTests : IDisposable
         }
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void Reparse_point_below_sibling_data_does_not_block_agent_lease()
     {
         Directory.CreateDirectory(_testRoot);
@@ -253,7 +254,7 @@ public sealed class WindowsAgentDataDirectoryLeaseTests : IDisposable
     /// and it breaks the elevated switch back to a session mode, which runs as the signed-in user
     /// and has to read the database and vault it is bringing home.
     /// </summary>
-    [Fact]
+    [WindowsOnlyFact]
     public void A_machine_scoped_tree_also_grants_administrators()
     {
         var dataRoot = Path.Combine(_testRoot, "data");
@@ -276,7 +277,7 @@ public sealed class WindowsAgentDataDirectoryLeaseTests : IDisposable
     /// The instance lock is per-user by definition and lives in that user's own profile, so the
     /// tree's scope must not widen it.
     /// </summary>
-    [Fact]
+    [WindowsOnlyFact]
     public void A_machine_scoped_tree_leaves_the_instance_lock_to_its_own_user()
     {
         var lockRoot = Path.Combine(_testRoot, "instance");

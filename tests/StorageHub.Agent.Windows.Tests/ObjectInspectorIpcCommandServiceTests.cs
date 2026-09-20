@@ -8,12 +8,13 @@ using StorageHub.Domain.Storage;
 using StorageHub.Storage.Abstractions;
 using StorageHub.Storage.Models;
 using StorageHub.Sync;
+using StorageHub.Testing;
 
 namespace StorageHub.Agent.Windows.Tests;
 
 public sealed class ObjectInspectorIpcCommandServiceTests
 {
-    [Fact]
+    [WindowsOnlyFact]
     public async Task VersionListUsesExactSavedProfileRootAndPathAndDisposesConnection()
     {
         var profileId = ConnectionProfileId.New();
@@ -73,7 +74,7 @@ public sealed class ObjectInspectorIpcCommandServiceTests
         Assert.True(connection.IsDisposed);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task RootMismatchIsRejectedBeforeCallingAdvancedProvider()
     {
         var profileId = ConnectionProfileId.New();
@@ -99,7 +100,7 @@ public sealed class ObjectInspectorIpcCommandServiceTests
         Assert.True(connection.IsDisposed);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task MetadataAndTagsAreReadOnlyBoundedAndDeterministicallyOrdered()
     {
         var profileId = ConnectionProfileId.New();
@@ -147,7 +148,7 @@ public sealed class ObjectInspectorIpcCommandServiceTests
         Assert.False(service.CanHandle("object-inspector.version.delete.request"));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task ProviderFailureCodeMessageAndDiagnosticsAreNeverReturned()
     {
         const string secret = "access_key=hunter2";
@@ -179,7 +180,7 @@ public sealed class ObjectInspectorIpcCommandServiceTests
         Assert.DoesNotContain(secret, response.Payload.GetRawText(), StringComparison.Ordinal);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task DeleteUsesCapturedRootPathAndConditionalIdentity()
     {
         var profileId = ConnectionProfileId.New();
@@ -216,7 +217,7 @@ public sealed class ObjectInspectorIpcCommandServiceTests
         Assert.Equal(address.EntityTag, session.LastDeleteRequest?.ExpectedEntityTag);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task RenameIsSameFolderNonOverwritingAndUsesProviderMove()
     {
         var profileId = ConnectionProfileId.New();
@@ -250,7 +251,7 @@ public sealed class ObjectInspectorIpcCommandServiceTests
         Assert.False(session.LastMoveRequest?.Overwrite);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task ExplicitDirectoryCreationCallsSupportedProvider()
     {
         var profileId = ConnectionProfileId.New();
@@ -278,7 +279,7 @@ public sealed class ObjectInspectorIpcCommandServiceTests
         Assert.Equal("folder/new-folder", session.LastCreatedDirectory?.CanonicalRelativePath);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task InFlightCancellationDisposesRootScopedConnection()
     {
         var profileId = ConnectionProfileId.New();

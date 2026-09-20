@@ -10,6 +10,7 @@ using StorageHub.Domain.Storage;
 using StorageHub.Storage.Abstractions;
 using StorageHub.Storage.Models;
 using StorageHub.Transfers;
+using StorageHub.Testing;
 
 namespace StorageHub.Agent.Windows.Tests;
 
@@ -18,7 +19,7 @@ public sealed class ShellTransferIpcCommandServiceTests : IDisposable
     private readonly string _root = Path.Combine(
         Path.GetTempPath(), $"storagehub-shell-folder-{Guid.NewGuid():N}");
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Folder_drop_preserves_nested_and_empty_directories_before_queueing_files()
     {
         var dropped = Directory.CreateDirectory(Path.Combine(_root, "Dropped"));
@@ -75,7 +76,7 @@ public sealed class ShellTransferIpcCommandServiceTests : IDisposable
         Assert.Contains(store.Intents, intent => intent.Destination.CanonicalRelativePath == "uploads/Dropped/nested/child.bin");
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Remote_folder_export_materializes_files_and_nested_folders_for_explorer()
     {
         var profileId = ConnectionProfileId.New();
@@ -108,7 +109,7 @@ public sealed class ShellTransferIpcCommandServiceTests : IDisposable
         }
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Explorer_export_discovers_files_into_the_durable_transfer_queue()
     {
         var profileId = ConnectionProfileId.New();
@@ -162,7 +163,7 @@ public sealed class ShellTransferIpcCommandServiceTests : IDisposable
         }
     }
 
-    [Theory]
+    [WindowsOnlyTheory]
     [InlineData("")]
     [InlineData("short")]
     [InlineData("../../escape/attempt/aaaaaaaaaaaaaaaa")]
@@ -187,7 +188,7 @@ public sealed class ShellTransferIpcCommandServiceTests : IDisposable
         Assert.Null(begun.DropToken);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Explorer_drop_refuses_to_rebind_a_token_that_is_already_in_flight()
     {
         var profileId = ConnectionProfileId.New();
@@ -212,7 +213,7 @@ public sealed class ShellTransferIpcCommandServiceTests : IDisposable
         if (first.MarkerPath is { } staged && Directory.Exists(staged)) Directory.Delete(staged, recursive: true);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Explorer_drop_only_captures_destination_then_queues_deep_tree_directly()
     {
         var destination = Directory.CreateDirectory(Path.Combine(_root, "Explorer destination")).FullName;
@@ -258,7 +259,7 @@ public sealed class ShellTransferIpcCommandServiceTests : IDisposable
         Assert.False(Directory.Exists(begun.MarkerPath));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Local_staging_destination_is_compatible_with_the_normal_transfer_executor()
     {
         var staging = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -289,7 +290,7 @@ public sealed class ShellTransferIpcCommandServiceTests : IDisposable
         }
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Explorer_destination_is_written_by_the_normal_transfer_executor()
     {
         var destinationRoot = Directory.CreateDirectory(Path.Combine(_root, "direct destination")).FullName;

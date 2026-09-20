@@ -5,6 +5,7 @@ using StorageHub.Contracts.Ipc;
 using StorageHub.Domain.Identifiers;
 using StorageHub.Persistence;
 using ContractWriteStatus = StorageHub.Contracts.Ipc.ConnectionProfileWriteStatus;
+using StorageHub.Testing;
 
 namespace StorageHub.Agent.Windows.Tests;
 
@@ -12,7 +13,7 @@ public sealed class ConnectionProfileIpcCommandServiceTests
 {
     private static readonly DateTimeOffset Now = new(2026, 8, 2, 12, 0, 0, TimeSpan.Zero);
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task CreateMapsValidatedReferenceOnlyDraftIntoRepository()
     {
         var repository = new RecordingProfileRepository();
@@ -41,7 +42,7 @@ public sealed class ConnectionProfileIpcCommandServiceTests
         Assert.DoesNotContain("SecretMaterial", result.Payload.GetRawText(), StringComparison.Ordinal);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task CreateMapsSshPrivateKeyAndPasswordMfaReferences()
     {
         const string password = "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
@@ -79,7 +80,7 @@ public sealed class ConnectionProfileIpcCommandServiceTests
         Assert.Equal(passphrase, authentication.PassphraseReference.Value);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task CreateRejectsProviderIrrelevantFieldsBeforeRepositoryCall()
     {
         var repository = new RecordingProfileRepository();
@@ -108,7 +109,7 @@ public sealed class ConnectionProfileIpcCommandServiceTests
         Assert.DoesNotContain("password-value", result.Payload.GetRawText(), StringComparison.Ordinal);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task UpdateAndDeletePreserveOptimisticConcurrencyVersion()
     {
         var existing = ConnectionProfile.Create(
@@ -151,7 +152,7 @@ public sealed class ConnectionProfileIpcCommandServiceTests
         Assert.Equal(ContractWriteStatus.Succeeded, deleteResponse?.Status);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task CrudRoundTripsThroughAuthoritativeSqliteRepository()
     {
         var root = Path.Combine(Path.GetTempPath(), "storagehub-profile-ipc-" + Guid.NewGuid().ToString("N"));
@@ -213,7 +214,7 @@ public sealed class ConnectionProfileIpcCommandServiceTests
         }
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task CreateReportsDatabaseRecoveryWithoutLeakingDatabaseDetails()
     {
         var root = Path.Combine(Path.GetTempPath(), "storagehub-profile-recovery-" + Guid.NewGuid().ToString("N"));

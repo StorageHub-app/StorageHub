@@ -6,6 +6,7 @@ using StorageHub.Domain.Identifiers;
 using StorageHub.Persistence;
 using StorageHub.Persistence.Transfers;
 using StorageHub.Transfers;
+using StorageHub.Testing;
 
 namespace StorageHub.Agent.Windows.Tests;
 
@@ -16,7 +17,7 @@ public sealed class TransferQueueIpcCommandServiceTests : IDisposable
         Path.GetTempPath(),
         $"storagehub-transfer-ipc-{Guid.NewGuid():N}");
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Enqueue_persists_all_identity_evidence_and_is_idempotent()
     {
         var fixture = await CreateFixtureAsync();
@@ -44,7 +45,7 @@ public sealed class TransferQueueIpcCommandServiceTests : IDisposable
         Assert.Equal("destination-etag", stored.Intent.ExpectedDestinationEntityTag);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Enqueue_rejects_same_id_with_a_different_intent()
     {
         var fixture = await CreateFixtureAsync();
@@ -68,7 +69,7 @@ public sealed class TransferQueueIpcCommandServiceTests : IDisposable
         Assert.Equal(StorageIpcFailureCategory.Conflict, second.Failure?.Category);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Enqueue_rejects_noncanonical_paths_and_unfenced_move()
     {
         var fixture = await CreateFixtureAsync();
@@ -102,7 +103,7 @@ public sealed class TransferQueueIpcCommandServiceTests : IDisposable
         Assert.Equal(StorageIpcFailureCategory.Validation, moveResponse.Failure?.Category);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task List_is_bounded_paginated_and_omits_internal_identity_and_resume_fields()
     {
         var fixture = await CreateFixtureAsync();
@@ -146,7 +147,7 @@ public sealed class TransferQueueIpcCommandServiceTests : IDisposable
         Assert.DoesNotContain("Lease", payload, StringComparison.OrdinalIgnoreCase);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Cancel_uses_revision_cas_and_returns_latest_summary_on_conflict()
     {
         var fixture = await CreateFixtureAsync();
@@ -177,7 +178,7 @@ public sealed class TransferQueueIpcCommandServiceTests : IDisposable
         Assert.Equal(applied.Transfer?.Revision, stale.Transfer?.Revision);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Clear_history_removes_terminal_jobs_but_not_pending_work()
     {
         var fixture = await CreateFixtureAsync();
@@ -200,7 +201,7 @@ public sealed class TransferQueueIpcCommandServiceTests : IDisposable
         Assert.NotNull(await fixture.Store.FindAsync(new TransferJobId(pendingRequest.TransferId)));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Active_cancel_is_requested_without_bypassing_the_worker_lease_fence()
     {
         var fixture = await CreateFixtureAsync();
@@ -235,7 +236,7 @@ public sealed class TransferQueueIpcCommandServiceTests : IDisposable
         Assert.NotNull(stored.ActiveLease);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Retry_moves_an_inactive_failed_job_to_pending_with_revision_cas()
     {
         var fixture = await CreateFixtureAsync();
@@ -268,7 +269,7 @@ public sealed class TransferQueueIpcCommandServiceTests : IDisposable
         Assert.Equal(failed.Value.State.Revision + 1, response.Transfer?.Revision);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Reconciliation_requires_explicit_review_then_applies_operator_decision()
     {
         var fixture = await CreateFixtureAsync();
@@ -310,7 +311,7 @@ public sealed class TransferQueueIpcCommandServiceTests : IDisposable
         Assert.Equal(TransferQueueState.Completed, completed.Transfer?.State);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Provider_exception_text_is_not_returned_by_queue_failures()
     {
         var fixture = await CreateFixtureAsync();
@@ -338,7 +339,7 @@ public sealed class TransferQueueIpcCommandServiceTests : IDisposable
         }
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Status_reports_live_progress_before_any_checkpoint_is_written()
     {
         // Checkpoints are written on a slow recovery timer, so a running transfer used to report
@@ -362,7 +363,7 @@ public sealed class TransferQueueIpcCommandServiceTests : IDisposable
         Assert.Equal(128, status.Transfer.ExpectedBytes);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Status_never_reports_more_progress_than_the_expected_length()
     {
         var progress = new StubActiveProgress();

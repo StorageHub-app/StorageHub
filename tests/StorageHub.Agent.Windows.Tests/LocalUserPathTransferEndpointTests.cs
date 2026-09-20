@@ -8,6 +8,7 @@ using StorageHub.Domain.Storage;
 using StorageHub.Storage.Abstractions;
 using StorageHub.Storage.Models;
 using StorageHub.Transfers;
+using StorageHub.Testing;
 
 namespace StorageHub.Agent.Windows.Tests;
 
@@ -20,7 +21,7 @@ public sealed class LocalUserPathTransferEndpointTests
     private static readonly string[] NotQualifiedCodes =
         ["local-user.relative", "local-user.empty"];
 
-    [Fact]
+    [WindowsOnlyFact]
     public void APlainWritableFolderIsApproved()
     {
         using var folder = new TemporaryFolder();
@@ -31,7 +32,7 @@ public sealed class LocalUserPathTransferEndpointTests
         Assert.Equal(Path.TrimEndingDirectorySeparator(folder.Path), approved.Value);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void StorageHubsOwnDataFolderIsRefused()
     {
         // The vault and the durable queue live here. A transfer that could write into it could
@@ -46,7 +47,7 @@ public sealed class LocalUserPathTransferEndpointTests
         Assert.Equal("local-user.protected", approved.Error.Code);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void AFolderInsideStorageHubsDataFolderIsRefused()
     {
         var nested = Path.Combine(
@@ -61,7 +62,7 @@ public sealed class LocalUserPathTransferEndpointTests
         Assert.Equal("local-user.protected", approved.Error.Code);
     }
 
-    [Theory]
+    [WindowsOnlyTheory]
     [InlineData(Environment.SpecialFolder.Windows)]
     [InlineData(Environment.SpecialFolder.System)]
     public void WindowsSystemFoldersAreRefused(Environment.SpecialFolder folder)
@@ -78,7 +79,7 @@ public sealed class LocalUserPathTransferEndpointTests
         Assert.Equal("local-user.protected", approved.Error.Code);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void AMissingFolderIsRefused()
     {
         var missing = Path.Combine(Path.GetTempPath(), $"storagehub-absent-{Guid.NewGuid():N}");
@@ -89,7 +90,7 @@ public sealed class LocalUserPathTransferEndpointTests
         Assert.Equal("local-user.not-found", approved.Error.Code);
     }
 
-    [Theory]
+    [WindowsOnlyTheory]
     [InlineData(@"relative\path")]
     [InlineData("")]
     [InlineData("   ")]
@@ -101,7 +102,7 @@ public sealed class LocalUserPathTransferEndpointTests
         Assert.Contains(approved.Error.Code, NotQualifiedCodes);
     }
 
-    [Theory]
+    [WindowsOnlyTheory]
     [InlineData(@"\\?\C:\Windows")]
     [InlineData(@"\\.\PhysicalDrive0")]
     public void DeviceAndExtendedLengthPathsAreRefused(string candidate)
@@ -113,7 +114,7 @@ public sealed class LocalUserPathTransferEndpointTests
         Assert.Equal("local-user.device-path", approved.Error.Code);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void AFolderThatIsALinkIsRefused()
     {
         using var target = new TemporaryFolder();
@@ -142,7 +143,7 @@ public sealed class LocalUserPathTransferEndpointTests
         }
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void AnAddressWhoseIdDoesNotMatchItsFolderIsRefused()
     {
         using var folder = new TemporaryFolder();
@@ -162,7 +163,7 @@ public sealed class LocalUserPathTransferEndpointTests
         Assert.Equal("local-user.invalid", opened.Error.Code);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task AReadEscapingTheApprovedFolderIsRefused()
     {
         using var folder = new TemporaryFolder();
@@ -186,7 +187,7 @@ public sealed class LocalUserPathTransferEndpointTests
         Assert.True(read.IsFailure);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task AWriteOnlyCreatesAndWillNotOverwrite()
     {
         using var folder = new TemporaryFolder();
@@ -216,7 +217,7 @@ public sealed class LocalUserPathTransferEndpointTests
         Assert.Equal("local-user.create-only", overwrite.Error.Code);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void TheWireEncodingRoundTripsAndBindsTheIdToTheFolder()
     {
         using var folder = new TemporaryFolder();
@@ -234,7 +235,7 @@ public sealed class LocalUserPathTransferEndpointTests
             LocalTransferFolder.CreateConnectionId(Path.Combine(canonical, "child")));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void ASavedConnectionIdentityIsNotMistakenForALocalFolder()
     {
         Assert.False(LocalTransferFolder.IsLocalFolder("s3:bucket/prefix"));
@@ -242,7 +243,7 @@ public sealed class LocalUserPathTransferEndpointTests
         Assert.Null(LocalTransferFolder.TryReadFolder(null));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task AFileIsWrittenIntoTheLocalFolderByTheNormalTransferExecutor()
     {
         using var folder = new TemporaryFolder();
@@ -272,7 +273,7 @@ public sealed class LocalUserPathTransferEndpointTests
             await File.ReadAllTextAsync(Path.Combine(folder.Path, "payload.txt")));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task AFileIsReadOutOfTheLocalFolderByTheNormalTransferExecutor()
     {
         using var folder = new TemporaryFolder();
@@ -298,7 +299,7 @@ public sealed class LocalUserPathTransferEndpointTests
         Assert.Equal("from this pc", await reader.ReadToEndAsync());
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task AResumedReadHonoursTheRequestedRange()
     {
         using var folder = new TemporaryFolder();

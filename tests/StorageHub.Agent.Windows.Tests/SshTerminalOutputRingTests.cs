@@ -1,11 +1,12 @@
 using System.Text;
 using StorageHub.Agent.Windows;
+using StorageHub.Testing;
 
 namespace StorageHub.Agent.Windows.Tests;
 
 public sealed class SshTerminalOutputRingTests
 {
-    [Fact]
+    [WindowsOnlyFact]
     public void Appended_bytes_read_back_from_their_sequence()
     {
         var ring = new SshTerminalOutputRing();
@@ -20,7 +21,7 @@ public sealed class SshTerminalOutputRingTests
         Assert.Equal(11, ring.NextSequence);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void A_read_that_never_arrived_replays_identically()
     {
         var ring = new SshTerminalOutputRing();
@@ -37,7 +38,7 @@ public sealed class SshTerminalOutputRingTests
         Assert.Equal(first.Content, replay.Content);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void Acknowledging_discards_only_what_was_consumed()
     {
         var ring = new SshTerminalOutputRing();
@@ -51,7 +52,7 @@ public sealed class SshTerminalOutputRingTests
         Assert.Equal("bbbb", Encoding.UTF8.GetString(ring.Read(4, 64).Content));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void Acknowledging_part_of_a_chunk_still_reads_from_the_right_offset()
     {
         var ring = new SshTerminalOutputRing();
@@ -64,7 +65,7 @@ public sealed class SshTerminalOutputRingTests
         Assert.Equal("defgh", Encoding.UTF8.GetString(ring.Read(3, 64).Content));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void An_acknowledgement_behind_the_cursor_is_ignored()
     {
         var ring = new SshTerminalOutputRing();
@@ -76,7 +77,7 @@ public sealed class SshTerminalOutputRingTests
         Assert.Equal(8, ring.FirstSequence);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void A_read_is_capped_at_the_requested_size_and_resumes_where_it_stopped()
     {
         var ring = new SshTerminalOutputRing();
@@ -90,7 +91,7 @@ public sealed class SshTerminalOutputRingTests
         Assert.Equal("4567", Encoding.UTF8.GetString(second.Content));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void Overflowing_the_capacity_reports_the_loss_rather_than_hiding_it()
     {
         var ring = new SshTerminalOutputRing(capacityBytes: 64 * 1024);
@@ -111,7 +112,7 @@ public sealed class SshTerminalOutputRingTests
         Assert.Equal(ring.FirstSequence, slice.StartSequence);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void Reading_at_the_live_end_returns_nothing_without_claiming_truncation()
     {
         var ring = new SshTerminalOutputRing();
@@ -124,7 +125,7 @@ public sealed class SshTerminalOutputRingTests
         Assert.False(slice.Truncated);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Waiting_returns_at_once_when_data_is_already_there()
     {
         var ring = new SshTerminalOutputRing();
@@ -135,7 +136,7 @@ public sealed class SshTerminalOutputRingTests
         Assert.Equal("ready", Encoding.UTF8.GetString(ring.Read(0, 64).Content));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Waiting_wakes_as_soon_as_output_arrives()
     {
         var ring = new SshTerminalOutputRing();
@@ -151,7 +152,7 @@ public sealed class SshTerminalOutputRingTests
         Assert.Equal("late", Encoding.UTF8.GetString(ring.Read(0, 64).Content));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Waiting_gives_up_quietly_when_the_budget_expires()
     {
         var ring = new SshTerminalOutputRing();
@@ -162,7 +163,7 @@ public sealed class SshTerminalOutputRingTests
         Assert.Empty(ring.Read(0, 64).Content);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Waiting_honours_cancellation()
     {
         var ring = new SshTerminalOutputRing();

@@ -1,4 +1,5 @@
 using StorageHub.Infrastructure.Windows;
+using StorageHub.Testing;
 
 namespace StorageHub.Agent.Windows.Tests;
 
@@ -19,7 +20,7 @@ public sealed class AgentServiceLayoutTests
     /// here on every start, so the service control manager reported nothing but "the StorageHub
     /// Agent service terminated unexpectedly".
     /// </summary>
-    [Fact]
+    [WindowsOnlyFact]
     public void The_service_layout_passes_the_agent_startup_guard()
     {
         var dataRoot = AgentHostLayout.ResolveDataRoot(AgentHostMode.WindowsService);
@@ -37,7 +38,7 @@ public sealed class AgentServiceLayoutTests
     /// The guard is only worth running above if it rejects the layout that shipped. Pinning the
     /// broken shape keeps a future move back into the data root from passing silently.
     /// </summary>
-    [Fact]
+    [WindowsOnlyFact]
     public void Staging_inside_the_data_root_is_still_rejected()
     {
         var dataRoot = AgentHostLayout.ResolveDataRoot(AgentHostMode.WindowsService);

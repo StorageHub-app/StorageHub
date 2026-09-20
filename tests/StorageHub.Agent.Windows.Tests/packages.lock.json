@@ -1,7 +1,7 @@
 {
   "version": 2,
   "dependencies": {
-    "net10.0-windows10.0.19041": {
+    "net10.0": {
       "Microsoft.NET.Test.Sdk": {
         "type": "Direct",
         "requested": "[18.7.0, )",
@@ -502,6 +502,12 @@
           "StorageHub.Domain": "[1.4.6, )",
           "StorageHub.Storage": "[1.4.6, )",
           "StorageHub.Transfers": "[1.4.6, )"
+        }
+      },
+      "storagehub.testing": {
+        "type": "Project",
+        "dependencies": {
+          "xunit": "[2.9.3, )"
         }
       },
       "storagehub.transfers": {

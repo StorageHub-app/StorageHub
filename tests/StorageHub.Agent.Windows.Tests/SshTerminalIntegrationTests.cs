@@ -1,10 +1,11 @@
-﻿using System.Text;
+using System.Text;
 using System.Text.Json;
 using StorageHub.Ipc;
 using StorageHub.Application.Connections;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Domain.Identifiers;
 using StorageHub.Security;
+using StorageHub.Testing;
 
 namespace StorageHub.Agent.Windows.Tests;
 
@@ -13,7 +14,7 @@ public sealed class SshTerminalIntegrationTests : IDisposable
     private readonly string _directory = Path.Combine(
         Path.GetTempPath(), $"storagehub-ssh-terminal-{Guid.NewGuid():N}");
 
-    [Fact]
+    [WindowsOnlyFact]
     [Trait("Category", "SshTerminalIntegration")]
     public async Task ManagedClientOpensWritesReadsResizesAndClosesAgainstLoopbackServer()
     {

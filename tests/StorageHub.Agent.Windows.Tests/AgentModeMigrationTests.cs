@@ -4,6 +4,7 @@ using StorageHub.Infrastructure.Windows;
 using StorageHub.Persistence;
 using StorageHub.Persistence.Connections;
 using StorageHub.Security;
+using StorageHub.Testing;
 
 namespace StorageHub.Agent.Windows.Tests;
 
@@ -31,7 +32,7 @@ public sealed class AgentModeMigrationTests : IDisposable
     /// credentials where you left them. Anything written under the service used to be stranded in
     /// ProgramData the moment somebody switched back.
     /// </summary>
-    [Fact]
+    [WindowsOnlyFact]
     public async Task An_installation_survives_a_round_trip_through_the_machine_location()
     {
         var user = Location("user", DpapiProtectionScope.CurrentUser);
@@ -67,7 +68,7 @@ public sealed class AgentModeMigrationTests : IDisposable
     /// The source is only ever read. Switching is reversible precisely because nothing is moved,
     /// so a failure halfway leaves the mode you were in completely intact.
     /// </summary>
-    [Fact]
+    [WindowsOnlyFact]
     public async Task The_source_installation_is_left_exactly_as_it_was()
     {
         var user = Location("user", DpapiProtectionScope.CurrentUser);
@@ -85,7 +86,7 @@ public sealed class AgentModeMigrationTests : IDisposable
     /// A stale installation at the destination is set aside, not written over and not deleted. It
     /// is normally a copy from an earlier switch, and "stale" is a guess about somebody's data.
     /// </summary>
-    [Fact]
+    [WindowsOnlyFact]
     public async Task What_the_destination_already_held_is_archived_rather_than_overwritten()
     {
         var user = Location("user", DpapiProtectionScope.CurrentUser);
@@ -104,7 +105,7 @@ public sealed class AgentModeMigrationTests : IDisposable
         Assert.NotNull(archived);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Migrating_a_location_onto_itself_changes_nothing()
     {
         var user = Location("user", DpapiProtectionScope.CurrentUser);
@@ -118,7 +119,7 @@ public sealed class AgentModeMigrationTests : IDisposable
         await AssertProfilePresentAsync(user, profile.Id);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task An_empty_source_is_reported_rather_than_failing()
     {
         var report = await AgentModeMigration.MigrateAsync(

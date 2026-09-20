@@ -1,12 +1,13 @@
 using System.Net.Sockets;
 using System.Security.Authentication;
 using StorageHub.Agent.Windows;
+using StorageHub.Testing;
 
 namespace StorageHub.Agent.Windows.Tests;
 
 public sealed class ConnectionOpenFailureClassifierTests
 {
-    [Fact]
+    [WindowsOnlyFact]
     public void Treats_socket_timeout_and_io_failures_as_connectivity()
     {
         Assert.True(ConnectionOpenFailureClassifier.IsConnectivityFailure(
@@ -15,7 +16,7 @@ public sealed class ConnectionOpenFailureClassifierTests
         Assert.True(ConnectionOpenFailureClassifier.IsConnectivityFailure(new IOException("reset")));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void Unwraps_nested_connectivity_failures()
     {
         var wrapped = new InvalidOperationException(
@@ -25,7 +26,7 @@ public sealed class ConnectionOpenFailureClassifierTests
         Assert.True(ConnectionOpenFailureClassifier.IsConnectivityFailure(wrapped));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void Keeps_authentication_failures_terminal()
     {
         // A rejected credential must not be retried as though the network were down, even though
@@ -36,14 +37,14 @@ public sealed class ConnectionOpenFailureClassifierTests
             new InvalidOperationException("outer", new AuthenticationException("bad credentials"))));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void Keeps_programming_faults_terminal()
     {
         Assert.False(ConnectionOpenFailureClassifier.IsConnectivityFailure(new InvalidOperationException()));
         Assert.False(ConnectionOpenFailureClassifier.IsConnectivityFailure(new ArgumentNullException("path")));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void Rejects_a_null_exception()
     {
         _ = Assert.Throws<ArgumentNullException>(

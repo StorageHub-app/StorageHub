@@ -1,5 +1,6 @@
 using System.Security.AccessControl;
 using System.Security.Principal;
+using StorageHub.Testing;
 
 namespace StorageHub.Infrastructure.Windows.Tests;
 
@@ -9,7 +10,7 @@ public sealed class WindowsRuntimeSecretFileMaterializerTests : IDisposable
         Path.GetTempPath(),
         $"storagehub-runtime-material-{Guid.NewGuid():N}");
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Materialized_file_is_current_user_only_and_deleted_with_its_lease()
     {
         var materializer = new WindowsRuntimeSecretFileMaterializer(_root);
@@ -35,7 +36,7 @@ public sealed class WindowsRuntimeSecretFileMaterializerTests : IDisposable
         await material.DisposeAsync();
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Scavenger_removes_only_aged_runtime_material()
     {
         var materializer = new WindowsRuntimeSecretFileMaterializer(_root);
@@ -54,7 +55,7 @@ public sealed class WindowsRuntimeSecretFileMaterializerTests : IDisposable
         await active.DisposeAsync();
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Invalid_locations_extensions_and_sizes_fail_before_writing()
     {
         Assert.Throws<ArgumentException>(() => new WindowsRuntimeSecretFileMaterializer("relative"));

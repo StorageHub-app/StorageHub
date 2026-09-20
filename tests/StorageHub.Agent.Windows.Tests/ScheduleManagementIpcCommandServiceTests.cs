@@ -5,6 +5,7 @@ using StorageHub.Contracts.Ipc;
 using StorageHub.Domain.Identifiers;
 using StorageHub.Persistence;
 using StorageHub.Persistence.Scheduling;
+using StorageHub.Testing;
 
 namespace StorageHub.Agent.Windows.Tests;
 
@@ -15,7 +16,7 @@ public sealed class ScheduleManagementIpcCommandServiceTests : IDisposable
         Path.GetTempPath(),
         $"storagehub-schedule-ipc-{Guid.NewGuid():N}");
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Lifecycle_uses_bounded_documents_and_revision_cas()
     {
         var fixture = await CreateFixtureAsync();
@@ -81,7 +82,7 @@ public sealed class ScheduleManagementIpcCommandServiceTests : IDisposable
         Assert.Null(deleted.Schedule);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Invalid_cron_is_rejected_with_a_safe_validation_failure()
     {
         var fixture = await CreateFixtureAsync();
@@ -100,7 +101,7 @@ public sealed class ScheduleManagementIpcCommandServiceTests : IDisposable
         Assert.DoesNotContain("Cronos", response.Failure?.Message, StringComparison.OrdinalIgnoreCase);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Active_run_is_coarsely_reported_and_blocks_mutation_without_ownership_evidence()
     {
         var fixture = await CreateFixtureAsync();

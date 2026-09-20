@@ -1,4 +1,5 @@
 using StorageHub.Agent;
+using StorageHub.Testing;
 
 namespace StorageHub.Agent.Windows.Tests;
 
@@ -11,7 +12,7 @@ public sealed class AgentInstallationCheckTests
 {
     private const string AgentExecutable = "StorageHub.Agent.Windows.exe";
 
-    [Fact]
+    [WindowsOnlyFact]
     public void AHealthyServiceInstallationReportsNothingToDo()
     {
         var probe = FakeProbe.HealthyService();
@@ -26,7 +27,7 @@ public sealed class AgentInstallationCheckTests
         Assert.Empty(report.Repairable);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void AStoppedServiceIsAProblemThatStartingItRepairs()
     {
         var probe = FakeProbe.HealthyService();
@@ -48,7 +49,7 @@ public sealed class AgentInstallationCheckTests
     /// The gap that turned one crash into a week without an agent: Windows does nothing for a
     /// service with no failure actions, so it stays stopped until somebody notices.
     /// </summary>
-    [Fact]
+    [WindowsOnlyFact]
     public void AServiceWindowsWillNotRestartIsReportedAsFragileRatherThanBroken()
     {
         var probe = FakeProbe.HealthyService();
@@ -65,7 +66,7 @@ public sealed class AgentInstallationCheckTests
         Assert.Equal(InstallationRepair.ConfigureServiceRecovery, recovery.Repair);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void AStagedAgentOlderThanTheApplicationIsReported()
     {
         var probe = FakeProbe.HealthyService();
@@ -88,7 +89,7 @@ public sealed class AgentInstallationCheckTests
     /// Both versions carry a build suffix that differs between builds of the same release.
     /// Reporting that would send the operator through an elevation prompt that changes nothing.
     /// </summary>
-    [Fact]
+    [WindowsOnlyFact]
     public void ABuildSuffixAloneIsNotAVersionMismatch()
     {
         var probe = FakeProbe.HealthyService();
@@ -103,7 +104,7 @@ public sealed class AgentInstallationCheckTests
         Assert.Equal(InstallationCheckStatus.Ok, Single(report, "Staged agent").Status);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void AMissingAgentDirectoryIsAProblemThatCreatingItRepairs()
     {
         var probe = FakeProbe.HealthySession();
@@ -121,7 +122,7 @@ public sealed class AgentInstallationCheckTests
         Assert.False(directory.RequiresElevation);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void AnEmptyDatabaseIsAProblemBecauseSavedStateIsNotReadable()
     {
         var probe = FakeProbe.HealthySession();
@@ -136,7 +137,7 @@ public sealed class AgentInstallationCheckTests
         Assert.Equal(InstallationCheckStatus.Problem, Single(report, "Database").Status);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void AMissingDatabaseIsOnlyNotedBecauseAFreshInstallHasNone()
     {
         var probe = FakeProbe.HealthySession();
@@ -155,7 +156,7 @@ public sealed class AgentInstallationCheckTests
     /// Switching mode moves the data root, so the connections are not gone -- they are in the
     /// other root. Saying so is the difference between a scare and a setting.
     /// </summary>
-    [Fact]
+    [WindowsOnlyFact]
     public void APopulatedDatabaseLeftInTheOtherModesRootIsPointedAt()
     {
         var probe = FakeProbe.HealthyService();
@@ -173,7 +174,7 @@ public sealed class AgentInstallationCheckTests
         Assert.Equal(sessionDatabase, stray.Location);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void ASessionInstallationIsNotAskedAboutAService()
     {
         var report = AgentInstallationCheck.Inspect(
@@ -186,7 +187,7 @@ public sealed class AgentInstallationCheckTests
     }
 
     /// <summary>The state this machine was actually in when the desktop reported a timeout.</summary>
-    [Fact]
+    [WindowsOnlyFact]
     public void TheServiceStoppedAndUnrecoverableCaseReportsEveryPartOfIt()
     {
         var probe = FakeProbe.HealthyService();
@@ -210,7 +211,7 @@ public sealed class AgentInstallationCheckTests
         Assert.All(report.Repairable, finding => Assert.True(finding.RequiresElevation));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void AnElevatedCallerIsNotToldItNeedsToElevate()
     {
         var probe = FakeProbe.HealthyService();
@@ -226,7 +227,7 @@ public sealed class AgentInstallationCheckTests
         Assert.False(Single(report, "Service running").RequiresElevation);
     }
 
-    [Theory]
+    [WindowsOnlyTheory]
     [InlineData(InstallationRepair.StartService, true)]
     [InlineData(InstallationRepair.ConfigureServiceRecovery, true)]
     [InlineData(InstallationRepair.RestageAgent, true)]
@@ -239,7 +240,7 @@ public sealed class AgentInstallationCheckTests
     /// it. Reporting that as missing told a machine with a healthy, running service that its
     /// database had vanished, and offered to create a directory that was already there.
     /// </summary>
-    [Fact]
+    [WindowsOnlyFact]
     public void ADirectoryThisAccountMayNotReadIsNotReportedAsMissing()
     {
         var probe = FakeProbe.HealthyService();
@@ -258,7 +259,7 @@ public sealed class AgentInstallationCheckTests
         Assert.Equal(InstallationRepair.None, finding.Repair);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void ADatabaseThisAccountMayNotReadIsNotReportedAsLost()
     {
         var probe = FakeProbe.HealthyService();
@@ -276,7 +277,7 @@ public sealed class AgentInstallationCheckTests
     }
 
     /// <summary>A database that cannot be read cannot be said to hold anything.</summary>
-    [Fact]
+    [WindowsOnlyFact]
     public void AnUnreadableDatabaseInTheOtherModeIsNotPointedAt()
     {
         var probe = FakeProbe.HealthyService();

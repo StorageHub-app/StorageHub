@@ -1,7 +1,7 @@
 {
   "version": 2,
   "dependencies": {
-    "net10.0-windows7.0": {
+    "net10.0": {
       "coverlet.collector": {
         "type": "Direct",
         "requested": "[6.0.4, )",
@@ -107,6 +107,12 @@
       },
       "storagehub.security": {
         "type": "Project"
+      },
+      "storagehub.testing": {
+        "type": "Project",
+        "dependencies": {
+          "xunit": "[2.9.3, )"
+        }
       }
     }
   }

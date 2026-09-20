@@ -9,12 +9,13 @@ using StorageHub.Domain.Storage;
 using StorageHub.Security;
 using StorageHub.Storage.Abstractions;
 using StorageHub.Storage.Models;
+using StorageHub.Testing;
 
 namespace StorageHub.Agent.Windows.Tests;
 
 public sealed class StorageIpcCommandServiceTests
 {
-    [Fact]
+    [WindowsOnlyFact]
     public async Task ConnectionListReturnsMetadataWithoutSecretReferences()
     {
         var accessKey = SecretReference.Create();
@@ -48,7 +49,7 @@ public sealed class StorageIpcCommandServiceTests
         Assert.DoesNotContain("endpoint", rawJson, StringComparison.OrdinalIgnoreCase);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task ConnectionTestSanitizesProviderFailureAndDoesNotOpenAWriteSurface()
     {
         var profile = CreateLocalProfile();
@@ -95,7 +96,7 @@ public sealed class StorageIpcCommandServiceTests
         Assert.DoesNotContain(rawSecret, listed.Payload.GetRawText(), StringComparison.Ordinal);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task SuccessfulConnectionTestIsReturnedAsARevisionBoundHealthSnapshot()
     {
         var profile = CreateLocalProfile();
@@ -144,7 +145,7 @@ public sealed class StorageIpcCommandServiceTests
             revisedList.Payload.Deserialize<ConnectionListResponse>()).Connections).Health);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task StorageListV2ReturnsBoundedTransferIdentitiesAndDropsProviderMetadata()
     {
         var profile = CreateLocalProfile();
@@ -204,7 +205,7 @@ public sealed class StorageIpcCommandServiceTests
         Assert.Equal(1, session.ListCount);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task StorageListV1RemainsBrowsableWithoutAddingIdentityFields()
     {
         var profile = CreateLocalProfile();
@@ -246,7 +247,7 @@ public sealed class StorageIpcCommandServiceTests
         Assert.Null(item.EntityTag);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task StorageListRejectsTraversalBeforeCallingProvider()
     {
         var profile = CreateLocalProfile();
@@ -278,7 +279,7 @@ public sealed class StorageIpcCommandServiceTests
         Assert.True(lease.IsDisposed);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task StorageListRejectsAnEntryOutsideTheOpenedRoot()
     {
         var profile = CreateLocalProfile();

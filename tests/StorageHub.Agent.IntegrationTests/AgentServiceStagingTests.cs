@@ -1,6 +1,7 @@
 using System.Security.AccessControl;
 using System.Security.Principal;
 using StorageHub.Agent;
+using StorageHub.Testing;
 
 namespace StorageHub.Agent.IntegrationTests;
 
@@ -16,7 +17,7 @@ public sealed class AgentServiceStagingTests : IDisposable
     private readonly string _root = Path.Combine(
         Path.GetTempPath(), $"storagehub-staging-{Guid.NewGuid():N}");
 
-    [Fact]
+    [WindowsOnlyFact]
     public void A_user_writable_directory_is_refused()
     {
         var directory = Path.Combine(_root, "portable");
@@ -35,7 +36,7 @@ public sealed class AgentServiceStagingTests : IDisposable
     /// The realistic shape of the bug: an install under the user's own profile. Temp sits under
     /// the profile too, so a plain directory there reproduces exactly what %LOCALAPPDATA% grants.
     /// </summary>
-    [Fact]
+    [WindowsOnlyFact]
     public void An_install_under_the_user_profile_is_refused()
     {
         var directory = Path.Combine(_root, "localappdata-like");
@@ -47,7 +48,7 @@ public sealed class AgentServiceStagingTests : IDisposable
             () => AgentServiceStaging.EnsureSafeForService(executable));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void A_missing_directory_is_refused_rather_than_assumed_safe()
     {
         _ = Assert.Throws<DirectoryNotFoundException>(
@@ -65,7 +66,7 @@ public sealed class AgentServiceStagingTests : IDisposable
     /// path prefix on a separator boundary -- so a sibling like <c>StorageHubAgent</c> beside
     /// <c>StorageHub</c> is correctly read as separate rather than as a parent.
     /// </summary>
-    [Theory]
+    [WindowsOnlyTheory]
     [InlineData(AgentHostMode.WindowsService)]
     [InlineData(AgentHostMode.UserSession)]
     public void The_staging_directory_never_overlaps_a_data_root(AgentHostMode mode)
@@ -80,7 +81,7 @@ public sealed class AgentServiceStagingTests : IDisposable
     /// <summary>
     /// The binaries still live under the staging root, so protecting that root protects them.
     /// </summary>
-    [Fact]
+    [WindowsOnlyFact]
     public void The_staging_directory_sits_inside_the_protected_staging_root()
     {
         var root = AgentServiceStaging.ResolveRootDirectory();

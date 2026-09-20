@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using StorageHub.Infrastructure.Windows;
+using StorageHub.Testing;
 
 namespace StorageHub.Infrastructure.Windows.Tests;
 
@@ -12,7 +13,7 @@ namespace StorageHub.Infrastructure.Windows.Tests;
 /// </summary>
 public sealed class WindowsDpapiProtectorTests
 {
-    [Fact]
+    [WindowsOnlyFact]
     public void The_two_scopes_are_distinct_schemes()
     {
         var user = new WindowsDpapiProtector(DpapiProtectionScope.CurrentUser);
@@ -27,7 +28,7 @@ public sealed class WindowsDpapiProtectorTests
     /// Defaulting to the user scope matters: an existing installation must keep reading the vault
     /// it already wrote, so the parameterless shape cannot quietly become machine-scoped.
     /// </summary>
-    [Fact]
+    [WindowsOnlyFact]
     public void The_default_scope_stays_the_signed_in_user()
     {
         Assert.Equal(
@@ -35,7 +36,7 @@ public sealed class WindowsDpapiProtectorTests
             new WindowsDpapiProtector().Scheme);
     }
 
-    [Theory]
+    [WindowsOnlyTheory]
     [InlineData(DpapiProtectionScope.CurrentUser)]
     [InlineData(DpapiProtectionScope.LocalMachine)]
     public void A_payload_round_trips_within_its_own_scope(DpapiProtectionScope scope)
@@ -55,7 +56,7 @@ public sealed class WindowsDpapiProtectorTests
     /// Entropy is what keeps a machine-scoped vault from being readable by anything that merely
     /// runs on the machine, so a wrong value must fail rather than return garbage.
     /// </summary>
-    [Theory]
+    [WindowsOnlyTheory]
     [InlineData(DpapiProtectionScope.CurrentUser)]
     [InlineData(DpapiProtectionScope.LocalMachine)]
     public void The_wrong_entropy_cannot_open_a_payload(DpapiProtectionScope scope)
@@ -69,7 +70,7 @@ public sealed class WindowsDpapiProtectorTests
             protector.Unprotect(sealedBytes, RandomNumberGenerator.GetBytes(32)));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void An_undefined_scope_is_rejected()
     {
         _ = Assert.Throws<ArgumentOutOfRangeException>(

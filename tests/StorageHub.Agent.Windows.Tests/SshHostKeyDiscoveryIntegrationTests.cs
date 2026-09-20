@@ -1,8 +1,10 @@
+using StorageHub.Testing;
+
 namespace StorageHub.Agent.Windows.Tests;
 
 public sealed class SshHostKeyDiscoveryIntegrationTests
 {
-    [Fact]
+    [WindowsOnlyFact]
     [Trait("Category", "SftpHostKeyDiscoveryIntegration")]
     public async Task DiscoveryReadsTheRealPresentedKeyWithoutCredentialsOrTrustMutation()
     {

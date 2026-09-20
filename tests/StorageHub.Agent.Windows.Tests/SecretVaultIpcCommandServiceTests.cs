@@ -1,11 +1,12 @@
 using StorageHub.Contracts.Ipc;
 using StorageHub.Security;
+using StorageHub.Testing;
 
 namespace StorageHub.Agent.Windows.Tests;
 
 public sealed class SecretVaultIpcCommandServiceTests
 {
-    [Fact]
+    [WindowsOnlyFact]
     public async Task EnrollStoresMaterialReturnsOnlyReferenceAndZerosRequestBuffer()
     {
         var vault = new FakeSecretVault();
@@ -32,7 +33,7 @@ public sealed class SecretVaultIpcCommandServiceTests
         Assert.DoesNotContain("AQIDBA", System.Text.Json.JsonSerializer.Serialize(result), StringComparison.Ordinal);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task UpdateAndDeleteRequireOpaqueReferenceAndNeverEchoVaultDiagnostics()
     {
         const string diagnosticSecret = "private-value-from-vault";
@@ -58,7 +59,7 @@ public sealed class SecretVaultIpcCommandServiceTests
         Assert.All(material, value => Assert.Equal(0, value));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task NullTypedPayloadReturnsSanitizedValidationFailure()
     {
         var service = new SecretVaultIpcCommandService(() => new FakeSecretVault());

@@ -8,6 +8,7 @@ using StorageHub.Persistence.Connections;
 using StorageHub.Persistence.Trust;
 using StorageHub.Security;
 using DomainProfileWriteStatus = StorageHub.Application.Connections.ConnectionProfileWriteStatus;
+using StorageHub.Testing;
 
 namespace StorageHub.Agent.Windows.Tests;
 
@@ -48,7 +49,7 @@ public sealed class ConnectionTrustIpcCommandServiceTests : IAsyncLifetime
         return Task.CompletedTask;
     }
 
-    [Theory]
+    [WindowsOnlyTheory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task EnrollRejectAndRolloverRoundTripThroughAuthoritativeStore(bool useFtps)
@@ -92,7 +93,7 @@ public sealed class ConnectionTrustIpcCommandServiceTests : IAsyncLifetime
         Assert.Equal(firstFingerprint, replacement.PreviousFingerprint);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task StaleProfileRevisionCannotEnrollTrustForChangedEndpoint()
     {
         var profile = await CreatePinnedProfileAsync(useFtps: false);
@@ -109,7 +110,7 @@ public sealed class ConnectionTrustIpcCommandServiceTests : IAsyncLifetime
         Assert.Empty(await _trust.FindAsync(TrustArtifactKind.SshHostKey, "sftp.example.test", 22));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task SshClientProfileCanEnrollPinnedHostKeyThroughAuthoritativeStore()
     {
         var profile = ConnectionProfile.Create(
@@ -137,7 +138,7 @@ public sealed class ConnectionTrustIpcCommandServiceTests : IAsyncLifetime
         Assert.Equal(TrustDecision.Trusted, stored.Decision);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task SystemTrustProfileCannotBeUsedToWriteArbitraryEndpointPins()
     {
         var profile = ConnectionProfile.Create(
@@ -159,7 +160,7 @@ public sealed class ConnectionTrustIpcCommandServiceTests : IAsyncLifetime
         Assert.Empty(await _trust.FindAsync(TrustArtifactKind.TlsCertificate, "ftps.example.test", 21));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task ExistingRecordIdCannotBeReboundToDifferentFingerprint()
     {
         var profile = await CreatePinnedProfileAsync(useFtps: false);
@@ -178,7 +179,7 @@ public sealed class ConnectionTrustIpcCommandServiceTests : IAsyncLifetime
         Assert.Equal(new string('A', 64), stored.Sha256Fingerprint);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task EquivalentFingerprintEncodingCannotCreateASecondRecordWithoutConcurrencyToken()
     {
         var profile = await CreatePinnedProfileAsync(useFtps: false);
@@ -192,7 +193,7 @@ public sealed class ConnectionTrustIpcCommandServiceTests : IAsyncLifetime
         Assert.Single(await _trust.FindAsync(TrustArtifactKind.SshHostKey, "sftp.example.test", 22));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task RolloverRejectsStaleSourceWithoutAddingReplacement()
     {
         var profile = await CreatePinnedProfileAsync(useFtps: false);
@@ -214,7 +215,7 @@ public sealed class ConnectionTrustIpcCommandServiceTests : IAsyncLifetime
         Assert.Equal(TrustDecision.Trusted, stored.Decision);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task SshHostKeyDiscoveryReturnsOnlyTheBoundedPresentedIdentityWithoutStoringTrust()
     {
         var response = await DiscoverAsync(new ConnectionSshHostKeyDiscoveryRequest(
@@ -229,7 +230,7 @@ public sealed class ConnectionTrustIpcCommandServiceTests : IAsyncLifetime
         Assert.Empty(await _trust.FindAsync(TrustArtifactKind.SshHostKey, "sftp.example.test", 2222));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task InvalidDiscoveryTargetIsRejectedBeforeNetworkAccess()
     {
         var response = await DiscoverAsync(new ConnectionSshHostKeyDiscoveryRequest(
@@ -242,7 +243,7 @@ public sealed class ConnectionTrustIpcCommandServiceTests : IAsyncLifetime
         Assert.Empty(_discovery.Requests);
     }
 
-    [Theory]
+    [WindowsOnlyTheory]
     [InlineData("algorithm with spaces", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")]
     [InlineData("ssh-ed25519", "MD5:not-allowed")]
     public async Task InvalidDiscoveryResultIsSanitizedAndNeverReturned(string algorithm, string fingerprint)
@@ -259,7 +260,7 @@ public sealed class ConnectionTrustIpcCommandServiceTests : IAsyncLifetime
         Assert.Null(response.Sha256Fingerprint);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task DiscoveryFailureDoesNotExposeRemoteOrLocalExceptionDetails()
     {
         _discovery.Error = new IOException("token=secret C:\\Users\\person\\private");

@@ -8,6 +8,7 @@ using StorageHub.Persistence;
 using StorageHub.Persistence.Credentials;
 using StorageHub.Security;
 using ContractWriteStatus = StorageHub.Contracts.Ipc.ConnectionProfileWriteStatus;
+using StorageHub.Testing;
 
 namespace StorageHub.Agent.Windows.Tests;
 
@@ -20,7 +21,7 @@ public sealed class ConnectionProfileKeyStoreBindingTests : IDisposable
     private readonly string _directory = Path.Combine(
         Path.GetTempPath(), $"storagehub-binding-{Guid.NewGuid():N}");
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Saving_a_profile_binds_the_key_store_entry_it_references()
     {
         var fixture = await CreateFixtureAsync();
@@ -33,7 +34,7 @@ public sealed class ConnectionProfileKeyStoreBindingTests : IDisposable
         Assert.Equal(["Nightly FTPS"], usage.ReferencedByProfileNames);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task A_bound_entry_cannot_be_deleted_while_the_profile_uses_it()
     {
         var fixture = await CreateFixtureAsync();
@@ -46,7 +47,7 @@ public sealed class ConnectionProfileKeyStoreBindingTests : IDisposable
         Assert.Equal(["Nightly FTPS"], refused.ReferencedBy!);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task A_profile_that_enrolled_its_own_material_binds_nothing()
     {
         // Material enrolled straight against a profile was never imported into the store, so there
@@ -64,7 +65,7 @@ public sealed class ConnectionProfileKeyStoreBindingTests : IDisposable
         Assert.Empty(usage.ReferencedByProfileNames);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task A_certificate_is_refused_where_an_ssh_key_is_required()
     {
         // The kind check is enforced server-side, before anything is written.
@@ -77,7 +78,7 @@ public sealed class ConnectionProfileKeyStoreBindingTests : IDisposable
         Assert.Contains("cannot be used as an SSH private key", response.Failure!.Message, StringComparison.Ordinal);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task An_ssh_key_is_refused_where_a_certificate_is_required()
     {
         var fixture = await CreateFixtureAsync();
@@ -89,7 +90,7 @@ public sealed class ConnectionProfileKeyStoreBindingTests : IDisposable
         Assert.Contains("cannot be used as a client certificate", response.Failure!.Message, StringComparison.Ordinal);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task An_ssh_key_binds_to_an_sftp_profile()
     {
         var fixture = await CreateFixtureAsync();
@@ -102,7 +103,7 @@ public sealed class ConnectionProfileKeyStoreBindingTests : IDisposable
         Assert.Equal(["Nightly SFTP"], usage.ReferencedByProfileNames);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Pointing_a_profile_at_different_material_releases_the_old_entry()
     {
         var fixture = await CreateFixtureAsync();

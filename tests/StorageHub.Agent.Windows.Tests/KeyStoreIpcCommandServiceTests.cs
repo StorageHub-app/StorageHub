@@ -8,6 +8,7 @@ using StorageHub.Contracts.Ipc;
 using StorageHub.Persistence;
 using StorageHub.Persistence.Credentials;
 using StorageHub.Security;
+using StorageHub.Testing;
 
 namespace StorageHub.Agent.Windows.Tests;
 
@@ -18,7 +19,7 @@ public sealed class KeyStoreIpcCommandServiceTests : IDisposable
     private readonly string _directory = Path.Combine(
         Path.GetTempPath(), $"storagehub-key-store-ipc-{Guid.NewGuid():N}");
 
-    [Fact]
+    [WindowsOnlyFact]
     public void Construction_never_resolves_the_vault()
     {
         // The vault subsystem only creates the vault during initialization, and never at all in
@@ -39,7 +40,7 @@ public sealed class KeyStoreIpcCommandServiceTests : IDisposable
         Assert.Equal(0, resolved);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Listing_still_works_when_the_vault_is_unavailable()
     {
         // Recovery-only startup has no vault. Browsing stored metadata does not need one, so it
@@ -60,7 +61,7 @@ public sealed class KeyStoreIpcCommandServiceTests : IDisposable
         Assert.Empty(listed.Entries);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Importing_is_refused_rather_than_faulting_when_the_vault_is_unavailable()
     {
         var options = new SqliteDatabaseOptions(
@@ -86,7 +87,7 @@ public sealed class KeyStoreIpcCommandServiceTests : IDisposable
         Assert.NotNull(response.Failure);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Create_derives_the_certificate_summary_from_the_enrolled_material()
     {
         // The caller supplies references only. Everything descriptive is computed by the agent, so
@@ -114,7 +115,7 @@ public sealed class KeyStoreIpcCommandServiceTests : IDisposable
         Assert.Equal(2048, response.Entry.Summary.KeySizeBits);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task A_password_less_certificate_is_stored_without_any_passphrase()
     {
         var fixture = await CreateFixtureAsync();
@@ -137,7 +138,7 @@ public sealed class KeyStoreIpcCommandServiceTests : IDisposable
         Assert.Equal("CN=partner.example.test", response.Entry.Summary.Subject);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task An_ssh_key_without_a_passphrase_is_still_refused()
     {
         // The SFTP connector rejects an unprotected key, so storing one would be storing
@@ -161,7 +162,7 @@ public sealed class KeyStoreIpcCommandServiceTests : IDisposable
         Assert.Equal(KeyStoreWriteOutcome.Rejected, response.Outcome);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task No_response_ever_carries_key_material()
     {
         var fixture = await CreateFixtureAsync();
@@ -183,7 +184,7 @@ public sealed class KeyStoreIpcCommandServiceTests : IDisposable
         Assert.StartsWith("shs_", listed.Entries[0].PassphraseReference, StringComparison.Ordinal);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Create_is_refused_when_the_material_cannot_be_read_with_its_passphrase()
     {
         var fixture = await CreateFixtureAsync();
@@ -205,7 +206,7 @@ public sealed class KeyStoreIpcCommandServiceTests : IDisposable
         Assert.Null(response.Entry);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Create_is_refused_when_a_reference_does_not_resolve()
     {
         var fixture = await CreateFixtureAsync();
@@ -225,7 +226,7 @@ public sealed class KeyStoreIpcCommandServiceTests : IDisposable
         Assert.Equal(KeyStoreWriteOutcome.Rejected, response.Outcome);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task An_ssh_entry_must_declare_its_envelope_and_a_certificate_must_not()
     {
         var fixture = await CreateFixtureAsync();
@@ -259,7 +260,7 @@ public sealed class KeyStoreIpcCommandServiceTests : IDisposable
         Assert.Equal(KeyStoreWriteOutcome.Rejected, keyWithoutFormat.Outcome);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Deleting_an_entry_removes_its_vault_envelopes()
     {
         var fixture = await CreateFixtureAsync();
@@ -279,7 +280,7 @@ public sealed class KeyStoreIpcCommandServiceTests : IDisposable
         Assert.False(await fixture.Vault.ExistsAsync(SecretReference.Parse(references.Passphrase)));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public async Task Renaming_requires_the_expected_version_and_keeps_the_summary()
     {
         var fixture = await CreateFixtureAsync();
@@ -303,7 +304,7 @@ public sealed class KeyStoreIpcCommandServiceTests : IDisposable
         Assert.Equal("CN=partner.example.test", applied.Entry.Summary.Subject);
     }
 
-    [Theory]
+    [WindowsOnlyTheory]
     [InlineData(0)]
     [InlineData(99)]
     public async Task Unsupported_contract_versions_are_refused(int version)
