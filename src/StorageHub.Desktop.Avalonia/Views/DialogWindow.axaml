@@ -1,0 +1,59 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="StorageHub.Desktop.Views.DialogWindow"
+        SizeToContent="Height"
+        Width="460"
+        MinHeight="150"
+        CanResize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner">
+
+  <!--
+    StorageHub's message box. Avalonia ships none, which is the usual complaint about it and is
+    actually the right call: a platform message box cannot be themed, cannot show the shell's own
+    icons, and looks like a different application beside them. This is forty lines and takes the
+    same tokens as every other surface.
+
+    Height follows the content because the detail line is a path or an exception message, and there
+    is no fixed height at which both a one-line question and a wrapped stack of text look right.
+  -->
+
+  <Border Background="{DynamicResource CanvasBrush}">
+    <DockPanel>
+
+      <!-- Actions first: a docked child claims its edge before the body fills what is left, so the
+           buttons stay on screen however tall the message grows. -->
+      <Border DockPanel.Dock="Bottom"
+              Background="{DynamicResource SurfaceMutedBrush}"
+              BorderBrush="{DynamicResource BorderBrush}"
+              BorderThickness="0,1,0,0"
+              Padding="{StaticResource PaddingLg}">
+        <StackPanel Name="PART_Actions"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Spacing="{StaticResource SpaceMd}"/>
+      </Border>
+
+      <Grid Margin="{StaticResource PagePadding}"
+            ColumnDefinitions="Auto,*"
+            ColumnSpacing="{StaticResource SpaceLg}">
+
+        <LucideIcon Name="PART_Icon"
+                    Grid.Column="0"
+                    Size="{StaticResource IconSizeXl}"
+                    VerticalAlignment="Top"/>
+
+        <StackPanel Grid.Column="1" Spacing="{StaticResource SpaceSm}">
+          <TextBlock Name="PART_Message"
+                     Classes="heading"
+                     TextWrapping="Wrap"/>
+          <TextBlock Name="PART_Detail"
+                     Classes="muted"
+                     TextWrapping="Wrap"
+                     IsVisible="False"/>
+        </StackPanel>
+      </Grid>
+
+    </DockPanel>
+  </Border>
+</Window>

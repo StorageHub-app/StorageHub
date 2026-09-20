@@ -1,6 +1,8 @@
 {
   "buttonOk": "OK",
   "buttonCancel": "Annullér",
+  "buttonYes": "Ja",
+  "buttonNo": "Nej",
   "buttonApply": "Anvend",
   "buttonClose": "Luk",
   "exitCaption": "Afslut StorageHub",

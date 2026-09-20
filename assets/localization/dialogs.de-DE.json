@@ -1,6 +1,8 @@
 {
   "buttonOk": "OK",
   "buttonCancel": "Abbrechen",
+  "buttonYes": "Ja",
+  "buttonNo": "Nein",
   "buttonApply": "Übernehmen",
   "buttonClose": "Schließen",
   "exitCaption": "StorageHub beenden",

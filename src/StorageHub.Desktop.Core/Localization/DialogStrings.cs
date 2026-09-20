@@ -21,6 +21,19 @@ internal sealed class DialogStrings : LocalizationModelBase
 
     public string ButtonCancel { get; set; } = "Cancel";
 
+    /// <summary>
+    /// The affirmative and negative answers to a question.
+    /// </summary>
+    /// <remarks>
+    /// New in 2.0, and only because the shell draws its own dialog now. MessageBox supplied these
+    /// two from Windows itself, already translated to whatever the system was set to -- which was
+    /// not necessarily the language StorageHub was showing, so a Danish shell could ask a question
+    /// in Danish and offer "Yes" and "No". Saying them here fixes that as a side effect.
+    /// </remarks>
+    public string ButtonYes { get; set; } = "Yes";
+
+    public string ButtonNo { get; set; } = "No";
+
     public string ButtonApply { get; set; } = "Apply";
 
     public string ButtonClose { get; set; } = "Close";
