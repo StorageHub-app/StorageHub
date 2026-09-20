@@ -241,8 +241,20 @@ internal static class ShellPreview
     /// <summary>The same shell, opened on Sync tasks, so that screen can be photographed too.</summary>
     internal static ShellPreviewModel SampleOnSyncTasks { get; } = Build(selectedWorkspace: 1);
 
-    /// <summary>And on the workspace, which is where the two browser panes are.</summary>
+    /// <summary>And on the workspace, which is where the browser panes are.</summary>
     internal static ShellPreviewModel SampleOnWorkspace { get; } = Build(selectedWorkspace: 2);
+
+    /// <summary>
+    /// A shell of its own, opened on the workspace.
+    /// </summary>
+    /// <remarks>
+    /// The three properties above are cached because the application has one shell. A test that
+    /// changes what it holds -- the arrangement, the active pane -- has to have its own, or it
+    /// leaves that change behind for whichever test runs next. That is not hypothetical: a suite
+    /// reordered by adding a file elsewhere started failing on a workspace another test had
+    /// already reduced to a single pane.
+    /// </remarks>
+    internal static ShellPreviewModel CreateOnWorkspace() => Build(selectedWorkspace: 2);
 
     private static ShellPreviewModel Build(int selectedWorkspace = 0)
     {

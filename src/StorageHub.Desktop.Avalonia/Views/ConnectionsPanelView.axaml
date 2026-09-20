@@ -36,6 +36,12 @@
                   <LucideIcon Kind="FolderPlus" Size="{StaticResource IconSizeSm}"/>
                 </MenuItem.Icon>
               </MenuItem>
+              <Separator/>
+              <MenuItem Header="{Binding ManageLabel}" Command="{Binding ManageCommand}">
+                <MenuItem.Icon>
+                  <LucideIcon Kind="Settings" Size="{StaticResource IconSizeSm}"/>
+                </MenuItem.Icon>
+              </MenuItem>
             </MenuFlyout>
           </Button.Flyout>
         </Button>

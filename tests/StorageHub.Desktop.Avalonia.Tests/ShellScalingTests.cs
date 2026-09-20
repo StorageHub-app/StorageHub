@@ -281,7 +281,7 @@ public class ShellScalingTests
 
         var window = Shell();
         if (appearance == "sync") window.DataContext = ShellPreview.SampleOnSyncTasks;
-        if (appearance == "workspace") window.DataContext = ShellPreview.SampleOnWorkspace;
+        if (appearance == "workspace") window.DataContext = ShellPreview.CreateOnWorkspace();
         window.Show();
         window.Measure(new Size(1500 * scaling, 920 * scaling));
         window.Arrange(new Rect(0, 0, 1500 * scaling, 920 * scaling));

@@ -1,0 +1,148 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
+        xmlns:core="clr-namespace:StorageHub.Desktop;assembly=StorageHub.Desktop.Core"
+        x:Class="StorageHub.Desktop.Views.ConnectionManagerWindow"
+        x:DataType="vm:ConnectionManagerModel"
+        Title="{Binding Title}"
+        Width="920" Height="620"
+        WindowStartupLocation="CenterOwner">
+
+  <!--
+    A list and a form. The form's rows are not written here: a provider's fields come from
+    ConnectionProviderCatalog, and six providers with three sections each is around two hundred
+    rows. Writing them out would be two hundred places for this and ConnectionEditorDraftFactory to
+    disagree about a field's key, which is the pair that decides what gets saved.
+  -->
+
+  <Border Classes="surface">
+    <Grid ColumnDefinitions="280,Auto,*">
+
+      <DockPanel Grid.Column="0" Margin="{StaticResource PaddingLg}">
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto"
+              Margin="0,0,0,8">
+          <TextBlock Classes="title" Text="{Binding Title}" VerticalAlignment="Center"/>
+          <Button Grid.Column="1" Classes="primary" Command="{Binding NewCommand}">
+            <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+              <LucideIcon Kind="Plus" Size="{StaticResource IconSizeSm}"/>
+              <TextBlock Text="{Binding NewLabel}"/>
+            </StackPanel>
+          </Button>
+        </Grid>
+
+        <Button DockPanel.Dock="Bottom" Classes="danger" Command="{Binding DeleteCommand}"
+                HorizontalAlignment="Stretch" Margin="0,8,0,0">
+          <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}"
+                      HorizontalAlignment="Center">
+            <LucideIcon Kind="Trash" Size="{StaticResource IconSizeSm}"/>
+            <TextBlock Text="{Binding DeleteLabel}"/>
+          </StackPanel>
+        </Button>
+
+        <ListBox ItemsSource="{Binding Connections}"
+                 SelectedItem="{Binding Selected, Mode=TwoWay}">
+          <ListBox.ItemTemplate>
+            <DataTemplate DataType="vm:ConnectionManagerModel+ConnectionListEntry">
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceSm}">
+                <Border Grid.Column="0" Classes="badge" VerticalAlignment="Top">
+                  <TextBlock Text="{Binding Badge}"/>
+                </Border>
+                <StackPanel Grid.Column="1">
+                  <TextBlock Text="{Binding Name}"/>
+                  <TextBlock Classes="caption" Text="{Binding Endpoint}" TextWrapping="Wrap"/>
+                </StackPanel>
+              </Grid>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </DockPanel>
+
+      <Border Grid.Column="1" Width="1" Background="{DynamicResource BorderBrush}"/>
+
+      <DockPanel Grid.Column="2" Margin="{StaticResource PaddingLg}"
+                 DataContext="{Binding Editor}">
+
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceSm}"
+              Margin="0,0,0,12">
+          <TextBlock Grid.Column="0" Text="{Binding ProviderLabel}" VerticalAlignment="Center"/>
+          <ComboBox Grid.Column="1" HorizontalAlignment="Stretch"
+                    ItemsSource="{Binding Providers}"
+                    SelectedItem="{Binding Provider, Mode=TwoWay}">
+            <ComboBox.ItemTemplate>
+              <DataTemplate DataType="core:ConnectionProviderDescriptor">
+                <TextBlock Text="{Binding DisplayName}"/>
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+        </Grid>
+
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
+                    HorizontalAlignment="Right" Spacing="{StaticResource SpaceSm}"
+                    Margin="0,12,0,0">
+          <TextBlock Classes="caption" VerticalAlignment="Center"
+                     IsVisible="{Binding HasStatus}" Text="{Binding Status}"/>
+          <Button Content="{Binding TestLabel}" Command="{Binding TestCommand}"/>
+          <Button Classes="primary" Content="{Binding SaveLabel}" Command="{Binding SaveCommand}"/>
+        </StackPanel>
+
+        <ScrollViewer>
+          <StackPanel Spacing="{StaticResource SpaceMd}">
+            <TextBlock Classes="muted" Text="{Binding Summary}" TextWrapping="Wrap"/>
+            <Border Classes="toolbar" IsVisible="{Binding HasTrustNotice}"
+                    Padding="{StaticResource PaddingMd}">
+              <TextBlock Classes="caption" Text="{Binding TrustNotice}" TextWrapping="Wrap"/>
+            </Border>
+
+            <ItemsControl ItemsSource="{Binding Sections}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <StackPanel Spacing="{StaticResource SpaceMd}"/>
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="vm:ConnectionSectionModel">
+                  <StackPanel Spacing="{StaticResource SpaceSm}">
+                    <TextBlock Classes="group-title" Text="{Binding Title}"/>
+                    <ItemsControl ItemsSource="{Binding Fields}">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                          <StackPanel Spacing="{StaticResource SpaceSm}"/>
+                        </ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="vm:ConnectionFieldModel">
+                          <Grid ColumnDefinitions="200,*" ColumnSpacing="{StaticResource SpaceSm}">
+                            <StackPanel Grid.Column="0">
+                              <TextBlock Text="{Binding Label}" TextWrapping="Wrap"/>
+                              <TextBlock Classes="caption" IsVisible="{Binding HasHelp}"
+                                         Text="{Binding HelpText}" TextWrapping="Wrap"/>
+                            </StackPanel>
+
+                            <!-- One row per field, three ways to fill it in. A binding cannot
+                                 switch on an enum, so the model says which one applies. -->
+                            <TextBox Grid.Column="1" IsVisible="{Binding IsText}"
+                                     Text="{Binding Value, Mode=TwoWay}"
+                                     Watermark="{Binding Placeholder}"
+                                     AutomationProperties.Name="{Binding Label}"/>
+                            <ComboBox Grid.Column="1" IsVisible="{Binding IsChoice}"
+                                      HorizontalAlignment="Stretch"
+                                      ItemsSource="{Binding Choices}"
+                                      SelectedItem="{Binding Value, Mode=TwoWay}"
+                                      AutomationProperties.Name="{Binding Label}"/>
+                            <CheckBox Grid.Column="1" IsVisible="{Binding IsToggle}"
+                                      IsChecked="{Binding IsOn, Mode=TwoWay}"
+                                      AutomationProperties.Name="{Binding Label}"/>
+                          </Grid>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </ScrollViewer>
+      </DockPanel>
+    </Grid>
+  </Border>
+</Window>

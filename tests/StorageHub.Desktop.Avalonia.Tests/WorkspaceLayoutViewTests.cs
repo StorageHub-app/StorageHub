@@ -133,7 +133,7 @@ public class WorkspaceLayoutViewTests
     [AvaloniaFact]
     public void SelectAllAndInvertActOnTheActivePane()
     {
-        var preview = ShellPreview.SampleOnWorkspace;
+        var preview = ShellPreview.CreateOnWorkspace();
         var window = new MainWindow { DataContext = preview, Width = 1500, Height = 920 };
         window.Show();
         var workspace = preview.Workspaces
@@ -317,7 +317,7 @@ public class WorkspaceLayoutViewTests
     /// <summary>The shell showing its workspace tab, which is the one with panes in it.</summary>
     private static (Window Window, WorkspaceModel Workspace) Shell()
     {
-        var preview = ShellPreview.SampleOnWorkspace;
+        var preview = ShellPreview.CreateOnWorkspace();
 
         // A real size before it is shown, not only a manual Arrange afterwards: hit testing uses
         // the window the platform actually made, so a click aimed at a control positioned by a

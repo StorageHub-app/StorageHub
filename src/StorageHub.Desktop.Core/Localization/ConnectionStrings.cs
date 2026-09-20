@@ -82,6 +82,38 @@ internal sealed class ConnectionStrings : LocalizationModelBase
 
     public string SidebarAccessibleName { get; set; } = "Saved connection groups";
 
+    // ------------------------------------------------------------------ the editor
+    public string SaveConnection { get; set; } = "Save";
+
+    public string TestConnection { get; set; } = "Test";
+
+    public string Provider { get; set; } = "Provider";
+
+    public string SectionGeneral { get; set; } = "General";
+
+    public string SectionIdentity { get; set; } = "Connection";
+
+    public string FieldConnectionName { get; set; } = "Name";
+
+    public string ConnectionNameHint { get; set; } = "What this connection is called in StorageHub.";
+
+    public string FolderHint { get; set; } = "The group it is filed under in the connections panel.";
+
+    public string TagsHint { get; set; } = "Comma separated, for searching.";
+
+    public string ConnectionSaved { get; set; } = "Connection saved.";
+
+    public string ConnectionNotFound { get; set; } = "That connection no longer exists.";
+
+    public string ConnectionReachable { get; set; } = "The agent reached this connection.";
+
+    public string ConnectionUnreachable { get; set; } =
+        "The agent could not reach this connection with these settings.";
+
+    public string ManagerTitle { get; set; } = "Connections";
+
+    public string EditorEmpty { get; set; } = "Choose a connection to edit, or add one.";
+
     // ------------------------------------------------------------------- groups
     /// <summary>
     /// The group a connection lands in before anybody has filed it.

@@ -83,7 +83,7 @@ are the honest ones — each names what is missing rather than claiming the row.
 | What 1.x does | Status |
 |---|---|
 | Sidebar: grouped by folder, favourites, per-row menu, search | **partial** — groups are there and are better than 1.x: made by hand, reordered by dragging, remembered, and seeded from each connection's folder path so an upgrade keeps its organisation. Every row wears a STORAGE or CLIENT badge, which is what became of the fixed Storage/Clients split. Favourites and the per-row menu are not there, and the search box does not filter yet |
-| Connection Manager: create, edit, delete, test, 1,784 lines of provider fields | **todo** — the largest screen left after the pane |
+| Connection Manager: create, edit, delete, test, 1,784 lines of provider fields | **done** — list, editor, save, test and delete. The fields are not written out: they come from `ConnectionProviderCatalog` and the draft from `ConnectionEditorDraftFactory`, which is what most of those 1,784 lines were doing by hand. Host-key trust and enrolling a vault secret are not here, and belong with the key store screen |
 | Connection picker in a pane's header | **done** as a plain list; 1.x groups it and filters as you type |
 | Per-connection icon and accent colour | **partial** — resolved and drawn; no picker |
 | Key store: import, list, delete SSH keys and certificates | **todo** |
@@ -162,7 +162,9 @@ are the honest ones — each names what is missing rather than claiming the row.
 4. ~~**File operations** — new folder, new file, rename, delete.~~ Done, through one
    `PaneMutationController` in Core. Batch rename and properties (the Object Inspector) are what
    remain of this group.
-5. **Connection Manager**, the largest screen left.
+5. ~~**Connection Manager**.~~ Done for listing, editing, creating and deleting. Host-key trust
+   and enrolling a secret into the vault are what remain, and both belong with the key store
+   screen rather than with this one.
 6. **The terminal painter**, which is what an SSH pane is still missing. `VtTerminalEmulator` and
    `VtKeyEncoder` are in Core with three suites; what is not written is the `Control` that renders a
    screen buffer into a `DrawingContext` and implements `ILogicalScrollable`.

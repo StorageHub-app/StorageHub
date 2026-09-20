@@ -68,6 +68,24 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
 
     public ICommand NewGroupCommand { get; }
 
+    /// <summary>
+    /// Opens the Connection Manager, where a saved connection is edited.
+    /// </summary>
+    /// <remarks>
+    /// Assigned by the shell rather than built here, because opening a window needs one to be the
+    /// owner and a panel does not know which. Null until it is, which leaves the menu entry dim
+    /// rather than failing when it is pressed.
+    /// </remarks>
+    public ICommand? ManageCommand
+    {
+        get;
+        internal set
+        {
+            field = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ManageCommand)));
+        }
+    }
+
     // A binding target has to be an instance property, and these are resolved per call rather than
     // captured so that they follow a language change. CA1822 sees only that they touch no field.
 #pragma warning disable CA1822
@@ -82,6 +100,8 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     public string DetailPlaceholder => Ui.Connections.DetailEmpty;
 
     public string NewGroupLabel => Ui.Connections.NewGroup;
+
+    public string ManageLabel => Ui.Connections.ManagerTitle;
 
     public string DragHint => Ui.Connections.DragConnectionHint;
 #pragma warning restore CA1822

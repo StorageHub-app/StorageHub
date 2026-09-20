@@ -176,7 +176,7 @@ public class PaneActionsTests
     [AvaloniaFact]
     public void TheMoveMenuBuildsItsSubmenus()
     {
-        var preview = ShellPreview.SampleOnWorkspace;
+        var preview = ShellPreview.CreateOnWorkspace();
         var window = new MainWindow { DataContext = preview, Width = 1500, Height = 920 };
         window.Show();
         window.Measure(new global::Avalonia.Size(1500, 920));

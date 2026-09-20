@@ -34,6 +34,14 @@ public partial class App : global::Avalonia.Application
             // having rather than something to dismiss.
             model.Router.Handle(UiCommandIds.WorkspaceNewWorkspace, () => _ = AddWorkspaceAsync(model));
 
+            // The Connection Manager, from the menu and from the panel's own New button. Both open
+            // the same window: "new connection" is the manager with an empty editor, which is one
+            // screen rather than a second one that would have to agree with it about every field.
+            model.Router.Handle(UiCommandIds.ConnectionsNewConnection, () =>
+                ShowConnections(desktop, model, startNew: true));
+            model.Sidebar.ManageCommand = new RelayCommand(
+                _ => ShowConnections(desktop, model, startNew: false));
+
             // Whatever was saved last time, before the window is shown, so the shell opens in the
             // scheme rather than flashing the default and changing.
             Views.SettingsWindow.ApplySavedScheme();
@@ -77,6 +85,30 @@ public partial class App : global::Avalonia.Application
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    /// <summary>
+    /// Opens the Connection Manager, and refreshes the panel once it closes.
+    /// </summary>
+    /// <remarks>
+    /// Refreshed on close rather than on every write, because the manager is modal to the shell:
+    /// nothing can look at the panel while it is open, so one refresh at the end is both cheaper
+    /// and the only moment it matters.
+    /// </remarks>
+    private static void ShowConnections(
+        IClassicDesktopStyleApplicationLifetime desktop,
+        ShellPreviewModel model,
+        bool startNew)
+    {
+        var window = Views.ConnectionManagerWindow.ForCurrentAgent();
+        if (startNew && window.DataContext is Views.ConnectionManagerModel manager)
+        {
+            manager.StartNew();
+        }
+
+        window.Closed += (_, _) => _ = model.Sidebar.RefreshAsync();
+        if (desktop.MainWindow is { } owner) _ = window.ShowDialog(owner);
+        else window.Show();
     }
 
     /// <summary>
