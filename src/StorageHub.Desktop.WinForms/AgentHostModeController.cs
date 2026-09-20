@@ -50,7 +50,7 @@ internal static class AgentHostModeController
     {
         try
         {
-            var lifecycle = PackagedDesktopLifecycle.CreateDefault();
+            var lifecycle = WindowsDesktopLifecycle.Create();
             DesktopAgentHost.Invalidate();
             _ = desired == AgentHostMode.UserSession
                 ? lifecycle.ConfigureAutostart()

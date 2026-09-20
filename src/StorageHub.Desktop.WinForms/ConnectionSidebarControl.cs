@@ -1,4 +1,4 @@
-﻿using StorageHub.Contracts.Ipc;
+using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Localization;
 
 namespace StorageHub.Desktop;
@@ -1104,3 +1104,9 @@ internal sealed class ConnectionSidebarItem : Control
         return path;
     }
 }
+
+/// <summary>A request to choose the icon for one connection folder.</summary>
+/// <param name="GroupKey">The sidebar's key for the folder, e.g. <c>storage/Team</c>.</param>
+/// <param name="Label">The folder's display name, for the dialog's title.</param>
+/// <param name="Location">Where on screen the request came from.</param>
+internal sealed record FolderIconRequest(string GroupKey, string Label, Point Location);

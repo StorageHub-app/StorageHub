@@ -9,6 +9,10 @@ namespace StorageHub.Desktop;
 /// travels through the profile, the database and the IPC contract as <c>IconKey</c>. Keeping it
 /// text means a key written by a newer build -- or one naming an icon this build does not have --
 /// degrades to the provider's default instead of failing to load the profile.
+///
+/// It sat in the WinForms shell over one line: a FolderIconRequest at the bottom of the same file
+/// carrying a System.Drawing.Point. Nothing in the catalog itself draws anything -- it maps a
+/// stored key to a UiGlyph, and both shells need the same map.
 /// </summary>
 internal static class ConnectionIconCatalog
 {
@@ -96,9 +100,3 @@ internal static class ConnectionIconCatalog
         return null;
     }
 }
-
-/// <summary>A request to choose the icon for one connection folder.</summary>
-/// <param name="GroupKey">The sidebar's key for the folder, e.g. <c>storage/Team</c>.</param>
-/// <param name="Label">The folder's display name, for the dialog's title.</param>
-/// <param name="Location">Where on screen the request came from.</param>
-internal sealed record FolderIconRequest(string GroupKey, string Label, Point Location);

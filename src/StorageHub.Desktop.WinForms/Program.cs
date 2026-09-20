@@ -1,4 +1,4 @@
-﻿using StorageHub.Desktop.Localization;
+using StorageHub.Desktop.Localization;
 namespace StorageHub.Desktop;
 
 internal static class Program
@@ -17,7 +17,7 @@ internal static class Program
             return frameworkExitCode;
         }
 
-        using var lifecycle = PackagedDesktopLifecycle.CreateDefault();
+        using var lifecycle = WindowsDesktopLifecycle.Create();
         if (DesktopCommandLine.IsAgentOnly(args))
         {
             return RunAgentOnly(lifecycle);
@@ -51,15 +51,4 @@ internal static class Program
         var agent = lifecycle.EnsureAgentAsync().AsTask().GetAwaiter().GetResult();
         return agent.IsReady ? 0 : 1;
     }
-}
-
-internal static class DesktopStartupPreflight
-{
-    internal static string DescribeFailure(AgentEnsureStatus status) => status switch
-    {
-        AgentEnsureStatus.MissingExecutable => Ui.Dialogs.AgentMissingExecutable,
-        AgentEnsureStatus.StartupTimedOut => Ui.Dialogs.AgentStartupTimedOut,
-        AgentEnsureStatus.LaunchFailed => Ui.Dialogs.AgentLaunchFailed,
-        _ => Ui.Dialogs.AgentNotReady
-    };
 }

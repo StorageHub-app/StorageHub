@@ -118,6 +118,12 @@
           "Velopack": "[1.2.0, )"
         }
       },
+      "storagehub.desktop.windows": {
+        "type": "Project",
+        "dependencies": {
+          "StorageHub.Desktop.Core": "[1.4.6, )"
+        }
+      },
       "storagehub.domain": {
         "type": "Project",
         "dependencies": {

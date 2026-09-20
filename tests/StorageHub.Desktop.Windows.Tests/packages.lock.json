@@ -103,6 +103,11 @@
           "SQLitePCLRaw.core": "2.1.12"
         }
       },
+      "System.Diagnostics.EventLog": {
+        "type": "Transitive",
+        "resolved": "10.0.12",
+        "contentHash": "sOZM+VyRj1pg/ItlHsvrSbjws6oGqZveTzTNBGZ9ziwRDyKsOF3ub6vhvOdxotCIqtlnyHAIwP5sLNvgiZC+pQ=="
+      },
       "xunit.abstractions": {
         "type": "Transitive",
         "resolved": "2.0.3",
@@ -170,21 +175,6 @@
       },
       "storagehub.contracts": {
         "type": "Project"
-      },
-      "StorageHub.Desktop": {
-        "type": "Project",
-        "dependencies": {
-          "CodeLogic": "[4.8.19, )",
-          "Microsoft.Data.Sqlite": "[9.0.18, )",
-          "SQLitePCLRaw.bundle_e_sqlite3": "[2.1.12, )",
-          "StorageHub.Agent": "[1.4.6, )",
-          "StorageHub.Contracts": "[1.4.6, )",
-          "StorageHub.Desktop.Core": "[1.4.6, )",
-          "StorageHub.Desktop.Windows": "[1.4.6, )",
-          "StorageHub.Ipc": "[1.4.6, )",
-          "StorageHub.Security": "[1.4.6, )",
-          "Velopack": "[1.2.0, )"
-        }
       },
       "storagehub.desktop.core": {
         "type": "Project",
@@ -288,7 +278,10 @@
         "type": "CentralTransitive",
         "requested": "[10.0.12, )",
         "resolved": "10.0.12",
-        "contentHash": "sFV+RM/yPtshiCAEIuTm8Dt4F7VuKRbL50PnGC9nXHolk/jw+z3T8zx7axKTBC8mqtQU2ZmjsoPC9b1iwOilNQ=="
+        "contentHash": "sFV+RM/yPtshiCAEIuTm8Dt4F7VuKRbL50PnGC9nXHolk/jw+z3T8zx7axKTBC8mqtQU2ZmjsoPC9b1iwOilNQ==",
+        "dependencies": {
+          "System.Diagnostics.EventLog": "10.0.12"
+        }
       },
       "Velopack": {
         "type": "CentralTransitive",

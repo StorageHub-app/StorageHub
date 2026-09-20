@@ -24,5 +24,5 @@ internal static class VelopackDesktopBootstrap
             .OnBeforeUninstallFastCallback(static _ => CreateHooks().BeforeUninstall());
 
     private static DesktopPackageLifecycleHooks CreateHooks() =>
-        new(PackagedDesktopLifecycle.CreateDefault());
+        new(WindowsDesktopLifecycle.Create());
 }

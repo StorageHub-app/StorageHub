@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- Windows, but not WinForms. Everything here reaches for the registry, a Win32 API or a
+         named pipe; nothing here draws. That is the distinction this project exists to make: the
+         Avalonia shell needs these integrations on Windows and must not take a dependency on the
+         shell that is being deleted to get them. -->
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <!-- Same reason the WinForms shell narrows it: there is no Windows Desktop runtime pack for
+         linux-x64, and a Release build that resolves one fails outright. -->
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <!-- The same namespace the shell uses, so the files that move need no edit. -->
+    <RootNamespace>StorageHub.Desktop</RootNamespace>
+    <AssemblyName>StorageHub.Desktop.Windows</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\StorageHub.Desktop.Core\StorageHub.Desktop.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The same arrangement Desktop.Core uses, and for the same reason: the shell has been
+         internal to itself by long habit, and splitting it across an assembly boundary does not
+         change who may see what - only whether the compiler agrees. -->
+    <InternalsVisibleTo Include="StorageHub.Desktop" />
+    <InternalsVisibleTo Include="StorageHub.Desktop.Avalonia" />
+    <InternalsVisibleTo Include="StorageHub.Desktop.Windows.Tests" />
+  </ItemGroup>
+</Project>
