@@ -1,0 +1,29 @@
+# Line endings.
+#
+# Text files are normalised to LF in the repository and checked out with whatever the platform
+# wants, which is the default and is fine for source.
+*               text=auto
+
+# Except for the files that are read by something other than a text editor.
+#
+# A shell script with CRLF line endings fails on Linux with "bad interpreter: No such file or
+# directory" -- the carriage return becomes part of the interpreter's path. The error names the
+# shell rather than the line endings, which makes it a slow thing to work out, and it only appears
+# on a machine that cloned the repository with core.autocrlf on. That is every Windows clone, so
+# the packaging script and the test lab's entrypoint would break for exactly the people who did not
+# write them.
+*.sh            text eol=lf
+Dockerfile      text eol=lf
+*.dockerfile    text eol=lf
+
+# systemd units and Debian control files are parsed by tools that are equally unimpressed by a
+# stray carriage return.
+*.service       text eol=lf
+*.socket        text eol=lf
+
+# Binary, so git neither converts them nor tries to diff them as text.
+*.png           binary
+*.jpg           binary
+*.ico           binary
+*.pfx           binary
+*.snk           binary
