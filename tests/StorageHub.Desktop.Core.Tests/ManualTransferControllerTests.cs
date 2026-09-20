@@ -1,3 +1,5 @@
+using static StorageHub.Desktop.Tests.TestPaths;
+
 using StorageHub.Contracts.Ipc;
 using StorageHub.Contracts.Results;
 
@@ -75,8 +77,8 @@ public sealed class ManualTransferControllerTests
             PaneTransferContextKind.ThisPc,
             connectionId: null,
             rootIdentity: null,
-            @"C:\Data");
-        var localSelection = Selection(thisPc, Item("file.txt", @"C:\Data\file.txt", length: 1));
+            Rooted(@"Data"));
+        var localSelection = Selection(thisPc, Item("file.txt", Rooted(@"Data\file.txt"), length: 1));
         var savedDestination = Destination(Saved(Guid.NewGuid(), "destination-root", "destination"));
 
         var plan = controller.BuildPlan(localSelection, savedDestination, TransferQueueOperation.Copy);
@@ -88,9 +90,9 @@ public sealed class ManualTransferControllerTests
         // to it, because the agent resolves a local endpoint from the identity rather than from a
         // saved profile.
         Assert.True(LocalTransferFolder.IsLocalFolder(request.Source.RootIdentity));
-        Assert.Equal(@"C:\Data", LocalTransferFolder.TryReadFolder(request.Source.RootIdentity));
+        Assert.Equal(Rooted(@"Data"), LocalTransferFolder.TryReadFolder(request.Source.RootIdentity));
         Assert.Equal("file.txt", request.Source.RelativePath);
-        Assert.Equal(LocalTransferFolder.CreateConnectionId(@"C:\Data"), request.Source.ConnectionId);
+        Assert.Equal(LocalTransferFolder.CreateConnectionId(Rooted(@"Data")), request.Source.ConnectionId);
         Assert.True(request.HasValidBounds);
     }
 
@@ -105,7 +107,7 @@ public sealed class ManualTransferControllerTests
             PaneTransferContextKind.ThisPc,
             connectionId: null,
             rootIdentity: null,
-            @"C:\Downloads"));
+            Rooted(@"Downloads")));
 
         var plan = controller.BuildPlan(savedSelection, localDestination, TransferQueueOperation.Copy);
 
@@ -114,7 +116,7 @@ public sealed class ManualTransferControllerTests
 
         // The pane's folder is the address root, so the destination path is the file name alone
         // rather than the folder joined to it.
-        Assert.Equal(@"C:\Downloads", LocalTransferFolder.TryReadFolder(request.Destination.RootIdentity));
+        Assert.Equal(Rooted(@"Downloads"), LocalTransferFolder.TryReadFolder(request.Destination.RootIdentity));
         Assert.Equal("file.txt", request.Destination.RelativePath);
         Assert.True(request.HasValidBounds);
     }
@@ -123,11 +125,11 @@ public sealed class ManualTransferControllerTests
     public void TwoLocalFoldersAreRejectedWithAReasonRatherThanQueued()
     {
         var controller = new ManualTransferController(new FakeTransferClient());
-        var source = Context(PaneTransferContextKind.ThisPc, null, null, @"C:\Data");
-        var destination = Context(PaneTransferContextKind.ThisPc, null, null, @"C:\Downloads");
+        var source = Context(PaneTransferContextKind.ThisPc, null, null, Rooted(@"Data"));
+        var destination = Context(PaneTransferContextKind.ThisPc, null, null, Rooted(@"Downloads"));
 
         var plan = controller.BuildPlan(
-            Selection(source, Item("file.txt", @"C:\Data\file.txt", length: 1)),
+            Selection(source, Item("file.txt", Rooted(@"Data\file.txt"), length: 1)),
             Destination(destination),
             TransferQueueOperation.Copy);
 
@@ -176,7 +178,7 @@ public sealed class ManualTransferControllerTests
         var plan = controller.BuildPlan(
             Selection(
                 Context(PaneTransferContextKind.ThisPc, null, null, string.Empty),
-                Item("file.txt", @"C:\Data\file.txt", length: 1)),
+                Item("file.txt", Rooted(@"Data\file.txt"), length: 1)),
             Destination(Saved(Guid.NewGuid(), "destination-root", "destination")),
             TransferQueueOperation.Copy);
 

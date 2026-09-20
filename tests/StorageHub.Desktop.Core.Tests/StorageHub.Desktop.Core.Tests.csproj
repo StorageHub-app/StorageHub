@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\StorageHub.Desktop.Core\StorageHub.Desktop.Core.csproj" />
+    <ProjectReference Include="..\StorageHub.Testing\StorageHub.Testing.csproj" />
   </ItemGroup>
   <ItemGroup>
     <!-- The shipped translations, as the shell lays them out beside itself. LocalizationModelTests

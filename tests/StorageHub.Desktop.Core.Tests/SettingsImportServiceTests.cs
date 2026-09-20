@@ -1,3 +1,5 @@
+using static StorageHub.Desktop.Tests.TestPaths;
+
 using System.Text;
 
 namespace StorageHub.Desktop.Tests;
@@ -62,7 +64,7 @@ public sealed class SettingsImportServiceTests : IDisposable
         var fixture = Fixture();
         fixture.Store.Save(DesktopUpdatePreferences.Defaults with
         {
-            ExternalEditorPath = @"C:\Tools\distinctive-editor-name.exe"
+            ExternalEditorPath = Rooted(@"Tools\distinctive-editor-name.exe")
         });
         var path = Path.Combine(_directory, "sealed.shsettings");
 

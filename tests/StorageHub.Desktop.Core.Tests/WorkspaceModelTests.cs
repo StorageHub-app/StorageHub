@@ -1,3 +1,5 @@
+using static StorageHub.Desktop.Tests.TestPaths;
+
 namespace StorageHub.Desktop.Tests;
 
 public sealed class WorkspaceModelTests
@@ -75,7 +77,7 @@ public sealed class WorkspaceModelTests
             var model = WorkspaceLayoutModel.CreatePreset(2, WorkspaceLayout.SideBySide);
             var panes = new Dictionary<Guid, BrowserPaneState>
             {
-                [model.PaneIds[0]] = new(PaneContentKind.ThisPc, FolderPath: @"C:\Data", Filter: "*.txt", SortColumn: BrowserSortColumn.Modified, SortAscending: false),
+                [model.PaneIds[0]] = new(PaneContentKind.ThisPc, FolderPath: Rooted(@"Data"), Filter: "*.txt", SortColumn: BrowserSortColumn.Modified, SortAscending: false),
                 [model.PaneIds[1]] = new(PaneContentKind.SavedStorage, Guid.NewGuid(), "Archive", "reports")
             };
             var document = WorkspaceFileStore.Capture("Research", model.PaneIds[1], model.Root, panes);

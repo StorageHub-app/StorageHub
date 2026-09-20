@@ -1,4 +1,5 @@
 using StorageHub.Desktop.Framework;
+using static StorageHub.Desktop.Tests.TestPaths;
 
 namespace StorageHub.Desktop.Tests;
 
@@ -7,12 +8,14 @@ public sealed class DesktopFrameworkPathsTests
     [Fact]
     public void DesktopTreeSitsBesideTheAgentTreeRatherThanInsideIt()
     {
-        var paths = DesktopFrameworkPaths.Create(@"C:\data\StorageHub");
+        var root = Rooted(@"data\StorageHub");
 
-        Assert.Equal(@"C:\data\StorageHub", paths.DataRoot);
-        Assert.Equal(@"C:\data\StorageHub\Desktop", paths.ApplicationRoot);
-        Assert.Equal(@"C:\data\StorageHub\Desktop\CodeLogic", paths.FrameworkRoot);
-        Assert.Equal(@"C:\data\StorageHub\Desktop\localization", paths.LocalizationDirectory);
+        var paths = DesktopFrameworkPaths.Create(root);
+
+        Assert.Equal(root, paths.DataRoot);
+        Assert.Equal(Path.Combine(root, "Desktop"), paths.ApplicationRoot);
+        Assert.Equal(Path.Combine(root, "Desktop", "CodeLogic"), paths.FrameworkRoot);
+        Assert.Equal(Path.Combine(root, "Desktop", "localization"), paths.LocalizationDirectory);
     }
 
     /// <summary>
@@ -23,7 +26,7 @@ public sealed class DesktopFrameworkPathsTests
     [Fact]
     public void FrameworkRootIsNotInsideTheAgentDirectory()
     {
-        var paths = DesktopFrameworkPaths.Create(@"C:\data\StorageHub");
+        var paths = DesktopFrameworkPaths.Create(Rooted(@"data\StorageHub"));
 
         var agentDirectory = Path.Combine(paths.DataRoot, "Agent");
         Assert.False(paths.FrameworkRoot.StartsWith(agentDirectory, StringComparison.OrdinalIgnoreCase));
@@ -37,7 +40,7 @@ public sealed class DesktopFrameworkPathsTests
     [Fact]
     public void ApplicationRootIsTheDirectoryThatAlreadyHoldsDesktopSettings()
     {
-        var paths = DesktopFrameworkPaths.Create(@"C:\data\StorageHub");
+        var paths = DesktopFrameworkPaths.Create(Rooted(@"data\StorageHub"));
 
         Assert.Equal(
             Path.Combine(paths.DataRoot, "Desktop", "settings.json"),
