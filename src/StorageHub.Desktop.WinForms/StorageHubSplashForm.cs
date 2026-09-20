@@ -236,17 +236,6 @@ internal sealed class StorageHubSplashForm : Form
         quit.Click += (_, _) => QuitRequested?.Invoke(this, EventArgs.Empty);
         _buttons.Controls.Add(quit);
 
-        // Offered here above all: when the agent does not come up the main window never opens,
-        // so every other route to this check is behind a door that will not open. This is the
-        // one screen the person is guaranteed to be looking at.
-        var check = new StorageHubButton { Text = "Check installation", Variant = StorageHubButtonVariant.Secondary };
-        check.Click += (_, _) =>
-        {
-            using var dialog = new InstallationCheckForm(DesktopAgentHost.Mode);
-            dialog.ShowDialog(this);
-        };
-        _buttons.Controls.Add(check);
-
         var copy = new StorageHubButton { Text = "Copy details", Variant = StorageHubButtonVariant.Secondary };
         copy.Click += (_, _) => CopyDetails(message, details);
         _buttons.Controls.Add(copy);

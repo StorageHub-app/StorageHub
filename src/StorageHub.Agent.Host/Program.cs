@@ -32,14 +32,11 @@ if (!OperatingSystem.IsWindows() && !OperatingSystem.IsLinux())
     return 3;
 }
 
-// Service install, uninstall and repair run elevated and do no agent work, so they are handled
-// before a platform is composed. Elevation keeps the caller's user identity, which is what the mode
-// migration needs: rights to write the machine location while still able to open the user's own
-// secrets. Linux has no counterpart - registering a user unit needs no privilege.
+// Service install and uninstall run elevated and do no agent work, so they are handled before a
+// platform is composed. Linux has no counterpart - registering a user unit needs no privilege.
 if (OperatingSystem.IsWindows() &&
     (args.Contains("--install-service", StringComparer.OrdinalIgnoreCase) ||
-     args.Contains("--uninstall-service", StringComparer.OrdinalIgnoreCase) ||
-     args.Contains(AgentHostLayout.RepairArgument, StringComparer.OrdinalIgnoreCase)))
+     args.Contains("--uninstall-service", StringComparer.OrdinalIgnoreCase)))
 {
     return await AgentServiceCommands.ExecuteAsync(args).ConfigureAwait(false);
 }

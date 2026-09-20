@@ -69,7 +69,6 @@ public static class AgentHostLayout
     /// exit code. Declared here rather than beside the other service commands because the desktop
     /// launches it and cannot reference the agent executable.s own types.
     /// </summary>
-    public const string RepairArgument = "--repair-installation";
 
     private const string MachinePipePrefix = "StorageHub.Agent.v1.machine";
     private const string MachineSecretPipePrefix = "StorageHub.Agent.Secrets.v1.machine";
