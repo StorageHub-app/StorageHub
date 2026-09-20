@@ -73,18 +73,6 @@ public sealed class ShortcutChordWinFormsFidelityTests
         Assert.Empty(unreadable);
     }
 
-    [Fact]
-    public void EveryDefaultBindingRoundTrips()
-    {
-        var defaults = ShortcutKeys.ToGestures(ShortcutSettings.Resolve(null));
-
-        var restored = ShortcutChord.Parse(ShortcutChord.Format(defaults));
-
-        Assert.Equal(
-            defaults.OrderBy(pair => pair.Key, StringComparer.Ordinal),
-            restored.OrderBy(pair => pair.Key, StringComparer.Ordinal));
-    }
-
     [Theory]
     [InlineData(null)]
     [InlineData("")]

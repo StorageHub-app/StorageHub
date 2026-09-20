@@ -1,4 +1,7 @@
+using static StorageHub.Desktop.Tests.TestPaths;
+
 using System.Text.Json;
+using Avalonia.Input;
 using StorageHub.Desktop.Configuration;
 
 namespace StorageHub.Desktop.Tests;
@@ -92,7 +95,7 @@ public sealed class DesktopConfigStoreTests : IDisposable
         store.Save(DesktopUpdatePreferences.Defaults with
         {
             Appearance = DesktopAppearance.Dark,
-            PinnedWorkspaces = [new WorkspaceShortcutEntry(@"C:\work\one.shw", "One", DateTimeOffset.UnixEpoch)]
+            PinnedWorkspaces = [new WorkspaceShortcutEntry(Rooted(@"work\one.shw"), "One", DateTimeOffset.UnixEpoch)]
         });
         File.WriteAllText(store.WorkspacesPath, "{ broken");
 
@@ -185,11 +188,13 @@ public sealed class DesktopConfigStoreTests : IDisposable
         }));
 
         store.Preflight();
-        var resolved = ShortcutSettings.Resolve(ShortcutKeys.ToKeys(store.Load().Shortcuts));
+        var resolved = ShortcutSettings.Resolve(store.Load().Shortcuts);
 
-        Assert.Equal(Keys.Control | Keys.Shift | Keys.C, resolved[UiCommandIds.EditCopy]);
         Assert.Equal(
-            ShortcutKeys.ToKeys(UiCommandCatalog.Definitions.Single(command => command.Id == UiCommandIds.EditPaste).Shortcut),
+            new KeyGesture(Key.C, KeyModifiers.Control | KeyModifiers.Shift),
+            resolved[UiCommandIds.EditCopy]);
+        Assert.Equal(
+            UiCommandCatalog.Definitions.Single(command => command.Id == UiCommandIds.EditPaste).Shortcut,
             resolved[UiCommandIds.EditPaste]);
     }
 

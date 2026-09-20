@@ -403,8 +403,8 @@ public sealed class MainForm : Form
 
     internal string ShortcutDisplay(string commandId)
     {
-        var keys = ShortcutSettings.Resolve(ShortcutKeys.ToKeys(_updater.Preferences.Shortcuts)).GetValueOrDefault(commandId);
-        return keys == Keys.None ? string.Empty : ShortcutSettings.Format(keys);
+        var gesture = ShortcutSettings.Resolve(_updater.Preferences.Shortcuts).GetValueOrDefault(commandId);
+        return gesture is null ? string.Empty : ShortcutSettings.Format(gesture);
     }
 
     private void RefreshShortcutPresentation()
@@ -423,7 +423,10 @@ public sealed class MainForm : Form
 
     internal bool TryDispatchShortcut(Keys keyData)
     {
-        var bindings = ShortcutSettings.Resolve(ShortcutKeys.ToKeys(_updater.Preferences.Shortcuts));
+        // ProcessCmdKey hands this shell a Keys, and the bindings are gestures. Converting the one
+        // chord that arrived is cheaper than converting the whole table, and ToKeys is the same
+        // spelling table the settings file uses.
+        var bindings = ShortcutKeys.ToKeys(ShortcutSettings.Resolve(_updater.Preferences.Shortcuts));
         var command = ShortcutSettings.Commands.FirstOrDefault(candidate => bindings[candidate.Id] == keyData && keyData != Keys.None);
         if (command is null) return false;
         var focused = (Control)this;

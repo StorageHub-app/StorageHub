@@ -23,7 +23,7 @@ public sealed class ConfigRepairReportTests
         {
             // Exactly the state an ordinary install reaches: shortcuts saved once, a workspace
             // opened once, provider defaults present. Every value here is inside its bounds.
-            Shortcuts = ShortcutKeys.ToGestures(ShortcutSettings.Resolve(null)),
+            Shortcuts = ShortcutSettings.Resolve(null),
             ConnectionDefaults = ConnectionDefaultSettings.Normalize(
                 new Dictionary<string, string>(StringComparer.Ordinal)),
             RecentWorkspaces = []

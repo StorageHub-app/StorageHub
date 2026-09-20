@@ -1,3 +1,4 @@
+using Avalonia.Input;
 using StorageHub.Desktop.Localization;
 
 namespace StorageHub.Desktop;
@@ -7,9 +8,9 @@ internal sealed class ShortcutSettingsControl : UserControl
     private readonly DataGridView _commands;
     private readonly ShortcutCaptureBox _capture;
     private readonly Label _message;
-    private Dictionary<string, Keys> _shortcuts;
+    private Dictionary<string, KeyGesture?> _shortcuts;
 
-    internal ShortcutSettingsControl(IReadOnlyDictionary<string, Keys>? shortcuts)
+    internal ShortcutSettingsControl(IReadOnlyDictionary<string, KeyGesture?>? shortcuts)
     {
         _shortcuts = ShortcutSettings.Resolve(shortcuts);
         Height = LogicalToDeviceUnits(460);
@@ -31,7 +32,7 @@ internal sealed class ShortcutSettingsControl : UserControl
             var row = _commands.Rows[_commands.Rows.Add(
                 Ui.Format(Ui.Settings.ShortcutCommandLabelFormat, command.Menu, command.Label),
                 ShortcutSettings.Format(_shortcuts[command.Id]),
-                ShortcutSettings.Format(ShortcutKeys.ToKeys(command.Shortcut)))];
+                ShortcutSettings.Format(command.Shortcut))];
             row.Tag = command.Id;
         }
         _capture = new ShortcutCaptureBox { Width = 180, AccessibleName = Ui.Settings.ShortcutCaptureAccessibleName, PlaceholderText = Ui.Settings.ShortcutCapturePlaceholder };
@@ -39,8 +40,9 @@ internal sealed class ShortcutSettingsControl : UserControl
         var clear = new StorageHubButton { Text = Ui.Settings.ShortcutClear, AutoSize = true };
         var reset = new StorageHubButton { Text = Ui.Settings.ShortcutRestoreDefaults, AutoSize = true };
         foreach (var button in new[] { assign, clear, reset }) button.Variant = StorageHubButtonVariant.Secondary;
-        assign.Click += (_, _) => SetSelected(_capture.CapturedKeys);
-        clear.Click += (_, _) => SetSelected(Keys.None);
+        // The capture box reads a Keys, because that is what a WinForms key event carries.
+        assign.Click += (_, _) => SetSelected(ShortcutKeys.ToGesture(_capture.CapturedKeys));
+        clear.Click += (_, _) => SetSelected(null);
         reset.Click += (_, _) => { _shortcuts = ShortcutSettings.Resolve(null); RefreshRows(); Changed?.Invoke(this, EventArgs.Empty); };
         var actions = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, WrapContents = true, Padding = this.LogicalToDeviceUnits(new Padding(0, 8, 0, 0)) };
         actions.Controls.AddRange([_capture, assign, clear, reset]);
@@ -52,12 +54,12 @@ internal sealed class ShortcutSettingsControl : UserControl
     }
 
     internal event EventHandler? Changed;
-    internal Dictionary<string, Keys> ReadShortcuts() => new(_shortcuts, StringComparer.Ordinal);
+    internal Dictionary<string, KeyGesture?> ReadShortcuts() => new(_shortcuts, StringComparer.Ordinal);
 
-    private void SetSelected(Keys keys)
+    private void SetSelected(KeyGesture? gesture)
     {
         if (_commands.CurrentRow?.Tag is not string id) return;
-        var candidate = new Dictionary<string, Keys>(_shortcuts, StringComparer.Ordinal) { [id] = keys };
+        var candidate = new Dictionary<string, KeyGesture?>(_shortcuts, StringComparer.Ordinal) { [id] = gesture };
         if (ShortcutSettings.Validate(candidate) is { } error) { _message.Text = error; return; }
         _shortcuts = candidate;
         RefreshRows();
@@ -80,7 +82,7 @@ internal sealed class ShortcutSettingsControl : UserControl
         {
             if (keyData is Keys.Tab or (Keys.Shift | Keys.Tab) or Keys.Escape) return base.ProcessCmdKey(ref msg, keyData);
             CapturedKeys = keyData;
-            Text = ShortcutSettings.Format(keyData);
+            Text = ShortcutSettings.Format(ShortcutKeys.ToGesture(keyData));
             return true;
         }
     }

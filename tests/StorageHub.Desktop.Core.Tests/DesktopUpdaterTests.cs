@@ -1,3 +1,5 @@
+using System.Text.Json;
+using static StorageHub.Desktop.Tests.TestPaths;
 
 namespace StorageHub.Desktop.Tests;
 
@@ -373,12 +375,12 @@ public sealed class DesktopUpdaterTests
         using var fixture = new SettingsFixture();
         IReadOnlyList<WorkspaceShortcutEntry> pinned =
         [
-            new(@"C:\work\nightly.shw", "Nightly", DateTimeOffset.UnixEpoch),
-            new(@"C:\work\audit.shw", null, DateTimeOffset.UnixEpoch)
+            new(Rooted(@"work\nightly.shw"), "Nightly", DateTimeOffset.UnixEpoch),
+            new(Rooted(@"work\audit.shw"), null, DateTimeOffset.UnixEpoch)
         ];
         IReadOnlyList<WorkspaceShortcutEntry> recent =
         [
-            new(@"C:\work\scratch.shw", "Scratch", DateTimeOffset.UnixEpoch)
+            new(Rooted(@"work\scratch.shw"), "Scratch", DateTimeOffset.UnixEpoch)
         ];
 
         fixture.Store.Save(DesktopUpdatePreferences.Defaults with
@@ -469,7 +471,7 @@ public sealed class DesktopUpdaterTests
         var entries = string.Join(
             ",",
             Enumerable.Range(0, WorkspaceShortcutSettings.MaximumPinned + 6).Select(index =>
-                $$"""{"path":"C:\\work\\w{{index}}.shw","name":"W{{index}}","lastOpenedUtc":"2026-01-01T00:00:00+00:00"}"""));
+                $$"""{"path":{{JsonSerializer.Serialize(Rooted($"work/w{index}.shw"))}},"name":"W{{index}}","lastOpenedUtc":"2026-01-01T00:00:00+00:00"}"""));
         WriteLegacySettings(
             fixture.Path,
             schemaVersion: 13,
@@ -478,7 +480,7 @@ public sealed class DesktopUpdaterTests
         var restored = fixture.Store.Load();
 
         Assert.Equal(WorkspaceShortcutSettings.MaximumPinned, restored.PinnedWorkspaces!.Count);
-        Assert.Equal(@"C:\work\w0.shw", restored.PinnedWorkspaces[0].Path);
+        Assert.Equal(Rooted(@"work\w0.shw"), restored.PinnedWorkspaces[0].Path);
         Assert.Equal(DesktopAppearance.Dark, restored.Appearance);
     }
 
@@ -488,7 +490,7 @@ public sealed class DesktopUpdaterTests
         using var fixture = new SettingsFixture();
         fixture.Store.Save(DesktopUpdatePreferences.Defaults);
 
-        foreach (var invalid in new[] { @"work\relative.shw", @"C:\work\notes.txt" })
+        foreach (var invalid in new[] { @"work\relative.shw", Rooted(@"work\notes.txt") })
         {
             Assert.Throws<ArgumentException>(() => fixture.Store.Save(
                 DesktopUpdatePreferences.Defaults with
@@ -515,7 +517,7 @@ public sealed class DesktopUpdaterTests
         {
             PinnedWorkspaces = MaximumLengthEntries(0, WorkspaceShortcutSettings.MaximumPinned),
             RecentWorkspaces = MaximumLengthEntries(1_000, WorkspaceShortcutSettings.MaximumRecent),
-            Shortcuts = ShortcutKeys.ToGestures(ShortcutSettings.Resolve(null)),
+            Shortcuts = ShortcutSettings.Resolve(null),
             ConnectionDefaults = ConnectionDefaultSettings.Normalize(null)
         });
 
@@ -540,7 +542,7 @@ public sealed class DesktopUpdaterTests
     /// <summary>A distinct path at the resolver's length limit, so the byte budget is exercised.</summary>
     private static string MaximumLengthPath(int index)
     {
-        var prefix = $@"C:\{index:D4}\";
+        var prefix = Rooted($@"{index:D4}\");
         return prefix +
             new string('d', WorkspaceShortcutSettings.MaximumPathLength - prefix.Length - 4) +
             ".shw";

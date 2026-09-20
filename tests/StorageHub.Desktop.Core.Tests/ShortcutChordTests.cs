@@ -52,6 +52,19 @@ public sealed class ShortcutChordTests
         Assert.Null(gesture);
     }
 
+    /// <summary>Every shortcut the shell ships with survives a trip through the file.</summary>
+    [Fact]
+    public void EveryDefaultBindingRoundTrips()
+    {
+        var defaults = ShortcutSettings.Resolve(null);
+
+        var restored = ShortcutChord.Parse(ShortcutChord.Format(defaults));
+
+        Assert.Equal(
+            defaults.OrderBy(pair => pair.Key, StringComparer.Ordinal),
+            restored.OrderBy(pair => pair.Key, StringComparer.Ordinal));
+    }
+
     /// <summary>
     /// The modifier order is fixed so that the same binding always produces the same bytes, and a
     /// diff of the file shows only what the user actually changed.

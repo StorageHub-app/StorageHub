@@ -2865,7 +2865,7 @@ public sealed class BrowserPaneControl : UserControl
     private string ShortcutDisplay(string commandId) =>
         FindForm() is MainForm main
             ? main.ShortcutDisplay(commandId)
-            : ShortcutSettings.Format(ShortcutKeys.ToKeys(UiCommandCatalog.GetDefinition(commandId).Shortcut));
+            : ShortcutSettings.Format(UiCommandCatalog.GetDefinition(commandId).Shortcut);
 
     private static void RefreshContextShortcuts(ToolStripItemCollection items, MainForm main)
     {

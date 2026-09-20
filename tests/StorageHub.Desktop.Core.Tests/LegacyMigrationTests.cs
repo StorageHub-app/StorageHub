@@ -1,3 +1,5 @@
+using static StorageHub.Desktop.Tests.TestPaths;
+
 using System.Text.Json;
 using StorageHub.Desktop.Configuration;
 using StorageHub.Desktop.Localization;
@@ -31,7 +33,7 @@ public sealed class LegacyMigrationTests : IDisposable
             restartAutomatically = true,
             includePrereleases = false,
             sshHostKeyDiscovery = 3,
-            externalEditorPath = @"C:\Tools\editor.exe",
+            externalEditorPath = Rooted(@"Tools\editor.exe"),
             adaptiveConcurrency = false,
             minimumConcurrency = 2,
             maximumTransferConcurrency = 12,
@@ -59,7 +61,7 @@ public sealed class LegacyMigrationTests : IDisposable
         Assert.True(migrated.RestartAutomatically);
         Assert.False(migrated.IncludePrereleases);
         Assert.Equal(SshHostKeyDiscoveryMode.Automatic, migrated.SshHostKeyDiscovery);
-        Assert.Equal(@"C:\Tools\editor.exe", migrated.ExternalEditorPath);
+        Assert.Equal(Rooted(@"Tools\editor.exe"), migrated.ExternalEditorPath);
         Assert.False(migrated.AdaptiveConcurrency);
         Assert.Equal(2, migrated.MinimumConcurrency);
         Assert.Equal(12, migrated.MaximumTransferConcurrency);
@@ -97,27 +99,31 @@ public sealed class LegacyMigrationTests : IDisposable
             schemaVersion = 15,
             sshHostKeyDiscovery = 2,
             confirmBeforeDeletingItems = false,
+            // The numbers a 1.x build wrote: System.Windows.Forms.Keys cast to int, where Ctrl
+            // is 0x20000 and Shift 0x10000. So this is Ctrl+Shift+C and F9. Spelled out rather
+            // than computed, because the enum that produced them is not on every platform this
+            // now runs on - and the file holds numbers, not names.
             shortcuts = new Dictionary<string, int>
             {
-                [UiCommandIds.EditCopy] = (int)(Keys.Control | Keys.Shift | Keys.C),
-                [UiCommandIds.ViewRefresh] = (int)Keys.F9
+                [UiCommandIds.EditCopy] = 0x30043,
+                [UiCommandIds.ViewRefresh] = 0x78
             }
         });
 
         var store = new DesktopConfigStore(_directory);
         store.Preflight();
         var loaded = store.Load();
-        var bindings = ShortcutSettings.Resolve(ShortcutKeys.ToKeys(loaded.Shortcuts));
+        var bindings = ShortcutSettings.Resolve(loaded.Shortcuts);
 
         // The setting beside them came across.
         Assert.False(loaded.ConfirmBeforeDeletingItems);
 
         // The rebindings did not, so these are the catalog's defaults.
         Assert.Equal(
-            ShortcutKeys.ToKeys(UiCommandCatalog.GetDefinition(UiCommandIds.EditCopy).Shortcut),
+            UiCommandCatalog.GetDefinition(UiCommandIds.EditCopy).Shortcut,
             bindings[UiCommandIds.EditCopy]);
         Assert.Equal(
-            ShortcutKeys.ToKeys(UiCommandCatalog.GetDefinition(UiCommandIds.ViewRefresh).Shortcut),
+            UiCommandCatalog.GetDefinition(UiCommandIds.ViewRefresh).Shortcut,
             bindings[UiCommandIds.ViewRefresh]);
     }
 
@@ -130,11 +136,11 @@ public sealed class LegacyMigrationTests : IDisposable
             sshHostKeyDiscovery = 2,
             pinnedWorkspaces = new[]
             {
-                new { path = @"C:\work\pinned.shw", name = "Pinned", lastOpenedUtc = "2025-01-02T03:04:05+00:00" }
+                new { path = Rooted(@"work\pinned.shw"), name = "Pinned", lastOpenedUtc = "2025-01-02T03:04:05+00:00" }
             },
             recentWorkspaces = new[]
             {
-                new { path = @"C:\work\recent.shw", name = "Recent", lastOpenedUtc = "2025-02-03T04:05:06+00:00" }
+                new { path = Rooted(@"work\recent.shw"), name = "Recent", lastOpenedUtc = "2025-02-03T04:05:06+00:00" }
             }
         });
 
@@ -142,8 +148,8 @@ public sealed class LegacyMigrationTests : IDisposable
         store.Preflight();
         var migrated = store.Load();
 
-        Assert.Equal(@"C:\work\pinned.shw", Assert.Single(migrated.PinnedWorkspaces!).Path);
-        Assert.Equal(@"C:\work\recent.shw", Assert.Single(migrated.RecentWorkspaces!).Path);
+        Assert.Equal(Rooted(@"work\pinned.shw"), Assert.Single(migrated.PinnedWorkspaces!).Path);
+        Assert.Equal(Rooted(@"work\recent.shw"), Assert.Single(migrated.RecentWorkspaces!).Path);
     }
 
     /// <summary>

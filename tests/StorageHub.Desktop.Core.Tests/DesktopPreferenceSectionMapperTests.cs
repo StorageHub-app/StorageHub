@@ -1,3 +1,5 @@
+using static StorageHub.Desktop.Tests.TestPaths;
+
 namespace StorageHub.Desktop.Tests;
 
 /// <summary>
@@ -82,7 +84,7 @@ public sealed class DesktopPreferenceSectionMapperTests
         var shortcuts = ShortcutSettings.Resolve(null);
         var document = Document() with
         {
-            Shortcuts = ShortcutChord.Format(ShortcutKeys.ToGestures(shortcuts)),
+            Shortcuts = ShortcutChord.Format(shortcuts),
             DesktopGeneral = DesktopPreferenceSectionMapper.CaptureGeneral(DesktopUpdatePreferences.Defaults)
         };
 
@@ -148,16 +150,16 @@ public sealed class DesktopPreferenceSectionMapperTests
     [Fact]
     public void MachineSpecificRestoresTheEditorPathAndWorkspaceLists()
     {
-        var pinned = new WorkspaceShortcutEntry(@"C:\work\nightly.shw", "Nightly", DateTimeOffset.UnixEpoch);
+        var pinned = new WorkspaceShortcutEntry(Rooted(@"work\nightly.shw"), "Nightly", DateTimeOffset.UnixEpoch);
         var document = Document() with
         {
-            MachineSpecific = new MachineSpecificSection(@"C:\Tools\editor.exe", [pinned], [], null)
+            MachineSpecific = new MachineSpecificSection(Rooted(@"Tools\editor.exe"), [pinned], [], null)
         };
 
         var result = DesktopPreferenceSectionMapper.Apply(
             DesktopUpdatePreferences.Defaults, document, [SettingsSectionId.MachineSpecific]);
 
-        Assert.Equal(@"C:\Tools\editor.exe", result.Preferences.ExternalEditorPath);
+        Assert.Equal(Rooted(@"Tools\editor.exe"), result.Preferences.ExternalEditorPath);
         Assert.Equal(pinned, Assert.Single(result.Preferences.PinnedWorkspaces!));
         Assert.Empty(result.Preferences.RecentWorkspaces!);
     }
@@ -165,7 +167,7 @@ public sealed class DesktopPreferenceSectionMapperTests
     [Fact]
     public void AnUnusableEditorPathIsReportedAndTheCurrentOneKept()
     {
-        var current = DesktopUpdatePreferences.Defaults with { ExternalEditorPath = @"C:\Tools\editor.exe" };
+        var current = DesktopUpdatePreferences.Defaults with { ExternalEditorPath = Rooted(@"Tools\editor.exe") };
         var document = Document() with
         {
             MachineSpecific = new MachineSpecificSection(@"relative\editor.exe", null, null, null)
@@ -174,7 +176,7 @@ public sealed class DesktopPreferenceSectionMapperTests
         var result = DesktopPreferenceSectionMapper.Apply(
             current, document, [SettingsSectionId.MachineSpecific]);
 
-        Assert.Equal(@"C:\Tools\editor.exe", result.Preferences.ExternalEditorPath);
+        Assert.Equal(Rooted(@"Tools\editor.exe"), result.Preferences.ExternalEditorPath);
         Assert.Contains(SettingsSectionId.MachineSpecific, result.Blocked.Keys);
     }
 
@@ -187,7 +189,7 @@ public sealed class DesktopPreferenceSectionMapperTests
                 null,
                 [
                     new WorkspaceShortcutEntry(@"relative\bad.shw", "Bad", DateTimeOffset.UnixEpoch),
-                    new WorkspaceShortcutEntry(@"C:\work\good.shw", "Good", DateTimeOffset.UnixEpoch)
+                    new WorkspaceShortcutEntry(Rooted(@"work\good.shw"), "Good", DateTimeOffset.UnixEpoch)
                 ],
                 null,
                 null)
@@ -196,7 +198,7 @@ public sealed class DesktopPreferenceSectionMapperTests
         var result = DesktopPreferenceSectionMapper.Apply(
             DesktopUpdatePreferences.Defaults, document, [SettingsSectionId.MachineSpecific]);
 
-        Assert.Equal(@"C:\work\good.shw", Assert.Single(result.Preferences.PinnedWorkspaces!).Path);
+        Assert.Equal(Rooted(@"work\good.shw"), Assert.Single(result.Preferences.PinnedWorkspaces!).Path);
         Assert.Empty(result.Blocked);
     }
 
@@ -209,7 +211,7 @@ public sealed class DesktopPreferenceSectionMapperTests
         var conflicting = ShortcutSettings.Resolve(null);
         var first = conflicting.Keys.First();
         conflicting[conflicting.Keys.Skip(1).First()] = conflicting[first];
-        var document = Document() with { Shortcuts = ShortcutChord.Format(ShortcutKeys.ToGestures(conflicting)) };
+        var document = Document() with { Shortcuts = ShortcutChord.Format(conflicting) };
 
         var result = DesktopPreferenceSectionMapper.Apply(current, document, [SettingsSectionId.Shortcuts]);
 
@@ -283,9 +285,9 @@ public sealed class DesktopPreferenceSectionMapperTests
     private static SettingsExportDocument FullDocument() => Document() with
     {
         DesktopGeneral = DesktopPreferenceSectionMapper.CaptureGeneral(DesktopUpdatePreferences.Defaults),
-        Shortcuts = ShortcutChord.Format(ShortcutKeys.ToGestures(ShortcutSettings.Resolve(null))),
+        Shortcuts = ShortcutChord.Format(ShortcutSettings.Resolve(null)),
         ConnectionDefaults = ConnectionDefaultSettings.Normalize(null),
-        MachineSpecific = new MachineSpecificSection(@"C:\other\editor.exe", [], [], null)
+        MachineSpecific = new MachineSpecificSection(Rooted(@"other\editor.exe"), [], [], null)
     };
 
     private static DesktopUpdatePreferences Customised() => DesktopUpdatePreferences.Defaults with
@@ -299,8 +301,8 @@ public sealed class DesktopPreferenceSectionMapperTests
         DefaultWorkspaceLayout = WorkspaceLayout.TopAndBottom,
         DefaultWorkspacePaneCount = 3,
         ConfirmBeforeDeletingItems = false,
-        ExternalEditorPath = @"C:\Tools\current.exe",
-        Shortcuts = ShortcutKeys.ToGestures(ShortcutSettings.Resolve(null)),
+        ExternalEditorPath = Rooted(@"Tools\current.exe"),
+        Shortcuts = ShortcutSettings.Resolve(null),
         SshTerminal = new SshTerminalPreferences("screen-256color")
     };
 

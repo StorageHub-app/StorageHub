@@ -23,9 +23,17 @@ internal static class TestPaths
     private static readonly string Root = OperatingSystem.IsWindows() ? @"C:\" : "/";
 
     /// <summary>
-    /// <paramref name="relative"/> under that root, with backslashes read as separators so the
+    /// <paramref name="relative"/> under that root, with either slash read as a separator so the
     /// call sites still read like the paths a user would type on Windows.
     /// </summary>
+    /// <remarks>
+    /// Both slashes, rather than only the backslash the call sites were written with: a sample
+    /// built by interpolation is easy to write with a forward slash, and a path that came back
+    /// half-converted failed in a way that read like the subject's fault rather than the test's.
+    /// </remarks>
     internal static string Rooted(string relative) =>
-        Path.Combine(Root, relative.Replace('\\', Path.DirectorySeparatorChar));
+        Path.Combine(
+            Root,
+            relative.Replace('\\', Path.DirectorySeparatorChar)
+                .Replace('/', Path.DirectorySeparatorChar));
 }
