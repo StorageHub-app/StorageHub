@@ -11,7 +11,7 @@ public sealed class FavoriteConnectionMenuTests
     [Fact]
     public void OnlyFavoritesAreOffered()
     {
-        var selected = OverviewDashboardControl.SelectFavoriteConnections(
+        var selected = FavoriteConnectionMenu.Select(
             [Connection("Kept"), Connection("Skipped", isFavorite: false)]);
 
         Assert.Equal("Kept", Assert.Single(selected).DisplayName);
@@ -21,14 +21,14 @@ public sealed class FavoriteConnectionMenuTests
     public void ADisabledFavoriteIsNotOffered()
     {
         // A disabled profile cannot be opened, so listing it would be a dead menu entry.
-        Assert.Empty(OverviewDashboardControl.SelectFavoriteConnections(
+        Assert.Empty(FavoriteConnectionMenu.Select(
             [Connection("Retired", isEnabled: false)]));
     }
 
     [Fact]
     public void ClientConnectionsAreOfferedOnlyWhenAPaneCanOpenThem()
     {
-        var selected = OverviewDashboardControl.SelectFavoriteConnections(
+        var selected = FavoriteConnectionMenu.Select(
             [
                 Connection("Shell", type: ConnectionProfileType.Client, provider: StorageConnectionProvider.Ssh),
                 Connection("Bucket client", type: ConnectionProfileType.Client, provider: StorageConnectionProvider.S3)
@@ -40,7 +40,7 @@ public sealed class FavoriteConnectionMenuTests
     [Fact]
     public void StorageConnectionsAreOfferedWhateverTheirProvider()
     {
-        var selected = OverviewDashboardControl.SelectFavoriteConnections(
+        var selected = FavoriteConnectionMenu.Select(
             [
                 Connection("Bucket", provider: StorageConnectionProvider.S3),
                 Connection("Drop", provider: StorageConnectionProvider.Ftp)
@@ -52,13 +52,13 @@ public sealed class FavoriteConnectionMenuTests
     [Fact]
     public void FavoritesAreListedByNameAndCapped()
     {
-        var selected = OverviewDashboardControl.SelectFavoriteConnections(
+        var selected = FavoriteConnectionMenu.Select(
             [Connection("zulu"), Connection("Alpha"), Connection("mike")]);
 
         Assert.Equal(["Alpha", "mike", "zulu"], selected.Select(connection => connection.DisplayName));
         Assert.Equal(
             2,
-            OverviewDashboardControl.SelectFavoriteConnections(
+            FavoriteConnectionMenu.Select(
                 [Connection("a"), Connection("b"), Connection("c")], maximum: 2).Count);
     }
 
@@ -66,9 +66,9 @@ public sealed class FavoriteConnectionMenuTests
     public void AnEmptyOrMissingCacheYieldsNothingRatherThanThrowing()
     {
         // The menu can open before the overview's first refresh has filled its cache.
-        Assert.Empty(OverviewDashboardControl.SelectFavoriteConnections(null));
-        Assert.Empty(OverviewDashboardControl.SelectFavoriteConnections([]));
-        Assert.Empty(OverviewDashboardControl.SelectFavoriteConnections([Connection("a")], maximum: 0));
+        Assert.Empty(FavoriteConnectionMenu.Select(null));
+        Assert.Empty(FavoriteConnectionMenu.Select([]));
+        Assert.Empty(FavoriteConnectionMenu.Select([Connection("a")], maximum: 0));
     }
 
     private static ConnectionSummary Connection(

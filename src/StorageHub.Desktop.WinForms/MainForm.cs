@@ -645,7 +645,7 @@ public sealed class MainForm : Form
         const string Section = "favorites";
         ClearDynamicSection(root, Section);
 
-        var favorites = OverviewDashboardControl.SelectFavoriteConnections(_overview.SavedConnections);
+        var favorites = FavoriteConnectionMenu.Select(_overview.SavedConnections);
         root.DropDownItems.Add(new ToolStripSeparator { Tag = new DynamicMenuItem(Section, null) });
         root.DropDownItems.Add(new ToolStripMenuItem(Ui.Shell.Favorites)
         {

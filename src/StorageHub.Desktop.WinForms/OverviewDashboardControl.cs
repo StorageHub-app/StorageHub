@@ -296,27 +296,6 @@ public sealed class OverviewDashboardControl : UserControl
     /// kind a browser pane can actually open. Without the last filter the menu would list
     /// connections that do nothing when clicked.
     /// </summary>
-    internal static IReadOnlyList<ConnectionSummary> SelectFavoriteConnections(
-        IEnumerable<ConnectionSummary>? connections,
-        int maximum = 15) =>
-        connections is null || maximum <= 0
-            ? []
-            : [.. connections
-                .Where(static connection =>
-                    connection.IsFavorite &&
-                    connection.IsEnabled &&
-                    connection is
-                    {
-                        Type: ConnectionProfileType.Storage
-                    } or
-                    {
-                        Type: ConnectionProfileType.Client,
-                        Provider: StorageConnectionProvider.Ssh
-                    })
-                .DistinctBy(static connection => connection.ConnectionId)
-                .OrderBy(static connection => connection.DisplayName, StringComparer.CurrentCultureIgnoreCase)
-                .Take(maximum)];
-
     /// <summary>
     /// Replaces the workspace card's contents. The shell supplies the rows already ordered and
     /// de-duplicated, and decides which files look present: this control performs no IO.

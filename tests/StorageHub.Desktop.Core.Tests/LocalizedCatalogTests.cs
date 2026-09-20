@@ -65,17 +65,12 @@ public sealed class LocalizedCatalogTests
         SyncPresentationCatalog.AllModes.Single(mode => mode.Kind == kind).DisplayName;
 
     /// <summary>
-    /// The ".." row's caption, read through the pane the way a listing does. Reflection rather
-    /// than a public seam: the row is an implementation detail of the pane, and making it public
-    /// to observe it would be a worse trade than reaching for it here.
+    /// The ".." row's caption. Its Name is always "..", so the column worth reading is the type.
     /// </summary>
-    private static string ParentRowText()
-    {
-        var property = typeof(BrowserPaneControl).GetProperty(
-            "ParentNavigationItem",
-            System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
-        Assert.NotNull(property);
-        // Its Name is always "..", so the caption worth reading is the type column.
-        return Assert.IsType<BrowserListItem>(property.GetValue(null)).Type;
-    }
+    /// <remarks>
+    /// This reached into BrowserPaneControl by reflection, because the row was a private static on
+    /// the control. It is BrowserParentNavigation now, and asking it directly is both the honest
+    /// way to observe it and what lets this suite leave the Windows-only project.
+    /// </remarks>
+    private static string ParentRowText() => BrowserParentNavigation.Item.Type;
 }

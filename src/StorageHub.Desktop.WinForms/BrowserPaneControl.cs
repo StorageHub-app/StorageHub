@@ -25,39 +25,6 @@ public sealed class BrowserPaneControl : UserControl
     private const int MaximumCachedDirectoriesPerConnection = 2_000;
     private const int MaximumTreeDirectories = 2_000;
     private const int MaximumTreeChildrenPerDirectory = 500;
-    private static BrowserListItem? _parentNavigationItem;
-    private static string? _parentNavigationCulture;
-
-    /// <summary>
-    /// The ".." row, in the language the shell is currently speaking. Built on demand rather than
-    /// in a static initializer, which would freeze whichever language was installed the first
-    /// time any pane was created.
-    /// </summary>
-    private static BrowserListItem ParentNavigationItem
-    {
-        get
-        {
-            var culture = Ui.Culture.Name;
-            if (_parentNavigationItem is { } cached
-                && string.Equals(_parentNavigationCulture, culture, StringComparison.Ordinal))
-            {
-                return cached;
-            }
-
-            var built = new BrowserListItem(
-                "..",
-                string.Empty,
-                Ui.Pane.ParentFolder,
-                string.Empty,
-                Ui.Pane.GoUpOneLevel,
-                IsContainer: true,
-                Kind: StorageItemKind.Directory,
-                IsParentNavigation: true);
-            _parentNavigationCulture = culture;
-            _parentNavigationItem = built;
-            return built;
-        }
-    }
     private readonly List<Image> _ownedImages = [];
     private readonly ImageList _browserImages;
 
@@ -3225,13 +3192,13 @@ public sealed class BrowserPaneControl : UserControl
         public int Count => checked(items.Count + 1);
         public BrowserListItem this[int index] => index switch
         {
-            0 => ParentNavigationItem,
+            0 => BrowserParentNavigation.Item,
             > 0 when index <= items.Count => items[index - 1],
             _ => throw new ArgumentOutOfRangeException(nameof(index))
         };
         public IEnumerator<BrowserListItem> GetEnumerator()
         {
-            yield return ParentNavigationItem;
+            yield return BrowserParentNavigation.Item;
             foreach (var item in items) yield return item;
         }
         System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
