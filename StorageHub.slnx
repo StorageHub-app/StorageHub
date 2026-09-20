@@ -16,6 +16,7 @@
     <Project Path="src/StorageHub.Agent.Host/StorageHub.Agent.Host.csproj" />
     <Project Path="src/StorageHub.Diagnostics/StorageHub.Diagnostics.csproj" />
     <Project Path="src/StorageHub.Desktop.Core/StorageHub.Desktop.Core.csproj" />
+    <Project Path="src/StorageHub.Desktop.Avalonia/StorageHub.Desktop.Avalonia.csproj" />
     <Project Path="src/StorageHub.Desktop.WinForms/StorageHub.Desktop.WinForms.csproj" />
   </Folder>
   <Folder Name="/tests/">
@@ -34,5 +35,6 @@
     <Project Path="tests/StorageHub.Agent.Windows.Tests/StorageHub.Agent.Windows.Tests.csproj" />
     <Project Path="tests/StorageHub.Diagnostics.Tests/StorageHub.Diagnostics.Tests.csproj" />
     <Project Path="tests/StorageHub.Desktop.Tests/StorageHub.Desktop.Tests.csproj" />
+    <Project Path="tests/StorageHub.Desktop.Avalonia.Tests/StorageHub.Desktop.Avalonia.Tests.csproj" />
   </Folder>
 </Solution>

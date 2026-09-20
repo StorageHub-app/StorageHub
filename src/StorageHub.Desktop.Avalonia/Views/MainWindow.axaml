@@ -1,0 +1,164 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
+        x:Class="StorageHub.Desktop.Views.MainWindow"
+        x:DataType="vm:ShellPreviewModel"
+        Title="StorageHub"
+        Width="1500" Height="920"
+        MinWidth="1120" MinHeight="720">
+
+  <!--
+    The shell's structure, and nothing else: no colour, no pixel, no font. Every number below is a
+    token from DesignTokens.axaml, which is what makes the appearance changeable in one file and
+    what makes 125% scaling a non-event - Avalonia lays this out in device-independent pixels, so
+    the same markup is correct at every scaling on both platforms.
+  -->
+
+  <DockPanel>
+
+    <!-- In-window rather than NativeMenu: the requirement is the same classic menu bar on both
+         platforms, and NativeMenu on Linux needs a dbusmenu host GNOME does not ship. -->
+    <Menu DockPanel.Dock="Top" ItemsSource="{Binding Menus}">
+      <Menu.ItemTemplate>
+        <DataTemplate DataType="vm:MenuSection">
+          <TextBlock Text="{Binding Header}"/>
+        </DataTemplate>
+      </Menu.ItemTemplate>
+    </Menu>
+
+    <!-- Avalonia has no ToolBar; an ItemsControl over the resolved command ids is the shape, and it
+         keeps the toolbar data-driven the way UiCommandCatalog already made it. -->
+    <Border DockPanel.Dock="Top" Classes="toolbar">
+      <ItemsControl ItemsSource="{Binding ToolbarCommands}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}"/>
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate DataType="vm:ToolbarCommand">
+            <Button Classes="tool" Content="{Binding Label}" ToolTip.Tip="{Binding Description}"/>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </Border>
+
+    <Border DockPanel.Dock="Bottom" Classes="statusbar">
+      <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+        <TextBlock Grid.Column="0" Classes="muted" Text="{Binding Location}"/>
+        <TextBlock Grid.Column="1" Classes="muted" Text="{Binding Selection}"
+                   Margin="{StaticResource PaddingLg}"/>
+        <TextBlock Grid.Column="2" Classes="muted" Text="{Binding Queue}"
+                   Margin="{StaticResource PaddingLg}"/>
+        <TextBlock Grid.Column="3" Text="{Binding AgentStatus}"
+                   Foreground="{DynamicResource SuccessBrush}"
+                   Margin="{StaticResource PaddingLg}"/>
+      </Grid>
+    </Border>
+
+    <!-- What the two nested SplitContainers become. ApplyConnectionsPanelSide, which was 130 lines
+         of width arithmetic, is a swap of two Grid.Column values here. -->
+    <Grid ColumnDefinitions="Auto,Auto,*">
+      <Border Grid.Column="0" Classes="surface"
+              MinWidth="{StaticResource SidebarMinWidth}"
+              MaxWidth="{StaticResource SidebarMaxWidth}"
+              Width="260"
+              Padding="{StaticResource PaddingLg}">
+        <DockPanel>
+          <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto">
+            <TextBlock Classes="title" Text="Connections" VerticalAlignment="Center"/>
+            <Button Grid.Column="1" Classes="primary" Content="New"/>
+          </Grid>
+          <TextBox DockPanel.Dock="Top" PlaceholderText="Search connections..."
+                   Margin="0,8,0,0"/>
+          <TextBlock DockPanel.Dock="Top" Classes="caption" Text="FAVOURITES"
+                     Margin="0,12,0,4"/>
+          <ItemsControl ItemsSource="{Binding Connections}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <StackPanel Spacing="{StaticResource SpaceMd}"/>
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate DataType="vm:ConnectionCard">
+                <Border Classes="card" Classes.selected="{Binding IsSelected}">
+                  <StackPanel>
+                    <TextBlock Text="{Binding Name}"/>
+                    <TextBlock Classes="caption" Text="{Binding Detail}"/>
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </DockPanel>
+      </Border>
+
+      <GridSplitter Grid.Column="1" Width="{StaticResource SplitterThickness}"/>
+
+      <Grid Grid.Column="2" RowDefinitions="*,Auto,Auto">
+        <TabControl Grid.Row="0" ItemsSource="{Binding Workspaces}"
+                    SelectedIndex="{Binding SelectedWorkspace}">
+          <TabControl.ItemTemplate>
+            <DataTemplate DataType="vm:WorkspaceTab">
+              <TextBlock Text="{Binding Title}"/>
+            </DataTemplate>
+          </TabControl.ItemTemplate>
+          <TabControl.ContentTemplate>
+            <DataTemplate DataType="vm:WorkspaceTab">
+              <Grid ColumnDefinitions="*,Auto,*" Margin="{StaticResource PaddingMd}">
+                <Border Grid.Column="0" Classes="pane" Classes.active="{Binding LeftIsActive}">
+                  <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="{Binding LeftTitle}"
+                               FontWeight="SemiBold" Margin="{StaticResource PaddingMd}"/>
+                    <TableView ItemsSource="{Binding Left}">
+                      <TableView.Columns>
+                        <TableViewColumn Header="Name" Binding="{Binding Name}" Width="*"/>
+                        <TableViewColumn Header="Size" Binding="{Binding Size}" Width="100"/>
+                        <TableViewColumn Header="Type" Binding="{Binding Type}" Width="140"/>
+                      </TableView.Columns>
+                    </TableView>
+                  </DockPanel>
+                </Border>
+                <GridSplitter Grid.Column="1" Width="{StaticResource SplitterThickness}"/>
+                <Border Grid.Column="2" Classes="pane">
+                  <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="{Binding RightTitle}"
+                               FontWeight="SemiBold" Margin="{StaticResource PaddingMd}"/>
+                    <TableView ItemsSource="{Binding Right}">
+                      <TableView.Columns>
+                        <TableViewColumn Header="Name" Binding="{Binding Name}" Width="*"/>
+                        <TableViewColumn Header="Size" Binding="{Binding Size}" Width="100"/>
+                        <TableViewColumn Header="Type" Binding="{Binding Type}" Width="140"/>
+                      </TableView.Columns>
+                    </TableView>
+                  </DockPanel>
+                </Border>
+              </Grid>
+            </DataTemplate>
+          </TabControl.ContentTemplate>
+        </TabControl>
+
+        <GridSplitter Grid.Row="1" Height="{StaticResource SplitterThickness}"
+                      HorizontalAlignment="Stretch"/>
+
+        <Border Grid.Row="2" Classes="surface" Height="200"
+                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
+          <TabControl ItemsSource="{Binding QueueTabs}">
+            <TabControl.ItemTemplate>
+              <DataTemplate DataType="vm:QueueTab">
+                <TextBlock Text="{Binding Title}"/>
+              </DataTemplate>
+            </TabControl.ItemTemplate>
+            <!-- Headers only until the queue view exists; without this a TabControl falls back to
+                 rendering the item's ToString, which is how a record ends up on screen. -->
+            <TabControl.ContentTemplate>
+              <DataTemplate DataType="vm:QueueTab">
+                <Border/>
+              </DataTemplate>
+            </TabControl.ContentTemplate>
+          </TabControl>
+        </Border>
+      </Grid>
+    </Grid>
+  </DockPanel>
+</Window>

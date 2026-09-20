@@ -1,0 +1,190 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+
+  <!--
+    Every colour, metric, radius and type size the shell uses. One file, on purpose.
+
+    The WinForms shell spread these across UiTheme, StorageHubFieldChrome, DisplayMetrics and a few
+    hundred literals in layout code, and converted each one by hand with LogicalToDeviceUnits - 761
+    call sites, of which 48 were missed and became the DPI defects this port exists to end. Here
+    there is nothing to convert: Avalonia lays out in device-independent pixels, so a number written
+    once is correct at 100%, 125%, 150% and 200%, on Windows and on Linux alike. A literal pixel in
+    a view is therefore not a scaling bug any more - it is just a number that should have been a
+    token, and this file is where it belongs.
+
+    Colours are ThemeDictionaries and resolved with DynamicResource, because they change when the
+    appearance does and the tree has to repaint. Metrics are plain resources and resolved with
+    StaticResource, because they never change and a dynamic lookup would cost a subscription per
+    use for nothing.
+  -->
+
+  <ResourceDictionary.ThemeDictionaries>
+
+    <!-- Transcribed from UiTheme.cs DarkPalette. The twenty semantic slots, unchanged. -->
+    <ResourceDictionary x:Key="Dark">
+      <Color x:Key="CanvasColor">#FF16181D</Color>
+      <Color x:Key="SurfaceColor">#FF1E2127</Color>
+      <Color x:Key="SurfaceMutedColor">#FF272B33</Color>
+      <Color x:Key="ElevatedColor">#FF2E323B</Color>
+      <Color x:Key="BorderColor">#FF3A3F4A</Color>
+      <Color x:Key="TextColor">#FFE8EAF0</Color>
+      <Color x:Key="TextMutedColor">#FFA0A7B4</Color>
+      <Color x:Key="PrimaryColor">#FF4C8BF5</Color>
+      <Color x:Key="PrimaryHoverColor">#FF6BA0F8</Color>
+      <Color x:Key="PrimaryPressedColor">#FF3872D6</Color>
+
+      <!-- FluentTheme derives its own chrome from this ramp: the selected-tab pipe, focus adorners,
+           checkbox and radio fills, slider tracks and scrollbar thumbs. Left alone it paints them in
+           the stock Windows accent, which is how a themed app still ends up with one control in the
+           wrong blue. Light1/Dark1 are the hover and pressed primaries above; the outer steps
+           continue the same ramp. -->
+      <Color x:Key="SystemAccentColor">#FF4C8BF5</Color>
+      <Color x:Key="SystemAccentColorLight1">#FF6BA0F8</Color>
+      <Color x:Key="SystemAccentColorLight2">#FF8AB5FA</Color>
+      <Color x:Key="SystemAccentColorLight3">#FFA9CAFC</Color>
+      <Color x:Key="SystemAccentColorDark1">#FF3872D6</Color>
+      <Color x:Key="SystemAccentColorDark2">#FF2C5CAD</Color>
+      <Color x:Key="SystemAccentColorDark3">#FF204584</Color>
+      <Color x:Key="SelectionColor">#FF2B4A7A</Color>
+      <Color x:Key="SelectionPressedColor">#FF23395C</Color>
+      <Color x:Key="InputColor">#FF14161A</Color>
+      <Color x:Key="DisabledTextColor">#FF6B7280</Color>
+      <Color x:Key="SuccessColor">#FF4ABE84</Color>
+      <Color x:Key="WarningColor">#FFF0B045</Color>
+      <Color x:Key="DangerColor">#FFF4696F</Color>
+      <Color x:Key="SuccessTintColor">#FF1B2F27</Color>
+      <Color x:Key="WarningTintColor">#FF33291A</Color>
+      <Color x:Key="DangerTintColor">#FF33201F</Color>
+    </ResourceDictionary>
+
+    <!-- Transcribed from UiTheme.cs LightPalette. -->
+    <ResourceDictionary x:Key="Light">
+      <Color x:Key="CanvasColor">#FFF4F6FA</Color>
+      <Color x:Key="SurfaceColor">#FFFFFFFF</Color>
+      <Color x:Key="SurfaceMutedColor">#FFEDF1F7</Color>
+      <Color x:Key="ElevatedColor">#FFF9FBFD</Color>
+      <Color x:Key="BorderColor">#FFD3DAE4</Color>
+      <Color x:Key="TextColor">#FF1E242D</Color>
+      <Color x:Key="TextMutedColor">#FF5C6674</Color>
+      <Color x:Key="PrimaryColor">#FF1867C0</Color>
+      <Color x:Key="PrimaryHoverColor">#FF297BD6</Color>
+      <Color x:Key="PrimaryPressedColor">#FF12529A</Color>
+
+      <!-- FluentTheme derives its own chrome from this ramp: the selected-tab pipe, focus adorners,
+           checkbox and radio fills, slider tracks and scrollbar thumbs. Left alone it paints them in
+           the stock Windows accent, which is how a themed app still ends up with one control in the
+           wrong blue. Light1/Dark1 are the hover and pressed primaries above; the outer steps
+           continue the same ramp. -->
+      <Color x:Key="SystemAccentColor">#FF1867C0</Color>
+      <Color x:Key="SystemAccentColorLight1">#FF297BD6</Color>
+      <Color x:Key="SystemAccentColorLight2">#FF4A93E0</Color>
+      <Color x:Key="SystemAccentColorLight3">#FF6FAAE9</Color>
+      <Color x:Key="SystemAccentColorDark1">#FF12529A</Color>
+      <Color x:Key="SystemAccentColorDark2">#FF0E3E75</Color>
+      <Color x:Key="SystemAccentColorDark3">#FF092A4F</Color>
+      <Color x:Key="SelectionColor">#FFDAE8FA</Color>
+      <Color x:Key="SelectionPressedColor">#FFC3DAF7</Color>
+      <Color x:Key="InputColor">#FFFDFEFF</Color>
+      <Color x:Key="DisabledTextColor">#FF929AA5</Color>
+      <Color x:Key="SuccessColor">#FF118756</Color>
+      <Color x:Key="WarningColor">#FFB05E00</Color>
+      <Color x:Key="DangerColor">#FFBE2D37</Color>
+      <Color x:Key="SuccessTintColor">#FFE6F6EE</Color>
+      <Color x:Key="WarningTintColor">#FFFFF4E0</Color>
+      <Color x:Key="DangerTintColor">#FFFDECEC</Color>
+    </ResourceDictionary>
+  </ResourceDictionary.ThemeDictionaries>
+
+  <!--
+    One brush per colour, so a view names a brush and never constructs one. Every brush points at
+    the colour of the same name, which is what makes flipping RequestedThemeVariant repaint the live
+    tree - and what deletes the 250-line recursive theme walker the WinForms shell needed.
+  -->
+  <SolidColorBrush x:Key="CanvasBrush" Color="{DynamicResource CanvasColor}"/>
+  <SolidColorBrush x:Key="SurfaceBrush" Color="{DynamicResource SurfaceColor}"/>
+  <SolidColorBrush x:Key="SurfaceMutedBrush" Color="{DynamicResource SurfaceMutedColor}"/>
+  <SolidColorBrush x:Key="ElevatedBrush" Color="{DynamicResource ElevatedColor}"/>
+  <SolidColorBrush x:Key="BorderBrush" Color="{DynamicResource BorderColor}"/>
+  <SolidColorBrush x:Key="TextBrush" Color="{DynamicResource TextColor}"/>
+  <SolidColorBrush x:Key="TextMutedBrush" Color="{DynamicResource TextMutedColor}"/>
+  <SolidColorBrush x:Key="PrimaryBrush" Color="{DynamicResource PrimaryColor}"/>
+  <SolidColorBrush x:Key="PrimaryHoverBrush" Color="{DynamicResource PrimaryHoverColor}"/>
+  <SolidColorBrush x:Key="PrimaryPressedBrush" Color="{DynamicResource PrimaryPressedColor}"/>
+  <SolidColorBrush x:Key="SelectionBrush" Color="{DynamicResource SelectionColor}"/>
+  <SolidColorBrush x:Key="SelectionPressedBrush" Color="{DynamicResource SelectionPressedColor}"/>
+  <SolidColorBrush x:Key="InputBrush" Color="{DynamicResource InputColor}"/>
+  <SolidColorBrush x:Key="DisabledTextBrush" Color="{DynamicResource DisabledTextColor}"/>
+  <SolidColorBrush x:Key="SuccessBrush" Color="{DynamicResource SuccessColor}"/>
+  <SolidColorBrush x:Key="WarningBrush" Color="{DynamicResource WarningColor}"/>
+  <SolidColorBrush x:Key="DangerBrush" Color="{DynamicResource DangerColor}"/>
+  <SolidColorBrush x:Key="SuccessTintBrush" Color="{DynamicResource SuccessTintColor}"/>
+  <SolidColorBrush x:Key="WarningTintBrush" Color="{DynamicResource WarningTintColor}"/>
+  <SolidColorBrush x:Key="DangerTintBrush" Color="{DynamicResource DangerTintColor}"/>
+
+  <!--
+    Spacing, on a four-unit scale. A view picks a step rather than a number, which is what keeps
+    two panels that should look alike from drifting a pixel apart.
+  -->
+  <sys:Double x:Key="SpaceXs">2</sys:Double>
+  <sys:Double x:Key="SpaceSm">4</sys:Double>
+  <sys:Double x:Key="SpaceMd">8</sys:Double>
+  <sys:Double x:Key="SpaceLg">12</sys:Double>
+  <sys:Double x:Key="SpaceXl">16</sys:Double>
+  <sys:Double x:Key="Space2Xl">24</sys:Double>
+
+  <Thickness x:Key="PaddingSm">4</Thickness>
+  <Thickness x:Key="PaddingMd">8</Thickness>
+  <Thickness x:Key="PaddingLg">12</Thickness>
+  <Thickness x:Key="PagePadding">16</Thickness>
+
+  <!--
+    Field metrics, from StorageHubFieldChrome. The dense variant is what the toolbar used, and it
+    exists so a field hosted in a toolbar sits on the same baseline as one in a dialog.
+  -->
+  <Thickness x:Key="FieldPadding">10,8</Thickness>
+  <Thickness x:Key="DenseFieldPadding">8,3</Thickness>
+  <CornerRadius x:Key="FieldRadius">5</CornerRadius>
+  <CornerRadius x:Key="DenseFieldRadius">4</CornerRadius>
+  <CornerRadius x:Key="CardRadius">7</CornerRadius>
+  <CornerRadius x:Key="ButtonRadius">5</CornerRadius>
+  <sys:Double x:Key="TrailingZoneWidth">24</sys:Double>
+  <sys:Double x:Key="DenseTrailingZoneWidth">18</sys:Double>
+
+  <!--
+    Chrome heights. Written once here rather than per view, so the toolbar and the tab strip cannot
+    disagree about how tall a row is.
+  -->
+  <sys:Double x:Key="ToolbarHeight">36</sys:Double>
+  <sys:Double x:Key="StatusBarHeight">26</sys:Double>
+  <sys:Double x:Key="ListRowHeight">24</sys:Double>
+  <sys:Double x:Key="TreeRowHeight">22</sys:Double>
+  <sys:Double x:Key="SidebarMinWidth">180</sys:Double>
+  <sys:Double x:Key="SidebarMaxWidth">480</sys:Double>
+  <sys:Double x:Key="SplitterThickness">4</sys:Double>
+
+  <!--
+    Type scale. Sizes are in device-independent pixels; the WinForms shell wrote points, and its
+    9pt and 10pt Segoe UI become 12 and 13 here (points x 96/72).
+  -->
+  <sys:Double x:Key="FontSizeCaption">11</sys:Double>
+  <sys:Double x:Key="FontSizeBody">12</sys:Double>
+  <sys:Double x:Key="FontSizeSubtitle">13</sys:Double>
+  <sys:Double x:Key="FontSizeTitle">15</sys:Double>
+  <sys:Double x:Key="FontSizeHeading">20</sys:Double>
+
+  <!--
+    Icon sizes, matching the grid UiIcons authored on. A glyph is drawn as vector geometry rather
+    than rasterised per scaling, so these are the only sizes the shell needs to name - and nothing
+    re-rasterises when the display scaling changes.
+  -->
+  <sys:Double x:Key="IconSizeSm">16</sys:Double>
+  <sys:Double x:Key="IconSizeMd">18</sys:Double>
+  <sys:Double x:Key="IconSizeLg">20</sys:Double>
+  <sys:Double x:Key="IconSizeXl">24</sys:Double>
+
+  <!-- Long enough to read as movement, short enough never to be waited on. -->
+  <sys:TimeSpan x:Key="DurationFast">0:0:0.12</sys:TimeSpan>
+  <sys:TimeSpan x:Key="DurationNormal">0:0:0.2</sys:TimeSpan>
+
+</ResourceDictionary>

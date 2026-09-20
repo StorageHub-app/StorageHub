@@ -1,0 +1,157 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!--
+    Every rule here reads its numbers and colours from DesignTokens.axaml. Nothing in this file
+    names a colour or a pixel, which is the whole point: changing how the shell looks means editing
+    one file, not hunting through styles.
+
+    This replaces roughly 3,900 lines of owner-drawn controls. StorageHubChoiceField alone was a
+    combo box written from scratch - its own item collection, popup, keyboard navigation and
+    accessible object - because WinForms could not be made to agree with the rest of the shell about
+    a border colour.
+  -->
+
+  <Style Selector="Window">
+    <Setter Property="Background" Value="{DynamicResource CanvasBrush}"/>
+    <Setter Property="FontFamily" Value="{DynamicResource AppFontUi}"/>
+    <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
+  </Style>
+
+  <Style Selector="TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+  </Style>
+  <Style Selector="TextBlock.muted">
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+  </Style>
+  <Style Selector="TextBlock.caption">
+    <Setter Property="FontSize" Value="{StaticResource FontSizeCaption}"/>
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+  </Style>
+  <Style Selector="TextBlock.title">
+    <Setter Property="FontSize" Value="{StaticResource FontSizeTitle}"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+  </Style>
+  <Style Selector="TextBlock.heading">
+    <Setter Property="FontSize" Value="{StaticResource FontSizeHeading}"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+  </Style>
+
+  <!-- The three button variants StorageHubButton painted by hand. -->
+  <Style Selector="Button">
+    <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}"/>
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="CornerRadius" Value="{StaticResource ButtonRadius}"/>
+    <Setter Property="Padding" Value="{StaticResource FieldPadding}"/>
+  </Style>
+  <Style Selector="Button.primary">
+    <Setter Property="Background" Value="{DynamicResource PrimaryBrush}"/>
+    <Setter Property="Foreground" Value="White"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
+  </Style>
+  <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource PrimaryHoverBrush}"/>
+  </Style>
+  <Style Selector="Button.primary:pressed /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource PrimaryPressedBrush}"/>
+  </Style>
+  <Style Selector="Button.danger">
+    <Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource DangerBrush}"/>
+  </Style>
+
+  <!-- The dense variant, for anything hosted in the toolbar. -->
+  <Style Selector="Button.tool">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="Padding" Value="{StaticResource DenseFieldPadding}"/>
+    <Setter Property="CornerRadius" Value="{StaticResource DenseFieldRadius}"/>
+  </Style>
+  <Style Selector="Button.tool:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}"/>
+  </Style>
+
+  <Style Selector="TextBox">
+    <Setter Property="Background" Value="{DynamicResource InputBrush}"/>
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+    <Setter Property="CornerRadius" Value="{StaticResource FieldRadius}"/>
+    <Setter Property="Padding" Value="{StaticResource FieldPadding}"/>
+  </Style>
+
+  <Style Selector="ComboBox">
+    <Setter Property="Background" Value="{DynamicResource InputBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+    <Setter Property="CornerRadius" Value="{StaticResource FieldRadius}"/>
+    <Setter Property="Padding" Value="{StaticResource FieldPadding}"/>
+  </Style>
+
+  <!-- UiCard, and the accent rail it drew down the left edge of a connection card. -->
+  <Style Selector="Border.card">
+    <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="CornerRadius" Value="{StaticResource CardRadius}"/>
+    <Setter Property="Padding" Value="{StaticResource PaddingLg}"/>
+  </Style>
+  <Style Selector="Border.card.selected">
+    <Setter Property="Background" Value="{DynamicResource SelectionBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
+  </Style>
+
+  <Style Selector="Border.surface">
+    <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+  </Style>
+  <Style Selector="Border.toolbar">
+    <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+    <Setter Property="BorderThickness" Value="0,0,0,1"/>
+    <Setter Property="Padding" Value="{StaticResource PaddingSm}"/>
+    <Setter Property="MinHeight" Value="{StaticResource ToolbarHeight}"/>
+  </Style>
+  <Style Selector="Border.statusbar">
+    <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+    <Setter Property="BorderThickness" Value="0,1,0,0"/>
+    <Setter Property="Padding" Value="{StaticResource PaddingMd}"/>
+    <Setter Property="MinHeight" Value="{StaticResource StatusBarHeight}"/>
+  </Style>
+
+  <!-- A workspace pane, and the border that says which one has focus. -->
+  <Style Selector="Border.pane">
+    <Setter Property="Background" Value="{DynamicResource CanvasBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+  </Style>
+  <Style Selector="Border.pane.active">
+    <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
+    <Setter Property="BorderThickness" Value="2"/>
+  </Style>
+
+  <Style Selector="Menu">
+    <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+  </Style>
+
+  <Style Selector="GridSplitter">
+    <Setter Property="Background" Value="{DynamicResource BorderBrush}"/>
+  </Style>
+
+  <!-- Compact tab headers, closer to the shell's own than Fluent's default. -->
+  <Style Selector="TabItem">
+    <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
+    <Setter Property="Padding" Value="{StaticResource PaddingLg}"/>
+    <Setter Property="MinHeight" Value="{StaticResource ToolbarHeight}"/>
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+  </Style>
+  <Style Selector="TabItem:selected">
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+  </Style>
+
+  <Style Selector="TableView">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
+  </Style>
+
+</Styles>
