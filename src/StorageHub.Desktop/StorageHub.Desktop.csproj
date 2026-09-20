@@ -1,29 +1,27 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <!-- Windows, but not WinForms. Everything here reaches for the registry, a Win32 API or a
-         named pipe; nothing here draws. That is the distinction this project exists to make: the
-         Avalonia shell needs these integrations on Windows and must not take a dependency on the
-         shell that is being deleted to get them. -->
-    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
-    <EnableWindowsTargeting>true</EnableWindowsTargeting>
-    <!-- Same reason the WinForms shell narrows it: there is no Windows Desktop runtime pack for
-         linux-x64, and a Release build that resolves one fails outright. -->
-    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
-    <!-- The same namespace the shell uses, so the files that move need no edit. -->
+    <OutputType>WinExe</OutputType>
     <RootNamespace>StorageHub.Desktop</RootNamespace>
-    <AssemblyName>StorageHub.Desktop.Windows</AssemblyName>
+    <AssemblyName>StorageHub.Desktop</AssemblyName>
+    <ApplicationIcon>..\..\assets\branding\storagehub.ico</ApplicationIcon>
+    <!-- Binding typos become build errors rather than silently empty controls, which suits a
+         codebase that already treats warnings as errors. -->
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\StorageHub.Desktop.Core\StorageHub.Desktop.Core.csproj" />
+    <!-- The shell's view models are internal, as the WinForms shell's were, and its tests measure
+         the real tree rather than a public facade of it. -->
+    <InternalsVisibleTo Include="StorageHub.Desktop.Tests" />
   </ItemGroup>
 
   <ItemGroup>
-    <!-- The same arrangement Desktop.Core uses, and for the same reason: the shell has been
-         internal to itself by long habit, and splitting it across an assembly boundary does not
-         change who may see what - only whether the compiler agrees. -->
-    <InternalsVisibleTo Include="StorageHub.Desktop" />
-    <InternalsVisibleTo Include="StorageHub.Desktop.Windows.Tests" />
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Avalonia.Fonts.Inter" />
+    <PackageReference Include="Lucide.Avalonia" />
+    <ProjectReference Include="..\StorageHub.Desktop.Core\StorageHub.Desktop.Core.csproj" />
   </ItemGroup>
   <!-- The Explorer drop broker is a native x64 COM DLL, so building it needs the Visual Studio C++
        toolchain. Requiring that of every build meant a plain `dotnet build` of this project could
@@ -32,10 +30,9 @@
        eng/package-windows.ps1 pass -p:StorageHubBuildShellExtension=true. A build without it
        produces a shell whose broker is absent, which the shell reports rather than assuming.
 
-       It lives here rather than on the shell because it is a Windows integration and not a
-       drawing concern, which is the distinction this project exists to make. It was driven
-       from the WinForms csproj, which would have orphaned the native project the day that
-       shell was deleted. -->
+       It was driven from the WinForms csproj, which would have orphaned the native project the
+       day that shell was deleted. It belongs on the shell: the broker has to sit beside the
+       executable that registers it. -->
   <PropertyGroup>
     <StorageHubBuildShellExtension Condition="'$(StorageHubBuildShellExtension)' == ''">false</StorageHubBuildShellExtension>
     <StorageHubCanBuildShellExtension>false</StorageHubCanBuildShellExtension>

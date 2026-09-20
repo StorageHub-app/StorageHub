@@ -50,7 +50,7 @@ AGENT_DIR="$APP_DIR/agent"
 echo "==> publishing $CONFIGURATION/$RUNTIME"
 mkdir -p "$APP_DIR" "$AGENT_DIR"
 
-dotnet publish src/StorageHub.Desktop.Avalonia/StorageHub.Desktop.Avalonia.csproj \
+dotnet publish src/StorageHub.Desktop/StorageHub.Desktop.csproj \
   -c "$CONFIGURATION" -r "$RUNTIME" --self-contained true \
   -p:PublishSingleFile=false -p:DebugType=none \
   -o "$APP_DIR" --nologo -v quiet
@@ -73,7 +73,7 @@ echo "==> laying out the package"
 install -d "$STAGE/usr/bin"
 cat > "$STAGE/usr/bin/storagehub" <<'LAUNCHER'
 #!/bin/sh
-exec /opt/storagehub/StorageHub.Desktop.Avalonia "$@"
+exec /opt/storagehub/StorageHub.Desktop "$@"
 LAUNCHER
 chmod 0755 "$STAGE/usr/bin/storagehub"
 
@@ -87,7 +87,7 @@ Exec=/usr/bin/storagehub %U
 Icon=storagehub
 Terminal=false
 Categories=Utility;FileTools;FileTransfer;
-StartupWMClass=StorageHub.Desktop.Avalonia
+StartupWMClass=StorageHub.Desktop
 LAUNCHER
 
 install -d "$STAGE/usr/share/icons/hicolor/256x256/apps"

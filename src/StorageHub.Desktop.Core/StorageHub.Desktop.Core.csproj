@@ -41,7 +41,5 @@
     <InternalsVisibleTo Include="StorageHub.Desktop.Windows" />
     <InternalsVisibleTo Include="StorageHub.Desktop.Tests" />
     <InternalsVisibleTo Include="StorageHub.Desktop.Core.Tests" />
-    <InternalsVisibleTo Include="StorageHub.Desktop.Avalonia" />
-    <InternalsVisibleTo Include="StorageHub.Desktop.Avalonia.Tests" />
   </ItemGroup>
 </Project>
