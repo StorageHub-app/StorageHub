@@ -87,7 +87,11 @@ public sealed class SystemdUserAutostart : IAutostartRegistration
     /// own, so a moved bundle repairs itself rather than silently failing to start.
     /// </remarks>
     internal static string BuildUnit(string commandLine) =>
-        string.Join('\n',
+        BuildUnit(commandLine, Environment.GetEnvironmentVariable("DOTNET_ROOT"));
+
+    internal static string BuildUnit(string commandLine, string? dotnetRoot)
+    {
+        List<string> lines =
         [
             "[Unit]",
             "Description=StorageHub Agent",
@@ -95,6 +99,20 @@ public sealed class SystemdUserAutostart : IAutostartRegistration
             string.Empty,
             "[Service]",
             "Type=simple",
+        ];
+
+        // A systemd user unit inherits almost nothing from the shell that registered it, so a
+        // framework-dependent build cannot find a runtime installed under the home directory: it
+        // exits 131 before logging anything of its own, which reads as the agent crashing rather
+        // than as the unit being wrong. A released build is self-contained and ignores this, so the
+        // line is carried only when the registering process had one.
+        if (!string.IsNullOrWhiteSpace(dotnetRoot))
+        {
+            lines.Add("Environment=DOTNET_ROOT=" + dotnetRoot);
+        }
+
+        lines.AddRange(
+        [
             "ExecStart=" + commandLine,
             "Restart=on-failure",
             "RestartSec=5",
@@ -103,6 +121,11 @@ public sealed class SystemdUserAutostart : IAutostartRegistration
             "WantedBy=default.target",
             string.Empty,
         ]);
+
+        return string.Join(LineFeed, lines);
+    }
+
+    private const char LineFeed = (char)10;
 
     private static string DefaultUnitDirectory()
     {

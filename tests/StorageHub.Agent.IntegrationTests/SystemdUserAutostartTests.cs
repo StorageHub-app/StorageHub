@@ -85,4 +85,30 @@ public sealed class SystemdUserAutostartTests : IDisposable
         Assert.False(autostart.IsRegistered);
         _ = autostart.SurvivesSignOut;
     }
+
+    /// <summary>
+    /// A developer's own build has to be able to find its runtime.
+    /// </summary>
+    /// <remarks>
+    /// A systemd user unit inherits almost nothing from the shell that registered it. A
+    /// framework-dependent build with .NET under the home directory exits 131 before logging
+    /// anything of its own, which reads as the agent crashing rather than as the unit being wrong.
+    /// A released build is self-contained and ignores this.
+    /// </remarks>
+    [LinuxOnlyFact]
+    public void TheUnitCarriesTheRuntimeLocationWhenThereIsOne()
+    {
+        var unit = SystemdUserAutostart.BuildUnit("/opt/storagehub/agent", "/home/someone/.dotnet");
+
+        Assert.Contains("Environment=DOTNET_ROOT=/home/someone/.dotnet", unit, StringComparison.Ordinal);
+    }
+
+    [LinuxOnlyFact]
+    public void AReleasedBuildCarriesNoRuntimeLocation()
+    {
+        // Self-contained, so naming a runtime would be noise at best and wrong at worst.
+        var unit = SystemdUserAutostart.BuildUnit("/opt/storagehub/agent", dotnetRoot: null);
+
+        Assert.DoesNotContain("DOTNET_ROOT", unit, StringComparison.Ordinal);
+    }
 }
