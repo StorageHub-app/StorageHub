@@ -1,4 +1,5 @@
-﻿using System.Text;
+using System.Text;
+using Avalonia.Input;
 
 namespace StorageHub.Desktop;
 
@@ -11,6 +12,11 @@ internal readonly record struct VtKeyModes(bool ApplicationCursorKeys = false, b
 /// Turns a key press into the bytes a VT-style host expects. Pure and static on purpose: this is
 /// the layer where an off-by-one is invisible on screen and only shows up as an arrow key doing
 /// nothing inside vim, so it is the piece most worth pinning down in tests.
+///
+/// It named System.Windows.Forms.Keys and MouseButtons until the port, which is the only reason it
+/// sat in the shell rather than beside the emulator it feeds. Every key it encodes is spelled the
+/// same by both enums, so the move is a rename; ShortcutChord holds the table for the twenty-one
+/// that are not, and none of them appear here.
 /// </summary>
 internal static class VtKeyEncoder
 {
@@ -24,7 +30,7 @@ internal static class VtKeyEncoder
     /// Encodes a non-character key. Returns null when the key carries no meaning of its own and
     /// should be left to the ordinary character path.
     /// </summary>
-    internal static byte[]? Encode(Keys key, bool shift, bool alt, bool control, VtKeyModes modes)
+    internal static byte[]? Encode(Key key, bool shift, bool alt, bool control, VtKeyModes modes)
     {
         var modifier = ModifierParameter(shift, alt, control);
         var bytes = EncodeCore(key, shift, alt, control, modifier, modes);
@@ -40,72 +46,72 @@ internal static class VtKeyEncoder
             : bytes;
     }
 
-    private static byte[]? EncodeCore(Keys key, bool shift, bool alt, bool control, int modifier, VtKeyModes modes)
+    private static byte[]? EncodeCore(Key key, bool shift, bool alt, bool control, int modifier, VtKeyModes modes)
     {
         switch (key)
         {
-            case Keys.Enter:
+            case Key.Enter:
                 return control ? [10] : [13];
-            case Keys.Back:
+            case Key.Back:
                 // DEL is what a modern remote expects; Ctrl+Backspace is the one that sends BS.
                 return control ? [8] : [127];
-            case Keys.Tab:
+            case Key.Tab:
                 return shift ? Ascii("[Z") : [9];
-            case Keys.Escape:
+            case Key.Escape:
                 return [Escape];
-            case Keys.Space when control:
+            case Key.Space when control:
                 return [0];
 
-            case Keys.Up:
+            case Key.Up:
                 return Cursor('A', modifier, modes);
-            case Keys.Down:
+            case Key.Down:
                 return Cursor('B', modifier, modes);
-            case Keys.Right:
+            case Key.Right:
                 return Cursor('C', modifier, modes);
-            case Keys.Left:
+            case Key.Left:
                 return Cursor('D', modifier, modes);
-            case Keys.Home:
+            case Key.Home:
                 return Cursor('H', modifier, modes);
-            case Keys.End:
+            case Key.End:
                 return Cursor('F', modifier, modes);
 
-            case Keys.Insert:
+            case Key.Insert:
                 return Tilde(2, modifier);
-            case Keys.Delete:
+            case Key.Delete:
                 return Tilde(3, modifier);
-            case Keys.PageUp:
+            case Key.PageUp:
                 return Tilde(5, modifier);
-            case Keys.PageDown:
+            case Key.PageDown:
                 return Tilde(6, modifier);
 
             // F1-F4 are SS3 in their unmodified form and CSI once a modifier joins in.
-            case Keys.F1:
+            case Key.F1:
                 return Function('P', modifier);
-            case Keys.F2:
+            case Key.F2:
                 return Function('Q', modifier);
-            case Keys.F3:
+            case Key.F3:
                 return Function('R', modifier);
-            case Keys.F4:
+            case Key.F4:
                 return Function('S', modifier);
-            case Keys.F5:
+            case Key.F5:
                 return Tilde(15, modifier);
-            case Keys.F6:
+            case Key.F6:
                 return Tilde(17, modifier);
-            case Keys.F7:
+            case Key.F7:
                 return Tilde(18, modifier);
-            case Keys.F8:
+            case Key.F8:
                 return Tilde(19, modifier);
-            case Keys.F9:
+            case Key.F9:
                 return Tilde(20, modifier);
-            case Keys.F10:
+            case Key.F10:
                 return Tilde(21, modifier);
-            case Keys.F11:
+            case Key.F11:
                 return Tilde(23, modifier);
-            case Keys.F12:
+            case Key.F12:
                 return Tilde(24, modifier);
 
-            case >= Keys.A and <= Keys.Z when control:
-                return [(byte)(key - Keys.A + 1)];
+            case >= Key.A and <= Key.Z when control:
+                return [(byte)(key - Key.A + 1)];
 
             default:
                 return null;
@@ -175,7 +181,7 @@ internal static class VtKeyEncoder
     /// </summary>
     internal static byte[]? EncodeMouse(
         VtMouseEvent mouseEvent,
-        MouseButtons button,
+        MouseButton button,
         int column,
         int row,
         bool shift,
@@ -194,9 +200,9 @@ internal static class VtKeyEncoder
             VtMouseEvent.WheelDown => 65,
             _ => button switch
             {
-                MouseButtons.Left => 0,
-                MouseButtons.Middle => 1,
-                MouseButtons.Right => 2,
+                MouseButton.Left => 0,
+                MouseButton.Middle => 1,
+                MouseButton.Right => 2,
                 _ => 3
             }
         };

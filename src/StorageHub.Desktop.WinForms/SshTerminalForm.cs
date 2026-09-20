@@ -1,4 +1,4 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 using System.Text;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Localization;
@@ -375,7 +375,11 @@ public sealed class SshTerminalForm : Form
             return;
         }
 
-        var bytes = VtKeyEncoder.Encode(e.KeyCode, e.Shift, e.Alt, e.Control, CurrentKeyModes);
+        // A WinForms key event carries a Keys; the encoder names the neutral Key. Anything the
+        // bridge cannot place comes back as no gesture, and Key.None encodes to null, which is the
+        // same "leave it to the character path" answer an unhandled key always gave.
+        var key = ShortcutKeys.ToGesture(e.KeyCode)?.Key ?? Avalonia.Input.Key.None;
+        var bytes = VtKeyEncoder.Encode(key, e.Shift, e.Alt, e.Control, CurrentKeyModes);
         if (bytes is not null)
         {
             e.SuppressKeyPress = true;

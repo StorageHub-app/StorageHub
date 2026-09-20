@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+using System.ComponentModel;
 using System.Text;
 using StorageHub.Contracts.Ipc;
 
@@ -378,6 +378,18 @@ internal sealed class TerminalView : Control
     /// Sends the event to the remote when a program has asked for the mouse, unless Shift is
     /// held. Returns whether it was forwarded, in which case the local handling is skipped.
     /// </summary>
+    /// <summary>The one button that produced this event, as the encoder names it.</summary>
+    /// <remarks>
+    /// MouseButtons is a flags enum and can report several at once; the encoder takes a single
+    /// button because the SGR form has one code per event. Taking them in this order reports the
+    /// same button WinForms would have called primary.
+    /// </remarks>
+    private static Avalonia.Input.MouseButton ToMouseButton(MouseButtons buttons) =>
+        buttons.HasFlag(MouseButtons.Left) ? Avalonia.Input.MouseButton.Left
+            : buttons.HasFlag(MouseButtons.Middle) ? Avalonia.Input.MouseButton.Middle
+            : buttons.HasFlag(MouseButtons.Right) ? Avalonia.Input.MouseButton.Right
+            : Avalonia.Input.MouseButton.None;
+
     private bool TryForwardMouse(VtKeyEncoder.VtMouseEvent mouseEvent, MouseEventArgs e)
     {
         if (!_emulator.MouseReporting || ModifierKeys.HasFlag(Keys.Shift))
@@ -389,7 +401,7 @@ internal sealed class TerminalView : Control
         var row = e.Y / Math.Max(1, _cellSize.Height);
         var bytes = VtKeyEncoder.EncodeMouse(
             mouseEvent,
-            e.Button,
+            ToMouseButton(e.Button),
             column,
             row,
             shift: false,
