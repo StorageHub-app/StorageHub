@@ -97,6 +97,27 @@
   <Style Selector="TextBlock.muted">
     <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
   </Style>
+  <!--
+    A status line whose colour carries as much as its words: a run that failed and one that is
+    waiting for approval must not read the same at a glance. The tone comes from the model rather
+    than from the view choosing a brush per screen, which is how the same state ended up green in
+    one place and grey in another.
+  -->
+  <Style Selector="TextBlock.status">
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+  </Style>
+  <Style Selector="TextBlock.status.primary">
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}"/>
+  </Style>
+  <Style Selector="TextBlock.status.success">
+    <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}"/>
+  </Style>
+  <Style Selector="TextBlock.status.warning">
+    <Setter Property="Foreground" Value="{DynamicResource WarningBrush}"/>
+  </Style>
+  <Style Selector="TextBlock.status.danger">
+    <Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/>
+  </Style>
   <Style Selector="TextBlock.caption">
     <Setter Property="FontSize" Value="{StaticResource FontSizeCaption}"/>
     <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>

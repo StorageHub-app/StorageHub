@@ -47,9 +47,10 @@ public class SyncTasksTests
 
         Assert.False(model.CanApprove);
         Assert.False(model.CanPageForward);
-        Assert.False(model.CanLoadMore);
-        Assert.Equal(Ui.Sync.NoRunsYet, model.HistoryStatus);
-        Assert.Equal(Ui.Sync.NoPlanLoaded, model.PlanEmptyTitle);
+        Assert.False(model.CanLoadMoreOperations);
+        Assert.False(model.CanLoadMoreConflicts);
+        Assert.Equal(Ui.Sync.NoPlanLoaded, model.PlanTitle);
+        Assert.Equal(Ui.Sync.ChooseReviewAndRun, model.PlanStatus.Text);
     }
 
     [AvaloniaFact]
@@ -100,9 +101,11 @@ public class SyncTasksTests
 
         Assert.Single(window.GetVisualDescendants().OfType<SyncRunHistoryView>());
 
-        // The button that must stay unavailable really is.
+        // The button that must stay unavailable really is. IsEffectivelyEnabled rather than
+        // IsEnabled: the button is disabled by its command declining, which is how every other
+        // guard on this screen works now, and that leaves IsEnabled itself true.
         var approve = window.GetVisualDescendants().OfType<Button>()
             .Single(button => (button.Content as string) == Ui.Sync.ApproveAndDispatch);
-        Assert.False(approve.IsEnabled);
+        Assert.False(approve.IsEffectivelyEnabled);
     }
 }

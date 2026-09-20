@@ -85,6 +85,29 @@ internal static class UiEnumNames
         _ => null
     };
 
+    internal static string? Name(SyncIpcDispatchState state) => state switch
+    {
+        SyncIpcDispatchState.NotDispatched => Ui.Sync.DispatchNotDispatched,
+        SyncIpcDispatchState.DurablyDispatched => Ui.Sync.DispatchDurablyDispatched,
+        _ => null
+    };
+
+    internal static string? Name(SyncIpcPlanOperationKind kind) => kind switch
+    {
+        SyncIpcPlanOperationKind.Copy => Ui.Sync.PlanOperationCopy,
+        SyncIpcPlanOperationKind.Delete => Ui.Sync.PlanOperationDelete,
+        SyncIpcPlanOperationKind.CreateDirectory => Ui.Sync.PlanOperationCreateDirectory,
+        _ => null
+    };
+
+    internal static string? Name(SyncIpcConflictState state) => state switch
+    {
+        SyncIpcConflictState.Unresolved => Ui.Sync.ConflictStateUnresolved,
+        SyncIpcConflictState.Resolved => Ui.Sync.ConflictStateResolved,
+        SyncIpcConflictState.Dismissed => Ui.Sync.ConflictStateDismissed,
+        _ => null
+    };
+
 
     internal static string Describe(TransferQueueState state) => Name(state) ?? state.ToString();
 
@@ -93,6 +116,12 @@ internal static class UiEnumNames
     internal static string Describe(TransferReconciliationAction action) => Name(action) ?? action.ToString();
 
     internal static string Describe(SyncIpcRunPhase phase) => Name(phase) ?? phase.ToString();
+
+    internal static string Describe(SyncIpcDispatchState state) => Name(state) ?? state.ToString();
+
+    internal static string Describe(SyncIpcPlanOperationKind kind) => Name(kind) ?? kind.ToString();
+
+    internal static string Describe(SyncIpcConflictState state) => Name(state) ?? state.ToString();
 
     /// <summary>
     /// A weekday, in the shell's language.

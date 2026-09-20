@@ -478,7 +478,14 @@ internal static class ShellPreview
                 new PageTab(
                     Ui.Sync.TasksTitle,
                     SyncTasksModel.Create(static () => new NamedPipeSyncManagementAgentClient())),
-                new PageTab(Ui.Sync.RunHistoryAndReview, SyncRunHistoryModel.Create()),
+                // And the review screen reads one run at a time, by id. It takes the dialog service
+                // because Approve & dispatch is the only button in the shell that authorises the
+                // agent to delete files without naming them, and it confirms before it does.
+                new PageTab(
+                    Ui.Sync.RunHistoryAndReview,
+                    SyncRunHistoryModel.Create(
+                        static () => new NamedPipeSyncManagementAgentClient(),
+                        Services.ShellServices.Dialogs)),
             ])));
         model.AddWorkspace(WorkspacePreset.All[1]);
         model.SelectedWorkspace = selectedWorkspace;

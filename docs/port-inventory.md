@@ -170,9 +170,9 @@ are the honest ones — each names what is missing rather than claiming the row.
 |---|---|
 | Sync profiles: create, edit, preview a run | **todo** — screen is stand-in |
 | Schedules: create, edit, enable, delete | **todo** |
-| Run history and review, dispatch an approved revision | **todo** — screen is stand-in |
+| Run history and review, dispatch an approved revision | **done** — history a page at a time, a run's plan and its conflicts, and an approval carrying the revision and digest the reviewer was shown. The checks that make that safe are in `SyncRunReviewController` with a suite of their own; the plan page is refused outright if it does not belong to the plan on screen. Approving confirms first, and defaults to Cancel. A loaded run re-reads itself — closely while the agent is acting on it, occasionally otherwise, not at all once it has settled. An operation still names its connection by id rather than by name, which needs the connection client this screen does not hold |
 | Compare panes | **dropped** — inert in 1.x |
-| Sync tasks overview: enabled, disabled, runs this session | **partial** — the screen is drawn on stand-in data |
+| Sync tasks overview: enabled, disabled, runs this session | **done** — profiles and recent runs from the agent, with the run-to-profile names resolved rather than left as ids |
 
 ### Files
 

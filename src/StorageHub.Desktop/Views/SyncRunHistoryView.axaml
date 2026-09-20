@@ -5,9 +5,10 @@
              x:DataType="vm:SyncRunHistoryModel">
 
   <!--
-    Compare against docs/ui-reference/04-sync-run-history.png. The disabled buttons are the point:
-    Next page, Approve & dispatch and Load next operations are unavailable until a run is loaded, and
-    that comes from the model rather than from the view deciding how things look.
+    Compare against docs/ui-reference/04-sync-run-history.png. The disabled buttons are still the
+    point: Next page, Approve & dispatch and Load next stay unavailable until there is something
+    for them to act on. They now come from the run that is loaded, rather than from a literal that
+    could never change.
   -->
 
   <DockPanel Margin="{StaticResource PaddingLg}">
@@ -16,28 +17,52 @@
           Margin="{StaticResource PaddingMd}">
       <TextBlock Grid.Column="0" Classes="muted" Text="{Binding RunIdLabel}"
                  VerticalAlignment="Center" Margin="{StaticResource PaddingMd}"/>
-      <TextBox Grid.Column="1" Text="{Binding RunIdPlaceholder}" MaxWidth="360"
-               HorizontalAlignment="Left" MinWidth="320"/>
+      <TextBox Grid.Column="1" Text="{Binding RunId, Mode=TwoWay}"
+               PlaceholderText="{Binding RunIdWatermark}"
+               AutomationProperties.Name="{Binding RunIdAccessibleName}"
+               MaxWidth="360" HorizontalAlignment="Left" MinWidth="320"/>
       <Button Grid.Column="2" Classes="primary" Content="{Binding LoadRunLabel}"
+              Command="{Binding LoadRunCommand}"
               Margin="{StaticResource PaddingSm}"/>
       <Button Grid.Column="3" Content="{Binding RefreshHistoryLabel}"
+              Command="{Binding RefreshHistoryCommand}"
               Margin="{StaticResource PaddingSm}"/>
       <Button Grid.Column="4" Content="{Binding NextPageLabel}"
-              IsEnabled="{Binding CanPageForward}"
+              Command="{Binding NextPageCommand}"
               Margin="{StaticResource PaddingSm}"/>
-      <TextBlock Grid.Column="5" Text="{Binding HistoryStatus}"
-                 Foreground="{DynamicResource SuccessBrush}"
+      <TextBlock Grid.Column="5" Classes="status"
+                 Classes.primary="{Binding HistoryStatus.IsPrimary}"
+                 Classes.success="{Binding HistoryStatus.IsSuccess}"
+                 Classes.warning="{Binding HistoryStatus.IsWarning}"
+                 Classes.danger="{Binding HistoryStatus.IsDanger}"
+                 Text="{Binding HistoryStatus.Text}"
                  VerticalAlignment="Center" Margin="{StaticResource PaddingLg}"/>
     </Grid>
 
-    <Grid ColumnDefinitions="*,Auto,*">
-      <TableView Grid.Column="0" ItemsSource="{Binding Runs}">
+    <!--
+      35/65, as the WinForms splitter was. An even split looks reasonable empty and is wrong the
+      moment a plan loads: the history has five narrow columns and the review side has six, two of
+      which are paths, so half the window leaves every path truncated to its connection id.
+    -->
+    <Grid ColumnDefinitions="35*,Auto,65*">
+      <!--
+        Selecting a row fills the run id box; opening one loads it. Reading down the list to find
+        the run you want should not fetch a plan per row, and a plan is three round trips.
+      -->
+      <TableView x:Name="PART_History" Grid.Column="0" ItemsSource="{Binding Runs}"
+                 SelectedItem="{Binding SelectedRun, Mode=TwoWay}"
+                 AutomationProperties.Name="{Binding HistoryAccessibleName}">
         <TableView.Columns>
-          <TableViewColumn Header="{Binding ColumnUpdated}" Binding="{Binding Updated}" Width="*"/>
-          <TableViewColumn Header="{Binding ColumnRun}" Binding="{Binding Run}" Width="*"/>
-          <TableViewColumn Header="{Binding ColumnPhase}" Binding="{Binding Phase}" Width="*"/>
-          <TableViewColumn Header="{Binding ColumnDispatch}" Binding="{Binding Dispatch}" Width="*"/>
-          <TableViewColumn Header="{Binding ColumnConflicts}" Binding="{Binding Conflicts}" Width="*"/>
+          <!--
+            Weighted by what the cells hold rather than evenly. Five equal columns spend as much
+            width on a conflict count that is nearly always one digit as on a date and time, and
+            truncate both the timestamp and "Awaiting approval" to do it.
+          -->
+          <TableViewColumn Header="{Binding ColumnUpdated}" Binding="{Binding Updated}" Width="120*"/>
+          <TableViewColumn Header="{Binding ColumnRun}" Binding="{Binding Run}" Width="85*"/>
+          <TableViewColumn Header="{Binding ColumnPhase}" Binding="{Binding Phase}" Width="115*"/>
+          <TableViewColumn Header="{Binding ColumnDispatch}" Binding="{Binding Dispatch}" Width="110*"/>
+          <TableViewColumn Header="{Binding ColumnConflicts}" Binding="{Binding Conflicts}" Width="75*"/>
         </TableView.Columns>
       </TableView>
 
@@ -46,35 +71,64 @@
       <DockPanel Grid.Column="2" Margin="{StaticResource PaddingLg}">
         <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto">
           <StackPanel Grid.Column="0">
-            <TextBlock Classes="title" Text="{Binding PlanEmptyTitle}"/>
-            <TextBlock Classes="muted" Text="{Binding PlanEmptyHint}" TextWrapping="Wrap"/>
+            <TextBlock Classes="title" Text="{Binding PlanTitle}" TextWrapping="Wrap"/>
+            <TextBlock Classes="status"
+                       Classes.primary="{Binding PlanStatus.IsPrimary}"
+                       Classes.success="{Binding PlanStatus.IsSuccess}"
+                       Classes.warning="{Binding PlanStatus.IsWarning}"
+                       Classes.danger="{Binding PlanStatus.IsDanger}"
+                       Text="{Binding PlanStatus.Text}" TextWrapping="Wrap"/>
           </StackPanel>
           <Button Grid.Column="1" Content="{Binding RefreshStatusLabel}"
+                  Command="{Binding RefreshStatusCommand}"
                   Margin="{StaticResource PaddingSm}" VerticalAlignment="Top"/>
-          <Button Grid.Column="2" Content="{Binding ApproveLabel}"
-                  IsEnabled="{Binding CanApprove}"
+          <Button Grid.Column="2" Classes="primary" Content="{Binding ApproveLabel}"
+                  Command="{Binding ApproveCommand}"
+                  AutomationProperties.HelpText="{Binding ApproveAccessibleDescription}"
                   Margin="{StaticResource PaddingSm}" VerticalAlignment="Top"/>
         </Grid>
 
-        <Button DockPanel.Dock="Bottom" Content="{Binding LoadMoreLabel}"
-                IsEnabled="{Binding CanLoadMore}"
-                HorizontalAlignment="Right" Margin="{StaticResource PaddingMd}"/>
-
         <TabControl Margin="0,12,0,0">
           <TabItem Header="{Binding PlanTabLabel}">
-            <TableView ItemsSource="{Binding Plan}">
-              <TableView.Columns>
-                <TableViewColumn Header="#" Binding="{Binding Index}" Width="60"/>
-                <TableViewColumn Header="Action" Binding="{Binding Action}" Width="140"/>
-                <TableViewColumn Header="From location" Binding="{Binding From}" Width="*"/>
-                <TableViewColumn Header="To location" Binding="{Binding To}" Width="*"/>
-                <TableViewColumn Header="Expected bytes" Binding="{Binding ExpectedBytes}" Width="140"/>
-                <TableViewColumn Header="Approval" Binding="{Binding Approval}" Width="140"/>
-              </TableView.Columns>
-            </TableView>
+            <DockPanel>
+              <Button DockPanel.Dock="Bottom" Content="{Binding LoadMoreLabel}"
+                      Command="{Binding LoadMoreOperationsCommand}"
+                      HorizontalAlignment="Right" Margin="{StaticResource PaddingMd}"/>
+              <TableView ItemsSource="{Binding Plan}"
+                         AutomationProperties.Name="{Binding PlanAccessibleName}">
+                <TableView.Columns>
+                  <!--
+                    "#" rather than the Sequence string: that string is the WinForms grid column's
+                    programmatic name, and its header there was this. A translated word does not
+                    fit the width a row number needs anyway.
+                  -->
+                  <TableViewColumn Header="#" Binding="{Binding Index}" Width="60"/>
+                  <TableViewColumn Header="{Binding ColumnAction}" Binding="{Binding Action}" Width="120"/>
+                  <TableViewColumn Header="{Binding ColumnFromLocation}" Binding="{Binding From}" Width="*"/>
+                  <TableViewColumn Header="{Binding ColumnToLocation}" Binding="{Binding To}" Width="*"/>
+                  <TableViewColumn Header="{Binding ColumnExpectedBytes}" Binding="{Binding ExpectedBytes}" Width="120"/>
+                  <!-- Wide enough for "Deletes data - approval required", which is the one cell
+                       here nobody should have to widen a column to read. -->
+                  <TableViewColumn Header="{Binding ColumnSafety}" Binding="{Binding Approval}" Width="210"/>
+                </TableView.Columns>
+              </TableView>
+            </DockPanel>
           </TabItem>
           <TabItem Header="{Binding ConflictsTabLabel}">
-            <Border/>
+            <DockPanel>
+              <Button DockPanel.Dock="Bottom" Content="{Binding LoadMoreConflictsLabel}"
+                      Command="{Binding LoadMoreConflictsCommand}"
+                      HorizontalAlignment="Right" Margin="{StaticResource PaddingMd}"/>
+              <TableView ItemsSource="{Binding Conflicts}"
+                         AutomationProperties.Name="{Binding ConflictsAccessibleName}">
+                <TableView.Columns>
+                  <TableViewColumn Header="{Binding ColumnPath}" Binding="{Binding Path}" Width="*"/>
+                  <TableViewColumn Header="{Binding ColumnKind}" Binding="{Binding Kind}" Width="140"/>
+                  <TableViewColumn Header="{Binding ColumnState}" Binding="{Binding State}" Width="120"/>
+                  <TableViewColumn Header="{Binding ColumnSafeReason}" Binding="{Binding Reason}" Width="*"/>
+                </TableView.Columns>
+              </TableView>
+            </DockPanel>
           </TabItem>
         </TabControl>
       </DockPanel>

@@ -271,5 +271,17 @@
   "locationMissing": "En mappe valgt til denne profil findes ikke længere på sin forbindelse. Vælg den igen med Gennemse.",
   "agentFailureWithCodeFormat": "{0} ({1})",
   "previewedWhileDisabled": "Planen er klar, men denne profil er deaktiveret og kan ikke køre. Sæt flueben i Aktiveret for at køre eller planlægge den.",
-  "approvalBlockedByDisabledProfile": "Denne profil er deaktiveret, så dens plan kan ikke afsendes. Sæt flueben i Aktiveret, og gennemse igen."
+  "approvalBlockedByDisabledProfile": "Denne profil er deaktiveret, så dens plan kan ikke afsendes. Sæt flueben i Aktiveret, og gennemse igen.",
+  "dispatchNotDispatched": "Ikke afsendt",
+  "dispatchDurablyDispatched": "Afsendt",
+  "planOperationCopy": "Kopiér",
+  "planOperationDelete": "Slet",
+  "planOperationCreateDirectory": "Opret mappe",
+  "conflictStateUnresolved": "Uløst",
+  "conflictStateResolved": "Løst",
+  "conflictStateDismissed": "Afvist",
+  "noPlanOperations": "Denne plan har intet at udføre.",
+  "noConflicts": "Der blev ikke fundet konflikter i denne kørsel.",
+  "approveDetailFormat": "Denne plan har {0} handling(er).",
+  "approveDestructiveFormat": "Denne plan har {0} handling(er), hvoraf {1} fjerner data."
 }

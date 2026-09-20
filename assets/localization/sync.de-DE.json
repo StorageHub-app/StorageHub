@@ -271,5 +271,17 @@
   "locationMissing": "Ein für dieses Profil gewählter Ordner existiert auf seiner Verbindung nicht mehr. Wählen Sie ihn erneut über Durchsuchen.",
   "agentFailureWithCodeFormat": "{0} ({1})",
   "previewedWhileDisabled": "Plan bereit, aber dieses Profil ist deaktiviert und kann nicht laufen. Aktivieren Sie es, um es auszuführen oder zu planen.",
-  "approvalBlockedByDisabledProfile": "Dieses Profil ist deaktiviert, sein Plan kann daher nicht gesendet werden. Aktivieren Sie es und prüfen Sie erneut."
+  "approvalBlockedByDisabledProfile": "Dieses Profil ist deaktiviert, sein Plan kann daher nicht gesendet werden. Aktivieren Sie es und prüfen Sie erneut.",
+  "dispatchNotDispatched": "Nicht gesendet",
+  "dispatchDurablyDispatched": "Gesendet",
+  "planOperationCopy": "Kopieren",
+  "planOperationDelete": "Löschen",
+  "planOperationCreateDirectory": "Ordner erstellen",
+  "conflictStateUnresolved": "Ungelöst",
+  "conflictStateResolved": "Gelöst",
+  "conflictStateDismissed": "Verworfen",
+  "noPlanOperations": "Dieser Plan hat nichts zu tun.",
+  "noConflicts": "In diesem Lauf wurden keine Konflikte gefunden.",
+  "approveDetailFormat": "Dieser Plan hat {0} Vorgang/Vorgänge.",
+  "approveDestructiveFormat": "Dieser Plan hat {0} Vorgang/Vorgänge, davon {1} mit Datenverlust."
 }

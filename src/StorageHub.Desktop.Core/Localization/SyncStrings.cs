@@ -677,4 +677,35 @@ internal sealed class SyncStrings : LocalizationModelBase
     public string RunPhaseFailed { get; set; } = "Failed";
 
     public string RunPhaseCancelled { get; set; } = "Cancelled";
+
+    // ------------------------------------------------- dispatch, plan and conflict enum wording
+    // The WinForms review screen put these three enums into a grid cell as they came, so a Danish
+    // shell showed "DurablyDispatched" and "CreateDirectory". Same reason the phases above have
+    // words.
+    public string DispatchNotDispatched { get; set; } = "Not dispatched";
+
+    public string DispatchDurablyDispatched { get; set; } = "Dispatched";
+
+    public string PlanOperationCopy { get; set; } = "Copy";
+
+    public string PlanOperationDelete { get; set; } = "Delete";
+
+    public string PlanOperationCreateDirectory { get; set; } = "Create folder";
+
+    public string ConflictStateUnresolved { get; set; } = "Unresolved";
+
+    public string ConflictStateResolved { get; set; } = "Resolved";
+
+    public string ConflictStateDismissed { get; set; } = "Dismissed";
+
+    public string NoPlanOperations { get; set; } = "This plan has nothing to do.";
+
+    public string NoConflicts { get; set; } = "No conflicts were found in this run.";
+
+    /// <summary>{0} = how many operations the plan holds.</summary>
+    public string ApproveDetailFormat { get; set; } = "This plan has {0} operation(s).";
+
+    /// <summary>{0} = how many operations the plan holds, {1} = how many of them remove data.</summary>
+    public string ApproveDestructiveFormat { get; set; } =
+        "This plan has {0} operation(s), {1} of which remove data.";
 }
