@@ -35,26 +35,38 @@ Directory tree, Transfer queue toggle, Cancel selected -- and are not.
 
 ---
 
-## Where the old shell went, and how to read it
+## Where the work happens, and where the old app is
 
-`src/StorageHub.Desktop.WinForms` is deleted. Two branches keep it, and they are for different
-things:
+2.0 is built on the **`2.0` branch**. `main` stays on 1.4 until the port is finished, and is then
+replaced by it -- so nothing that is half-ported is ever what `main` says StorageHub is, and CI's
+release jobs, which fire on a push to `main`, stay pointed at something shippable.
 
 | Branch | Commit | What it is |
 |---|---|---|
-| **`winforms-reference`** | `522514f` | **Use this one to port from.** The last tree holding both shells, with the WinForms screens beside the `Desktop.Core` they were extracted into. 74 files, 35,686 lines. |
-| `1.x` | `2db3820` | The 1.0 product, from before the port began. 157 files, 62,069 lines -- because `Desktop.Core` did not exist yet and all of its logic was still inside the shell. Keep it for shipping a 1.x fix; do not port from it. |
+| **`2.0`** | working branch | Where 2.0 is built. The Avalonia shell, no WinForms. |
+| `main` | `2db3820` | 1.4, and what the remote still has. Replaced by `2.0` when the port is done. |
+| `1.x` | `2db3820` | The 1.4 product, kept under its own name so `main` can move without losing it. |
+| `winforms-reference` | `522514f` | The last tree holding both shells, with the WinForms screens beside the `Desktop.Core` they were extracted into. For when the extracted form is the one worth reading. |
 
-Reading a screen costs one command and no checkout:
+### The old app, on disk
+
+`C:\Projects\StorageHubOld` is a git worktree of `1.x` -- the whole 1.4 tree as real files, with no
+2.0 code in it. Read and grep it directly:
+
+```
+grep -n "ISyncManagementAgentClient" C:/Projects/StorageHubOld/src/StorageHub.Desktop.WinForms/*.cs
+```
+
+A worktree rather than a copy, so it shares this repository's object store, cannot drift from the
+branch, and shows up in `git worktree list` instead of being a directory somebody has to remember
+the meaning of. It is a checkout, not a second clone: committing to `1.x` is done there, and
+nothing here needs to know.
+
+For the post-extraction form of a screen, `winforms-reference` is one command away and needs no
+checkout:
 
 ```
 git show winforms-reference:src/StorageHub.Desktop.WinForms/SyncProfileEditorForm.cs
-```
-
-A whole-tree diff of what a screen used is as easy:
-
-```
-git grep -n "ISyncManagementAgentClient" winforms-reference -- src/StorageHub.Desktop.WinForms
 ```
 
 ### What is still there to port
