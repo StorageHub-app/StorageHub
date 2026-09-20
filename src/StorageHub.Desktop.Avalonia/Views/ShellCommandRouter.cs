@@ -14,24 +14,36 @@ namespace StorageHub.Desktop.Views;
 /// between them, and the shell's job here is to say which id fired. What each id then does arrives
 /// per screen, as the handlers move out of MainForm.
 /// </remarks>
-internal sealed class ShellCommand(string id, Action<string> invoke) : ICommand
+internal sealed class ShellCommand(string id, Action<string> invoke, Func<string, bool> canInvoke)
+    : ICommand
 {
     internal string Id { get; } = id;
 
-    public bool CanExecute(object? parameter) => true;
+    /// <summary>
+    /// Whether this command has somewhere to go.
+    /// </summary>
+    /// <remarks>
+    /// It used to return true unconditionally, and the result was a menu that could not be trusted:
+    /// thirty-one entries looked enabled and did nothing when pressed. The catalog already dims the
+    /// twenty-five commands 1.x never wired; this extends the same honesty to the ones this shell
+    /// has not reached yet, and turns the menu into an accurate account of what is built.
+    /// </remarks>
+    public bool CanExecute(object? parameter) => canInvoke(Id);
 
     public void Execute(object? parameter) => invoke(Id);
 
+    /// <summary>
+    /// Raised when the command gains a handler, so a menu drawn before it did catches up.
+    /// </summary>
     /// <remarks>
-    /// Every command is currently always enabled, so there is nothing to raise. When availability
-    /// becomes dynamic - a paste with an empty clipboard, a disconnect with nothing connected -
-    /// this grows a real implementation rather than the view growing a refresh loop.
+    /// Handlers are registered after the shell is built -- some of them by a window that does not
+    /// exist yet -- so an entry bound at startup would otherwise stay dim for the life of the
+    /// process.
     /// </remarks>
-    public event EventHandler? CanExecuteChanged
-    {
-        add { }
-        remove { }
-    }
+    public event EventHandler? CanExecuteChanged;
+
+    internal void RaiseCanExecuteChanged() =>
+        CanExecuteChanged?.Invoke(this, EventArgs.Empty);
 }
 
 /// <summary>
@@ -59,7 +71,7 @@ internal sealed class ShellCommandRouter
     {
         foreach (var definition in UiCommandCatalog.Definitions)
         {
-            _commands[definition.Id] = new ShellCommand(definition.Id, Invoke);
+            _commands[definition.Id] = new ShellCommand(definition.Id, Invoke, IsHandled);
         }
     }
 
@@ -85,7 +97,13 @@ internal sealed class ShellCommandRouter
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
         ArgumentNullException.ThrowIfNull(handler);
         _handlers[id] = handler;
+
+        // The entry may already be on screen and dim, so it is told it can go now.
+        if (_commands.TryGetValue(id, out var command)) command.RaiseCanExecuteChanged();
     }
+
+    /// <summary>How many commands have a handler, which is the port's own progress meter.</summary>
+    internal int HandledCount => _handlers.Count;
 
     /// <summary>Whether an id has somewhere to go, for a test and for a menu that dims.</summary>
     internal bool IsHandled(string id) => _handlers.ContainsKey(id);
@@ -149,8 +167,17 @@ internal sealed class ShellCommandRouter
         if (_handlers.TryGetValue(id, out var handler))
         {
             handler();
+            return;
         }
+
+        // Reachable through a shortcut, which does not consult CanExecute the way a menu does. It
+        // leaves a trace rather than doing nothing silently, because a shortcut that appears to be
+        // ignored is indistinguishable from one that is not bound.
+        Unhandled?.Invoke(this, id);
     }
+
+    /// <summary>Raised when a command with no handler was invoked anyway.</summary>
+    internal event EventHandler<string>? Unhandled;
 }
 
 /// <summary>What has focus, as far as shortcut dispatch is concerned.</summary>

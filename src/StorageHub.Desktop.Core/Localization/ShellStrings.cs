@@ -395,6 +395,9 @@ internal sealed class ShellStrings : LocalizationModelBase
         "{0:N0} item(s) will be renamed. Processing stops if a provider rejects a change.";
 
     // ------------------------------------------------------------ pane header
+    /// <summary>{0} = the command id. Shown when a shortcut reaches something not built yet.</summary>
+    public string CommandNotBuiltFormat { get; set; } = "{0} is not built yet.";
+
     public string PaneActions { get; set; } = "Pane actions";
 
     /// <summary>{0} = the pane's position in the arrangement, counting from one.</summary>

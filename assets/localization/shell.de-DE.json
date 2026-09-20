@@ -181,5 +181,6 @@
   "deleteItemsPromptFormat": "{0} löschen?",
   "deleteItemsDetail": "Die Elemente werden aus dem Speicher entfernt, auf dem sie liegen. Das lässt sich nicht rückgängig machen.",
   "deletedItemsFormat": "{0:N0} Element(e) gelöscht.",
+  "commandNotBuiltFormat": "{0} ist noch nicht gebaut.",
   "culture": "de-DE"
 }

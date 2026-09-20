@@ -79,17 +79,30 @@ public class IconCatalogTests
         });
     }
 
-    /// <summary>The toolbar is ToolbarLayout's default, separators included.</summary>
+    /// <summary>
+    /// The toolbar is ToolbarLayout's default, less what the catalog refuses.
+    /// </summary>
+    /// <remarks>
+    /// It used to be the layout entire, which meant buttons for commands 1.x itself never wired --
+    /// Search and Compare panes. The menu had always applied <see cref="UiCommandCatalog.IsAvailable"/>
+    /// and the toolbar had not; now both do, which is why this counts the admitted ids rather than
+    /// the layout's length.
+    /// </remarks>
     [AvaloniaFact]
-    public void TheToolbarIsTheResolvedLayout()
+    public void TheToolbarIsTheResolvedLayoutLessWhatIsUnavailable()
     {
         var model = ShellPreview.Sample;
-        var layout = ToolbarLayout.Resolve(null);
+        var offered = ToolbarLayout.Resolve(null)
+            .Where(id => id == ToolbarLayout.Separator || UiCommandCatalog.IsAvailable(id))
+            .ToArray();
 
-        Assert.Equal(layout.Count, model.Toolbar.Count);
+        Assert.Equal(offered.Length, model.Toolbar.Count);
         Assert.Equal(
-            layout.Count(id => id == ToolbarLayout.Separator),
+            offered.Count(id => id == ToolbarLayout.Separator),
             model.Toolbar.OfType<ToolbarSeparator>().Count());
         Assert.All(model.Toolbar.OfType<CommandEntry>(), entry => Assert.NotNull(entry.Icon));
+
+        // And the ones dropped really were unavailable, so this cannot pass by dropping everything.
+        Assert.True(offered.Length < ToolbarLayout.Resolve(null).Count);
     }
 }

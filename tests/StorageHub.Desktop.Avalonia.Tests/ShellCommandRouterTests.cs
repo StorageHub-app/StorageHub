@@ -145,6 +145,10 @@ public class ShellCommandRouterTests
         entry.Command.Execute(null);
 
         Assert.Equal(UiCommandIds.ViewRefresh, model.Router.LastInvoked);
-        Assert.Equal(UiCommandIds.ViewRefresh, model.Status);
+
+        // The status bar used to print the id of whatever was invoked, which was the stand-in that
+        // proved the path worked while nothing was wired. It says something now only when a
+        // command has nowhere to go, and view.refresh has somewhere.
+        Assert.DoesNotContain(UiCommandIds.ViewRefresh, model.Status, StringComparison.Ordinal);
     }
 }

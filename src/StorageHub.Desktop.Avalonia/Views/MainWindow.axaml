@@ -84,6 +84,9 @@
 
     <Border DockPanel.Dock="Bottom" Classes="statusbar">
       <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto">
+        <!-- Where the active pane is, or the last thing the shell had to say about a command it
+             could not run. It used to print the id of every command invoked, which was the
+             stand-in that proved the path worked while nothing was wired. -->
         <TextBlock Grid.Column="0" Classes="muted"
                    Text="{Binding Status, FallbackValue={x:Null}, TargetNullValue={x:Null}}"
                    IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>

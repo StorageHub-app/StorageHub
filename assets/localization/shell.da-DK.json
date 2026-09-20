@@ -181,5 +181,6 @@
   "deleteItemsPromptFormat": "Slet {0}?",
   "deleteItemsDetail": "Elementerne fjernes fra det lager, de ligger på. Dette kan ikke fortrydes.",
   "deletedItemsFormat": "Slettede {0:N0} element(er).",
+  "commandNotBuiltFormat": "{0} er ikke bygget endnu.",
   "culture": "da-DK"
 }

@@ -73,7 +73,9 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
     internal ShellPreviewModel(ShellCommandRouter router)
     {
         Router = router;
-        Router.Invoked += (_, id) => Status = id;
+        // A command with nowhere to go is reachable by shortcut, which does not consult
+        // CanExecute the way a menu does. Saying so beats appearing to ignore the keystroke.
+        Router.Unhandled += (_, id) => Status = Ui.Format(Ui.Shell.CommandNotBuiltFormat, id);
     }
 
     /// <summary>Dispatch for every command, whether it arrives by menu, toolbar or keystroke.</summary>
@@ -382,11 +384,21 @@ internal static class ShellPreview
             .Where(section => section.Items.Count > 0),
     ];
 
+    /// <summary>
+    /// The toolbar, filtered the way the menu already was.
+    /// </summary>
+    /// <remarks>
+    /// The menu has always dropped what <see cref="UiCommandCatalog.IsAvailable"/> refuses and the
+    /// toolbar never did, so it drew buttons for commands 1.x itself never wired -- Search and
+    /// Compare panes among them. Same rule, both places.
+    /// </remarks>
     private static IReadOnlyList<object> BuildToolbar(ShellCommandRouter router) =>
     [
-        .. ToolbarLayout.Resolve(null).Select(object (id) => id == ToolbarLayout.Separator
-            ? ToolbarSeparator.Instance
-            : ToEntry(UiCommandCatalog.GetDefinition(id), router)),
+        .. ToolbarLayout.Resolve(null)
+            .Where(id => id == ToolbarLayout.Separator || UiCommandCatalog.IsAvailable(id))
+            .Select(object (id) => id == ToolbarLayout.Separator
+                ? ToolbarSeparator.Instance
+                : ToEntry(UiCommandCatalog.GetDefinition(id), router)),
     ];
 
     private static CommandEntry ToEntry(UiCommandDefinition definition, ShellCommandRouter router) => new(
