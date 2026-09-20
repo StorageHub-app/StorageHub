@@ -111,7 +111,7 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
     /// legitimate request that the queue answers with a collision, and refusing it here would
     /// answer a question the destination is better placed to.
     /// </remarks>
-    internal bool CanTransfer => Source.HasSelection && Destination.Snapshot is not null;
+    internal bool CanTransfer => Source.HasSelection && Destination.Source is not null;
 
     /// <summary>
     /// A move needs more than a copy: files only, and every one carrying a stable identity.
@@ -147,14 +147,15 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
         var source = Source;
         var destination = Destination;
 
-        var selection = PaneTransferSnapshots.SelectionFor(source.Snapshot, source.SelectedRows);
+        var selection = PaneTransferSnapshots.SelectionFor(source.Source, source.SelectedRows);
         if (selection.IsFailure)
         {
             Message = selection.Error.Message;
             return;
         }
 
-        var target = PaneTransferSnapshots.DestinationFor(destination.Snapshot, destination.Rows);
+        var target = PaneTransferSnapshots.DestinationFor(
+            destination.Source, destination.Rows, destination.HasMorePages);
         if (target.IsFailure)
         {
             Message = target.Error.Message;

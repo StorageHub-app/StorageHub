@@ -45,6 +45,31 @@ internal static class BrowserRowFactory
     }
 
     /// <summary>
+    /// A local listing entry, as a row.
+    /// </summary>
+    /// <remarks>
+    /// The same five columns as a remote one, so the two panes of a workspace line up when one is
+    /// a folder on this computer and the other is a bucket. The local browser has already worked
+    /// out the type and the status -- a drive's free space, a folder nobody may read -- so this
+    /// only formats the size and the timestamp.
+    /// </remarks>
+    internal static BrowserListItem FromLocal(LocalBrowserEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        return new BrowserListItem(
+            entry.Name,
+            entry.Length is null ? string.Empty : UiFormatting.FormatBytes(entry.Length.Value),
+            entry.Type,
+            LocalBrowserPresentation.FormatModified(entry.Modified),
+            entry.Status,
+            entry.FullPath,
+            entry.IsContainer,
+            entry.IsContainer ? StorageItemKind.Directory : StorageItemKind.File,
+            entry.Length,
+            ModifiedUtc: entry.Modified);
+    }
+
+    /// <summary>
     /// What the Type column says.
     /// </summary>
     /// <remarks>

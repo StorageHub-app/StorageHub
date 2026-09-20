@@ -7,8 +7,14 @@ using StorageHub.Desktop.Localization;
 
 namespace StorageHub.Desktop.Views;
 
-/// <summary>A connection a pane can be pointed at.</summary>
-internal sealed record PaneConnection(Guid Id, string Name, LucideIconKind Icon);
+/// <summary>
+/// Somewhere a pane can be pointed at: a saved connection, or this computer.
+/// </summary>
+/// <param name="Id">
+/// The connection's id, or null for This PC. Null is what distinguishes the two, so the picker
+/// needs no separate concept for the local entry and neither does anything reading the choice.
+/// </param>
+internal sealed record PaneConnection(Guid? Id, string Name, LucideIconKind Icon);
 
 /// <summary>
 /// One browser pane: a connection, a path, and what is in it.
@@ -29,16 +35,26 @@ internal sealed record PaneConnection(Guid Id, string Name, LucideIconKind Icon)
 internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposable
 {
     private readonly RemoteBrowserController _controller;
+    private readonly Func<ILocalFileBrowserDataSource?> _localSource;
+    private IPaneSource? _source;
     private string _status = string.Empty;
     private bool _busy;
     private bool _isActive;
+    private bool _hasMore;
     private PaneConnection? _connection;
     private string _path = "/";
     private BrowserListItem? _selected;
 
-    internal BrowserPaneModel(IRemoteStorageAgentClient? client = null)
+    /// <param name="localSource">
+    /// How This PC lists drives and folders. A factory so a test can hand over a directory tree in
+    /// memory; null means the real filesystem.
+    /// </param>
+    internal BrowserPaneModel(
+        IRemoteStorageAgentClient? client = null,
+        Func<ILocalFileBrowserDataSource?>? localSource = null)
     {
         _controller = new RemoteBrowserController(client);
+        _localSource = localSource ?? (static () => null);
         SelectedRows.CollectionChanged += (_, _) =>
         {
             Raise(nameof(HasSelection));
@@ -46,10 +62,10 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         };
 
         OpenCommand = new RelayCommand(_ => _ = OpenSelectedAsync(), _ => Selected?.IsContainer == true);
-        UpCommand = new RelayCommand(_ => _ = UpAsync(), _ => _controller.CanGoUp);
-        BackCommand = new RelayCommand(_ => _ = BackAsync(), _ => _controller.CanGoBack);
-        ForwardCommand = new RelayCommand(_ => _ = ForwardAsync(), _ => _controller.CanGoForward);
-        RefreshCommand = new RelayCommand(_ => _ = MoveAsync(RemoteBrowserNavigationKind.Refresh));
+        UpCommand = new RelayCommand(_ => _ = UpAsync(), _ => _source?.CanGoUp == true);
+        BackCommand = new RelayCommand(_ => _ = BackAsync(), _ => _source?.CanGoBack == true);
+        ForwardCommand = new RelayCommand(_ => _ = ForwardAsync(), _ => _source?.CanGoForward == true);
+        RefreshCommand = new RelayCommand(_ => _ = MoveAsync(PaneNavigationKind.Refresh));
     }
 
     public ObservableCollection<PaneConnection> Connections { get; } = [];
@@ -125,7 +141,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             _connection = value;
             Raise(nameof(Connection));
             Raise(nameof(Title));
-            if (value is not null) _ = OpenConnectionAsync(value.Id);
+            if (value is not null) _ = OpenAsync(value);
         }
     }
 
@@ -169,8 +185,11 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         }
     }
 
-    /// <summary>What the browser is currently showing, for a transfer to describe.</summary>
-    internal RemoteBrowserSnapshot? Snapshot => _controller.CurrentSnapshot;
+    /// <summary>Where this pane is pointed, for a transfer to describe.</summary>
+    internal IPaneSource? Source => _source;
+
+    /// <summary>Whether the listing has pages nobody has asked for yet.</summary>
+    internal bool HasMorePages => _hasMore;
 
     /// <summary>
     /// Copy and move, which the workspace owns and the pane only shows.
@@ -235,6 +254,12 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         {
             var result = await _controller.LoadConnectionsAsync(cancellationToken).ConfigureAwait(true);
             Connections.Clear();
+
+            // This PC first, always, and whether or not the agent answered. Most transfers have one
+            // local end, and a pane that cannot reach the agent can still browse this computer -
+            // which is also the state somebody is in while they work out why the agent is down.
+            Connections.Add(new PaneConnection(null, Ui.Pane.ThisPc, LucideIconKind.HardDrive));
+
             if (result.Status != RemoteBrowserOperationStatus.Succeeded)
             {
                 Status = result.ErrorMessage ?? Ui.Pane.Disconnected;
@@ -252,9 +277,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
                         ?? LucideIconKind.Cloud));
             }
 
-            Status = Connections.Count == 0
-                ? Ui.Pane.SelectProfileToConnect
-                : string.Empty;
+            Status = string.Empty;
         }
         finally
         {
@@ -262,13 +285,35 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         }
     }
 
-    internal async Task OpenConnectionAsync(Guid connectionId, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Points the pane at a connection, or at this computer.
+    /// </summary>
+    /// <remarks>
+    /// The previous source is disposed, which for a connection closes its client. A pane left on a
+    /// connection nobody is looking at would otherwise hold a socket for the life of the window.
+    /// </remarks>
+    internal async Task OpenAsync(PaneConnection choice, CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(choice);
         IsBusy = true;
         try
         {
-            Report(await _controller
-                .SelectConnectionAsync(connectionId, cancellationToken)
+            if (_source is LocalPaneSource)
+            {
+                await _source.DisposeAsync().ConfigureAwait(true);
+            }
+
+            if (choice.Id is { } connectionId)
+            {
+                var remote = new RemotePaneSource(_controller, choice.Name);
+                _source = remote;
+                Report(await remote.OpenAsync(connectionId, cancellationToken).ConfigureAwait(true));
+                return;
+            }
+
+            _source = new LocalPaneSource(new LocalBrowserController(_localSource()));
+            Report(await _source
+                .MoveAsync(PaneNavigationKind.Navigate, null, cancellationToken)
                 .ConfigureAwait(true));
         }
         finally
@@ -277,16 +322,24 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         }
     }
 
+    /// <summary>Opens a saved connection by id, for a caller that has one rather than a choice.</summary>
+    internal Task OpenConnectionAsync(Guid connectionId, CancellationToken cancellationToken = default)
+    {
+        var choice = Connections.FirstOrDefault(candidate => candidate.Id == connectionId)
+            ?? new PaneConnection(connectionId, string.Empty, LucideIconKind.Cloud);
+        return OpenAsync(choice, cancellationToken);
+    }
+
     /// <summary>Goes to a path, or says why it could not.</summary>
     internal async Task NavigateAsync(string relativePath, CancellationToken cancellationToken = default)
     {
-        if (_controller.SelectedConnection is null) return;
+        if (_source is null) return;
 
         IsBusy = true;
         try
         {
-            Report(await _controller
-                .NavigateAsync(RemoteBrowserNavigationKind.Navigate, relativePath, cancellationToken)
+            Report(await _source
+                .MoveAsync(PaneNavigationKind.Navigate, relativePath, cancellationToken)
                 .ConfigureAwait(true));
         }
         finally
@@ -312,31 +365,33 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     }
 
     internal Task UpAsync(CancellationToken cancellationToken = default) =>
-        MoveAsync(RemoteBrowserNavigationKind.Up, cancellationToken);
+        MoveAsync(PaneNavigationKind.Up, cancellationToken);
 
     internal Task BackAsync(CancellationToken cancellationToken = default) =>
-        MoveAsync(RemoteBrowserNavigationKind.Back, cancellationToken);
+        MoveAsync(PaneNavigationKind.Back, cancellationToken);
 
     internal Task ForwardAsync(CancellationToken cancellationToken = default) =>
-        MoveAsync(RemoteBrowserNavigationKind.Forward, cancellationToken);
+        MoveAsync(PaneNavigationKind.Forward, cancellationToken);
 
     /// <summary>
     /// Back, forward, up and refresh, which the controller already knows how to do.
     /// </summary>
     /// <remarks>
-    /// Asking it for Up rather than computing the parent here is the difference between one
-    /// definition of "the folder above" and two. RemoteBrowserPath owns that rule, including what
-    /// the parent of a prefix is, and it has its own tests.
+    /// Asking the source for Up rather than computing the parent here is the difference between one
+    /// definition of "the folder above" and three: a remote prefix, a local directory and a drive
+    /// list each have their own, and each browser already owns and tests its own.
     /// </remarks>
     private async Task MoveAsync(
-        RemoteBrowserNavigationKind kind,
+        PaneNavigationKind kind,
         CancellationToken cancellationToken = default)
     {
+        if (_source is null) return;
+
         IsBusy = true;
         try
         {
-            Report(await _controller
-                .NavigateAsync(kind, cancellationToken: cancellationToken)
+            Report(await _source
+                .MoveAsync(kind, cancellationToken: cancellationToken)
                 .ConfigureAwait(true));
         }
         finally
@@ -345,7 +400,15 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         }
     }
 
-    public async ValueTask DisposeAsync() => await _controller.DisposeAsync().ConfigureAwait(false);
+    public async ValueTask DisposeAsync()
+    {
+        if (_source is LocalPaneSource local)
+        {
+            await local.DisposeAsync().ConfigureAwait(false);
+        }
+
+        await _controller.DisposeAsync().ConfigureAwait(false);
+    }
 
     /// <summary>
     /// Shows a navigation result, whatever it turned out to be.
@@ -355,39 +418,35 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     /// the address bar lost the listing somebody was looking at and cost another round trip to get
     /// back to it.
     /// </remarks>
-    private void Report(RemoteBrowserNavigationResult result)
+    private void Report(PaneNavigationResult result)
     {
-        if (result.Status != RemoteBrowserOperationStatus.Succeeded || result.Snapshot is null)
+        if (result.Listing is not { } listing)
         {
-            Status = result.ErrorMessage ?? Ui.Pane.Disconnected;
+            Status = result.Error ?? Ui.Pane.Disconnected;
             RaiseCommands();
             return;
         }
 
-        var snapshot = result.Snapshot;
-        Path = snapshot.DisplayPath;
+        Path = listing.DisplayPath;
+        _hasMore = listing.HasMore;
+        Rows.Clear();
 
-        if (!result.AppendedPage)
+        // The ".." row is part of the listing rather than a button, which is how every file
+        // manager since Norton Commander has done it and what makes double-click enough.
+        if (!listing.IsAtRoot)
         {
-            Rows.Clear();
-
-            // The ".." row is part of the listing rather than a button, which is how every file
-            // manager since Norton Commander has done it and what makes double-click enough.
-            if (snapshot.RelativePath.Length > 0)
-            {
-                Rows.Add(BrowserParentNavigation.Item);
-            }
+            Rows.Add(BrowserParentNavigation.Item);
         }
 
-        foreach (var entry in snapshot.Entries)
+        foreach (var row in listing.Rows)
         {
-            Rows.Add(BrowserRowFactory.FromRemote(entry));
+            Rows.Add(row);
         }
 
         // A navigation can succeed and still have something to say. Asking for a folder that has
         // been deleted lands on the nearest parent that does exist, and the message is the only
         // thing that explains why the listing is not the one that was asked for.
-        Status = result.ErrorMessage is { Length: > 0 } note
+        Status = listing.Note is { Length: > 0 } note
             ? note
             : Rows.Count == 0 ? Ui.Pane.FolderIsEmpty : string.Empty;
         Raise(nameof(Title));

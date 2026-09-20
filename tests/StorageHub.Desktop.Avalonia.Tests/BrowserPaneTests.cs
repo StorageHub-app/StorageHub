@@ -30,10 +30,13 @@ public class BrowserPaneTests
         await pane.LoadConnectionsAsync(TestContext.Current.CancellationToken);
 
         // The SSH client can be browsed; the disabled one cannot, and offering it would produce a
-        // pane that fails the moment somebody chose it.
+        // pane that fails the moment somebody chose it. This PC is always there.
         Assert.Equal(
-            ["Build Box", "Studio Assets"],
+            ["Build Box", "Studio Assets", Ui.Pane.ThisPc],
             pane.Connections.Select(c => c.Name).Order(StringComparer.Ordinal));
+
+        // Null is what marks the local entry, so nothing downstream needs a second concept for it.
+        Assert.Null(pane.Connections.Single(c => c.Name == Ui.Pane.ThisPc).Id);
     }
 
     [AvaloniaFact]
@@ -181,15 +184,23 @@ public class BrowserPaneTests
         await pane.DisposeAsync();
     }
 
+    /// <summary>
+    /// An agent that is not answering leaves This PC, and says why the rest is missing.
+    /// </summary>
+    /// <remarks>
+    /// This is the state somebody is in while they work out why the agent is down, and it is
+    /// exactly when being able to browse their own disk is most useful. The old pane offered
+    /// nothing at all here.
+    /// </remarks>
     [AvaloniaFact]
-    public async Task AnAgentThatRefusesLeavesTheMessageRatherThanThrowing()
+    public async Task AnAgentThatRefusesStillLeavesThisPc()
     {
         var agent = new FakeBrowsingAgent { Throw = true };
 
         await using var pane = new BrowserPaneModel(agent);
         await pane.LoadConnectionsAsync(TestContext.Current.CancellationToken);
 
-        Assert.Empty(pane.Connections);
+        Assert.Equal(Ui.Pane.ThisPc, Assert.Single(pane.Connections).Name);
         Assert.True(pane.HasStatus);
     }
 

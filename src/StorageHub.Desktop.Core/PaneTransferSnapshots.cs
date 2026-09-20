@@ -22,9 +22,14 @@ namespace StorageHub.Desktop;
 internal static class PaneTransferSnapshots
 {
     /// <summary>Where a pane is, as a transfer endpoint.</summary>
-    internal static StorageResult<PaneTransferContext> ContextFor(RemoteBrowserSnapshot? snapshot)
+    /// <remarks>
+    /// The source answers, not this: whether the context says ThisPc or SavedConnection is a
+    /// property of what the pane is pointed at, and asking it here is what lets a local-to-remote
+    /// transfer work without anything above knowing it is one.
+    /// </remarks>
+    internal static StorageResult<PaneTransferContext> ContextFor(IPaneSource? source)
     {
-        if (snapshot is null)
+        if (source is null)
         {
             return StorageResult<PaneTransferContext>.Fail(new StorageFailure(
                 "manual_transfer.pane.not_connected",
@@ -32,11 +37,7 @@ internal static class PaneTransferSnapshots
                 Ui.Pane.SelectProfileToConnect));
         }
 
-        return PaneTransferContext.Create(
-            PaneTransferContextKind.SavedConnection,
-            snapshot.Connection.ConnectionId,
-            snapshot.RootIdentity,
-            snapshot.RelativePath);
+        return source.TransferContext();
     }
 
     /// <summary>
@@ -48,12 +49,12 @@ internal static class PaneTransferSnapshots
     /// surprising way to find that out.
     /// </remarks>
     internal static StorageResult<PaneSelectionSnapshot> SelectionFor(
-        RemoteBrowserSnapshot? snapshot,
+        IPaneSource? source,
         IEnumerable<BrowserListItem> selected)
     {
         ArgumentNullException.ThrowIfNull(selected);
 
-        var context = ContextFor(snapshot);
+        var context = ContextFor(source);
         if (context.IsFailure)
         {
             return StorageResult<PaneSelectionSnapshot>.Fail(context.Error);
@@ -83,18 +84,19 @@ internal static class PaneTransferSnapshots
     /// a file just past the last page read would look absent and be silently overwritten.
     /// </remarks>
     internal static StorageResult<PaneDestinationSnapshot> DestinationFor(
-        RemoteBrowserSnapshot? snapshot,
-        IEnumerable<BrowserListItem> rows)
+        IPaneSource? source,
+        IEnumerable<BrowserListItem> rows,
+        bool hasMorePages)
     {
         ArgumentNullException.ThrowIfNull(rows);
 
-        var context = ContextFor(snapshot);
+        var context = ContextFor(source);
         if (context.IsFailure)
         {
             return StorageResult<PaneDestinationSnapshot>.Fail(context.Error);
         }
 
-        if (snapshot!.HasMore)
+        if (hasMorePages)
         {
             return StorageResult<PaneDestinationSnapshot>.Fail(new StorageFailure(
                 "manual_transfer.destination.index_incomplete",
