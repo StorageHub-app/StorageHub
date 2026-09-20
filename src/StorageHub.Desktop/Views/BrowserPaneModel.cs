@@ -59,6 +59,17 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
 {
     private readonly RemoteBrowserController _controller;
     private readonly Func<ILocalFileBrowserDataSource?> _localSource;
+
+    /// <summary>
+    /// How this pane reaches a shell, or nothing if it is not allowed to open one.
+    /// </summary>
+    /// <remarks>
+    /// A factory, and a fresh client per session: the terminal protocol holds two pipe connections
+    /// open for the life of a session, and panes sharing one would interleave their reads.
+    /// </remarks>
+    private readonly Func<ISshTerminalAgentClient>? _terminals;
+    private readonly Func<IAgentLifecycleController?>? _agentLifecycle;
+    private SshTerminalSession? _terminal;
     private IPaneSource? _source;
     private string _status = string.Empty;
     private bool _busy;
@@ -97,12 +108,26 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     /// How This PC lists drives and folders. A factory so a test can hand over a directory tree in
     /// memory; null means the real filesystem.
     /// </param>
+    /// <param name="terminals">
+    /// How the pane opens a shell. Null leaves an SSH pane showing what it is waiting for, which is
+    /// what a pane in a test that is not about terminals wants.
+    /// </param>
+    /// <param name="agentLifecycle">
+    /// How a stale agent gets restarted when it turns out to be speaking an older protocol. Nothing
+    /// in the shell supplies one yet -- the screen that starts and stops the agent has not been
+    /// ported -- so the mismatch is reported and the user is told to restart StorageHub, which is
+    /// the same fallback 1.x used when it had no controller to hand.
+    /// </param>
     internal BrowserPaneModel(
         IRemoteStorageAgentClient? client = null,
         Func<ILocalFileBrowserDataSource?>? localSource = null,
         Func<PaneMutationController>? mutations = null,
-        IDialogService? dialogs = null)
+        IDialogService? dialogs = null,
+        Func<ISshTerminalAgentClient>? terminals = null,
+        Func<IAgentLifecycleController?>? agentLifecycle = null)
     {
+        _terminals = terminals;
+        _agentLifecycle = agentLifecycle;
         _controller = new RemoteBrowserController(client);
         _localSource = localSource ?? (static () => null);
         _mutations = mutations;
@@ -502,6 +527,9 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
 
     public static string TerminalConnectHint => Ui.Pane.TerminalConnectHint;
 
+    /// <summary>What a screen reader calls the terminal surface.</summary>
+    public static string TerminalOutputAccessibleName => Ui.Connections.TerminalOutputAccessibleName;
+
     public ICommand OpenCommand { get; }
 
     public ICommand SortByCommand { get; }
@@ -620,6 +648,11 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
                 await _source.DisposeAsync().ConfigureAwait(true);
             }
 
+            // Whatever this pane is about to show, it is no longer showing the old shell. Pointing
+            // a terminal pane at a bucket would otherwise leave the session open and unreachable,
+            // holding two pipes and a keep-alive for a window nobody can see.
+            await CloseTerminalAsync().ConfigureAwait(true);
+
             ContentKind = choice.Kind;
 
             // An SSH client has no listing to fetch. It keeps the pane's chrome -- the picker, the
@@ -632,9 +665,10 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
                 SelectedRows.Clear();
                 Path = choice.Name;
 
-                // Nothing in the status strip: the surface below it already says what a terminal
-                // pane is waiting for, and a pane that says it twice reads as two problems.
+                // Nothing in the status strip yet: the session puts its own state there as soon as
+                // it has one, and a pane that says it twice reads as two problems.
                 Status = string.Empty;
+                await OpenTerminalAsync(choice, cancellationToken).ConfigureAwait(true);
                 RaiseCommands();
                 return;
             }
@@ -885,8 +919,73 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         }
     }
 
+    /// <summary>
+    /// The shell this pane is showing, or nothing if it is showing files.
+    /// </summary>
+    /// <remarks>
+    /// Handed straight to the control that draws it. The pane owns its lifetime because the pane is
+    /// what gets closed, re-pointed or swapped out from under it.
+    /// </remarks>
+    public ITerminalSession? Terminal
+    {
+        get => _terminal;
+        private set
+        {
+            if (ReferenceEquals(_terminal, value)) return;
+            _terminal = value as SshTerminalSession;
+            Raise(nameof(Terminal));
+            Raise(nameof(HasTerminal));
+        }
+    }
+
+    /// <summary>Whether there is a live session, as opposed to a pane waiting to be given one.</summary>
+    public bool HasTerminal => _terminal is not null;
+
+    /// <summary>
+    /// Opens a shell on the connection this pane was just pointed at.
+    /// </summary>
+    /// <remarks>
+    /// The grid is left at the session's default until the control has been arranged and can say
+    /// how large it really is; the first arrange sends the true size. Opening at a guess and
+    /// correcting is what every terminal does -- the alternative is waiting for a layout pass
+    /// before connecting, which shows an empty pane for no gain.
+    /// </remarks>
+    private async Task OpenTerminalAsync(PaneConnection choice, CancellationToken cancellationToken)
+    {
+        if (_terminals is null || choice.Id is not { } connectionId) return;
+
+        var session = new SshTerminalSession(
+            connectionId,
+            _terminals(),
+            preferences: null,
+            _agentLifecycle?.Invoke(),
+            ownsClient: true);
+        session.StatusChanged += OnTerminalStatusChanged;
+        Terminal = session;
+        Status = session.Status;
+        await session.OpenAsync(80, 24, cancellationToken).ConfigureAwait(true);
+    }
+
+    private void OnTerminalStatusChanged(object? sender, EventArgs e)
+    {
+        if (sender is SshTerminalSession session && ReferenceEquals(session, _terminal))
+        {
+            Status = session.Status;
+        }
+    }
+
+    /// <summary>Ends the session this pane was showing, if it was showing one.</summary>
+    private async Task CloseTerminalAsync()
+    {
+        if (_terminal is not { } session) return;
+        session.StatusChanged -= OnTerminalStatusChanged;
+        Terminal = null;
+        await session.DisposeAsync().ConfigureAwait(true);
+    }
+
     public async ValueTask DisposeAsync()
     {
+        await CloseTerminalAsync().ConfigureAwait(false);
         if (_source is LocalPaneSource local)
         {
             await local.DisposeAsync().ConfigureAwait(false);

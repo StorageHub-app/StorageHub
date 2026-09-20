@@ -356,6 +356,19 @@ internal sealed class VtTerminalDocument
             while (offset < cells.Count && produced < 10_000);
         }
 
+        // Blank rows below the cursor are padding rather than content, and counting them here is
+        // what used to scroll the first line of a session away: a terminal opens at a default grid
+        // and is resized to its pane's real one immediately, so a nearly empty screen keeping "the
+        // last `rows` lines" keeps mostly blanks and pushes the opening line into the scrollback.
+        // ResizePrimaryRows pads the screen back out to its height straight afterwards.
+        var lastContent = rewrapped.Count - 1;
+        while (lastContent > newCursorRow && rewrapped[lastContent].TrimmedLength() == 0)
+        {
+            lastContent--;
+        }
+
+        rewrapped.RemoveRange(lastContent + 1, rewrapped.Count - lastContent - 1);
+
         // The screen keeps the last `rows` lines; everything above becomes scrollback.
         var screenStart = Math.Max(0, rewrapped.Count - rows);
 
@@ -392,6 +405,18 @@ internal sealed class VtTerminalDocument
 
         while (_primary.Lines.Count > rows)
         {
+            // Empty rows below the cursor go first. A session opens at a default grid and is
+            // resized to the pane's real one the moment it has been laid out, so almost every
+            // terminal shrinks by a row or two while its screen is nearly empty -- and trimming
+            // from the top there scrolls the first line of the session away before anybody has
+            // read it. Only once the content itself does not fit does anything leave the top.
+            var last = _primary.Lines.Count - 1;
+            if (last > _primary.CursorRow && _primary.Lines[last].TrimmedLength() == 0)
+            {
+                _primary.Lines.RemoveAt(last);
+                continue;
+            }
+
             // Trim from the top and keep the text: the lines pushed off the screen are exactly
             // what scrollback is for, and dropping them is how a resize used to lose output.
             _scrollback.Add(_primary.Lines[0]);
@@ -460,7 +485,11 @@ internal sealed class VtTerminalDocument
                 continue;
             }
 
-            line.AppendTextTo(builder, 0, line.TrimmedLength());
+            // A line that wrapped has no trailing padding to trim: every cell up to its width is
+            // content, including a space sitting in the last column. Trimming it would silently
+            // delete that space when the two halves are joined, turning "could be read" into
+            // "could beread" -- the same rule the reflow above already follows.
+            line.AppendTextTo(builder, 0, line.WrappedToNext ? line.Length : line.TrimmedLength());
             if (number < last && !(joinWrapped && line.WrappedToNext))
             {
                 builder.Append(Environment.NewLine);

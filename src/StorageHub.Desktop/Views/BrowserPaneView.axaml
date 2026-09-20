@@ -261,25 +261,39 @@
         </TableView>
 
         <!--
-          The SSH surface. VtTerminalEmulator and VtKeyEncoder are already in Desktop.Core with
-          their own suites; what is not written yet is the painter that draws a screen buffer into
-          a DrawingContext. It replaces the contents of this border and nothing around it, because
-          everything a terminal pane needs from the workspace - being the active pane, being
-          refused as a transfer endpoint, surviving a layout change - is settled here already.
+          The SSH surface. TerminalView paints the screen buffer the emulator maintains and sends
+          what is typed at it back to the session; everything a terminal pane needs from the
+          workspace - being the active pane, being refused as a transfer endpoint, surviving a
+          layout change - is settled by the pane around it.
         -->
-        <Border Classes="terminal" IsVisible="{Binding IsTerminal}"
-                Padding="{StaticResource PaddingLg}">
-          <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
-                      Spacing="{StaticResource SpaceSm}">
-            <LucideIcon Kind="SquareTerminal" Size="{StaticResource IconSizeLg}"
-                        Foreground="{DynamicResource TextMutedBrush}"
-                        HorizontalAlignment="Center"/>
-            <TextBlock TextAlignment="Center" TextWrapping="Wrap"
-                       Text="{Binding TerminalPending}"/>
-            <TextBlock Classes="muted" TextAlignment="Center" TextWrapping="Wrap"
-                       Text="{Binding TerminalConnectHint}"/>
-          </StackPanel>
-        </Border>
+        <Panel IsVisible="{Binding IsTerminal}">
+          <!--
+            The painter fills the surface itself, so the border is here for its shape rather than
+            its colour: clipped to the same radius as the listing beside it, or a terminal pane is
+            the one square-cornered rectangle in a window of rounded ones.
+          -->
+          <Border Classes="terminal" IsVisible="{Binding HasTerminal}"
+                  CornerRadius="{StaticResource FieldRadius}" ClipToBounds="True">
+            <vm:TerminalView Session="{Binding Terminal}"
+                             AutomationProperties.Name="{Binding TerminalOutputAccessibleName}"/>
+          </Border>
+
+          <!-- What a terminal pane shows before it has a session: a connection has not been
+               chosen yet, or the agent could not give it one. -->
+          <Border Classes="terminal" IsVisible="{Binding !HasTerminal}"
+                  Padding="{StaticResource PaddingLg}">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
+                        Spacing="{StaticResource SpaceSm}">
+              <LucideIcon Kind="SquareTerminal" Size="{StaticResource IconSizeLg}"
+                          Foreground="{DynamicResource TextMutedBrush}"
+                          HorizontalAlignment="Center"/>
+              <TextBlock TextAlignment="Center" TextWrapping="Wrap"
+                         Text="{Binding TerminalPending}"/>
+              <TextBlock Classes="muted" TextAlignment="Center" TextWrapping="Wrap"
+                         Text="{Binding TerminalConnectHint}"/>
+            </StackPanel>
+          </Border>
+        </Panel>
       </Panel>
 
     </DockPanel>

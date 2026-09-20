@@ -102,6 +102,16 @@ internal sealed class ShellCommandRouter
         if (_commands.TryGetValue(id, out var command)) command.RaiseCanExecuteChanged();
     }
 
+    /// <summary>
+    /// What the active pane is, as far as shortcut dispatch needs to know.
+    /// </summary>
+    /// <remarks>
+    /// Supplied by the shell, because the router cannot see a workspace and the visual tree cannot
+    /// answer it: a pane is active whether or not anything inside it has focus. Left unset, every
+    /// pane looks like an ordinary one, which is what a test that is not about panes wants.
+    /// </remarks>
+    internal Func<(bool HasPane, bool IsSshPane)>? ActivePane { get; set; }
+
     /// <summary>How many commands have a handler, which is the port's own progress meter.</summary>
     internal int HandledCount => _handlers.Count;
 
@@ -156,7 +166,8 @@ internal sealed class ShellCommandRouter
             return;
         }
 
-        var focus = ShellFocusContext.Describe(sender as TopLevel);
+        var pane = ActivePane?.Invoke() ?? (HasPane: true, IsSshPane: false);
+        var focus = ShellFocusContext.Describe(sender as TopLevel, pane.HasPane, pane.IsSshPane);
         if (TryDispatch(new KeyGesture(e.Key, e.KeyModifiers), focus)) e.Handled = true;
     }
 
@@ -194,20 +205,26 @@ internal readonly record struct ShellFocusContext(
     bool HasPane,
     bool IsSshPane)
 {
-    internal static ShellFocusContext Describe(TopLevel? topLevel)
+    internal static ShellFocusContext Describe(
+        TopLevel? topLevel, bool hasPane = true, bool isSshPane = false)
     {
         if (topLevel?.FocusManager?.GetFocusedElement() is not Visual focused)
         {
-            return new ShellFocusContext(false, false, HasPane: true, IsSshPane: false);
+            return new ShellFocusContext(false, false, hasPane, isSshPane);
         }
 
         // The WinForms shell walked the parent chain naming the controls that host a text box,
         // because a drop-down in list mode takes focus itself and is none of them. The Avalonia
-        // equivalent is the same walk over the visual tree - the stock controls below all host an
-        // editable surface, and TerminalView will join them when the terminal is ported.
-        var textFocused = focused.GetSelfAndVisualAncestors().Any(visual =>
+        // equivalent is the same walk over the visual tree.
+        var ancestors = focused.GetSelfAndVisualAncestors().ToArray();
+        var textFocused = ancestors.Any(visual =>
             visual is TextBox or ComboBox or AutoCompleteBox or NumericUpDown);
 
-        return new ShellFocusContext(textFocused, IsSshFocused: false, HasPane: true, IsSshPane: false);
+        // A focused terminal owns every key it is sent, which is the whole point of one: Ctrl+L
+        // clears a remote screen rather than focusing an address bar, and a bare letter is a
+        // letter. Everything that consults this declines rather than competing for the keystroke.
+        var sshFocused = ancestors.Any(static visual => visual is TerminalView);
+
+        return new ShellFocusContext(textFocused, sshFocused, hasPane, isSshPane);
     }
 }

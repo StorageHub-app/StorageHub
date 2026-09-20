@@ -201,6 +201,90 @@ public sealed class VtReflowTests
         return builder.ToString();
     }
 
+    /// <summary>
+    /// A space at the wrap column survives being rejoined.
+    /// </summary>
+    /// <remarks>
+    /// Found by a terminal session test, and it is the reading of a terminal that it breaks. A
+    /// trailing space is padding on a line that ended and content on a line that wrapped; trimming
+    /// it either way deletes the one word-break unlucky enough to land in the last column, so
+    /// copied text comes back with two words fused -- occasionally, and only ever at whatever width
+    /// the window happened to be. The reflow above has always drawn this distinction; reading the
+    /// text did not.
+    /// </remarks>
+    [Fact]
+    public void RejoiningAWrappedLineKeepsTheSpaceAtTheSeam()
+    {
+        var emulator = new VtTerminalEmulator(20, 5);
+
+        // Nineteen characters, then the space that lands in the twentieth column, then the word
+        // that wrapped onto the line below it.
+        emulator.Feed("nineteen chars here wrapped");
+
+        Assert.Contains("here wrapped", AllText(emulator));
+    }
+
+    /// <summary>
+    /// A shorter window drops the blank rows below the cursor, not the output above it.
+    /// </summary>
+    /// <remarks>
+    /// Found in a screenshot of a terminal pane, whose first line was missing. Every session opens
+    /// at a default grid and is resized to the pane's real one as soon as it has been laid out, so
+    /// almost every terminal shrinks by a row or two while its screen is nearly empty. Trimming
+    /// from the top there scrolled the first line of every session into the scrollback before it
+    /// had been read once.
+    /// </remarks>
+    [Fact]
+    public void ShrinkingAMostlyEmptyScreenKeepsTheOutputOnIt()
+    {
+        var emulator = new VtTerminalEmulator(40, 24);
+        emulator.Feed("first line\r\nsecond line\r\n");
+
+        emulator.Resize(40, 20);
+
+        Assert.Equal(0, emulator.Document.ScrollbackCount);
+        Assert.Contains("first line", ScreenText(emulator));
+    }
+
+    /// <summary>
+    /// And so does one that changed width at the same time, which is the usual case.
+    /// </summary>
+    /// <remarks>
+    /// A pane is almost never exactly as wide as the grid a session opened at, so the first resize
+    /// changes both -- and that takes the reflow path rather than the row-trimming one. The same
+    /// defect lived in both, and this is the one the screenshot caught: a terminal that had said
+    /// four lines showed three.
+    /// </remarks>
+    [Fact]
+    public void ShrinkingBothDimensionsKeepsTheOutputOnScreen()
+    {
+        var emulator = new VtTerminalEmulator(80, 24);
+        emulator.Feed("first line\r\nsecond line\r\nthird line\r\n$ ");
+
+        emulator.Resize(77, 23);
+
+        Assert.Equal(0, emulator.Document.ScrollbackCount);
+        Assert.Contains("first line", ScreenText(emulator));
+    }
+
+    /// <summary>
+    /// And once the output itself does not fit, the top goes to the scrollback rather than away.
+    /// </summary>
+    [Fact]
+    public void ShrinkingPastTheOutputPushesItIntoScrollback()
+    {
+        var emulator = new VtTerminalEmulator(40, 6);
+        for (var line = 0; line < 6; line++)
+        {
+            emulator.Feed($"line {line}\r\n");
+        }
+
+        emulator.Resize(40, 5);
+
+        Assert.True(emulator.Document.ScrollbackCount > 0);
+        Assert.Contains("line 0", AllText(emulator));
+    }
+
     private static char CharacterUnderCursor(VtTerminalEmulator emulator)
     {
         var line = emulator.Document.FindLine(emulator.Document.CursorLineNumber)!;

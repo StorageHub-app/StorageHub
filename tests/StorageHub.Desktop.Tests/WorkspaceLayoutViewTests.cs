@@ -5,6 +5,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Headless.XUnit;
 using Avalonia.Media.Imaging;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Lucide.Avalonia;
 using StorageHub.Contracts.Ipc;
@@ -206,22 +207,28 @@ public class WorkspaceLayoutViewTests
             "build-box", StorageConnectionProvider.Ssh, ConnectionProfileType.Client);
         var agent = new WorkspaceFakes.FakeBrowsingAgent([storage, shell]);
 
-        var (window, workspace) = Shell();
+        var (window, workspace) = Shell(() => new ScriptedTerminalAgent(
+            "\u001b[32mclaus@build-box\u001b[0m:\u001b[34m~/projects/storagehub\u001b[0m$ " +
+            "git status --short\r\n" +
+            " \u001b[33mM\u001b[0m src/StorageHub.Desktop/Views/TerminalView.cs\r\n" +
+            " \u001b[32mA\u001b[0m src/StorageHub.Desktop.Core/SshTerminalSession.cs\r\n" +
+            "\u001b[32mclaus@build-box\u001b[0m:\u001b[34m~/projects/storagehub\u001b[0m$ "));
         foreach (var pane in workspace.Panes)
         {
             await pane.LoadConnectionsAsync(TestContext.Current.CancellationToken);
         }
 
-        // The preview's panes talk to a real agent over a pipe that is not there, so the terminal
-        // is opened directly rather than through the picker. What is being photographed is the
-        // surface, not the round trip.
+        // Opened directly rather than through the picker: what is being photographed is the
+        // surface, not the round trip, and the picker is covered elsewhere.
         await workspace.Panes[1].OpenAsync(
             new PaneConnection(shell.ConnectionId, shell.DisplayName, LucideIconKind.SquareTerminal,
                 PaneContentKind.SshClient),
             TestContext.Current.CancellationToken);
+        await Settled(workspace.Panes[1]);
         Lay(window);
 
         Assert.True(workspace.Panes[1].IsTerminal);
+        Assert.True(workspace.Panes[1].HasTerminal);
 
         var frame = window.CaptureRenderedFrame();
         Assert.NotNull(frame);
@@ -315,9 +322,76 @@ public class WorkspaceLayoutViewTests
     }
 
     /// <summary>The shell showing its workspace tab, which is the one with panes in it.</summary>
-    private static (Window Window, WorkspaceModel Workspace) Shell()
+    /// <summary>
+    /// Waits for a pane's terminal to have drawn what the agent had for it.
+    /// </summary>
+    /// <remarks>
+    /// The session reads on a loop rather than on demand, so there is no call to await. This waits
+    /// for the screen to stop changing, which is the same thing a person does.
+    /// </remarks>
+    private static async Task Settled(BrowserPaneModel pane)
     {
-        var preview = ShellPreview.CreateOnWorkspace();
+        var revision = -1L;
+        for (var attempt = 0; attempt < 50; attempt++)
+        {
+            await Task.Delay(20);
+            Dispatcher.UIThread.RunJobs();
+            var current = pane.Terminal?.Document.Revision ?? 0;
+            if (current > 0 && current == revision) return;
+            revision = current;
+        }
+    }
+
+    /// <summary>
+    /// An agent that hands over one screenful and then goes quiet.
+    /// </summary>
+    /// <remarks>
+    /// Enough to photograph a terminal that has something in it. The protocol itself is covered in
+    /// Desktop.Core against a fake with a script; this only has to produce a picture.
+    /// </remarks>
+    private sealed class ScriptedTerminalAgent(string output) : ISshTerminalAgentClient
+    {
+        private readonly byte[] _content = System.Text.Encoding.UTF8.GetBytes(output);
+        private bool _delivered;
+
+        public Task<SshTerminalOpenResponse> OpenAsync(
+            SshTerminalOpenRequest request, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new SshTerminalOpenResponse(
+                SshTerminalIpcContract.CurrentVersion, Guid.NewGuid(), "build-box"));
+
+        public Task<SshTerminalReadResponse> ReadAsync(
+            SshTerminalReadRequest request, CancellationToken cancellationToken = default)
+        {
+            var content = _delivered ? [] : _content;
+            _delivered = true;
+            return Task.FromResult(new SshTerminalReadResponse(
+                SshTerminalIpcContract.CurrentVersion, request.SessionId, content,
+                IsConnected: true));
+        }
+
+        public Task<SshTerminalWriteResponse> WriteAsync(
+            SshTerminalWriteRequest request, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new SshTerminalWriteResponse(
+                SshTerminalIpcContract.CurrentVersion, request.SessionId, request.Content.Length));
+
+        public Task<SshTerminalResizeResponse> ResizeAsync(
+            SshTerminalResizeRequest request, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new SshTerminalResizeResponse(
+                SshTerminalIpcContract.CurrentVersion, request.SessionId, Resized: true));
+
+        public Task<SshTerminalCloseResponse> CloseAsync(
+            SshTerminalCloseRequest request, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new SshTerminalCloseResponse(
+                SshTerminalIpcContract.CurrentVersion, request.SessionId, Closed: true));
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    private static (Window Window, WorkspaceModel Workspace) Shell(
+        Func<ISshTerminalAgentClient>? terminals = null)
+    {
+        var preview = ShellPreview.CreateOnWorkspace(
+            terminals ?? (static () => new ScriptedTerminalAgent(string.Empty)));
 
         // A real size before it is shown, not only a manual Arrange afterwards: hit testing uses
         // the window the platform actually made, so a click aimed at a control positioned by a

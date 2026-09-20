@@ -1,5 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Media;
 
 namespace StorageHub.Desktop.Views;
@@ -42,16 +44,61 @@ internal sealed class TerminalView : Control
     public static readonly StyledProperty<bool> CursorVisibleProperty =
         AvaloniaProperty.Register<TerminalView, bool>(nameof(CursorVisible), defaultValue: true);
 
+    /// <summary>
+    /// The session this control is a window onto, or nothing while it is only a picture.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="Document"/> so the painter can still be handed a screen buffer with
+    /// no session behind it, which is how it is tested and how a disconnected pane keeps showing
+    /// what the session said before it ended.
+    /// </remarks>
+    public static readonly StyledProperty<ITerminalSession?> SessionProperty =
+        AvaloniaProperty.Register<TerminalView, ITerminalSession?>(nameof(Session));
+
+    /// <summary>
+    /// Breathing room between the text and the edge of the surface.
+    /// </summary>
+    /// <remarks>
+    /// Inside the control rather than around it, because the background belongs to the terminal.
+    /// A margin would frame a dark screen in whatever the pane behind it is painted, which in the
+    /// light appearance is a pale border around a black rectangle.
+    /// </remarks>
+    public static readonly StyledProperty<Thickness> PaddingProperty =
+        AvaloniaProperty.Register<TerminalView, Thickness>(
+            nameof(Padding), defaultValue: new Thickness(8));
+
     private Typeface _typeface;
     private Size _cell;
+    private ITerminalSession? _attached;
+    private (int Columns, int Rows) _reported;
 
     static TerminalView()
     {
-        AffectsRender<TerminalView>(DocumentProperty, CursorVisibleProperty);
+        AffectsRender<TerminalView>(DocumentProperty, CursorVisibleProperty, PaddingProperty);
         AffectsMeasure<TerminalView>(FontSizeProperty);
     }
 
-    public TerminalView() => ClipToBounds = true;
+    public TerminalView()
+    {
+        ClipToBounds = true;
+
+        // A terminal that cannot take focus cannot be typed at, and one that is skipped by Tab is
+        // unreachable without a mouse.
+        Focusable = true;
+    }
+
+    public Thickness Padding
+    {
+        get => GetValue(PaddingProperty);
+        set => SetValue(PaddingProperty, value);
+    }
+
+    /// <summary>The session driving this control.</summary>
+    public ITerminalSession? Session
+    {
+        get => GetValue(SessionProperty);
+        set => SetValue(SessionProperty, value);
+    }
 
     /// <summary>The screen to draw, or nothing before a session is open.</summary>
     public VtTerminalDocument? Document
@@ -99,9 +146,137 @@ internal sealed class TerminalView : Control
     internal (int Columns, int Rows) GridSize(Size available)
     {
         Measure();
+        var padding = Padding;
         return (
-            Math.Max(1, (int)(available.Width / _cell.Width)),
-            Math.Max(1, (int)(available.Height / _cell.Height)));
+            Math.Max(1, (int)((available.Width - padding.Left - padding.Right) / _cell.Width)),
+            Math.Max(1, (int)((available.Height - padding.Top - padding.Bottom) / _cell.Height)));
+    }
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == SessionProperty) Attach(change.GetNewValue<ITerminalSession?>());
+    }
+
+    /// <summary>
+    /// Follows a session, and stops following the one before it.
+    /// </summary>
+    /// <remarks>
+    /// The document is taken from the session rather than bound separately: two properties that
+    /// have to agree about which screen is on display is one property too many.
+    /// </remarks>
+    private void Attach(ITerminalSession? session)
+    {
+        if (_attached is not null) _attached.OutputReceived -= OnOutputReceived;
+        _attached = session;
+        if (_attached is not null) _attached.OutputReceived += OnOutputReceived;
+
+        Document = session?.Document;
+        CursorVisible = session?.CursorVisible ?? true;
+        _reported = default;
+        ReportGridSize();
+        InvalidateVisual();
+    }
+
+    private void OnOutputReceived(object? sender, EventArgs e)
+    {
+        // The cursor is the emulator's to hide, and a full-screen program hides it while it draws.
+        if (_attached is not null) CursorVisible = _attached.CursorVisible;
+        InvalidateVisual();
+    }
+
+    protected override Size ArrangeOverride(Size finalSize)
+    {
+        var arranged = base.ArrangeOverride(finalSize);
+        ReportGridSize(arranged);
+        return arranged;
+    }
+
+    /// <summary>
+    /// Tells the session how wide its window is, when that has actually changed.
+    /// </summary>
+    /// <remarks>
+    /// Arrange runs for reasons that have nothing to do with size, and a drag across a few hundred
+    /// pixels produces a stream of them. Only a change of whole columns or rows is worth a message:
+    /// the remote is sent a window-size signal for each one, and a shell that redraws its prompt on
+    /// every signal would spend a drag redrawing.
+    /// </remarks>
+    private void ReportGridSize(Size? arranged = null)
+    {
+        if (_attached is null) return;
+        var size = arranged ?? Bounds.Size;
+        if (size.Width <= 0 || size.Height <= 0) return;
+
+        var grid = GridSize(size);
+        if (grid == _reported) return;
+        _reported = grid;
+        _attached.Resize(grid.Columns, grid.Rows);
+    }
+
+    protected override void OnPointerPressed(PointerPressedEventArgs e)
+    {
+        base.OnPointerPressed(e);
+
+        // Clicking a terminal is how one starts typing at it.
+        Focus();
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        if (e.Handled || Session is not { } session) return;
+
+        var modifiers = e.KeyModifiers;
+        var control = modifiers.HasFlag(KeyModifiers.Control);
+        var shift = modifiers.HasFlag(KeyModifiers.Shift);
+
+        // Ctrl+Shift+V and Shift+Insert paste, which leaves plain Ctrl+V to the remote program and
+        // -- far more importantly -- leaves plain Ctrl+C meaning SIGINT. Binding paste or copy to
+        // the unshifted chord would make interrupting a runaway process depend on what the
+        // clipboard or a stray selection happened to contain.
+        if ((control && shift && e.Key == Key.V) || (shift && e.Key == Key.Insert))
+        {
+            _ = PasteAsync(session);
+            e.Handled = true;
+            return;
+        }
+
+        e.Handled = session.SendKey(e.Key, shift, modifiers.HasFlag(KeyModifiers.Alt), control);
+    }
+
+    protected override void OnTextInput(TextInputEventArgs e)
+    {
+        base.OnTextInput(e);
+        if (e.Handled || Session is not { } session || string.IsNullOrEmpty(e.Text)) return;
+
+        // Control characters have already gone out through the encoder on key-down; sending them
+        // again here would double every Ctrl+letter and every Enter.
+        if (e.Text.All(char.IsControl)) return;
+
+        session.SendText(e.Text);
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// Pastes the clipboard into the session.
+    /// </summary>
+    /// <remarks>
+    /// Avalonia's clipboard is asynchronous and belongs to the window, not the process, which is
+    /// what an X11 clipboard actually is. A clipboard that cannot be read is not worth a dialog.
+    /// </remarks>
+    private async Task PasteAsync(ITerminalSession session)
+    {
+        try
+        {
+            if (TopLevel.GetTopLevel(this)?.Clipboard is not { } clipboard) return;
+            // TryGetTextAsync, not GetTextAsync: a clipboard holding an image or a file list has
+            // no text to give, and that is an ordinary answer rather than a failure.
+            var text = await clipboard.TryGetTextAsync().ConfigureAwait(true);
+            if (!string.IsNullOrEmpty(text)) session.Paste(text);
+        }
+        catch (Exception error) when (error is InvalidOperationException or TimeoutException or IOException)
+        {
+        }
     }
 
     public override void Render(DrawingContext context)
@@ -113,16 +288,25 @@ internal sealed class TerminalView : Control
 
         if (Document is not { } document) return;
 
-        var rows = Math.Max(0, (int)(Bounds.Height / _cell.Height));
+        // The background covers the whole control; only the text is inset. Clipping to the padded
+        // area as well keeps a long row from drawing over the right-hand inset.
+        var padding = Padding;
+        var text = new Rect(Bounds.Size).Deflate(padding);
+        if (text.Width <= 0 || text.Height <= 0) return;
+
+        using var _ = context.PushClip(text);
+        using var __ = context.PushTransform(Matrix.CreateTranslation(text.X, text.Y));
+
+        var rows = Math.Max(0, (int)(text.Height / _cell.Height));
         var top = document.ScreenTopLineNumber;
         for (var row = 0; row < rows; row++)
         {
             var cells = document.GetLine(top + row);
             if (cells.IsEmpty) continue;
-            PaintRow(context, cells, row, foreground, background);
+            PaintRow(context, cells, row, foreground, background, text.Width);
         }
 
-        if (CursorVisible) PaintCursor(context, document, foreground);
+        if (CursorVisible) PaintCursor(context, document, foreground, text);
     }
 
     /// <summary>
@@ -138,7 +322,8 @@ internal sealed class TerminalView : Control
         ReadOnlySpan<VtCell> cells,
         int row,
         Color defaultForeground,
-        Color defaultBackground)
+        Color defaultBackground,
+        double width)
     {
         var y = row * _cell.Height;
         var column = 0;
@@ -150,7 +335,7 @@ internal sealed class TerminalView : Control
 
             var bounds = new Rect(
                 start * _cell.Width, y, (column - start) * _cell.Width, _cell.Height);
-            if (bounds.Left >= Bounds.Width) return;
+            if (bounds.Left >= width) return;
 
             var (foreground, background) = VtPalette.Resolve(
                 style, ToRgb(defaultForeground), ToRgb(defaultBackground), selected: false);
@@ -232,10 +417,11 @@ internal sealed class TerminalView : Control
     /// Drawn over the text rather than under it, and inverted, so the character beneath stays
     /// readable instead of being hidden by its own cursor.
     /// </remarks>
-    private void PaintCursor(DrawingContext context, VtTerminalDocument document, Color foreground)
+    private void PaintCursor(
+        DrawingContext context, VtTerminalDocument document, Color foreground, Rect text)
     {
         var row = (int)(document.CursorLineNumber - document.ScreenTopLineNumber);
-        if (row < 0 || row * _cell.Height >= Bounds.Height) return;
+        if (row < 0 || row * _cell.Height >= text.Height) return;
 
         var bounds = new Rect(
             document.Screen.CursorColumn * _cell.Width,

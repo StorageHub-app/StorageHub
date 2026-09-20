@@ -92,6 +92,12 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
     /// </remarks>
     internal void RouteToActivePane()
     {
+        // What a shortcut needs to know about the pane it would act on. A pane showing a shell
+        // refuses pane commands outright, because the keystroke belongs to the remote host.
+        Router.ActivePane = () => ActivePane() is { } pane
+            ? (HasPane: true, IsSshPane: pane.IsTerminal)
+            : (HasPane: false, IsSshPane: false);
+
         // Selection, which the pane answers directly.
         Router.Handle(UiCommandIds.EditSelectAll, () => ActivePane()?.SelectAll());
         Router.Handle(UiCommandIds.EditInvertSelection, () => ActivePane()?.InvertSelection());
@@ -399,10 +405,18 @@ internal static class ShellPreview
     /// reordered by adding a file elsewhere started failing on a workspace another test had
     /// already reduced to a single pane.
     /// </remarks>
-    internal static ShellPreviewModel CreateOnWorkspace() => Build(selectedWorkspace: 2);
+    /// <param name="terminals">
+    /// How its panes open a shell. The default reaches the agent over a pipe, which a test without
+    /// one would spend both connect timeouts discovering.
+    /// </param>
+    internal static ShellPreviewModel CreateOnWorkspace(
+        Func<ISshTerminalAgentClient>? terminals = null) =>
+        Build(selectedWorkspace: 2, terminals);
 
-    private static ShellPreviewModel Build(int selectedWorkspace = 0)
+    private static ShellPreviewModel Build(
+        int selectedWorkspace = 0, Func<ISshTerminalAgentClient>? terminals = null)
     {
+        terminals ??= static () => new NamedPipeSshTerminalAgentClient();
         var router = new ShellCommandRouter();
 
         // The queue is built first so the workspace can tell it to refresh the moment a transfer
@@ -431,10 +445,15 @@ internal static class ShellPreview
                 new WorkspaceModel(
                     // A pane makes its own inspector client per operation, for the same reason a
                     // transfer does: one held open is one that broke when the agent restarted.
-                    static () => new BrowserPaneModel(
+                    () => new BrowserPaneModel(
                         mutations: static () => new PaneMutationController(
                             static () => new NamedPipeObjectInspectorAgentClient()),
-                        dialogs: Services.ShellServices.Dialogs),
+                        dialogs: Services.ShellServices.Dialogs,
+
+                        // One terminal client per session, not per pane: the protocol keeps two
+                        // pipe connections open for as long as a shell is running, and the pane
+                        // disposes them with the session.
+                        terminals: terminals),
                     static () => new NamedPipeTransferQueueAgentClient(),
                     static () => new NamedPipeRemoteStorageAgentClient(),
                     static () => new NamedPipeObjectInspectorAgentClient(),
