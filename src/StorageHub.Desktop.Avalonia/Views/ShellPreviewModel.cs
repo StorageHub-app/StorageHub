@@ -303,15 +303,26 @@ internal static class ShellPreview
             string.Create(System.Globalization.CultureInfo.CurrentCulture, $"{label} ({count})");
     }
 
+    /// <summary>
+    /// The menus that have something in them.
+    /// </summary>
+    /// <remarks>
+    /// A menu whose every command is still unwired is dropped rather than shown empty - which is
+    /// what the WinForms shell does, and why its menu bar has eight headers today and not the nine
+    /// the catalog declares: nothing under Transfer is implemented yet. Showing an empty header
+    /// reads as a broken menu rather than as an unfinished feature.
+    /// </remarks>
     private static IReadOnlyList<MenuSection> BuildMenus(ShellCommandRouter router) =>
     [
-        .. UiCommandCatalog.Menus.Select(menu => new MenuSection(
-            UiCommandCatalog.MenuTitle(menu),
-            [
-                .. UiCommandCatalog.ForMenu(menu)
-                    .Where(definition => UiCommandCatalog.IsAvailable(definition.Id))
-                    .Select(definition => ToEntry(definition, router)),
-            ])),
+        .. UiCommandCatalog.Menus
+            .Select(menu => new MenuSection(
+                UiCommandCatalog.MenuTitle(menu),
+                [
+                    .. UiCommandCatalog.ForMenu(menu)
+                        .Where(definition => UiCommandCatalog.IsAvailable(definition.Id))
+                        .Select(definition => ToEntry(definition, router)),
+                ]))
+            .Where(section => section.Items.Count > 0),
     ];
 
     private static IReadOnlyList<object> BuildToolbar(ShellCommandRouter router) =>

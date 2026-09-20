@@ -56,7 +56,11 @@ public class IconCatalogTests
     {
         var model = ShellPreview.Sample;
 
-        Assert.Equal(UiCommandCatalog.Menus.Count, model.Menus.Count);
+        // Only the menus with something wired up in them.
+        Assert.Equal(
+            UiCommandCatalog.Menus.Count(menu =>
+                UiCommandCatalog.ForMenu(menu).Any(d => UiCommandCatalog.IsAvailable(d.Id))),
+            model.Menus.Count);
 
         // Declared but not yet wired commands are left out, as MainForm leaves them out: a menu
         // entry that does nothing is worse than an absent one.

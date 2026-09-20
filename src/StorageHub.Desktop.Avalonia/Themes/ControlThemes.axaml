@@ -155,6 +155,51 @@
 
   <Style Selector="Menu">
     <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+    <Setter Property="MinHeight" Value="{StaticResource MenuBarHeight}"/>
+  </Style>
+
+  <!-- A menu bar header. Fluent paints its hover in a light neutral that reads as a grey box on a
+       dark bar; the shell has always used its own muted surface for this. -->
+  <Style Selector="Menu > MenuItem">
+    <Setter Property="Padding" Value="{StaticResource MenuItemPadding}"/>
+    <Setter Property="CornerRadius" Value="{StaticResource DenseFieldRadius}"/>
+    <Setter Property="VerticalAlignment" Value="Stretch"/>
+  </Style>
+  <Style Selector="Menu > MenuItem:pointerover /template/ Border#PART_LayoutRoot">
+    <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}"/>
+  </Style>
+  <Style Selector="Menu > MenuItem:selected /template/ Border#PART_LayoutRoot">
+    <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}"/>
+  </Style>
+
+  <!-- The drop-down itself: an elevated surface with a real edge, rather than a panel that merges
+       into whatever is behind it. -->
+  <Style Selector="MenuItem /template/ Popup#PART_Popup > Border">
+    <Setter Property="Background" Value="{DynamicResource ElevatedBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="CornerRadius" Value="{StaticResource FieldRadius}"/>
+    <Setter Property="Padding" Value="{StaticResource PaddingSm}"/>
+  </Style>
+
+  <Style Selector="MenuItem > MenuItem">
+    <Setter Property="Padding" Value="{StaticResource FieldPadding}"/>
+    <Setter Property="MinHeight" Value="{StaticResource ListRowHeight}"/>
+  </Style>
+  <Style Selector="MenuItem > MenuItem:pointerover /template/ Border#PART_LayoutRoot">
+    <Setter Property="Background" Value="{DynamicResource SelectionBrush}"/>
+  </Style>
+
+  <!-- The shortcut column reads as reference, not as an action. -->
+  <Style Selector="MenuItem /template/ TextBlock#PART_InputGestureText">
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+    <Setter Property="Margin" Value="{StaticResource PaddingLg}"/>
+  </Style>
+
+  <Style Selector="Separator">
+    <Setter Property="Background" Value="{DynamicResource BorderBrush}"/>
+    <Setter Property="Height" Value="1"/>
+    <Setter Property="Margin" Value="{StaticResource PaddingSm}"/>
   </Style>
 
   <Style Selector="GridSplitter">

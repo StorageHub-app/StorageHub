@@ -24,10 +24,18 @@
           <TextBlock Text="{Binding Header}"/>
         </DataTemplate>
       </Menu.ItemTemplate>
-      <!-- One container theme drives every entry in every menu, which is what lets the nine menus
-           come straight from the catalog. InputGesture only displays the shortcut; dispatch comes
-           from Window.KeyBindings built from the same catalog, and the two must not drift. -->
       <Menu.Styles>
+        <!-- The nine menus come straight from the catalog. Setting ItemsSource through a style
+             rather than an ItemContainerTheme is deliberate: a theme based on {x:Type MenuItem}
+             is Avalonia's *nested* menu item, so applying it to a menu bar made every root behave
+             like a submenu - opening to the right of its header instead of below it. Leaving the
+             container theme alone keeps the top-level one Avalonia already assigns. -->
+        <Style Selector="Menu > MenuItem" x:DataType="vm:MenuSection">
+          <Setter Property="ItemsSource" Value="{Binding Items}"/>
+        </Style>
+
+        <!-- InputGesture only displays the shortcut; dispatch comes from ShellCommandRouter on the
+             same catalog, and the two must not drift. -->
         <Style Selector="MenuItem > MenuItem" x:DataType="vm:CommandEntry">
           <Setter Property="Header" Value="{Binding Label}"/>
           <Setter Property="InputGesture" Value="{Binding Shortcut}"/>
@@ -44,12 +52,6 @@
           </Setter>
         </Style>
       </Menu.Styles>
-      <Menu.ItemContainerTheme>
-        <ControlTheme TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}"
-                        x:DataType="vm:MenuSection">
-          <Setter Property="ItemsSource" Value="{Binding Items}"/>
-        </ControlTheme>
-      </Menu.ItemContainerTheme>
     </Menu>
 
     <!-- Avalonia has no ToolBar; an ItemsControl over the resolved command ids is the shape, and it

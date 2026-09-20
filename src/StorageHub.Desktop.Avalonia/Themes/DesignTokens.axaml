@@ -155,6 +155,11 @@
     Chrome heights. Written once here rather than per view, so the toolbar and the tab strip cannot
     disagree about how tall a row is.
   -->
+  <!-- The menu bar sizes its own row. Padding on a menu-bar item has to be horizontal only: the
+       bar gives each item a fixed height, so vertical padding makes the content taller than its
+       slot and the labels clip at both ends rather than the row growing. -->
+  <sys:Double x:Key="MenuBarHeight">30</sys:Double>
+  <Thickness x:Key="MenuItemPadding">10,0</Thickness>
   <sys:Double x:Key="ToolbarHeight">36</sys:Double>
   <sys:Double x:Key="StatusBarHeight">26</sys:Double>
   <sys:Double x:Key="ListRowHeight">24</sys:Double>

@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Styling;
@@ -85,8 +86,10 @@ public class ShellScalingTests
         var window = Shell();
         window.Show();
 
+        // Eight, not the nine UiMenuId declares: Transfer holds nothing that is wired up yet, and
+        // an empty header reads as a broken menu rather than an unfinished feature.
         var menu = window.GetVisualDescendants().OfType<Menu>().Single();
-        Assert.Equal(9, menu.ItemsSource!.Cast<object>().Count());
+        Assert.Equal(8, menu.ItemsSource!.Cast<object>().Count());
 
         var tabs = window.GetVisualDescendants().OfType<TabControl>().ToList();
         Assert.Equal(2, tabs.Count);
@@ -123,6 +126,72 @@ public class ShellScalingTests
         Assert.True(
             add.Bounds.X >= 0 && lastTab.Bounds.Width > 0,
             "the add button did not arrange beside the tabs");
+    }
+
+    /// <summary>
+    /// The menu bar's roots are menu bar roots, not submenus.
+    /// </summary>
+    /// <remarks>
+    /// They were not. Setting the menus' ItemsSource through an ItemContainerTheme based on
+    /// {x:Type MenuItem} looked harmless, but that key is Avalonia's *nested* menu item: every root
+    /// took the submenu theme and opened its drop-down to the right of its own header rather than
+    /// below it. It compiled, bound and rendered - only using it showed the problem, which is why
+    /// the shape is asserted here rather than left to the next screenshot.
+    /// </remarks>
+    [AvaloniaFact]
+    public void TheMenuBarsRootsAreTopLevelItems()
+    {
+        var window = Shell();
+        window.Show();
+        window.Measure(new Size(1500, 920));
+        window.Arrange(new Rect(0, 0, 1500, 920));
+
+        var roots = window.GetVisualDescendants().OfType<Menu>().Single()
+            .GetVisualDescendants().OfType<MenuItem>()
+            .Where(item => item.IsTopLevel)
+            .ToList();
+
+        Assert.Equal(8, roots.Count);
+        Assert.All(roots, root => Assert.True(root.HasSubMenu, $"{root.Header} has no entries"));
+    }
+
+    /// <summary>
+    /// The menu bar shows all of its labels, not the middle of them.
+    /// </summary>
+    /// <remarks>
+    /// Vertical padding on a menu-bar item does not make the row taller: the bar hands each item a
+    /// fixed height, so the padded content is squeezed into what is left and every label clips at
+    /// the top and bottom.
+    ///
+    /// The assertion is that the item's content is arranged at least as tall as it asked to be.
+    /// Nothing throws and nothing overflows its parent, so the layout tests elsewhere stayed green
+    /// while the bar was unreadable - and a first attempt at this test, comparing the label's
+    /// position against the bar's bounds, passed too, because the label is measured down rather
+    /// than drawn outside. Squeezed, not overflowing, is the shape of this bug.
+    /// </remarks>
+    [AvaloniaTheory]
+    [InlineData(1.0)]
+    [InlineData(1.25)]
+    [InlineData(2.0)]
+    public void TheMenuBarShowsWholeLabels(double scaling)
+    {
+        var window = Shell();
+        window.Show();
+        window.Measure(new Size(1500 * scaling, 920 * scaling));
+        window.Arrange(new Rect(0, 0, 1500 * scaling, 920 * scaling));
+
+        var menu = window.GetVisualDescendants().OfType<Menu>().Single();
+
+        foreach (var item in menu.GetVisualDescendants().OfType<MenuItem>().Where(i => i.IsTopLevel))
+        {
+            var content = item.GetVisualDescendants().OfType<ContentPresenter>().FirstOrDefault();
+            if (content is null || content.DesiredSize.Height <= 0) continue;
+
+            Assert.True(
+                content.Bounds.Height >= content.DesiredSize.Height - 0.5,
+                $"'{item.Header}' wants {content.DesiredSize.Height:0.#}px but was given " +
+                $"{content.Bounds.Height:0.#}px in a bar {menu.Bounds.Height:0.#}px tall");
+        }
     }
 
     /// <summary>Nothing on screen is a type name.</summary>
