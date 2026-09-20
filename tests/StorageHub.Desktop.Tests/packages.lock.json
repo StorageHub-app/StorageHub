@@ -29,6 +29,21 @@
         "resolved": "3.1.5",
         "contentHash": "tKi7dSTwP4m5m9eXPM2Ime4Kn7xNf4x4zT9sdLO/G4hZVnQCRiMTWoSZqI/pYTVeI27oPPqHBKYI/DjJ9GsYgA=="
       },
+      "Avalonia.BuildServices": {
+        "type": "Transitive",
+        "resolved": "11.3.2",
+        "contentHash": "qHDToxto1e3hci5YqbG9n0Ty8mlp3zBUN5wT66wKqaDVzXyQ0do3EnRILd4Ke9jpvsktaPpgE0YjEk7hornryQ=="
+      },
+      "Avalonia.Remote.Protocol": {
+        "type": "Transitive",
+        "resolved": "12.1.2",
+        "contentHash": "DdLTe9xKXxxfRcXmUw1trXZpBpz1YiZYWXx0DfMVPFAnkCszKsHLi67kaZfGJqtfQq2EySKd2qgRYX2QYkSxcg=="
+      },
+      "MicroCom.Runtime": {
+        "type": "Transitive",
+        "resolved": "0.11.6",
+        "contentHash": "NdNWGDiZ6eS/Mf/9+QHR91cj1K7Hy+PX9yrHI/zM7xFYuj9IWT2uxtB6sCHjrnxAeLV9fut1R6zHDUGKX6f9lQ=="
+      },
       "Microsoft.CodeCoverage": {
         "type": "Transitive",
         "resolved": "18.7.0",
@@ -164,6 +179,21 @@
           "SQLitePCLRaw.bundle_e_sqlite3": "[2.1.12, )",
           "StorageHub.Agent": "[1.4.6, )",
           "StorageHub.Contracts": "[1.4.6, )",
+          "StorageHub.Desktop.Core": "[1.4.6, )",
+          "StorageHub.Ipc": "[1.4.6, )",
+          "StorageHub.Security": "[1.4.6, )",
+          "Velopack": "[1.2.0, )"
+        }
+      },
+      "storagehub.desktop.core": {
+        "type": "Project",
+        "dependencies": {
+          "Avalonia": "[12.1.2, )",
+          "CodeLogic": "[4.8.19, )",
+          "Microsoft.Data.Sqlite": "[9.0.18, )",
+          "SQLitePCLRaw.bundle_e_sqlite3": "[2.1.12, )",
+          "StorageHub.Agent": "[1.4.6, )",
+          "StorageHub.Contracts": "[1.4.6, )",
           "StorageHub.Ipc": "[1.4.6, )",
           "StorageHub.Security": "[1.4.6, )",
           "Velopack": "[1.2.0, )"
@@ -211,6 +241,17 @@
         "dependencies": {
           "StorageHub.Domain": "[1.4.6, )",
           "StorageHub.Storage": "[1.4.6, )"
+        }
+      },
+      "Avalonia": {
+        "type": "CentralTransitive",
+        "requested": "[12.1.2, )",
+        "resolved": "12.1.2",
+        "contentHash": "GHSe4qxjbqqxB570xuB4KtoD+Qhk3uKXJUXbelGYhGz/ti8xEoL7e5DGun8hcsXHondszPPBEdcC68szw7vUKg==",
+        "dependencies": {
+          "Avalonia.BuildServices": "11.3.2",
+          "Avalonia.Remote.Protocol": "12.1.2",
+          "MicroCom.Runtime": "0.11.6"
         }
       },
       "CodeLogic": {

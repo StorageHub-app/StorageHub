@@ -39,6 +39,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\StorageHub.Desktop.Core\StorageHub.Desktop.Core.csproj" />
     <ProjectReference Include="..\StorageHub.Ipc\StorageHub.Ipc.csproj" />
     <ProjectReference Include="..\StorageHub.Agent\StorageHub.Agent.csproj" />
     <ProjectReference Include="..\StorageHub.Agent.Host\StorageHub.Agent.Host.csproj"

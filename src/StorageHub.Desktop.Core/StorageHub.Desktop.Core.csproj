@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- The same namespace the shell already uses, so the files that move need no edit. -->
+    <RootNamespace>StorageHub.Desktop</RootNamespace>
+    <AssemblyName>StorageHub.Desktop.Core</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Avalonia.Base only: Key, KeyModifiers, KeyGesture and Media.Color, with no UI framework
+         behind them. It is what lets a command catalog name a shortcut and a terminal name a key
+         without this assembly knowing what a window is - and it is why inventing neutral Rgba and
+         ShortcutGesture types would have been make-work. -->
+    <PackageReference Include="Avalonia" />
+    <ProjectReference Include="..\StorageHub.Agent\StorageHub.Agent.csproj" />
+    <ProjectReference Include="..\StorageHub.Contracts\StorageHub.Contracts.csproj" />
+    <ProjectReference Include="..\StorageHub.Ipc\StorageHub.Ipc.csproj" />
+    <ProjectReference Include="..\StorageHub.Security\StorageHub.Security.csproj" />
+    <PackageReference Include="CodeLogic" />
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" VersionOverride="2.1.12" />
+    <PackageReference Include="Velopack" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Colour is the one System.Drawing type the shell's models genuinely need, and Avalonia.Base
+         supplies it. Aliasing it here is what lets a presentation model name an accent colour
+         without the assembly knowing what a window is. -->
+    <Using Include="Avalonia.Media.Color" Alias="Color" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The shell is internal to itself by long habit, and splitting it across an assembly boundary
+         does not change who may see what - it only changes whether the compiler agrees. Widening
+         every moved type to public instead would be a worse trade: it would publish an API surface
+         nobody outside this pair consumes, and the pair stops existing when WinForms is deleted. -->
+    <InternalsVisibleTo Include="StorageHub.Desktop" />
+    <InternalsVisibleTo Include="StorageHub.Desktop.Tests" />
+  </ItemGroup>
+</Project>
