@@ -467,6 +467,12 @@
           "StorageHub.Transfers": "[1.4.6, )"
         }
       },
+      "storagehub.testing": {
+        "type": "Project",
+        "dependencies": {
+          "xunit": "[2.9.3, )"
+        }
+      },
       "storagehub.transfers": {
         "type": "Project",
         "dependencies": {

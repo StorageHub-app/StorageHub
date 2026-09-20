@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- A helper library, not a suite. tests/Directory.Build.props marks everything here as a test
+         project, and left alone that makes `dotnet test` look for cases this assembly does not
+         have. -->
+    <IsTestProject>false</IsTestProject>
+    <RootNamespace>StorageHub.Testing</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit" />
+  </ItemGroup>
+</Project>

@@ -16,6 +16,7 @@
     <Project Path="src/StorageHub.Desktop.WinForms/StorageHub.Desktop.WinForms.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/StorageHub.Testing/StorageHub.Testing.csproj" />
     <Project Path="tests/StorageHub.Domain.Tests/StorageHub.Domain.Tests.csproj" />
     <Project Path="tests/StorageHub.Storage.ContractTests/StorageHub.Storage.ContractTests.csproj" />
     <Project Path="tests/StorageHub.Storage.CodeLogic.Tests/StorageHub.Storage.CodeLogic.Tests.csproj" />

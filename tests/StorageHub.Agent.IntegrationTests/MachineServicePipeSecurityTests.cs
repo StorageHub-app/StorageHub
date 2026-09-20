@@ -2,6 +2,7 @@ using System.IO.Pipes;
 using System.Security.Principal;
 using StorageHub.Agent.Ipc;
 using StorageHub.Contracts.Ipc;
+using StorageHub.Testing;
 
 namespace StorageHub.Agent.IntegrationTests;
 
@@ -28,7 +29,7 @@ public sealed class MachineServicePipeSecurityTests
     /// An empty permit list leaves only LocalSystem and Administrators on the ACL. That looks like
     /// a healthy agent and fails at every connect, so it has to be refused at configuration time.
     /// </summary>
-    [Fact]
+    [WindowsOnlyFact]
     public void A_machine_service_pipe_refuses_to_start_with_nobody_permitted()
     {
         var error = Assert.Throws<ArgumentException>(
@@ -37,14 +38,14 @@ public sealed class MachineServicePipeSecurityTests
         Assert.Contains("permitted account", error.Message, StringComparison.OrdinalIgnoreCase);
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void A_machine_service_pipe_refuses_a_malformed_account()
     {
         _ = Assert.Throws<ArgumentException>(
             () => new NamedPipeIpcServerSubsystem(Options(IpcPipeAccess.MachineService, "not-a-sid")));
     }
 
-    [Fact]
+    [WindowsOnlyFact]
     public void The_default_access_stays_current_user_only()
     {
         Assert.Equal(IpcPipeAccess.CurrentUserOnly, Options(IpcPipeAccess.CurrentUserOnly).Access);
@@ -57,7 +58,7 @@ public sealed class MachineServicePipeSecurityTests
     /// The ACL must name exactly LocalSystem, Administrators and the permitted account -- no
     /// Everyone or Authenticated Users ACE, which the guessable name would otherwise expose.
     /// </summary>
-    [Fact]
+    [WindowsOnlyFact]
     public async Task A_machine_service_pipe_grants_only_system_administrators_and_the_permitted_account()
     {
         using var current = WindowsIdentity.GetCurrent();
@@ -107,7 +108,7 @@ public sealed class MachineServicePipeSecurityTests
     /// whoever runs the tests -- an ordinary user locally, an administrator on a build agent -- so
     /// a live pipe tests the environment rather than the rule.
     /// </summary>
-    [Fact]
+    [WindowsOnlyFact]
     public void Only_the_service_accounts_are_trusted_to_own_the_machine_pipe()
     {
         Assert.True(NamedPipeIpcClient.IsTrustedServerOwner(
