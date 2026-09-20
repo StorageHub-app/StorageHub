@@ -130,6 +130,43 @@ if ($hostFingerprint -eq $rotatedFingerprint) {
     throw 'The two host keys hashed to the same fingerprint, which cannot happen; check ssh-keygen.'
 }
 
+# ---------------------------------------------------------------- certificates
+
+<#
+    The FTPS material is minted inside a container.
+
+    openssl ships with Git for Windows but is not on PATH from PowerShell, and reaching into Git's
+    own installation directory to find it works right up until somebody installs Git somewhere
+    else. Doing it in a container means the lab needs nothing on the host but Docker, which is also
+    what it needs to run at all.
+#>
+$tlsFixtures = Join-Path $fixtures 'tls'
+$null = New-Item -ItemType Directory -Force -Path $tlsFixtures
+
+Write-Host 'Minting the lab certificate authority and certificates...' -ForegroundColor Cyan
+# No 2>&1 on either call. Windows PowerShell wraps a native command's stderr in error records and
+# then, under ErrorActionPreference Stop, treats the first line docker writes there as a terminating
+# failure -- and docker writes its ordinary build progress to stderr. $LASTEXITCODE is the thing
+# that actually knows whether the command worked.
+& docker build --quiet --tag storagehub-testlab-certs (Join-Path $labRoot 'certs') | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'Could not build the certificate generator image.' }
+
+& docker run --rm --volume "${tlsFixtures}:/out" storagehub-testlab-certs | Out-Host
+if ($LASTEXITCODE -ne 0) { throw 'The certificate generator failed.' }
+
+$fingerprintFile = Join-Path $tlsFixtures 'fingerprints.env'
+if (-not (Test-Path $fingerprintFile)) {
+    throw 'The certificate generator did not write fingerprints.env.'
+}
+
+$tls = @{}
+foreach ($line in Get-Content $fingerprintFile) {
+    if ($line -match '^([A-Z0-9_]+)=(.*)$') { $tls[$Matches[1]] = $Matches[2] }
+}
+foreach ($name in @('STORAGEHUB_FTP_SERVER_SHA256', 'STORAGEHUB_FTP_CLIENT_PFX_PASSWORD')) {
+    if (-not $tls.ContainsKey($name)) { throw "The certificate generator did not report $name." }
+}
+
 # ---------------------------------------------------------------- settings
 
 $settings = [ordered] @{
@@ -145,6 +182,23 @@ $settings = [ordered] @{
     STORAGEHUB_SFTP_CLIENT_KEY_PASSPHRASE = $clientKeyPassphrase
     STORAGEHUB_SFTP_ALTERNATE_KEY_PATH   = (Resolve-Path $alternateKey).Path
     STORAGEHUB_SFTP_ALTERNATE_KEY_PASSPHRASE = $alternateKeyPassphrase
+
+    STORAGEHUB_REQUIRE_FTP               = '1'
+    STORAGEHUB_FTP_USERNAME              = 'storagehub'
+    STORAGEHUB_FTP_PASSWORD              = 'storagehub-testlab-password'
+    STORAGEHUB_FTP_PLAIN_PORT            = '2121'
+    STORAGEHUB_FTP_EXPLICIT_PORT         = '2122'
+    STORAGEHUB_FTP_IMPLICIT_PORT         = '2123'
+    STORAGEHUB_FTP_MTLS_PORT             = '2124'
+    STORAGEHUB_FTP_SERVER_SHA256         = $tls['STORAGEHUB_FTP_SERVER_SHA256']
+    STORAGEHUB_FTP_CLIENT_PFX_PATH       = (Resolve-Path (Join-Path $tlsFixtures 'client.pfx')).Path
+    STORAGEHUB_FTP_CLIENT_PFX_PASSWORD   = $tls['STORAGEHUB_FTP_CLIENT_PFX_PASSWORD']
+
+    STORAGEHUB_REQUIRE_MINIO             = '1'
+    STORAGEHUB_MINIO_ENDPOINT            = 'http://127.0.0.1:9000/'
+    STORAGEHUB_MINIO_ACCESS_KEY          = 'storagehub-testlab'
+    STORAGEHUB_MINIO_SECRET_KEY          = 'storagehub-testlab-secret'
+    STORAGEHUB_MINIO_BUCKET              = 'storagehub-testlab'
 }
 
 # compose reads .env from its own directory; the tests read env.ps1. Both are generated from the
@@ -183,6 +237,11 @@ Write-Host 'Test lab ready.' -ForegroundColor Green
 Write-Host ('  SFTP password   127.0.0.1:{0}' -f $settings.STORAGEHUB_SFTP_PASSWORD_PORT)
 Write-Host ('  SFTP key only   127.0.0.1:{0}' -f $settings.STORAGEHUB_SFTP_PRIVATE_KEY_PORT)
 Write-Host ('  SFTP rotated    127.0.0.1:{0}' -f $settings.STORAGEHUB_SFTP_ROTATED_PORT)
+Write-Host ('  FTP plain       127.0.0.1:{0}' -f $settings.STORAGEHUB_FTP_PLAIN_PORT)
+Write-Host ('  FTPS explicit   127.0.0.1:{0}' -f $settings.STORAGEHUB_FTP_EXPLICIT_PORT)
+Write-Host ('  FTPS implicit   127.0.0.1:{0}' -f $settings.STORAGEHUB_FTP_IMPLICIT_PORT)
+Write-Host ('  FTPS mutual     127.0.0.1:{0}' -f $settings.STORAGEHUB_FTP_MTLS_PORT)
+Write-Host  '  MinIO (S3)      127.0.0.1:9000, console on 9001'
 Write-Host ''
 Write-Host 'Point a shell at it with:' -ForegroundColor Cyan
 Write-Host '  . ./eng/testlab/.fixtures/env.ps1'
