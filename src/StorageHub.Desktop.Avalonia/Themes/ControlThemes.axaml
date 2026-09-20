@@ -82,13 +82,18 @@
 
   <Style Selector="Window">
     <Setter Property="Background" Value="{DynamicResource CanvasBrush}"/>
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
     <Setter Property="FontFamily" Value="{DynamicResource AppFontUi}"/>
     <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
   </Style>
 
-  <Style Selector="TextBlock">
-    <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
-  </Style>
+  <!--
+    The window sets the text colour and everything inherits it; there is deliberately no blanket
+    TextBlock setter. One would win over inheritance, which is how the sidebar's New button came to
+    draw a near-black label on a blue fill in light appearance and got away with it in dark, where
+    the page colour happens to be white. A container that paints itself now decides the colour of
+    the text it contains, which is the only arrangement that cannot drift.
+  -->
   <Style Selector="TextBlock.muted">
     <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
   </Style>
@@ -128,6 +133,24 @@
   <Style Selector="Button.danger">
     <Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource DangerBrush}"/>
+  </Style>
+
+  <!--
+    A button whose content is written out - an icon beside a label, rather than a bare string - has
+    real children rather than template children, and LucideIcon's muted default would still beat
+    what the button set. These say it again for the two filled variants.
+  -->
+  <Style Selector="Button.primary TextBlock">
+    <Setter Property="Foreground" Value="White"/>
+  </Style>
+  <Style Selector="Button.primary LucideIcon">
+    <Setter Property="Foreground" Value="White"/>
+  </Style>
+  <Style Selector="Button.danger TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/>
+  </Style>
+  <Style Selector="Button.danger LucideIcon">
+    <Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/>
   </Style>
 
   <!-- The dense variant, for anything hosted in the toolbar. -->
