@@ -1,0 +1,173 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
+        x:Class="StorageHub.Desktop.Views.ScheduleManagerWindow"
+        x:DataType="vm:ScheduleManagerModel"
+        Title="{Binding Title}"
+        Width="1180" Height="720"
+        WindowStartupLocation="CenterOwner">
+
+  <!--
+    Compare against docs/ui-reference/06-schedules.png. A list of what is scheduled on the left, and
+    one schedule's settings on the right.
+
+    The recurrence is chosen, not written: the cron box appears only under the custom frequency,
+    because a five-field expression is the wrong way to say "every weekday at seven" and the right
+    way to say the handful of things no preset covers.
+  -->
+
+  <Border Classes="surface">
+    <Grid ColumnDefinitions="*,Auto,440">
+
+      <DockPanel Grid.Column="0" Margin="{StaticResource PaddingLg}">
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,8">
+          <TextBlock Classes="title" Text="{Binding SavedSchedules}" VerticalAlignment="Center"/>
+          <Button Grid.Column="1" Content="{Binding RefreshLabel}"
+                  Command="{Binding RefreshCommand}" Margin="{StaticResource PaddingSm}"/>
+          <Button Grid.Column="2" Classes="primary" Content="{Binding NewScheduleLabel}"
+                  Command="{Binding NewScheduleCommand}" Margin="{StaticResource PaddingSm}"/>
+        </Grid>
+
+        <TextBlock DockPanel.Dock="Bottom" Classes="status"
+                   Classes.primary="{Binding Status.IsPrimary}"
+                   Classes.success="{Binding Status.IsSuccess}"
+                   Classes.warning="{Binding Status.IsWarning}"
+                   Classes.danger="{Binding Status.IsDanger}"
+                   Text="{Binding Status.Text}" TextWrapping="Wrap"
+                   Margin="0,8,0,0"
+                   AutomationProperties.Name="{Binding StatusAccessibleName}"/>
+
+        <TableView ItemsSource="{Binding Schedules}"
+                   SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
+                   AutomationProperties.Name="{Binding ListAccessibleName}">
+          <TableView.Columns>
+            <TableViewColumn Header="{Binding ColumnProfile}" Binding="{Binding Profile}" Width="150*"/>
+            <TableViewColumn Header="{Binding ColumnRecurrence}" Binding="{Binding Recurrence}" Width="250*"/>
+            <TableViewColumn Header="{Binding ColumnNext}" Binding="{Binding NextRun}" Width="130*"/>
+            <TableViewColumn Header="{Binding ColumnState}" Binding="{Binding State}" Width="80*"/>
+            <TableViewColumn Header="{Binding ColumnOutcome}" Binding="{Binding LastOutcome}" Width="130*"/>
+          </TableView.Columns>
+        </TableView>
+      </DockPanel>
+
+      <GridSplitter Grid.Column="1" Width="{StaticResource SplitterThickness}"/>
+
+      <DockPanel Grid.Column="2" Margin="{StaticResource PaddingLg}">
+
+        <!--
+          Save and Enable sit together; Delete is apart and on the danger style, because disabling
+          is the reversible version of it and the two should not be a slip of the mouse apart.
+        -->
+        <Grid DockPanel.Dock="Bottom" ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,12,0,0">
+          <Button Grid.Column="0" Classes="danger" Content="{Binding DeleteLabel}"
+                  Command="{Binding DeleteCommand}"/>
+          <Button Grid.Column="2" Content="{Binding ToggleLabel}"
+                  Command="{Binding ToggleCommand}" Margin="{StaticResource PaddingSm}"/>
+          <Button Grid.Column="3" Classes="primary" Content="{Binding SaveLabel}"
+                  Command="{Binding SaveCommand}" Margin="{StaticResource PaddingSm}"/>
+        </Grid>
+
+        <ScrollViewer>
+          <StackPanel Spacing="{StaticResource SpaceMd}">
+
+            <TextBlock Classes="status warning" Text="{Binding RunActiveBlocks}"
+                       IsVisible="{Binding IsBusyRun}" TextWrapping="Wrap"/>
+
+            <StackPanel Spacing="{StaticResource SpaceXs}">
+              <TextBlock Classes="caption" Text="{Binding ProfileLabel}"/>
+              <ComboBox ItemsSource="{Binding Profiles}"
+                        SelectedItem="{Binding Profile, Mode=TwoWay}"
+                        HorizontalAlignment="Stretch"
+                        AutomationProperties.Name="{Binding ProfileLabel}"/>
+            </StackPanel>
+
+            <StackPanel Spacing="{StaticResource SpaceXs}">
+              <TextBlock Classes="caption" Text="{Binding RepeatsLabel}"/>
+              <ComboBox ItemsSource="{Binding Frequencies}"
+                        SelectedItem="{Binding Frequency, Mode=TwoWay}"
+                        HorizontalAlignment="Stretch"
+                        AutomationProperties.Name="{Binding FrequencyAccessibleName}"/>
+
+              <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding ShowsTime}" Margin="0,4,0,0">
+                <TextBlock Classes="muted" Text="{Binding TimeAccessibleName}"
+                           VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <TimePicker Grid.Column="1" SelectedTime="{Binding TimeOfDay, Mode=TwoWay}"
+                            ClockIdentifier="24HourClock"
+                            HorizontalAlignment="Left"
+                            AutomationProperties.Name="{Binding TimeAccessibleName}"/>
+              </Grid>
+
+              <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding ShowsWeekDay}" Margin="0,4,0,0">
+                <TextBlock Classes="muted" Text="{Binding DayOfWeekLabel}"
+                           VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <ComboBox Grid.Column="1" ItemsSource="{Binding Days}"
+                          SelectedItem="{Binding DayOfWeek, Mode=TwoWay}"
+                          HorizontalAlignment="Left" MinWidth="180"
+                          AutomationProperties.Name="{Binding DayOfWeekLabel}"/>
+              </Grid>
+
+              <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding ShowsMonthDay}" Margin="0,4,0,0">
+                <TextBlock Classes="muted" Text="{Binding DayOfMonthLabel}"
+                           VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <NumericUpDown Grid.Column="1" Value="{Binding DayOfMonth, Mode=TwoWay}"
+                               Minimum="1" Maximum="31" Increment="1"
+                               HorizontalAlignment="Left" MinWidth="140"
+                               AutomationProperties.Name="{Binding DayOfMonthLabel}"/>
+              </Grid>
+
+              <StackPanel IsVisible="{Binding ShowsCron}" Spacing="{StaticResource SpaceXs}"
+                          Margin="0,4,0,0">
+                <TextBlock Classes="caption" Text="{Binding CronLabel}"/>
+                <TextBox Text="{Binding CronExpression, Mode=TwoWay}"
+                         AutomationProperties.Name="{Binding CronLabel}"/>
+                <TextBlock Classes="muted" Text="{Binding CronHint}" TextWrapping="Wrap"/>
+              </StackPanel>
+
+              <!-- What the builder has produced, in words. The point of the builder. -->
+              <TextBlock Classes="status primary" Text="{Binding RecurrenceSummary}"
+                         TextWrapping="Wrap" Margin="0,4,0,0"/>
+            </StackPanel>
+
+            <StackPanel Spacing="{StaticResource SpaceXs}">
+              <TextBlock Classes="caption" Text="{Binding TimeZoneLabel}"/>
+              <ComboBox ItemsSource="{Binding TimeZones}"
+                        SelectedItem="{Binding TimeZone, Mode=TwoWay}"
+                        HorizontalAlignment="Stretch" MaxDropDownHeight="320"
+                        AutomationProperties.Name="{Binding TimeZoneAccessibleName}"/>
+              <TextBlock Classes="muted" Text="{Binding TimeZoneHint}" TextWrapping="Wrap"/>
+            </StackPanel>
+
+            <StackPanel Spacing="{StaticResource SpaceXs}">
+              <TextBlock Classes="caption" Text="{Binding ExecutionModeLabel}"/>
+              <ComboBox ItemsSource="{Binding ExecutionModes}"
+                        SelectedItem="{Binding ExecutionMode, Mode=TwoWay}"
+                        HorizontalAlignment="Stretch"
+                        AutomationProperties.Name="{Binding ExecutionModeAccessibleName}"/>
+              <TextBlock Classes="status"
+                         Classes.success="{Binding ExecutionNotice.IsSuccess}"
+                         Classes.warning="{Binding ExecutionNotice.IsWarning}"
+                         Text="{Binding ExecutionNotice.Text}" TextWrapping="Wrap"/>
+            </StackPanel>
+
+            <StackPanel Spacing="{StaticResource SpaceXs}">
+              <TextBlock Classes="caption" Text="{Binding MisfireGraceLabel}"/>
+              <NumericUpDown Value="{Binding MisfireGraceMinutes, Mode=TwoWay}"
+                             Minimum="1" Maximum="43200" Increment="5"
+                             HorizontalAlignment="Left" MinWidth="160"
+                             AutomationProperties.Name="{Binding MisfireGraceLabel}"/>
+              <TextBlock Classes="muted" Text="{Binding MisfireGraceHint}" TextWrapping="Wrap"/>
+            </StackPanel>
+
+            <StackPanel Spacing="{StaticResource SpaceXs}">
+              <CheckBox Content="{Binding OverlapLabel}"
+                        IsChecked="{Binding QueueOneWhileRunning, Mode=TwoWay}"/>
+              <TextBlock Classes="muted" Text="{Binding QueueOneHint}" TextWrapping="Wrap"/>
+              <CheckBox Content="{Binding EnabledLabel}" IsChecked="{Binding Enabled, Mode=TwoWay}"/>
+            </StackPanel>
+
+          </StackPanel>
+        </ScrollViewer>
+      </DockPanel>
+    </Grid>
+  </Border>
+</Window>

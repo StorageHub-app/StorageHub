@@ -47,10 +47,14 @@ public partial class App : global::Avalonia.Application
             // form, and previewing is what its primary button already does.
             model.Router.Handle(UiCommandIds.SyncSyncProfiles, () => ShowSyncEditor(desktop, model));
             model.Router.Handle(UiCommandIds.SyncReviewRun, () => ShowSyncEditor(desktop, model));
+            // And the schedule manager, which is what turns a profile into something that runs
+            // without anybody present.
+            model.Router.Handle(UiCommandIds.SyncSchedules, () => ShowSchedules(desktop, model));
             if (model.SyncTasks is { } syncTasks)
             {
                 syncTasks.NewProfileCommand = new RelayCommand(
                     _ => ShowSyncEditor(desktop, model, startNew: true));
+                syncTasks.SchedulesCommand = new RelayCommand(_ => ShowSchedules(desktop, model));
             }
 
             // Whatever was saved last time, before the window is shown, so the shell opens in the
@@ -154,6 +158,24 @@ public partial class App : global::Avalonia.Application
             };
         }
 
+        window.Closed += (_, _) => _ = model.SyncTasks?.RefreshAsync();
+        if (desktop.MainWindow is { } owner) _ = window.ShowDialog(owner);
+        else window.Show();
+    }
+
+    /// <summary>
+    /// Opens the schedule manager.
+    /// </summary>
+    /// <remarks>
+    /// The tasks screen is refreshed on close because enabling or deleting a schedule changes what
+    /// the counts there mean, and the window is modal so one refresh at the end is the only moment
+    /// it matters.
+    /// </remarks>
+    private static void ShowSchedules(
+        IClassicDesktopStyleApplicationLifetime desktop,
+        ShellPreviewModel model)
+    {
+        var window = Views.ScheduleManagerWindow.ForCurrentAgent();
         window.Closed += (_, _) => _ = model.SyncTasks?.RefreshAsync();
         if (desktop.MainWindow is { } owner) _ = window.ShowDialog(owner);
         else window.Show();
