@@ -3957,31 +3957,6 @@ internal sealed class PaneDragPayload(BrowserPaneControl sourcePane, PaneSelecti
     public bool InternalDropHandled { get; set; }
 }
 
-public enum BrowserSortColumn
-{
-    Name,
-    Size,
-    Type,
-    Modified,
-    Status
-}
-
-public sealed record BrowserListItem(
-    string Name,
-    string Size,
-    string Type,
-    string Modified,
-    string Status,
-    string? Location = null,
-    bool IsContainer = false,
-    StorageItemKind Kind = StorageItemKind.Other,
-    long? Length = null,
-    string? NativeItemId = null,
-    string? VersionId = null,
-    string? EntityTag = null,
-    DateTimeOffset? ModifiedUtc = null,
-    bool IsParentNavigation = false);
-
 public sealed class PaneTransferRequestedEventArgs : EventArgs
 {
     public PaneTransferRequestedEventArgs(TransferQueueOperation operation)
