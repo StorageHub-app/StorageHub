@@ -1,34 +1,58 @@
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows.Input;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Localization;
+using StorageHub.Desktop.Shell;
 
 namespace StorageHub.Desktop.Views;
 
 /// <summary>
-/// Two panes and the transfers between them.
+/// One to four panes, the layout holding them, and the transfers between them.
 /// </summary>
 /// <remarks>
 /// <para>
-/// This is the thing that makes a file manager out of two file listings: which pane is the source,
-/// which is the destination, and what happens when somebody asks to copy. The panes themselves know
-/// nothing about each other, which is why the decision lives here rather than in either of them.
+/// This is the thing that makes a file manager out of a set of file listings. The panes themselves
+/// know nothing about each other, which is why every decision that needs two of them lives here.
 /// </para>
 /// <para>
-/// The source is whichever pane is active and the destination is the other one -- the rule every
-/// two-pane manager has used since Norton Commander, and the one the WinForms shell used. It is
-/// worth stating because it is the only rule here: there is no separate "choose a destination"
-/// step, and adding one would be the thing that made this slower than the tool it replaces.
+/// The arrangement is <see cref="WorkspaceLayoutModel"/>, which is in Desktop.Core, is already
+/// tested, and was already written for four: a tree of splits with a pane at each leaf. This type
+/// holds the pane view models that fill those leaves and nothing about how they are drawn --
+/// <c>WorkspaceView</c> walks the same tree into nested grids. Two implementations of a layout
+/// would be two places for a three-pane arrangement to come out wrong.
+/// </para>
+/// <para>
+/// <b>Transfers are staged, then pasted.</b> With two panes "copy" can mean "into the other one",
+/// because there is exactly one other one; with three or four that phrase names nothing. So Copy
+/// and Move stage the active pane's selection, and Paste puts it into whichever pane is active
+/// then. This is what the 1.x shell did with two panes already -- <c>StageSelection</c> on the
+/// pane, <c>PasteIntoPane</c> on the form -- so growing to four costs a layout rather than a
+/// redesign, and the rule is one sentence at every pane count instead of one per count.
 /// </para>
 /// </remarks>
 internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
 {
+    private readonly Func<BrowserPaneModel> _paneFactory;
     private readonly Func<ITransferQueueAgentClient> _queue;
     private readonly Func<IRemoteStorageAgentClient> _storage;
     private readonly Func<IObjectInspectorAgentClient> _mutations;
     private readonly Func<Task>? _queueChanged;
+    private readonly IDialogService? _dialogs;
+    private readonly Dictionary<Guid, BrowserPaneModel> _byId = [];
+    private WorkspaceLayoutModel _layout;
+    private WorkspacePreset _preset;
+    private PaneClipboard? _clipboard;
     private string _message = string.Empty;
 
+    /// <param name="paneFactory">
+    /// How a new pane is built. The workspace makes and drops panes as the arrangement changes, so
+    /// it needs to be able to produce one rather than be handed a fixed set.
+    /// </param>
+    /// <param name="dialogs">
+    /// Where the paste confirmation goes. Null runs transfers unconfirmed, which is what a headless
+    /// test wants; the shell always passes one.
+    /// </param>
     /// <remarks>
     /// Three client factories because a transfer touches three agent surfaces: the queue it is
     /// enqueued on, the storage it walks to expand a folder, and the inspector it asks to create
@@ -37,50 +61,108 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
     /// when the agent restarted.
     /// </remarks>
     internal WorkspaceModel(
-        BrowserPaneModel left,
-        BrowserPaneModel right,
+        Func<BrowserPaneModel> paneFactory,
         Func<ITransferQueueAgentClient> queue,
         Func<IRemoteStorageAgentClient> storage,
         Func<IObjectInspectorAgentClient> mutations,
-        Func<Task>? queueChanged = null)
+        Func<Task>? queueChanged = null,
+        WorkspacePreset? preset = null,
+        IDialogService? dialogs = null)
     {
-        Left = left ?? throw new ArgumentNullException(nameof(left));
-        Right = right ?? throw new ArgumentNullException(nameof(right));
+        _paneFactory = paneFactory ?? throw new ArgumentNullException(nameof(paneFactory));
         _queue = queue ?? throw new ArgumentNullException(nameof(queue));
         _storage = storage ?? throw new ArgumentNullException(nameof(storage));
         _mutations = mutations ?? throw new ArgumentNullException(nameof(mutations));
         _queueChanged = queueChanged;
+        _dialogs = dialogs;
 
-        Left.PropertyChanged += OnPaneChanged;
-        Right.PropertyChanged += OnPaneChanged;
-        Left.SelectedRows.CollectionChanged += (_, _) => RaiseCommands();
-        Right.SelectedRows.CollectionChanged += (_, _) => RaiseCommands();
+        _preset = preset ?? WorkspacePreset.All[1];
+        _layout = WorkspaceLayoutModel.CreatePreset(_preset.PaneCount, _preset.Layout);
 
-        CopyCommand = new RelayCommand(
-            _ => _ = TransferAsync(TransferQueueOperation.Copy),
-            _ => CanTransfer);
-        MoveCommand = new RelayCommand(
-            _ => _ = TransferAsync(TransferQueueOperation.Move),
-            _ => CanMove);
+        StageCopyCommand = new RelayCommand(
+            _ => Stage(TransferQueueOperation.Copy), _ => CanStage(TransferQueueOperation.Copy));
+        StageMoveCommand = new RelayCommand(
+            _ => Stage(TransferQueueOperation.Move), _ => CanStage(TransferQueueOperation.Move));
+        PasteCommand = new RelayCommand(_ => _ = PasteAsync(), _ => CanPaste);
+        ClearClipboardCommand = new RelayCommand(_ => Clipboard = null, _ => _clipboard is not null);
+        ClosePaneCommand = new RelayCommand(
+            pane => ClosePane(pane as BrowserPaneModel),
+            pane => _layout.PaneCount > 1 && pane is BrowserPaneModel);
 
-        // Both panes show the same two commands. Which pane is the source is decided when one of
-        // them runs, from whichever pane is active - not from which button was pressed, because
-        // pressing a button in a pane is one of the ways to make it the active one.
-        Left.CopyCommand = CopyCommand;
-        Left.MoveCommand = MoveCommand;
-        Right.CopyCommand = CopyCommand;
-        Right.MoveCommand = MoveCommand;
+        Rebuild();
+        Panes[0].IsActive = true;
     }
 
-    public BrowserPaneModel Left { get; }
+    /// <summary>The panes, in the order the layout tree visits them.</summary>
+    public ObservableCollection<BrowserPaneModel> Panes { get; } = [];
 
-    public BrowserPaneModel Right { get; }
+    /// <summary>The arrangement itself, for the view to walk and for a save to serialise.</summary>
+    internal WorkspaceLayoutModel Layout => _layout;
 
-    /// <summary>The pane a transfer takes from: whichever one was last clicked into.</summary>
-    internal BrowserPaneModel Source => Right.IsActive ? Right : Left;
+    /// <summary>Raised when the tree changed shape and the view has to rebuild its grids.</summary>
+    internal event EventHandler? LayoutChanged;
 
-    /// <summary>And the one it goes to, which is always the other.</summary>
-    internal BrowserPaneModel Destination => Right.IsActive ? Left : Right;
+    /// <summary>The six arrangements offered: one, two either way, three either way, and a grid.</summary>
+    /// <remarks>
+    /// The list itself is in Desktop.Core, so the chooser offers what a saved workspace can hold.
+    /// </remarks>
+    public static IReadOnlyList<WorkspacePreset> Presets => WorkspacePreset.All;
+
+    public static string ClearStagedLabel => Ui.Pane.ClearStaged;
+
+    /// <summary>
+    /// Which arrangement is showing. Setting it grows or shrinks the set of panes.
+    /// </summary>
+    /// <remarks>
+    /// Panes that survive the change keep their connection and their folder: the new layout is
+    /// filled from the existing panes in order, and only the shortfall is built. Rebuilding all of
+    /// them would make switching from two panes to three cost two reconnections, which is how a
+    /// layout button turns into something nobody presses twice.
+    /// </remarks>
+    public WorkspacePreset Preset
+    {
+        get => _preset;
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            if (_preset == value) return;
+            _preset = value;
+            _layout = WorkspaceLayoutModel.CreatePreset(value.PaneCount, value.Layout);
+            Rebuild();
+            Raise(nameof(Preset));
+        }
+    }
+
+    /// <summary>
+    /// The pane a command acts on: whichever one was last clicked into.
+    /// </summary>
+    /// <remarks>
+    /// Never null while a workspace exists, because a workspace has at least one pane and one of
+    /// them is always active. Falling back to the first pane rather than returning null means no
+    /// call site has to answer "what if nothing is focused", which in practice is a state that only
+    /// lasts between construction and the first click.
+    /// </remarks>
+    internal BrowserPaneModel Active =>
+        Panes.FirstOrDefault(static pane => pane.IsActive) ?? Panes[0];
+
+    /// <summary>What is staged and waiting to be pasted, or nothing.</summary>
+    internal PaneClipboard? Clipboard
+    {
+        get => _clipboard;
+        private set
+        {
+            _clipboard = value;
+            Raise(nameof(Clipboard));
+            Raise(nameof(HasClipboard));
+            Raise(nameof(ClipboardSummary));
+            RaiseCommands();
+        }
+    }
+
+    public bool HasClipboard => _clipboard is not null;
+
+    /// <summary>"Ready to copy 3 items from Studio Assets", or nothing.</summary>
+    public string ClipboardSummary => _clipboard?.Describe() ?? string.Empty;
 
     /// <summary>What the last transfer attempt said, or nothing.</summary>
     public string Message
@@ -97,68 +179,84 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
 
     public bool HasMessage => !string.IsNullOrEmpty(_message);
 
-    public ICommand CopyCommand { get; }
+    public ICommand StageCopyCommand { get; }
 
-    public ICommand MoveCommand { get; }
+    public ICommand StageMoveCommand { get; }
+
+    public ICommand PasteCommand { get; }
+
+    public ICommand ClearClipboardCommand { get; }
+
+    public ICommand ClosePaneCommand { get; }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
     /// <summary>
-    /// Something is selected in the source, and the destination is somewhere to put it.
+    /// Whether the active pane could stage this operation.
     /// </summary>
     /// <remarks>
-    /// Deliberately not "and they are different panes". Copying a folder into the same folder is a
-    /// legitimate request that the queue answers with a collision, and refusing it here would
-    /// answer a question the destination is better placed to.
+    /// The rules are <see cref="PaneClipboardRules"/> in Desktop.Core, so a pane on Windows and a
+    /// pane on Linux refuse the same move for the same reason. A terminal has no selection to
+    /// stage, which is the one case decided here rather than there.
     /// </remarks>
-    internal bool CanTransfer => Source.HasSelection && Destination.Source is not null;
+    internal bool CanStage(TransferQueueOperation operation) =>
+        Panes.Count > 0 &&
+        Active is { IsTerminal: false, Source: not null } pane &&
+        PaneClipboardRules.CanStage(pane.SelectedRows, operation);
 
     /// <summary>
-    /// A move needs more than a copy: files only, and every one carrying a stable identity.
+    /// Whether the active pane is somewhere the staged items could land.
     /// </summary>
     /// <remarks>
-    /// Both rules come from the agent refusing the request, and both are worth checking here
-    /// because the difference is a button that is dim against one that fails after it is pressed.
-    /// A move deletes the source, so it will only run against an object the agent can prove is the
-    /// one it listed; and a folder move is not enabled at all, because a half-moved tree is not
-    /// something either end can recover from. Providers differ on identity, so the same selection
-    /// is movable on one connection and not on another.
+    /// Deliberately not "and it is a different pane". Pasting into the folder something was copied
+    /// from is a legitimate request that the queue answers with a collision, and refusing it here
+    /// would answer a question the destination is better placed to.
     /// </remarks>
-    internal bool CanMove =>
-        CanTransfer &&
-        Source.SelectedRows
-            .Where(static row => !row.IsParentNavigation)
-            .All(static row => !row.IsContainer &&
-                (row.VersionId is not null || row.EntityTag is not null));
+    internal bool CanPaste =>
+        _clipboard is not null &&
+        Panes.Count > 0 &&
+        Active is { IsTerminal: false, Source: not null };
 
-    /// <summary>
-    /// Queues the selection, and says what happened.
-    /// </summary>
-    /// <remarks>
-    /// Every step can refuse, and each refusal is a sentence rather than an exception: a row that
-    /// is not transferable, a destination still paging, a queue that is not accepting. The shell
-    /// has to keep working after any of them, because the pane behind this is still perfectly
-    /// usable.
-    /// </remarks>
-    internal async Task TransferAsync(
-        TransferQueueOperation operation,
-        CancellationToken cancellationToken = default)
+    /// <summary>Stages the active pane's selection, replacing whatever was staged before.</summary>
+    internal void Stage(TransferQueueOperation operation)
     {
-        var source = Source;
-        var destination = Destination;
-
-        var selection = PaneTransferSnapshots.SelectionFor(source.Source, source.SelectedRows);
+        var pane = Active;
+        var selection = PaneTransferSnapshots.SelectionFor(pane.Source, pane.SelectedRows);
         if (selection.IsFailure)
         {
             Message = selection.Error.Message;
             return;
         }
 
+        Message = string.Empty;
+        Clipboard = new PaneClipboard(selection.Value, operation, pane.Title);
+    }
+
+    /// <summary>
+    /// Queues what is staged into the active pane, after confirming it.
+    /// </summary>
+    /// <remarks>
+    /// Every step can refuse, and each refusal is a sentence rather than an exception: a
+    /// destination still paging, a queue that is not accepting, an agent that went away. The shell
+    /// has to keep working after any of them, because the panes behind this are still perfectly
+    /// usable. A declined confirmation leaves the selection staged, so saying no is not the same as
+    /// losing what was staged.
+    /// </remarks>
+    internal async Task PasteAsync(CancellationToken cancellationToken = default)
+    {
+        if (_clipboard is not { } clipboard) return;
+        var destination = Active;
+
         var target = PaneTransferSnapshots.DestinationFor(
             destination.Source, destination.Rows, destination.HasMorePages);
         if (target.IsFailure)
         {
             Message = target.Error.Message;
+            return;
+        }
+
+        if (!await ConfirmAsync(clipboard, destination, cancellationToken).ConfigureAwait(true))
+        {
             return;
         }
 
@@ -172,12 +270,16 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
         try
         {
             var result = await recursive
-                .EnqueueAsync(selection.Value, target.Value, operation, cancellationToken)
+                .EnqueueAsync(clipboard.Selection, target.Value, clipboard.Operation, cancellationToken)
                 .ConfigureAwait(true);
 
             Message = result.Failure is { } failure
                 ? failure.Message
                 : Ui.Format(Ui.Transfer.QueuedFormat, result.Accepted.Count);
+
+            // A move is spent once it is queued; a copy can reasonably be pasted into a second
+            // destination, which is most of the point of staging it separately.
+            if (result.Failure is null && clipboard.IsMove) Clipboard = null;
         }
         catch (OperationCanceledException)
         {
@@ -196,16 +298,154 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
         }
     }
 
+    /// <summary>Drops a pane from the arrangement, keeping the others as they are.</summary>
+    internal void ClosePane(BrowserPaneModel? pane)
+    {
+        if (pane is null) return;
+        var id = _byId.FirstOrDefault(entry => ReferenceEquals(entry.Value, pane)).Key;
+        if (id == Guid.Empty || !_layout.Close(id)) return;
+        _preset = WorkspacePreset.Find(_layout.PaneCount, _preset.Layout) ?? _preset;
+        Rebuild();
+        Raise(nameof(Preset));
+    }
+
+    /// <summary>The pane view model for a leaf, for the view walking the same tree.</summary>
+    internal BrowserPaneModel? PaneFor(Guid id) => _byId.GetValueOrDefault(id);
+
+    /// <summary>Records where a splitter was dragged to, so the arrangement can be saved.</summary>
+    /// <remarks>
+    /// Does not raise <see cref="LayoutChanged"/>: the grid the person just dragged is already
+    /// showing the new ratio, and rebuilding it under their pointer would reset every pane's
+    /// scroll position at the end of every drag.
+    /// </remarks>
+    internal void SetRatio(WorkspaceSplitNode node, double ratio) => _layout.SetRatio(node, ratio);
+
     public async ValueTask DisposeAsync()
     {
-        Left.PropertyChanged -= OnPaneChanged;
-        Right.PropertyChanged -= OnPaneChanged;
-        await Left.DisposeAsync().ConfigureAwait(false);
-        await Right.DisposeAsync().ConfigureAwait(false);
+        foreach (var pane in Panes)
+        {
+            pane.PropertyChanged -= OnPaneChanged;
+            await pane.DisposeAsync().ConfigureAwait(false);
+        }
+
+        Panes.Clear();
+        _byId.Clear();
     }
 
     /// <summary>
-    /// Clicking into one pane makes the other inactive.
+    /// Matches the set of pane view models to the set of leaves in the layout.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A pane that still has its own leaf keeps it. That is the case when a pane was closed or a
+    /// split moved: the other leaves are the same objects, so every other connection stays exactly
+    /// where it was and only the closed one is let go.
+    /// </para>
+    /// <para>
+    /// Switching arrangement is the other case, and there the leaves are all new, so the panes are
+    /// reused in order instead -- which keeps as many open connections as the new arrangement has
+    /// room for. Only panes left without a leaf either way are disposed, and their clients with
+    /// them.
+    /// </para>
+    /// </remarks>
+    private void Rebuild()
+    {
+        var ids = _layout.PaneIds;
+        var surviving = Panes.ToList();
+        var assigned = new Dictionary<Guid, BrowserPaneModel>();
+
+        foreach (var id in ids)
+        {
+            if (_byId.TryGetValue(id, out var existing) && surviving.Remove(existing))
+            {
+                assigned[id] = existing;
+            }
+        }
+
+        var spare = new Queue<BrowserPaneModel>(surviving);
+        foreach (var id in ids)
+        {
+            if (assigned.ContainsKey(id)) continue;
+            assigned[id] = spare.Count > 0 ? spare.Dequeue() : NewPane();
+        }
+
+        foreach (var orphan in spare)
+        {
+            orphan.PropertyChanged -= OnPaneChanged;
+            _ = CloseAsync(orphan);
+        }
+
+        _byId.Clear();
+        Panes.Clear();
+        foreach (var id in ids)
+        {
+            _byId[id] = assigned[id];
+            Panes.Add(assigned[id]);
+        }
+
+        if (!Panes.Any(static pane => pane.IsActive)) Panes[0].IsActive = true;
+
+        LayoutChanged?.Invoke(this, EventArgs.Empty);
+        RaiseCommands();
+    }
+
+    /// <summary>
+    /// Closes a pane the new arrangement has no room for, without making the change wait.
+    /// </summary>
+    /// <remarks>
+    /// Switching from four panes to two should redraw at once; what is left is closing a socket,
+    /// and a person who just pressed a layout button has no reason to watch that happen.
+    /// </remarks>
+    private static async Task CloseAsync(BrowserPaneModel pane) =>
+        await pane.DisposeAsync().ConfigureAwait(false);
+
+    private BrowserPaneModel NewPane()
+    {
+        var pane = _paneFactory();
+        pane.PropertyChanged += OnPaneChanged;
+        pane.SelectedRows.CollectionChanged += (_, _) => RaiseCommands();
+
+        // Every pane shows the same three buttons. Which pane they act on is decided when one of
+        // them runs, from whichever pane is active - not from which button was pressed, because
+        // pressing a button in a pane is one of the ways to make it the active one.
+        pane.CopyCommand = StageCopyCommand;
+        pane.MoveCommand = StageMoveCommand;
+        pane.PasteCommand = PasteCommand;
+        return pane;
+    }
+
+    private async Task<bool> ConfirmAsync(
+        PaneClipboard clipboard,
+        BrowserPaneModel destination,
+        CancellationToken cancellationToken)
+    {
+        if (_dialogs is null) return true;
+
+        var operation = clipboard.IsMove
+            ? Ui.Dialogs.TransferOperationMove
+            : Ui.Dialogs.TransferOperationCopy;
+        var choice = await _dialogs.ConfirmAsync(
+            new DialogRequest
+            {
+                Title = Ui.Format(Ui.Dialogs.ReviewTransferCaptionFormat, operation.ToLowerInvariant()),
+                Message = Ui.Format(
+                    Ui.Dialogs.ReviewTransferBodyFormat,
+                    operation,
+                    clipboard.ItemSummary,
+                    clipboard.SourceName,
+                    destination.Title,
+                    clipboard.IsMove
+                        ? Ui.Dialogs.TransferOriginalsRemoved
+                        : Ui.Dialogs.TransferOriginalsRemain),
+                Severity = clipboard.IsMove ? DialogSeverity.Warning : DialogSeverity.Question,
+                Buttons = DialogButtons.OkCancel
+            },
+            cancellationToken).ConfigureAwait(true);
+        return choice == DialogChoice.Ok;
+    }
+
+    /// <summary>
+    /// Clicking into one pane makes every other one inactive.
     /// </summary>
     /// <remarks>
     /// Two active panes would leave the source ambiguous, and a pane that cannot be made inactive
@@ -216,8 +456,10 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
         if (e.PropertyName == nameof(BrowserPaneModel.IsActive) &&
             sender is BrowserPaneModel { IsActive: true } activated)
         {
-            if (ReferenceEquals(activated, Left)) Right.IsActive = false;
-            else Left.IsActive = false;
+            foreach (var other in Panes)
+            {
+                if (!ReferenceEquals(other, activated)) other.IsActive = false;
+            }
         }
 
         RaiseCommands();
@@ -225,8 +467,11 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
 
     private void RaiseCommands()
     {
-        (CopyCommand as RelayCommand)?.RaiseCanExecuteChanged();
-        (MoveCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        (StageCopyCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        (StageMoveCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        (PasteCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        (ClearClipboardCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        (ClosePaneCommand as RelayCommand)?.RaiseCanExecuteChanged();
     }
 
     private void Raise(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));

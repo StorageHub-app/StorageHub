@@ -54,7 +54,7 @@ are the honest ones — each names what is missing rather than claiming the row.
 | What 1.x does | Status |
 |---|---|
 | Browse a saved connection: list, enter, back, forward, up | **done** |
-| "This PC": local drives and folders in a pane | **todo** — `LocalFileBrowser` is in Core and tested; the pane needs a second mode |
+| "This PC": local drives and folders in a pane | **done** — one `IPaneSource` for both, so a disk and a bucket differ in one object |
 | Address bar, typed and focusable (`Go > Focus address`) | **partial** — shows the path, not yet editable |
 | Sort by any column, filter as you type | **todo** — `PagedListingIndex` is in Core and tested |
 | Directory tree beside the listing | **todo** — the pane draws one; the `View` command that toggles it is inert |
@@ -62,7 +62,7 @@ are the honest ones — each names what is missing rather than claiming the row.
 | Hidden files toggle | **dropped** — inert in 1.x |
 | Paging a large listing, with prefetch | **partial** — the controller pages; the pane does not ask for more yet |
 | Select all, invert selection | **todo** — commands exist, pane needs them |
-| An SSH connection opens a terminal instead of a listing | **todo** |
+| An SSH connection opens a terminal instead of a listing | **partial** — the pane becomes one, hides its listing chrome and is refused as a transfer endpoint; the VT painter is the piece left |
 
 ### Transfers
 
@@ -112,7 +112,8 @@ are the honest ones — each names what is missing rather than claiming the row.
 
 | What 1.x does | Status |
 |---|---|
-| Two panes, split, swap, move, close, layout presets | **partial** — two fixed panes; no split or presets |
+| Two panes, split, swap, move, close, layout presets | **partial** — one to four panes in all six presets, drawn from `WorkspaceLayoutModel`, splitters write their ratio back; swap and drag-to-dock are not wired to a gesture yet |
+| Stage a selection, then paste it into another pane | **done** — the rule that survives four panes, and what 1.x did with two |
 | Save and open a `.shw` workspace file | **todo** — `WorkspaceModel` and the file store are in Core, tested |
 | Pinned and recent workspaces on the Welcome screen | **partial** — the card is drawn, the data is not wired |
 | Reconnect remote panes on open | **todo** |
@@ -151,11 +152,14 @@ are the honest ones — each names what is missing rather than claiming the row.
 
 ## The order worth doing the rest in
 
-1. **"This PC"**, so a pane can be a local folder. Most transfers have one local end, and
-   `LocalFileBrowser` is already in Core.
-2. **Sort, filter, select-all and invert** in the pane, over `PagedListingIndex`.
-3. **File operations** — new, rename, delete, properties — which also lands the dialog screens.
-4. **Connection Manager**, the largest screen left.
-5. **Workspaces**: split, presets, save and open.
-6. **Sync**: profiles, schedules, run review.
-7. The rest of Settings, and the update window.
+1. ~~**"This PC"**, so a pane can be a local folder.~~ Done.
+2. ~~**Panes and presets**, one to four.~~ Done. What is left of workspaces is saving and opening a
+   `.shw`, reconnecting its panes, and the drag gestures for split and swap.
+3. **Sort, filter, select-all and invert** in the pane, over `PagedListingIndex`.
+4. **File operations** — new, rename, delete, properties — which also lands the dialog screens.
+5. **Connection Manager**, the largest screen left.
+6. **The terminal painter**, which is what an SSH pane is still missing. `VtTerminalEmulator` and
+   `VtKeyEncoder` are in Core with three suites; what is not written is the `Control` that renders a
+   screen buffer into a `DrawingContext` and implements `ILogicalScrollable`.
+7. **Sync**: profiles, schedules, run review.
+8. The rest of Settings, and the update window.

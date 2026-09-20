@@ -195,20 +195,21 @@ internal static class ShellPreview
                         new PageTab(Ui.Sync.TasksTitle, SyncTasksModel.Create()),
                         new PageTab(Ui.Sync.RunHistoryAndReview, SyncRunHistoryModel.Create()),
                     ])),
-                // Two panes, each on its own connection to the agent. A client per pane rather
+                // Panes on their own connection to the agent, one each. A client per pane rather
                 // than one shared: the browser controller holds a listing position, and two panes
-                // sharing one would have the second navigation cancel the first.
+                // sharing one would have the second navigation cancel the first. The factory is
+                // what lets the workspace grow to three or four panes without this knowing.
                 new(
                     "Workspace 1",
                     LucideIconKind.Folder,
                     null,
                     new WorkspaceModel(
-                        new BrowserPaneModel { IsActive = true },
-                        new BrowserPaneModel(),
+                        static () => new BrowserPaneModel(),
                         static () => new NamedPipeTransferQueueAgentClient(),
                         static () => new NamedPipeRemoteStorageAgentClient(),
                         static () => new NamedPipeObjectInspectorAgentClient(),
-                        queue.RefreshAsync)),
+                        queue.RefreshAsync,
+                        dialogs: Services.ShellServices.Dialogs)),
             ],
             SelectedWorkspace = selectedWorkspace,
             Sidebar = BuildSidebar(router),

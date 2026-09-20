@@ -1,4 +1,4 @@
-﻿using CodeLogic.Core.Localization;
+using CodeLogic.Core.Localization;
 
 namespace StorageHub.Desktop.Localization;
 
@@ -129,6 +129,19 @@ internal sealed class PaneStrings : LocalizationModelBase
     public string StageForCopying { get; set; } = "Stage selected items for copying";
 
     public string StageForMoving { get; set; } = "Stage selected items for moving";
+
+    /// <summary>{0} = what was staged, {1} = the pane it was staged from.</summary>
+    public string StagedCopyFormat { get; set; } = "Ready to copy {0} from {1}";
+
+    /// <summary>{0} = what was staged, {1} = the pane it was staged from.</summary>
+    public string StagedMoveFormat { get; set; } = "Ready to move {0} from {1}";
+
+    public string ClearStaged { get; set; } = "Clear the staged items";
+
+    public string TerminalPending { get; set; } = "The terminal for this connection is not open yet.";
+
+    public string TerminalConnectHint { get; set; } =
+        "SSH clients open a terminal here instead of a file listing.";
 
     public string LoadMore { get; set; } = "Load more";
 

@@ -76,5 +76,5 @@ public partial class App : global::Avalonia.Application
 
     /// <summary>Both panes of a workspace tab, or none for a tab that is a page.</summary>
     private static IEnumerable<BrowserPaneModel> Panes(WorkspaceTab tab) =>
-        tab.Workspace is { } workspace ? [workspace.Left, workspace.Right] : [];
+        tab.Workspace is { } workspace ? workspace.Panes : [];
 }

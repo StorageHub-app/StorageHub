@@ -1,0 +1,17 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
+             x:Class="StorageHub.Desktop.Views.WorkspaceView"
+             x:DataType="vm:WorkspaceModel">
+
+  <!--
+    The panes of a workspace, in whichever of the six arrangements is showing.
+
+    There is no pane markup here because the arrangement is a tree and XAML cannot draw a tree of
+    unknown depth. The code-behind walks the same WorkspaceLayoutModel that Desktop.Core already
+    saves, splits and tests, turning each split into a two-column or two-row grid and each leaf
+    into a BrowserPaneView. That walk is fifty lines and is the only layout code in the shell.
+  -->
+
+  <Panel Name="PART_Host"/>
+</UserControl>

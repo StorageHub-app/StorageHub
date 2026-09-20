@@ -123,5 +123,10 @@
   "paneBrowserAccessibleNameFormat": "Dateibereich von {0}",
   "connectionIdentityAccessibleNameFormat": "Verbindungsidentität von {0}",
   "connectionSelectionAccessibleNameFormat": "Verbindungsauswahl und Status von {0}",
+  "stagedCopyFormat": "Bereit zum Kopieren von {0} aus {1}",
+  "stagedMoveFormat": "Bereit zum Verschieben von {0} aus {1}",
+  "clearStaged": "Vorgemerkte Elemente verwerfen",
+  "terminalPending": "Das Terminal für diese Verbindung ist noch nicht geöffnet.",
+  "terminalConnectHint": "SSH-Clients öffnen hier ein Terminal statt einer Dateiliste.",
   "culture": "de-DE"
 }

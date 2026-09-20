@@ -14,7 +14,16 @@ namespace StorageHub.Desktop.Views;
 /// The connection's id, or null for This PC. Null is what distinguishes the two, so the picker
 /// needs no separate concept for the local entry and neither does anything reading the choice.
 /// </param>
-internal sealed record PaneConnection(Guid? Id, string Name, LucideIconKind Icon);
+/// <param name="Kind">
+/// What the pane becomes when this is chosen. An SSH client is a terminal rather than a listing,
+/// and it is the only entry in the picker that is: carrying the answer on the choice means the
+/// pane never has to look a connection back up to find out what it is showing.
+/// </param>
+internal sealed record PaneConnection(
+    Guid? Id,
+    string Name,
+    LucideIconKind Icon,
+    PaneContentKind Kind = PaneContentKind.SavedStorage);
 
 /// <summary>
 /// One browser pane: a connection, a path, and what is in it.
@@ -42,6 +51,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     private bool _isActive;
     private bool _hasMore;
     private PaneConnection? _connection;
+    private PaneContentKind _contentKind = PaneContentKind.ConnectionsHome;
     private string _path = "/";
     private BrowserListItem? _selected;
 
@@ -220,11 +230,62 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         }
     }
 
+    /// <inheritdoc cref="CopyCommand"/>
+    public ICommand? PasteCommand
+    {
+        get;
+        internal set
+        {
+            field = value;
+            Raise(nameof(PasteCommand));
+        }
+    }
+
+    /// <summary>
+    /// What this pane is showing: a listing, or a terminal.
+    /// </summary>
+    /// <remarks>
+    /// The same <see cref="PaneContentKind"/> a saved workspace stores, so what is reopened is
+    /// what was closed. An SSH client is the one kind with no listing behind it, which is why the
+    /// transfer commands ask before acting on this pane.
+    /// </remarks>
+    public PaneContentKind ContentKind
+    {
+        get => _contentKind;
+        private set
+        {
+            if (_contentKind == value) return;
+            _contentKind = value;
+            Raise(nameof(ContentKind));
+            Raise(nameof(IsTerminal));
+            Raise(nameof(IsListing));
+            RaiseCommands();
+        }
+    }
+
+    /// <summary>Whether this pane is an SSH terminal rather than a file listing.</summary>
+    public bool IsTerminal => _contentKind == PaneContentKind.SshClient;
+
+    /// <summary>Whether this pane shows files, which every kind but an SSH client does.</summary>
+    public bool IsListing => !IsTerminal;
+
     public static string RefreshLabel => Ui.Commands.ViewRefresh;
 
     public static string CopyLabel => Ui.Commands.EditCopy;
 
     public static string MoveLabel => Ui.Pane.Move;
+
+    public static string PasteLabel => Ui.Pane.Paste;
+
+    public static string CopyHint => Ui.Pane.StageForCopying;
+
+    public static string MoveHint => Ui.Pane.StageForMoving;
+
+    public static string PasteHint => Ui.Pane.ReviewAndPaste;
+
+    public static string TerminalPending => Ui.Pane.TerminalPending;
+
+    public static string TerminalConnectHint => Ui.Pane.TerminalConnectHint;
 
     public ICommand OpenCommand { get; }
 
@@ -258,7 +319,8 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             // This PC first, always, and whether or not the agent answered. Most transfers have one
             // local end, and a pane that cannot reach the agent can still browse this computer -
             // which is also the state somebody is in while they work out why the agent is down.
-            Connections.Add(new PaneConnection(null, Ui.Pane.ThisPc, LucideIconKind.HardDrive));
+            Connections.Add(new PaneConnection(
+                null, Ui.Pane.ThisPc, LucideIconKind.HardDrive, PaneContentKind.ThisPc));
 
             if (result.Status != RemoteBrowserOperationStatus.Succeeded)
             {
@@ -274,7 +336,8 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
                     Themes.IconCatalog.Resolve(
                         ConnectionIconCatalog.ResolveForConnection(
                             connection.IconKey, MapProvider(connection.Provider), connection.Type))
-                        ?? LucideIconKind.Cloud));
+                        ?? LucideIconKind.Cloud,
+                    KindOf(connection)));
             }
 
             Status = string.Empty;
@@ -301,6 +364,25 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             if (_source is LocalPaneSource)
             {
                 await _source.DisposeAsync().ConfigureAwait(true);
+            }
+
+            ContentKind = choice.Kind;
+
+            // An SSH client has no listing to fetch. It keeps the pane's chrome -- the picker, the
+            // title, the active border -- and replaces only the body, so switching a pane to a
+            // shell and back is the same gesture as switching between two buckets.
+            if (choice.Kind == PaneContentKind.SshClient)
+            {
+                _source = null;
+                Rows.Clear();
+                SelectedRows.Clear();
+                Path = choice.Name;
+
+                // Nothing in the status strip: the surface below it already says what a terminal
+                // pane is waiting for, and a pane that says it twice reads as two problems.
+                Status = string.Empty;
+                RaiseCommands();
+                return;
             }
 
             if (choice.Id is { } connectionId)
@@ -452,6 +534,19 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         Raise(nameof(Title));
         RaiseCommands();
     }
+
+    /// <summary>
+    /// Which kind of pane a connection produces.
+    /// </summary>
+    /// <remarks>
+    /// SFTP and SSH are the same protocol and different panes: one is a filesystem the agent can
+    /// list, the other is a shell. The profile type is what separates them, because a saved SSH
+    /// profile can be either depending on what it was created for.
+    /// </remarks>
+    private static PaneContentKind KindOf(ConnectionSummary connection) =>
+        connection is { Type: ConnectionProfileType.Client, Provider: StorageConnectionProvider.Ssh }
+            ? PaneContentKind.SshClient
+            : PaneContentKind.SavedStorage;
 
     private static bool CanBrowse(ConnectionSummary connection) =>
         connection.IsEnabled &&

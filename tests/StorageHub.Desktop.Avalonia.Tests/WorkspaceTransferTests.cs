@@ -2,14 +2,15 @@ using Avalonia.Headless.XUnit;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Views;
 using Xunit;
+using static StorageHub.Desktop.Avalonia.Tests.WorkspaceFakes;
 
 namespace StorageHub.Desktop.Avalonia.Tests;
 
 /// <summary>
-/// Copying between two panes, end to end, without a window.
+/// Copying between panes, end to end, without a window.
 /// </summary>
 /// <remarks>
-/// The whole path is exercised: a selection in one pane, a listing in the other, the snapshots
+/// The whole path is exercised: a selection staged in one pane, a listing in another, the snapshots
 /// PaneTransferSnapshots builds from both, the plan ManualTransferController makes of them, and the
 /// enqueue request that reaches the agent. In the WinForms shell that path ran through a 3,621-line
 /// control and could only be checked by doing it by hand.
@@ -17,13 +18,12 @@ namespace StorageHub.Desktop.Avalonia.Tests;
 public class WorkspaceTransferTests
 {
     [AvaloniaFact]
-    public async Task CopyingSendsTheSelectionToTheOtherPane()
+    public async Task CopyingSendsTheStagedSelectionToThePaneItIsPastedInto()
     {
         await using var fixture = await Fixture.CreateAsync();
 
         fixture.Left.SelectedRows.Add(fixture.Left.Rows.Single(row => row.Name == "render.exr"));
-        await fixture.Workspace.TransferAsync(
-            TransferQueueOperation.Copy, TestContext.Current.CancellationToken);
+        await fixture.StageAndPasteAsync(TransferQueueOperation.Copy, fixture.Right);
 
         var request = Assert.Single(fixture.Queue.Enqueued);
         Assert.Equal(TransferQueueOperation.Copy, request.Operation);
@@ -33,22 +33,23 @@ public class WorkspaceTransferTests
     }
 
     /// <summary>
-    /// The source is whichever pane is active, and the destination is always the other.
+    /// Staging takes from the pane that is active, and pasting puts into the pane that is active.
     /// </summary>
     /// <remarks>
-    /// The rule every two-pane manager has used since Norton Commander, and the only rule here.
-    /// Worth a test because it is what makes the same two buttons mean opposite things depending
-    /// on where somebody last clicked.
+    /// That is the whole rule, and it is the same sentence at one pane or at four. The two-pane
+    /// shortcut -- the source is active, the destination is the other one -- reads well until a
+    /// third pane exists and it stops naming anything, which is why the 1.x shell staged even with
+    /// two. Worth a test because it is what makes the same three buttons mean different things
+    /// depending on where somebody last clicked.
     /// </remarks>
     [AvaloniaFact]
-    public async Task TheActivePaneIsTheSource()
+    public async Task StagingTakesFromTheActivePaneAndPastingPutsIntoIt()
     {
         await using var fixture = await Fixture.CreateAsync();
 
         fixture.Right.IsActive = true;
         fixture.Right.SelectedRows.Add(fixture.Right.Rows.Single(row => row.Name == "archive.zip"));
-        await fixture.Workspace.TransferAsync(
-            TransferQueueOperation.Move, TestContext.Current.CancellationToken);
+        await fixture.StageAndPasteAsync(TransferQueueOperation.Move, fixture.Left);
 
         var request = Assert.Single(fixture.Queue.Enqueued);
         Assert.Equal(TransferQueueOperation.Move, request.Operation);
@@ -66,7 +67,7 @@ public class WorkspaceTransferTests
         fixture.Right.IsActive = true;
 
         Assert.False(fixture.Left.IsActive);
-        Assert.Same(fixture.Right, fixture.Workspace.Source);
+        Assert.Same(fixture.Right, fixture.Workspace.Active);
     }
 
     [AvaloniaFact]
@@ -74,11 +75,11 @@ public class WorkspaceTransferTests
     {
         await using var fixture = await Fixture.CreateAsync();
 
-        Assert.False(fixture.Workspace.CopyCommand.CanExecute(null));
+        Assert.False(fixture.Workspace.StageCopyCommand.CanExecute(null));
 
         fixture.Left.SelectedRows.Add(fixture.Left.Rows[0]);
 
-        Assert.True(fixture.Workspace.CopyCommand.CanExecute(null));
+        Assert.True(fixture.Workspace.StageCopyCommand.CanExecute(null));
     }
 
     /// <summary>The parent row is not a file, and selecting everything must not try to copy it.</summary>
@@ -95,8 +96,7 @@ public class WorkspaceTransferTests
 
         Assert.Contains(fixture.Left.SelectedRows, row => row.IsParentNavigation);
 
-        await fixture.Workspace.TransferAsync(
-            TransferQueueOperation.Copy, TestContext.Current.CancellationToken);
+        await fixture.StageAndPasteAsync(TransferQueueOperation.Copy, fixture.Right);
 
         Assert.All(fixture.Queue.Enqueued, request => Assert.NotEqual("..", request.Source.RelativePath));
         Assert.Single(fixture.Queue.Enqueued);
@@ -112,8 +112,7 @@ public class WorkspaceTransferTests
             fixture.Left.SelectedRows.Add(row);
         }
 
-        await fixture.Workspace.TransferAsync(
-            TransferQueueOperation.Copy, TestContext.Current.CancellationToken);
+        await fixture.StageAndPasteAsync(TransferQueueOperation.Copy, fixture.Right);
 
         Assert.True(fixture.Queue.Enqueued.Count > 0, "refused: " + fixture.Workspace.Message);
         Assert.Equal(fixture.Left.Rows.Count, fixture.Queue.Enqueued.Count);
@@ -133,8 +132,7 @@ public class WorkspaceTransferTests
         await using var fixture = await Fixture.CreateAsync(destinationHasMorePages: true);
 
         fixture.Left.SelectedRows.Add(fixture.Left.Rows[0]);
-        await fixture.Workspace.TransferAsync(
-            TransferQueueOperation.Copy, TestContext.Current.CancellationToken);
+        await fixture.StageAndPasteAsync(TransferQueueOperation.Copy, fixture.Right);
 
         Assert.Empty(fixture.Queue.Enqueued);
         Assert.True(fixture.Workspace.HasMessage);
@@ -147,8 +145,7 @@ public class WorkspaceTransferTests
         fixture.Queue.Throw = true;
 
         fixture.Left.SelectedRows.Add(fixture.Left.Rows[0]);
-        await fixture.Workspace.TransferAsync(
-            TransferQueueOperation.Copy, TestContext.Current.CancellationToken);
+        await fixture.StageAndPasteAsync(TransferQueueOperation.Copy, fixture.Right);
 
         Assert.True(fixture.Workspace.HasMessage);
     }
@@ -165,13 +162,16 @@ public class WorkspaceTransferTests
         });
 
         fixture.Left.SelectedRows.Add(fixture.Left.Rows[0]);
-        await fixture.Workspace.TransferAsync(
-            TransferQueueOperation.Copy, TestContext.Current.CancellationToken);
+        await fixture.StageAndPasteAsync(TransferQueueOperation.Copy, fixture.Right);
 
         Assert.Equal(1, refreshes);
     }
 
     /// <summary>Two panes, two connections, and a queue that records what it was asked.</summary>
+    /// <remarks>
+    /// Two because that is the default arrangement, not because the workspace is limited to it --
+    /// <see cref="WorkspacePaneLayoutTests"/> drives the other five.
+    /// </remarks>
     private sealed class Fixture : IAsyncDisposable
     {
         private Fixture(
@@ -190,9 +190,9 @@ public class WorkspaceTransferTests
 
         internal FakeTransferQueue Queue { get; }
 
-        internal BrowserPaneModel Left => Workspace.Left;
+        internal BrowserPaneModel Left => Workspace.Panes[0];
 
-        internal BrowserPaneModel Right => Workspace.Right;
+        internal BrowserPaneModel Right => Workspace.Panes[1];
 
         internal Guid SourceConnectionId { get; }
 
@@ -214,218 +214,43 @@ public class WorkspaceTransferTests
                 new Page([Entry("archive.zip", 4096)], destinationHasMorePages ? "more" : null);
 
             var queue = new FakeTransferQueue();
-            var left = new BrowserPaneModel(agent) { IsActive = true };
-            var right = new BrowserPaneModel(agent);
-
-            await left.LoadConnectionsAsync(TestContext.Current.CancellationToken);
-            await right.LoadConnectionsAsync(TestContext.Current.CancellationToken);
-            await left.OpenConnectionAsync(source.ConnectionId, TestContext.Current.CancellationToken);
-            await right.OpenConnectionAsync(destination.ConnectionId, TestContext.Current.CancellationToken);
-
             var workspace = new WorkspaceModel(
-                left,
-                right,
+                () => new BrowserPaneModel(agent),
                 () => queue,
                 () => agent,
                 () => new FakeInspector(),
                 onQueueChanged);
+
+            foreach (var pane in workspace.Panes)
+            {
+                await pane.LoadConnectionsAsync(TestContext.Current.CancellationToken);
+            }
+
+            await workspace.Panes[0].OpenConnectionAsync(
+                source.ConnectionId, TestContext.Current.CancellationToken);
+            await workspace.Panes[1].OpenConnectionAsync(
+                destination.ConnectionId, TestContext.Current.CancellationToken);
+            workspace.Panes[0].IsActive = true;
             return new Fixture(workspace, queue, source.ConnectionId, destination.ConnectionId);
         }
 
+        /// <summary>
+        /// Stages what is selected in the active pane, then pastes it into the one given.
+        /// </summary>
+        /// <remarks>
+        /// Two steps rather than one call, because two steps is what somebody does: select, press
+        /// copy, click the pane they want it in, press paste. Writing it as one helper keeps each
+        /// test about what was transferred rather than about the gesture.
+        /// </remarks>
+        internal async Task StageAndPasteAsync(
+            TransferQueueOperation operation,
+            BrowserPaneModel destination)
+        {
+            Workspace.Stage(operation);
+            destination.IsActive = true;
+            await Workspace.PasteAsync(TestContext.Current.CancellationToken);
+        }
+
         public ValueTask DisposeAsync() => Workspace.DisposeAsync();
-    }
-
-    private sealed record Page(StorageListItem[] Entries, string? ContinuationToken = null);
-
-    private static ConnectionSummary Summary(string name) => new(
-        Guid.NewGuid(),
-        name,
-        StorageConnectionProvider.S3,
-        FolderPath: null,
-        Tags: [],
-        IsFavorite: false,
-        IsEnabled: true,
-        IconKey: null,
-        AccentColor: null,
-        Version: 1);
-
-    /// <summary>
-    /// An entry with an entity tag, as a real provider reports one.
-    /// </summary>
-    /// <remarks>
-    /// Without it a move is refused: the agent will only delete the source of an object it can
-    /// prove is the one it listed. Copy has no such requirement, which is why the two commands
-    /// are enabled by different rules.
-    /// </remarks>
-    private static StorageListItem Entry(
-        string name,
-        long? size = null,
-        bool container = false,
-        string? parent = null) =>
-        new(
-            name,
-            parent is null ? name : parent + "/" + name,
-            container ? StorageItemKind.Directory : StorageItemKind.File,
-            container ? null : size,
-            DateTimeOffset.UtcNow,
-            ContentType: null,
-            container,
-            EntityTag: container ? null : "etag-" + name);
-
-    private sealed class FakeBrowsingAgent(ConnectionSummary[] connections) : IRemoteStorageAgentClient
-    {
-        internal Dictionary<(Guid Connection, string Path), Page> Listings { get; } = [];
-
-        public Task<ConnectionListResponse> ListConnectionsAsync(
-            ConnectionListRequest request,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ConnectionListResponse(StorageIpcContract.CurrentVersion, connections));
-
-        public Task<ConnectionTestResponse> TestConnectionAsync(
-            ConnectionTestRequest request,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ConnectionTestResponse(
-                StorageIpcContract.CurrentVersion, request.ConnectionId, Succeeded: true, 1));
-
-        public Task<StorageListPageResponse> ListStorageAsync(
-            StorageListPageRequest request,
-            CancellationToken cancellationToken = default)
-        {
-            var page = Listings.TryGetValue((request.ConnectionId, request.RelativePath), out var found)
-                ? found
-                : new Page([]);
-
-            return Task.FromResult(new StorageListPageResponse(
-                StorageIpcContract.CurrentVersion,
-                request.ConnectionId,
-                request.RelativePath,
-                page.Entries,
-                page.ContinuationToken,
-                RootIdentity: "root"));
-        }
-
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
-    }
-
-    /// <summary>
-    /// The inspector, which a recursive copy uses to create the destination folders.
-    /// </summary>
-    /// <remarks>
-    /// Only EnsureDirectoryAsync is answered. The rest throw rather than returning something empty:
-    /// a test that reaches one is asking a question this fake cannot answer and should say so.
-    /// </remarks>
-    private sealed class FakeInspector : IObjectInspectorAgentClient
-    {
-        public Task<StorageDirectoryEnsureResponse> EnsureDirectoryAsync(
-            StorageDirectoryEnsureRequest request,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new StorageDirectoryEnsureResponse(
-                EditableFileIpcContract.CurrentVersion, request.Address, Created: true));
-
-        public Task<ObjectVersionListResponse> ListVersionsAsync(
-            ObjectVersionListRequest request,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
-        public Task<ObjectMetadataGetResponse> GetMetadataAsync(
-            ObjectMetadataGetRequest request,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
-        public Task<ObjectTagsGetResponse> GetTagsAsync(
-            ObjectTagsGetRequest request,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
-        public Task<EditableFileDownloadResponse> DownloadEditableFileAsync(
-            EditableFileDownloadRequest request,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
-        public Task<EditableFileUploadResponse> UploadEditedFileAsync(
-            EditableFileUploadRequest request,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
-        public Task<StorageDirectoryCreateResponse> CreateDirectoryAsync(
-            StorageDirectoryCreateRequest request,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
-        public Task<StorageFileCreateResponse> CreateFileAsync(
-            StorageFileCreateRequest request,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
-        public Task<StorageItemRenameResponse> RenameItemAsync(
-            StorageItemRenameRequest request,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
-        public Task<StorageItemDeleteResponse> DeleteItemAsync(
-            StorageItemDeleteRequest request,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
-    }
-
-    private sealed class FakeTransferQueue : ITransferQueueAgentClient
-    {
-        internal List<TransferEnqueueRequest> Enqueued { get; } = [];
-
-        internal bool Throw { get; set; }
-
-        public Task<TransferEnqueueResponse> EnqueueAsync(
-            TransferEnqueueRequest request,
-            CancellationToken cancellationToken = default)
-        {
-            if (Throw) throw new IOException("The agent is not listening.");
-            Enqueued.Add(request);
-            return Task.FromResult(new TransferEnqueueResponse(
-                TransferQueueIpcContract.CurrentVersion,
-                request.TransferId,
-                Accepted: true,
-                AlreadyExisted: false,
-                new TransferQueueSummary(
-                    request.TransferId,
-                    request.Operation,
-                    request.Source.ConnectionId,
-                    request.Source.RelativePath,
-                    request.Destination.ConnectionId,
-                    request.Destination.RelativePath,
-                    TransferQueueState.Pending,
-                    Revision: 1,
-                    Attempt: 0,
-                    Priority: request.Priority,
-                    request.ExpectedLength,
-                    ProgressBytes: 0,
-                    DateTimeOffset.UtcNow,
-                    RetryAvailableUtc: null,
-                    ErrorCode: null,
-                    ErrorSummary: null,
-                    CanCancel: true,
-                    CanRetry: false,
-                    NeedsReconciliation: false)));
-        }
-
-        public Task<TransferListResponse> ListAsync(
-            TransferListRequest request,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new TransferListResponse(
-                TransferQueueIpcContract.CurrentVersion, [], null));
-
-        public Task<TransferStatusResponse> GetStatusAsync(
-            TransferStatusRequest request,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<TransferMutationResponse> CancelAsync(
-            TransferCancelRequest request,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<TransferMutationResponse> RetryAsync(
-            TransferRetryRequest request,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public Task<TransferMutationResponse> ReconcileAsync(
-            TransferReconcileRequest request,
-            CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
-
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 }

@@ -123,5 +123,10 @@
   "paneBrowserAccessibleNameFormat": "Filrude for {0}",
   "connectionIdentityAccessibleNameFormat": "Forbindelsesidentitet for {0}",
   "connectionSelectionAccessibleNameFormat": "Forbindelsesvalg og status for {0}",
+  "stagedCopyFormat": "Klar til at kopiere {0} fra {1}",
+  "stagedMoveFormat": "Klar til at flytte {0} fra {1}",
+  "clearStaged": "Ryd de klargjorte elementer",
+  "terminalPending": "Terminalen for denne forbindelse er ikke åbnet endnu.",
+  "terminalConnectHint": "SSH-klienter åbner en terminal her i stedet for en filliste.",
   "culture": "da-DK"
 }

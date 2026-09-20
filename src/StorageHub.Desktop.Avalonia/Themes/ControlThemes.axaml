@@ -314,6 +314,53 @@
     <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
   </Style>
 
+  <!--
+    The arrangement chooser: a row of quiet labels, one of which is lit. Styled here rather than in
+    the window because it is a segmented control, and StorageHub will want a second one the moment
+    something else offers a small set of exclusive choices.
+  -->
+  <Style Selector="ListBox.presets">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="Padding" Value="0"/>
+  </Style>
+
+  <Style Selector="ListBox.presets ListBoxItem">
+    <Setter Property="Padding" Value="{StaticResource PaddingSm}"/>
+    <Setter Property="CornerRadius" Value="{StaticResource ButtonRadius}"/>
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+  </Style>
+
+  <!--
+    Through /template/, because Fluent's ListBoxItem paints its selection inside its own template
+    and a setter on the item loses to it. The same rule caught the toolbar buttons earlier in this
+    file: a selector without /template/ does not reach a template child, so the style appears to do
+    nothing and the stock accent shows through instead of the scheme's.
+  -->
+  <Style Selector="ListBox.presets ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource PrimaryBrush}"/>
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource OnPrimaryBrush}"/>
+  </Style>
+
+  <Style Selector="ListBox.presets ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource PrimaryHoverBrush}"/>
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource OnPrimaryBrush}"/>
+  </Style>
+
+  <Style Selector="ListBox.presets ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}"/>
+  </Style>
+
+  <!--
+    A terminal is a surface, not a card: darker than the listing beside it in both appearances, so
+    a shell pane reads as a different kind of thing at a glance rather than as a listing that
+    failed to load. The scheme supplies the colour, which is what keeps it the same on both
+    platforms.
+  -->
+  <Style Selector="Border.terminal">
+    <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}"/>
+  </Style>
+
   <Style Selector="Border.toolbar-separator">
     <Setter Property="Background" Value="{DynamicResource BorderBrush}"/>
     <Setter Property="Width" Value="1"/>
