@@ -315,40 +315,32 @@
   </Style>
 
   <!--
-    The arrangement chooser: a row of quiet labels, one of which is lit. Styled here rather than in
-    the window because it is a segmented control, and StorageHub will want a second one the moment
-    something else offers a small set of exclusive choices.
+    A pane's title bar: quiet, and a shade off the pane behind it so four panes read as four
+    things rather than one grid of listings.
   -->
-  <Style Selector="ListBox.presets">
-    <Setter Property="Background" Value="Transparent"/>
-    <Setter Property="BorderThickness" Value="0"/>
-    <Setter Property="Padding" Value="0"/>
-  </Style>
-
-  <Style Selector="ListBox.presets ListBoxItem">
-    <Setter Property="Padding" Value="{StaticResource PaddingSm}"/>
-    <Setter Property="CornerRadius" Value="{StaticResource ButtonRadius}"/>
-    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+  <Style Selector="Border.pane-header">
+    <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+    <Setter Property="BorderThickness" Value="0,0,0,1"/>
+    <Setter Property="Padding" Value="{StaticResource PaddingMd}"/>
   </Style>
 
   <!--
-    Through /template/, because Fluent's ListBoxItem paints its selection inside its own template
-    and a setter on the item loses to it. The same rule caught the toolbar buttons earlier in this
-    file: a selector without /template/ does not reach a template child, so the style appears to do
-    nothing and the stock accent shows through instead of the scheme's.
+    A card in the New Workspace chooser: a picture of an arrangement, its name, and what it is for.
+    Quiet until it is pointed at, because six lit cards would be six things asking to be pressed.
   -->
-  <Style Selector="ListBox.presets ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{DynamicResource PrimaryBrush}"/>
-    <Setter Property="TextElement.Foreground" Value="{DynamicResource OnPrimaryBrush}"/>
-  </Style>
-
-  <Style Selector="ListBox.presets ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{DynamicResource PrimaryHoverBrush}"/>
-    <Setter Property="TextElement.Foreground" Value="{DynamicResource OnPrimaryBrush}"/>
-  </Style>
-
-  <Style Selector="ListBox.presets ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+  <Style Selector="Button.preset">
     <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="CornerRadius" Value="{StaticResource CardRadius}"/>
+    <Setter Property="Padding" Value="{StaticResource PaddingLg}"/>
+    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+  </Style>
+
+  <Style Selector="Button.preset:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource ElevatedBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
   </Style>
 
   <!--

@@ -385,8 +385,93 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
 
         if (!Panes.Any(static pane => pane.IsActive)) Panes[0].IsActive = true;
 
+        DescribePanes();
         LayoutChanged?.Invoke(this, EventArgs.Empty);
         RaiseCommands();
+    }
+
+    /// <summary>
+    /// Gives every pane its number and the actions that act on the arrangement.
+    /// </summary>
+    /// <remarks>
+    /// Redone on every rebuild rather than once per pane, because all of it is positional: closing
+    /// pane 2 makes the old pane 3 the new pane 2, splitting fills the last free leaf, and a Move
+    /// or swap menu built earlier would offer panes that are no longer there. Rebuilding is cheap
+    /// and there are at most four.
+    /// </remarks>
+    private void DescribePanes()
+    {
+        var ids = _layout.PaneIds;
+        for (var index = 0; index < ids.Count; index++)
+        {
+            var id = ids[index];
+            var pane = Panes[index];
+            pane.PaneNumber = index + 1;
+            pane.SplitRightCommand = SplitCommand(id, WorkspaceDockEdge.Right);
+            pane.SplitBelowCommand = SplitCommand(id, WorkspaceDockEdge.Bottom);
+            pane.ClosePaneCommand = new RelayCommand(
+                _ => ClosePane(pane), _ => _layout.PaneCount > 1);
+
+            pane.MoveTargets.Clear();
+            for (var other = 0; other < ids.Count; other++)
+            {
+                if (other == index) continue;
+                var target = ids[other];
+                pane.MoveTargets.Add(new PaneMoveTarget(
+                    Ui.Format(Ui.Shell.PaneNumberFormat, other + 1),
+                    [
+                        new PaneMoveOption(Ui.Shell.SwapWithPane, SwapCommand(id, target)),
+                        new PaneMoveOption(
+                            Ui.Shell.MoveLeftOfPane, MoveCommand(id, target, WorkspaceDockEdge.Left)),
+                        new PaneMoveOption(
+                            Ui.Shell.MoveAbovePane, MoveCommand(id, target, WorkspaceDockEdge.Top)),
+                        new PaneMoveOption(
+                            Ui.Shell.MoveRightOfPane, MoveCommand(id, target, WorkspaceDockEdge.Right)),
+                        new PaneMoveOption(
+                            Ui.Shell.MoveBelowPane, MoveCommand(id, target, WorkspaceDockEdge.Bottom))
+                    ]));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Splits a pane, putting a new one on the given edge of it.
+    /// </summary>
+    /// <remarks>
+    /// Refused at four, which is what <see cref="WorkspaceLayoutModel.MaximumPanes"/> says and not
+    /// a limit invented here. Four panes on one screen is already past what most windows have the
+    /// width for; a fifth would be a listing nobody can read.
+    /// </remarks>
+    private RelayCommand SplitCommand(Guid paneId, WorkspaceDockEdge edge) => new(
+        _ =>
+        {
+            if (!_layout.Split(paneId, edge, Guid.NewGuid())) return;
+            AdoptLayout();
+        },
+        _ => _layout.PaneCount < WorkspaceLayoutModel.MaximumPanes);
+
+    private RelayCommand SwapCommand(Guid moving, Guid target) => new(_ =>
+    {
+        if (_layout.Swap(moving, target)) AdoptLayout();
+    });
+
+    private RelayCommand MoveCommand(Guid moving, Guid target, WorkspaceDockEdge edge) => new(_ =>
+    {
+        if (_layout.MoveBeside(moving, target, edge)) AdoptLayout();
+    });
+
+    /// <summary>Takes up a tree that changed shape, and works out which preset it now matches.</summary>
+    /// <remarks>
+    /// An arrangement reached by splitting need not be one of the six -- splitting the right pane
+    /// of a side-by-side gives the three-pane preset, but splitting it again does not give the
+    /// grid. The preset is therefore what the tree happens to match, or the last one if it matches
+    /// none, and the panes are what the tree says either way.
+    /// </remarks>
+    private void AdoptLayout()
+    {
+        _preset = WorkspacePreset.Find(_layout.PaneCount, _preset.Layout) ?? _preset;
+        Rebuild();
+        Raise(nameof(Preset));
     }
 
     /// <summary>

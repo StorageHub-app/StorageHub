@@ -37,6 +37,9 @@ internal sealed class ShellStrings : LocalizationModelBase
 
     public string NewWorkspaceTab { get; set; } = "New workspace";
 
+    /// <summary>{0} = how many workspaces have been made this session, counting from one.</summary>
+    public string WorkspaceTabFormat { get; set; } = "Workspace {0}";
+
     // ----------------------------------------------------------------- toolbar
     public string CheckForUpdatesTooltip { get; set; } = "Check for StorageHub updates";
 
@@ -369,6 +372,35 @@ internal sealed class ShellStrings : LocalizationModelBase
     /// <summary>{0} = how many items the replacement would rename.</summary>
     public string BatchRenameSummaryFormat { get; set; } =
         "{0:N0} item(s) will be renamed. Processing stops if a provider rejects a change.";
+
+    // ------------------------------------------------------------ pane header
+    public string PaneActions { get; set; } = "Pane actions";
+
+    /// <summary>{0} = the pane's position in the arrangement, counting from one.</summary>
+    public string PaneNumberFormat { get; set; } = "Pane {0}";
+
+    /// <summary>{0} = the pane's number. The one pane every command acts on.</summary>
+    public string PaneActiveFormat { get; set; } = "Pane {0} (Active)";
+
+    public string SplitRight { get; set; } = "Split right";
+
+    public string SplitBelow { get; set; } = "Split below";
+
+    public string ClosePane { get; set; } = "Close pane";
+
+    public string ShowConnectionBar { get; set; } = "Show connection bar";
+
+    public string MoveOrSwapPane { get; set; } = "Move or swap pane";
+
+    public string SwapWithPane { get; set; } = "Swap";
+
+    public string MoveLeftOfPane { get; set; } = "Move left of it";
+
+    public string MoveAbovePane { get; set; } = "Move above it";
+
+    public string MoveRightOfPane { get; set; } = "Move right of it";
+
+    public string MoveBelowPane { get; set; } = "Move below it";
 
     // ------------------------------------------------------- new workspace chooser
     public string NewWorkspaceCaption { get; set; } = "New Workspace";

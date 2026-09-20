@@ -255,29 +255,11 @@
                               Spacing="{StaticResource SpaceXs}"
                               Margin="0,0,0,4">
                     <!--
-                      A list rather than six buttons, so the arrangement that is on is the one that
-                      looks chosen. Six buttons that all look the same leave the only evidence of
-                      which was pressed in the panes below, which is the thing somebody is trying to
-                      work out by looking up here.
+                      What is staged, and nothing else. The arrangement is chosen once in the New
+                      Workspace dialog and changed from a pane's own actions menu, so a permanent
+                      strip of six layout buttons here would compete with the panes for width to
+                      answer a question that is already settled.
                     -->
-                    <ListBox Classes="presets"
-                             ItemsSource="{Binding Presets}"
-                             SelectedItem="{Binding Preset, Mode=TwoWay}">
-                      <ListBox.ItemsPanel>
-                        <ItemsPanelTemplate>
-                          <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}"/>
-                        </ItemsPanelTemplate>
-                      </ListBox.ItemsPanel>
-                      <ListBox.ItemTemplate>
-                        <DataTemplate DataType="core:WorkspacePreset">
-                          <TextBlock Text="{Binding Description}" ToolTip.Tip="{Binding Label}"/>
-                        </DataTemplate>
-                      </ListBox.ItemTemplate>
-                    </ListBox>
-
-                    <!-- Only drawn when there is something after it to divide from. -->
-                    <Border Classes="toolbar-separator" IsVisible="{Binding HasClipboard}"/>
-
                     <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}"
                                 IsVisible="{Binding HasClipboard}">
                       <LucideIcon Kind="Clipboard" Size="{StaticResource IconSizeSm}"

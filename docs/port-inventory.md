@@ -112,7 +112,7 @@ are the honest ones — each names what is missing rather than claiming the row.
 
 | What 1.x does | Status |
 |---|---|
-| Two panes, split, swap, move, close, layout presets | **partial** — one to four panes in all six presets, drawn from `WorkspaceLayoutModel`, splitters write their ratio back; swap and drag-to-dock are not wired to a gesture yet |
+| Two panes, split, swap, move, close, layout presets | **done** — one to four panes, all six presets in a New Workspace chooser, and split / close / swap / move behind each pane's own actions menu. Dragging a pane header to dock is the one gesture still missing |
 | Stage a selection, then paste it into another pane | **done** — the rule that survives four panes, and what 1.x did with two |
 | Save and open a `.shw` workspace file | **todo** — `WorkspaceModel` and the file store are in Core, tested |
 | Pinned and recent workspaces on the Welcome screen | **partial** — the card is drawn, the data is not wired |
@@ -153,8 +153,9 @@ are the honest ones — each names what is missing rather than claiming the row.
 ## The order worth doing the rest in
 
 1. ~~**"This PC"**, so a pane can be a local folder.~~ Done.
-2. ~~**Panes and presets**, one to four.~~ Done. What is left of workspaces is saving and opening a
-   `.shw`, reconnecting its panes, and the drag gestures for split and swap.
+2. ~~**Panes and presets**, one to four.~~ Done, including the New Workspace chooser and the
+   per-pane actions menu. What is left of workspaces is saving and opening a `.shw`, reconnecting
+   its panes, and dragging a pane header to dock or swap.
 3. ~~**Sort, filter, select-all and invert** in the pane.~~ Done. The rows are still copied out of
    the index rather than bound to it, so a very large listing is held twice; collecting that back
    needs `IndexedView` to be an `IList` before a TableView will read it by index.

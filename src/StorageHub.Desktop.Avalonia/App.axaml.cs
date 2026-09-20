@@ -29,6 +29,11 @@ public partial class App : global::Avalonia.Application
                 _ = settings.ShowDialog(desktop.MainWindow);
             });
 
+            // The "+" beside the tabs. It asks which arrangement, unless the answer was saved --
+            // which is what the chooser's "stop asking" box does, and what makes the dialog worth
+            // having rather than something to dismiss.
+            model.Router.Handle(UiCommandIds.WorkspaceNewWorkspace, () => _ = AddWorkspaceAsync(model));
+
             // Whatever was saved last time, before the window is shown, so the shell opens in the
             // scheme rather than flashing the default and changing.
             Views.SettingsWindow.ApplySavedScheme();
@@ -72,6 +77,27 @@ public partial class App : global::Avalonia.Application
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    /// <summary>
+    /// Asks which arrangement, then makes the workspace.
+    /// </summary>
+    /// <remarks>
+    /// Dismissing the chooser makes nothing, which is the same contract every dialog in the shell
+    /// has: cancel means do nothing, and the caller does not have to handle the title bar.
+    /// </remarks>
+    private static async Task AddWorkspaceAsync(ShellPreviewModel model)
+    {
+        if ((global::Avalonia.Application.Current?.ApplicationLifetime
+            as IClassicDesktopStyleApplicationLifetime)?.MainWindow is not { } owner)
+        {
+            return;
+        }
+
+        if (await Views.NewWorkspaceWindow.ChooseAsync(owner).ConfigureAwait(true) is { } preset)
+        {
+            model.AddWorkspace(preset);
+        }
     }
 
     /// <summary>Both panes of a workspace tab, or none for a tab that is a page.</summary>

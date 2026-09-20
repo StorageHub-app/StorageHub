@@ -1,4 +1,4 @@
-{
+﻿{
   "menuWorkspace": "Arbeitsbereich",
   "menuEdit": "Bearbeiten",
   "menuView": "Ansicht",
@@ -158,9 +158,23 @@
   "stagedCut": "Ausgeschnitten",
   "stagedCopied": "Kopiert",
   "stagedSelectionFormat": "{1:N0} Element(e) {0}. Wählen Sie ein Ziel und fügen Sie ein.",
-  "culture": "de-DE",
   "agentReconnecting": "Der Hintergrundagent antwortet nicht. StorageHub stellt die Verbindung wieder her...",
   "agentOffline": "Der Hintergrundagent läuft nicht. Übertragungen, Synchronisierung und gespeicherte Verbindungen sind nicht verfügbar, bis er startet.",
   "agentRequestFailed": "StorageHub konnte die Anforderung nicht abschließen.",
-  "agentReconnectingStatus": "Agent: Verbindung wird wiederhergestellt"
+  "agentReconnectingStatus": "Agent: Verbindung wird wiederhergestellt",
+  "paneActions": "Bereichsaktionen",
+  "paneNumberFormat": "Bereich {0}",
+  "paneActiveFormat": "Bereich {0} (aktiv)",
+  "splitRight": "Rechts teilen",
+  "splitBelow": "Unten teilen",
+  "closePane": "Bereich schließen",
+  "showConnectionBar": "Verbindungsleiste anzeigen",
+  "moveOrSwapPane": "Bereich verschieben oder tauschen",
+  "swapWithPane": "Tauschen",
+  "moveLeftOfPane": "Links davon einfügen",
+  "moveAbovePane": "Darüber einfügen",
+  "moveRightOfPane": "Rechts davon einfügen",
+  "moveBelowPane": "Darunter einfügen",
+  "workspaceTabFormat": "Arbeitsbereich {0}",
+  "culture": "de-DE"
 }

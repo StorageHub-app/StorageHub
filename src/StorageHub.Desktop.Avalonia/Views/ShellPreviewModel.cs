@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows.Input;
 using Avalonia.Input;
@@ -130,7 +131,41 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
 
     public IReadOnlyList<object> Toolbar { get; init; } = [];
 
-    public IReadOnlyList<WorkspaceTab> Workspaces { get; init; } = [];
+    /// <summary>
+    /// The tabs across the top, which New Workspace adds to.
+    /// </summary>
+    /// <remarks>
+    /// Observable rather than a fixed list, because a workspace is something somebody makes. The
+    /// tab strip binds to it directly, so adding one here is the whole of adding one.
+    /// </remarks>
+    public ObservableCollection<WorkspaceTab> Workspaces { get; } = [];
+
+    /// <summary>
+    /// How a new workspace tab is built, given the arrangement that was chosen for it.
+    /// </summary>
+    /// <remarks>
+    /// Held rather than called once, because every workspace needs its own agent clients and this
+    /// is the only place that knows how to make them. Null in a preview that has no agent behind
+    /// it, in which case the "+" has nothing to add and says so by being unavailable.
+    /// </remarks>
+    internal Func<WorkspacePreset, WorkspaceTab>? WorkspaceFactory { get; init; }
+
+    /// <summary>
+    /// Adds a workspace with the arrangement chosen, and shows it.
+    /// </summary>
+    /// <remarks>
+    /// The new tab is selected, because somebody who just chose an arrangement wants to see it --
+    /// and because a new tab that appeared behind the current one would look like nothing
+    /// happened.
+    /// </remarks>
+    internal void AddWorkspace(WorkspacePreset preset)
+    {
+        ArgumentNullException.ThrowIfNull(preset);
+        if (WorkspaceFactory is not { } factory) return;
+
+        Workspaces.Add(factory(preset));
+        SelectedWorkspace = Workspaces.Count - 1;
+    }
 
     public ConnectionsSidebar Sidebar { get; init; } = null!;
 
@@ -141,7 +176,17 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
     /// <summary>The transfer queue, reading the agent rather than a stand-in.</summary>
     public TransferQueueModel Queue { get; init; } = null!;
 
-    public int SelectedWorkspace { get; init; }
+    /// <summary>Which tab is showing. Settable, because adding a workspace moves to it.</summary>
+    public int SelectedWorkspace
+    {
+        get;
+        set
+        {
+            if (field == value) return;
+            field = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedWorkspace)));
+        }
+    }
 
     /// <summary>
     /// The status bar, as the shell has always modelled it.
@@ -205,47 +250,49 @@ internal static class ShellPreview
         // is accepted, rather than leaving somebody to watch a tab count that updates on its own
         // schedule two seconds later.
         var queue = new TransferQueueModel(static () => new NamedPipeTransferQueueAgentClient());
+        var workspaces = 0;
         var model = new ShellPreviewModel(router)
         {
             Menus = BuildMenus(router),
             Toolbar = BuildToolbar(router),
-            Workspaces =
-            [
-                new(
-                    Ui.Shell.TabWelcome,
-                    LucideIconKind.House,
-                    OverviewModel.Create(ShellStatusSnapshot.Initial)),
-                new(
-                    Ui.Shell.TabSyncTasks,
-                    LucideIconKind.ArrowLeftRight,
-                    new TabbedPageModel(
-                    [
-                        new PageTab(Ui.Sync.TasksTitle, SyncTasksModel.Create()),
-                        new PageTab(Ui.Sync.RunHistoryAndReview, SyncRunHistoryModel.Create()),
-                    ])),
-                // Panes on their own connection to the agent, one each. A client per pane rather
-                // than one shared: the browser controller holds a listing position, and two panes
-                // sharing one would have the second navigation cancel the first. The factory is
-                // what lets the workspace grow to three or four panes without this knowing.
-                new(
-                    "Workspace 1",
-                    LucideIconKind.Folder,
-                    null,
-                    new WorkspaceModel(
-                        static () => new BrowserPaneModel(),
-                        static () => new NamedPipeTransferQueueAgentClient(),
-                        static () => new NamedPipeRemoteStorageAgentClient(),
-                        static () => new NamedPipeObjectInspectorAgentClient(),
-                        queue.RefreshAsync,
-                        dialogs: Services.ShellServices.Dialogs)),
-            ],
             SelectedWorkspace = selectedWorkspace,
             Sidebar = BuildSidebar(router),
             NewWorkspaceCommand = router.For(UiCommandIds.WorkspaceNewWorkspace),
             NewWorkspaceLabel = Ui.Commands.WorkspaceNewWorkspace,
             Queue = queue,
+
+            // Panes on their own connection to the agent, one each. A client per pane rather than
+            // one shared: the browser controller holds a listing position, and two panes sharing
+            // one would have the second navigation cancel the first. A factory rather than a fixed
+            // set, because a workspace can hold one to four and somebody can make another.
+            WorkspaceFactory = preset => new WorkspaceTab(
+                Ui.Format(Ui.Shell.WorkspaceTabFormat, ++workspaces),
+                LucideIconKind.Folder,
+                null,
+                new WorkspaceModel(
+                    static () => new BrowserPaneModel(),
+                    static () => new NamedPipeTransferQueueAgentClient(),
+                    static () => new NamedPipeRemoteStorageAgentClient(),
+                    static () => new NamedPipeObjectInspectorAgentClient(),
+                    queue.RefreshAsync,
+                    preset,
+                    Services.ShellServices.Dialogs)),
         };
 
+        model.Workspaces.Add(new WorkspaceTab(
+            Ui.Shell.TabWelcome,
+            LucideIconKind.House,
+            OverviewModel.Create(ShellStatusSnapshot.Initial)));
+        model.Workspaces.Add(new WorkspaceTab(
+            Ui.Shell.TabSyncTasks,
+            LucideIconKind.ArrowLeftRight,
+            new TabbedPageModel(
+            [
+                new PageTab(Ui.Sync.TasksTitle, SyncTasksModel.Create()),
+                new PageTab(Ui.Sync.RunHistoryAndReview, SyncRunHistoryModel.Create()),
+            ])));
+        model.AddWorkspace(WorkspacePreset.All[1]);
+        model.SelectedWorkspace = selectedWorkspace;
         model.RouteToActivePane();
         return model;
     }

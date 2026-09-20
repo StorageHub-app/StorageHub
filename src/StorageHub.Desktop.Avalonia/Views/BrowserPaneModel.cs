@@ -26,6 +26,19 @@ internal sealed record PaneConnection(
     PaneContentKind Kind = PaneContentKind.SavedStorage);
 
 /// <summary>
+/// One entry in a pane's Move or swap menu: another pane, and the four ways to reach it.
+/// </summary>
+/// <remarks>
+/// Built by the workspace, because every one of these names a second pane and a pane knows nothing
+/// about the others. Rebuilt whenever the arrangement changes, so a menu never offers a pane that
+/// has been closed.
+/// </remarks>
+internal sealed record PaneMoveTarget(string Title, IReadOnlyList<PaneMoveOption> Options);
+
+/// <summary>One thing that can be done to a pane relative to another: swap, or dock on an edge.</summary>
+internal sealed record PaneMoveOption(string Title, ICommand Command);
+
+/// <summary>
 /// One browser pane: a connection, a path, and what is in it.
 /// </summary>
 /// <remarks>
@@ -62,6 +75,8 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     /// workspace would otherwise be four databases created before anything was browsed.
     /// </remarks>
     private PagedListingIndex? _index;
+    private int _paneNumber = 1;
+    private bool _showConnectionBar = true;
     private BrowserSortColumn _sortColumn = BrowserSortColumn.Name;
     private bool _sortAscending = true;
     private string _filter = string.Empty;
@@ -159,6 +174,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             if (_isActive == value) return;
             _isActive = value;
             Raise(nameof(IsActive));
+            Raise(nameof(PaneHeading));
         }
     }
 
@@ -217,6 +233,105 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
                     UiFormatting.FormatBytes(chosen.Sum(static row => row.Length ?? 0)));
         }
     }
+
+    /// <summary>
+    /// Where this pane sits in the arrangement, counting from one.
+    /// </summary>
+    /// <remarks>
+    /// Set by the workspace on every rebuild rather than held by the pane, because a pane's number
+    /// is its position and closing pane 2 makes the old pane 3 the new pane 2. A header that kept
+    /// its first number would leave the Move or swap menu naming panes that are not where it says.
+    /// </remarks>
+    public int PaneNumber
+    {
+        get => _paneNumber;
+        internal set
+        {
+            if (_paneNumber == value) return;
+            _paneNumber = value;
+            Raise(nameof(PaneNumber));
+            Raise(nameof(PaneHeading));
+        }
+    }
+
+    /// <summary>"Pane 2", or "Pane 2 (Active)" for the one every command acts on.</summary>
+    public string PaneHeading => Ui.Format(
+        _isActive ? Ui.Shell.PaneActiveFormat : Ui.Shell.PaneNumberFormat, _paneNumber);
+
+    /// <summary>
+    /// Whether the connection picker is shown above the listing.
+    /// </summary>
+    /// <remarks>
+    /// Worth hiding once a pane is pointed where it belongs: four panes each keeping a row for a
+    /// choice already made is most of a listing's worth of height. This is the same flag a saved
+    /// workspace stores as <c>HeaderHidden</c>, so a pane reopens the way it was closed.
+    /// </remarks>
+    public bool ShowConnectionBar
+    {
+        get => _showConnectionBar;
+        set
+        {
+            if (_showConnectionBar == value) return;
+            _showConnectionBar = value;
+            Raise(nameof(ShowConnectionBar));
+        }
+    }
+
+    /// <summary>
+    /// The pane's own actions, which all need a second pane or the arrangement to act on.
+    /// </summary>
+    /// <remarks>
+    /// Assigned by the workspace for the same reason copy and paste are: splitting a pane changes
+    /// the tree the pane is a leaf of, and a leaf is not where that decision belongs.
+    /// </remarks>
+    public ICommand? SplitRightCommand
+    {
+        get;
+        internal set
+        {
+            field = value;
+            Raise(nameof(SplitRightCommand));
+        }
+    }
+
+    /// <inheritdoc cref="SplitRightCommand"/>
+    public ICommand? SplitBelowCommand
+    {
+        get;
+        internal set
+        {
+            field = value;
+            Raise(nameof(SplitBelowCommand));
+        }
+    }
+
+    /// <inheritdoc cref="SplitRightCommand"/>
+    public ICommand? ClosePaneCommand
+    {
+        get;
+        internal set
+        {
+            field = value;
+            Raise(nameof(ClosePaneCommand));
+        }
+    }
+
+    /// <summary>The other panes, and the ways this one can move relative to each.</summary>
+    public ObservableCollection<PaneMoveTarget> MoveTargets { get; } = [];
+
+    public bool HasMoveTargets => MoveTargets.Count > 0;
+
+    public static string PaneActionsLabel => Ui.Shell.PaneActions;
+
+    public static string SplitRightLabel => Ui.Shell.SplitRight;
+
+    public static string SplitBelowLabel => Ui.Shell.SplitBelow;
+
+    public static string ClosePaneLabel => Ui.Shell.ClosePane;
+
+    public static string ShowConnectionBarLabel => Ui.Shell.ShowConnectionBar;
+
+    public static string MoveOrSwapLabel => Ui.Shell.MoveOrSwapPane;
 
     /// <summary>Which column the listing is ordered by.</summary>
     public BrowserSortColumn SortColumn => _sortColumn;

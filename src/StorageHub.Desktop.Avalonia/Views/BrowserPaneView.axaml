@@ -17,7 +17,77 @@
   <Border Classes="pane" Classes.active="{Binding IsActive}">
     <DockPanel>
 
+      <!--
+        The pane's own title bar. It says which pane this is and whether it is the active one,
+        which with four panes is the difference between knowing where a paste lands and guessing.
+        Everything that changes the arrangement is behind its menu rather than along the toolbar:
+        an arrangement is settled once and then wants the width back.
+      -->
+      <Border DockPanel.Dock="Top" Classes="pane-header">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Grid.Column="0" VerticalAlignment="Center"
+                     FontWeight="SemiBold" Text="{Binding PaneHeading}"/>
+          <Button Grid.Column="1" Classes="tool"
+                  AutomationProperties.Name="{Binding PaneActionsLabel}"
+                  ToolTip.Tip="{Binding PaneActionsLabel}">
+            <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+              <TextBlock Classes="caption" Text="{Binding PaneActionsLabel}"/>
+              <LucideIcon Kind="ChevronDown" Size="{StaticResource IconSizeSm}"/>
+            </StackPanel>
+            <Button.Flyout>
+              <MenuFlyout>
+                <MenuItem Header="{Binding SplitRightLabel}" Command="{Binding SplitRightCommand}">
+                  <MenuItem.Icon>
+                    <LucideIcon Kind="PanelRight" Size="{StaticResource IconSizeSm}"/>
+                  </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="{Binding SplitBelowLabel}" Command="{Binding SplitBelowCommand}">
+                  <MenuItem.Icon>
+                    <LucideIcon Kind="PanelBottom" Size="{StaticResource IconSizeSm}"/>
+                  </MenuItem.Icon>
+                </MenuItem>
+                <Separator/>
+                <MenuItem Header="{Binding ShowConnectionBarLabel}"
+                          ToggleType="CheckBox"
+                          IsChecked="{Binding ShowConnectionBar, Mode=TwoWay}"/>
+                <Separator/>
+                <MenuItem Header="{Binding MoveOrSwapLabel}"
+                          IsEnabled="{Binding HasMoveTargets}"
+                          ItemsSource="{Binding MoveTargets}">
+                  <MenuItem.ItemTemplate>
+                    <DataTemplate DataType="vm:PaneMoveTarget">
+                      <TextBlock Text="{Binding Title}"/>
+                    </DataTemplate>
+                  </MenuItem.ItemTemplate>
+                  <MenuItem.Styles>
+                    <!--
+                      A target pane is a submenu of its own: swap with it, or dock on one of its
+                      four edges. Bound through a container style because the items come from the
+                      view model two levels down, which an ItemTemplate alone cannot reach.
+                    -->
+                    <Style Selector="MenuItem > MenuItem" x:DataType="vm:PaneMoveTarget">
+                      <Setter Property="ItemsSource" Value="{Binding Options}"/>
+                    </Style>
+                    <Style Selector="MenuItem > MenuItem > MenuItem" x:DataType="vm:PaneMoveOption">
+                      <Setter Property="Header" Value="{Binding Title}"/>
+                      <Setter Property="Command" Value="{Binding Command}"/>
+                    </Style>
+                  </MenuItem.Styles>
+                </MenuItem>
+                <Separator/>
+                <MenuItem Header="{Binding ClosePaneLabel}" Command="{Binding ClosePaneCommand}">
+                  <MenuItem.Icon>
+                    <LucideIcon Kind="X" Size="{StaticResource IconSizeSm}"/>
+                  </MenuItem.Icon>
+                </MenuItem>
+              </MenuFlyout>
+            </Button.Flyout>
+          </Button>
+        </Grid>
+      </Border>
+
       <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto"
+            IsVisible="{Binding ShowConnectionBar}"
             ColumnSpacing="{StaticResource SpaceSm}"
             Margin="{StaticResource PaddingMd}">
         <ComboBox Grid.Column="0"
@@ -77,7 +147,17 @@
         </Button>
       </Grid>
 
-      <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,Auto,Auto,*"
+      <!--
+        Where the pane is, and what it is showing of it, on one row. Two rows read more clearly on
+        a wide single pane and cost a listing's worth of height on four - the 1.x pane put the path
+        and the filter side by side for exactly that reason, and four panes make the argument
+        rather than settle it.
+
+        The filter narrows what is shown, not what was fetched, so clearing it costs nothing.
+        Select all and invert sit beside it deliberately: both act on what the filter is showing,
+        and putting them anywhere else would hide that they do.
+      -->
+      <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto,Auto"
             ColumnSpacing="{StaticResource SpaceXs}"
             IsVisible="{Binding IsListing}"
             Margin="{StaticResource PaddingMd}, 0, {StaticResource PaddingMd}, {StaticResource PaddingMd}">
@@ -92,30 +172,19 @@
         </Button>
         <TextBox Grid.Column="3" Text="{Binding Path}" IsReadOnly="True"
                  VerticalAlignment="Center"/>
-      </Grid>
-
-      <!--
-        The filter narrows what is shown, not what was fetched, so clearing it costs nothing. Select
-        all and invert sit beside it deliberately: both act on what the filter is showing, and
-        having them anywhere else would hide that they do.
-      -->
-      <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto,Auto"
-            ColumnSpacing="{StaticResource SpaceXs}"
-            IsVisible="{Binding IsListing}"
-            Margin="{StaticResource PaddingMd}, 0, {StaticResource PaddingMd}, {StaticResource PaddingMd}">
-        <TextBox Grid.Column="0" Text="{Binding Filter, Mode=TwoWay}"
+        <TextBox Grid.Column="4" Width="190" Text="{Binding Filter, Mode=TwoWay}"
                  Watermark="{Binding FilterPlaceholder}"
                  AutomationProperties.Name="{Binding FilterAccessibleName}"
                  VerticalAlignment="Center"/>
-        <Button Grid.Column="1" Classes="tool" Command="{Binding ClearFilterCommand}"
+        <Button Grid.Column="5" Classes="tool" Command="{Binding ClearFilterCommand}"
                 IsVisible="{Binding HasFilter}">
           <LucideIcon Kind="X" Size="{StaticResource IconSizeSm}"/>
         </Button>
-        <Button Grid.Column="2" Classes="tool" Command="{Binding SelectAllCommand}"
+        <Button Grid.Column="6" Classes="tool" Command="{Binding SelectAllCommand}"
                 ToolTip.Tip="{Binding SelectAllLabel}">
           <LucideIcon Kind="ListChecks" Size="{StaticResource IconSizeSm}"/>
         </Button>
-        <Button Grid.Column="3" Classes="tool" Command="{Binding InvertSelectionCommand}"
+        <Button Grid.Column="7" Classes="tool" Command="{Binding InvertSelectionCommand}"
                 ToolTip.Tip="{Binding InvertSelectionLabel}">
           <LucideIcon Kind="Replace" Size="{StaticResource IconSizeSm}"/>
         </Button>
@@ -147,11 +216,17 @@
             has no DataContext for a binding to walk.
           -->
           <TableView.Columns>
+            <!--
+              Narrow enough that the name still has room in a quarter-width pane. A star column
+              gets what the fixed ones leave, so four columns sized for a full window leave the
+              name as an ellipsis in a four-pane workspace - which is the one column somebody is
+              actually reading.
+            -->
             <TableViewColumn Binding="{Binding Name}" Width="*"/>
-            <TableViewColumn Binding="{Binding Size}" Width="110"/>
-            <TableViewColumn Binding="{Binding Type}" Width="160"/>
-            <TableViewColumn Binding="{Binding Modified}" Width="150"/>
-            <TableViewColumn Binding="{Binding Status}" Width="140"/>
+            <TableViewColumn Binding="{Binding Size}" Width="80"/>
+            <TableViewColumn Binding="{Binding Type}" Width="110"/>
+            <TableViewColumn Binding="{Binding Modified}" Width="120"/>
+            <TableViewColumn Binding="{Binding Status}" Width="90"/>
           </TableView.Columns>
         </TableView>
 

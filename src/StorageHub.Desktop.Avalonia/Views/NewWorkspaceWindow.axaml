@@ -1,0 +1,59 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
+        xmlns:core="clr-namespace:StorageHub.Desktop;assembly=StorageHub.Desktop.Core"
+        x:Class="StorageHub.Desktop.Views.NewWorkspaceWindow"
+        x:DataType="vm:NewWorkspaceModel"
+        Title="{Binding Caption}"
+        Width="660" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner">
+
+  <!--
+    Six arrangements as pictures. Each thumbnail is drawn from the layout the button produces, so
+    the picture cannot drift from the result, and picking one creates straight away - a picture of
+    an arrangement is the whole question.
+  -->
+
+  <Border Classes="surface" Padding="{StaticResource PaddingLg}">
+    <DockPanel>
+
+      <CheckBox DockPanel.Dock="Bottom"
+                IsChecked="{Binding Remember, Mode=TwoWay}"
+                Content="{Binding RememberLabel}"
+                AutomationProperties.Name="{Binding RememberAccessibleName}"
+                AutomationProperties.HelpText="{Binding RememberAccessibleDescription}"
+                Margin="0,8,0,0"/>
+
+      <ItemsControl ItemsSource="{Binding Presets}"
+                    AutomationProperties.Name="{Binding ChooserAccessibleName}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <UniformGrid Columns="3"/>
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate DataType="core:WorkspacePreset">
+            <!-- Stretched, so six cards are six equal cards: a UniformGrid gives each an equal
+                 cell, but a Button left to its own size fills only as much of it as its caption
+                 needs, and "Large left, two stacked" is three times the width of "Single". -->
+            <Button Classes="preset"
+                    HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                    Margin="{StaticResource PaddingSm}"
+                    Command="{Binding $parent[ItemsControl].((vm:NewWorkspaceModel)DataContext).ChooseCommand}"
+                    CommandParameter="{Binding}"
+                    ToolTip.Tip="{Binding Description}">
+              <StackPanel Spacing="{StaticResource SpaceSm}">
+                <vm:PresetThumbnail Preset="{Binding}" Height="96"
+                                    HorizontalAlignment="Stretch"/>
+                <TextBlock Text="{Binding Title}" FontWeight="SemiBold"/>
+                <TextBlock Classes="caption" Text="{Binding Description}" TextWrapping="Wrap"/>
+              </StackPanel>
+            </Button>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+    </DockPanel>
+  </Border>
+</Window>
