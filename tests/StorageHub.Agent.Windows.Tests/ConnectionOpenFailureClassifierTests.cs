@@ -1,5 +1,6 @@
 using System.Net.Sockets;
 using System.Security.Authentication;
+using StorageHub.Agent.Host;
 using StorageHub.Agent.Windows;
 using StorageHub.Testing;
 

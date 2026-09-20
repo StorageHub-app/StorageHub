@@ -475,7 +475,7 @@ if (Test-Path -LiteralPath $outputRootPath -PathType Leaf) {
 
 $dotnetCommand = @(Get-Command dotnet -CommandType Application -ErrorAction Stop)[0]
 $desktopProject = Join-Path $repoRoot 'src\StorageHub.Desktop.WinForms\StorageHub.Desktop.WinForms.csproj'
-$agentProject = Join-Path $repoRoot 'src\StorageHub.Agent.Windows\StorageHub.Agent.Windows.csproj'
+$agentProject = Join-Path $repoRoot 'src\StorageHub.Agent.Host\StorageHub.Agent.Host.csproj'
 $licensePath = Join-Path $repoRoot 'LICENSE'
 $readmePath = Join-Path $repoRoot 'README.md'
 $iconPath = Join-Path $repoRoot 'assets\branding\storagehub.ico'
@@ -751,7 +751,7 @@ try {
         $script:Utf8NoBom)
 
     $desktopExe = Join-Path $stageRoot 'StorageHub.Desktop.exe'
-    $agentExe = Join-Path $stageAgent 'StorageHub.Agent.Windows.exe'
+    $agentExe = Join-Path $stageAgent 'StorageHub.Agent.Host.exe'
     foreach ($requiredPayload in @(
             $desktopExe,
             (Join-Path $stageRoot 'StorageHub.Desktop.dll'),
@@ -760,9 +760,9 @@ try {
             (Join-Path $stageRoot 'StorageHub.ShellExtension.Native.dll'),
             (Join-Path $stageRoot 'coreclr.dll'),
             $agentExe,
-            (Join-Path $stageAgent 'StorageHub.Agent.Windows.dll'),
-            (Join-Path $stageAgent 'StorageHub.Agent.Windows.deps.json'),
-            (Join-Path $stageAgent 'StorageHub.Agent.Windows.runtimeconfig.json'),
+            (Join-Path $stageAgent 'StorageHub.Agent.Host.dll'),
+            (Join-Path $stageAgent 'StorageHub.Agent.Host.deps.json'),
+            (Join-Path $stageAgent 'StorageHub.Agent.Host.runtimeconfig.json'),
             (Join-Path $stageAgent 'coreclr.dll'))) {
         if (-not (Test-Path -LiteralPath $requiredPayload -PathType Leaf)) {
             throw "Published payload is missing '$requiredPayload'."
@@ -773,7 +773,7 @@ try {
         throw 'StorageHub.Desktop.exe is not a Windows GUI subsystem executable.'
     }
     if ((Get-PeSubsystem -ExecutablePath $agentExe) -ne 2) {
-        throw 'StorageHub.Agent.Windows.exe is not a Windows GUI subsystem executable.'
+        throw 'StorageHub.Agent.Host.exe is not a Windows GUI subsystem executable.'
     }
     if (@(Get-ChildItem -LiteralPath $stageRoot -Filter '*.pdb' -File -Recurse).Count -ne 0) {
         throw 'The installer staging directory contains program database symbols.'

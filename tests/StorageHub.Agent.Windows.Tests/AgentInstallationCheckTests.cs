@@ -1,5 +1,6 @@
 using StorageHub.Agent;
 using StorageHub.Testing;
+using StorageHub.Agent.Host;
 
 namespace StorageHub.Agent.Windows.Tests;
 
@@ -10,7 +11,7 @@ namespace StorageHub.Agent.Windows.Tests;
 /// </summary>
 public sealed class AgentInstallationCheckTests
 {
-    private const string AgentExecutable = "StorageHub.Agent.Windows.exe";
+    private const string AgentExecutable = "StorageHub.Agent.Host.exe";
 
     [WindowsOnlyFact]
     public void AHealthyServiceInstallationReportsNothingToDo()

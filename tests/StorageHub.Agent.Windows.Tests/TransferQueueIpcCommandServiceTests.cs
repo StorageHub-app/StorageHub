@@ -7,6 +7,7 @@ using StorageHub.Persistence;
 using StorageHub.Persistence.Transfers;
 using StorageHub.Transfers;
 using StorageHub.Testing;
+using StorageHub.Agent.Host;
 
 namespace StorageHub.Agent.Windows.Tests;
 

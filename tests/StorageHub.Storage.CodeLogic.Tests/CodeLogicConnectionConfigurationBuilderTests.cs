@@ -835,6 +835,8 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
 
     private sealed class FakeSecretFileMaterializer : IRuntimeSecretFileMaterializer
     {
+        public int ScavengeOrphans(TimeSpan minimumAge) => 0;
+
         internal List<FakeSecretFile> Materials { get; } = [];
 
         public ValueTask<IRuntimeSecretFile> MaterializeAsync(

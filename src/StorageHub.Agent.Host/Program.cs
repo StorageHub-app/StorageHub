@@ -8,6 +8,7 @@ using StorageHub.Ipc.Windows;
 using StorageHub.Agent.Scheduling;
 using StorageHub.Agent.Sync;
 using StorageHub.Agent.Transfers;
+using StorageHub.Agent.Host;
 using StorageHub.Agent.Windows;
 using StorageHub.Application;
 using StorageHub.Contracts.Ipc;
@@ -22,105 +23,111 @@ using StorageHub.Persistence.Trust;
 using StorageHub.Storage.CodeLogic;
 using StorageHub.Sync;
 
-// The host mode decides three things that must agree: where the data lives, which DPAPI key
-// protects the vault, and which pipe the desktop looks for. Resolving it first keeps them from
-// drifting apart -- a service that picked the machine pipe but the user's data root would present
-// an empty installation and fail every credential read.
-var hostMode = args.Contains(AgentHostLayout.ServiceArgument, StringComparer.OrdinalIgnoreCase)
-    ? AgentHostMode.WindowsService
-    : AgentHostMode.UserSession;
-var applicationVersion = GetApplicationVersion();
-var shutdown = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-var configuredStorageHubRoot = Environment.GetEnvironmentVariable(AgentHostLayout.DataRootVariable);
-if (string.IsNullOrWhiteSpace(configuredStorageHubRoot))
+// The one platform branch in this file. Everything below asks the platform rather than the
+// operating system, so the composition is the same on both and CA1416 reports any line that
+// forgets - which is how the twenty-two Windows assumptions that used to live here were found.
+if (!OperatingSystem.IsWindows() && !OperatingSystem.IsLinux())
 {
-    configuredStorageHubRoot = AgentHostLayout.ResolveDataRoot(hostMode);
+    Console.Error.WriteLine("The StorageHub agent runs on Windows and Linux.");
+    return 3;
 }
 
-// Service management runs elevated and does no agent work, so it is handled before any of the
-// startup below. Elevation keeps the caller's user identity, which is exactly what the migration
-// needs: rights to write the machine location, while still able to open the user's own secrets.
-if (args.Contains("--install-service", StringComparer.OrdinalIgnoreCase) ||
-    args.Contains("--uninstall-service", StringComparer.OrdinalIgnoreCase) ||
-    args.Contains("--repair-installation", StringComparer.OrdinalIgnoreCase))
+// Service install, uninstall and repair run elevated and do no agent work, so they are handled
+// before a platform is composed. Elevation keeps the caller's user identity, which is what the mode
+// migration needs: rights to write the machine location while still able to open the user's own
+// secrets. Linux has no counterpart - registering a user unit needs no privilege.
+if (OperatingSystem.IsWindows() &&
+    (args.Contains("--install-service", StringComparer.OrdinalIgnoreCase) ||
+     args.Contains("--uninstall-service", StringComparer.OrdinalIgnoreCase) ||
+     args.Contains(AgentHostLayout.RepairArgument, StringComparer.OrdinalIgnoreCase)))
 {
     return await AgentServiceCommands.ExecuteAsync(args).ConfigureAwait(false);
 }
 
-// Refuse to run a session agent while the service owns this machine. An older desktop, or an
-// autostart entry left behind by one, would otherwise start a second agent on a second database:
-// no corruption, because the files differ, but the app and the scheduler would quietly disagree
-// about what is stored. Exiting here is the only signal a stale launcher will understand.
-if (hostMode == AgentHostMode.UserSession && AgentServiceInstaller.Describe().Installed)
+// Written as if/else rather than a ternary because CA1416 narrows on a guard, not on the false
+// branch of one: it has to see IsLinux() asserted before a Linux type is constructed.
+IAgentPlatform agentPlatform;
+IAgentHostPlatform hostPlatform;
+if (OperatingSystem.IsWindows())
 {
-    Console.Error.WriteLine(
-        "The StorageHub agent service is installed; the session agent will not start alongside it.");
+    agentPlatform = new StorageHub.Agent.Windows.WindowsAgentPlatform();
+    hostPlatform = new StorageHub.Agent.Windows.WindowsAgentHostPlatform();
+}
+else if (OperatingSystem.IsLinux())
+{
+    agentPlatform = new StorageHub.Agent.Linux.LinuxAgentPlatform();
+    hostPlatform = new StorageHub.Agent.Linux.LinuxAgentHostPlatform();
+}
+else
+{
+    Console.Error.WriteLine("The StorageHub agent runs on Windows and Linux.");
+    return 3;
+}
+
+// The mode decides three things that must agree: where the data lives, what protects the vault, and
+// which endpoint the desktop looks for. Resolving it through the platform keeps them from drifting
+// apart - a service that picked the machine pipe but the user's data root would present an empty
+// installation and fail every credential read.
+AgentHostMode hostMode;
+try
+{
+    hostMode = hostPlatform.ResolveHostMode(args);
+}
+catch (PlatformNotSupportedException error)
+{
+    Console.Error.WriteLine(error.Message);
+    return 3;
+}
+
+var applicationVersion = GetApplicationVersion();
+var shutdown = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+var resolvedPaths = agentPlatform.ResolvePaths(hostMode);
+var configuredStorageHubRoot = Environment.GetEnvironmentVariable(AgentHostLayout.DataRootVariable);
+if (string.IsNullOrWhiteSpace(configuredStorageHubRoot))
+{
+    configuredStorageHubRoot = resolvedPaths.DataRoot;
+}
+
+// Refuse to start where something else already owns this machine's agent.
+if (hostPlatform.DescribeStartupRefusal(hostMode) is { } refusal)
+{
+    Console.Error.WriteLine(refusal);
     return 4;
 }
 
-var pipeNames = AgentHostLayout.ResolvePipeNames(hostMode);
-var pipeAccess = hostMode == AgentHostMode.WindowsService
-    ? IpcTrustModel.MachineService
-    : IpcTrustModel.SameUser;
-var permittedClientSids = hostMode == AgentHostMode.WindowsService
-    ? AgentServiceClients.ReadPermittedSids(configuredStorageHubRoot)
-    : [];
+var normalEndpoint = agentPlatform.ResolveEndpoint(hostMode, AgentIpcChannel.Normal);
+var secretEndpoint = agentPlatform.ResolveEndpoint(hostMode, AgentIpcChannel.Secret);
+var trustModel = agentPlatform.ResolveTrustModel(hostMode);
+var permittedClients = hostPlatform.ResolvePermittedPrincipals(hostMode, configuredStorageHubRoot);
 
-// Answer the service control manager before the slow startup below, or it retires the
-// process as unresponsive long before the agent is ready.
-if (hostMode == AgentHostMode.WindowsService)
-{
-    AgentServiceHost.Attach(shutdown);
-}
+hostPlatform.AttachToServiceManager(hostMode, shutdown);
 
-WindowsAgentDataDirectoryLease agentDataDirectoryLease;
+IAgentDataDirectory agentDataDirectory;
 try
 {
-    var applicationOwnedTreeRoot =
-        WindowsAgentDataDirectoryLease.ResolveApplicationOwnedTreeRoot(AppContext.BaseDirectory);
-    WindowsAgentDataDirectoryLease.EnsureDataRootIsSeparateFromApplication(
-        configuredStorageHubRoot,
-        applicationOwnedTreeRoot);
-    WindowsAgentDataDirectoryLease.EnsureApplicationTreeIsSeparateFromInstanceLock(
-        applicationOwnedTreeRoot);
-    agentDataDirectoryLease = WindowsAgentDataDirectoryLease.Acquire(
-        configuredStorageHubRoot,
-        scope: hostMode == AgentHostMode.WindowsService
-            // The machine tree stays reachable by administrators. Its secrets are sealed with the
-            // machine key, which any administrator can already use, and the elevated switch back to
-            // a session mode runs as the signed-in user -- it has to be able to read what it is
-            // bringing home.
-            ? AgentDataTreeScope.Machine
-            : AgentDataTreeScope.CurrentUser);
+    agentDataDirectory = hostPlatform.AcquireDataDirectory(hostMode, configuredStorageHubRoot);
 }
-catch (WindowsAgentDataDirectoryException error)
+catch (AgentDataDirectoryException error)
 {
     Console.Error.WriteLine($"StorageHub Agent data directory rejected: {error.Message}");
     return 1;
 }
-catch (Exception error) when (error is ArgumentException or NotSupportedException or PathTooLongException)
-{
-    Console.Error.WriteLine("StorageHub Agent data directory rejected: the configured path is invalid.");
-    return 1;
-}
 
-using var agentDataDirectoryLifetime = agentDataDirectoryLease;
-var storageHubRoot = agentDataDirectoryLease.RootDirectory;
-var agentRoot = agentDataDirectoryLease.AgentDirectory;
+using var agentDataDirectoryLifetime = agentDataDirectory;
+var storageHubRoot = agentDataDirectory.RootDirectory;
+var agentRoot = agentDataDirectory.AgentDirectory;
 // The platform owns what protects the vault, which mode decides. Composing it here rather than
 // naming DPAPI at the call site is what lets the same line serve a Linux host once the composition
 // root moves out of this Windows-only assembly.
-var agentPlatform = new WindowsAgentPlatform();
-var agentPaths = new AgentPaths(storageHubRoot, Path.Combine(storageHubRoot, "Runtime"));
+var agentPaths = resolvedPaths with { DataRoot = storageHubRoot };
 var concurrencyConfiguration = AgentConcurrencyConfiguration.Load(
     Path.Combine(storageHubRoot, "Desktop"));
-var runtimeSecretFileMaterializer = new WindowsRuntimeSecretFileMaterializer(
-    Path.Combine(agentRoot, "runtime-secrets"));
+var runtimeSecretFileMaterializer = agentPlatform.CreateRuntimeSecretFileMaterializer(agentPaths);
 _ = runtimeSecretFileMaterializer.ScavengeOrphans(TimeSpan.FromHours(24));
 
 var initialization = await CodeLogic.CodeLogic.InitializeAsync(options =>
 {
-    options.FrameworkRootPath = agentDataDirectoryLease.FrameworkDirectory;
+    options.FrameworkRootPath = agentDataDirectory.FrameworkDirectory;
     options.ApplicationRootPath = agentRoot;
     options.AppVersion = applicationVersion;
     options.HandleShutdownSignals = false;
@@ -197,11 +204,16 @@ var transferCommands = new TransferQueueIpcCommandService(
     transferStore,
     transferStore,
     transferQueueSubsystem);
-var shellTransferCommands = new ShellTransferIpcCommandService(
-    transferStore,
-    transferEndpointConnector,
-    timeProvider: null,
-    transferQueueSubsystem);
+// The second and last guard. The Explorer drop broker's server half is not a weakened feature
+// elsewhere - there is no Explorer - so the handler simply is not registered rather than being
+// present and reporting failure.
+IAgentIpcCommandHandler? shellTransferCommands = OperatingSystem.IsWindows()
+    ? new ShellTransferIpcCommandService(
+        transferStore,
+        transferEndpointConnector,
+        timeProvider: null,
+        transferQueueSubsystem)
+    : null;
 var syncProfiles = new SqliteSyncProfileRepository(transferDatabase);
 var syncBaselines = new SqliteSyncBaselineStore(transferDatabase);
 var syncPlans = new SqliteSyncPlanStore(transferDatabase);
@@ -262,26 +274,27 @@ var requestHandler = new AgentIpcRequestHandler(
         agentInstanceId,
         transferQueueSubsystem.ActiveExecutionCount,
         syncOutboxSubsystem.ActiveCount),
-    new CompositeAgentIpcCommandHandler(
+    BuildCommandHandlers(
         storageCommands,
         profileCommands,
         keyStoreCommands,
         trustCommands,
         transferCommands,
-        shellTransferCommands,
         syncCommands,
         scheduleCommands,
         objectInspectorCommands,
         sshTerminalCommands,
         new AgentControlIpcCommandService(
             () => shutdown.TrySetResult(),
-            Environment.ProcessId)));
-var ipc = WindowsNamedPipeIpc.CreateServer(
+            Environment.ProcessId),
+        shellTransferCommands));
+var ipc = new IpcServerSubsystem(
+    agentPlatform.Transport,
     new IpcServerOptions
     {
-        Endpoint = new NamedPipeEndpoint(pipeNames.Normal),
-        TrustModel = pipeAccess,
-        PermittedPrincipals = permittedClientSids,
+        Endpoint = normalEndpoint,
+        TrustModel = trustModel,
+        PermittedPrincipals = permittedClients,
         AgentVersion = applicationVersion,
         AgentInstanceId = agentInstanceId,
         // The desktop intentionally owns independent clients for workspaces, queue,
@@ -291,21 +304,24 @@ var ipc = WindowsNamedPipeIpc.CreateServer(
         RequestTimeout = TimeSpan.FromMinutes(2),
         SessionIdleTimeout = TimeSpan.FromMinutes(3)
     },
+    agentPlatform.PeerAuthorizer,
     requestHandler.HandleSessionAsync);
 var secretRequestHandler = new AgentSecretIpcRequestHandler(
     new SecretVaultIpcCommandService(() => vaultSubsystem.Vault));
-var secretIpc = WindowsNamedPipeIpc.CreateServer(
+var secretIpc = new IpcServerSubsystem(
+    agentPlatform.Transport,
     new IpcServerOptions
     {
-        Endpoint = new NamedPipeEndpoint(pipeNames.Secret),
-        TrustModel = pipeAccess,
-        PermittedPrincipals = permittedClientSids,
+        Endpoint = secretEndpoint,
+        TrustModel = trustModel,
+        PermittedPrincipals = permittedClients,
         AgentVersion = applicationVersion,
         AgentInstanceId = agentInstanceId,
         MaxConcurrentClients = 8,
         RequestTimeout = TimeSpan.FromSeconds(30),
         FrameKind = IpcFrameKind.Secret
     },
+    agentPlatform.PeerAuthorizer,
     secretRequestHandler.HandleSessionAsync);
 await using var runtimeCoordinator = new AgentRuntimeCoordinator(
     [
@@ -357,6 +373,17 @@ finally
 {
     await CodeLogic.CodeLogic.StopAsync();
 }
+
+/// <summary>
+/// Composes the handlers, leaving out any the platform does not have.
+/// </summary>
+/// <remarks>
+/// Only the Explorer drop broker is optional today. Registering a stub that reports failure would
+/// be worse than not registering it: the desktop asks the agent what it supports, and a handler
+/// that answers is a handler that exists.
+/// </remarks>
+static CompositeAgentIpcCommandHandler BuildCommandHandlers(params IAgentIpcCommandHandler?[] handlers) =>
+    new([.. handlers.Where(handler => handler is not null).Select(handler => handler!)]);
 
 static string GetApplicationVersion()
 {

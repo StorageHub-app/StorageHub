@@ -15,7 +15,7 @@ namespace StorageHub.Agent.Windows;
 /// stranded in ProgramData the moment somebody switched back.
 /// </summary>
 [System.Runtime.Versioning.SupportedOSPlatform("windows")]
-internal static class AgentServiceCommands
+public static class AgentServiceCommands
 {
     internal const string InstallArgument = "--install-service";
     internal const string UninstallArgument = "--uninstall-service";
@@ -33,7 +33,7 @@ internal static class AgentServiceCommands
     /// <summary>Applied, but some secrets could not be read and must be entered again.</summary>
     private const int PartialMigrationExitCode = 6;
 
-    internal static async Task<int> ExecuteAsync(string[] args)
+    public static async Task<int> ExecuteAsync(string[] args)
     {
         try
         {

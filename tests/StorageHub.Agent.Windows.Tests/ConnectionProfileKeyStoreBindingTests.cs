@@ -9,6 +9,7 @@ using StorageHub.Persistence.Credentials;
 using StorageHub.Security;
 using ContractWriteStatus = StorageHub.Contracts.Ipc.ConnectionProfileWriteStatus;
 using StorageHub.Testing;
+using StorageHub.Agent.Host;
 
 namespace StorageHub.Agent.Windows.Tests;
 

@@ -7,7 +7,7 @@ using StorageHub.Persistence.Connections;
 using StorageHub.Persistence.Trust;
 using StorageHub.Security;
 
-namespace StorageHub.Agent.Windows;
+namespace StorageHub.Agent.Host;
 
 /// <summary>Profile-revision-bound IPC for authoritative server identity decisions.</summary>
 public sealed class ConnectionTrustIpcCommandService : IAgentIpcCommandHandler

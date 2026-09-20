@@ -95,7 +95,7 @@ public sealed class PackagedDesktopLifecycleTests
 
         Assert.Equal(AgentEnsureStatus.Started, result.Status);
         var launch = Assert.Single(fixture.Launcher.Launches);
-        Assert.Equal(Path.Combine(fixture.ApplicationDirectory, "Agent", "StorageHub.Agent.Windows.exe"), launch.Executable);
+        Assert.Equal(Path.Combine(fixture.ApplicationDirectory, "Agent", "StorageHub.Agent.Host.exe"), launch.Executable);
         Assert.Equal(Path.Combine(fixture.ApplicationDirectory, "Agent"), launch.WorkingDirectory);
         Assert.Equal("--background", launch.Argument);
         Assert.Equal(1, fixture.AgentClient.WaitCalls);

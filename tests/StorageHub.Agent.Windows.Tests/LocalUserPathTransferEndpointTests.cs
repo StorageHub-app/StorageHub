@@ -1,4 +1,5 @@
 using StorageHub.Agent.Transfers;
+using StorageHub.Agent.Host;
 using StorageHub.Agent.Windows;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Contracts.Results;

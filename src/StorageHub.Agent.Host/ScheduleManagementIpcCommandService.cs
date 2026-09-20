@@ -4,7 +4,7 @@ using StorageHub.Contracts.Ipc;
 using StorageHub.Domain.Identifiers;
 using StorageHub.Persistence.Scheduling;
 
-namespace StorageHub.Agent.Windows;
+namespace StorageHub.Agent.Host;
 
 /// <summary>
 /// Bounded normal-pipe schedule management. The scheduler remains preview-only, while ownership

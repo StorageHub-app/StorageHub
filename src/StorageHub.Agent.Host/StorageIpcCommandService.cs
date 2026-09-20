@@ -14,7 +14,7 @@ using StorageHub.Storage.Abstractions;
 using StorageHub.Storage.CodeLogic;
 using StorageHub.Storage.Models;
 
-namespace StorageHub.Agent.Windows;
+namespace StorageHub.Agent.Host;
 
 /// <summary>A disposable, root-scoped storage session opened for one IPC request.</summary>
 public interface IStorageIpcSessionLease : IAsyncDisposable
@@ -60,7 +60,7 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDi
     public StorageIpcCommandService(
         SqliteDatabaseOptions databaseOptions,
         Func<ISecretVault> vaultProvider,
-        WindowsRuntimeSecretFileMaterializer secretFileMaterializer,
+        IRuntimeSecretFileMaterializer secretFileMaterializer,
         CodeLogicStorageSessionFactory sessionFactory,
         TimeProvider? timeProvider = null)
         : this(
@@ -79,7 +79,7 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDi
     public StorageIpcCommandService(
         SqliteDatabaseOptions databaseOptions,
         Func<ISecretVault> vaultProvider,
-        WindowsRuntimeSecretFileMaterializer secretFileMaterializer,
+        IRuntimeSecretFileMaterializer secretFileMaterializer,
         Func<CodeLogicStorageSessionFactory> sessionFactoryProvider,
         TimeProvider? timeProvider = null)
         : this(
@@ -681,7 +681,7 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDi
     private static CodeLogicStorageIpcSessionOpener CreateCodeLogicSessionOpener(
         SqliteDatabaseOptions databaseOptions,
         Func<ISecretVault> vaultProvider,
-        WindowsRuntimeSecretFileMaterializer secretFileMaterializer,
+        IRuntimeSecretFileMaterializer secretFileMaterializer,
         Func<CodeLogicStorageSessionFactory> sessionFactoryProvider,
         TimeProvider? timeProvider)
     {

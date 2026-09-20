@@ -166,6 +166,8 @@ public sealed class CodeLogicConnectionProfileConnectorTests : IAsyncLifetime, I
     /// <summary>A local profile materialises no secret files; being called at all is the failure.</summary>
     private sealed class UnusedSecretFileMaterializer : IRuntimeSecretFileMaterializer
     {
+        public int ScavengeOrphans(TimeSpan minimumAge) => 0;
+
         public ValueTask<IRuntimeSecretFile> MaterializeAsync(
             ReadOnlyMemory<byte> secret,
             string fileExtension,

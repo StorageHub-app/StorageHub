@@ -14,6 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\StorageHub.Agent.Host\StorageHub.Agent.Host.csproj" />
     <ProjectReference Include="..\StorageHub.Testing\StorageHub.Testing.csproj" />
     <ProjectReference Include="..\..\src\StorageHub.Agent.Windows\StorageHub.Agent.Windows.csproj" />
     <ProjectReference Include="..\..\src\StorageHub.Application\StorageHub.Application.csproj" />

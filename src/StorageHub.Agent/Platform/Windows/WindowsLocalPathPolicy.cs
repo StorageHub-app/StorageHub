@@ -16,6 +16,11 @@ public sealed class WindowsLocalPathPolicy : ILocalPathPolicy
 
     public string AccountDescription => "your Windows account";
 
+    public string? ShellExportsRoot => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "StorageHub",
+        "ShellExports");
+
     /// <summary>
     /// Extended-length and device paths bypass the normalisation every check below depends on, so
     /// they are refused rather than canonicalised.

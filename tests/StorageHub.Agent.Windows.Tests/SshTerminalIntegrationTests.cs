@@ -6,6 +6,7 @@ using StorageHub.Contracts.Ipc;
 using StorageHub.Domain.Identifiers;
 using StorageHub.Security;
 using StorageHub.Testing;
+using StorageHub.Agent.Host;
 
 namespace StorageHub.Agent.Windows.Tests;
 

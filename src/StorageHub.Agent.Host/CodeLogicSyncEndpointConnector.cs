@@ -5,7 +5,7 @@ using StorageHub.Storage.Abstractions;
 using StorageHub.Storage.CodeLogic;
 using StorageHub.Sync;
 
-namespace StorageHub.Agent.Windows;
+namespace StorageHub.Agent.Host;
 
 /// <summary>
 /// Opens an authoritative saved profile for a sync scan and binds the runtime-only CL.Storage

@@ -10,7 +10,7 @@ using StorageHub.Security;
 using ContractWriteStatus = StorageHub.Contracts.Ipc.ConnectionProfileWriteStatus;
 using DomainWriteStatus = StorageHub.Application.Connections.ConnectionProfileWriteStatus;
 
-namespace StorageHub.Agent.Windows;
+namespace StorageHub.Agent.Host;
 
 /// <summary>Versioned normal-IPC CRUD for non-secret profile documents and opaque references.</summary>
 public sealed class ConnectionProfileIpcCommandService : IAgentIpcCommandHandler

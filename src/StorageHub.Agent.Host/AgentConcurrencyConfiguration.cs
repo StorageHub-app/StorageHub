@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace StorageHub.Agent.Windows;
+namespace StorageHub.Agent.Host;
 
 internal sealed record AgentConcurrencyConfiguration(
     bool Adaptive,

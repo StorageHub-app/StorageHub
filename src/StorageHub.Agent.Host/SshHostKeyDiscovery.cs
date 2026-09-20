@@ -2,7 +2,7 @@ using Renci.SshNet;
 using Renci.SshNet.Common;
 using StorageHub.Contracts.Ipc;
 
-namespace StorageHub.Agent.Windows;
+namespace StorageHub.Agent.Host;
 
 public sealed record DiscoveredSshHostKey(
     string HostKeyAlgorithm,

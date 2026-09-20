@@ -29,6 +29,9 @@ public sealed class LinuxLocalPathPolicy : ILocalPathPolicy
 
     public string AccountDescription => "your user account";
 
+    /// <summary>None: the staging root belongs to the Explorer drop broker, which has no Linux half.</summary>
+    public string? ShellExportsRoot => null;
+
     /// <summary>
     /// Nothing. Linux has no extended-length or device-path syntax that defeats normalisation, so
     /// there is nothing here to refuse that Path.GetFullPath does not already resolve.

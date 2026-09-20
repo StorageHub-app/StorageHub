@@ -61,15 +61,35 @@ public static partial class UnixFileSystem
         return BitConverter.ToUInt32(buffer, StxUidOffset);
     }
 
-    /// <summary>Creates a directory private if it is missing, then proves it is.</summary>
+    /// <summary>
+    /// Creates a directory private if it is missing, then proves it is.
+    /// </summary>
+    /// <remarks>
+    /// Every missing level is created separately, because Directory.CreateDirectory applies its
+    /// unix mode to the final directory only. Creating .../storagehub/runtime-secrets in one call
+    /// left .../storagehub at the umask default of 0755 - world-readable, holding the socket the
+    /// secret channel was about to be published on. The confidential-channel check caught it, which
+    /// is the only reason it is a comment here rather than a shipped hole.
+    /// </remarks>
     public static void EnsurePrivateDirectory(string directory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(directory);
+
         if (!Directory.Exists(directory))
         {
+            var missing = new Stack<string>();
+            for (var level = directory; !string.IsNullOrEmpty(level) && !Directory.Exists(level);
+                 level = Path.GetDirectoryName(level) ?? string.Empty)
+            {
+                missing.Push(level);
+            }
+
             // Created with the mode rather than chmod-ed afterwards, so there is no window in which
-            // it exists and is readable by anyone else.
-            Directory.CreateDirectory(directory, PrivateDirectoryMode);
+            // a level exists and is readable by anyone else.
+            while (missing.Count > 0)
+            {
+                Directory.CreateDirectory(missing.Pop(), PrivateDirectoryMode);
+            }
         }
 
         VerifyPrivate(directory, PrivateDirectoryMode, "directory");

@@ -2,7 +2,7 @@ using StorageHub.Contracts.Agent;
 using Microsoft.Data.Sqlite;
 using StorageHub.Persistence;
 
-namespace StorageHub.Agent.Windows;
+namespace StorageHub.Agent.Host;
 
 internal sealed class DatabaseAgentSubsystem(SqliteDatabaseOptions options) : IAgentSubsystem
 {

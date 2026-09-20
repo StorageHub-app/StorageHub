@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -11,7 +11,7 @@ using StorageHub.Domain.Identifiers;
 using StorageHub.Persistence.Connections;
 using StorageHub.Security;
 
-namespace StorageHub.Agent.Windows;
+namespace StorageHub.Agent.Host;
 
 public sealed class SshTerminalIpcCommandService : IAgentIpcCommandHandler, IAsyncDisposable
 {

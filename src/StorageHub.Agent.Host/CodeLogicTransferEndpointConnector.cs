@@ -6,7 +6,7 @@ using StorageHub.Domain.Storage;
 using StorageHub.Storage.Abstractions;
 using StorageHub.Storage.CodeLogic;
 
-namespace StorageHub.Agent.Windows;
+namespace StorageHub.Agent.Host;
 
 /// <summary>
 /// Resolves the authoritative saved profile immediately before each attempt and owns the

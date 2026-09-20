@@ -1,4 +1,5 @@
 using System.Text;
+using StorageHub.Agent.Host;
 using StorageHub.Agent.Windows;
 using StorageHub.Testing;
 

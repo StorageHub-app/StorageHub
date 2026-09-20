@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 
 [CmdletBinding()]
 param(
@@ -382,7 +382,7 @@ try {
         -TimeoutSeconds $ProcessTimeoutSeconds
 
     $desktopExe = Join-Path $installDirectory 'current\StorageHub.Desktop.exe'
-    $agentExe = Join-Path $installDirectory 'current\Agent\StorageHub.Agent.Windows.exe'
+    $agentExe = Join-Path $installDirectory 'current\Agent\StorageHub.Agent.Host.exe'
     $updateExe = Join-Path $installDirectory 'Update.exe'
     $stableDesktopExe = Join-Path $installDirectory 'StorageHub.Desktop.exe'
     Wait-ForCondition `

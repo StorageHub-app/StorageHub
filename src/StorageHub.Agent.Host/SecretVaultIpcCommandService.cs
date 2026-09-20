@@ -3,7 +3,7 @@ using StorageHub.Ipc;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Security;
 
-namespace StorageHub.Agent.Windows;
+namespace StorageHub.Agent.Host;
 
 /// <summary>
 /// The only agent command surface that accepts secret bytes. It is hosted exclusively on the

@@ -1,6 +1,5 @@
 using System.Security.Cryptography;
 using System.Text;
-using StorageHub.Agent.Transfers;
 using StorageHub.Contracts.Results;
 using StorageHub.Domain.Capabilities;
 using StorageHub.Domain.Identifiers;
@@ -8,14 +7,14 @@ using StorageHub.Domain.Storage;
 using StorageHub.Storage.Abstractions;
 using StorageHub.Storage.Models;
 
-namespace StorageHub.Agent.Windows;
+namespace StorageHub.Agent.Transfers;
 
 /// <summary>
 /// A read-only, source-only endpoint for paths explicitly approved from Explorer.  The root is
 /// serialized into the durable address, and every open rechecks containment, reparse points and
 /// the captured file evidence. It deliberately exposes no write/delete/move surface.
 /// </summary>
-internal sealed class LocalFilesystemTransferEndpoint
+public sealed class LocalFilesystemTransferEndpoint
 {
     private const string Prefix = "localfs:v1:";
     private static readonly Guid Namespace = new("2E330960-289A-4C9F-A7BE-062BA2B29517");

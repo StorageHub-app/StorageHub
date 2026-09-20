@@ -1,5 +1,6 @@
 using System.Text.Json;
 using StorageHub.Testing;
+using StorageHub.Agent.Host;
 
 namespace StorageHub.Agent.Windows.Tests;
 

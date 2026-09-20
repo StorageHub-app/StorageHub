@@ -26,7 +26,7 @@ public sealed class InstallationCheckForm : Form
             () => AgentInstallationCheck.Inspect(
                 mode,
                 DesktopApplicationVersion.Current,
-                "StorageHub.Agent.Windows.exe",
+                "StorageHub.Agent.Host.exe",
                 new WindowsInstallationProbe()),
             repair => ElevatedInstallationRepair.Apply(repair, mode))
     {

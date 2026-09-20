@@ -10,6 +10,7 @@ using StorageHub.Sync;
 using StorageHub.Sync.Persistence;
 using StorageHub.Transfers;
 using StorageHub.Testing;
+using StorageHub.Agent.Host;
 
 namespace StorageHub.Agent.Windows.Tests;
 

@@ -5,6 +5,7 @@ using StorageHub.Persistence;
 using StorageHub.Persistence.Connections;
 using StorageHub.Security;
 using StorageHub.Testing;
+using StorageHub.Agent.Host;
 
 namespace StorageHub.Agent.Windows.Tests;
 

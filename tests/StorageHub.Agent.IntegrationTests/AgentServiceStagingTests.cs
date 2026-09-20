@@ -22,7 +22,7 @@ public sealed class AgentServiceStagingTests : IDisposable
     {
         var directory = Path.Combine(_root, "portable");
         _ = Directory.CreateDirectory(directory);
-        var executable = Path.Combine(directory, "StorageHub.Agent.Windows.exe");
+        var executable = Path.Combine(directory, "StorageHub.Agent.Host.exe");
         File.WriteAllText(executable, "not a real agent");
         GrantCurrentUserWrite(directory);
 
@@ -41,7 +41,7 @@ public sealed class AgentServiceStagingTests : IDisposable
     {
         var directory = Path.Combine(_root, "localappdata-like");
         _ = Directory.CreateDirectory(directory);
-        var executable = Path.Combine(directory, "StorageHub.Agent.Windows.exe");
+        var executable = Path.Combine(directory, "StorageHub.Agent.Host.exe");
         File.WriteAllText(executable, "not a real agent");
 
         _ = Assert.Throws<UnauthorizedAccessException>(
@@ -53,7 +53,7 @@ public sealed class AgentServiceStagingTests : IDisposable
     {
         _ = Assert.Throws<DirectoryNotFoundException>(
             () => AgentServiceStaging.EnsureSafeForService(
-                Path.Combine(_root, "absent", "StorageHub.Agent.Windows.exe")));
+                Path.Combine(_root, "absent", "StorageHub.Agent.Host.exe")));
     }
 
     /// <summary>

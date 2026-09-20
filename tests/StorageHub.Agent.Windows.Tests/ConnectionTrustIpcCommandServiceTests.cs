@@ -9,6 +9,7 @@ using StorageHub.Persistence.Trust;
 using StorageHub.Security;
 using DomainProfileWriteStatus = StorageHub.Application.Connections.ConnectionProfileWriteStatus;
 using StorageHub.Testing;
+using StorageHub.Agent.Host;
 
 namespace StorageHub.Agent.Windows.Tests;
 

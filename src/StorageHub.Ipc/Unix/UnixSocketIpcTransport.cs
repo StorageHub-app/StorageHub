@@ -39,14 +39,23 @@ public sealed class UnixSocketIpcTransport : IIpcTransport
             return false;
         }
 
+        var directory = Path.GetDirectoryName(socket.SocketPath)!;
+        if (!Directory.Exists(directory))
+        {
+            // Asked before the endpoint is published, which is the normal case: the answer is about
+            // what this transport will create, and Listen creates it private or fails.
+            return true;
+        }
+
         try
         {
-            UnixIpcSocketDirectory.Verify(Path.GetDirectoryName(socket.SocketPath)!);
+            UnixIpcSocketDirectory.Verify(directory);
             return true;
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
-            // A directory that cannot be proven private is not a channel secrets may go down.
+            // A directory that already exists and cannot be proven private is not a channel secrets
+            // may go down.
             return false;
         }
     }

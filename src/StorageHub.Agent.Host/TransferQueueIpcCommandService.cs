@@ -7,7 +7,7 @@ using StorageHub.Domain.Identifiers;
 using StorageHub.Domain.Storage;
 using StorageHub.Transfers;
 
-namespace StorageHub.Agent.Windows;
+namespace StorageHub.Agent.Host;
 
 /// <summary>
 /// Versioned, bounded control surface for the durable transfer queue. The wire model contains

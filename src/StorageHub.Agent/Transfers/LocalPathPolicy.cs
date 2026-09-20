@@ -45,6 +45,17 @@ public interface ILocalPathPolicy
 
     /// <summary>How to name the account in a message about permissions.</summary>
     string AccountDescription { get; }
+
+    /// <summary>
+    /// Where shell integration stages exported files, or null where there is none.
+    /// </summary>
+    /// <remarks>
+    /// Null on Linux rather than some equivalent directory, because there is no equivalent: the
+    /// staging root exists for the Explorer drop broker, and an address under it is only ever
+    /// produced by that broker. A platform with no broker approves no staged address, which is the
+    /// honest answer rather than inventing a folder nothing writes to.
+    /// </remarks>
+    string? ShellExportsRoot { get; }
 }
 
 /// <summary>

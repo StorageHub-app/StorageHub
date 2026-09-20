@@ -26,5 +26,6 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="StorageHub.Agent.IntegrationTests" />
+    <InternalsVisibleTo Include="StorageHub.Agent.Windows.Tests" />
   </ItemGroup>
 </Project>

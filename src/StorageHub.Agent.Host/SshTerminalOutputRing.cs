@@ -1,4 +1,4 @@
-namespace StorageHub.Agent.Windows;
+namespace StorageHub.Agent.Host;
 
 /// <summary>
 /// What a read produced: the bytes, and the absolute sequence the first of them sat at.

@@ -3,7 +3,7 @@ using Microsoft.Data.Sqlite;
 using StorageHub.Agent.Scheduling;
 using StorageHub.Persistence;
 
-namespace StorageHub.Agent.Windows;
+namespace StorageHub.Agent.Host;
 
 /// <summary>
 /// Verifies scheduler persistence without claiming that this host can execute sync profiles.

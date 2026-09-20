@@ -83,7 +83,7 @@ public sealed record PackagedDesktopLifecycleOptions
 
     public string AgentSubdirectory { get; init; } = "Agent";
 
-    public string AgentExecutableName { get; init; } = "StorageHub.Agent.Windows.exe";
+    public string AgentExecutableName { get; init; } = "StorageHub.Agent.Host.exe";
 
     public string AgentArgument { get; init; } = "--background";
 

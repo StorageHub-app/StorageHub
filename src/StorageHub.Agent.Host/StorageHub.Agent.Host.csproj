@@ -1,19 +1,29 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <RootNamespace>StorageHub.Agent.Windows</RootNamespace>
-    <AssemblyName>StorageHub.Agent.Windows</AssemblyName>
+    <OutputType>Exe</OutputType>
+    <!-- The packaged agent runs hidden beside the desktop, so the release build has no console. -->
+    <OutputType Condition="'$(StorageHubPackagedAgent)' == 'true'">WinExe</OutputType>
+    <RootNamespace>StorageHub.Agent.Host</RootNamespace>
+    <AssemblyName>StorageHub.Agent.Host</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>..\..\assets\branding\storagehub.ico</ApplicationIcon>
+    <ShouldUnsetParentConfigurationAndPlatform>false</ShouldUnsetParentConfigurationAndPlatform>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\StorageHub.Agent\StorageHub.Agent.csproj" />
+    <ProjectReference Include="..\StorageHub.Agent.Windows\StorageHub.Agent.Windows.csproj" />
     <ProjectReference Include="..\StorageHub.Application\StorageHub.Application.csproj" />
     <ProjectReference Include="..\StorageHub.Infrastructure\StorageHub.Infrastructure.csproj" />
     <ProjectReference Include="..\StorageHub.Ipc\StorageHub.Ipc.csproj" />
     <ProjectReference Include="..\StorageHub.Persistence\StorageHub.Persistence.csproj" />
     <ProjectReference Include="..\StorageHub.Security\StorageHub.Security.csproj" />
     <ProjectReference Include="..\StorageHub.Storage\StorageHub.Storage.csproj" />
+    <ProjectReference Include="..\StorageHub.Storage.CodeLogic\StorageHub.Storage.CodeLogic.csproj" />
     <ProjectReference Include="..\StorageHub.Sync\StorageHub.Sync.csproj" />
     <PackageReference Include="CodeLogic" />
+    <PackageReference Include="CodeLogic.Storage" />
+    <PackageReference Include="SSH.NET" />
   </ItemGroup>
 
   <ItemGroup>

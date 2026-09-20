@@ -6,6 +6,7 @@ using StorageHub.Domain.Identifiers;
 using StorageHub.Persistence;
 using StorageHub.Persistence.Scheduling;
 using StorageHub.Testing;
+using StorageHub.Agent.Host;
 
 namespace StorageHub.Agent.Windows.Tests;
 

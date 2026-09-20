@@ -8,7 +8,7 @@ using StorageHub.Domain.Identifiers;
 using StorageHub.Security;
 using StorageHub.Storage.CodeLogic;
 
-namespace StorageHub.Agent.Windows;
+namespace StorageHub.Agent.Host;
 
 /// <summary>
 /// Versioned normal-IPC management for the key and certificate store.

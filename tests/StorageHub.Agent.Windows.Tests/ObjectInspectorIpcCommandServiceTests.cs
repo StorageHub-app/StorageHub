@@ -9,6 +9,7 @@ using StorageHub.Storage.Abstractions;
 using StorageHub.Storage.Models;
 using StorageHub.Sync;
 using StorageHub.Testing;
+using StorageHub.Agent.Host;
 
 namespace StorageHub.Agent.Windows.Tests;
 

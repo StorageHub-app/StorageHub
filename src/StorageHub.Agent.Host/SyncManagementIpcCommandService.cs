@@ -9,7 +9,7 @@ using StorageHub.Sync;
 using StorageHub.Sync.Persistence;
 using StorageHub.Transfers;
 
-namespace StorageHub.Agent.Windows;
+namespace StorageHub.Agent.Host;
 
 /// <summary>
 /// Bounded normal-pipe management for preview-first sync orchestration. Approval responses report

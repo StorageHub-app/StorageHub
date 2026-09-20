@@ -1,5 +1,4 @@
 using System.Security;
-using StorageHub.Agent.Transfers;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Contracts.Results;
 using StorageHub.Domain.Capabilities;
@@ -8,7 +7,7 @@ using StorageHub.Domain.Storage;
 using StorageHub.Storage.Abstractions;
 using StorageHub.Storage.Models;
 
-namespace StorageHub.Agent.Windows;
+namespace StorageHub.Agent.Transfers;
 
 /// <summary>
 /// A read/write endpoint for a local folder the desktop nominated, so a This PC pane can be one
@@ -21,7 +20,7 @@ namespace StorageHub.Agent.Windows;
 /// and every file resolved through it is re-checked for containment, because a directory that
 /// passed validation can be replaced with a link while a transfer is still running.
 /// </summary>
-internal static class LocalUserPathTransferEndpoint
+public static class LocalUserPathTransferEndpoint
 {
     public static bool IsUserPath(StorageAddress address) =>
         LocalTransferFolder.IsLocalFolder(address.RootIdentity);

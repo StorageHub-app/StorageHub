@@ -1,6 +1,5 @@
 using System.Security.Cryptography;
 using System.Text;
-using StorageHub.Agent.Transfers;
 using StorageHub.Contracts.Results;
 using StorageHub.Domain.Capabilities;
 using StorageHub.Domain.Identifiers;
@@ -8,10 +7,10 @@ using StorageHub.Domain.Storage;
 using StorageHub.Storage.Abstractions;
 using StorageHub.Storage.Models;
 
-namespace StorageHub.Agent.Windows;
+namespace StorageHub.Agent.Transfers;
 
 /// <summary>A write-only transfer destination rooted in an agent-created Explorer export folder.</summary>
-internal static class LocalStagingTransferEndpoint
+public static class LocalStagingTransferEndpoint
 {
     private const string StagingPrefix = "localstage:v1:";
     private const string DestinationPrefix = "localdest:v1:";
@@ -82,8 +81,14 @@ internal static class LocalStagingTransferEndpoint
 
     private static bool IsApprovedRoot(string root)
     {
-        var exports = Path.TrimEndingDirectorySeparator(Path.GetFullPath(Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "StorageHub", "ShellExports")));
+        // A platform with no shell integration stages nothing, so no staged address is approved.
+        var configured = LocalPathPolicy.Current.ShellExportsRoot;
+        if (string.IsNullOrWhiteSpace(configured))
+        {
+            return false;
+        }
+
+        var exports = Path.TrimEndingDirectorySeparator(Path.GetFullPath(configured));
         return string.Equals(Path.GetDirectoryName(root), exports, LocalPathPolicy.Current.PathComparison) &&
                !string.IsNullOrWhiteSpace(Path.GetFileName(root));
     }

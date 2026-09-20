@@ -1,7 +1,7 @@
 using System.Net.Sockets;
 using System.Security.Authentication;
 
-namespace StorageHub.Agent.Windows;
+namespace StorageHub.Agent.Host;
 
 /// <summary>
 /// Classifies an exception thrown while opening a provider connection.

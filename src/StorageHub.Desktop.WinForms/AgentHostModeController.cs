@@ -57,7 +57,7 @@ internal sealed class AgentHostModeController(string agentExecutablePath)
             return null;
         }
 
-        var staged = AgentServiceStaging.ReadStagedVersion("StorageHub.Agent.Windows.exe");
+        var staged = AgentServiceStaging.ReadStagedVersion("StorageHub.Agent.Host.exe");
         var current = DesktopApplicationVersion.Current;
         if (staged is null || VersionsMatch(staged, current))
         {

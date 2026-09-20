@@ -9,7 +9,7 @@ using StorageHub.Storage.Abstractions;
 using StorageHub.Storage.Models;
 using StorageHub.Sync;
 
-namespace StorageHub.Agent.Windows;
+namespace StorageHub.Agent.Host;
 
 /// <summary>
 /// Exposes bounded advanced object inspection plus an explicitly size-limited external-editor
