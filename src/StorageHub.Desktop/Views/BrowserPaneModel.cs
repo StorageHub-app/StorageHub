@@ -203,7 +203,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     public string Status
     {
         get => _status;
-        private set
+        internal set
         {
             if (string.Equals(_status, value, StringComparison.Ordinal)) return;
             _status = value;
@@ -561,6 +561,25 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
 
     /// <summary>Opens the read-only object inspector on the one selected file.</summary>
     public ICommand PropertiesCommand { get; }
+
+    /// <summary>
+    /// What a drop on this pane does with what landed. Set by the workspace, which owns the queue.
+    /// </summary>
+    /// <remarks>
+    /// A delegate rather than a reference to the workspace, so a pane in a test that is not about
+    /// transfers has nothing behind it and refuses drops, the way it refuses a paste.
+    /// </remarks>
+    internal Func<PaneClipboard, Task>? DropReceiver { get; set; }
+
+    /// <summary>Whether something could be dropped here: a folder is open, and there is a queue.</summary>
+    internal bool CanReceiveDrop => DropReceiver is not null && !IsTerminal && _source is not null;
+
+    /// <summary>Hands what was dropped to the workspace, as the paste it amounts to.</summary>
+    internal Task ReceiveDropAsync(PaneClipboard clipboard)
+    {
+        ArgumentNullException.ThrowIfNull(clipboard);
+        return DropReceiver is { } receive && CanReceiveDrop ? receive(clipboard) : Task.CompletedTask;
+    }
 
     /// <summary>
     /// Whether this pane is somewhere things can be made and removed.

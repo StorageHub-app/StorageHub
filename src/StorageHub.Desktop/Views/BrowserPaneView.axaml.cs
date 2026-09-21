@@ -47,6 +47,7 @@ public partial class BrowserPaneView : UserControl
         // reordering. Without it the sort click is swallowed by the control it is aimed at.
         AddHandler(TappedEvent, OnTapped, RoutingStrategies.Bubble, handledEventsToo: true);
         DataContextChanged += (_, _) => Bind(Model);
+        PaneDragHandler.Attach(this, () => Model);
         RefreshHeadings();
     }
 

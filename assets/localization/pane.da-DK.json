@@ -129,5 +129,6 @@
   "terminalPending": "Terminalen for denne forbindelse er ikke åbnet endnu.",
   "terminalConnectHint": "SSH-klienter åbner en terminal her i stedet for en filliste.",
   "columnType": "Type",
+  "droppedItemsUnusable": "Kun filer og mapper på denne computer kan slippes her.",
   "culture": "da-DK"
 }

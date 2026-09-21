@@ -167,6 +167,83 @@ public class WorkspaceTransferTests
         Assert.Equal(1, refreshes);
     }
 
+    /// <summary>
+    /// A drop lands in the pane it was dropped on, and leaves what is staged alone.
+    /// </summary>
+    /// <remarks>
+    /// The same transfer a paste is, with the destination named by where the pointer let go. The
+    /// staged clipboard is the other thing a person may be holding, and dragging one selection
+    /// must not lose it.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task ADropQueuesIntoThePaneItLandedOnAndKeepsWhatIsStaged()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+
+        // Something staged for a paste, to prove the drop does not disturb it.
+        fixture.Left.SelectedRows.Add(fixture.Left.Rows.Single(row => row.Name == "reports"));
+        fixture.Workspace.Stage(TransferQueueOperation.Copy);
+        Assert.True(fixture.Workspace.HasClipboard);
+
+        // And a different selection dragged, as the handler would carry it.
+        fixture.Left.SelectedRows.Clear();
+        fixture.Left.SelectedRows.Add(fixture.Left.Rows.Single(row => row.Name == "render.exr"));
+        var payload = PaneDragHandler.Payload(fixture.Left);
+        Assert.NotNull(payload);
+        Assert.True(payload!.CanMove);
+
+        Assert.True(fixture.Right.CanReceiveDrop);
+        await fixture.Right.ReceiveDropAsync(
+            new PaneClipboard(payload.Selection, TransferQueueOperation.Move, payload.SourceName));
+
+        var request = Assert.Single(fixture.Queue.Enqueued);
+        Assert.Equal(TransferQueueOperation.Move, request.Operation);
+        Assert.Equal("render.exr", request.Source.RelativePath);
+        Assert.Equal(fixture.DestinationConnectionId, request.Destination.ConnectionId);
+        Assert.True(fixture.Workspace.HasClipboard);
+        Assert.Equal("reports", fixture.Workspace.Clipboard!.Selection.Items[0].Name);
+    }
+
+    /// <summary>A folder cannot be moved, so a drag of one can only copy.</summary>
+    [AvaloniaFact]
+    public async Task ADraggedFolderCanOnlyBeCopied()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        fixture.Left.SelectedRows.Add(fixture.Left.Rows.Single(row => row.Name == "reports"));
+
+        var payload = PaneDragHandler.Payload(fixture.Left);
+
+        Assert.NotNull(payload);
+        Assert.False(payload!.CanMove);
+    }
+
+    /// <summary>A pane with nothing behind it, or a terminal, refuses drops; nothing selected is no drag.</summary>
+    [AvaloniaFact]
+    public async Task APaneWithNoQueueRefusesDropsAndNothingSelectedIsNoDrag()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        Assert.Null(PaneDragHandler.Payload(fixture.Left));
+
+        await using var lonely = new BrowserPaneModel(new FakeBrowsingAgent([]));
+        Assert.False(lonely.CanReceiveDrop);
+    }
+
+    /// <summary>The payload a drag carries is found by its token while the drag lasts, and not after.</summary>
+    [AvaloniaFact]
+    public async Task ADragPayloadLivesForTheDrag()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        fixture.Left.SelectedRows.Add(fixture.Left.Rows.Single(row => row.Name == "render.exr"));
+        var payload = PaneDragHandler.Payload(fixture.Left)!;
+
+        var token = PaneDragPayloads.Register(payload);
+        Assert.Same(payload, PaneDragPayloads.Find(token));
+
+        PaneDragPayloads.Release(token);
+        Assert.Null(PaneDragPayloads.Find(token));
+        Assert.Null(PaneDragPayloads.Find(null));
+    }
+
     /// <summary>Two panes, two connections, and a queue that records what it was asked.</summary>
     /// <remarks>
     /// Two because that is the default arrangement, not because the workspace is limited to it --

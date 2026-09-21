@@ -239,6 +239,9 @@ internal sealed class PaneStrings : LocalizationModelBase
 
     public string DropNotInitialized { get; set; } = "The drop could not be initialized.";
 
+    public string DroppedItemsUnusable { get; set; } =
+        "Only files and folders on this computer can be dropped here.";
+
 
     public string NoDestinationReported { get; set; } = "No destination was reported.";
 

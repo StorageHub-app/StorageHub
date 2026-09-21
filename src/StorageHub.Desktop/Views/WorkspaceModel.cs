@@ -245,19 +245,49 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
     internal async Task PasteAsync(CancellationToken cancellationToken = default)
     {
         if (_clipboard is not { } clipboard) return;
-        var destination = Active;
+        if (await TransferAsync(clipboard, Active, cancellationToken).ConfigureAwait(true) && clipboard.IsMove)
+        {
+            // A move is spent once it is queued; a copy can reasonably be pasted into a second
+            // destination, which is most of the point of staging it separately.
+            Clipboard = null;
+        }
+    }
 
+    /// <summary>
+    /// Queues what was dropped on a pane, into that pane.
+    /// </summary>
+    /// <remarks>
+    /// The same transfer a paste is -- same snapshots, same confirmation, same queue -- with the
+    /// destination named by where the pointer let go rather than by which pane is active. What is
+    /// staged for a paste is left alone: dragging one thing does not lose another.
+    /// </remarks>
+    internal Task DropAsync(
+        PaneClipboard clipboard,
+        BrowserPaneModel destination,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(clipboard);
+        ArgumentNullException.ThrowIfNull(destination);
+        return TransferAsync(clipboard, destination, cancellationToken);
+    }
+
+    /// <summary>Queues a selection into a pane, after confirming it. True when it was queued.</summary>
+    private async Task<bool> TransferAsync(
+        PaneClipboard clipboard,
+        BrowserPaneModel destination,
+        CancellationToken cancellationToken)
+    {
         var target = PaneTransferSnapshots.DestinationFor(
             destination.Source, destination.Rows, destination.HasMorePages);
         if (target.IsFailure)
         {
             Message = target.Error.Message;
-            return;
+            return false;
         }
 
         if (!await ConfirmAsync(clipboard, destination, cancellationToken).ConfigureAwait(true))
         {
-            return;
+            return false;
         }
 
         // Always the recursive controller, even for a selection of plain files: it delegates to
@@ -276,26 +306,25 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
             Message = result.Failure is { } failure
                 ? failure.Message
                 : Ui.Format(Ui.Transfer.QueuedFormat, result.Accepted.Count);
-
-            // A move is spent once it is queued; a copy can reasonably be pasted into a second
-            // destination, which is most of the point of staging it separately.
-            if (result.Failure is null && clipboard.IsMove) Clipboard = null;
+            if (result.Failure is not null) return false;
         }
         catch (OperationCanceledException)
         {
-            return;
+            return false;
         }
         catch (Exception error) when (error is IOException or TimeoutException or
             InvalidOperationException or ObjectDisposedException)
         {
             Message = Ui.Transfer.QueueUnavailable;
-            return;
+            return false;
         }
 
         if (_queueChanged is not null)
         {
             await _queueChanged().ConfigureAwait(true);
         }
+
+        return true;
     }
 
     /// <summary>Drops a pane from the arrangement, keeping the others as they are.</summary>
@@ -496,6 +525,9 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
         pane.CopyCommand = StageCopyCommand;
         pane.MoveCommand = StageMoveCommand;
         pane.PasteCommand = PasteCommand;
+
+        // A drop lands in the pane it was dropped on, whichever pane is active.
+        pane.DropReceiver = clipboard => DropAsync(clipboard, pane);
         return pane;
     }
 

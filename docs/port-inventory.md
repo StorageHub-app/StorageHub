@@ -141,8 +141,8 @@ are the honest ones — each names what is missing rather than claiming the row.
 | Queue: active, queued, paused, failed, completed, conflicts | **done** |
 | Cancel, retry, reconcile, with revision checks | **done** |
 | Progress column drawn as a bar behind the text | **todo** — `TransferProgressColumn` |
-| Drag and drop between panes | **todo** |
-| Drag out to Explorer, and drop in from it | **partial** — the broker is in `Desktop.Windows`; the shell end is Windows-only by nature |
+| Drag and drop between panes | **done** — a press on a selected row that moves becomes a drag; it lands as the same transfer a paste is, copy by default and move with Shift where the rows can be moved, and leaves what is staged alone |
+| Drag out to Explorer, and drop in from it | **partial** — files dropped in from Explorer, Nautilus or Dolphin land as This PC transfers, one per folder they came from. Dragging out needs the staging broker, which has not been ported |
 | Clear transfer history, with a confirmation | **todo** |
 | Activity log tab | **todo** — the tab is there and says so |
 | Speed limits, pause all, resume all, cancel selected, start queue | **dropped** — all five inert in 1.x |
