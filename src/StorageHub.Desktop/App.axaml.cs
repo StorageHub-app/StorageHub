@@ -54,6 +54,11 @@ public partial class App : global::Avalonia.Application
             // And the schedule manager, which is what turns a profile into something that runs
             // without anybody present.
             model.Router.Handle(UiCommandIds.SyncSchedules, () => ShowSchedules(desktop, model));
+
+            // Settings out to a file and back in again. Import is the one that can change what
+            // the agent holds, so the shell refreshes itself when it reports that it did.
+            model.Router.Handle(UiCommandIds.ToolsExportSettings, () => ShowExportSettings(desktop));
+            model.Router.Handle(UiCommandIds.ToolsImportSettings, () => ShowImportSettings(desktop, model));
             if (model.SyncTasks is { } syncTasks)
             {
                 syncTasks.NewProfileCommand = new RelayCommand(
@@ -126,6 +131,38 @@ public partial class App : global::Avalonia.Application
         }
 
         window.Closed += (_, _) => _ = model.Sidebar.RefreshAsync();
+        if (desktop.MainWindow is { } owner) _ = window.ShowDialog(owner);
+        else window.Show();
+    }
+
+    /// <summary>Opens the export dialog.</summary>
+    private static void ShowExportSettings(IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        var window = Views.SettingsExportWindow.ForCurrentUser();
+        if (desktop.MainWindow is { } owner) _ = window.ShowDialog(owner);
+        else window.Show();
+    }
+
+    /// <summary>
+    /// Opens the import wizard, and refreshes the shell when it changed something.
+    /// </summary>
+    /// <remarks>
+    /// An import can replace the connections, sync tasks and schedules the shell is showing, so
+    /// the panel and the tasks screen are re-read on close -- but only when something was actually
+    /// applied, since the common way out of this window is to look and cancel.
+    /// </remarks>
+    private static void ShowImportSettings(
+        IClassicDesktopStyleApplicationLifetime desktop,
+        ShellPreviewModel model)
+    {
+        var window = Views.SettingsImportWindow.ForCurrentUser();
+        window.Closed += (_, _) =>
+        {
+            if (window.DataContext is not Views.SettingsImportModel import || !import.Changed) return;
+            _ = model.Sidebar.RefreshAsync();
+            _ = model.SyncTasks?.RefreshAsync();
+        };
+
         if (desktop.MainWindow is { } owner) _ = window.ShowDialog(owner);
         else window.Show();
     }

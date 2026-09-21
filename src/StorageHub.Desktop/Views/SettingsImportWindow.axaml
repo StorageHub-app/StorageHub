@@ -1,0 +1,121 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
+        x:Class="StorageHub.Desktop.Views.SettingsImportWindow"
+        x:DataType="vm:SettingsImportModel"
+        Title="{Binding Title}"
+        Width="660" Height="560"
+        MinWidth="560" MinHeight="460"
+        WindowStartupLocation="CenterOwner">
+
+  <!--
+    Three steps in one window: pick the file, choose and review, then see what happened. Only one
+    is visible at a time, and the buttons along the bottom follow the step rather than each step
+    carrying its own row.
+  -->
+
+  <Border Classes="surface">
+    <DockPanel Margin="{StaticResource PaddingLg}">
+
+      <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right"
+                  Spacing="{StaticResource SpaceSm}" Margin="0,12,0,0">
+        <Button Content="{Binding BackLabel}" Command="{Binding BackCommand}"
+                IsVisible="{Binding IsReviewing}"/>
+        <Button Content="{Binding CancelLabel}" Command="{Binding CloseCommand}"
+                IsVisible="{Binding !IsShowingResult}"/>
+        <Button Content="{Binding CloseLabel}" Command="{Binding CloseCommand}"
+                IsVisible="{Binding IsShowingResult}"/>
+        <Button Classes="primary" Content="{Binding ImportLabel}"
+                IsDefault="True" Command="{Binding ImportCommand}"
+                IsVisible="{Binding IsReviewing}"/>
+      </StackPanel>
+
+      <Panel>
+
+        <!-- Step one: which file, and its password if it has one. -->
+        <StackPanel IsVisible="{Binding IsChoosingFile}" Spacing="{StaticResource SpaceMd}">
+          <TextBlock Classes="muted" Text="{Binding Hint}" TextWrapping="Wrap"/>
+
+          <TextBlock Text="{Binding FileSummary}" TextWrapping="Wrap"
+                     AutomationProperties.Name="{Binding FileAccessibleName}"/>
+
+          <StackPanel Spacing="{StaticResource SpaceXs}" IsVisible="{Binding NeedsPassword}">
+            <TextBlock Classes="caption"
+                       Classes.warning="{Binding PasswordPromptIsProblem}"
+                       IsVisible="{Binding HasPasswordPrompt}"
+                       Text="{Binding PasswordPrompt}" TextWrapping="Wrap"/>
+            <TextBox x:Name="PART_Password" Width="280" HorizontalAlignment="Left"
+                     Text="{Binding Password, Mode=TwoWay}" PasswordChar="●"
+                     AutomationProperties.Name="{Binding PasswordAccessibleName}"/>
+          </StackPanel>
+
+          <!-- A refusal on an unsealed file has no password box to sit under, so it is said here. -->
+          <TextBlock Classes="caption warning" TextWrapping="Wrap"
+                     Text="{Binding PasswordPrompt}">
+            <TextBlock.IsVisible>
+              <MultiBinding Converter="{x:Static BoolConverters.And}">
+                <Binding Path="HasPasswordPrompt"/>
+                <Binding Path="PasswordPromptIsProblem"/>
+                <Binding Path="!NeedsPassword"/>
+              </MultiBinding>
+            </TextBlock.IsVisible>
+          </TextBlock>
+
+          <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceSm}">
+            <Button Content="{Binding BrowseLabel}" Command="{Binding BrowseCommand}"/>
+            <Button Classes="primary" Content="{Binding OpenLabel}"
+                    Command="{Binding OpenCommand}" IsVisible="{Binding CanOpen}"/>
+          </StackPanel>
+        </StackPanel>
+
+        <!-- Step two: what the file holds, and what to do about what is already here. -->
+        <DockPanel IsVisible="{Binding IsReviewing}">
+          <TextBlock DockPanel.Dock="Top" Text="{Binding ReviewHeading}" TextWrapping="Wrap"
+                     Margin="0,0,0,10"
+                     AutomationProperties.Name="{Binding SummaryAccessibleName}"/>
+
+          <StackPanel DockPanel.Dock="Bottom" Spacing="{StaticResource SpaceXs}" Margin="0,8,0,0">
+            <StackPanel Spacing="{StaticResource SpaceXs}" IsVisible="{Binding ShowsConflictPolicy}">
+              <TextBlock Classes="caption" Text="{Binding ConflictLabel}"/>
+              <ComboBox Width="320" HorizontalAlignment="Left"
+                        ItemsSource="{Binding ConflictPolicies}"
+                        SelectedItem="{Binding ConflictPolicy, Mode=TwoWay}"
+                        AutomationProperties.Name="{Binding ConflictAccessibleName}"/>
+            </StackPanel>
+            <TextBlock Classes="caption warning" IsVisible="{Binding HasConcurrencyNotice}"
+                       Text="{Binding ConcurrencyNotice}" TextWrapping="Wrap"
+                       AutomationProperties.Name="{Binding NoticeAccessibleName}"/>
+          </StackPanel>
+
+          <ScrollViewer>
+            <ItemsControl ItemsSource="{Binding Sections}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="vm:SettingsSectionChoice">
+                  <StackPanel Margin="0,0,0,6">
+                    <CheckBox IsChecked="{Binding Selected, Mode=TwoWay}"
+                              IsEnabled="{Binding IsAvailable}"
+                              Content="{Binding Label}"
+                              AutomationProperties.Name="{Binding Label}"/>
+                    <TextBlock Classes="muted" Margin="24,0,0,0"
+                               Text="{Binding Description}" TextWrapping="Wrap"/>
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </DockPanel>
+
+        <!-- Step three: what actually happened, and where the way back is. -->
+        <DockPanel IsVisible="{Binding IsShowingResult}">
+          <Button DockPanel.Dock="Bottom" HorizontalAlignment="Left"
+                  Margin="0,8,0,0" IsVisible="{Binding HasBackup}"
+                  Content="{Binding BackupLinkLabel}" Command="{Binding ShowBackupCommand}"/>
+          <ScrollViewer>
+            <SelectableTextBlock Text="{Binding ResultSummary}" TextWrapping="Wrap"
+                                 AutomationProperties.Name="{Binding ResultAccessibleName}"/>
+          </ScrollViewer>
+        </DockPanel>
+      </Panel>
+    </DockPanel>
+  </Border>
+</Window>

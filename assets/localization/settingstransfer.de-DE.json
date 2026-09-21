@@ -50,6 +50,7 @@
   "savedPasswordsAndPrivateKeys": "Gespeicherte Kennwörter und private Schlüssel",
   "schedules": "Zeitpläne",
   "selectedFile": "Gewählte Datei",
+  "settingsFileType": "StorageHub-Einstellungen",
   "showTheBackupFile": "Sicherungsdatei anzeigen",
   "showTheBackupOfYourPreviousSettings": "Die Sicherung Ihrer bisherigen Einstellungen anzeigen",
   "syncTaskDefinitionsIncludingTheirFiltersAnd": "Definitionen der Synchronisierungsaufgaben, einschließlich ihrer Filter und Sicherheitsgrenzen.",

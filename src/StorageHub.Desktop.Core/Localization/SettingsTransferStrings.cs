@@ -112,8 +112,9 @@ internal sealed class SettingsTransferStrings : LocalizationModelBase
 
     public string Schedules { get; set; } = "Schedules";
 
-
     public string SelectedFile { get; set; } = "Selected file";
+
+    public string SettingsFileType { get; set; } = "StorageHub settings";
 
     public string ShowTheBackupFile { get; set; } = "Show the backup file";
 

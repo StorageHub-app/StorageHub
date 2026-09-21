@@ -1,0 +1,94 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
+        x:Class="StorageHub.Desktop.Views.SettingsExportWindow"
+        x:DataType="vm:SettingsExportModel"
+        Title="{Binding Title}"
+        Width="660" Height="640"
+        MinWidth="560" MinHeight="480"
+        WindowStartupLocation="CenterOwner">
+
+  <!--
+    The section list scrolls; the password group does not. Whether the file is readable or sealed
+    changes what the file *is*, so it never sits below the fold - the same decision the WinForms
+    dialog made by docking it.
+  -->
+
+  <Border Classes="surface">
+    <DockPanel Margin="{StaticResource PaddingLg}">
+
+      <StackPanel DockPanel.Dock="Top" Spacing="{StaticResource SpaceXs}" Margin="0,0,0,10">
+        <TextBlock Classes="section" Text="{Binding Heading}"/>
+        <TextBlock Classes="muted" Text="{Binding Hint}" TextWrapping="Wrap"/>
+      </StackPanel>
+
+      <StackPanel DockPanel.Dock="Bottom" Spacing="{StaticResource SpaceSm}" Margin="0,10,0,0">
+        <CheckBox IsChecked="{Binding Protect, Mode=TwoWay}"
+                  Content="{Binding ProtectLabel}"
+                  AutomationProperties.Name="{Binding ProtectLabel}"/>
+
+        <Grid ColumnDefinitions="90,280" RowDefinitions="Auto,Auto"
+              ColumnSpacing="{StaticResource SpaceSm}" RowSpacing="{StaticResource SpaceXs}"
+              Margin="20,0,0,0" IsEnabled="{Binding Protect}">
+          <TextBlock Grid.Row="0" Grid.Column="0" Classes="caption"
+                     Text="{Binding PasswordLabel}" VerticalAlignment="Center"/>
+          <TextBox Grid.Row="0" Grid.Column="1" x:Name="PART_Password"
+                   Text="{Binding Password, Mode=TwoWay}" PasswordChar="●"
+                   AutomationProperties.Name="{Binding PasswordLabel}"/>
+          <TextBlock Grid.Row="1" Grid.Column="0" Classes="caption"
+                     Text="{Binding ConfirmLabel}" VerticalAlignment="Center"/>
+          <TextBox Grid.Row="1" Grid.Column="1" x:Name="PART_Confirm"
+                   Text="{Binding Confirm, Mode=TwoWay}" PasswordChar="●"
+                   AutomationProperties.Name="{Binding ConfirmLabel}"/>
+        </Grid>
+
+        <TextBlock Classes="muted" Text="{Binding PasswordNotice}" TextWrapping="Wrap"/>
+
+        <TextBlock Classes="status"
+                   Classes.warning="{Binding Status.IsWarning}"
+                   Classes.danger="{Binding Status.IsDanger}"
+                   Text="{Binding Status.Text}" TextWrapping="Wrap"
+                   AutomationProperties.Name="{Binding StatusAccessibleName}"/>
+
+        <TextBlock Classes="caption warning" IsVisible="{Binding HasProblem}"
+                   Text="{Binding Problem}" TextWrapping="Wrap"/>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                    Spacing="{StaticResource SpaceSm}">
+          <Button Content="{Binding CancelLabel}" Command="{Binding CancelCommand}"/>
+          <Button Classes="primary" Content="{Binding ExportLabel}"
+                  IsDefault="True" Command="{Binding ExportCommand}"/>
+        </StackPanel>
+      </StackPanel>
+
+      <ScrollViewer>
+        <StackPanel Spacing="{StaticResource SpaceSm}">
+          <ItemsControl ItemsSource="{Binding Sections}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate DataType="vm:SettingsSectionChoice">
+                <StackPanel Margin="0,0,0,6">
+                  <CheckBox IsChecked="{Binding Selected, Mode=TwoWay}"
+                            IsEnabled="{Binding IsAvailable}"
+                            Content="{Binding Label}"
+                            AutomationProperties.Name="{Binding Label}"/>
+                  <TextBlock Classes="muted" Margin="24,0,0,0"
+                             Text="{Binding Description}" TextWrapping="Wrap"/>
+                </StackPanel>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <!-- Said out loud, because a silent omission is what surprises somebody on a new machine. -->
+          <TextBlock Classes="section" Text="{Binding ExclusionsHeading}" Margin="0,8,0,4"/>
+          <ItemsControl ItemsSource="{Binding Exclusions}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="x:String">
+                <TextBlock Classes="muted" Text="{Binding}" TextWrapping="Wrap" Margin="0,0,0,2"/>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </ScrollViewer>
+    </DockPanel>
+  </Border>
+</Window>

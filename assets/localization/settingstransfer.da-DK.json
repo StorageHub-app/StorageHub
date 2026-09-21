@@ -50,6 +50,7 @@
   "savedPasswordsAndPrivateKeys": "Gemte adgangskoder og privatnøgler",
   "schedules": "Tidsplaner",
   "selectedFile": "Valgt fil",
+  "settingsFileType": "StorageHub-indstillinger",
   "showTheBackupFile": "Vis sikkerhedskopien",
   "showTheBackupOfYourPreviousSettings": "Vis sikkerhedskopien af dine tidligere indstillinger",
   "syncTaskDefinitionsIncludingTheirFiltersAnd": "Definitioner af synkroniseringsopgaver, inklusive deres filtre og sikkerhedsgrænser.",

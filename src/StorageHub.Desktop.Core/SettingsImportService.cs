@@ -3,6 +3,25 @@ using StorageHub.Desktop.Localization;
 
 namespace StorageHub.Desktop;
 
+/// <summary>
+/// Which part of the import the user is looking at.
+/// </summary>
+/// <remarks>
+/// Three steps in one window rather than three dialogs: pick the file, choose and review, then see
+/// what happened. Nothing is written until the middle step has been confirmed, so a file picked by
+/// mistake is always recoverable by closing the window.
+///
+/// Held here rather than by the window because it is what the wizard's state actually is, and a
+/// control reports itself invisible until its window is shown -- which made the WinForms version
+/// untestable and any caller that asked the panels subtly wrong.
+/// </remarks>
+internal enum SettingsImportStep
+{
+    ChooseFile = 1,
+    Review = 2,
+    Result = 3
+}
+
 /// <summary>What a file turned out to be, before any password has been asked for.</summary>
 internal enum SettingsFileKind
 {
