@@ -465,7 +465,13 @@ internal static class ShellPreview
         // The queue is built first so the workspace can tell it to refresh the moment a transfer
         // is accepted, rather than leaving somebody to watch a tab count that updates on its own
         // schedule two seconds later.
-        var queue = new TransferQueueModel(static () => new NamedPipeTransferQueueAgentClient());
+        var queue = new TransferQueueModel(
+            static () => new NamedPipeTransferQueueAgentClient(),
+            // The Logs tab. Its clients are made per read, like the queue's, and it reads nothing
+            // until its tab is opened.
+            new ActivityLogModel(new ActivityLogReader(
+                static () => new NamedPipeTransferQueueAgentClient(),
+                static () => new NamedPipeSyncManagementAgentClient()).ReadAsync));
         var workspaces = 0;
         var model = new ShellPreviewModel(router)
         {
@@ -501,7 +507,7 @@ internal static class ShellPreview
                     static () => new NamedPipeTransferQueueAgentClient(),
                     static () => new NamedPipeRemoteStorageAgentClient(),
                     static () => new NamedPipeObjectInspectorAgentClient(),
-                    queue.RefreshAsync,
+                    () => queue.RefreshAsync(),
                     preset,
                     Services.ShellServices.Dialogs)),
         };

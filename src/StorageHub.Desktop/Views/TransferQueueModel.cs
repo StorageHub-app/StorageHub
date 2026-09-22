@@ -55,6 +55,12 @@ internal sealed class TransferQueueTab(TransferQueueTabDefinition definition) : 
 
     internal IReadOnlyList<TransferQueueState> States => definition.States;
 
+    /// <summary>Whether this tab filters the queue. Every tab but Logs does.</summary>
+    public bool IsStateFilter => definition.States.Count > 0;
+
+    /// <summary>Whether this tab shows the activity log instead.</summary>
+    public bool IsLog => !IsStateFilter;
+
     public event PropertyChangedEventHandler? PropertyChanged;
 }
 
@@ -87,9 +93,14 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
     private int _selectedTab;
     private bool _busy;
 
-    internal TransferQueueModel(Func<ITransferQueueAgentClient> connect)
+    /// <param name="activity">
+    /// What the Logs tab shows. Optional so a test of the queue itself need not stand up a sync
+    /// client; without it the tab says the log is not loaded, as it did before the log was ported.
+    /// </param>
+    internal TransferQueueModel(Func<ITransferQueueAgentClient> connect, ActivityLogModel? activity = null)
     {
         _connect = connect ?? throw new ArgumentNullException(nameof(connect));
+        Activity = activity;
         Tabs = [.. TransferQueueTabs.All.Select(definition => new TransferQueueTab(definition))];
 
         RefreshCommand = new RelayCommand(_ => _ = RefreshAsync());
@@ -108,6 +119,21 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
     public ObservableCollection<TransferQueueTab> Tabs { get; }
 
     public ObservableCollection<TransferRow> Rows { get; } = [];
+
+    /// <summary>The Logs tab's content, or null when this queue was made without one.</summary>
+    public ActivityLogModel? Activity { get; }
+
+    public static string ColumnOperation => Ui.Transfer.ColumnOperation;
+
+    public static string ColumnSource => Ui.Transfer.ColumnSource;
+
+    public static string ColumnDestination => Ui.Transfer.ColumnDestination;
+
+    public static string ColumnProgress => Ui.Transfer.ColumnProgress;
+
+    public static string ColumnAttempt => Ui.Transfer.ColumnAttempt;
+
+    public static string ColumnStatus => Ui.Transfer.ColumnStatus;
 
     public static string RefreshLabel => Ui.Transfer.Refresh;
 
@@ -196,13 +222,17 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
         if (_timer is not null) return;
 
         _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(IdlePollMilliseconds) };
-        _timer.Tick += (_, _) => _ = RefreshAsync();
+        _timer.Tick += (_, _) => _ = RefreshAsync(background: true);
         _timer.Start();
         _ = RefreshAsync();
     }
 
     /// <summary>Reads the selected tab's transfers and the counts for all of them.</summary>
-    internal async Task RefreshAsync()
+    /// <param name="background">
+    /// A timer tick rather than a press or a tab change. Only the Logs tab treats the two
+    /// differently: it polls less often than the queue and does so quietly.
+    /// </param>
+    internal async Task RefreshAsync(bool background = false)
     {
         // One request in flight. The client is strictly correlated, and a second poll landing on
         // top of a slow one is how a response gets attributed to the wrong tab.
@@ -211,13 +241,24 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
         try
         {
             var tab = Tabs[Math.Clamp(_selectedTab, 0, Tabs.Count - 1)];
-            if (tab.States.Count == 0)
+            if (tab.IsLog)
             {
-                // Logs. It shows the activity log, which is its own screen and not ported yet; a
-                // list request with no states is refused by the contract, and rightly.
-                Rows.Clear();
-                Message = Ui.Transfer.ActivityNotLoaded;
-                Raise(nameof(HasMessage));
+                // Logs. It asks for every state and for sync runs besides, which is a different
+                // request from the queue's, and a list request with no states would be refused by
+                // the contract anyway. The queue's own rows and message are left alone.
+                if (Activity is null)
+                {
+                    Message = Ui.Transfer.ActivityNotLoaded;
+                    return;
+                }
+
+                // The toolbar's message is about the queue, and nothing reads the queue on this
+                // tab, so whatever it last said can only be stale here: an agent that came back
+                // while somebody sat on Logs would go on being reported as unavailable beside a log
+                // that reads fine. The log's own status line says how the log is.
+                Message = string.Empty;
+                await Activity.RefreshAsync(background, _lifetime.Token).ConfigureAwait(true);
+                tab.Count = Activity.Rows.Count;
                 return;
             }
 

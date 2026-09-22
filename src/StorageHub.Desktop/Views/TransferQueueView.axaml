@@ -1,0 +1,107 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
+             x:Class="StorageHub.Desktop.Views.TransferQueueView"
+             x:DataType="vm:TransferQueueModel">
+
+  <!--
+    The transfer queue, lifted out of MainWindow where it was drawn inline. Six of its tabs filter
+    the same table by state; the seventh, Logs, shows the activity log instead, so each tab's
+    content holds both and shows the one its tab asks for.
+
+    The column headers were English literals here while this lived in MainWindow, although the
+    WinForms queue read them from its strings; they are bound again.
+  -->
+
+  <DockPanel>
+    <!-- The queue's own toolbar, above its tabs, exactly where TransferQueueControl put it. -->
+    <Border DockPanel.Dock="Top" Classes="toolbar">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <StackPanel Grid.Column="0" Orientation="Horizontal"
+                    Spacing="{StaticResource SpaceSm}" VerticalAlignment="Center">
+          <Button Classes="tool" Command="{Binding RefreshCommand}">
+            <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+              <LucideIcon Kind="RefreshCw" Size="{StaticResource IconSizeSm}"/>
+              <TextBlock Text="{Binding RefreshLabel}"/>
+            </StackPanel>
+          </Button>
+          <Button Classes="tool" Command="{Binding CancelCommand}">
+            <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+              <LucideIcon Kind="Trash" Size="{StaticResource IconSizeSm}"/>
+              <TextBlock Text="{Binding CancelLabel}"/>
+            </StackPanel>
+          </Button>
+          <Button Classes="tool" Command="{Binding RetryCommand}">
+            <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+              <LucideIcon Kind="Play" Size="{StaticResource IconSizeSm}"/>
+              <TextBlock Text="{Binding RetryLabel}"/>
+            </StackPanel>
+          </Button>
+          <TextBlock Classes="muted" Text="{Binding ReconcileLabel}"
+                     VerticalAlignment="Center" Margin="{StaticResource PaddingLg}"/>
+          <ComboBox ItemsSource="{Binding ReconcileActions}"
+                    SelectedIndex="{Binding SelectedReconcileAction, Mode=TwoWay}"
+                    MinWidth="150"/>
+          <Button Classes="tool" Command="{Binding ApplyReconcileCommand}">
+            <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+              <LucideIcon Kind="CircleCheck" Size="{StaticResource IconSizeSm}"/>
+              <TextBlock Text="{Binding ApplyLabel}"/>
+            </StackPanel>
+          </Button>
+          <Button Classes="tool" Command="{Binding NextConflictCommand}">
+            <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+              <LucideIcon Kind="ArrowRight" Size="{StaticResource IconSizeSm}"/>
+              <TextBlock Text="{Binding NextLabel}"/>
+            </StackPanel>
+          </Button>
+        </StackPanel>
+        <TextBlock Grid.Column="2" Classes="muted" Text="{Binding Message}"
+                   VerticalAlignment="Center"/>
+      </Grid>
+    </Border>
+
+    <TabControl ItemsSource="{Binding Tabs}"
+                SelectedIndex="{Binding SelectedTab, Mode=TwoWay}">
+      <TabControl.ItemTemplate>
+        <DataTemplate DataType="vm:TransferQueueTab">
+          <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceSm}">
+            <LucideIcon Kind="{Binding Icon}" Size="{StaticResource IconSizeSm}"/>
+            <TextBlock Text="{Binding Title}"/>
+          </StackPanel>
+        </DataTemplate>
+      </TabControl.ItemTemplate>
+      <TabControl.ContentTemplate>
+        <DataTemplate DataType="vm:TransferQueueTab">
+          <Panel>
+            <!-- Every state tab shows the same six columns over a different filter. -->
+            <TableView IsVisible="{Binding IsStateFilter}"
+                       ItemsSource="{Binding $parent[vm:TransferQueueView].((vm:TransferQueueModel)DataContext).Rows}"
+                       SelectedItem="{Binding $parent[vm:TransferQueueView].((vm:TransferQueueModel)DataContext).Selected, Mode=TwoWay}">
+              <TableView.Columns>
+                <TableViewColumn Header="{Binding $parent[vm:TransferQueueView].((vm:TransferQueueModel)DataContext).ColumnOperation}"
+                                 Binding="{Binding Operation}" Width="140"/>
+                <TableViewColumn Header="{Binding $parent[vm:TransferQueueView].((vm:TransferQueueModel)DataContext).ColumnSource}"
+                                 Binding="{Binding Source}" Width="*"/>
+                <TableViewColumn Header="{Binding $parent[vm:TransferQueueView].((vm:TransferQueueModel)DataContext).ColumnDestination}"
+                                 Binding="{Binding Destination}" Width="*"/>
+                <TableViewColumn Header="{Binding $parent[vm:TransferQueueView].((vm:TransferQueueModel)DataContext).ColumnProgress}"
+                                 Binding="{Binding Progress}" Width="160"/>
+                <TableViewColumn Header="{Binding $parent[vm:TransferQueueView].((vm:TransferQueueModel)DataContext).ColumnAttempt}"
+                                 Binding="{Binding Attempt}" Width="90"/>
+                <TableViewColumn Header="{Binding $parent[vm:TransferQueueView].((vm:TransferQueueModel)DataContext).ColumnStatus}"
+                                 Binding="{Binding Status}" Width="160"/>
+              </TableView.Columns>
+            </TableView>
+
+            <!-- Wrapped, so its visibility is read from the tab: the log view's own DataContext
+                 is the log, and a binding on the same element would be resolved against that. -->
+            <Panel IsVisible="{Binding IsLog}">
+              <vm:ActivityLogView
+                  DataContext="{Binding $parent[vm:TransferQueueView].((vm:TransferQueueModel)DataContext).Activity}"/>
+            </Panel>
+          </Panel>
+        </DataTemplate>
+      </TabControl.ContentTemplate>
+    </TabControl>
+  </DockPanel>
+</UserControl>

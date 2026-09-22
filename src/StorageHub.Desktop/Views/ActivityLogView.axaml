@@ -1,0 +1,32 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
+             x:Class="StorageHub.Desktop.Views.ActivityLogView"
+             x:DataType="vm:ActivityLogModel">
+
+  <!--
+    The queue's Logs tab. The refresh button is the queue's own, on the toolbar above, so this is a
+    status line and a table and nothing else. The details column is the wide one because it is
+    where an error summary lands, and that is what somebody opening this tab is looking for.
+  -->
+
+  <DockPanel>
+    <TextBlock DockPanel.Dock="Top" Classes="status" Margin="8,4"
+               Classes.success="{Binding Status.IsSuccess}"
+               Classes.danger="{Binding Status.IsDanger}"
+               Text="{Binding Status.Text}" TextWrapping="Wrap"
+               AutomationProperties.Name="{Binding StatusAccessibleName}"/>
+
+    <TableView ItemsSource="{Binding Rows}"
+               SelectedItem="{Binding Selected, Mode=TwoWay}"
+               AutomationProperties.Name="{Binding GridAccessibleName}">
+      <TableView.Columns>
+        <TableViewColumn Header="{Binding ColumnUpdated}" Binding="{Binding Updated}" Width="140"/>
+        <TableViewColumn Header="{Binding ColumnArea}" Binding="{Binding Area}" Width="90"/>
+        <TableViewColumn Header="{Binding ColumnItem}" Binding="{Binding Item}" Width="100"/>
+        <TableViewColumn Header="{Binding ColumnState}" Binding="{Binding State}" Width="140"/>
+        <TableViewColumn Header="{Binding ColumnDetails}" Binding="{Binding Details}" Width="*"/>
+      </TableView.Columns>
+    </TableView>
+  </DockPanel>
+</UserControl>
