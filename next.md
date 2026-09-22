@@ -24,7 +24,7 @@ and borrow a key from the key store.
 | | |
 |---|---|
 | Menu commands with a handler | 26 of the 37 that 1.x had live |
-| WinForms screen lines with no counterpart | about 1,340 (was 14,200) |
+| WinForms screen lines with no counterpart | about 850 (was 14,200) |
 | Test projects | 15, all green on Windows and Ubuntu |
 | Live tests against the running agent and the Docker lab | 8, all green |
 
@@ -47,6 +47,8 @@ and borrow a key from the key store.
 - The queue's column headers were English literals once it moved to Avalonia, and the activity log
   printed a run's dispatch state as its enum name.
 - On the Logs tab the queue toolbar kept reporting the agent unavailable beside a log it had just read.
+- A connection card's state and summary ("Not tested", "saved profile") were English literals in the
+  panel, the Connection Manager and the pane, although translated strings for them already existed.
 
 **Running things right now:** the dev agent on `%LOCALAPPDATA%\StorageHub.SyncLive` and the lab containers.
 `docker compose --project-directory ./eng/testlab down --volumes` stops the lab.
@@ -71,7 +73,9 @@ Grouped by what they need, not by size. Each is a Core controller first, then a 
 5. ~~**Activity log**~~ — done at `ebaaec3`, in the queue's Logs tab. Rules in Core as `ActivityLog` and
    `ActivityLogReader`; rows reconciled by key. The queue is its own `TransferQueueView` now. 25 new tests,
    photographed in light and dark.
-6. **Connection picker** — `ConnectionPicker` (487): grouped, filter-as-you-type, in the pane header.
+6. ~~**Connection picker**~~ — done at `896c64b`. The pane header's ComboBox is a button over a grouped,
+   searchable picker; the group rule and keyboard behaviour moved into Core as `ConnectionPickerSession`.
+   25 new tests, photographed in light and dark and in the shell.
 7. **External editing** — `ExternalEditorController` (483): mostly portable once its prompt is behind an
    interface.
 8. **Transfer progress column** — a bar behind the text (154).
@@ -89,7 +93,6 @@ Still missing from blocks that are otherwise done:
 ### 2. Shell frame gaps (small, each removes something that lies)
 
 - Status bar: selection count, rate and queue depth are frozen.
-- Connections search box does nothing; `ConnectionPickerFilter` is in Core and unused.
 - Connection detail foot is a constant; rows do nothing on click.
 - Overview is built once from `ShellStatusSnapshot.Initial`.
 - Favourites and the per-row menu in the sidebar; `FavoriteConnectionMenu` is in Core.
