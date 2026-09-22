@@ -28,13 +28,13 @@ internal static class ConnectionCardFactory
         var provider = MapProvider(connection.Provider);
         var providerName = ConnectionProviderCatalog.Get(provider).DisplayName;
         var summary = string.IsNullOrWhiteSpace(connection.FolderPath)
-            ? $"{providerName} saved profile"
+            ? Ui.Format(Ui.Pane.SavedProfileSummaryFormat, providerName)
             : $"{providerName} · {connection.FolderPath}";
         return new ConnectionCardModel(
             connection.DisplayName,
             provider,
             summary,
-            connection.IsEnabled ? DescribeHealth(connection.Health) : "Disabled",
+            connection.IsEnabled ? DescribeHealth(connection.Health) : Ui.Pane.Disabled,
             connection.IsFavorite,
             connection.ConnectionId,
             connection.IsEnabled,
@@ -44,14 +44,21 @@ internal static class ConnectionCardFactory
             connection.IconKey);
     }
 
+    /// <summary>
+    /// A connection's last health check, in words.
+    /// </summary>
+    /// <remarks>
+    /// These were English literals after the port, although every one of them had a translated
+    /// counterpart in the pane's strings -- which is where 1.x read them from.
+    /// </remarks>
     internal static string DescribeHealth(ConnectionHealthSnapshot? health) => health switch
     {
-        null => "Not tested",
-        { State: ConnectionHealthState.Healthy } => $"Healthy · {health.ElapsedMilliseconds:N0} ms",
-        { RequiresCredentialAction: true } => "Credentials need attention",
-        { RequiresTrustAction: true } => "Trust decision required",
-        { State: ConnectionHealthState.Unavailable } => "Unavailable",
-        _ => "Needs attention"
+        null => Ui.Pane.NotTested,
+        { State: ConnectionHealthState.Healthy } => Ui.Format(Ui.Pane.HealthyFormat, health.ElapsedMilliseconds),
+        { RequiresCredentialAction: true } => Ui.Pane.CredentialsNeedAttention,
+        { RequiresTrustAction: true } => Ui.Pane.TrustDecisionRequired,
+        { State: ConnectionHealthState.Unavailable } => Ui.Pane.Unavailable,
+        _ => Ui.Pane.NeedsAttention
     };
 
     internal static StorageProviderKind MapProvider(StorageConnectionProvider provider) => provider switch

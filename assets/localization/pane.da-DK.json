@@ -110,6 +110,7 @@
   "reviewAndPaste": "Gennemse og indsæt StorageHubs udklipsholder her",
   "savedConnection": "Gemt forbindelse",
   "connectionsUnavailable": "Gemte forbindelser er midlertidigt utilgængelige.",
+  "savedProfileSummaryFormat": "{0} gemt profil",
   "savedProfileUnavailableFormat": "Den gemte profil '{0}' er ikke tilgængelig. Vælg en anden profil.",
   "stateTestingConnection": "● Tester forbindelsen…",
   "stateReady": "● Klar",

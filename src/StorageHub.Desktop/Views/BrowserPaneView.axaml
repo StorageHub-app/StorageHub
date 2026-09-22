@@ -90,21 +90,25 @@
             IsVisible="{Binding ShowConnectionBar}"
             ColumnSpacing="{StaticResource SpaceSm}"
             Margin="{StaticResource PaddingMd}">
-        <ComboBox Grid.Column="0"
-                  ItemsSource="{Binding Connections}"
-                  SelectedItem="{Binding Connection, Mode=TwoWay}"
-                  PlaceholderText="{Binding Title}"
-                  HorizontalAlignment="Stretch">
-          <ComboBox.ItemTemplate>
-            <DataTemplate DataType="vm:PaneConnection">
-              <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceSm}">
-                <LucideIcon Kind="{Binding Icon}" Size="{StaticResource IconSizeSm}"
-                            VerticalAlignment="Center"/>
-                <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
-              </StackPanel>
-            </DataTemplate>
-          </ComboBox.ItemTemplate>
-        </ComboBox>
+        <!-- A button over a searchable picker rather than a drop-down list, which stops scaling
+             past a handful of connections. The picker is made fresh each time it opens. -->
+        <Button x:Name="PART_ConnectionButton" Grid.Column="0"
+                HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                AutomationProperties.Name="{Binding Title}">
+          <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource SpaceSm}">
+            <LucideIcon Grid.Column="0" Kind="{Binding ConnectionIcon}"
+                        Size="{StaticResource IconSizeSm}" VerticalAlignment="Center"/>
+            <TextBlock Grid.Column="1" Text="{Binding Title}"
+                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+            <LucideIcon Grid.Column="2" Kind="ChevronDown"
+                        Size="{StaticResource IconSizeSm}" VerticalAlignment="Center"/>
+          </Grid>
+          <Button.Flyout>
+            <Flyout Placement="BottomEdgeAlignedLeft">
+              <vm:ConnectionPickerView x:Name="PART_ConnectionPicker"/>
+            </Flyout>
+          </Button.Flyout>
+        </Button>
 
         <Button Grid.Column="1" Classes="tool" Command="{Binding RefreshCommand}"
                 ToolTip.Tip="{Binding RefreshLabel}">

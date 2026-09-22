@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Media.Imaging;
+using Avalonia.VisualTree;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Localization;
 using StorageHub.Desktop.Themes;
@@ -258,6 +259,33 @@ public sealed class ActivityLogViewTests
         using var stream = File.Create(
             Path.Combine(directory, $"activity-log-{(dark ? "dark" : "light")}.png"));
         frame!.Save(stream, new PngBitmapEncoderOptions());
+    }
+
+    /// <summary>
+    /// The queue's state tabs head their columns in the current language.
+    /// </summary>
+    /// <remarks>
+    /// A table column is a definition rather than a control, so a binding on its heading has no
+    /// visual tree to walk. This reads what the heading actually ended up as, rather than trusting
+    /// that the binding in the markup resolved.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task TheQueueColumnsAreHeadedInWords()
+    {
+        await using var queue = new TransferQueueModel(
+            () => throw new InvalidOperationException("Not polled."));
+        var window = new Window { Content = new TransferQueueView { DataContext = queue } };
+        window.Show();
+        window.UpdateLayout();
+
+        var table = window.GetVisualDescendants().OfType<TableView>().First(candidate => candidate.IsVisible);
+
+        Assert.Equal(
+            [
+                Ui.Transfer.ColumnOperation, Ui.Transfer.ColumnSource, Ui.Transfer.ColumnDestination,
+                Ui.Transfer.ColumnProgress, Ui.Transfer.ColumnAttempt, Ui.Transfer.ColumnStatus
+            ],
+            table.Columns.Select(column => column.Header as string));
     }
 
     private static Func<CancellationToken, Task<ActivityLogResult>> Reads() =>

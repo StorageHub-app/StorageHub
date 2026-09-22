@@ -110,6 +110,7 @@
   "reviewAndPaste": "Die Zwischenablage von StorageHub hier prüfen und einfügen",
   "savedConnection": "Gespeicherte Verbindung",
   "connectionsUnavailable": "Gespeicherte Verbindungen sind vorübergehend nicht verfügbar.",
+  "savedProfileSummaryFormat": "{0} gespeichertes Profil",
   "savedProfileUnavailableFormat": "Das gespeicherte Profil '{0}' ist nicht verfügbar. Wählen Sie ein anderes Profil.",
   "stateTestingConnection": "● Verbindung wird getestet…",
   "stateReady": "● Bereit",

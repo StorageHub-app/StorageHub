@@ -175,6 +175,16 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
 
     public ObservableCollection<PaneConnection> Connections { get; } = [];
 
+    /// <summary>
+    /// The same connections as cards, for the picker: name, endpoint, group, and what it is.
+    /// </summary>
+    /// <remarks>
+    /// Kept beside <see cref="Connections"/> rather than replacing it, because a PaneConnection is
+    /// what the pane opens and a card is what the picker searches. They are built together from one
+    /// listing, so they cannot disagree about what is there.
+    /// </remarks>
+    internal IReadOnlyList<ConnectionCardModel> Cards => _cards;
+
     public ObservableCollection<BrowserListItem> Rows { get; } = [];
 
     /// <summary>
@@ -238,6 +248,8 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         }
     }
 
+    private IReadOnlyList<ConnectionCardModel> _cards = [ConnectionPickerFilter.ThisComputer()];
+
     public PaneConnection? Connection
     {
         get => _connection;
@@ -247,12 +259,16 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             _connection = value;
             Raise(nameof(Connection));
             Raise(nameof(Title));
+            Raise(nameof(ConnectionIcon));
             if (value is not null) _ = OpenAsync(value);
         }
     }
 
     /// <summary>The listing index, built the first time there is a listing to put in it.</summary>
     private PagedListingIndex Index => _index ??= new PagedListingIndex();
+
+    /// <summary>What the connection button shows beside the name: the connection's own icon.</summary>
+    public LucideIconKind ConnectionIcon => _connection?.Icon ?? LucideIconKind.Plug;
 
     /// <summary>The pane's heading: the connection, or an invitation to choose one.</summary>
     public string Title => _connection?.Name ?? Ui.Pane.SelectProfileToConnect;
@@ -675,6 +691,8 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         {
             var result = await _controller.LoadConnectionsAsync(cancellationToken).ConfigureAwait(true);
             Connections.Clear();
+            List<ConnectionCardModel> cards = [ConnectionPickerFilter.ThisComputer()];
+            _cards = cards;
 
             // This PC first, always, and whether or not the agent answered. Most transfers have one
             // local end, and a pane that cannot reach the agent can still browse this computer -
@@ -690,6 +708,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
 
             foreach (var connection in result.Connections.Where(CanBrowse))
             {
+                cards.Add(ConnectionCardFactory.Create(connection));
                 Connections.Add(new PaneConnection(
                     connection.ConnectionId,
                     connection.DisplayName,
@@ -768,6 +787,44 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         {
             IsBusy = false;
         }
+    }
+
+    /// <summary>
+    /// A picker over this pane's connections, with what it has open marked.
+    /// </summary>
+    /// <remarks>
+    /// Made fresh for each opening, so the search box starts empty and the highlight starts on the
+    /// connection in use, which is what the WinForms popup did by being rebuilt every time.
+    /// </remarks>
+    internal ConnectionPickerModel CreatePicker()
+    {
+        var picker = new ConnectionPickerModel(_cards, ActiveCard);
+        picker.Chosen += (_, card) => Choose(card);
+        return picker;
+    }
+
+    /// <summary>The card for what this pane has open, or null when it has nothing open yet.</summary>
+    internal ConnectionCardModel? ActiveCard => _connection switch
+    {
+        null => null,
+        { Id: { } id } => _cards.FirstOrDefault(card => card.ConnectionId == id),
+        _ => _cards.FirstOrDefault(card => card.ConnectionId is null)
+    };
+
+    /// <summary>
+    /// Opens whatever a card stands for.
+    /// </summary>
+    /// <remarks>
+    /// Through <see cref="Connection"/>, which is what opens a connection however it was chosen.
+    /// A card with no id is this computer, which is the first entry in the list.
+    /// </remarks>
+    internal void Choose(ConnectionCardModel card)
+    {
+        ArgumentNullException.ThrowIfNull(card);
+        var choice = card.ConnectionId is { } id
+            ? Connections.FirstOrDefault(candidate => candidate.Id == id)
+            : Connections.FirstOrDefault(candidate => candidate.Id is null);
+        if (choice is not null) Connection = choice;
     }
 
     /// <summary>Opens a saved connection by id, for a caller that has one rather than a choice.</summary>

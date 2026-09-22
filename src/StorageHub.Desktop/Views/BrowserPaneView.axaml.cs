@@ -49,6 +49,33 @@ public partial class BrowserPaneView : UserControl
         DataContextChanged += (_, _) => Bind(Model);
         PaneDragHandler.Attach(this, () => Model);
         RefreshHeadings();
+        AttachConnectionPicker();
+    }
+
+    /// <summary>
+    /// Gives the connection flyout a fresh picker each time it opens, and closes it on a choice.
+    /// </summary>
+    /// <remarks>
+    /// Fresh, so the search box starts empty and the highlight starts on the connection in use. The
+    /// focus goes to the search box once the flyout is on screen -- before then there is nothing to
+    /// focus -- so typing filters without a click first.
+    /// </remarks>
+    private void AttachConnectionPicker()
+    {
+        if (this.FindControl<Button>("PART_ConnectionButton")?.Flyout is not Flyout flyout ||
+            flyout.Content is not ConnectionPickerView view)
+        {
+            return;
+        }
+
+        flyout.Opening += (_, _) =>
+        {
+            if (Model is not { } model) return;
+            var picker = model.CreatePicker();
+            picker.Chosen += (_, _) => flyout.Hide();
+            view.DataContext = picker;
+        };
+        flyout.Opened += (_, _) => view.FocusSearch();
     }
 
     private BrowserPaneModel? Model => DataContext as BrowserPaneModel;

@@ -1,0 +1,78 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
+             x:Class="StorageHub.Desktop.Views.ConnectionPickerView"
+             x:DataType="vm:ConnectionPickerModel"
+             Width="380" Height="380">
+
+  <!--
+    The pane's connection chooser: a search box, then the connections under their group headings,
+    drawn with the same card and badge the connections panel uses so the two read as one thing.
+    The keyboard is handled from the search box - arrows move the highlight, Enter opens - so the
+    list itself never needs focus.
+  -->
+
+  <DockPanel>
+    <TextBox x:Name="PART_Search" DockPanel.Dock="Top" Margin="0,0,0,6"
+             Text="{Binding Search, Mode=TwoWay}"
+             PlaceholderText="{Binding SearchPlaceholder}"
+             AutomationProperties.Name="{Binding SearchPlaceholder}"/>
+
+    <Panel>
+      <TextBlock Classes="muted" IsVisible="{Binding IsEmpty}"
+                 Text="{Binding NoMatch}" TextWrapping="Wrap"
+                 HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+      <ListBox x:Name="PART_List" IsVisible="{Binding HasRows}"
+               ItemsSource="{Binding Rows}"
+               SelectedIndex="{Binding Highlighted, Mode=TwoWay}"
+               Background="Transparent" BorderThickness="0"
+               AutomationProperties.Name="{Binding ListAccessibleName}">
+        <ListBox.Styles>
+          <!-- The row draws its own highlight, as a selected card; the list's own would sit
+               behind it as a second, differently coloured one. -->
+          <Style Selector="ListBoxItem">
+            <Setter Property="Padding" Value="0"/>
+          </Style>
+          <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent"/>
+          </Style>
+          <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="Transparent"/>
+          </Style>
+        </ListBox.Styles>
+        <ListBox.ItemTemplate>
+          <DataTemplate DataType="vm:ConnectionPickerRowModel">
+            <Panel>
+              <TextBlock Classes="caption" IsVisible="{Binding IsHeader}"
+                         Text="{Binding Heading}" Margin="6,10,6,2"/>
+
+              <Border Classes="card connection-row" IsVisible="{Binding IsCard}" Margin="2,2"
+                      Classes.selected="{Binding $parent[ListBoxItem].IsSelected}">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource SpaceSm}">
+                  <LucideIcon Grid.Column="0" Kind="{Binding Icon}" Size="{StaticResource IconSizeSm}"
+                              VerticalAlignment="Center"/>
+                  <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Classes="caption" Text="{Binding Endpoint}" TextTrimming="CharacterEllipsis"/>
+                  </StackPanel>
+                  <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="{StaticResource SpaceXs}"
+                              VerticalAlignment="Center">
+                    <Border Classes="badge" Classes.client="{Binding IsClient}">
+                      <TextBlock Text="{Binding Badge}"/>
+                    </Border>
+                    <!-- The one already open, so the list answers "where am I?" as well as
+                         "where do I want to go?". -->
+                    <Border Classes="badge success" IsVisible="{Binding IsActive}">
+                      <TextBlock Text="{Binding ActiveBadge}"/>
+                    </Border>
+                  </StackPanel>
+                </Grid>
+              </Border>
+            </Panel>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Panel>
+  </DockPanel>
+</UserControl>

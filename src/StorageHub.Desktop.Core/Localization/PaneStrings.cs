@@ -298,6 +298,9 @@ internal sealed class PaneStrings : LocalizationModelBase
     public string ConnectionsUnavailable { get; set; } = "Saved connections are temporarily unavailable.";
 
     /// <summary>{0} = the profile's display name or id.</summary>
+    /// <summary>{0} = the provider, e.g. "Amazon S3".</summary>
+    public string SavedProfileSummaryFormat { get; set; } = "{0} saved profile";
+
     public string SavedProfileUnavailableFormat { get; set; } =
         "Saved profile '{0}' is unavailable. Select another profile.";
 
