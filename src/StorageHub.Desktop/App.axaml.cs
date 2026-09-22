@@ -18,8 +18,24 @@ public partial class App : global::Avalonia.Application
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            // Whatever was saved last time, before the window is shown, so the shell opens in the
+            // scheme rather than flashing the default and changing. First of all, too: building
+            // the shell reads settings, and only the first read can see a damaged file.
+            var settingsCheck = Views.SettingsWindow.ApplySavedScheme();
+
             var model = ShellPreview.Sample;
             desktop.MainWindow = new MainWindow { DataContext = model };
+
+            // What that check had to do -- a file set aside, a value corrected, 1.x settings
+            // carried over -- said once the window is there to say it over. 1.x showed these on
+            // its splash; 2.0 opens without waiting on anything, so there is no splash to show
+            // them on, and dropping them would reset somebody's settings without a word.
+            if (settingsCheck.ToNotice() is { } notice)
+            {
+                desktop.MainWindow.Opened += async (_, _) =>
+                    await new Services.AvaloniaDialogService(() => desktop.MainWindow)
+                        .ShowAsync(notice).ConfigureAwait(true);
+            }
 
             // The first command with somewhere to go. Settings opens over the shell, edits a
             // working copy, and writes through DesktopConfigStore on Apply.
@@ -82,10 +98,6 @@ public partial class App : global::Avalonia.Application
                     _ => ShowSyncEditor(desktop, model, startNew: true));
                 syncTasks.SchedulesCommand = new RelayCommand(_ => ShowSchedules(desktop, model));
             }
-
-            // Whatever was saved last time, before the window is shown, so the shell opens in the
-            // scheme rather than flashing the default and changing.
-            Views.SettingsWindow.ApplySavedScheme();
 
             // Started here rather than in the model so the headless tests measure a shell that is
             // not polling a socket. On Linux this reaches an agent.sock under the runtime root; on

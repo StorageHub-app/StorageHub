@@ -2,11 +2,12 @@ using System.Text.Json;
 using CodeLogic.Core.Configuration;
 using StorageHub.Desktop.Configuration.Legacy;
 using StorageHub.Desktop.Localization;
+using StorageHub.Desktop.Shell;
 
 namespace StorageHub.Desktop.Configuration;
 
 /// <summary>
-/// What happened while the settings files were being made ready, for the splash to show.
+/// What happened while the settings files were being made ready, for the shell to tell the user.
 /// </summary>
 /// <param name="Quarantined">
 /// Files moved aside because they could not be trusted, by their new names.
@@ -23,6 +24,35 @@ internal sealed record ConfigPreflightReport(
     internal static ConfigPreflightReport Empty { get; } = new([], false, null);
 
     internal bool HasFindings => Quarantined.Count > 0 || Repaired || MigratedFrom is not null;
+
+    /// <summary>
+    /// What happened, in the order it matters to somebody reading it: what was carried over, then
+    /// what was thrown away, then what was corrected.
+    /// </summary>
+    internal IReadOnlyList<string> Describe()
+    {
+        var findings = new List<string>();
+        if (MigratedFrom is { } migrated) findings.Add(Ui.Format(Ui.Dialogs.SettingsMigratedFormat, migrated));
+        foreach (var rejected in Quarantined) findings.Add(Ui.Format(Ui.Dialogs.SettingsQuarantinedFormat, rejected));
+        if (Repaired) findings.Add(Ui.Dialogs.SettingsRepaired);
+        return findings;
+    }
+
+    /// <summary>
+    /// What the shell tells the user once its window is open, or null when there is nothing to say.
+    /// </summary>
+    /// <remarks>
+    /// A warning when a file was set aside, because settings somebody chose are gone until they
+    /// are chosen again; otherwise information.
+    /// </remarks>
+    internal DialogRequest? ToNotice() => HasFindings
+        ? new DialogRequest
+        {
+            Title = Ui.Dialogs.StartupCheckCaption,
+            Message = string.Join(Environment.NewLine + Environment.NewLine, Describe()),
+            Severity = Quarantined.Count > 0 ? DialogSeverity.Warning : DialogSeverity.Information
+        }
+        : null;
 }
 
 /// <summary>

@@ -45,18 +45,25 @@ public partial class SettingsWindow : Window
     /// Before the window is shown, so the shell opens in the chosen scheme rather than flashing the
     /// default and changing. A settings file that cannot be read is not worth failing startup for:
     /// the shell then opens on the tokens as authored, which is the house dark scheme.
+    /// <para>
+    /// Returns what the check of the settings files found. This is the first check of the session,
+    /// and the only one that can see a damaged file: it sets the file aside, so every later one
+    /// finds a clean set.
+    /// </para>
     /// </remarks>
-    internal static void ApplySavedScheme()
+    internal static ConfigPreflightReport ApplySavedScheme()
     {
         try
         {
             var store = new DesktopConfigStore(DesktopFrameworkPaths.Resolve().ApplicationRoot);
-            store.Preflight();
+            var report = store.Preflight();
             ApplyScheme(store.Load());
+            return report;
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or
             InvalidDataException or InvalidOperationException)
         {
+            return ConfigPreflightReport.Empty;
         }
     }
 
