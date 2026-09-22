@@ -30,7 +30,14 @@ public class SettingsPageCatalogTests
         {
             Assert.False(string.IsNullOrWhiteSpace(page.Title));
             Assert.False(string.IsNullOrWhiteSpace(page.Description));
-            Assert.NotEmpty(page.Rows);
+
+            // Every page is a list of rows except the ones whose editor is a screen of its own.
+            // Those still appear here, so the navigation list stays one list, but they carry no
+            // rows and are drawn by their own template.
+            if (!string.Equals(page.Key, SettingsPageCatalog.ToolbarPageKey, StringComparison.Ordinal))
+            {
+                Assert.NotEmpty(page.Rows);
+            }
         });
     }
 

@@ -206,7 +206,7 @@
   "agentModeAppSession": "Nur solange StorageHub geöffnet ist",
   "agentModeAppSessionDetail": "Startet mit StorageHub und endet beim Schließen. Es wird nichts für die Anmeldung registriert und nichts bleibt laufen. Übertragungen und Zeitpläne kommen nur voran, solange das Fenster offen ist.",
   "categoryToolbar": "Symbolleiste",
-  "pageToolbarDescription": "Wählen Sie, welche Befehle in der Symbolleiste erscheinen und in welcher Reihenfolge. Jeder Befehl aus den Menüs kann hinzugefügt werden.",
+  "pageToolbarDescription": "Wählen Sie, welche Befehle in der Symbolleiste erscheinen und in welcher Reihenfolge. Jeder einsatzbereite Befehl kann hinzugefügt werden.",
   "toolbarAccessibleName": "Layout der Symbolleiste",
   "toolbarAvailable": "Verfügbare Befehle",
   "toolbarAvailableAccessibleName": "Befehle, die in die Symbolleiste aufgenommen werden können",

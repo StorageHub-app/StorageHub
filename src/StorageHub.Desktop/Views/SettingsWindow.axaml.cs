@@ -1,5 +1,4 @@
 using Avalonia.Controls;
-using Avalonia.VisualTree;
 using Avalonia.Markup.Xaml;
 using StorageHub.Desktop.Configuration;
 using StorageHub.Desktop.Framework;
@@ -11,17 +10,14 @@ namespace StorageHub.Desktop.Views;
 /// The Settings window.
 /// </summary>
 /// <remarks>
-/// The page shown follows the navigation list from here rather than through a binding, because the
-/// content is a ContentControl over one of the page models and Avalonia has no expression for
-/// "the selected item of that list" that survives compiled bindings without a converter.
+/// Nothing but the colour scheme is wired here. The page on screen follows the navigation through
+/// <see cref="SettingsModel.SelectedPageModel"/>, which is an ordinary binding; it used to be
+/// wired in code-behind from DataContextChanged, which runs before the visual tree exists, so the
+/// list it went looking for was never found and choosing a category did nothing.
 /// </remarks>
 public partial class SettingsWindow : Window
 {
-    public SettingsWindow()
-    {
-        AvaloniaXamlLoader.Load(this);
-        DataContextChanged += (_, _) => Bind();
-    }
+    public SettingsWindow() => AvaloniaXamlLoader.Load(this);
 
     /// <summary>
     /// The window over the real settings file, with the colour scheme previewing as it is chosen.
@@ -89,31 +85,5 @@ public partial class SettingsWindow : Window
 
         var chosen = ColorSchemeCatalog.Resolve(preferences.ColorScheme, preferDark);
         ColorSchemeApplier.Apply(application, ColorSchemeCatalog.ForAppearance(chosen, preferDark));
-    }
-
-    private void Bind()
-    {
-        if (DataContext is not SettingsModel model)
-        {
-            return;
-        }
-
-        var page = this.GetControl<ContentControl>("PART_Page");
-        var list = this.GetVisualDescendants().OfType<ListBox>().FirstOrDefault();
-        if (list is null)
-        {
-            return;
-        }
-
-        list.SelectionChanged += (_, _) =>
-        {
-            if (list.SelectedItem is SettingsPageModel selected)
-            {
-                page.Content = selected;
-            }
-        };
-
-        list.SelectedIndex = model.SelectedPage;
-        page.Content = model.Pages[model.SelectedPage];
     }
 }

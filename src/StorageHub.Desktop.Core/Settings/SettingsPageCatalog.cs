@@ -69,9 +69,10 @@ internal sealed record SettingsPageDefinition(
 /// <remarks>
 /// <para>
 /// Not the whole of the old Settings dialog yet: the pages that need a screen of their own --
-/// shortcuts, the toolbar editor, connection defaults, external editing -- arrive with those
-/// screens. What is here is every setting that is a toggle, a choice or a number, which is most of
-/// them and all of the ones a person changes.
+/// shortcuts, connection defaults, external editing -- arrive with those screens. The toolbar is
+/// the first of those to land, and is declared here with no rows so the navigation stays one list.
+/// The rest of what is here is every setting that is a toggle, a choice or a number, which is most
+/// of them and all of the ones a person changes.
 /// </para>
 /// <para>
 /// The labels are the WinForms shell's, already translated into Danish and German. Reusing them
@@ -189,6 +190,15 @@ internal static class SettingsPageCatalog
                     Write = (p, v) => p with { ShowFavoritesInTheirFolders = Flag(v) }
                 }
             ]),
+
+        new(
+            ToolbarPageKey,
+            Ui.Settings.CategoryToolbar,
+            Ui.Settings.PageToolbarDescription,
+            UiGlyph.Layers,
+            // No rows: arranging a toolbar is two lists and five buttons, which ToolbarPageModel
+            // draws. The page is still declared here so the navigation list stays one list.
+            []),
 
         new(
             "performance",
@@ -318,6 +328,16 @@ internal static class SettingsPageCatalog
                 }
             ])
     ];
+
+    /// <summary>
+    /// The page whose editor is a screen rather than a list of rows.
+    /// </summary>
+    /// <remarks>
+    /// Named rather than spelled out at each use, so the one place the window branches on it says
+    /// which page it means. The toolbar is the first of these; shortcuts and connection defaults
+    /// will join it.
+    /// </remarks>
+    internal const string ToolbarPageKey = "toolbar";
 
     /// <summary>Every row on every page, for a caller that wants them without the grouping.</summary>
     internal static IEnumerable<SettingsRowDefinition> AllRows => Pages.SelectMany(page => page.Rows);

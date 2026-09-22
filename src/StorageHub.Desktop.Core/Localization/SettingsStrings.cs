@@ -102,8 +102,8 @@ internal sealed class SettingsStrings : LocalizationModelBase
     public string CategoryToolbar { get; set; } = "Toolbar";
 
     public string PageToolbarDescription { get; set; } =
-        "Choose which commands appear on the toolbar and in what order. Every command in the " +
-        "menus can be added.";
+        "Choose which commands appear on the toolbar and in what order. Any command that is " +
+        "ready to use can be added.";
 
     public string ToolbarAccessibleName { get; set; } = "Toolbar layout";
 

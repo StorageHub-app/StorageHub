@@ -206,7 +206,7 @@
   "agentModeAppSession": "Kun mens StorageHub er åben",
   "agentModeAppSessionDetail": "Starter med StorageHub og stopper, når du lukker programmet. Der registreres intet til at køre ved pålogning, og der efterlades intet kørende. Overførsler og tidsplaner skrider kun frem, mens vinduet er åbent.",
   "categoryToolbar": "Værktøjslinje",
-  "pageToolbarDescription": "Vælg hvilke kommandoer der vises på værktøjslinjen og i hvilken rækkefølge. Alle kommandoer i menuerne kan tilføjes.",
+  "pageToolbarDescription": "Vælg hvilke kommandoer der vises på værktøjslinjen og i hvilken rækkefølge. Alle kommandoer, der er klar til brug, kan tilføjes.",
   "toolbarAccessibleName": "Værktøjslinjens layout",
   "toolbarAvailable": "Tilgængelige kommandoer",
   "toolbarAvailableAccessibleName": "Kommandoer der kan lægges på værktøjslinjen",

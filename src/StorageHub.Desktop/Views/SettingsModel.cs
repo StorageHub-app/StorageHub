@@ -106,7 +106,7 @@ internal sealed class SettingsRowModel : INotifyPropertyChanged
 }
 
 /// <summary>A page in the navigation list.</summary>
-internal sealed class SettingsPageModel(SettingsPageDefinition definition, IReadOnlyList<SettingsRowModel> rows)
+internal class SettingsPageModel(SettingsPageDefinition definition, IReadOnlyList<SettingsRowModel> rows)
 {
     public string Title => definition.Title;
 
@@ -151,9 +151,14 @@ internal sealed class SettingsModel : INotifyPropertyChanged
         _saved = _load();
         _working = _saved;
 
-        Pages = [.. SettingsPageCatalog.Pages.Select(page => new SettingsPageModel(
-            page,
-            [.. page.Rows.Select(row => new SettingsRowModel(row, row.Read(_working), OnRowChanged))]))];
+        // One page per catalog entry, but not all of them are lists of rows: the toolbar is
+        // arranged with two lists and five buttons, and gets a page model of its own.
+        Pages = [.. SettingsPageCatalog.Pages.Select(SettingsPageModel (page) =>
+            string.Equals(page.Key, SettingsPageCatalog.ToolbarPageKey, StringComparison.Ordinal)
+                ? new ToolbarPageModel(page, _working.ToolbarItems, _working.ToolbarLabels, OnToolbarChanged)
+                : new SettingsPageModel(
+                    page,
+                    [.. page.Rows.Select(row => new SettingsRowModel(row, row.Read(_working), OnRowChanged))]))];
 
         ApplyCommand = new RelayCommand(_ => Apply(), _ => IsDirty);
         SaveCommand = new RelayCommand(_ => { Apply(); Closed?.Invoke(this, true); });
@@ -187,8 +192,22 @@ internal sealed class SettingsModel : INotifyPropertyChanged
             if (_selectedPage == value) return;
             _selectedPage = value;
             Raise(nameof(SelectedPage));
+            Raise(nameof(SelectedPageModel));
         }
     }
+
+    /// <summary>
+    /// The page on screen, which is whichever one the navigation has selected.
+    /// </summary>
+    /// <remarks>
+    /// An ordinary property rather than an expression in the view, because "the selected item of
+    /// that list" is not something a compiled binding can say without a converter. The window used
+    /// to wire the two together in code-behind instead, from DataContextChanged -- which runs
+    /// before the visual tree exists, so the list it went looking for was never there and choosing
+    /// a category did nothing at all.
+    /// </remarks>
+    public SettingsPageModel SelectedPageModel =>
+        Pages[Math.Clamp(_selectedPage, 0, Pages.Count - 1)];
 
     public bool IsDirty => _working != _saved;
 
@@ -215,6 +234,27 @@ internal sealed class SettingsModel : INotifyPropertyChanged
 
         _save(_working);
         _saved = _working;
+        Raise(nameof(IsDirty));
+        Raise(nameof(DirtyLabel));
+        (ApplyCommand as RelayCommand)?.RaiseCanExecuteChanged();
+    }
+
+    /// <summary>
+    /// Takes the toolbar's layout and label style into the working copy.
+    /// </summary>
+    /// <remarks>
+    /// Sanitised on the way in, so what is stored is what the toolbar will actually render: a
+    /// layout that had been left with a trailing divider would otherwise come back changed on the
+    /// next load and look like the edit had not been saved.
+    /// </remarks>
+    private void OnToolbarChanged(ToolbarPageModel page)
+    {
+        _working = _working with
+        {
+            ToolbarItems = [.. ToolbarLayout.Sanitise(page.Items)],
+            ToolbarLabels = page.Labels
+        };
+
         Raise(nameof(IsDirty));
         Raise(nameof(DirtyLabel));
         (ApplyCommand as RelayCommand)?.RaiseCanExecuteChanged();

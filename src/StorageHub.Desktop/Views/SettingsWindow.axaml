@@ -56,13 +56,79 @@
       </DockPanel>
     </Border>
 
-    <ScrollViewer>
-      <ContentControl Content="{Binding Pages[0]}"
-                      Name="PART_Page"
-                      Margin="{StaticResource PagePadding}">
-        <ContentControl.ContentTemplate>
-          <DataTemplate DataType="vm:SettingsPageModel">
-            <StackPanel Spacing="{StaticResource SpaceLg}">
+    <!--
+      The page is chosen by type rather than by one template: most pages are a list of rows, and
+      the toolbar is two lists and five buttons. Avalonia takes the first template whose DataType
+      matches, and ToolbarPageModel derives from SettingsPageModel, so it comes first.
+
+      The scrolling moved inside the rows template. A ScrollViewer around both would give the
+      toolbar lists an unbounded height, which is how a list ends up as tall as its contents.
+    -->
+    <ContentControl Content="{Binding SelectedPageModel}" Name="PART_Page">
+      <ContentControl.DataTemplates>
+
+        <DataTemplate DataType="vm:ToolbarPageModel">
+          <DockPanel Margin="{StaticResource PagePadding}">
+
+            <StackPanel DockPanel.Dock="Top" Spacing="{StaticResource SpaceXs}" Margin="0,0,0,14">
+              <TextBlock Classes="title" Text="{Binding Title}"/>
+              <TextBlock Classes="muted" Text="{Binding Description}" TextWrapping="Wrap"/>
+            </StackPanel>
+
+            <!-- Two rows rather than one that wraps: wrapping put the label style and a reset
+                 button on the same line in English and on different lines in Danish, which read
+                 as an accident rather than a layout. -->
+            <StackPanel DockPanel.Dock="Bottom" Spacing="{StaticResource SpaceMd}" Margin="0,14,0,0">
+              <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceMd}">
+                <TextBlock Text="{Binding LabelsCaption}" VerticalAlignment="Center"/>
+                <ComboBox Width="220"
+                          ItemsSource="{Binding LabelStyles}"
+                          SelectedIndex="{Binding SelectedLabelStyle, Mode=TwoWay}"
+                          AutomationProperties.Name="{Binding LabelsAccessibleName}"/>
+              </StackPanel>
+              <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceMd}">
+                <Button Content="{Binding ResetEssentialLabel}" Command="{Binding ResetEssentialCommand}"/>
+                <Button Content="{Binding ResetExpandedLabel}" Command="{Binding ResetExpandedCommand}"/>
+              </StackPanel>
+            </StackPanel>
+
+            <Grid ColumnDefinitions="*,Auto,*" RowDefinitions="Auto,*"
+                  ColumnSpacing="{StaticResource SpaceMd}" RowSpacing="{StaticResource SpaceXs}">
+              <TextBlock Grid.Row="0" Grid.Column="0" Classes="caption"
+                         Text="{Binding AvailableCaption}"/>
+              <TextBlock Grid.Row="0" Grid.Column="2" Classes="caption"
+                         Text="{Binding CurrentCaption}"/>
+
+              <ListBox Grid.Row="1" Grid.Column="0"
+                       ItemsSource="{Binding Available}"
+                       SelectedIndex="{Binding SelectedAvailable, Mode=TwoWay}"
+                       AutomationProperties.Name="{Binding AvailableAccessibleName}"/>
+
+              <StackPanel Grid.Row="1" Grid.Column="1" Width="150"
+                          VerticalAlignment="Center" Spacing="{StaticResource SpaceSm}">
+                <Button Classes="primary" HorizontalAlignment="Stretch"
+                        Content="{Binding AddLabel}" Command="{Binding AddCommand}"/>
+                <Button HorizontalAlignment="Stretch"
+                        Content="{Binding RemoveLabel}" Command="{Binding RemoveCommand}"/>
+                <Button HorizontalAlignment="Stretch"
+                        Content="{Binding AddSeparatorLabel}" Command="{Binding AddSeparatorCommand}"/>
+                <Button HorizontalAlignment="Stretch"
+                        Content="{Binding MoveUpLabel}" Command="{Binding MoveUpCommand}"/>
+                <Button HorizontalAlignment="Stretch"
+                        Content="{Binding MoveDownLabel}" Command="{Binding MoveDownCommand}"/>
+              </StackPanel>
+
+              <ListBox Grid.Row="1" Grid.Column="2"
+                       ItemsSource="{Binding Current}"
+                       SelectedIndex="{Binding SelectedCurrent, Mode=TwoWay}"
+                       AutomationProperties.Name="{Binding CurrentAccessibleName}"/>
+            </Grid>
+          </DockPanel>
+        </DataTemplate>
+
+        <DataTemplate DataType="vm:SettingsPageModel">
+          <ScrollViewer>
+            <StackPanel Spacing="{StaticResource SpaceLg}" Margin="{StaticResource PagePadding}">
               <StackPanel Spacing="{StaticResource SpaceXs}">
                 <TextBlock Classes="title" Text="{Binding Title}"/>
                 <TextBlock Classes="muted" Text="{Binding Description}" TextWrapping="Wrap"/>
@@ -106,10 +172,11 @@
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
             </StackPanel>
-          </DataTemplate>
-        </ContentControl.ContentTemplate>
-      </ContentControl>
-    </ScrollViewer>
+          </ScrollViewer>
+        </DataTemplate>
+
+      </ContentControl.DataTemplates>
+    </ContentControl>
 
   </DockPanel>
 </Window>
