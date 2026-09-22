@@ -54,6 +54,11 @@ and borrow a key from the key store.
 - Tone colours were only styled on status lines, so "caption danger" and "heading warning" never showed
   their colour; the agent window's recovery heading and the Key Store import's refusal were affected.
 - A terminal could not restart a stale agent: the lifecycle controller was built but never given to panes.
+- Group icons were saved in the `FolderIcons` preference and never drawn.
+- Help > About and Edit > Batch rename were listed as available and had no handler.
+- The settings check's report was thrown away in all ten places that ran it, so a damaged settings file was
+  set aside and its settings reset without a word.
+- The sync location picker's status lines and its "selected" messages were English literals.
 
 **Running things right now:** the dev agent on `%LOCALAPPDATA%\StorageHub.SyncLive` and the lab containers.
 `docker compose --project-directory ./eng/testlab down --volumes` stops the lab.
@@ -85,9 +90,14 @@ Grouped by what they need, not by size. Each is a Core controller first, then a 
    `IExternalEditPrompts` and `IEditorLauncher`; private sessions per platform (ACL on Windows, 0700 under
    XDG_RUNTIME_DIR on Linux); a Settings Editing page with the first path row. 36 new tests, including the
    real file watcher, photographed in light and dark.
-8. **Transfer progress column** — a bar behind the text (154).
-9. **Small dialogs** — About, icon picker, splash, sync location picker, batch rename. (The unsafe-edit
-   warning came forward with external editing.)
+8. ~~**Transfer progress column**~~ — done at `16a254a`. A bar behind the percentage, hidden rather than
+   collapsed when the size is unknown so the column does not jump.
+9. ~~**Small dialogs**~~ — done. About at `7b9f7c7`; batch rename at `33c7300`, with the rules in Core as
+   `BatchRenamePlan`; the icon picker at `b743d53`, for a connection and for a group; the sync location
+   picker at `68bcd58`, with the browsing in Core as `SyncLocationBrowser` and the editor's Browse buttons
+   back. The splash was not ported: 2.0 opens without waiting on anything, so there is nothing for it to
+   narrate. Its other job, reporting what the settings check found, is done by the shell at `711e7f0`.
+   The `BootStage`/`BootStatus`/`DesktopBootException` types in Core are now unused.
 10. **Host-key trust from the Connection Manager** — fetch from host, reject. The controller has it; the
     editor does not offer it.
 11. **The directory tree beside the listing.**
@@ -105,6 +115,8 @@ Still missing from blocks that are otherwise done:
 - Overview is built once from `ShellStatusSnapshot.Initial`.
 - Favourites and the per-row menu in the sidebar; `FavoriteConnectionMenu` is in Core.
 - Address bar is not editable.
+- A pane lists only the first page of a folder; there is no "load more". Batch rename checks new names
+  against what is listed, so in a very large folder it can miss a collision the provider then refuses.
 
 ### 3. Packaging
 
