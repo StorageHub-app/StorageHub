@@ -23,8 +23,8 @@ and borrow a key from the key store.
 
 | | |
 |---|---|
-| Menu commands with a handler | 25 of the 37 that 1.x had live |
-| WinForms screen lines with no counterpart | about 1,900 (was 14,200) |
+| Menu commands with a handler | 26 of the 37 that 1.x had live |
+| WinForms screen lines with no counterpart | about 1,670 (was 14,200) |
 | Test projects | 15, all green on Windows and Ubuntu |
 | Live tests against the running agent and the Docker lab | 8, all green |
 
@@ -41,6 +41,9 @@ and borrow a key from the key store.
   `DataContextChanged`, which runs before the visual tree exists. Every category showed Appearance.
 - The toolbar editor offered commands the shell has not wired, which render as nothing on the bar.
 - `tools.background-agent` was listed as available and had no handler: the menu entry did nothing.
+- `help.check-for-updates` likewise.
+- Three of the update window's headlines, its Close button and its failure message were English
+  literals rather than strings, so that window was part-untranslated in Danish and German.
 
 **Running things right now:** the dev agent on `%LOCALAPPDATA%\StorageHub.SyncLive` and the lab containers.
 `docker compose --project-directory ./eng/testlab down --volumes` stops the lab.
@@ -59,8 +62,9 @@ Grouped by what they need, not by size. Each is a Core controller first, then a 
 3. ~~**Agent control**~~ — done at `d990f21`. Two implementations, not one: `PackagedAgentLifecycleController`
    over the desktop-owned process on Windows, and `SystemdAgentLifecycleController` over `systemctl --user` on
    Linux. Both behind `IProcessRunner` so they test anywhere. 26 new tests, photographed in light and dark.
-4. **Update checker** — `UpdateCheckerForm` (233). `DesktopUpdatePresentation` is the extracted state machine
-   and the shell references none of it.
+4. ~~**Update checker**~~ — done at `0220fd4`. One button for check, download and install, over the
+   `DesktopUpdatePresentation` state machine that was already extracted. 15 new tests, photographed in light
+   and dark.
 5. **Activity log** — `ActivityLogControl` (329), beside the queue. Extract the queue as its own view when this
    lands; it is drawn inline in `MainWindow.axaml` today.
 6. **Connection picker** — `ConnectionPicker` (487): grouped, filter-as-you-type, in the pane header.
@@ -131,6 +135,7 @@ Still missing from blocks that are otherwise done:
 - The Avalonia XAML compiler writes `Avalonia error AVLN2000`, not `: error`; a grep for the latter reports a
   clean build that fails at runtime.
 - `SqliteConnectionProfileRepositoryTests.Update_uses_optimistic_concurrency_and_returns_the_new_version`
-  fails on Ubuntu in a full-solution run and passes in isolation. Seen twice on 2026-09-22, and
-  three isolated runs passed in between, so it is contention under parallel load rather than a
-  break. It has never failed on Windows. Worth pinning down before release.
+  fails intermittently on Ubuntu in a full-solution run and passes in isolation. Seen twice on
+  2026-09-22, with three isolated runs and a later full run passing in between, so it is contention
+  under parallel load rather than a break. It has never failed on Windows. Worth pinning down
+  before release.
