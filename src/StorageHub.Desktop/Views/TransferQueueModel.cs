@@ -25,7 +25,22 @@ internal sealed record TransferRow(
     string Status,
     bool CanCancel,
     bool CanRetry,
-    bool NeedsReconciliation);
+    bool NeedsReconciliation,
+    /// <summary>
+    /// How much of the transfer is done, from 0 to 1, or null when its size is not known -- which is
+    /// when the column shows bytes moved and no bar, rather than a bar stuck at nothing.
+    /// </summary>
+    double? ProgressFraction = null)
+{
+    /// <summary>Whether there is a bar to draw behind the text.</summary>
+    public bool HasProgressBar => ProgressFraction is not null;
+
+    /// <summary>The bar's value, in percent.</summary>
+    public double ProgressPercent => (ProgressFraction ?? 0) * 100;
+
+    /// <summary>A finished bar is drawn in the success colour, as 1.x drew it.</summary>
+    public bool IsComplete => ProgressFraction >= 1;
+}
 
 /// <summary>One tab of the queue, with the count the agent reported for it.</summary>
 internal sealed class TransferQueueTab(TransferQueueTabDefinition definition) : INotifyPropertyChanged
@@ -497,7 +512,8 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
             : UiEnumNames.Describe(transfer.State),
         transfer.CanCancel,
         transfer.CanRetry,
-        transfer.NeedsReconciliation);
+        transfer.NeedsReconciliation,
+        ProgressFractionOf(transfer));
 
     /// <summary>
     /// A percentage when the size is known, bytes moved when it is not.
@@ -508,16 +524,27 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
     /// </remarks>
     private static string DescribeProgress(TransferQueueSummary transfer)
     {
-        if (transfer.ExpectedBytes is not { } expected || expected <= 0)
+        if (ProgressFractionOf(transfer) is not { } fraction)
         {
             return transfer.ProgressBytes > 0
                 ? UiFormatting.FormatBytes(transfer.ProgressBytes)
                 : string.Empty;
         }
 
-        var percent = Math.Clamp(transfer.ProgressBytes * 100d / expected, 0, 100);
-        return string.Create(CultureInfo.CurrentCulture, $"{percent:0}%");
+        return string.Create(CultureInfo.CurrentCulture, $"{fraction * 100:0}%");
     }
+
+    /// <summary>
+    /// The done fraction, or null when the size is not known.
+    /// </summary>
+    /// <remarks>
+    /// One function for both the text and the bar, so the two cannot disagree about a transfer
+    /// that has, say, reported more bytes than it expected: both say 100%.
+    /// </remarks>
+    internal static double? ProgressFractionOf(TransferQueueSummary transfer) =>
+        transfer.ExpectedBytes is { } expected && expected > 0
+            ? Math.Clamp((double)transfer.ProgressBytes / expected, 0, 1)
+            : null;
 
     private void Raise(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }

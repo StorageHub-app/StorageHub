@@ -146,6 +146,25 @@
     <Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/>
   </Style>
 
+  <!--
+    The bar behind a transfer's progress text. As tall as the row allows and quiet in colour, so the
+    percentage on top of it stays the thing that is read; green once the transfer is complete.
+  -->
+  <Style Selector="ProgressBar.transfer">
+    <Setter Property="MinHeight" Value="0"/>
+    <Setter Property="VerticalAlignment" Value="Stretch"/>
+    <Setter Property="CornerRadius" Value="3"/>
+    <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}"/>
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}"/>
+    <Setter Property="Opacity" Value="0.55"/>
+  </Style>
+  <Style Selector="ProgressBar.transfer.complete">
+    <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}"/>
+  </Style>
+  <Style Selector="ProgressBar.transfer.none">
+    <Setter Property="Opacity" Value="0"/>
+  </Style>
+
   <!-- The three button variants StorageHubButton painted by hand. -->
   <Style Selector="Button">
     <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}"/>

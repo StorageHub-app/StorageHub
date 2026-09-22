@@ -84,8 +84,25 @@
                                  Binding="{Binding Source}" Width="*"/>
                 <TableViewColumn Header="{Binding $parent[vm:TransferQueueView].((vm:TransferQueueModel)DataContext).ColumnDestination}"
                                  Binding="{Binding Destination}" Width="*"/>
+                <!-- A bar behind the text, as 1.x's TransferProgressColumn drew it. The text stays
+                     the value a screen reader reads; a transfer of unknown size has no bar. -->
                 <TableViewColumn Header="{Binding $parent[vm:TransferQueueView].((vm:TransferQueueModel)DataContext).ColumnProgress}"
-                                 Binding="{Binding Progress}" Width="160"/>
+                                 Width="160">
+                  <TableViewColumn.CellTemplate>
+                    <DataTemplate DataType="vm:TransferRow">
+                      <Panel Margin="0,3">
+                        <!-- Hidden by opacity rather than removed, so a row with no bar is as wide as
+                             one with a bar and its text is centred the same way. -->
+                        <ProgressBar Classes="transfer"
+                                     Classes.none="{Binding !HasProgressBar}"
+                                     Classes.complete="{Binding IsComplete}"
+                                     Minimum="0" Maximum="100" Value="{Binding ProgressPercent}"/>
+                        <TextBlock Text="{Binding Progress}" HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"/>
+                      </Panel>
+                    </DataTemplate>
+                  </TableViewColumn.CellTemplate>
+                </TableViewColumn>
                 <TableViewColumn Header="{Binding $parent[vm:TransferQueueView].((vm:TransferQueueModel)DataContext).ColumnAttempt}"
                                  Binding="{Binding Attempt}" Width="90"/>
                 <TableViewColumn Header="{Binding $parent[vm:TransferQueueView].((vm:TransferQueueModel)DataContext).ColumnStatus}"
