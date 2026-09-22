@@ -24,7 +24,7 @@ and borrow a key from the key store.
 | | |
 |---|---|
 | Menu commands with a handler | 26 of the 37 that 1.x had live |
-| WinForms screen lines with no counterpart | about 1,670 (was 14,200) |
+| WinForms screen lines with no counterpart | about 1,340 (was 14,200) |
 | Test projects | 15, all green on Windows and Ubuntu |
 | Live tests against the running agent and the Docker lab | 8, all green |
 
@@ -44,6 +44,9 @@ and borrow a key from the key store.
 - `help.check-for-updates` likewise.
 - Three of the update window's headlines, its Close button and its failure message were English
   literals rather than strings, so that window was part-untranslated in Danish and German.
+- The queue's column headers were English literals once it moved to Avalonia, and the activity log
+  printed a run's dispatch state as its enum name.
+- On the Logs tab the queue toolbar kept reporting the agent unavailable beside a log it had just read.
 
 **Running things right now:** the dev agent on `%LOCALAPPDATA%\StorageHub.SyncLive` and the lab containers.
 `docker compose --project-directory ./eng/testlab down --volumes` stops the lab.
@@ -65,8 +68,9 @@ Grouped by what they need, not by size. Each is a Core controller first, then a 
 4. ~~**Update checker**~~ — done at `0220fd4`. One button for check, download and install, over the
    `DesktopUpdatePresentation` state machine that was already extracted. 15 new tests, photographed in light
    and dark.
-5. **Activity log** — `ActivityLogControl` (329), beside the queue. Extract the queue as its own view when this
-   lands; it is drawn inline in `MainWindow.axaml` today.
+5. ~~**Activity log**~~ — done at `ebaaec3`, in the queue's Logs tab. Rules in Core as `ActivityLog` and
+   `ActivityLogReader`; rows reconciled by key. The queue is its own `TransferQueueView` now. 25 new tests,
+   photographed in light and dark.
 6. **Connection picker** — `ConnectionPicker` (487): grouped, filter-as-you-type, in the pane header.
 7. **External editing** — `ExternalEditorController` (483): mostly portable once its prompt is behind an
    interface.
