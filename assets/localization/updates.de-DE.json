@@ -57,6 +57,10 @@
   "agentStateRecovery": "● Wird im Wiederherstellungsmodus ausgeführt",
   "agentStateNotRunning": "● Wird nicht ausgeführt",
   "agentStateStarting": "● Wird gestartet",
+  "updateAvailableFormat": "StorageHub {0} ist verfügbar",
+  "updateDownloadingFormat": "StorageHub {0} wird heruntergeladen…",
+  "updateReadyToInstallFormat": "StorageHub {0} kann installiert werden",
+  "updateCheckFailedFormat": "Die Updateprüfung ist fehlgeschlagen: {0}",
   "agentNoResponseFormat": "Der Agent hat nicht geantwortet: {0}",
   "agentActiveWorkFormat": "Aktive Übertragungen: {0:N0}    Aktive Synchronisierungsläufe: {1:N0}",
   "culture": "de-DE"

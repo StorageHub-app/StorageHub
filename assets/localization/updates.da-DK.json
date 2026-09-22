@@ -57,6 +57,10 @@
   "agentStateRecovery": "● Kører i gendannelsestilstand",
   "agentStateNotRunning": "● Kører ikke",
   "agentStateStarting": "● Starter",
+  "updateAvailableFormat": "StorageHub {0} er tilgængelig",
+  "updateDownloadingFormat": "Henter StorageHub {0}…",
+  "updateReadyToInstallFormat": "StorageHub {0} er klar til installation",
+  "updateCheckFailedFormat": "Tjek for opdateringer mislykkedes: {0}",
   "agentNoResponseFormat": "Agenten svarede ikke: {0}",
   "agentActiveWorkFormat": "Aktive overførsler: {0:N0}    Aktive synkroniseringskørsler: {1:N0}",
   "culture": "da-DK"

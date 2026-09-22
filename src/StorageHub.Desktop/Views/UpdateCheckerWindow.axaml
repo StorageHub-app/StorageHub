@@ -1,0 +1,46 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
+        x:Class="StorageHub.Desktop.Views.UpdateCheckerWindow"
+        x:DataType="vm:UpdateCheckerModel"
+        Title="{Binding Title}"
+        Width="520" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner">
+
+  <!--
+    One button for the whole flow: check, then download, then install. What it says and whether it
+    is live follow the updater's state, so there is no wizard and no step that can be reached out
+    of order. The progress bar appears only while there is something to report.
+  -->
+
+  <Border Classes="surface" Padding="{StaticResource PaddingLg}">
+    <StackPanel Spacing="{StaticResource SpaceMd}">
+
+      <TextBlock Classes="section"
+                 Classes.success="{Binding IsSuccess}"
+                 Classes.warning="{Binding IsWarning}"
+                 Classes.danger="{Binding IsDanger}"
+                 Text="{Binding Headline}" TextWrapping="Wrap"/>
+
+      <TextBlock Classes="muted" Text="{Binding Detail}" TextWrapping="Wrap"
+                 AutomationProperties.Name="{Binding DetailAccessibleName}"/>
+
+      <ProgressBar Minimum="0" Maximum="100"
+                   Value="{Binding ProgressPercent}"
+                   IsVisible="{Binding IsDownloading}"
+                   AutomationProperties.Name="{Binding ProgressAccessibleName}"/>
+
+      <StackPanel Spacing="{StaticResource SpaceXs}">
+        <TextBlock Classes="caption" Text="{Binding Installed}"/>
+        <TextBlock Classes="caption" Text="{Binding Channel}"/>
+      </StackPanel>
+
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                  Spacing="{StaticResource SpaceSm}" Margin="0,8,0,0">
+        <Button Classes="primary" Content="{Binding PrimaryLabel}" Command="{Binding PrimaryCommand}"/>
+        <Button Content="{Binding CloseLabel}" Command="{Binding CloseCommand}" IsCancel="True"/>
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</Window>

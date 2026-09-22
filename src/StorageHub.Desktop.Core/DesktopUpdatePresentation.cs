@@ -45,9 +45,12 @@ internal static class DesktopUpdatePresentation
     internal static string DescribeHeadline(DesktopUpdateSnapshot snapshot) => snapshot.State switch
     {
         DesktopUpdateState.Checking => Ui.Updates.CheckingForUpdates,
-        DesktopUpdateState.UpdateAvailable => $"StorageHub {snapshot.Version} is available",
-        DesktopUpdateState.Downloading => $"Downloading StorageHub {snapshot.Version}…",
-        DesktopUpdateState.ReadyToRestart => $"StorageHub {snapshot.Version} is ready to install",
+        DesktopUpdateState.UpdateAvailable =>
+            Ui.Format(Ui.Updates.UpdateAvailableFormat, snapshot.Version),
+        DesktopUpdateState.Downloading =>
+            Ui.Format(Ui.Updates.UpdateDownloadingFormat, snapshot.Version),
+        DesktopUpdateState.ReadyToRestart =>
+            Ui.Format(Ui.Updates.UpdateReadyToInstallFormat, snapshot.Version),
         DesktopUpdateState.Installing => Ui.Updates.Installing,
         DesktopUpdateState.UpToDate => Ui.Updates.StorageHubIsUpToDate,
         DesktopUpdateState.Unavailable => Ui.Updates.UpdatesAreNotAvailableForThisBuild,
@@ -55,16 +58,6 @@ internal static class DesktopUpdatePresentation
         DesktopUpdateState.Failed => Ui.Updates.TheUpdateCouldNotBeCompleted,
         _ => Ui.Updates.Updates
     };
-
-    /// <summary>
-    /// What an update does not cover when the agent runs as a service, or null when it does.
-    ///
-    /// The updater is unelevated, and the copy the service runs from is machine-owned so that
-    /// the user it runs beside cannot replace a binary executing as SYSTEM. So an update moves
-    /// the application and leaves the service on the version it was staged with. Saying so here
-    /// is the difference between an informed restart and discovering later that the agent is a
-    /// release behind.
-    /// </summary>
 
     internal static string DescribeDetail(DesktopUpdateSnapshot snapshot) => snapshot.State switch
     {

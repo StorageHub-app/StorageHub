@@ -64,6 +64,12 @@ public partial class App : global::Avalonia.Application
             // stopped from, which matters most on Linux: the .deb installs the unit but leaves
             // enabling it to each user, and its own postinst points them here.
             model.Router.Handle(UiCommandIds.ToolsBackgroundAgent, () => ShowAgentControl(desktop, model));
+
+            // One updater for the session, shared with the window that shows it. Two would each
+            // stage the same release into the same directory, and the second would find it taken.
+            var updater = Views.UpdateCheckerWindow.CreateUpdater();
+            model.Router.Handle(
+                UiCommandIds.HelpCheckForUpdates, () => ShowUpdateChecker(desktop, updater));
             if (model.SyncTasks is { } syncTasks)
             {
                 syncTasks.NewProfileCommand = new RelayCommand(
@@ -102,6 +108,7 @@ public partial class App : global::Avalonia.Application
             }
             desktop.ShutdownRequested += async (_, _) =>
             {
+                updater.Dispose();
                 await monitor.DisposeAsync().ConfigureAwait(false);
                 await model.Queue.DisposeAsync().ConfigureAwait(false);
                 foreach (var workspace in model.Workspaces
@@ -184,6 +191,16 @@ public partial class App : global::Avalonia.Application
         ShellPreviewModel model)
     {
         var window = Views.AgentControlWindow.ForCurrentAgent(() => model.AgentStatus);
+        if (desktop.MainWindow is { } owner) _ = window.ShowDialog(owner);
+        else window.Show();
+    }
+
+    /// <summary>Opens the update window over the shell's own updater.</summary>
+    private static void ShowUpdateChecker(
+        IClassicDesktopStyleApplicationLifetime desktop,
+        DesktopUpdater updater)
+    {
+        var window = Views.UpdateCheckerWindow.For(updater);
         if (desktop.MainWindow is { } owner) _ = window.ShowDialog(owner);
         else window.Show();
     }

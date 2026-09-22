@@ -129,6 +129,18 @@ internal sealed class UpdateStrings : LocalizationModelBase
 
     public string AgentStateStarting { get; set; } = "\u25cf Starting";
 
+    /// <summary>{0} = the release version.</summary>
+    public string UpdateAvailableFormat { get; set; } = "StorageHub {0} is available";
+
+    /// <summary>{0} = the release version.</summary>
+    public string UpdateDownloadingFormat { get; set; } = "Downloading StorageHub {0}…";
+
+    /// <summary>{0} = the release version.</summary>
+    public string UpdateReadyToInstallFormat { get; set; } = "StorageHub {0} is ready to install";
+
+    /// <summary>{0} = the underlying error message.</summary>
+    public string UpdateCheckFailedFormat { get; set; } = "The update check failed: {0}";
+
     /// <summary>{0} = the underlying error message.</summary>
     public string AgentNoResponseFormat { get; set; } = "The agent did not respond: {0}";
 
