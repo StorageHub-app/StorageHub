@@ -110,6 +110,7 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         Pane(UiCommandIds.EditNewFolder, static pane => pane.NewFolderCommand);
         Pane(UiCommandIds.EditNewEmptyFile, static pane => pane.NewFileCommand);
         Pane(UiCommandIds.EditRename, static pane => pane.RenameCommand);
+        Pane(UiCommandIds.EditBatchRename, static pane => pane.BatchRenameCommand);
         Pane(UiCommandIds.EditDelete, static pane => pane.DeleteCommand);
         Pane(UiCommandIds.EditProperties, static pane => pane.PropertiesCommand);
         Pane(UiCommandIds.GoBack, static pane => pane.BackCommand);
@@ -523,7 +524,9 @@ internal static class ShellPreview
                         // once, instead of telling somebody to restart StorageHub themselves.
                         agentLifecycle: AgentLifecycleControllers.ForThisMachine,
                         inspect: Services.ShellServices.InspectObjectAsync,
-                        edit: Services.ShellServices.EditExternallyAsync),
+                        edit: Services.ShellServices.EditExternallyAsync,
+                        batchRename: static (sources, occupied) => Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(
+                            () => BatchRenameWindow.AskAsync(Services.ShellServices.MainWindow(), sources, occupied))),
                     static () => new NamedPipeTransferQueueAgentClient(),
                     static () => new NamedPipeRemoteStorageAgentClient(),
                     static () => new NamedPipeObjectInspectorAgentClient(),

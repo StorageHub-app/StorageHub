@@ -1,0 +1,54 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
+        x:Class="StorageHub.Desktop.Views.BatchRenameWindow"
+        x:DataType="vm:BatchRenameModel"
+        Title="{Binding Title}"
+        Width="620" Height="460" MinWidth="480" MinHeight="360"
+        WindowStartupLocation="CenterOwner">
+
+  <!--
+    Find and replace across the selected names, with every result shown before anything is
+    renamed. Rename stays dim, with the reason under the list, until the result is one the folder
+    can hold.
+  -->
+
+  <Border Classes="surface" Padding="{StaticResource PaddingLg}">
+    <DockPanel>
+      <Grid DockPanel.Dock="Top" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto"
+            ColumnSpacing="{StaticResource SpaceMd}" RowSpacing="{StaticResource SpaceXs}"
+            Margin="0,0,0,12">
+        <TextBlock Grid.Row="0" Grid.Column="0" Classes="caption" Text="{Binding FindLabel}"/>
+        <TextBlock Grid.Row="0" Grid.Column="1" Classes="caption" Text="{Binding ReplaceLabel}"/>
+        <TextBox x:Name="PART_Find" Grid.Row="1" Grid.Column="0"
+                 Text="{Binding Find, Mode=TwoWay}"
+                 AutomationProperties.Name="{Binding FindAccessibleName}"/>
+        <TextBox Grid.Row="1" Grid.Column="1"
+                 Text="{Binding Replace, Mode=TwoWay}"
+                 AutomationProperties.Name="{Binding ReplaceAccessibleName}"/>
+      </Grid>
+
+      <StackPanel DockPanel.Dock="Bottom" Spacing="{StaticResource SpaceSm}" Margin="0,10,0,0">
+        <TextBlock Classes="caption"
+                   Classes.danger="{Binding HasProblem}"
+                   Text="{Binding Summary}" TextWrapping="Wrap"/>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="{StaticResource SpaceSm}">
+          <Button Content="{Binding CancelLabel}" Command="{Binding CancelCommand}" IsCancel="True"/>
+          <Button Classes="primary" Content="{Binding RenameLabel}" Command="{Binding RenameCommand}"
+                  IsDefault="True"/>
+        </StackPanel>
+      </StackPanel>
+
+      <Border Classes="card" Padding="4">
+        <ListBox ItemsSource="{Binding Lines}" Background="Transparent" BorderThickness="0"
+                 AutomationProperties.Name="{Binding PreviewAccessibleName}">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="x:String">
+              <TextBlock Text="{Binding}" TextTrimming="CharacterEllipsis"/>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </Border>
+    </DockPanel>
+  </Border>
+</Window>

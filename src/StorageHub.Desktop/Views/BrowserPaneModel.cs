@@ -90,6 +90,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     private readonly IDialogService? _dialogs;
     private readonly Func<ObjectInspectorAddress, Task>? _inspect;
     private readonly Func<ObjectInspectorAddress, string, long?, Task>? _edit;
+    private readonly Func<IReadOnlyList<string>, IReadOnlyList<string>, Task<IReadOnlyList<BatchRenameLine>?>>? _batchRename;
     private PagedListingIndex? _index;
     private int _paneNumber = 1;
     private bool _showConnectionBar = true;
@@ -132,7 +133,8 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         Func<ISshTerminalAgentClient>? terminals = null,
         Func<IAgentLifecycleController?>? agentLifecycle = null,
         Func<ObjectInspectorAddress, Task>? inspect = null,
-        Func<ObjectInspectorAddress, string, long?, Task>? edit = null)
+        Func<ObjectInspectorAddress, string, long?, Task>? edit = null,
+        Func<IReadOnlyList<string>, IReadOnlyList<string>, Task<IReadOnlyList<BatchRenameLine>?>>? batchRename = null)
     {
         _terminals = terminals;
         _agentLifecycle = agentLifecycle;
@@ -142,6 +144,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         _dialogs = dialogs;
         _inspect = inspect;
         _edit = edit;
+        _batchRename = batchRename;
         SelectedRows.CollectionChanged += (_, _) =>
         {
             (OpenCommand as RelayCommand)?.RaiseCanExecuteChanged();
@@ -149,6 +152,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             Raise(nameof(HasSelection));
             Raise(nameof(SelectionSummary));
             (RenameCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (BatchRenameCommand as RelayCommand)?.RaiseCanExecuteChanged();
             (DeleteCommand as RelayCommand)?.RaiseCanExecuteChanged();
             (PropertiesCommand as RelayCommand)?.RaiseCanExecuteChanged();
         };
@@ -163,6 +167,8 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             _ => _ = RenameAsync(), _ => CanMutateHere && Chosen().Count == 1);
         DeleteCommand = new RelayCommand(
             _ => _ = DeleteAsync(), _ => CanMutateHere && Chosen().Count > 0);
+        BatchRenameCommand = new RelayCommand(
+            _ => _ = BatchRenameAsync(), _ => _batchRename is not null && CanMutateHere && Chosen().Count > 1);
 
         SortByCommand = new RelayCommand(column =>
         {
@@ -582,6 +588,11 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
 
     public ICommand DeleteCommand { get; }
 
+    /// <summary>Find and replace across several selected names.</summary>
+    public ICommand BatchRenameCommand { get; }
+
+    public static string BatchRenameLabel => Ui.Pane.BatchRename;
+
     /// <summary>Opens the read-only object inspector on the one selected file.</summary>
     public ICommand PropertiesCommand { get; }
 
@@ -971,6 +982,74 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
 
         await MoveAsync(PaneNavigationKind.Refresh, cancellationToken: cancellationToken)
             .ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Renames several selected items with one find-and-replace, after showing every result.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// One at a time, stopping at the first refusal and saying how many went through, as 1.x did:
+    /// a provider has no transaction across renames, so a batch that failed half-way is described
+    /// rather than pretended away.
+    /// </para>
+    /// <para>
+    /// The preview checks new names against what the pane has loaded. 1.x loaded every page first;
+    /// this pane cannot yet fetch more pages than the first, so a name taken on a page it has not
+    /// loaded is caught by the rename itself, which the provider refuses, and the batch stops there.
+    /// </para>
+    /// </remarks>
+    internal async Task BatchRenameAsync(CancellationToken cancellationToken = default)
+    {
+        if (_batchRename is null || !CanMutateHere || Here() is not { } location) return;
+
+        var rows = Chosen();
+        if (rows.Count < 2)
+        {
+            Status = Ui.Shell.SelectTwoToBatchRename;
+            return;
+        }
+
+        var items = new List<PaneTransferItem>(rows.Count);
+        foreach (var row in rows)
+        {
+            var item = PaneTransferSnapshots.ItemFor(row);
+            if (item.IsFailure)
+            {
+                Status = item.Error.Message;
+                return;
+            }
+
+            items.Add(item.Value);
+        }
+
+        var occupied = Rows.Where(static row => !row.IsParentNavigation).Select(static row => row.Name).ToArray();
+        var lines = await _batchRename([.. items.Select(static item => item.Name)], occupied).ConfigureAwait(true);
+        if (lines is null || lines.Count != items.Count) return;
+
+        var renamed = 0;
+        await using (var mutations = _mutations!())
+        {
+            for (var index = 0; index < items.Count; index++)
+            {
+                if (!lines[index].Changes) continue;
+
+                var result = await mutations
+                    .RenameAsync(location, items[index], lines[index].Target, cancellationToken)
+                    .ConfigureAwait(true);
+                if (result.IsFailure)
+                {
+                    await MoveAsync(PaneNavigationKind.Refresh, cancellationToken: cancellationToken).ConfigureAwait(true);
+                    Status = Ui.Format(Ui.Shell.RenamedThenStoppedFormat, renamed, items[index].Name, result.Error.Message);
+                    return;
+                }
+
+                renamed++;
+            }
+        }
+
+        await MoveAsync(PaneNavigationKind.Refresh, cancellationToken: cancellationToken).ConfigureAwait(true);
+        Status = Ui.Format(Ui.Shell.RenamedItemsFormat, renamed);
     }
 
     /// <summary>

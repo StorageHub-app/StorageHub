@@ -175,6 +175,10 @@
                 ToolTip.Tip="{Binding RenameLabel}">
           <LucideIcon Kind="PencilLine" Size="{StaticResource IconSizeSm}"/>
         </Button>
+        <Button Classes="tool" Command="{Binding BatchRenameCommand}"
+                ToolTip.Tip="{Binding BatchRenameLabel}">
+          <LucideIcon Kind="ReplaceAll" Size="{StaticResource IconSizeSm}"/>
+        </Button>
         <Button Classes="tool" Command="{Binding DeleteCommand}"
                 ToolTip.Tip="{Binding DeleteLabel}">
           <LucideIcon Kind="Trash" Size="{StaticResource IconSizeSm}"/>
