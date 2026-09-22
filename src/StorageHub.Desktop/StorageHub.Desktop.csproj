@@ -16,6 +16,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The application's own mark, for the windows that show it. The .ico above is what the
+         executable carries; Avalonia draws a bitmap, and this is the same artwork as one. -->
+    <AvaloniaResource Include="..\..\assets\branding\storagehub-icon.png" Link="Assets\storagehub-icon.png" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Avalonia" />
     <PackageReference Include="Avalonia.Desktop" />
     <PackageReference Include="Avalonia.Themes.Fluent" />

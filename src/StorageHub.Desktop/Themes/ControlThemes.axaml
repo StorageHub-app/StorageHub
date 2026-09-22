@@ -165,6 +165,13 @@
     <Setter Property="Opacity" Value="0"/>
   </Style>
 
+  <!-- Text that goes somewhere when clicked: coloured as a link and underlined, since colour
+       alone is not something everybody can see. -->
+  <Style Selector="TextBlock.link">
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}"/>
+    <Setter Property="TextDecorations" Value="Underline"/>
+  </Style>
+
   <!-- The three button variants StorageHubButton painted by hand. -->
   <Style Selector="Button">
     <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}"/>

@@ -1,0 +1,41 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
+        x:Class="StorageHub.Desktop.Views.AboutWindow"
+        x:DataType="vm:AboutModel"
+        Title="{Binding Title}"
+        Width="500" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        AutomationProperties.Name="{Binding Title}">
+
+  <!--
+    What this build is, and where the project lives. A window rather than a message box because a
+    message box cannot carry a link, and the project's address is what somebody opening About most
+    likely wants.
+  -->
+
+  <Border Classes="surface" Padding="{StaticResource PaddingLg}">
+    <StackPanel Spacing="{StaticResource SpaceMd}">
+      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceLg}">
+        <Image Grid.Column="0" Width="56" Height="56" VerticalAlignment="Top"
+               Source="avares://StorageHub.Desktop/Assets/storagehub-icon.png"
+               AutomationProperties.Name="{Binding Title}"/>
+        <StackPanel Grid.Column="1" Spacing="{StaticResource SpaceSm}">
+          <TextBlock Text="{Binding Body}" TextWrapping="Wrap"/>
+          <Button Classes="tool" HorizontalAlignment="Left" Padding="0"
+                  Command="{Binding OpenProjectCommand}"
+                  ToolTip.Tip="{Binding ProjectUrl}"
+                  AutomationProperties.Name="{Binding ProjectLink}"
+                  AutomationProperties.HelpText="{Binding ProjectUrl}">
+            <TextBlock Classes="link" Text="{Binding ProjectLink}"/>
+          </Button>
+        </StackPanel>
+      </Grid>
+
+      <Button Classes="primary" HorizontalAlignment="Right" MinWidth="88"
+              Content="{Binding CloseLabel}" Command="{Binding CloseCommand}"
+              IsDefault="True" IsCancel="True"/>
+    </StackPanel>
+  </Border>
+</Window>

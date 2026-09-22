@@ -70,6 +70,12 @@ public partial class App : global::Avalonia.Application
             var updater = Views.UpdateCheckerWindow.CreateUpdater();
             model.Router.Handle(
                 UiCommandIds.HelpCheckForUpdates, () => ShowUpdateChecker(desktop, updater));
+            model.Router.Handle(UiCommandIds.HelpAboutStorageHub, () =>
+            {
+                var about = Views.AboutWindow.Create();
+                if (desktop.MainWindow is { } owner) _ = about.ShowDialog(owner);
+                else about.Show();
+            });
             if (model.SyncTasks is { } syncTasks)
             {
                 syncTasks.NewProfileCommand = new RelayCommand(
