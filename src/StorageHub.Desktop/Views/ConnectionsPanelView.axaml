@@ -99,18 +99,21 @@
               <DataTemplate DataType="vm:ConnectionGroupModel">
                 <StackPanel AutomationProperties.Name="{Binding AccessibleName}">
   
-                  <Grid ColumnDefinitions="Auto,*,Auto" Classes="group-header"
+                  <Grid ColumnDefinitions="Auto,Auto,*,Auto" Classes="group-header"
                         ColumnSpacing="{StaticResource SpaceXs}">
                     <ToggleButton Grid.Column="0" Classes="disclosure"
                                   IsChecked="{Binding IsExpanded, Mode=TwoWay}"/>
-                    <TextBlock Grid.Column="1" Classes="group-title" VerticalAlignment="Center"
+                    <LucideIcon Grid.Column="1" Kind="{Binding Icon}" Size="{StaticResource IconSizeSm}"
+                                VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="2" Classes="group-title" VerticalAlignment="Center"
                                Text="{Binding Name}"/>
-                    <Button Grid.Column="2" Classes="tool"
+                    <Button Grid.Column="3" Classes="tool"
                             ToolTip.Tip="{Binding RenameLabel}">
                       <LucideIcon Kind="Ellipsis" Size="{StaticResource IconSizeSm}"/>
                       <Button.Flyout>
                         <MenuFlyout>
                           <MenuItem Header="{Binding RenameLabel}" Command="{Binding RenameCommand}"/>
+                          <MenuItem Header="{Binding ChangeIconLabel}" Command="{Binding ChangeIconCommand}"/>
                           <MenuItem Header="{Binding RemoveLabel}" Command="{Binding RemoveCommand}"/>
                         </MenuFlyout>
                       </Button.Flyout>

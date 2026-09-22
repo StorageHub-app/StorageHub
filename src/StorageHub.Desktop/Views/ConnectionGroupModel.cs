@@ -47,8 +47,25 @@ internal sealed class ConnectionGroupModel(
     string name,
     IReadOnlyList<ConnectionRowModel> connections,
     ICommand renameCommand,
-    ICommand removeCommand) : INotifyPropertyChanged
+    ICommand removeCommand,
+    ICommand? changeIconCommand = null,
+    string? iconKey = null) : INotifyPropertyChanged
 {
+    /// <summary>
+    /// The group's icon: the one chosen for it, or a folder.
+    /// </summary>
+    /// <remarks>
+    /// 1.x let a folder of connections have an icon of its own and kept the choices in the settings
+    /// file, which 2.0 went on saving and never showed. They are shown again.
+    /// </remarks>
+    public Lucide.Avalonia.LucideIconKind Icon =>
+        (ConnectionIconCatalog.Resolve(iconKey) is { } glyph ? Themes.IconCatalog.Resolve(glyph) : null)
+        ?? Lucide.Avalonia.LucideIconKind.Folder;
+
+    public ICommand? ChangeIconCommand { get; } = changeIconCommand;
+
+    public static string ChangeIconLabel => Ui.Connections.ChooseIcon;
+
     private bool _isExpanded = true;
 
     public string Name { get; } = name;

@@ -25,6 +25,9 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     private readonly IDialogService? _dialogs;
     private readonly Func<IReadOnlyList<ConnectionGroupEntry>?>? _load;
     private readonly Action<IReadOnlyList<ConnectionGroupEntry>>? _save;
+    private readonly Action<IReadOnlyDictionary<string, string>>? _saveIcons;
+    private readonly Func<string?, string, Task<IconChoice>>? _pickIcon;
+    private Dictionary<string, string> _icons = new(StringComparer.OrdinalIgnoreCase);
     private IReadOnlyList<ConnectionCardModel> _cards = [];
     private string _search = string.Empty;
 
@@ -50,13 +53,22 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         Func<IRemoteStorageAgentClient>? client = null,
         IDialogService? dialogs = null,
         Func<IReadOnlyList<ConnectionGroupEntry>?>? load = null,
-        Action<IReadOnlyList<ConnectionGroupEntry>>? save = null)
+        Action<IReadOnlyList<ConnectionGroupEntry>>? save = null,
+        Func<IReadOnlyDictionary<string, string>?>? loadIcons = null,
+        Action<IReadOnlyDictionary<string, string>>? saveIcons = null,
+        Func<string?, string, Task<IconChoice>>? pickIcon = null)
     {
         NewCommand = newCommand;
         _client = client;
         _dialogs = dialogs;
         _load = load;
         _save = save;
+        _saveIcons = saveIcons;
+        _pickIcon = pickIcon;
+        if (loadIcons?.Invoke() is { } icons)
+        {
+            _icons = new Dictionary<string, string>(icons, StringComparer.OrdinalIgnoreCase);
+        }
         Status = Ui.Connections.SidebarEmpty;
         NewGroupCommand = new RelayCommand(_ => _ = AddGroupAsync(), _ => _dialogs is not null);
         ClearSearchCommand = new RelayCommand(_ => Search = string.Empty);
@@ -271,6 +283,11 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         if (string.IsNullOrWhiteSpace(name)) return;
 
         _arrangement = ConnectionGrouping.Rename(_arrangement, from, name);
+
+        // The icon goes with the group; left behind, it would come back on the next group given
+        // the old name.
+        if (_icons.Remove(from, out var icon)) _icons[name.Trim()] = icon;
+        PersistIcons();
         Persist();
         Rebuild();
     }
@@ -279,9 +296,30 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     internal void RemoveGroup(string name)
     {
         _arrangement = ConnectionGrouping.Remove(_arrangement, name);
+        if (_icons.Remove(name)) PersistIcons();
         Persist();
         Rebuild();
     }
+
+    /// <summary>
+    /// Chooses a group's icon, or clears it back to a folder.
+    /// </summary>
+    internal async Task ChangeGroupIconAsync(string name)
+    {
+        if (_pickIcon is null) return;
+        var choice = await _pickIcon(
+            _icons.GetValueOrDefault(name),
+            Ui.Format(Ui.Connections.IconPickerFolderTitleFormat, name)).ConfigureAwait(true);
+        if (!choice.Chosen) return;
+
+        // Cleared rather than stored as empty, so the map only ever holds real choices.
+        if (choice.Key is { } key) _icons[name] = key;
+        else _icons.Remove(name);
+        PersistIcons();
+        Rebuild();
+    }
+
+    private void PersistIcons() => _saveIcons?.Invoke(new Dictionary<string, string>(_icons, StringComparer.OrdinalIgnoreCase));
 
     /// <summary>Why a group cannot be called this, or nothing.</summary>
     private string? Taken(string candidate, string? except = null)
@@ -332,7 +370,9 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
                 name,
                 rows,
                 new RelayCommand(_ => _ = RenameGroupAsync(name), _ => _dialogs is not null),
-                new RelayCommand(_ => RemoveGroup(name), _ => _arrangement.Count > 1)));
+                new RelayCommand(_ => RemoveGroup(name), _ => _arrangement.Count > 1),
+                new RelayCommand(_ => _ = ChangeGroupIconAsync(name), _ => _pickIcon is not null),
+                _icons.GetValueOrDefault(name)));
         }
 
         // A search that matches nothing reads as an empty panel otherwise, which is the same

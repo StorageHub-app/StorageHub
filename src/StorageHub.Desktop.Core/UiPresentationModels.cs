@@ -24,7 +24,10 @@ public enum ConnectionFieldKind
     Toggle,
     SecretReference,
     CertificateReference,
-    Fingerprint
+    Fingerprint,
+
+    /// <summary>One of the built-in icons, chosen from a grid rather than typed.</summary>
+    Icon
 }
 
 public sealed record ConnectionFieldDescriptor(

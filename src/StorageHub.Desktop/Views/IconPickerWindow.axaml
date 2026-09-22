@@ -1,0 +1,48 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
+        x:Class="StorageHub.Desktop.Views.IconPickerWindow"
+        x:DataType="vm:IconPickerModel"
+        Title="{Binding Title}"
+        Width="420" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner">
+
+  <!--
+    A grid of the icons themselves rather than a list of their names: an icon is recognised by
+    sight, and a word like "layers" has to be turned back into a picture before it can be chosen.
+  -->
+
+  <Border Classes="surface" Padding="{StaticResource PaddingLg}">
+    <StackPanel Spacing="{StaticResource SpaceMd}">
+      <ListBox ItemsSource="{Binding Choices}"
+               SelectedItem="{Binding Selected, Mode=TwoWay}"
+               Background="Transparent" BorderThickness="0"
+               AutomationProperties.Name="{Binding Title}">
+        <ListBox.ItemsPanel>
+          <ItemsPanelTemplate>
+            <WrapPanel Orientation="Horizontal"/>
+          </ItemsPanelTemplate>
+        </ListBox.ItemsPanel>
+        <ListBox.ItemTemplate>
+          <DataTemplate DataType="vm:IconChoiceModel">
+            <Border Width="40" Height="40" ToolTip.Tip="{Binding Key}"
+                    AutomationProperties.Name="{Binding Key}">
+              <LucideIcon Kind="{Binding Icon}" Size="22"
+                          HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+
+      <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="{StaticResource SpaceSm}">
+        <!-- The way back to the provider's own icon, which is what every connection shows until
+             somebody chooses otherwise. -->
+        <Button Grid.Column="0" Content="{Binding UseDefaultLabel}" Command="{Binding UseDefaultCommand}"/>
+        <Button Grid.Column="2" Content="{Binding CancelLabel}" Command="{Binding CancelCommand}" IsCancel="True"/>
+        <Button Grid.Column="3" Classes="primary" Content="{Binding UseLabel}" Command="{Binding UseCommand}"
+                IsDefault="True"/>
+      </Grid>
+    </StackPanel>
+  </Border>
+</Window>

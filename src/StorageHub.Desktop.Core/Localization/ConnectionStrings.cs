@@ -400,6 +400,8 @@ internal sealed class ConnectionStrings : LocalizationModelBase
 
     public string ChooseIcon { get; set; } = "Choose icon…";
 
+    public string FieldIcon { get; set; } = "Icon";
+
     public string TerminalDisconnected { get; set; } = "Disconnected";
 
     public string TerminalRestartingAgent { get; set; } = "Restarting the agent…";

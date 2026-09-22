@@ -4,8 +4,10 @@ using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Media.Imaging;
 using Avalonia.VisualTree;
+using Lucide.Avalonia;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Localization;
+using StorageHub.Desktop.Shell;
 using StorageHub.Desktop.Themes;
 using StorageHub.Desktop.Views;
 using Xunit;
@@ -104,6 +106,63 @@ public class ConnectionGroupPanelTests
         Assert.Equal(["Scratch", "Studio Assets"], remaining.Connections.Select(r => r.Name));
     }
 
+    /// <summary>A group's icon is drawn on its heading and remembered at once.</summary>
+    [AvaloniaFact]
+    public async Task AGroupIconIsShownAndSaved()
+    {
+        IReadOnlyDictionary<string, string>? savedIcons = null;
+        var sidebar = IconSidebar(
+            icons => savedIcons = icons,
+            (_, _) => Task.FromResult(new IconChoice(true, "layers")),
+            [Summary("Studio Assets", "Team")]);
+        await sidebar.RefreshAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(LucideIconKind.Folder, sidebar.Groups[0].Icon);
+
+        await sidebar.ChangeGroupIconAsync("Team");
+
+        Assert.Equal("layers", savedIcons?["Team"]);
+        Assert.NotEqual(LucideIconKind.Folder, sidebar.Groups[0].Icon);
+    }
+
+    /// <summary>An icon goes with its group when renamed, and away with it when removed.</summary>
+    [AvaloniaFact]
+    public async Task AGroupIconFollowsRenameAndRemove()
+    {
+        IReadOnlyDictionary<string, string>? savedIcons = null;
+        var sidebar = IconSidebar(
+            icons => savedIcons = icons,
+            (_, _) => Task.FromResult(new IconChoice(true, "layers")),
+            [Summary("Studio Assets", "Team"), Summary("Scratch")],
+            dialogs: new AnswerDialogs("Crew"));
+        await sidebar.RefreshAsync(TestContext.Current.CancellationToken);
+        await sidebar.ChangeGroupIconAsync("Team");
+
+        await sidebar.RenameGroupAsync("Team", TestContext.Current.CancellationToken);
+        Assert.Equal(["Crew"], savedIcons!.Keys);
+
+        sidebar.RemoveGroup("Crew");
+        Assert.Empty(savedIcons!);
+    }
+
+    /// <summary>Choosing the default clears the group back to a folder.</summary>
+    [AvaloniaFact]
+    public async Task AGroupIconCanBeCleared()
+    {
+        IReadOnlyDictionary<string, string>? savedIcons = null;
+        var sidebar = IconSidebar(
+            icons => savedIcons = icons,
+            (_, _) => Task.FromResult(new IconChoice(true, null)),
+            [Summary("Studio Assets", "Team")],
+            loaded: new Dictionary<string, string> { ["Team"] = "layers" });
+        await sidebar.RefreshAsync(TestContext.Current.CancellationToken);
+        Assert.NotEqual(LucideIconKind.Folder, sidebar.Groups[0].Icon);
+
+        await sidebar.ChangeGroupIconAsync("Team");
+
+        Assert.Empty(savedIcons!);
+        Assert.Equal(LucideIconKind.Folder, sidebar.Groups[0].Icon);
+    }
+
     /// <summary>Every connection reaches the panel, with a badge, under its group's heading.</summary>
     [AvaloniaFact]
     public async Task EveryConnectionIsDrawnWithItsBadge()
@@ -159,7 +218,11 @@ public class ConnectionGroupPanelTests
     /// <summary>The panel on its own, with connections in it.</summary>
     private static async Task<Window> PanelAsync(params ConnectionSummary[] connections)
     {
-        var sidebar = Sidebar([], connections);
+        // "Team" carries a chosen icon, so the photograph shows a heading with one and one without.
+        var sidebar = new ConnectionsSidebar(
+            new RelayCommand(static _ => { }),
+            () => new FixedAgent(connections),
+            loadIcons: () => new Dictionary<string, string> { ["Team"] = "layers" });
         await sidebar.RefreshAsync(TestContext.Current.CancellationToken);
 
         var window = new Window
@@ -173,6 +236,33 @@ public class ConnectionGroupPanelTests
         window.Arrange(new Rect(0, 0, 300, 620));
         window.UpdateLayout();
         return window;
+    }
+
+    /// <summary>A sidebar that keeps group icons, answering the picker as told.</summary>
+    private static ConnectionsSidebar IconSidebar(
+        Action<IReadOnlyDictionary<string, string>> saveIcons,
+        Func<string?, string, Task<IconChoice>> pickIcon,
+        ConnectionSummary[] connections,
+        IDialogService? dialogs = null,
+        IReadOnlyDictionary<string, string>? loaded = null) =>
+        new(
+            new RelayCommand(static _ => { }),
+            () => new FixedAgent(connections),
+            dialogs,
+            loadIcons: () => loaded,
+            saveIcons: saveIcons,
+            pickIcon: pickIcon);
+
+    /// <summary>Answers every prompt with the same text.</summary>
+    private sealed class AnswerDialogs(string answer) : IDialogService
+    {
+        public Task ShowAsync(DialogRequest request, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task<DialogChoice> ConfirmAsync(DialogRequest request, CancellationToken cancellationToken = default) =>
+            Task.FromResult(DialogChoice.Cancel);
+
+        public Task<string?> PromptAsync(DialogPromptRequest request, CancellationToken cancellationToken = default) =>
+            Task.FromResult<string?>(answer);
     }
 
     /// <summary>A sidebar over a fixed set of connections, saving into a list.</summary>

@@ -147,6 +147,12 @@
                                       ItemsSource="{Binding Choices}"
                                       SelectedItem="{Binding Value, Mode=TwoWay}"
                                       AutomationProperties.Name="{Binding Label}"/>
+                            <StackPanel Grid.Column="1" IsVisible="{Binding IsIcon}"
+                                        Orientation="Horizontal" Spacing="{StaticResource SpaceSm}">
+                              <LucideIcon Kind="{Binding IconKind}" Size="22" VerticalAlignment="Center"/>
+                              <Button Content="{Binding ChooseIconLabel}" Command="{Binding ChooseIconCommand}"
+                                      AutomationProperties.Name="{Binding Label}"/>
+                            </StackPanel>
                             <CheckBox Grid.Column="1" IsVisible="{Binding IsToggle}"
                                       IsChecked="{Binding IsOn, Mode=TwoWay}"
                                       AutomationProperties.Name="{Binding Label}"/>

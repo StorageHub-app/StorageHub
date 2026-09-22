@@ -140,6 +140,7 @@
   "iconPickerUseDefault": "Standard verwenden",
   "iconPickerCancel": "Abbrechen",
   "chooseIcon": "Symbol wählen…",
+  "fieldIcon": "Symbol",
   "terminalDisconnected": "Getrennt",
   "terminalRestartingAgent": "Agent wird neu gestartet…",
   "terminalAgentOutOfDate": "Der Hintergrund-Agent ist veraltet und konnte nicht neu gestartet werden. Starten Sie StorageHub neu.",

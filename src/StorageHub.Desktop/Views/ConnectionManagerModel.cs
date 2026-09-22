@@ -42,13 +42,14 @@ internal sealed class ConnectionManagerModel : INotifyPropertyChanged
         IDialogService? dialogs = null,
         IFilePickerService? files = null,
         Func<IKeyStoreAgentClient>? keyStore = null,
-        Func<IReadOnlyList<KeyStoreEntryDocument>, Task<KeyStoreEntryDocument?>>? pickKey = null)
+        Func<IReadOnlyList<KeyStoreEntryDocument>, Task<KeyStoreEntryDocument?>>? pickKey = null,
+        Func<string?, string, Task<IconChoice>>? pickIcon = null)
     {
         _storage = storage ?? throw new ArgumentNullException(nameof(storage));
         _controller = controller ?? throw new ArgumentNullException(nameof(controller));
         _dialogs = dialogs;
 
-        Editor = new ConnectionEditorModel(controller, storage, dialogs, files, keyStore, pickKey);
+        Editor = new ConnectionEditorModel(controller, storage, dialogs, files, keyStore, pickKey, pickIcon);
         Editor.Saved += (_, _) => _ = RefreshAsync();
 
         NewCommand = new RelayCommand(_ => StartNew());

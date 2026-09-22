@@ -66,7 +66,24 @@ internal sealed class ConnectionFieldModel(ConnectionFieldDescriptor descriptor,
     /// Including a fingerprint, which names something rather than carrying it, so the editor's
     /// job is the name.
     /// </remarks>
-    public bool IsText => !IsChoice && !IsToggle && !IsSecret;
+    public bool IsText => !IsChoice && !IsToggle && !IsSecret && !IsIcon;
+
+    /// <summary>An icon, shown as itself with a button to choose another.</summary>
+    public bool IsIcon => Kind == ConnectionFieldKind.Icon;
+
+    /// <summary>
+    /// What the icon row shows. Set by the editor, because an empty value means the provider's own
+    /// icon and only the editor knows which provider this is.
+    /// </summary>
+    internal Func<string, Lucide.Avalonia.LucideIconKind>? IconResolver { get; set; }
+
+    public Lucide.Avalonia.LucideIconKind IconKind =>
+        IconResolver?.Invoke(_value) ?? Lucide.Avalonia.LucideIconKind.Cloud;
+
+    /// <summary>Opens the icon picker. Set by the editor, for the icon row.</summary>
+    public ICommand? ChooseIconCommand { get; internal set; }
+
+    public static string ChooseIconLabel => Ui.Connections.ChooseIcon;
 
     /// <summary>Sends a secret to the vault and keeps its reference. Set by the editor.</summary>
     public ICommand? EnrollCommand { get; internal set; }
@@ -102,6 +119,7 @@ internal sealed class ConnectionFieldModel(ConnectionFieldDescriptor descriptor,
             _value = value;
             Raise(nameof(Value));
             Raise(nameof(IsOn));
+            Raise(nameof(IconKind));
             Changed?.Invoke(this, EventArgs.Empty);
         }
     }
@@ -144,6 +162,7 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     private readonly IFilePickerService? _files;
     private readonly Func<IKeyStoreAgentClient>? _keyStore;
     private readonly Func<IReadOnlyList<KeyStoreEntryDocument>, Task<KeyStoreEntryDocument?>>? _pickKey;
+    private readonly Func<string?, string, Task<IconChoice>>? _pickIcon;
     private readonly List<RelayCommand> _fieldCommands = [];
     private readonly Dictionary<string, string> _values = new(StringComparer.Ordinal);
     private ConnectionProfileDocument? _current;
@@ -168,9 +187,11 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         IDialogService? dialogs = null,
         IFilePickerService? files = null,
         Func<IKeyStoreAgentClient>? keyStore = null,
-        Func<IReadOnlyList<KeyStoreEntryDocument>, Task<KeyStoreEntryDocument?>>? pickKey = null)
+        Func<IReadOnlyList<KeyStoreEntryDocument>, Task<KeyStoreEntryDocument?>>? pickKey = null,
+        Func<string?, string, Task<IconChoice>>? pickIcon = null)
     {
         _controller = controller ?? throw new ArgumentNullException(nameof(controller));
+        _pickIcon = pickIcon;
         _storage = storage;
         _dialogs = dialogs;
         _files = files;
@@ -464,7 +485,11 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         new("folder", Ui.Connections.FieldFolder, ConnectionFieldKind.Text,
             HelpText: Ui.Connections.FolderHint),
         new("labels", Ui.Connections.FieldTags, ConnectionFieldKind.Text,
-            HelpText: Ui.Connections.TagsHint)
+            HelpText: Ui.Connections.TagsHint),
+
+        // Carried through every save already -- the draft factory keeps it -- but until now there
+        // was no way to change it, so an icon chosen in 1.x could be kept and never replaced.
+        new("iconKey", Ui.Connections.FieldIcon, ConnectionFieldKind.Icon)
     ];
 
     /// <summary>Lays out the connection's own fields, then the provider's three sections.</summary>
@@ -493,11 +518,41 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
                     RaiseCommands();
                 };
                 if (field.IsSecret) Arm(field);
+                if (field.IsIcon) ArmIcon(field);
                 fields.Add(field);
             }
 
             Sections.Add(new ConnectionSectionModel(title, fields));
         }
+    }
+
+    /// <summary>
+    /// Gives the icon row its picture and its button.
+    /// </summary>
+    /// <remarks>
+    /// An empty value is the provider's own icon, which is what the draft factory stores when none
+    /// is chosen, so the row shows that rather than a blank.
+    /// </remarks>
+    private void ArmIcon(ConnectionFieldModel field)
+    {
+        field.IconResolver = key => Themes.IconCatalog.Resolve(ConnectionIconCatalog.ResolveForConnection(
+            string.IsNullOrWhiteSpace(key) ? null : key, _provider.Kind, _provider.Type))
+            ?? Lucide.Avalonia.LucideIconKind.Cloud;
+        var choose = new RelayCommand(_ => _ = ChooseIconAsync(field), _ => !_isBusy && _pickIcon is not null);
+        field.ChooseIconCommand = choose;
+        _fieldCommands.Add(choose);
+    }
+
+    private async Task ChooseIconAsync(ConnectionFieldModel field)
+    {
+        if (_pickIcon is null) return;
+        var name = Sections.SelectMany(static section => section.Fields)
+            .FirstOrDefault(static candidate => candidate.Key == "profileName")?.Value;
+        var choice = await _pickIcon(
+            string.IsNullOrWhiteSpace(field.Value) ? null : field.Value,
+            Ui.Format(Ui.Connections.IconPickerConnectionTitleFormat,
+                string.IsNullOrWhiteSpace(name) ? _provider.DisplayName : name)).ConfigureAwait(true);
+        if (choice.Chosen) field.Value = choice.Key ?? string.Empty;
     }
 
     /// <summary>

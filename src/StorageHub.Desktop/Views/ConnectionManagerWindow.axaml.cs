@@ -46,7 +46,8 @@ public partial class ConnectionManagerWindow : Window
             ShellServices.Dialogs,
             ShellServices.FilePicker,
             static () => new NamedPipeKeyStoreAgentClient(),
-            entries => KeyStorePickerWindow.ChooseAsync(window, entries));
+            entries => KeyStorePickerWindow.ChooseAsync(window, entries),
+            (current, title) => IconPickerWindow.AskAsync(window, current, title));
         return window;
     }
 }

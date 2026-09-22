@@ -140,6 +140,7 @@
   "iconPickerUseDefault": "Brug standard",
   "iconPickerCancel": "Annullér",
   "chooseIcon": "Vælg ikon…",
+  "fieldIcon": "Ikon",
   "terminalDisconnected": "Afbrudt",
   "terminalRestartingAgent": "Genstarter agenten…",
   "terminalAgentOutOfDate": "Baggrundsagenten er forældet og kunne ikke genstartes. Genstart StorageHub.",

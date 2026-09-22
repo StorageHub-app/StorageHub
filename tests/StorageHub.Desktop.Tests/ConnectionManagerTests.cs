@@ -60,9 +60,9 @@ public class ConnectionManagerTests
             Assert.NotEmpty(editor.Sections);
             Assert.All(editor.Sections.SelectMany(static s => s.Fields), field =>
             {
-                // Exactly one of the four editors applies to each field, whatever its kind.
+                // Exactly one of the five editors applies to each field, whatever its kind.
                 var drawn = (field.IsText ? 1 : 0) + (field.IsChoice ? 1 : 0) +
-                    (field.IsToggle ? 1 : 0) + (field.IsSecret ? 1 : 0);
+                    (field.IsToggle ? 1 : 0) + (field.IsSecret ? 1 : 0) + (field.IsIcon ? 1 : 0);
                 Assert.Equal(1, drawn);
                 Assert.False(string.IsNullOrWhiteSpace(field.Label), $"{provider.Kind}/{field.Key}");
             });
@@ -126,6 +126,57 @@ public class ConnectionManagerTests
 
         await editor.SaveAsync(TestContext.Current.CancellationToken);
         Assert.Equal(1, profiles.Creates);
+    }
+
+    /// <summary>The icon chosen in the picker is the one the saved connection carries.</summary>
+    [AvaloniaFact]
+    public async Task AChosenIconIsSavedWithTheConnection()
+    {
+        var profiles = new FakeProfiles();
+        string? offered = "unasked";
+        var editor = new ConnectionEditorModel(
+            () => Controller(profiles),
+            pickIcon: (current, _) =>
+            {
+                offered = current;
+                return Task.FromResult(new IconChoice(true, "layers"));
+            });
+        Fill(editor);
+
+        Field(editor, "iconKey").ChooseIconCommand!.Execute(null);
+        await editor.SaveAsync(TestContext.Current.CancellationToken);
+
+        // Nothing chosen yet is offered as nothing, so the picker highlights no icon.
+        Assert.Null(offered);
+        Assert.Equal("layers", profiles.LastDraft?.Metadata.IconKey);
+    }
+
+    /// <summary>"Use default" clears the choice; dismissing the picker leaves it as it was.</summary>
+    [AvaloniaFact]
+    public void TheIconCanBeClearedAndADismissalChangesNothing()
+    {
+        var answer = IconChoice.Dismissed;
+        var editor = new ConnectionEditorModel(
+            () => Controller(new FakeProfiles()),
+            pickIcon: (_, _) => Task.FromResult(answer));
+        var icon = Field(editor, "iconKey");
+        icon.Value = "server";
+
+        icon.ChooseIconCommand!.Execute(null);
+        Assert.Equal("server", icon.Value);
+
+        answer = new IconChoice(true, null);
+        icon.ChooseIconCommand.Execute(null);
+        Assert.Equal(string.Empty, icon.Value);
+    }
+
+    /// <summary>With nothing to ask, the button is dim rather than silently doing nothing.</summary>
+    [AvaloniaFact]
+    public void WithoutAPickerTheIconCannotBeChosen()
+    {
+        var editor = new ConnectionEditorModel(() => Controller(new FakeProfiles()));
+
+        Assert.False(Field(editor, "iconKey").ChooseIconCommand!.CanExecute(null));
     }
 
     /// <summary>An agent's refusal is shown rather than thrown.</summary>
@@ -484,6 +535,8 @@ public class ConnectionManagerTests
 
         internal long? DeletedVersion { get; private set; }
 
+        internal ConnectionProfileDraft? LastDraft { get; private set; }
+
         internal StorageIpcFailure? Failure { get; init; }
 
         public Task<ConnectionProfileGetResponse> GetAsync(
@@ -540,6 +593,7 @@ public class ConnectionManagerTests
             long version,
             ConnectionProfileDraft draft)
         {
+            LastDraft = draft;
             var now = DateTimeOffset.UtcNow;
             var document = new ConnectionProfileDocument(id, version, draft, now, now);
             _stored[id] = document;

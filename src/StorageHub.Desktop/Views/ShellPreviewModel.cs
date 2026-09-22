@@ -596,7 +596,40 @@ internal static class ShellPreview
         static () => new NamedPipeRemoteStorageAgentClient(),
         Services.ShellServices.Dialogs,
         LoadGroups,
-        SaveGroups);
+        SaveGroups,
+        LoadGroupIcons,
+        SaveGroupIcons,
+        static (current, title) => Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(
+            () => IconPickerWindow.AskAsync(Services.ShellServices.MainWindow(), current, title)));
+
+    /// <summary>The icons chosen for groups in the connections panel, from the settings file.</summary>
+    private static IReadOnlyDictionary<string, string>? LoadGroupIcons()
+    {
+        try
+        {
+            var store = new DesktopConfigStore(DesktopFrameworkPaths.Resolve().ApplicationRoot);
+            store.Preflight();
+            return store.Load().FolderIcons;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    private static void SaveGroupIcons(IReadOnlyDictionary<string, string> icons)
+    {
+        try
+        {
+            var store = new DesktopConfigStore(DesktopFrameworkPaths.Resolve().ApplicationRoot);
+            store.Preflight();
+            store.Save(store.Load() with { FolderIcons = icons });
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            // The icon shows either way; only remembering it is lost.
+        }
+    }
 
     /// <summary>
     /// The connections panel's saved arrangement.
