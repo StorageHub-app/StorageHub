@@ -1,0 +1,50 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
+        x:Class="StorageHub.Desktop.Views.AgentControlWindow"
+        x:DataType="vm:AgentControlModel"
+        Title="{Binding Title}"
+        Width="520" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner">
+
+  <!--
+    What the status bar can only abbreviate to a word, said in full: the state, what it means for
+    the rest of the application, and what the agent is working on. Restart is the primary button
+    because it is the one that fixes things, and the only one offered in every state.
+  -->
+
+  <Border Classes="surface" Padding="{StaticResource PaddingLg}">
+    <StackPanel Spacing="{StaticResource SpaceMd}">
+
+      <TextBlock Classes="section"
+                 Classes.success="{Binding IsSuccess}"
+                 Classes.warning="{Binding IsWarning}"
+                 Classes.danger="{Binding IsDanger}"
+                 Text="{Binding State}"/>
+
+      <TextBlock Classes="muted" Text="{Binding Detail}" TextWrapping="Wrap"
+                 AutomationProperties.Name="{Binding DetailAccessibleName}"/>
+
+      <StackPanel Spacing="{StaticResource SpaceXs}">
+        <TextBlock Classes="caption" Text="{Binding Counters}"/>
+        <TextBlock Classes="caption" Text="{Binding Observed}"/>
+      </StackPanel>
+
+      <TextBlock Classes="status"
+                 Classes.success="{Binding Outcome.IsSuccess}"
+                 Classes.warning="{Binding Outcome.IsWarning}"
+                 Classes.danger="{Binding Outcome.IsDanger}"
+                 Text="{Binding Outcome.Text}" TextWrapping="Wrap"
+                 AutomationProperties.Name="{Binding OutcomeAccessibleName}"/>
+
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                  Spacing="{StaticResource SpaceSm}" Margin="0,8,0,0">
+        <Button Content="{Binding StartLabel}" Command="{Binding StartCommand}"/>
+        <Button Content="{Binding StopLabel}" Command="{Binding StopCommand}"/>
+        <Button Classes="primary" Content="{Binding RestartLabel}" Command="{Binding RestartCommand}"/>
+        <Button Content="{Binding CloseLabel}" Command="{Binding CloseCommand}" IsCancel="True"/>
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</Window>

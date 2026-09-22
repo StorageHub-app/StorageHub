@@ -390,6 +390,15 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
     }
 
     /// <summary>
+    /// The last thing the agent said about itself, whole, or null before it has said anything.
+    /// </summary>
+    /// <remarks>
+    /// Read by the agent control window rather than pushed to it, because that window is opened on
+    /// demand and may never be.
+    /// </remarks>
+    public AgentMonitorStatus? AgentStatus { get; private set; }
+
+    /// <summary>
     /// Watches a real agent and reports its state in the status bar.
     /// </summary>
     /// <remarks>
@@ -402,11 +411,17 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         ArgumentNullException.ThrowIfNull(monitor);
 
         monitor.StatusChanged += (_, e) => Dispatcher.UIThread.Post(() =>
+        {
+            // Kept whole as well as summarised. The status bar needs two of these five fields; the
+            // agent control window needs all of them, including the detail that says *why* the
+            // agent is in recovery, which is the one thing a single word cannot carry.
+            AgentStatus = e.Status;
             ShellStatus = ShellStatus with
             {
                 AgentState = e.Status.State,
                 ActiveJobs = e.Status.ActiveTransfers,
-            });
+            };
+        });
 
         monitor.Start();
     }

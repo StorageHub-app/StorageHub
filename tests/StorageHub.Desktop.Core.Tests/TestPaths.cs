@@ -23,6 +23,34 @@ internal static class TestPaths
     private static readonly string Root = OperatingSystem.IsWindows() ? @"C:\" : "/";
 
     /// <summary>
+    /// A file in the repository, for the rare test whose subject is a file that is not compiled.
+    /// </summary>
+    /// <remarks>
+    /// Found by walking up from the test binary to the solution rather than by counting
+    /// directories, because the number of them between the two is a build-configuration detail and
+    /// a test that hard-codes it breaks the first time anyone changes the output path.
+    /// </remarks>
+    internal static string RepositoryFile(string relative)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(relative);
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "StorageHub.slnx")))
+        {
+            directory = directory.Parent;
+        }
+
+        if (directory is null)
+        {
+            throw new InvalidOperationException(
+                "The repository root could not be found from " + AppContext.BaseDirectory + ".");
+        }
+
+        return Path.Combine(
+            directory.FullName,
+            relative.Replace('/', Path.DirectorySeparatorChar));
+    }
+
+    /// <summary>
     /// <paramref name="relative"/> under that root, with either slash read as a separator so the
     /// call sites still read like the paths a user would type on Windows.
     /// </summary>

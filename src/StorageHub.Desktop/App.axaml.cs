@@ -59,6 +59,11 @@ public partial class App : global::Avalonia.Application
             // the agent holds, so the shell refreshes itself when it reports that it did.
             model.Router.Handle(UiCommandIds.ToolsExportSettings, () => ShowExportSettings(desktop));
             model.Router.Handle(UiCommandIds.ToolsImportSettings, () => ShowImportSettings(desktop, model));
+
+            // The background agent's own screen. It is the only place the agent can be started or
+            // stopped from, which matters most on Linux: the .deb installs the unit but leaves
+            // enabling it to each user, and its own postinst points them here.
+            model.Router.Handle(UiCommandIds.ToolsBackgroundAgent, () => ShowAgentControl(desktop, model));
             if (model.SyncTasks is { } syncTasks)
             {
                 syncTasks.NewProfileCommand = new RelayCommand(
@@ -163,6 +168,22 @@ public partial class App : global::Avalonia.Application
             _ = model.SyncTasks?.RefreshAsync();
         };
 
+        if (desktop.MainWindow is { } owner) _ = window.ShowDialog(owner);
+        else window.Show();
+    }
+
+    /// <summary>
+    /// Opens the agent control window, reading whatever the shell last heard from the agent.
+    /// </summary>
+    /// <remarks>
+    /// The status is passed as a function rather than a value because the window polls: the agent
+    /// it is showing may start or stop while it is open, which is rather the point of it.
+    /// </remarks>
+    private static void ShowAgentControl(
+        IClassicDesktopStyleApplicationLifetime desktop,
+        ShellPreviewModel model)
+    {
+        var window = Views.AgentControlWindow.ForCurrentAgent(() => model.AgentStatus);
         if (desktop.MainWindow is { } owner) _ = window.ShowDialog(owner);
         else window.Show();
     }

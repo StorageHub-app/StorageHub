@@ -91,6 +91,30 @@ internal sealed class UpdateStrings : LocalizationModelBase
     public string Working { get; set; } = "Working…";
 
     // ------------------------------------------------------- agent control form
+    public string AgentActionNotSupported { get; set; } = "That agent action is not supported.";
+
+    public string AgentCommandTimedOut { get; set; } = "The command did not finish in time.";
+
+    public string AgentCouldNotBeControlled { get; set; } = "The agent could not be controlled.";
+
+    public string AgentCouldNotBeLaunched { get; set; } = "The agent could not be launched.";
+
+    public string AgentDidNotBecomeAvailable { get; set; } = "The agent did not become available in time.";
+
+    public string AgentDidNotConfirmShutdown { get; set; } = "The agent did not confirm shutdown within the timeout.";
+
+    public string AgentExecutableMissing { get; set; } = "The agent executable is missing. Repair or reinstall StorageHub.";
+
+    public string AgentRestarted { get; set; } = "The agent restarted.";
+
+    public string AgentRestartedWithoutShutdown { get; set; } = "The agent restarted, but the previous instance did not confirm shutdown.";
+
+    public string AgentStarted { get; set; } = "The agent started.";
+
+    public string AgentStopped { get; set; } = "The agent stopped.";
+
+    public string AgentWasAlreadyRunning { get; set; } = "The agent was already running.";
+
     public string AgentStart { get; set; } = "Start";
 
     public string AgentStop { get; set; } = "Stop";
