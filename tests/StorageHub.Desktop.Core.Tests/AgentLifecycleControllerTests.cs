@@ -142,6 +142,47 @@ public sealed class AgentLifecycleControllerTests
             StringComparer.Ordinal);
     }
 
+    /// <summary>
+    /// The real runner against a real process, which is the part the stub cannot cover.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Every other test here replaces the runner, so nothing would otherwise prove that it spawns
+    /// anything, reads the right stream, or reports an exit code. systemd writes its refusals to
+    /// standard error and nothing to standard output -- verified against systemd itself -- so a
+    /// runner that read the wrong stream would turn every useful message into a shrug.
+    /// </para>
+    /// <para>
+    /// A shell rather than systemctl, so this runs on the Windows machine this is developed on as
+    /// well as on the Linux one it ships to.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task TheRealRunnerReportsAnExitCodeAndWhatWentToStandardError()
+    {
+        var (shell, arguments) = OperatingSystem.IsWindows()
+            ? ("cmd.exe", (IReadOnlyList<string>)["/c", "echo oops 1>&2 & exit 3"])
+            : ("/bin/sh", ["-c", "printf oops >&2; exit 3"]);
+
+        var result = await new ProcessRunner().RunAsync(shell, arguments, CancellationToken.None);
+
+        Assert.True(result.Ran);
+        Assert.False(result.Succeeded);
+        Assert.Equal(3, result.ExitCode);
+        Assert.Equal("oops", result.Error);
+    }
+
+    /// <summary>A command that is not on this machine is "not run", not "failed".</summary>
+    [Fact]
+    public async Task TheRealRunnerSaysWhenThereIsNothingToRun()
+    {
+        var result = await new ProcessRunner()
+            .RunAsync("storagehub-no-such-command", [], CancellationToken.None);
+
+        Assert.False(result.Ran);
+        Assert.False(result.Succeeded);
+    }
+
     private sealed class StubProcessRunner : IProcessRunner
     {
         internal ProcessRunResult Result { get; init; } = new(true, 0, string.Empty);
