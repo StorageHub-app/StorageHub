@@ -362,6 +362,12 @@ internal sealed class SyncStrings : LocalizationModelBase
     /// <summary>{0} = the current path, {1} = how many folders are shown.</summary>
     public string PickerPathCountFormat { get; set; } = "{0} - {1} folder(s) shown.";
 
+    /// <summary>{0} = the location's name, {1} = the connection's display name.</summary>
+    public string PickerUsesRootFormat { get; set; } = "{0} uses the root of {1}.";
+
+    /// <summary>{0} = the location's name, {1} = the folder chosen.</summary>
+    public string PickerFolderSelectedFormat { get; set; } = "{0} folder selected: {1}";
+
     // ------------------------------------------------------------ run review
     public string RunReviewAccessibleName { get; set; } = "Synchronization run review";
 

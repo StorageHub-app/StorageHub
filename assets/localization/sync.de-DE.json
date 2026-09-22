@@ -128,6 +128,8 @@
   "pickerBrowseHintFormat": "Durchsuchen Sie diese gespeicherte {0}-Verbindung. Der gewählte Pfad wird relativ zu ihrem Stamm gespeichert.",
   "pickerRootCountFormat": "Stamm der Verbindung - {0} Ordner angezeigt.",
   "pickerPathCountFormat": "{0} - {1} Ordner angezeigt.",
+  "pickerUsesRootFormat": "{0} verwendet den Stamm von {1}.",
+  "pickerFolderSelectedFormat": "Ordner für {0} ausgewählt: {1}",
   "runReviewAccessibleName": "Prüfung des Synchronisierungslaufs",
   "runReviewAccessibleDescription": "Unveränderliche Synchronisierungsvorgänge, Konflikte, Genehmigung und Live-Laufstatus.",
   "planTab": "Plan",

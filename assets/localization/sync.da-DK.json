@@ -128,6 +128,8 @@
   "pickerBrowseHintFormat": "Gennemse denne gemte {0}-forbindelse. Den valgte sti gemmes relativt til dens rod.",
   "pickerRootCountFormat": "Forbindelsens rod - {0} mappe(r) vist.",
   "pickerPathCountFormat": "{0} - {1} mappe(r) vist.",
+  "pickerUsesRootFormat": "{0} bruger roden af {1}.",
+  "pickerFolderSelectedFormat": "Mappe valgt for {0}: {1}",
   "runReviewAccessibleName": "Gennemsyn af synkroniseringskørsel",
   "runReviewAccessibleDescription": "Uforanderlige synkroniseringshandlinger, konflikter, godkendelse og live kørselsstatus.",
   "planTab": "Plan",

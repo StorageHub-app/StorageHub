@@ -86,9 +86,14 @@
                           SelectedItem="{Binding LocationA, Mode=TwoWay}"
                           HorizontalAlignment="Stretch"
                           AutomationProperties.Name="{Binding ConnectionLabel}"/>
-                <TextBox Text="{Binding LocationARoot, Mode=TwoWay}"
-                         PlaceholderText="{Binding FolderLabel}"
-                         AutomationProperties.Name="{Binding LocationAAccessibleName}"/>
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpaceSm}">
+                  <TextBox Text="{Binding LocationARoot, Mode=TwoWay}"
+                           PlaceholderText="{Binding FolderLabel}"
+                           AutomationProperties.Name="{Binding LocationAAccessibleName}"/>
+                  <Button Grid.Column="1" Content="{Binding BrowseLabel}"
+                          Command="{Binding BrowseLocationACommand}"
+                          AutomationProperties.Name="{Binding BrowseLocationAAccessibleName}"/>
+                </Grid>
                 <TextBlock Classes="status danger" Text="{Binding LocationAProblem}"
                            IsVisible="{Binding HasLocationAProblem}" TextWrapping="Wrap"/>
               </StackPanel>
@@ -103,9 +108,14 @@
                           SelectedItem="{Binding LocationB, Mode=TwoWay}"
                           HorizontalAlignment="Stretch"
                           AutomationProperties.Name="{Binding ConnectionLabel}"/>
-                <TextBox Text="{Binding LocationBRoot, Mode=TwoWay}"
-                         PlaceholderText="{Binding FolderLabel}"
-                         AutomationProperties.Name="{Binding LocationBAccessibleName}"/>
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpaceSm}">
+                  <TextBox Text="{Binding LocationBRoot, Mode=TwoWay}"
+                           PlaceholderText="{Binding FolderLabel}"
+                           AutomationProperties.Name="{Binding LocationBAccessibleName}"/>
+                  <Button Grid.Column="1" Content="{Binding BrowseLabel}"
+                          Command="{Binding BrowseLocationBCommand}"
+                          AutomationProperties.Name="{Binding BrowseLocationBAccessibleName}"/>
+                </Grid>
                 <TextBlock Classes="status danger" Text="{Binding LocationBProblem}"
                            IsVisible="{Binding HasLocationBProblem}" TextWrapping="Wrap"/>
               </StackPanel>

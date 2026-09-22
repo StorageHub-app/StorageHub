@@ -13,7 +13,8 @@ namespace StorageHub.Desktop.Views;
 /// A disabled connection is still offered: a profile may name one that was switched off since, and
 /// hiding it would silently change the profile the next time it was saved.
 /// </remarks>
-internal sealed record ConnectionChoice(Guid ConnectionId, string DisplayName, bool IsEnabled)
+/// <param name="ProviderName">What kind of connection it is, for the folder picker's hint.</param>
+internal sealed record ConnectionChoice(Guid ConnectionId, string DisplayName, bool IsEnabled, string ProviderName = "")
 {
     public string Caption => IsEnabled
         ? DisplayName
@@ -47,15 +48,14 @@ internal sealed record ConflictPolicyChoice(SyncIpcConflictPolicy Policy, string
 /// a complaint belongs to, what a new profile starts as, and what Swap does.
 /// </para>
 /// <para>
-/// Not carried over: the two Browse buttons. They opened <c>SyncLocationPickerForm</c>, which is
-/// its own screen and is not ported, and a Browse button that does nothing is precisely what the
-/// menus were cleaned up to stop doing. The roots are typed, with the hint that an empty one means
-/// the connection root, which is what most profiles use.
+/// A root can be typed, or chosen with Browse from the folders of the connection it belongs to.
+/// The picker is supplied by the window, so a test answers it instead.
 /// </para>
 /// </remarks>
 internal sealed class SyncProfileEditorModel : INotifyPropertyChanged
 {
     private readonly SyncProfileEditorController? _controller;
+    private readonly Func<ConnectionChoice, string, string, Task<string?>>? _pickLocation;
     private SyncProfileDocument? _current;
     private ProfileChoice _selectedProfile = ProfileChoice.New;
     private ConnectionChoice? _locationA;
@@ -96,9 +96,17 @@ internal sealed class SyncProfileEditorModel : INotifyPropertyChanged
     private static readonly string[] DefaultExcludes =
         [".storagehub", ".storagehub/**", "**/.storagehub/**"];
 
-    internal SyncProfileEditorModel(SyncProfileEditorController? controller = null)
+    /// <param name="controller">The agent behind the editor; none for a preview.</param>
+    /// <param name="pickLocation">
+    /// Shows a connection's folders and answers the one chosen, or null when dismissed. Given the
+    /// connection, the root typed so far, and the location's name.
+    /// </param>
+    internal SyncProfileEditorModel(
+        SyncProfileEditorController? controller = null,
+        Func<ConnectionChoice, string, string, Task<string?>>? pickLocation = null)
     {
         _controller = controller;
+        _pickLocation = pickLocation;
         _behavior = SyncBehaviorCatalog.Options.First(
             static option => option.Behavior == SyncIpcBehavior.UpdateAToB);
         _conflictPolicy = ConflictPolicies[0];
@@ -108,6 +116,10 @@ internal sealed class SyncProfileEditorModel : INotifyPropertyChanged
         RefreshCommand = new RelayCommand(_ => _ = LoadAsync(), _ => Live && !IsBusy);
         NewProfileCommand = new RelayCommand(_ => BeginNewProfile(), _ => !IsBusy);
         SwapCommand = new RelayCommand(_ => Swap(), _ => !IsBusy);
+        BrowseLocationACommand = new RelayCommand(
+            _ => _ = BrowseAsync(isA: true), _ => !IsBusy && _pickLocation is not null);
+        BrowseLocationBCommand = new RelayCommand(
+            _ => _ = BrowseAsync(isA: false), _ => !IsBusy && _pickLocation is not null);
 
         Profiles.Add(ProfileChoice.New);
     }
@@ -118,8 +130,9 @@ internal sealed class SyncProfileEditorModel : INotifyPropertyChanged
     /// <summary>And one that will ask the agent.</summary>
     internal static SyncProfileEditorModel Create(
         Func<ISyncManagementAgentClient> syncClients,
-        Func<IRemoteStorageAgentClient> storageClients) =>
-        new(new SyncProfileEditorController(syncClients, storageClients));
+        Func<IRemoteStorageAgentClient> storageClients,
+        Func<ConnectionChoice, string, string, Task<string?>>? pickLocation = null) =>
+        new(new SyncProfileEditorController(syncClients, storageClients), pickLocation);
 
     /// <summary>Raised with the run a preview produced, so the shell can show it for review.</summary>
     internal event EventHandler<SyncRunSummary>? PreviewReady;
@@ -275,7 +288,10 @@ internal sealed class SyncProfileEditorModel : INotifyPropertyChanged
         {
             if (!Set(ref _isBusy, value)) return;
             foreach (var command in new[]
-                { SaveCommand, PreviewCommand, RefreshCommand, NewProfileCommand, SwapCommand })
+                {
+                    SaveCommand, PreviewCommand, RefreshCommand, NewProfileCommand, SwapCommand,
+                    BrowseLocationACommand, BrowseLocationBCommand
+                })
             {
                 (command as RelayCommand)?.RaiseCanExecuteChanged();
             }
@@ -358,6 +374,10 @@ internal sealed class SyncProfileEditorModel : INotifyPropertyChanged
     public ICommand NewProfileCommand { get; }
 
     public ICommand SwapCommand { get; }
+
+    public ICommand BrowseLocationACommand { get; }
+
+    public ICommand BrowseLocationBCommand { get; }
 
     /// <summary>Reads the saved profiles and the connections they can point at.</summary>
     internal async Task LoadAsync(CancellationToken cancellationToken = default)
@@ -517,6 +537,38 @@ internal sealed class SyncProfileEditorModel : INotifyPropertyChanged
         (LocationARoot, LocationBRoot) = (LocationBRoot, LocationARoot);
     }
 
+    /// <summary>
+    /// Chooses one location's root from the folders of its connection.
+    /// </summary>
+    /// <remarks>
+    /// The connection has to be chosen first: the folders are that connection's, and a root means
+    /// nothing without it.
+    /// </remarks>
+    internal async Task BrowseAsync(bool isA)
+    {
+        if (_pickLocation is null) return;
+        var locationName = isA ? Ui.Sync.LocationA : Ui.Sync.LocationB;
+        var connection = isA ? LocationA : LocationB;
+        if (connection is null)
+        {
+            Status = new StatusLine(
+                Ui.Format(Ui.Sync.SelectConnectionForLocationFormat, locationName), MetricTone.Danger);
+            return;
+        }
+
+        var chosen = await _pickLocation(
+            connection, (isA ? LocationARoot : LocationBRoot).Trim(), locationName).ConfigureAwait(true);
+        if (chosen is null) return;
+
+        if (isA) LocationARoot = chosen;
+        else LocationBRoot = chosen;
+        Status = new StatusLine(
+            chosen.Length == 0
+                ? Ui.Format(Ui.Sync.PickerUsesRootFormat, locationName, connection.DisplayName)
+                : Ui.Format(Ui.Sync.PickerFolderSelectedFormat, locationName, chosen),
+            MetricTone.Success);
+    }
+
     /// <summary>The draft as the fields currently stand.</summary>
     internal SyncProfileDraftDocument BuildDraft() => new(
         Name.Trim(),
@@ -544,7 +596,10 @@ internal sealed class SyncProfileEditorModel : INotifyPropertyChanged
             static connection => connection.DisplayName, StringComparer.CurrentCultureIgnoreCase))
         {
             Connections.Add(new ConnectionChoice(
-                connection.ConnectionId, connection.DisplayName, connection.IsEnabled));
+                connection.ConnectionId,
+                connection.DisplayName,
+                connection.IsEnabled,
+                ConnectionProviderCatalog.Get(ConnectionCardFactory.MapProvider(connection.Provider)).DisplayName));
         }
 
         _suppressSelection = true;
@@ -725,6 +780,12 @@ internal sealed class SyncProfileEditorModel : INotifyPropertyChanged
     public static string StepSafety => Ui.Sync.StepSafety;
 
     public static string LocationALabel => Ui.Sync.LocationA;
+
+    public static string BrowseLabel => Ui.Sync.Browse;
+
+    public static string BrowseLocationAAccessibleName => Ui.Sync.BrowseLocationA;
+
+    public static string BrowseLocationBAccessibleName => Ui.Sync.BrowseLocationB;
 
     public static string LocationBLabel => Ui.Sync.LocationB;
 

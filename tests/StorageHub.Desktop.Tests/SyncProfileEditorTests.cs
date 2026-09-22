@@ -317,7 +317,8 @@ public class SyncProfileEditorTests
             Profiles = [Profile("Nightly photos"), Profile("Archive")],
             Connections = [Connection("Studio Assets"), Connection("Site Backups")]
         };
-        var model = SyncProfileEditorModel.Create(() => agent, () => agent);
+        var model = SyncProfileEditorModel.Create(
+            () => agent, () => agent, static (_, _, _) => Task.FromResult<string?>(null));
         await model.LoadAsync(TestContext.Current.CancellationToken);
         model.Name = "Nightly photos";
         model.LocationARoot = "photos/2019";

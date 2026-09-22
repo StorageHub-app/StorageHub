@@ -18,10 +18,13 @@ public partial class SyncProfileEditorWindow : Window
     /// </remarks>
     internal static SyncProfileEditorWindow ForCurrentAgent()
     {
+        var window = new SyncProfileEditorWindow();
         var model = SyncProfileEditorModel.Create(
             static () => new NamedPipeSyncManagementAgentClient(),
-            static () => new NamedPipeRemoteStorageAgentClient());
-        var window = new SyncProfileEditorWindow { DataContext = model };
+            static () => new NamedPipeRemoteStorageAgentClient(),
+            (connection, root, locationName) => SyncLocationPickerWindow.AskAsync(
+                window, static () => new NamedPipeRemoteStorageAgentClient(), connection, root, locationName));
+        window.DataContext = model;
         window.Opened += (_, _) => _ = model.LoadAsync();
         return window;
     }
