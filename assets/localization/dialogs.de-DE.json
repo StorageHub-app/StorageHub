@@ -31,6 +31,7 @@
   "objectInspectorCaption": "Objektinspektor",
   "externalEditorCaption": "Externer Editor",
   "externalEditorOpenFailedFormat": "StorageHub konnte den externen Editor nicht öffnen. {0}",
+  "fileTooLargeToEditFormat": "'{0}' ist größer als die konfigurierte Bearbeitungsgrenze von {1:N0} KiB.",
   "externalEditorTooLargeFormat": "Die bearbeitete Datei ist größer als das konfigurierte Limit von {0:N0} KiB und kann nicht hochgeladen werden.",
   "uploadEditedFileCaption": "Bearbeitete Datei hochladen",
   "uploadEditedFilePromptFormat": "'{0}' wurde im externen Editor geändert. Möchten Sie sie zurück zur Remoteverbindung hochladen?",

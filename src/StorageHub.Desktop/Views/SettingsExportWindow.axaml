@@ -18,7 +18,7 @@
     <DockPanel Margin="{StaticResource PaddingLg}">
 
       <StackPanel DockPanel.Dock="Top" Spacing="{StaticResource SpaceXs}" Margin="0,0,0,10">
-        <TextBlock Classes="section" Text="{Binding Heading}"/>
+        <TextBlock Classes="heading" Text="{Binding Heading}"/>
         <TextBlock Classes="muted" Text="{Binding Hint}" TextWrapping="Wrap"/>
       </StackPanel>
 
@@ -79,7 +79,7 @@
           </ItemsControl>
 
           <!-- Said out loud, because a silent omission is what surprises somebody on a new machine. -->
-          <TextBlock Classes="section" Text="{Binding ExclusionsHeading}" Margin="0,8,0,4"/>
+          <TextBlock Classes="heading" Text="{Binding ExclusionsHeading}" Margin="0,8,0,4"/>
           <ItemsControl ItemsSource="{Binding Exclusions}">
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="x:String">

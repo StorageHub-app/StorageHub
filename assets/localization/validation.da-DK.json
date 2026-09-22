@@ -213,7 +213,7 @@
   "updatesIdle": "Opdateringer: inaktiv",
   "updatesInstallStorageHubToEnable": "Opdateringer: installér StorageHub for at aktivere",
   "windowsCouldNotReadThisLocationIt": "Windows kunne ikke læse denne placering. Den kan være afbrudt eller i brug.",
-  "windowsCouldNotStartTheConfiguredEditor": "Windows kunne ikke starte den konfigurerede editor.",
+  "theConfiguredEditorCouldNotStart": "Den konfigurerede editor kunne ikke startes.",
   "enterAName": "Angiv et navn.",
   "namesCannotBeginOrEndWithSpaces": "Navne må ikke begynde eller slutte med mellemrum eller slutte med et punktum.",
   "namesCannotExceedCharactersFormat": "Navne må ikke overstige {0:N0} tegn.",

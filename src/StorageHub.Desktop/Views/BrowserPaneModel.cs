@@ -89,6 +89,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     private readonly Func<PaneMutationController>? _mutations;
     private readonly IDialogService? _dialogs;
     private readonly Func<ObjectInspectorAddress, Task>? _inspect;
+    private readonly Func<ObjectInspectorAddress, string, long?, Task>? _edit;
     private PagedListingIndex? _index;
     private int _paneNumber = 1;
     private bool _showConnectionBar = true;
@@ -130,7 +131,8 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         IDialogService? dialogs = null,
         Func<ISshTerminalAgentClient>? terminals = null,
         Func<IAgentLifecycleController?>? agentLifecycle = null,
-        Func<ObjectInspectorAddress, Task>? inspect = null)
+        Func<ObjectInspectorAddress, Task>? inspect = null,
+        Func<ObjectInspectorAddress, string, long?, Task>? edit = null)
     {
         _terminals = terminals;
         _agentLifecycle = agentLifecycle;
@@ -139,8 +141,11 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         _mutations = mutations;
         _dialogs = dialogs;
         _inspect = inspect;
+        _edit = edit;
         SelectedRows.CollectionChanged += (_, _) =>
         {
+            (OpenCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (EditCommand as RelayCommand)?.RaiseCanExecuteChanged();
             Raise(nameof(HasSelection));
             Raise(nameof(SelectionSummary));
             (RenameCommand as RelayCommand)?.RaiseCanExecuteChanged();
@@ -148,6 +153,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             (PropertiesCommand as RelayCommand)?.RaiseCanExecuteChanged();
         };
         PropertiesCommand = new RelayCommand(_ => _ = InspectAsync(), _ => CanInspect);
+        EditCommand = new RelayCommand(_ => _ = EditAsync(), _ => CanEdit);
 
         NewFolderCommand = new RelayCommand(
             _ => _ = CreateAsync(container: true), _ => CanMutateHere);
@@ -166,7 +172,8 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         InvertSelectionCommand = new RelayCommand(_ => InvertSelection(), _ => Selectable().Count > 0);
         ClearFilterCommand = new RelayCommand(_ => Filter = string.Empty, _ => HasFilter);
 
-        OpenCommand = new RelayCommand(_ => _ = OpenSelectedAsync(), _ => Selected?.IsContainer == true);
+        OpenCommand = new RelayCommand(
+            _ => _ = OpenSelectedAsync(), _ => Selected?.IsContainer == true || CanEdit);
         UpCommand = new RelayCommand(_ => _ = UpAsync(), _ => _source?.CanGoUp == true);
         BackCommand = new RelayCommand(_ => _ = BackAsync(), _ => _source?.CanGoBack == true);
         ForwardCommand = new RelayCommand(_ => _ = ForwardAsync(), _ => _source?.CanGoForward == true);
@@ -577,6 +584,52 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
 
     /// <summary>Opens the read-only object inspector on the one selected file.</summary>
     public ICommand PropertiesCommand { get; }
+
+    /// <summary>Opens the one selected file in the external editor.</summary>
+    public ICommand EditCommand { get; }
+
+    public static string EditLabel => Ui.Pane.EditInExternalEditor;
+
+    /// <summary>
+    /// Whether the selection is one file on a saved connection, which is what can be edited.
+    /// </summary>
+    /// <remarks>
+    /// The inspector's rule exactly, because it is the same address: the agent reads and writes the
+    /// file by it. A file on this computer is not offered; it is already somewhere an editor can
+    /// open it directly, which is what 1.x said too.
+    /// </remarks>
+    internal bool CanEdit =>
+        _edit is not null &&
+        !IsTerminal &&
+        PaneTransferSnapshots.SelectionFor(_source, SelectedRows) is { IsSuccess: true } selection &&
+        PaneInspection.CanInspect(Here(), selection.Value.Items);
+
+    /// <summary>
+    /// Opens the selected file in the external editor, or says why it cannot.
+    /// </summary>
+    internal async Task EditAsync(CancellationToken cancellationToken = default)
+    {
+        if (_edit is null) return;
+
+        var selection = PaneTransferSnapshots.SelectionFor(_source, SelectedRows);
+        if (selection.IsFailure)
+        {
+            Status = selection.Error.Message;
+            return;
+        }
+
+        var address = PaneInspection.AddressFor(
+            Here(), selection.Value.Items, out var problem, Ui.Shell.ExternalEditRequiresOneFile);
+        if (address is null)
+        {
+            Status = problem!;
+            return;
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        var item = selection.Value.Items[0];
+        await _edit(address, item.Name, item.Length).ConfigureAwait(true);
+    }
 
     /// <summary>
     /// What a drop on this pane does with what landed. Set by the workspace, which owns the queue.
@@ -1011,12 +1064,22 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     /// </remarks>
     internal Task OpenSelectedAsync(CancellationToken cancellationToken = default)
     {
+        // A file opens in the external editor, as a double-click did in 1.x; a folder is entered.
+        if (Selected is { IsContainer: false, IsParentNavigation: false })
+        {
+            return CanEdit ? EditAsync(cancellationToken) : Task.CompletedTask;
+        }
+
         if (Selected is not { IsContainer: true } row) return Task.CompletedTask;
 
         return row.IsParentNavigation
             ? UpAsync(cancellationToken)
             : NavigateAsync(row.Location ?? row.Name, cancellationToken);
     }
+
+    /// <summary>Reads the current folder again.</summary>
+    internal Task RefreshAsync(CancellationToken cancellationToken = default) =>
+        MoveAsync(PaneNavigationKind.Refresh, cancellationToken);
 
     internal Task UpAsync(CancellationToken cancellationToken = default) =>
         MoveAsync(PaneNavigationKind.Up, cancellationToken);

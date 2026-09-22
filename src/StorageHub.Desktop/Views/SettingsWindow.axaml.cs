@@ -30,7 +30,8 @@ public partial class SettingsWindow : Window
         var model = new SettingsModel(
             store.Load,
             store.Save,
-            ApplyScheme);
+            ApplyScheme,
+            Services.ShellServices.FilePicker);
 
         var window = new SettingsWindow { DataContext = model };
         model.Closed += (_, _) => window.Close();

@@ -17,7 +17,7 @@
   <Border Classes="surface" Padding="{StaticResource PaddingLg}">
     <StackPanel Spacing="{StaticResource SpaceMd}">
 
-      <TextBlock Classes="section"
+      <TextBlock Classes="heading"
                  Classes.success="{Binding IsSuccess}"
                  Classes.warning="{Binding IsWarning}"
                  Classes.danger="{Binding IsDanger}"

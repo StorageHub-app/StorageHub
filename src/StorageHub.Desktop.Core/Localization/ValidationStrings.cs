@@ -464,7 +464,7 @@ internal sealed class ValidationStrings : LocalizationModelBase
 
     public string WindowsCouldNotReadThisLocationIt { get; set; } = "Windows could not read this location. It may be disconnected or in use.";
 
-    public string WindowsCouldNotStartTheConfiguredEditor { get; set; } = "Windows could not start the configured editor.";
+    public string TheConfiguredEditorCouldNotStart { get; set; } = "The configured editor could not be started.";
 
     // ------------------------------------------------------------- item names
     public string EnterAName { get; set; } = "Enter a name.";

@@ -163,6 +163,52 @@ public class SettingsPageCatalogTests
         }
     }
 
+    /// <summary>
+    /// A path that is not a full one is refused with a sentence, and not written.
+    /// </summary>
+    /// <remarks>
+    /// The settings file drops an editor path that is not fully qualified when it is loaded, so
+    /// saving one would look like it had worked and then quietly revert.
+    /// </remarks>
+    [Fact]
+    public void AnEditorPathMustBeAFullOne()
+    {
+        var editor = SettingsPageCatalog.AllRows.Single(r => r.Key == "external-editor");
+        var before = DesktopUpdatePreferences.Defaults with { ExternalEditorPath = TestPaths.Rooted("tools/old") };
+
+        Assert.Equal(Localization.Ui.Settings.EditorPathMustBeFull, editor.Validate!("code"));
+        Assert.Equal(before, editor.Write(before, "code"));
+        Assert.Null(editor.Validate!(""));
+        Assert.Null(editor.Write(before, "  ").ExternalEditorPath);
+    }
+
+    /// <summary>The size is shown in KiB and stored in bytes, as 1.x did.</summary>
+    [Fact]
+    public void TheEditingLimitIsKilobytesOnScreen()
+    {
+        var limit = SettingsPageCatalog.AllRows.Single(r => r.Key == "maximum-editable-kib");
+
+        Assert.Equal(512 * 1024, limit.Write(DesktopUpdatePreferences.Defaults, "512").MaximumEditableFileBytes);
+        Assert.Equal("1024", limit.Read(DesktopUpdatePreferences.Defaults));
+    }
+
+    /// <summary>
+    /// The unsafe-edit warning is restored where it says it is.
+    /// </summary>
+    /// <remarks>
+    /// Its checkbox hint reads "restore this warning later in Settings under Editing". The toggle
+    /// sat under Confirmations after the port, with no Editing page for the hint to point at.
+    /// </remarks>
+    [Fact]
+    public void TheUnsafeEditWarningIsUnderEditing()
+    {
+        var editing = SettingsPageCatalog.Pages.Single(page => page.Key == "editing");
+
+        Assert.Equal(Localization.Ui.Settings.CategoryEditing, editing.Title);
+        Assert.Contains(editing.Rows, row => row.Key == "warn-unsafe-edit");
+        Assert.Single(SettingsPageCatalog.AllRows, row => row.Key == "warn-unsafe-edit");
+    }
+
     private static IReadOnlyList<string> ValuesFor(SettingsRowDefinition row) => row.Kind switch
     {
         SettingsControlKind.Toggle => ["true", "false"],
@@ -170,6 +216,8 @@ public class SettingsPageCatalogTests
         SettingsControlKind.Number =>
             [row.Minimum.ToString(System.Globalization.CultureInfo.InvariantCulture),
              row.Maximum.ToString(System.Globalization.CultureInfo.InvariantCulture)],
+        // Blank is a value too: it is what hands the file to the system's own app.
+        SettingsControlKind.Path => ["", TestPaths.Rooted("tools/editor")],
         _ => []
     };
 }

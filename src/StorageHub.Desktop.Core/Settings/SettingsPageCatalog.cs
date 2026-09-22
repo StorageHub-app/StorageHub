@@ -1,4 +1,6 @@
 using System.Globalization;
+using StorageHub.Contracts.Ipc;
+using StorageHub.Desktop.Configuration;
 using StorageHub.Desktop.Localization;
 using StorageHub.Desktop.Themes;
 
@@ -9,7 +11,10 @@ internal enum SettingsControlKind
 {
     Toggle,
     Choice,
-    Number
+    Number,
+
+    /// <summary>A file on this computer, typed or chosen with a Browse button.</summary>
+    Path
 }
 
 /// <summary>One option in a <see cref="SettingsControlKind.Choice"/> row.</summary>
@@ -53,6 +58,15 @@ internal sealed record SettingsRowDefinition
     public required Func<DesktopUpdatePreferences, string> Read { get; init; }
 
     public required Func<DesktopUpdatePreferences, string, DesktopUpdatePreferences> Write { get; init; }
+
+    /// <summary>
+    /// Why a value will not be kept, or null when it will. Only rows a person types into need one:
+    /// a toggle, a choice and a clamped number cannot hold anything Write would refuse.
+    /// </summary>
+    public Func<string, string?>? Validate { get; init; }
+
+    /// <summary>The Browse picker's title, for a <see cref="SettingsControlKind.Path"/> row.</summary>
+    public string? BrowseTitle { get; init; }
 }
 
 /// <summary>A page in the settings navigation, and the rows on it.</summary>
@@ -200,6 +214,63 @@ internal static class SettingsPageCatalog
             // draws. The page is still declared here so the navigation list stays one list.
             []),
 
+        // What happens when a remote file is opened. The unsafe-edit warning lives here rather than
+        // under Confirmations because the warning itself says so: "you can restore this warning
+        // later in Settings under Editing".
+        new(
+            "editing",
+            Ui.Settings.CategoryEditing,
+            Ui.Settings.PageEditingDescription,
+            UiGlyph.Rename,
+            [
+                new()
+                {
+                    Key = "external-editor",
+                    Label = Ui.Settings.EditorExecutable,
+                    Hint = Ui.Settings.EditorHint,
+                    Kind = SettingsControlKind.Path,
+                    BrowseTitle = Ui.Settings.ChooseEditorTitle,
+                    Read = p => p.ExternalEditorPath ?? string.Empty,
+                    // Blank means the system's own choice; anything else must be a full path, the
+                    // rule the settings file itself enforces. A value that is neither is left out
+                    // of the working copy rather than saved and dropped on the next load.
+                    Write = (p, v) => string.IsNullOrWhiteSpace(v)
+                        ? p with { ExternalEditorPath = null }
+                        : DesktopConfigRepair.IsValidEditorPath(v.Trim())
+                            ? p with { ExternalEditorPath = v.Trim() }
+                            : p,
+                    Validate = v => string.IsNullOrWhiteSpace(v) || DesktopConfigRepair.IsValidEditorPath(v.Trim())
+                        ? null
+                        : Ui.Settings.EditorPathMustBeFull
+                },
+                new()
+                {
+                    Key = "maximum-editable-kib",
+                    Label = Ui.Settings.MaximumEditableSize,
+                    Hint = Ui.Settings.MaximumEditableSizeHint,
+                    Kind = SettingsControlKind.Number,
+                    Minimum = 1,
+                    Maximum = EditableFileIpcContract.MaximumContentBytes / 1024,
+                    // Kilobytes on screen, bytes in the file, as 1.x had it.
+                    Read = p => Text(Math.Clamp(p.MaximumEditableFileBytes / 1024, 1, EditableFileIpcContract.MaximumContentBytes / 1024)),
+                    Write = (p, v) => p with
+                    {
+                        MaximumEditableFileBytes = Number(
+                            v, 1, EditableFileIpcContract.MaximumContentBytes / 1024,
+                            p.MaximumEditableFileBytes / 1024) * 1024
+                    }
+                },
+                new()
+                {
+                    Key = "warn-unsafe-edit",
+                    Label = Ui.Settings.WarnUnsafeEdit,
+                    Hint = Ui.Settings.WarnUnsafeEditHint,
+                    Kind = SettingsControlKind.Toggle,
+                    Read = p => Text(p.WarnBeforeUnsafeExternalEdit),
+                    Write = (p, v) => p with { WarnBeforeUnsafeExternalEdit = Flag(v) }
+                }
+            ]),
+
         new(
             "performance",
             Ui.Settings.CategoryPerformance,
@@ -272,15 +343,6 @@ internal static class SettingsPageCatalog
                     Kind = SettingsControlKind.Toggle,
                     Read = p => Text(p.ConfirmBeforeDeletingItems),
                     Write = (p, v) => p with { ConfirmBeforeDeletingItems = Flag(v) }
-                },
-                new()
-                {
-                    Key = "warn-unsafe-edit",
-                    Label = Ui.Settings.WarnUnsafeEdit,
-                    Hint = Ui.Settings.WarnUnsafeEditHint,
-                    Kind = SettingsControlKind.Toggle,
-                    Read = p => Text(p.WarnBeforeUnsafeExternalEdit),
-                    Write = (p, v) => p with { WarnBeforeUnsafeExternalEdit = Flag(v) }
                 }
             ]),
 

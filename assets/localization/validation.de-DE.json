@@ -213,7 +213,7 @@
   "updatesIdle": "Updates: inaktiv",
   "updatesInstallStorageHubToEnable": "Updates: StorageHub installieren, um zu aktivieren",
   "windowsCouldNotReadThisLocationIt": "Windows konnte diesen Ort nicht lesen. Er ist möglicherweise getrennt oder in Verwendung.",
-  "windowsCouldNotStartTheConfiguredEditor": "Windows konnte den konfigurierten Editor nicht starten.",
+  "theConfiguredEditorCouldNotStart": "Der konfigurierte Editor konnte nicht gestartet werden.",
   "enterAName": "Geben Sie einen Namen ein.",
   "namesCannotBeginOrEndWithSpaces": "Namen dürfen nicht mit Leerzeichen beginnen oder enden und nicht auf einen Punkt enden.",
   "namesCannotExceedCharactersFormat": "Namen dürfen höchstens {0:N0} Zeichen lang sein.",

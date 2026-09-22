@@ -16,12 +16,23 @@ internal sealed class SettingsRowModel : INotifyPropertyChanged
     private readonly Action<SettingsRowModel> _changed;
     private string _value;
 
-    internal SettingsRowModel(SettingsRowDefinition definition, string value, Action<SettingsRowModel> changed)
+    /// <param name="browse">
+    /// Asks for a file, for a Path row. Null leaves Browse dim, which is what a test and a shell
+    /// with no window to hang a picker on both want.
+    /// </param>
+    internal SettingsRowModel(
+        SettingsRowDefinition definition,
+        string value,
+        Action<SettingsRowModel> changed,
+        Func<string, Task<string?>>? browse = null)
     {
         _definition = definition;
         _value = value;
         _changed = changed;
         Choices = [.. definition.Choices.Select(choice => choice.Label)];
+        BrowseCommand = new RelayCommand(
+            _ => _ = BrowseAsync(browse!),
+            _ => browse is not null && IsPath);
     }
 
     internal SettingsRowDefinition Definition => _definition;
@@ -40,6 +51,36 @@ internal sealed class SettingsRowModel : INotifyPropertyChanged
 
     public bool IsNumber => _definition.Kind == SettingsControlKind.Number;
 
+    public bool IsPath => _definition.Kind == SettingsControlKind.Path;
+
+    /// <summary>
+    /// A Path row's text, exactly as typed.
+    /// </summary>
+    /// <remarks>
+    /// Kept as typed even when it will not be saved, so a half-typed path is not snatched away
+    /// between keystrokes. What is kept is decided by the row's Write, and <see cref="Problem"/>
+    /// says when that is not what is on screen.
+    /// </remarks>
+    public string Text
+    {
+        get => _value;
+        set => Value = value ?? string.Empty;
+    }
+
+    /// <summary>Why what is typed will not be kept, or empty.</summary>
+    public string Problem => _definition.Validate?.Invoke(_value) ?? string.Empty;
+
+    public bool HasProblem => Problem.Length > 0;
+
+    public ICommand BrowseCommand { get; }
+
+    public static string BrowseLabel => Ui.Settings.ButtonBrowse;
+
+    private async Task BrowseAsync(Func<string, Task<string?>> browse)
+    {
+        if (await browse(_definition.BrowseTitle ?? Label).ConfigureAwait(true) is { } chosen) Text = chosen;
+    }
+
     public IReadOnlyList<string> Choices { get; }
 
     public int Minimum => _definition.Minimum;
@@ -55,6 +96,9 @@ internal sealed class SettingsRowModel : INotifyPropertyChanged
             if (string.Equals(_value, value, StringComparison.Ordinal)) return;
             _value = value;
             _changed(this);
+            Raise(nameof(Text));
+            Raise(nameof(Problem));
+            Raise(nameof(HasProblem));
             Raise(nameof(IsOn));
             Raise(nameof(SelectedChoice));
             Raise(nameof(NumberValue));
@@ -140,11 +184,18 @@ internal sealed class SettingsModel : INotifyPropertyChanged
     private DesktopUpdatePreferences _saved;
     private int _selectedPage;
 
+    /// <param name="files">
+    /// What a Path row's Browse asks. Null leaves Browse dim rather than failing.
+    /// </param>
     internal SettingsModel(
         Func<DesktopUpdatePreferences> load,
         Action<DesktopUpdatePreferences> save,
-        Action<DesktopUpdatePreferences>? preview = null)
+        Action<DesktopUpdatePreferences>? preview = null,
+        Shell.IFilePickerService? files = null)
     {
+        Func<string, Task<string?>>? browse = files is null
+            ? null
+            : title => files.PickFileAsync(new Shell.FilePickerRequest { Title = title });
         _load = load ?? throw new ArgumentNullException(nameof(load));
         _save = save ?? throw new ArgumentNullException(nameof(save));
         _preview = preview ?? (_ => { });
@@ -158,7 +209,7 @@ internal sealed class SettingsModel : INotifyPropertyChanged
                 ? new ToolbarPageModel(page, _working.ToolbarItems, _working.ToolbarLabels, OnToolbarChanged)
                 : new SettingsPageModel(
                     page,
-                    [.. page.Rows.Select(row => new SettingsRowModel(row, row.Read(_working), OnRowChanged))]))];
+                    [.. page.Rows.Select(row => new SettingsRowModel(row, row.Read(_working), OnRowChanged, browse))]))];
 
         ApplyCommand = new RelayCommand(_ => Apply(), _ => IsDirty);
         SaveCommand = new RelayCommand(_ => { Apply(); Closed?.Invoke(this, true); });

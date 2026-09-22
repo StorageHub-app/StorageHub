@@ -147,6 +147,8 @@
                           <TextBlock Text="{Binding Label}" TextWrapping="Wrap"/>
                           <TextBlock Classes="caption" Text="{Binding Hint}" TextWrapping="Wrap"
                                      IsVisible="{Binding HasHint}"/>
+                          <TextBlock Classes="caption danger" Text="{Binding Problem}" TextWrapping="Wrap"
+                                     IsVisible="{Binding HasProblem}"/>
                         </StackPanel>
 
                         <Panel Grid.Column="1" VerticalAlignment="Center" MinWidth="180">
@@ -158,6 +160,14 @@
                                     SelectedIndex="{Binding SelectedChoice, Mode=TwoWay}"
                                     IsVisible="{Binding IsChoice}"
                                     HorizontalAlignment="Stretch"/>
+                          <!-- A path is typed or chosen, so the box is wide and Browse sits beside it. -->
+                          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpaceSm}"
+                                IsVisible="{Binding IsPath}" MinWidth="320">
+                            <TextBox Grid.Column="0" Text="{Binding Text, Mode=TwoWay}"
+                                     AutomationProperties.Name="{Binding Label}"/>
+                            <Button Grid.Column="1" Content="{Binding BrowseLabel}"
+                                    Command="{Binding BrowseCommand}"/>
+                          </Grid>
                           <NumericUpDown Value="{Binding NumberValue, Mode=TwoWay}"
                                          Minimum="{Binding Minimum}"
                                          Maximum="{Binding Maximum}"

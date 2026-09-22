@@ -15,16 +15,21 @@ namespace StorageHub.Desktop;
 internal static class PaneInspection
 {
     /// <summary>The address to inspect, or why there is none.</summary>
+    /// <param name="refusal">
+    /// What to say when the selection is not one file on a saved connection. External editing asks
+    /// for exactly the same address as the inspector, and says so in its own sentence.
+    /// </param>
     internal static ObjectInspectorAddress? AddressFor(
         PaneTransferContext? context,
         IReadOnlyList<PaneTransferItem> items,
-        out string? problem)
+        out string? problem,
+        string? refusal = null)
     {
         ArgumentNullException.ThrowIfNull(items);
 
         if (items.Count != 1 || items[0].Kind != StorageItemKind.File)
         {
-            problem = Ui.Shell.SelectOneToInspect;
+            problem = refusal ?? Ui.Shell.SelectOneToInspect;
             return null;
         }
 
@@ -33,7 +38,7 @@ internal static class PaneInspection
             context.ConnectionId is not { } connectionId ||
             string.IsNullOrWhiteSpace(context.RootIdentity))
         {
-            problem = Ui.Shell.InspectionRequiresConnection;
+            problem = refusal ?? Ui.Shell.InspectionRequiresConnection;
             return null;
         }
 

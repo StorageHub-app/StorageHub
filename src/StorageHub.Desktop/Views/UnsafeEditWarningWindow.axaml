@@ -1,0 +1,37 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
+        x:Class="StorageHub.Desktop.Views.UnsafeEditWarningWindow"
+        x:DataType="vm:UnsafeEditWarningModel"
+        Title="{Binding Title}"
+        Width="520" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        AutomationProperties.Name="{Binding AccessibleName}">
+
+  <!--
+    Said before an edit whose upload cannot be held to the version that was downloaded. Cancel is
+    the default: going ahead can overwrite somebody else's change, and a stray Enter should not.
+  -->
+
+  <Border Classes="surface" Padding="{StaticResource PaddingLg}">
+    <StackPanel Spacing="{StaticResource SpaceMd}">
+      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceMd}">
+        <LucideIcon Grid.Column="0" Kind="TriangleAlert" Size="28" Classes="warning"
+                    VerticalAlignment="Top"/>
+        <TextBlock Grid.Column="1" Text="{Binding Message}" TextWrapping="Wrap"/>
+      </Grid>
+
+      <CheckBox Margin="40,0,0,0" IsChecked="{Binding DontShowAgain, Mode=TwoWay}"
+                Content="{Binding DontShowAgainLabel}"
+                ToolTip.Tip="{Binding DontShowAgainHint}"/>
+
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                  Spacing="{StaticResource SpaceSm}" Margin="0,8,0,0">
+        <Button Content="{Binding CancelLabel}" Command="{Binding CancelCommand}"
+                IsDefault="True" IsCancel="True"/>
+        <Button Classes="primary" Content="{Binding ContinueLabel}" Command="{Binding ContinueCommand}"/>
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</Window>

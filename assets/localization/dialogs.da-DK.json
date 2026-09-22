@@ -31,6 +31,7 @@
   "objectInspectorCaption": "Objektinspektør",
   "externalEditorCaption": "Ekstern editor",
   "externalEditorOpenFailedFormat": "StorageHub kunne ikke åbne den eksterne editor. {0}",
+  "fileTooLargeToEditFormat": "'{0}' er større end den konfigurerede grænse for redigering på {1:N0} KiB.",
   "externalEditorTooLargeFormat": "Den redigerede fil er større end den konfigurerede grænse på {0:N0} KiB og kan ikke uploades.",
   "uploadEditedFileCaption": "Upload redigeret fil",
   "uploadEditedFilePromptFormat": "'{0}' blev ændret i den eksterne editor. Vil du uploade den tilbage til fjernforbindelsen?",

@@ -2,6 +2,9 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 using StorageHub.Contracts.Ipc;
+using StorageHub.Desktop.Configuration;
+using StorageHub.Desktop.Framework;
+using StorageHub.Desktop.Localization;
 using StorageHub.Desktop.Shell;
 using StorageHub.Desktop.Views;
 
@@ -48,4 +51,60 @@ internal static class ShellServices
     /// </remarks>
     internal static Task InspectObjectAsync(ObjectInspectorAddress address) =>
         Dispatcher.UIThread.InvokeAsync(() => ObjectInspectorWindow.ShowAsync(MainWindow(), address));
+
+    private static ExternalEditController? _editing;
+
+    /// <summary>Raised on the UI thread after an edited file has been uploaded.</summary>
+    internal static event EventHandler? EditedFileUploaded;
+
+    /// <summary>
+    /// Opens a remote file in the external editor.
+    /// </summary>
+    /// <remarks>
+    /// One controller for the shell, made the first time something is edited, because it holds
+    /// every open session: they are watched for as long as the shell runs and closed with it. A
+    /// failure to start is said in a dialog rather than thrown, since the pane that asked has
+    /// already moved on.
+    /// </remarks>
+    internal static async Task EditExternallyAsync(ObjectInspectorAddress address, string fileName, long? length)
+    {
+        try
+        {
+            _editing ??= CreateEditing();
+            await _editing.OpenAsync(address, fileName, length).ConfigureAwait(false);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or
+            InvalidDataException or InvalidOperationException or TimeoutException)
+        {
+            await Dialogs.ShowAsync(new DialogRequest
+            {
+                Title = Ui.Dialogs.ExternalEditorCaption,
+                Message = Ui.Format(Ui.Dialogs.ExternalEditorOpenFailedFormat, error.Message),
+                Severity = DialogSeverity.Warning
+            }).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>Stops watching every edited file, at shutdown.</summary>
+    internal static async ValueTask CloseEditingAsync()
+    {
+        if (_editing is { } editing)
+        {
+            _editing = null;
+            await editing.DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
+    private static ExternalEditController CreateEditing()
+    {
+        var store = new DesktopConfigStore(DesktopFrameworkPaths.Resolve().ApplicationRoot);
+        store.Preflight();
+        var editing = new ExternalEditController(
+            store,
+            static () => new NamedPipeObjectInspectorAgentClient(),
+            new AvaloniaExternalEditPrompts(Dialogs, () => MainWindow()));
+        editing.FileUploaded += (_, _) =>
+            Dispatcher.UIThread.Post(() => EditedFileUploaded?.Invoke(null, EventArgs.Empty));
+        return editing;
+    }
 }

@@ -130,6 +130,21 @@
     <Setter Property="FontSize" Value="{StaticResource FontSizeHeading}"/>
     <Setter Property="FontWeight" Value="SemiBold"/>
   </Style>
+  <!--
+    The same three tones on any text, not only a status line. A refusal under a field or a warning
+    heading was written as "caption danger" or "heading warning" in several windows and drew in the
+    plain caption colour, because only .status carried a tone. Declared after .caption and .muted so
+    the tone is the colour that wins.
+  -->
+  <Style Selector="TextBlock.success">
+    <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}"/>
+  </Style>
+  <Style Selector="TextBlock.warning">
+    <Setter Property="Foreground" Value="{DynamicResource WarningBrush}"/>
+  </Style>
+  <Style Selector="TextBlock.danger">
+    <Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/>
+  </Style>
 
   <!-- The three button variants StorageHubButton painted by hand. -->
   <Style Selector="Button">

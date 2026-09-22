@@ -253,9 +253,12 @@ internal sealed class SettingsStrings : LocalizationModelBase
     public string EditorExecutableAccessibleName { get; set; } = "External editor executable";
 
     public string EditorPlaceholder { get; set; } =
-        "Choose an editor executable, or leave blank for the Windows default";
+        "Choose an editor executable, or leave blank for the system default";
 
-    public string EditorHint { get; set; } = "Leave blank to use the Windows default app.";
+    public string EditorPathMustBeFull { get; set; } =
+        "Enter the editor's full path, not just its name.";
+
+    public string EditorHint { get; set; } = "Leave blank to use the system's default app.";
 
     public string ChooseEditorTitle { get; set; } = "Choose external editor";
 

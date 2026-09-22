@@ -119,6 +119,10 @@ internal sealed class DialogStrings : LocalizationModelBase
         "StorageHub could not open the external editor. {0}";
 
     /// <summary>{0} = the configured limit in KiB.</summary>
+    /// <summary>{0} = the file name, {1} = the limit in KiB.</summary>
+    public string FileTooLargeToEditFormat { get; set; } =
+        "'{0}' is larger than the configured {1:N0} KiB editing limit.";
+
     public string ExternalEditorTooLargeFormat { get; set; } =
         "The edited file is larger than the configured {0:N0} KiB limit and cannot be uploaded.";
 

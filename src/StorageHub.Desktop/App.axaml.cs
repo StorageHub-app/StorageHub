@@ -106,9 +106,13 @@ public partial class App : global::Avalonia.Application
             {
                 _ = pane.LoadConnectionsAsync();
             }
+            // An edited file that was uploaded shows up in the pane it came from.
+            Services.ShellServices.EditedFileUploaded += (_, _) => _ = model.EditedFileUploadedAsync();
+
             desktop.ShutdownRequested += async (_, _) =>
             {
                 updater.Dispose();
+                await Services.ShellServices.CloseEditingAsync().ConfigureAwait(false);
                 await monitor.DisposeAsync().ConfigureAwait(false);
                 await model.Queue.DisposeAsync().ConfigureAwait(false);
                 foreach (var workspace in model.Workspaces

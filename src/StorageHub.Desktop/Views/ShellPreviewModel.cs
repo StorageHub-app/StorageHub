@@ -256,6 +256,21 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         Workspaces.ElementAtOrDefault(SelectedWorkspace)?.Workspace;
 
     /// <summary>The active pane of the workspace on screen, or none when a page is showing.</summary>
+    /// <summary>
+    /// Reloads the active pane after an edited file was uploaded, and says so there.
+    /// </summary>
+    /// <remarks>
+    /// The active pane, as 1.x did: it is almost always the one the file was opened from, and a
+    /// reload of the wrong one costs a listing, not a mistake. The sentence goes on after the
+    /// reload, which would otherwise clear it the moment the listing arrived.
+    /// </remarks>
+    internal async Task EditedFileUploadedAsync()
+    {
+        if (ActivePane() is not { } pane) return;
+        await pane.RefreshAsync().ConfigureAwait(true);
+        pane.Status = Ui.Shell.StatusEditedFileUploaded;
+    }
+
     internal BrowserPaneModel? ActivePane() =>
         ActiveWorkspace() is { Panes.Count: > 0 } workspace ? workspace.Active : null;
 
@@ -503,7 +518,12 @@ internal static class ShellPreview
                         // pipe connections open for as long as a shell is running, and the pane
                         // disposes them with the session.
                         terminals: terminals,
-                        inspect: Services.ShellServices.InspectObjectAsync),
+
+                        // What lets a terminal restart an agent left running from an older build,
+                        // once, instead of telling somebody to restart StorageHub themselves.
+                        agentLifecycle: AgentLifecycleControllers.ForThisMachine,
+                        inspect: Services.ShellServices.InspectObjectAsync,
+                        edit: Services.ShellServices.EditExternallyAsync),
                     static () => new NamedPipeTransferQueueAgentClient(),
                     static () => new NamedPipeRemoteStorageAgentClient(),
                     static () => new NamedPipeObjectInspectorAgentClient(),
