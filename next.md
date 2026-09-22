@@ -24,7 +24,7 @@ and borrow a key from the key store.
 | | |
 |---|---|
 | Menu commands with a handler | 26 of the 37 that 1.x had live |
-| WinForms screen lines with no counterpart | about 850 (was 14,200) |
+| WinForms screen lines with no counterpart | about 270 (was 14,200) |
 | Test projects | 15, all green on Windows and Ubuntu |
 | Live tests against the running agent and the Docker lab | 8, all green |
 
@@ -49,6 +49,11 @@ and borrow a key from the key store.
 - On the Logs tab the queue toolbar kept reporting the agent unavailable beside a log it had just read.
 - A connection card's state and summary ("Not tested", "saved profile") were English literals in the
   panel, the Connection Manager and the pane, although translated strings for them already existed.
+- 1.x's external editor wrote a remote file named "../../x" outside its session directory, shared one
+  agent client between concurrent uploads, and dropped a save made during an upload.
+- Tone colours were only styled on status lines, so "caption danger" and "heading warning" never showed
+  their colour; the agent window's recovery heading and the Key Store import's refusal were affected.
+- A terminal could not restart a stale agent: the lifecycle controller was built but never given to panes.
 
 **Running things right now:** the dev agent on `%LOCALAPPDATA%\StorageHub.SyncLive` and the lab containers.
 `docker compose --project-directory ./eng/testlab down --volumes` stops the lab.
@@ -76,10 +81,13 @@ Grouped by what they need, not by size. Each is a Core controller first, then a 
 6. ~~**Connection picker**~~ — done at `896c64b`. The pane header's ComboBox is a button over a grouped,
    searchable picker; the group rule and keyboard behaviour moved into Core as `ConnectionPickerSession`.
    25 new tests, photographed in light and dark and in the shell.
-7. **External editing** — `ExternalEditorController` (483): mostly portable once its prompt is behind an
-   interface.
+7. ~~**External editing**~~ — done at `41be07d`. `ExternalEditController` in Core behind
+   `IExternalEditPrompts` and `IEditorLauncher`; private sessions per platform (ACL on Windows, 0700 under
+   XDG_RUNTIME_DIR on Linux); a Settings Editing page with the first path row. 36 new tests, including the
+   real file watcher, photographed in light and dark.
 8. **Transfer progress column** — a bar behind the text (154).
-9. **Small dialogs** — About, icon picker, splash, sync location picker, batch rename, unsafe-edit warning.
+9. **Small dialogs** — About, icon picker, splash, sync location picker, batch rename. (The unsafe-edit
+   warning came forward with external editing.)
 10. **Host-key trust from the Connection Manager** — fetch from host, reject. The controller has it; the
     editor does not offer it.
 11. **The directory tree beside the listing.**
