@@ -91,6 +91,9 @@ retry), only because the library could not do them. Items 10 and 11 below wait f
   destination is still never written in place. The comparison also turned up gaps in ours: no pause, a
   restart leaves jobs for the user even when nothing was written, no way to resolve a sync run needing
   reconciliation, and one-way sync may re-copy unchanged files when the provider has no digest.
+- **Decided after A2:** the library is to move every byte; StorageHub keeps only policy (the queue's jobs,
+  approvals, the sync baseline). That needs things the library does not have yet, listed in `needs.md`
+  (47 items, by priority). B and the queue-related parts below wait for them; stopped there on 2026-09-23.
 - **B. Refusals become features**, one commit each: transfer rate and time left (the status bar's rate is
   always 0 today); speed limits, and the dead Speed Limits command; proxy; FTP encoding, time zone, listing
   parser, separate timeouts, SPKI pins; SFTP keyboard-interactive, several keys, jump host, algorithms;
