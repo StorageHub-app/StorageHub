@@ -82,9 +82,15 @@ retry), only because the library could not do them. Items 10 and 11 below wait f
   says the password was rejected. FTP and SFTP take the profile's retry policy instead of refusing any but
   the old defaults, which the library ignored anyway. Proven against the lab: pins, rotated key, wrong
   certificate pin, missing client certificate. The lock files also caught up with the 2.0.0 version.
-- **A2. Evaluate the library's transfer queue and sync against ours** — written up in
-  `docs/storage-engines-evaluation.md` for a decision. Ours persist, checkpoint and sync three-way; the
-  library's are in memory and stateless. The likely answer is ours on top, the library's pieces underneath.
+- ~~**A2. Evaluate the library's transfer queue and sync against ours.**~~ Done:
+  `docs/storage-engines-evaluation.md`. Recommendation, awaiting a decision: keep both of ours. Run against
+  real files, the library's two-way sync brought back a deleted file, overwrote an edit without a word when
+  both sides changed, and a Mirror with an emptied source deleted all 50 files; its queue lost a running job
+  when disposed. What B takes instead: rate and time left computed from our own byte counts, conflict
+  choices made when the desktop plans a transfer, and resume by appending to our staging object, so the
+  destination is still never written in place. The comparison also turned up gaps in ours: no pause, a
+  restart leaves jobs for the user even when nothing was written, no way to resolve a sync run needing
+  reconciliation, and one-way sync may re-copy unchanged files when the provider has no digest.
 - **B. Refusals become features**, one commit each: transfer rate and time left (the status bar's rate is
   always 0 today); speed limits, and the dead Speed Limits command; proxy; FTP encoding, time zone, listing
   parser, separate timeouts, SPKI pins; SFTP keyboard-interactive, several keys, jump host, algorithms;
