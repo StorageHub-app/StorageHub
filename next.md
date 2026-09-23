@@ -65,6 +65,37 @@ and borrow a key from the key store.
 
 ## What needs to be done, in order
 
+### 0. CodeLogic.Storage 4.8.93 (started 2026-09-23, ahead of the rest)
+
+The library went from 4.8.91 to 4.8.93: precise error codes, retries and session pools, a connection test that
+reports what the server presented, progress with speed, speed limits, proxy, conflict policies, resume, server
+checksums, permissions and links, free space, watch, compare/sync, a transfer queue, and WebDAV, Azure, GCS and
+Swift backends. Several of these StorageHub already has settings for and refuses (proxy, bandwidth, encoding,
+retry), only because the library could not do them. Items 10 and 11 below wait for this.
+
+- **A. Upgrade without behaviour change.** Package and lock files; the one positional-token call
+  (`ComputeChecksumAsync`); the eight new error codes mapped to failure kinds and IPC categories, with a sentence
+  each; the library's retries driven by the profile's retry options.
+- **A2. Evaluate the library's transfer queue and sync against ours** — written up in
+  `docs/storage-engines-evaluation.md` for a decision. Ours persist, checkpoint and sync three-way; the
+  library's are in memory and stateless. The likely answer is ours on top, the library's pieces underneath.
+- **B. Refusals become features**, one commit each: transfer rate and time left (the status bar's rate is
+  always 0 today); speed limits, and the dead Speed Limits command; proxy; FTP encoding, time zone, listing
+  parser, separate timeouts, SPKI pins; SFTP keyboard-interactive, several keys, jump host, algorithms;
+  conflict policy on transfers (skip, if newer, rename, resume); resume; server checksums.
+- **C. The Connection Manager's Test** runs the library's test on the unsaved draft, shows each step, and
+  offers Trust or Reject for the host key or certificate the server presented. This is item 10. Also fixes the
+  editor checking `hostKeyFingerprint` and then leaving it out of the draft. A connection details panel from the
+  library's diagnostics.
+- **D. New abilities in the shell:** permissions, owner, link target and dates in Properties and as columns,
+  with a chmod dialog; free space; connection health and retries on the card; refresh on change; stale
+  staging cleanup; compare folders; a raw FTP command console last, or not at all.
+- **E. New providers**, each end to end with a lab container: WebDAV, then Azure Blob, Google Cloud Storage,
+  Swift.
+
+Upstream, for the CL.Storage repo: `WatchAsync` never uses native notifications through `GetStorage()`,
+because the service proxy does not implement `IStorageWatchService`, so local connections poll.
+
 ### 1. The remaining screens (about 3,400 lines)
 
 Grouped by what they need, not by size. Each is a Core controller first, then a window, as the four blocks were.
@@ -99,8 +130,8 @@ Grouped by what they need, not by size. Each is a Core controller first, then a 
    narrate. Its other job, reporting what the settings check found, is done by the shell at `711e7f0`.
    The `BootStage`/`BootStatus`/`DesktopBootException` types in Core are now unused.
 10. **Host-key trust from the Connection Manager** — fetch from host, reject. The controller has it; the
-    editor does not offer it.
-11. **The directory tree beside the listing.**
+    editor does not offer it. Folded into §0 C, where the library's connection test supplies the key.
+11. **The directory tree beside the listing.** Paused for §0.
 
 Still missing from blocks that are otherwise done:
 
