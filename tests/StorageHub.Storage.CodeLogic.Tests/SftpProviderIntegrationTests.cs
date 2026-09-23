@@ -126,12 +126,14 @@ public sealed class SftpProviderIntegrationTests : IAsyncLifetime
             settings.PasswordPort,
             settings.RotatedHostFingerprint));
         AssertDoesNotDisclose(wrongPin, settings);
+        AssertTrustRequired(wrongPin);
 
         var changedHostKey = await RejectAsync(CreatePasswordConfiguration(
             settings,
             settings.RotatedPort,
             settings.HostFingerprint));
         AssertDoesNotDisclose(changedHostKey, settings);
+        AssertTrustRequired(changedHostKey);
 
         var rotatedAccepted = await RegisterRequiredAsync(
             ConnectionProfileId.New(),
@@ -145,6 +147,17 @@ public sealed class SftpProviderIntegrationTests : IAsyncLifetime
             var health = await rotatedAccepted.Session.CheckHealthAsync();
             Assert.True(health.IsSuccess, Failure(health.Error));
         }
+    }
+
+    /// <summary>
+    /// A key the pins refuse is a trust decision, which the queue and the sync outbox block on. Before
+    /// CL.Storage 4.8.93 it came back as "unavailable", and a transfer retried it.
+    /// </summary>
+    private static void AssertTrustRequired(StorageFailure failure)
+    {
+        Assert.Equal(StorageFailureKind.Security, failure.Kind);
+        Assert.Equal("storage.trust.host_key_rejected", failure.Code);
+        Assert.False(failure.IsTransient);
     }
 
     private async Task AssertAuthenticationFailuresAsync(SftpFixtureSettings settings)

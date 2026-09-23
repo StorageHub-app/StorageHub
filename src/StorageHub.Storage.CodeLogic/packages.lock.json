@@ -10,9 +10,9 @@
       },
       "CodeLogic.Storage": {
         "type": "Direct",
-        "requested": "[4.8.91, )",
-        "resolved": "4.8.91",
-        "contentHash": "D+xed+V4u2FzB4GR117Bbt/+l1dDyqkruDG61z5lt5DZqv/Tk/fzAUje42p++UEZg3AZRN0cWl0HEiFbxkWE+Q==",
+        "requested": "[4.8.93, )",
+        "resolved": "4.8.93",
+        "contentHash": "yt1+0iY/4ifEK0IDBMaDGchHiIdseEJ8jp1aAHDdKhAlZLKKqmo6rkd9PZzFPEA3zON3NES62zgj4mV6wHqo3g==",
         "dependencies": {
           "AWSSDK.S3": "4.0.101.6",
           "Azure.Identity": "1.21.0",
@@ -305,8 +305,8 @@
         "dependencies": {
           "CodeLogic": "[4.8.19, )",
           "Cronos": "[0.13.0, )",
-          "StorageHub.Domain": "[1.4.6, )",
-          "StorageHub.Security": "[1.4.6, )"
+          "StorageHub.Domain": "[2.0.0, )",
+          "StorageHub.Security": "[2.0.0, )"
         }
       },
       "storagehub.contracts": {
@@ -315,7 +315,7 @@
       "storagehub.domain": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[1.4.6, )"
+          "StorageHub.Contracts": "[2.0.0, )"
         }
       },
       "storagehub.security": {
@@ -324,8 +324,8 @@
       "storagehub.storage": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[1.4.6, )",
-          "StorageHub.Domain": "[1.4.6, )"
+          "StorageHub.Contracts": "[2.0.0, )",
+          "StorageHub.Domain": "[2.0.0, )"
         }
       },
       "Cronos": {

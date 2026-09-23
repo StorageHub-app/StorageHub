@@ -54,8 +54,8 @@
         "dependencies": {
           "CodeLogic": "[4.8.19, )",
           "Cronos": "[0.13.0, )",
-          "StorageHub.Domain": "[1.4.6, )",
-          "StorageHub.Security": "[1.4.6, )"
+          "StorageHub.Domain": "[2.0.0, )",
+          "StorageHub.Security": "[2.0.0, )"
         }
       },
       "storagehub.contracts": {
@@ -64,7 +64,7 @@
       "storagehub.domain": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[1.4.6, )"
+          "StorageHub.Contracts": "[2.0.0, )"
         }
       },
       "storagehub.security": {
@@ -73,23 +73,23 @@
       "storagehub.storage": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[1.4.6, )",
-          "StorageHub.Domain": "[1.4.6, )"
+          "StorageHub.Contracts": "[2.0.0, )",
+          "StorageHub.Domain": "[2.0.0, )"
         }
       },
       "storagehub.sync": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Domain": "[1.4.6, )",
-          "StorageHub.Storage": "[1.4.6, )",
-          "StorageHub.Transfers": "[1.4.6, )"
+          "StorageHub.Domain": "[2.0.0, )",
+          "StorageHub.Storage": "[2.0.0, )",
+          "StorageHub.Transfers": "[2.0.0, )"
         }
       },
       "storagehub.transfers": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Domain": "[1.4.6, )",
-          "StorageHub.Storage": "[1.4.6, )"
+          "StorageHub.Domain": "[2.0.0, )",
+          "StorageHub.Storage": "[2.0.0, )"
         }
       },
       "CodeLogic": {

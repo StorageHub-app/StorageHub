@@ -136,10 +136,19 @@ public sealed class CodeLogicStorageEndpointSessionTests
     [InlineData("too-large", StorageFailureKind.Validation, false)]
     [InlineData("partial", StorageFailureKind.Provider, false)]
     [InlineData("provider", StorageFailureKind.Provider, false)]
+    [InlineData("authentication-failed", StorageFailureKind.Unauthorized, false)]
+    [InlineData("permission-denied", StorageFailureKind.Unauthorized, false)]
+    [InlineData("connection-failed", StorageFailureKind.Unavailable, true)]
+    [InlineData("connection-lost", StorageFailureKind.Unavailable, true)]
+    [InlineData("server-busy", StorageFailureKind.Unavailable, true)]
+    [InlineData("quota-exceeded", StorageFailureKind.Provider, false)]
+    [InlineData("host-key-rejected", StorageFailureKind.Security, false, "storage.trust.host_key_rejected")]
+    [InlineData("tls-failure", StorageFailureKind.Security, false)]
     public async Task MapsCodeLogicErrorsToStableStorageHubFailures(
         string errorName,
         StorageFailureKind expectedKind,
-        bool expectedTransient)
+        bool expectedTransient,
+        string? expectedCode = null)
     {
         var error = errorName switch
         {
@@ -154,6 +163,14 @@ public sealed class CodeLogicStorageEndpointSessionTests
             "too-large" => StorageErrors.TooLarge("too large"),
             "partial" => StorageErrors.PartialFailure("partially failed"),
             "provider" => StorageErrors.ProviderError("provider failed"),
+            "authentication-failed" => StorageErrors.AuthenticationFailed("bad password"),
+            "permission-denied" => StorageErrors.PermissionDenied("not allowed"),
+            "connection-failed" => StorageErrors.ConnectionFailed("refused"),
+            "connection-lost" => StorageErrors.ConnectionLost("dropped"),
+            "server-busy" => StorageErrors.ServerBusy("busy"),
+            "quota-exceeded" => StorageErrors.QuotaExceeded("full"),
+            "host-key-rejected" => StorageErrors.HostKeyRejected("untrusted key"),
+            "tls-failure" => StorageErrors.TlsFailure("handshake"),
             _ => throw new ArgumentOutOfRangeException(nameof(errorName))
         };
         var service = new FakeStorageService
@@ -165,7 +182,7 @@ public sealed class CodeLogicStorageEndpointSessionTests
         var result = await session.GetEntryAsync(Address(session.ProfileId, RootIdentity, "item"));
 
         Assert.True(result.IsFailure);
-        Assert.Equal(error.Code, result.Error.Code);
+        Assert.Equal(expectedCode ?? error.Code, result.Error.Code);
         Assert.Equal(error.Code, result.Error.ProviderCode);
         Assert.Equal(expectedKind, result.Error.Kind);
         Assert.Equal(expectedTransient, result.Error.IsTransient);

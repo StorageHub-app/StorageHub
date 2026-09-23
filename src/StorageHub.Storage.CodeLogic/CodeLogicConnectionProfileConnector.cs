@@ -326,14 +326,6 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
         }
 
         var usesHistoricalEditorDefaults = UsesHistoricalEditorDefaults(profile.OperationalOptions);
-        if (profile.Provider is ConnectionProviderKind.Ftp or ConnectionProviderKind.Ftps or ConnectionProviderKind.Sftp &&
-            profile.OperationalOptions.Retry.MaximumAttempts != 0 &&
-            !usesHistoricalEditorDefaults)
-        {
-            return Unsupported("storage.retry.unsupported",
-                "The selected CL.Storage provider cannot safely apply this retry policy yet.");
-        }
-
         if (profile.Provider is not ConnectionProviderKind.Local &&
             profile.OperationalOptions.ConnectTimeout != profile.OperationalOptions.OperationTimeout &&
             !usesHistoricalEditorDefaults)
@@ -593,6 +585,7 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
             Port = endpoint.Port,
             Root = endpoint.RootPath,
             TimeoutSeconds = TimeoutSeconds(profile),
+            Retry = LibraryRetry(profile),
             HostKeyFingerprints = await GetTrustedFingerprintsAsync(
                 TrustArtifactKind.SshHostKey,
                 endpoint.Host,
@@ -673,8 +666,27 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
                 FtpsEndpoint ftps => ftps.RootPath,
                 _ => string.Empty
             },
-            TimeoutSeconds = TimeoutSeconds(profile)
+            TimeoutSeconds = TimeoutSeconds(profile),
+            Retry = LibraryRetry(profile)
         };
+
+    /// <summary>
+    /// The profile's retry policy, for the retries CL.Storage makes itself on FTP and SFTP since
+    /// 4.8.93, clamped to the bounds it accepts. Attempts count the first try, as S3's MaxRetries
+    /// does not. Deletes and moves are left unretried: a retry after an unseen success acts twice.
+    /// </summary>
+    internal static StorageRetryConfig LibraryRetry(ConnectionProfile profile)
+    {
+        var retry = profile.OperationalOptions.Retry;
+        var baseDelay = (int)Math.Clamp(retry.InitialDelay.TotalMilliseconds, 1, 60_000);
+        return new StorageRetryConfig
+        {
+            RetryCount = Math.Clamp(retry.MaximumAttempts - 1, 0, 10),
+            BaseDelayMs = baseDelay,
+            MaxDelayMs = (int)Math.Clamp(retry.MaximumDelay.TotalMilliseconds, baseDelay, 300_000),
+            RetryNonIdempotent = false
+        };
+    }
 
     private async ValueTask ApplyFtpAuthenticationAsync(
         ConnectionProfile profile,

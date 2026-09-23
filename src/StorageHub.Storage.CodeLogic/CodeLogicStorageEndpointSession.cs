@@ -506,7 +506,10 @@ public sealed class CodeLogicStorageEndpointSession :
                     MaxBufferedBytes = Math.Min(65_536, Math.Max(1, request.MaximumBytes)),
                 },
                 progress: null,
-                cancellationToken).ConfigureAwait(false);
+                // Read the bytes. A digest the server keeps is a claim about them, and this result is
+                // the evidence a verified copy is judged on.
+                mode: StorageChecksumMode.ComputeOnly,
+                cancellationToken: cancellationToken).ConfigureAwait(false);
             if (checksum.IsFailure)
             {
                 return StorageResult<PortableChecksumResult>.Fail(CodeLogicStorageMapper.MapFailure(

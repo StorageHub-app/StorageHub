@@ -133,13 +133,18 @@ public sealed class FtpFtpsProviderIntegrationTests : IAsyncLifetime
             settings.ExplicitPort,
             StorageFtpEncryptionMode.Explicit,
             [wrongPin]));
-        Assert.Equal(StorageFailureKind.Unauthorized, pinFailure.Kind);
+
+        // A refused certificate is not a bad password: since CL.Storage 4.8.93 it is reported as a
+        // TLS failure rather than as unauthorized.
+        Assert.Equal(StorageFailureKind.Security, pinFailure.Kind);
+        Assert.Equal("storage.tls_failure", pinFailure.Code);
 
         var systemTrustFailure = await RejectAsync(CreateConfiguration(
             settings,
             settings.ExplicitPort,
             StorageFtpEncryptionMode.Explicit));
-        Assert.Equal(StorageFailureKind.Unauthorized, systemTrustFailure.Kind);
+        Assert.Equal(StorageFailureKind.Security, systemTrustFailure.Kind);
+        Assert.Equal("storage.tls_failure", systemTrustFailure.Code);
     }
 
     private async Task AssertImplicitFtpsConformanceAsync(FtpFixtureSettings settings)
@@ -169,7 +174,9 @@ public sealed class FtpFtpsProviderIntegrationTests : IAsyncLifetime
             settings.MutualTlsPort,
             StorageFtpEncryptionMode.Explicit,
             [settings.ServerFingerprint]));
-        Assert.Equal(StorageFailureKind.Unauthorized, missingCertificate.Kind);
+        // The server ends the handshake, which is all the library can see.
+        Assert.Equal(StorageFailureKind.Security, missingCertificate.Kind);
+        Assert.Equal("storage.tls_failure", missingCertificate.Code);
 
         var profileId = ConnectionProfileId.New();
         var rootIdentity = $"ftps-mtls-root-{Guid.NewGuid():N}";

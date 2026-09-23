@@ -73,9 +73,15 @@ checksums, permissions and links, free space, watch, compare/sync, a transfer qu
 Swift backends. Several of these StorageHub already has settings for and refuses (proxy, bandwidth, encoding,
 retry), only because the library could not do them. Items 10 and 11 below wait for this.
 
-- **A. Upgrade without behaviour change.** Package and lock files; the one positional-token call
-  (`ComputeChecksumAsync`); the eight new error codes mapped to failure kinds and IPC categories, with a sentence
-  each; the library's retries driven by the profile's retry options.
+- ~~**A. Upgrade.**~~ Done. The one positional-token call (`ComputeChecksumAsync`) names its token and keeps
+  reading the bytes (`ComputeOnly`), since the new default would trust a digest the server keeps. The eight new
+  error codes are mapped, with a sentence each on the desktop, chosen by code so the IPC contract is unchanged.
+  A host key the pins refuse is now `storage.trust.host_key_rejected`, which the queue and the sync outbox
+  block on; before, it was "unavailable" and a transfer retried it. TLS failures stay `storage.tls_failure`
+  (Security): the library cannot say whose certificate was refused. "Logged in but not allowed" no longer
+  says the password was rejected. FTP and SFTP take the profile's retry policy instead of refusing any but
+  the old defaults, which the library ignored anyway. Proven against the lab: pins, rotated key, wrong
+  certificate pin, missing client certificate. The lock files also caught up with the 2.0.0 version.
 - **A2. Evaluate the library's transfer queue and sync against ours** — written up in
   `docs/storage-engines-evaluation.md` for a decision. Ours persist, checkpoint and sync three-way; the
   library's are in memory and stateless. The likely answer is ours on top, the library's pieces underneath.

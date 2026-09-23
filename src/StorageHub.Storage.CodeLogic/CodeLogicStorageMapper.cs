@@ -198,29 +198,43 @@ internal static class CodeLogicStorageMapper
             return new StorageFailure(fallbackCode, StorageFailureKind.Unexpected, fallbackMessage);
         }
 
-        var (kind, transient) = error.Code switch
+        var kind = error.Code switch
         {
-            StorageErrors.InvalidPathCode => (StorageFailureKind.Validation, false),
-            StorageErrors.InvalidContentCode => (StorageFailureKind.Validation, false),
-            StorageErrors.NotFoundCode => (StorageFailureKind.NotFound, false),
-            StorageErrors.UnauthorizedCode => (StorageFailureKind.Unauthorized, false),
-            StorageErrors.TimeoutCode => (StorageFailureKind.Timeout, true),
-            StorageErrors.ConflictCode => (StorageFailureKind.Conflict, false),
-            StorageErrors.UnavailableCode => (StorageFailureKind.Unavailable, true),
-            StorageErrors.UnsupportedCode => (StorageFailureKind.Unsupported, false),
-            StorageErrors.TooLargeCode => (StorageFailureKind.Validation, false),
-            StorageErrors.PartialFailureCode => (StorageFailureKind.Provider, false),
-            StorageErrors.ProviderErrorCode => (StorageFailureKind.Provider, false),
-            _ => (StorageFailureKind.Provider, false)
+            StorageErrors.InvalidPathCode => StorageFailureKind.Validation,
+            StorageErrors.InvalidContentCode => StorageFailureKind.Validation,
+            StorageErrors.NotFoundCode => StorageFailureKind.NotFound,
+            StorageErrors.UnauthorizedCode => StorageFailureKind.Unauthorized,
+            StorageErrors.AuthenticationFailedCode => StorageFailureKind.Unauthorized,
+            StorageErrors.PermissionDeniedCode => StorageFailureKind.Unauthorized,
+            StorageErrors.HostKeyRejectedCode => StorageFailureKind.Security,
+            StorageErrors.TlsFailureCode => StorageFailureKind.Security,
+            StorageErrors.TimeoutCode => StorageFailureKind.Timeout,
+            StorageErrors.ConflictCode => StorageFailureKind.Conflict,
+            StorageErrors.UnavailableCode => StorageFailureKind.Unavailable,
+            StorageErrors.ConnectionFailedCode => StorageFailureKind.Unavailable,
+            StorageErrors.ConnectionLostCode => StorageFailureKind.Unavailable,
+            StorageErrors.ServerBusyCode => StorageFailureKind.Unavailable,
+            StorageErrors.UnsupportedCode => StorageFailureKind.Unsupported,
+            StorageErrors.TooLargeCode => StorageFailureKind.Validation,
+            StorageErrors.QuotaExceededCode => StorageFailureKind.Provider,
+            StorageErrors.PartialFailureCode => StorageFailureKind.Provider,
+            StorageErrors.ProviderErrorCode => StorageFailureKind.Provider,
+            _ => StorageFailureKind.Provider
         };
 
         return new StorageFailure(
-            error.Code,
+            error.Code == StorageErrors.HostKeyRejectedCode ? "storage.trust.host_key_rejected" : error.Code,
             kind,
             fallbackMessage,
-            transient,
+            StorageErrorInfo.IsTransient(error),
             error.Code);
     }
+
+    // A host key the pins refused is a trust decision to make, not an outage: under the app's own
+    // trust code the queue and the sync outbox block for approval instead of failing. Before 4.8.93
+    // the library reported it as unavailable, and a transfer retried it. A TLS failure is not given
+    // the same treatment: the library cannot say whether the server's certificate was refused, ours
+    // was, or the handshake failed, and approving a certificate would not fix the other two.
 
     public static StorageFailure Unexpected(string operation) => new(
         "storage.codelogic.unexpected",

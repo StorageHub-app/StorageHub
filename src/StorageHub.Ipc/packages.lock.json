@@ -8,7 +8,7 @@
       "storagehub.infrastructure": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Security": "[1.4.6, )"
+          "StorageHub.Security": "[2.0.0, )"
         }
       },
       "storagehub.security": {

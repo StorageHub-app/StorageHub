@@ -329,6 +329,18 @@ internal sealed class ValidationStrings : LocalizationModelBase
 
     public string TheProfileRequestTimedOut { get; set; } = "The profile request timed out.";
 
+    public string TheProviderAcceptedTheLoginButRefused { get; set; } = "The provider accepted the login but refused access to this location.";
+
+    public string TheProviderCouldNotBeReached { get; set; } = "The provider could not be reached. Check the host name, the port and any proxy.";
+
+    public string TheProviderDroppedTheConnection { get; set; } = "The provider dropped the connection part-way through.";
+
+    public string TheProviderIsBusyOrLimitingConnections { get; set; } = "The provider is busy or limiting connections. Try again shortly.";
+
+    public string TheProviderIsOutOfSpaceOr { get; set; } = "The provider is out of space, or the account's quota is used up.";
+
+    public string TheProviderPresentedAHostKeyThat { get; set; } = "The server presented a host key that is not trusted for this connection.";
+
     public string TheProviderRejectedTheSavedUsernameOr { get; set; } = "The provider rejected the saved username or credential.";
 
     public string TheProviderRepeatedARecursiveListingPage { get; set; } = "The provider repeated a recursive listing page token.";
@@ -368,6 +380,8 @@ internal sealed class ValidationStrings : LocalizationModelBase
     public string TheScheduleRequestIsOutsideTheNegotiated { get; set; } = "The schedule request is outside the negotiated IPC contract bounds.";
 
     public string TheSecretRequestIsOutsideTheSecret { get; set; } = "The secret request is outside the secret IPC contract bounds.";
+
+    public string TheSecureConnectionToTheProviderFailed { get; set; } = "The secure connection could not be set up. The server's certificate or ours was refused, or the two sides share no TLS version.";
 
     public string TheSecretRequestTimedOutBeforeIt { get; set; } = "The secret request timed out before it could start.";
 

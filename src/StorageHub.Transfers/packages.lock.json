@@ -8,14 +8,14 @@
       "storagehub.domain": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[1.4.6, )"
+          "StorageHub.Contracts": "[2.0.0, )"
         }
       },
       "storagehub.storage": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[1.4.6, )",
-          "StorageHub.Domain": "[1.4.6, )"
+          "StorageHub.Contracts": "[2.0.0, )",
+          "StorageHub.Domain": "[2.0.0, )"
         }
       }
     },

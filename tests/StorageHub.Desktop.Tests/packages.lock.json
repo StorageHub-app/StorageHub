@@ -381,15 +381,15 @@
         "type": "Project",
         "dependencies": {
           "Cronos": "[0.13.0, )",
-          "StorageHub.Application": "[1.4.6, )",
-          "StorageHub.Contracts": "[1.4.6, )",
-          "StorageHub.Domain": "[1.4.6, )",
-          "StorageHub.Infrastructure": "[1.4.6, )",
-          "StorageHub.Ipc": "[1.4.6, )",
-          "StorageHub.Security": "[1.4.6, )",
-          "StorageHub.Storage": "[1.4.6, )",
-          "StorageHub.Sync": "[1.4.6, )",
-          "StorageHub.Transfers": "[1.4.6, )",
+          "StorageHub.Application": "[2.0.0, )",
+          "StorageHub.Contracts": "[2.0.0, )",
+          "StorageHub.Domain": "[2.0.0, )",
+          "StorageHub.Infrastructure": "[2.0.0, )",
+          "StorageHub.Ipc": "[2.0.0, )",
+          "StorageHub.Security": "[2.0.0, )",
+          "StorageHub.Storage": "[2.0.0, )",
+          "StorageHub.Sync": "[2.0.0, )",
+          "StorageHub.Transfers": "[2.0.0, )",
           "System.ServiceProcess.ServiceController": "[10.0.12, )"
         }
       },
@@ -398,8 +398,8 @@
         "dependencies": {
           "CodeLogic": "[4.8.19, )",
           "Cronos": "[0.13.0, )",
-          "StorageHub.Domain": "[1.4.6, )",
-          "StorageHub.Security": "[1.4.6, )"
+          "StorageHub.Domain": "[2.0.0, )",
+          "StorageHub.Security": "[2.0.0, )"
         }
       },
       "storagehub.contracts": {
@@ -413,7 +413,7 @@
           "Avalonia.Fonts.Inter": "[12.1.2, )",
           "Avalonia.Themes.Fluent": "[12.1.2, )",
           "Lucide.Avalonia": "[0.2.23, )",
-          "StorageHub.Desktop.Core": "[1.4.6, )"
+          "StorageHub.Desktop.Core": "[2.0.0, )"
         }
       },
       "storagehub.desktop.core": {
@@ -423,30 +423,30 @@
           "CodeLogic": "[4.8.19, )",
           "Microsoft.Data.Sqlite": "[9.0.18, )",
           "SQLitePCLRaw.bundle_e_sqlite3": "[2.1.12, )",
-          "StorageHub.Agent": "[1.4.6, )",
-          "StorageHub.Contracts": "[1.4.6, )",
-          "StorageHub.Ipc": "[1.4.6, )",
-          "StorageHub.Security": "[1.4.6, )",
+          "StorageHub.Agent": "[2.0.0, )",
+          "StorageHub.Contracts": "[2.0.0, )",
+          "StorageHub.Ipc": "[2.0.0, )",
+          "StorageHub.Security": "[2.0.0, )",
           "Velopack": "[1.2.0, )"
         }
       },
       "storagehub.domain": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[1.4.6, )"
+          "StorageHub.Contracts": "[2.0.0, )"
         }
       },
       "storagehub.infrastructure": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Security": "[1.4.6, )"
+          "StorageHub.Security": "[2.0.0, )"
         }
       },
       "storagehub.ipc": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[1.4.6, )",
-          "StorageHub.Infrastructure": "[1.4.6, )"
+          "StorageHub.Contracts": "[2.0.0, )",
+          "StorageHub.Infrastructure": "[2.0.0, )"
         }
       },
       "storagehub.security": {
@@ -455,23 +455,23 @@
       "storagehub.storage": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[1.4.6, )",
-          "StorageHub.Domain": "[1.4.6, )"
+          "StorageHub.Contracts": "[2.0.0, )",
+          "StorageHub.Domain": "[2.0.0, )"
         }
       },
       "storagehub.sync": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Domain": "[1.4.6, )",
-          "StorageHub.Storage": "[1.4.6, )",
-          "StorageHub.Transfers": "[1.4.6, )"
+          "StorageHub.Domain": "[2.0.0, )",
+          "StorageHub.Storage": "[2.0.0, )",
+          "StorageHub.Transfers": "[2.0.0, )"
         }
       },
       "storagehub.transfers": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Domain": "[1.4.6, )",
-          "StorageHub.Storage": "[1.4.6, )"
+          "StorageHub.Domain": "[2.0.0, )",
+          "StorageHub.Storage": "[2.0.0, )"
         }
       },
       "Avalonia": {

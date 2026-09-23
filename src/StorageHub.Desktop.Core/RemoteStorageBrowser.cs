@@ -756,7 +756,24 @@ internal static class RemoteBrowserErrors
         _ => Ui.Validation.TheRemoteLocationCouldNotBeOpened
     };
 
-    public static string ForFailure(StorageIpcFailure? failure) => failure?.Category switch
+    /// <remarks>
+    /// The codes first: since CL.Storage 4.8.93 a failure says which of several things went wrong
+    /// under one category -- a login refused versus a folder refused, a server that cannot be
+    /// reached versus one that dropped the connection -- and the agent passes the code through.
+    /// </remarks>
+    public static string ForFailure(StorageIpcFailure? failure) => failure?.Code switch
+    {
+        "storage.permission_denied" => Ui.Validation.TheProviderAcceptedTheLoginButRefused,
+        "storage.connection_failed" => Ui.Validation.TheProviderCouldNotBeReached,
+        "storage.connection_lost" => Ui.Validation.TheProviderDroppedTheConnection,
+        "storage.server_busy" => Ui.Validation.TheProviderIsBusyOrLimitingConnections,
+        "storage.quota_exceeded" => Ui.Validation.TheProviderIsOutOfSpaceOr,
+        "storage.trust.host_key_rejected" => Ui.Validation.TheProviderPresentedAHostKeyThat,
+        "storage.tls_failure" => Ui.Validation.TheSecureConnectionToTheProviderFailed,
+        _ => ForCategory(failure)
+    };
+
+    private static string ForCategory(StorageIpcFailure? failure) => failure?.Category switch
     {
         StorageIpcFailureCategory.Validation => Ui.Validation.TheRemotePathOrConnectionSettingsAre,
         StorageIpcFailureCategory.NotFound => Ui.Validation.TheRemoteFolderOrSavedConnectionWas,

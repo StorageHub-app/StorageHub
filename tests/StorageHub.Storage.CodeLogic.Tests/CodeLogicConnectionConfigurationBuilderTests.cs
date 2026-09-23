@@ -475,7 +475,7 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
     }
 
     [Fact]
-    public async Task Unenforceable_proxy_bandwidth_retry_and_split_timeout_options_are_rejected()
+    public async Task Unenforceable_proxy_bandwidth_and_split_timeout_options_are_rejected()
     {
         var endpoint = new FtpEndpoint("ftp.example.test", 21, allowInsecurePlainText: true);
         var authentication = new NoAuthentication();
@@ -486,12 +486,17 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
 
         Assert.Equal("storage.proxy.unsupported", (await CreateBuilder().BuildAsync(proxy)).Error?.Code);
         Assert.Equal("storage.bandwidth.unsupported", (await CreateBuilder().BuildAsync(bandwidth)).Error?.Code);
-        Assert.Equal("storage.retry.unsupported", (await CreateBuilder().BuildAsync(retry)).Error?.Code);
         Assert.Equal("storage.timeout.unsupported", (await CreateBuilder().BuildAsync(splitTimeout)).Error?.Code);
+
+        // CL.Storage 4.8.93 retries FTP and SFTP itself, so a retry policy is applied, not refused.
+        var retried = await CreateBuilder().BuildAsync(retry);
+        Assert.True(retried.IsSuccess);
+        await using var prepared = retried.Value;
+        Assert.Equal(1, Assert.IsType<FtpConnectionConfig>(prepared.Configuration).Retry.RetryCount);
     }
 
     [Fact]
-    public async Task HistoricalConnectionManagerDefaultsOpenButNearMatchesRemainFailClosed()
+    public async Task TheRetryPolicyReachesTheLibraryAsWritten()
     {
         var password = await StoreTextAsync("sftp-password");
         _trust.Records.Add(TrustedRecord(TrustArtifactKind.SshHostKey, "sftp.example.test", 22));
@@ -504,7 +509,7 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
             "utf-8");
         var nearMatch = new ConnectionOperationalOptions(
             TimeSpan.FromSeconds(30),
-            TimeSpan.FromSeconds(60),
+            TimeSpan.FromSeconds(30),
             new ConnectionRetryPolicy(3, TimeSpan.FromMilliseconds(251), TimeSpan.FromSeconds(5)),
             proxy: null,
             new ConnectionBandwidthLimits(null, null),
@@ -525,8 +530,36 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
         await using var prepared = compatible.Value;
         var configuration = Assert.IsType<SftpConnectionConfig>(prepared.Configuration);
         Assert.Equal(30, configuration.TimeoutSeconds);
-        Assert.True(rejected.IsFailure);
-        Assert.Equal("storage.retry.unsupported", rejected.Error.Code);
+        Assert.Equal(2, configuration.Retry.RetryCount);
+        Assert.Equal(250, configuration.Retry.BaseDelayMs);
+        Assert.Equal(5_000, configuration.Retry.MaxDelayMs);
+        Assert.False(configuration.Retry.RetryNonIdempotent);
+
+        // Anything but the old defaults was refused before 4.8.93; now it is simply what is sent.
+        Assert.True(rejected.IsSuccess);
+        await using var near = rejected.Value;
+        Assert.Equal(251, Assert.IsType<SftpConnectionConfig>(near.Configuration).Retry.BaseDelayMs);
+    }
+
+    [Fact]
+    public void ARetryPolicyBeyondTheLibrarysBoundsIsClamped()
+    {
+        var profile = CreateProfile(
+            new FtpEndpoint("ftp.example.test", 21, allowInsecurePlainText: true),
+            new NoAuthentication(),
+            operationalOptions: new ConnectionOperationalOptions(
+                TimeSpan.FromSeconds(30),
+                TimeSpan.FromSeconds(30),
+                new ConnectionRetryPolicy(20, TimeSpan.Zero, TimeSpan.FromHours(1)),
+                proxy: null,
+                new ConnectionBandwidthLimits(null, null),
+                "utf-8"));
+
+        var retry = CodeLogicConnectionConfigurationBuilder.LibraryRetry(profile);
+
+        Assert.Equal(10, retry.RetryCount);
+        Assert.Equal(1, retry.BaseDelayMs);
+        Assert.Equal(300_000, retry.MaxDelayMs);
     }
 
     private CodeLogicConnectionConfigurationBuilder CreateBuilder() => new(
