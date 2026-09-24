@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <!-- Which build to accept: pass -p:StorageVersion=... -->
+    <StorageVersion Condition="'$(StorageVersion)' == ''">4.8.94-local.2</StorageVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="CodeLogic.Storage" Version="$(StorageVersion)" />
+  </ItemGroup>
+</Project>
