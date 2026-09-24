@@ -130,6 +130,18 @@ public sealed class PresentationModelTests
         Assert.Equal("Agent: connected", status.AgentText);
     }
 
+    [Theory]
+    [InlineData(0.0, "0:00")]
+    [InlineData(0.2, "0:01")]
+    [InlineData(59.0, "0:59")]
+    [InlineData(125.0, "2:05")]
+    [InlineData(3723.0, "1:02:03")]
+    [InlineData(-5.0, "0:00")]
+    public void DurationsReadAsAClockRoundedUp(double seconds, string expected)
+    {
+        Assert.Equal(expected, UiFormatting.FormatDuration(TimeSpan.FromSeconds(seconds)));
+    }
+
     [Fact]
     public void SyncDefaultsRequirePreviewAndKeepDeletesDisabled()
     {

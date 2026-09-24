@@ -482,7 +482,8 @@ public sealed class NamedPipeTransferQueueAgentClient : ITransferQueueAgentClien
                 !request.States.Contains(transfer.State)) ||
             response.Transfers.Select(static transfer => transfer.TransferId).Distinct().Count() !=
                 response.Transfers.Length ||
-            response.StateCounts is not null && response.StateCounts.Any(pair => !Enum.IsDefined(pair.Key) || pair.Value < 0))
+            response.StateCounts is not null && response.StateCounts.Any(pair => !Enum.IsDefined(pair.Key) || pair.Value < 0) ||
+            response.TotalBytesPerSecond < 0)
         {
             throw InvalidResponse();
         }
@@ -538,6 +539,7 @@ public sealed class NamedPipeTransferQueueAgentClient : ITransferQueueAgentClien
         value.Priority is >= TransferQueueIpcLimits.MinimumPriority and <= TransferQueueIpcLimits.MaximumPriority &&
         value.ExpectedBytes is null or >= 0 &&
         value.ProgressBytes >= 0 &&
+        value.BytesPerSecond is null or >= 0 &&
         (value.ExpectedBytes is null || value.ProgressBytes <= value.ExpectedBytes) &&
         value.UpdatedUtc.Offset == TimeSpan.Zero &&
         (value.RetryAvailableUtc is null || value.RetryAvailableUtc.Value.Offset == TimeSpan.Zero) &&

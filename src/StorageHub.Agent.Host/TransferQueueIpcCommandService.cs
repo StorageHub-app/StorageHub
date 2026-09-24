@@ -217,7 +217,8 @@ public sealed class TransferQueueIpcCommandService : IAgentIpcCommandHandler
                     TransferQueueIpcContract.CurrentVersion,
                     transfers,
                     EncodeCursor(page.Continuation),
-                    StateCounts: counts.ToDictionary(pair => Map(pair.Key), pair => pair.Value)));
+                    StateCounts: counts.ToDictionary(pair => Map(pair.Key), pair => pair.Value),
+                    TotalBytesPerSecond: _activeProgress?.TryGetTotalLiveBytesPerSecond()));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -614,7 +615,8 @@ public sealed class TransferQueueIpcCommandService : IAgentIpcCommandHandler
             job.LastError?.Summary,
             TransferStateMachine.CanTransition(job.State.State, TransferState.Cancelled),
             CanRetry(job.State.State) && job.ActiveLease is null,
-            job.State.State is TransferState.Interrupted or TransferState.NeedsReconciliation);
+            job.State.State is TransferState.Interrupted or TransferState.NeedsReconciliation,
+            _activeProgress?.TryGetLiveBytesPerSecond(job.Intent.TransferJobId));
     }
 
     private static bool TryCreateAddress(TransferQueueAddress wire, out StorageAddress address)

@@ -127,6 +127,12 @@ internal sealed class TransferStrings : LocalizationModelBase
 
     public string NoTransfers { get; set; } = "No transfers in this view.";
 
+    /// <summary>{0} = the percentage or bytes done, {1} = how much moves per second.</summary>
+    public string ProgressRateFormat { get; set; } = "{0} · {1}/s";
+
+    /// <summary>{0} = the percentage done, {1} = how much moves per second, {2} = the time left, as 2:05.</summary>
+    public string ProgressRemainingFormat { get; set; } = "{0} · {1}/s · {2} left";
+
     /// <summary>{0} = how many transfers this view holds.</summary>
     public string TransferCountFormat { get; set; } = "{0} transfer(s).";
 

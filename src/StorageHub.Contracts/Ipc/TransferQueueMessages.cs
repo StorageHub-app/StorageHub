@@ -183,7 +183,9 @@ public sealed record TransferListResponse(
     TransferQueueSummary[] Transfers,
     string? ContinuationToken,
     StorageIpcFailure? Failure = null,
-    Dictionary<TransferQueueState, int>? StateCounts = null);
+    Dictionary<TransferQueueState, int>? StateCounts = null,
+    // Every running transfer together, whichever states this page lists; null when none can say yet.
+    long? TotalBytesPerSecond = null);
 
 public sealed record TransferHistoryClearRequest(
     int ContractVersion,
@@ -266,4 +268,6 @@ public sealed record TransferQueueSummary(
     string? ErrorSummary,
     bool CanCancel,
     bool CanRetry,
-    bool NeedsReconciliation);
+    bool NeedsReconciliation,
+    // How fast the transfer is moving now; null unless it is running and has run for a second.
+    long? BytesPerSecond = null);

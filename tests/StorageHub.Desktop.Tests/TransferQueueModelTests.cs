@@ -56,6 +56,28 @@ public class TransferQueueModelTests
         Assert.Equal(3, queue.ActiveCount);
     }
 
+    /// <summary>
+    /// The status bar's speed is the agent's total for everything running, whichever tab is open,
+    /// and drops to nothing when the agent stops reporting one.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task TheTotalSpeedIsTheAgentsWhicheverTabIsOpen()
+    {
+        var agent = new FakeQueueAgent { TotalBytesPerSecond = 5_000 };
+        await using var queue = new TransferQueueModel(() => agent);
+        var raised = new List<string?>();
+        queue.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+
+        queue.SelectedTab = IndexOf(queue, TransferQueueTabs.FailedKey);
+        await queue.RefreshAsync();
+        Assert.Equal(5_000, queue.BytesPerSecond);
+        Assert.Contains(nameof(TransferQueueModel.BytesPerSecond), raised);
+
+        agent.TotalBytesPerSecond = null;
+        await queue.RefreshAsync();
+        Assert.Equal(0, queue.BytesPerSecond);
+    }
+
     [AvaloniaFact]
     public async Task ARowCarriesWhatTheColumnsShow()
     {
@@ -218,6 +240,8 @@ public class TransferQueueModelTests
 
         internal Dictionary<TransferQueueState, int>? Counts { get; set; }
 
+        internal long? TotalBytesPerSecond { get; set; }
+
         internal IReadOnlyList<TransferQueueState> LastStates { get; private set; } = [];
 
         internal bool Throw { get; set; }
@@ -237,7 +261,8 @@ public class TransferQueueModelTests
                 matching,
                 ContinuationToken: null,
                 Failure: null,
-                Counts));
+                Counts,
+                TotalBytesPerSecond));
         }
 
         public Task<TransferMutationResponse> CancelAsync(

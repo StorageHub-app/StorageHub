@@ -223,6 +223,9 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
     /// <summary>And those waiting behind them, which is the other half of "how busy is it".</summary>
     internal int QueuedCount => Tabs[1].Count;
 
+    /// <summary>How fast everything running moves together, for the status bar; 0 when nothing does.</summary>
+    internal long BytesPerSecond { get; private set; }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     /// <summary>
@@ -379,9 +382,12 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
             Message = Ui.Transfer.NoTransfers;
         }
 
+        BytesPerSecond = response.TotalBytesPerSecond ?? 0;
+
         Raise(nameof(HasMessage));
         Raise(nameof(ActiveCount));
         Raise(nameof(QueuedCount));
+        Raise(nameof(BytesPerSecond));
         Interval = Tabs[0].Count > 0 ? ActivePollMilliseconds : IdlePollMilliseconds;
         RaiseCommands();
     }
@@ -516,22 +522,41 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
         ProgressFractionOf(transfer));
 
     /// <summary>
-    /// A percentage when the size is known, bytes moved when it is not.
+    /// A percentage when the size is known, bytes moved when it is not; while it runs, also the
+    /// speed, and the time left when the size is known.
     /// </summary>
     /// <remarks>
     /// ExpectedBytes is null for a provider that does not report a length before the transfer runs,
     /// and showing "0%" for those was the old shell's one persistent complaint about this column.
+    /// A stalled transfer shows 0 B/s and no time left, rather than a guess from its last speed.
     /// </remarks>
-    private static string DescribeProgress(TransferQueueSummary transfer)
+    internal static string DescribeProgress(TransferQueueSummary transfer)
     {
-        if (ProgressFractionOf(transfer) is not { } fraction)
-        {
-            return transfer.ProgressBytes > 0
+        var fraction = ProgressFractionOf(transfer);
+        var done = fraction is { } known
+            ? string.Create(CultureInfo.CurrentCulture, $"{known * 100:0}%")
+            : transfer.ProgressBytes > 0
                 ? UiFormatting.FormatBytes(transfer.ProgressBytes)
                 : string.Empty;
+
+        if (transfer.BytesPerSecond is not { } rate)
+        {
+            return done;
         }
 
-        return string.Create(CultureInfo.CurrentCulture, $"{fraction * 100:0}%");
+        var speed = UiFormatting.FormatBytes(rate);
+        if (done.Length == 0)
+        {
+            return Ui.Format(Ui.Shell.StatusTransferRateFormat, speed);
+        }
+
+        if (rate > 0 && transfer.ExpectedBytes is { } expected && expected > transfer.ProgressBytes)
+        {
+            var left = TimeSpan.FromSeconds((double)(expected - transfer.ProgressBytes) / rate);
+            return Ui.Format(Ui.Transfer.ProgressRemainingFormat, done, speed, UiFormatting.FormatDuration(left));
+        }
+
+        return Ui.Format(Ui.Transfer.ProgressRateFormat, done, speed);
     }
 
     /// <summary>

@@ -89,6 +89,25 @@ public sealed class TransferQueueAgentSubsystem
             ? active.Progress?.BytesTransferred
             : null;
 
+    public long? TryGetLiveBytesPerSecond(Domain.Identifiers.TransferJobId transferJobId) =>
+        _activeExecutions.TryGetValue(transferJobId, out var active)
+            ? active.Progress?.BytesPerSecond()
+            : null;
+
+    public long? TryGetTotalLiveBytesPerSecond()
+    {
+        long? total = null;
+        foreach (var active in _activeExecutions.Values)
+        {
+            if (active.Progress?.BytesPerSecond() is { } rate)
+            {
+                total = (total ?? 0) + rate;
+            }
+        }
+
+        return total;
+    }
+
     public ActiveTransferCancellationResult TryRequestActiveCancellation(
         Domain.Identifiers.TransferJobId transferJobId,
         long expectedRevision)
@@ -443,7 +462,7 @@ public sealed class TransferQueueAgentSubsystem
                 throw new InvalidOperationException("The transfer already has an active local execution.");
             }
 
-            var progress = new LatestTransferProgress();
+            var progress = new LatestTransferProgress(_timeProvider);
             activeControl.Progress = progress;
             var leaseMonitor = MonitorLeaseAsync(context.Lease, executionLifetime);
             var checkpointMonitor = MonitorCheckpointAsync(context, progress, executionLifetime);
@@ -973,11 +992,14 @@ public sealed class TransferQueueAgentSubsystem
         public long? CheckpointVersion { get; set; }
     }
 
-    private sealed class LatestTransferProgress : IProgress<TransferProgress>
+    private sealed class LatestTransferProgress(TimeProvider timeProvider) : IProgress<TransferProgress>
     {
+        private readonly TransferRateMeter _rate = new(timeProvider);
         private long _bytesTransferred;
 
         public long BytesTransferred => Interlocked.Read(ref _bytesTransferred);
+
+        public long? BytesPerSecond() => _rate.BytesPerSecond();
 
         public void Report(TransferProgress value)
         {
@@ -985,6 +1007,8 @@ public sealed class TransferQueueAgentSubsystem
             {
                 return;
             }
+
+            _rate.Record(value.BytesTransferred);
 
             while (true)
             {
@@ -1080,4 +1104,13 @@ public interface IActiveTransferCancellation
 public interface IActiveTransferProgress
 {
     long? TryGetLiveProgressBytes(Domain.Identifiers.TransferJobId transferJobId);
+
+    /// <summary>
+    /// How fast a transfer running in this process is moving over the last few seconds, or null when
+    /// it is not running here or has not run long enough to say.
+    /// </summary>
+    long? TryGetLiveBytesPerSecond(Domain.Identifiers.TransferJobId transferJobId) => null;
+
+    /// <summary>All transfers running in this process together, or null when none can say yet.</summary>
+    long? TryGetTotalLiveBytesPerSecond() => null;
 }

@@ -478,4 +478,19 @@ public static class UiFormatting
         var prefix = negative ? "−" : string.Empty;
         return string.Create(CultureInfo.CurrentCulture, $"{prefix}{value:0.#} {SizeSuffixes[suffix]}");
     }
+
+    /// <summary>
+    /// A duration as a clock, 2:05 or 1:02:03, which reads the same in every language the shell
+    /// ships and so needs no translated units. Rounded up, so the last seconds never show 0:00.
+    /// </summary>
+    public static string FormatDuration(TimeSpan duration)
+    {
+        var seconds = (long)Math.Ceiling(Math.Max(0, duration.TotalSeconds));
+        var hours = seconds / 3600;
+        var minutes = seconds / 60 % 60;
+        var rest = seconds % 60;
+        return hours > 0
+            ? string.Create(CultureInfo.InvariantCulture, $"{hours}:{minutes:00}:{rest:00}")
+            : string.Create(CultureInfo.InvariantCulture, $"{minutes}:{rest:00}");
+    }
 }

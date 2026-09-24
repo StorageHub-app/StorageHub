@@ -167,12 +167,14 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         Queue.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName is nameof(TransferQueueModel.ActiveCount)
-                or nameof(TransferQueueModel.QueuedCount))
+                or nameof(TransferQueueModel.QueuedCount)
+                or nameof(TransferQueueModel.BytesPerSecond))
             {
                 ShellStatus = ShellStatus with
                 {
                     ActiveJobs = Queue.ActiveCount,
-                    QueuedJobs = Queue.QueuedCount
+                    QueuedJobs = Queue.QueuedCount,
+                    TransferBytesPerSecond = Queue.BytesPerSecond
                 };
             }
         };

@@ -21,7 +21,7 @@ lands. The Avalonia port's screens 1–9 are done; this picks up from there.
 
 The profile already stores these; `CodeLogicConnectionProfileConnector.BuildAsync` refuses them.
 
-- [ ] 1.1 Transfer rate and ETA: library `Progress` through `TransferProgress` and IPC to the queue's
+- [x] 1.1 Transfer rate and ETA: library `Progress` through `TransferProgress` and IPC to the queue's
       progress column and the status bar (`TransferBytesPerSecond`).
 - [ ] 1.2 Speed limits: per-connection bandwidth to `TransferLimits`, the global limit to `MaxTotal*`;
       the "Speed Limits…" command gets its dialog.

@@ -197,6 +197,61 @@ public sealed class TransferQueueAgentSubsystemTests : IDisposable
                 cancelled.State.Revision));
     }
 
+    /// <summary>
+    /// A running transfer reports how fast it moves, measured by the worker from the bytes the copier
+    /// reports, and the total across running transfers includes it.
+    /// </summary>
+    [Fact]
+    public async Task A_running_transfer_reports_its_speed()
+    {
+        var fixture = await CreateFixtureAsync();
+        var stream = new TrickleThenHoldStream(firstReadBytes: 8_192);
+        var source = new FakeSession(
+            fixture.Intent.Source.ProfileId,
+            fixture.Intent.Source.RootIdentity,
+            Capabilities(StorageFeature.ReadStream))
+        {
+            Entry = StorageEntry.Create(
+                fixture.Intent.Source,
+                StorageEntryKind.File,
+                fixture.Intent.ExpectedLength).Value,
+            ReadStreamFactory = () => stream
+        };
+        var destination = new FakeSession(
+            fixture.Intent.Destination.ProfileId,
+            fixture.Intent.Destination.RootIdentity,
+            Capabilities(StorageFeature.WriteStream, StorageFeature.ConditionalCreate));
+        var connector = new FakeConnector(new Dictionary<ConnectionProfileId, Func<FakeConnection>>
+        {
+            [source.ProfileId] = () => new FakeConnection(source),
+            [destination.ProfileId] = () => new FakeConnection(destination)
+        });
+        await using var worker = CreateWorker(fixture.Store, connector);
+        await worker.InitializeAsync(CancellationToken.None);
+
+        var execution = worker.RunClaimOnceAsync().AsTask();
+        await stream.Holding.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Null(worker.TryGetLiveBytesPerSecond(fixture.Intent.TransferJobId));
+
+        // The meter gives no speed for its first second; after it, the first read's bytes over a
+        // little more than a second. The transfer is stalled, so a later reading is only ever lower.
+        await Task.Delay(TransferRateMeter.MinimumSpan + TimeSpan.FromMilliseconds(200));
+        var rate = worker.TryGetLiveBytesPerSecond(fixture.Intent.TransferJobId);
+        var total = worker.TryGetTotalLiveBytesPerSecond();
+
+        Assert.InRange(rate!.Value, 1, 8_192);
+        Assert.InRange(total!.Value, 1, rate.Value);
+
+        var active = Assert.IsType<DurableTransferJob>(await fixture.InnerStore.FindAsync(fixture.Intent.TransferJobId));
+        Assert.Equal(
+            ActiveTransferCancellationResult.Accepted,
+            worker.TryRequestActiveCancellation(fixture.Intent.TransferJobId, active.State.Revision));
+        stream.Release.TrySetResult();
+        Assert.True(await execution.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.Null(worker.TryGetLiveBytesPerSecond(fixture.Intent.TransferJobId));
+        Assert.Null(worker.TryGetTotalLiveBytesPerSecond());
+    }
+
     [Fact]
     public async Task Renewal_loss_cancels_io_and_stale_worker_does_not_record_terminal_state()
     {
@@ -670,6 +725,48 @@ public sealed class TransferQueueAgentSubsystemTests : IDisposable
         {
             await Task.Delay(delay, cancellationToken);
             return await base.ReadAsync(destination, cancellationToken);
+        }
+    }
+
+    /// <summary>Hands over some bytes on the first read, then holds every later read until released.</summary>
+    private sealed class TrickleThenHoldStream(int firstReadBytes) : Stream
+    {
+        private bool _gaveFirst;
+
+        public TaskCompletionSource Holding { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override void Flush() => throw new NotSupportedException();
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override async ValueTask<int> ReadAsync(
+            Memory<byte> buffer,
+            CancellationToken cancellationToken = default)
+        {
+            if (!_gaveFirst)
+            {
+                _gaveFirst = true;
+                var count = Math.Min(firstReadBytes, buffer.Length);
+                buffer.Span[..count].Fill(7);
+                return count;
+            }
+
+            Holding.TrySetResult();
+            await Release.Task;
+            cancellationToken.ThrowIfCancellationRequested();
+            return 0;
         }
     }
 

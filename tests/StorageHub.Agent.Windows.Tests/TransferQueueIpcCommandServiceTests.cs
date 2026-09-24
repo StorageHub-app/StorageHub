@@ -365,6 +365,34 @@ public sealed class TransferQueueIpcCommandServiceTests : IDisposable
     }
 
     [WindowsOnlyFact]
+    public async Task A_running_transfer_reports_its_speed_and_the_list_reports_the_total()
+    {
+        var progress = new StubActiveProgress();
+        var fixture = await CreateFixtureAsync(progress);
+        var running = await CreateRequestAsync(fixture);
+        var waiting = await CreateRequestAsync(fixture);
+        foreach (var request in new[] { running, waiting })
+        {
+            await SendAsync<TransferEnqueueRequest, TransferEnqueueResponse>(
+                fixture.Service,
+                TransferQueueIpcMessageTypes.EnqueueRequest,
+                request);
+        }
+
+        progress.Rates[new TransferJobId(running.TransferId)] = 3_000;
+        progress.Rates[new TransferJobId(Guid.NewGuid())] = 500; // running, but not on this page
+
+        var list = await SendAsync<TransferListRequest, TransferListResponse>(
+            fixture.Service,
+            TransferQueueIpcMessageTypes.ListRequest,
+            new TransferListRequest(TransferQueueIpcContract.CurrentVersion, [TransferQueueState.Pending], PageSize: 10));
+
+        Assert.Equal(3_500, list.TotalBytesPerSecond);
+        Assert.Equal(3_000, list.Transfers.Single(t => t.TransferId == running.TransferId).BytesPerSecond);
+        Assert.Null(list.Transfers.Single(t => t.TransferId == waiting.TransferId).BytesPerSecond);
+    }
+
+    [WindowsOnlyFact]
     public async Task Status_never_reports_more_progress_than_the_expected_length()
     {
         var progress = new StubActiveProgress();
@@ -483,8 +511,15 @@ public sealed class TransferQueueIpcCommandServiceTests : IDisposable
     {
         public Dictionary<TransferJobId, long> Bytes { get; } = [];
 
+        public Dictionary<TransferJobId, long> Rates { get; } = [];
+
         public long? TryGetLiveProgressBytes(TransferJobId transferJobId) =>
             Bytes.TryGetValue(transferJobId, out var bytes) ? bytes : null;
+
+        public long? TryGetLiveBytesPerSecond(TransferJobId transferJobId) =>
+            Rates.TryGetValue(transferJobId, out var rate) ? rate : null;
+
+        public long? TryGetTotalLiveBytesPerSecond() => Rates.Count == 0 ? null : Rates.Values.Sum();
     }
 
     private sealed class RecordingCancellation(ActiveTransferCancellationResult result)

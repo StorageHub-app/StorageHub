@@ -40,6 +40,33 @@ public sealed class TransferProgressTests
         Assert.NotEmpty(row.Progress);
     }
 
+    /// <summary>A running transfer of known size shows its speed and the time left at that speed.</summary>
+    [AvaloniaFact]
+    public void ARunningTransferShowsItsSpeedAndTimeLeft()
+    {
+        var row = TransferQueueModel.ToRow(Transfer(expected: 4 * 1024 * 1024, done: 1024 * 1024, rate: 1024 * 1024));
+
+        Assert.Equal("25% · 1 MiB/s · 0:03 left", row.Progress);
+    }
+
+    /// <summary>An unknown size still shows the speed, but there is nothing to count down to.</summary>
+    [AvaloniaFact]
+    public void AnUnknownSizeShowsSpeedButNoTimeLeft()
+    {
+        var row = TransferQueueModel.ToRow(Transfer(expected: null, done: 4096, rate: 2048));
+
+        Assert.Equal("4 KiB · 2 KiB/s", row.Progress);
+    }
+
+    /// <summary>A stalled transfer says so, rather than promising a time from a speed it no longer has.</summary>
+    [AvaloniaFact]
+    public void AStalledTransferShowsNoTimeLeft()
+    {
+        var row = TransferQueueModel.ToRow(Transfer(expected: 200, done: 50, rate: 0));
+
+        Assert.Equal("25% · 0 B/s", row.Progress);
+    }
+
     /// <summary>More bytes than expected is 100% in the text and a full bar, never past the end.</summary>
     [AvaloniaFact]
     public void OvershootIsAFullBar()
@@ -68,9 +95,15 @@ public sealed class TransferProgressTests
             ColorSchemeCatalog.Resolve(id: null, preferDark: dark));
 
         await using var queue = new TransferQueueModel(() => throw new InvalidOperationException("Not polled."));
-        foreach (var (expected, done) in new (long?, long)[] { (1000, 120), (1000, 640), (1000, 1000), (null, 3_400_000) })
+        foreach (var (expected, done, rate) in new (long?, long, long?)[]
+                 {
+                     (1_200_000_000, 144_000_000, 11_800_000),
+                     (1000, 640, null),
+                     (1000, 1000, null),
+                     (null, 3_400_000, 350_000),
+                 })
         {
-            queue.Rows.Add(TransferQueueModel.ToRow(Transfer(expected, done)));
+            queue.Rows.Add(TransferQueueModel.ToRow(Transfer(expected, done, rate)));
         }
 
         var window = new Window { Content = new TransferQueueView { DataContext = queue } };
@@ -89,7 +122,7 @@ public sealed class TransferProgressTests
         frame!.Save(stream, new PngBitmapEncoderOptions());
     }
 
-    private static TransferQueueSummary Transfer(long? expected, long done) => new(
+    private static TransferQueueSummary Transfer(long? expected, long done, long? rate = null) => new(
         Guid.NewGuid(),
         TransferQueueOperation.Copy,
         Guid.NewGuid(),
@@ -108,5 +141,6 @@ public sealed class TransferProgressTests
         ErrorSummary: null,
         CanCancel: true,
         CanRetry: false,
-        NeedsReconciliation: false);
+        NeedsReconciliation: false,
+        BytesPerSecond: rate);
 }

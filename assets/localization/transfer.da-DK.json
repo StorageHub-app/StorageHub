@@ -48,6 +48,8 @@
   "noHistoryToClear": "Ingen overførselshistorik at rydde.",
   "noReconciliationNeeded": "Ingen overførsler kræver afstemning.",
   "noTransfers": "Ingen overførsler i denne visning.",
+  "progressRateFormat": "{0} · {1}/s",
+  "progressRemainingFormat": "{0} · {1}/s · {2} tilbage",
   "transferCountFormat": "{0} overførsel/overførsler.",
   "queuedFormat": "Sætter {0:N0} overførsel/overførsler i kø.",
   "clearedHistoryFormat": "Ryddede {0:N0} historikpost(er).",
