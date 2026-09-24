@@ -7,8 +7,8 @@ using CL.Storage.Queue;
 using CL.Storage.Sync;
 using CodeLogic;
 
-// StorageHub's acceptance checks for a CL.Storage build: each check is one finding from
-// needs-review.md, and prints PASS or FAIL with what it saw. Needs the library's own
+// StorageHub's acceptance checks for a CL.Storage build: each check is one defect found while
+// reviewing the library, and prints PASS or FAIL with what it saw. Needs the library's own
 // integration servers (tests/Storage.Integration.Tests/docker-compose.yml): MinIO, SFTP, Swift.
 
 var root = Path.Combine(Path.GetTempPath(), $"cl-accept-{Guid.NewGuid():N}");
