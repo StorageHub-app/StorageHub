@@ -143,6 +143,7 @@
   "thePaneContextKindIsInvalid": "Rudens konteksttype er ugyldig.",
   "thePaneLocationIsEmptyTooLong": "Rudens placering er tom, for lang eller indeholder tegn, der ikke understøttes.",
   "thePortMustBeBetween1And": "Porten skal være mellem 1 og 65.535.",
+  "speedLimitMustBeAWholeNumber": "En hastighedsgrænse skal være et helt antal KiB/s, eller tom for ingen grænse.",
   "theProfileRequestIsOutsideTheConnection": "Profilanmodningen ligger uden for kontraktgrænserne for forbindelsesstyring.",
   "theProfileRequestTimedOutBeforeIt": "Profilanmodningen fik timeout, før den kunne starte.",
   "theProfileRequestTimedOut": "Profilanmodningen fik timeout.",

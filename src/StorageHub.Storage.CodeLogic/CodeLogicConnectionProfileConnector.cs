@@ -318,13 +318,6 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
                 "The selected CL.Storage provider does not expose proxy configuration yet.");
         }
 
-        if (profile.OperationalOptions.Bandwidth.UploadBytesPerSecond is not null ||
-            profile.OperationalOptions.Bandwidth.DownloadBytesPerSecond is not null)
-        {
-            return Unsupported("storage.bandwidth.unsupported",
-                "The selected CL.Storage provider cannot enforce this connection's bandwidth limits yet.");
-        }
-
         var usesHistoricalEditorDefaults = UsesHistoricalEditorDefaults(profile.OperationalOptions);
         if (profile.Provider is not ConnectionProviderKind.Local &&
             profile.OperationalOptions.ConnectTimeout != profile.OperationalOptions.OperationTimeout &&
@@ -361,6 +354,7 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
                 _ => throw new UnsupportedProfileException("The connection provider is not supported by this adapter.")
             };
 
+            ApplySpeedLimits(configuration, profile.OperationalOptions.Bandwidth);
             return StorageResult<PreparedCodeLogicConnection>.Success(new PreparedCodeLogicConnection(
                 configuration,
                 CreateRootIdentity(profile, rootIdentityEvidence.Items),
@@ -762,6 +756,24 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
             ? profile.OperationalOptions.OperationTimeout.TotalSeconds
             : profile.OperationalOptions.ConnectTimeout.TotalSeconds));
 
+    /// <summary>
+    /// Hands the connection's speed limits to CL.Storage, which enforces them on every download and
+    /// upload through the connection, its own checksum reads included, and shares each limit between
+    /// all of the connection's concurrent transfers.
+    /// </summary>
+    private static void ApplySpeedLimits(object configuration, ConnectionBandwidthLimits bandwidth)
+    {
+        var limits = configuration switch
+        {
+            StorageConnectionConfigBase provider => provider.TransferLimits,
+            LocalConnectionConfig local => local.TransferLimits,
+            _ => throw new UnsupportedProfileException("The connection provider does not accept speed limits.")
+        };
+        limits.MaxUploadBytesPerSecond = bandwidth.UploadBytesPerSecond;
+        limits.MaxDownloadBytesPerSecond = bandwidth.DownloadBytesPerSecond;
+    }
+
+    // Speed limits are left out: they have nothing to do with which timeouts the editor wrote.
     private static bool UsesHistoricalEditorDefaults(ConnectionOperationalOptions options) =>
         options.ConnectTimeout == TimeSpan.FromSeconds(30) &&
         options.OperationTimeout == TimeSpan.FromSeconds(60) &&
@@ -769,8 +781,6 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
         options.Retry.InitialDelay == TimeSpan.FromMilliseconds(250) &&
         options.Retry.MaximumDelay == TimeSpan.FromSeconds(5) &&
         options.Proxy is null &&
-        options.Bandwidth.UploadBytesPerSecond is null &&
-        options.Bandwidth.DownloadBytesPerSecond is null &&
         string.Equals(options.EncodingName, "utf-8", StringComparison.OrdinalIgnoreCase);
 
     private static string CreateRootIdentity(

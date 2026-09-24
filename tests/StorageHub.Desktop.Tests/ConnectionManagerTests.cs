@@ -36,15 +36,41 @@ public class ConnectionManagerTests
         var expected = 1 +
             (descriptor.GeneralFields.Count > 0 ? 1 : 0) +
             (descriptor.AuthenticationFields.Count > 0 ? 1 : 0) +
-            (descriptor.SecurityFields.Count > 0 ? 1 : 0);
+            (descriptor.SecurityFields.Count > 0 ? 1 : 0) +
+            (descriptor.Type == ConnectionProfileType.Storage ? 1 : 0);
 
-        // One more than the provider has: a name and a folder belong to the profile rather than to
-        // the provider, so the editor supplies them and every provider gets them.
+        // Two more than a storage provider has: a name and a folder belong to the profile rather
+        // than to the provider, and speed limits work the same on every provider, so the editor
+        // supplies both.
         Assert.Equal(expected, editor.Sections.Count);
         Assert.Equal(Ui.Connections.SectionIdentity, editor.Sections[0].Title);
         Assert.Equal(
             descriptor.GeneralFields.Select(static f => f.Key),
             editor.Sections[1].Fields.Select(static f => f.Key));
+    }
+
+    /// <summary>A storage connection can be given speed limits; an SSH terminal moves no files, so it cannot.</summary>
+    [AvaloniaFact]
+    public void OnlyStorageConnectionsHaveSpeedLimits()
+    {
+        var editor = new ConnectionEditorModel(() => Controller(new FakeProfiles()));
+
+        foreach (var provider in ConnectionProviderCatalog.All)
+        {
+            editor.Provider = provider;
+
+            var limits = editor.Sections.SingleOrDefault(static s => s.Title == Ui.Connections.SectionSpeedLimits);
+            if (provider.Type == ConnectionProfileType.Storage)
+            {
+                Assert.Equal(
+                    [ConnectionEditorDraftFactory.UploadLimitKey, ConnectionEditorDraftFactory.DownloadLimitKey],
+                    limits!.Fields.Select(static f => f.Key));
+            }
+            else
+            {
+                Assert.Null(limits);
+            }
+        }
     }
 
     /// <summary>Every provider lays out without a field the editor cannot draw.</summary>

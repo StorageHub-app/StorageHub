@@ -3,6 +3,7 @@ using StorageHub.Application.Connections;
 using StorageHub.Domain.Identifiers;
 using StorageHub.Domain.Storage;
 using StorageHub.Security;
+using StorageHub.Storage.Models;
 
 namespace StorageHub.Storage.CodeLogic.Tests;
 
@@ -129,7 +130,35 @@ public sealed class CodeLogicConnectionProfileConnectorTests : IAsyncLifetime, I
         TimeProvider.System,
         idleLifetime);
 
-    private static ConnectionProfile CreateLocalProfile(string rootPath) => ConnectionProfile.Create(
+    /// <summary>
+    /// A connection's download limit slows the bytes read through its session, which is what the
+    /// queue, sync and the browser all read through.
+    /// </summary>
+    [Fact]
+    public async Task A_download_limit_slows_reads_through_the_session()
+    {
+        const int limit = 64 * 1024;
+        await File.WriteAllBytesAsync(Path.Combine(_root, "big.bin"), new byte[4 * limit]);
+        await using var connector = CreateConnector();
+        var profile = CreateLocalProfile(_root, new ConnectionBandwidthLimits(null, limit));
+
+        var opened = await connector.OpenAsync(profile);
+        Assert.True(opened.IsSuccess, opened.Error?.Message);
+        await using var connection = opened.Value;
+        var address = StorageAddress.Create(profile.Id, connection.Session.RootIdentity, "big.bin").Value;
+        var started = System.Diagnostics.Stopwatch.StartNew();
+        var read = await connection.Session.OpenReadAsync(new StorageReadRequest(address));
+        Assert.True(read.IsSuccess, read.Error?.Message);
+        await using (var stream = read.Value)
+        {
+            await stream.CopyToAsync(Stream.Null);
+        }
+
+        // Four seconds of data at the limit. Allowing for a first second's burst, at least two.
+        Assert.True(started.Elapsed >= TimeSpan.FromSeconds(2), $"Read in {started.Elapsed}.");
+    }
+
+    private static ConnectionProfile CreateLocalProfile(string rootPath, ConnectionBandwidthLimits? limits = null) => ConnectionProfile.Create(
         ConnectionProfileId.New(),
         new ConnectionProfileMetadata("Local files"),
         new LocalEndpoint(rootPath),
@@ -139,7 +168,7 @@ public sealed class CodeLogicConnectionProfileConnectorTests : IAsyncLifetime, I
             TimeSpan.FromSeconds(60),
             new ConnectionRetryPolicy(3, TimeSpan.FromMilliseconds(250), TimeSpan.FromSeconds(5)),
             proxy: null,
-            new ConnectionBandwidthLimits(null, null),
+            limits ?? new ConnectionBandwidthLimits(null, null),
             "utf-8"),
         DateTimeOffset.Parse("2026-09-19T09:00:00Z", CultureInfo.InvariantCulture));
 

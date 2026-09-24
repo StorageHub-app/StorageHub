@@ -323,6 +323,9 @@ internal sealed class ValidationStrings : LocalizationModelBase
 
     public string ThePortMustBeBetween1And { get; set; } = "The port must be between 1 and 65,535.";
 
+    public string SpeedLimitMustBeAWholeNumber { get; set; } =
+        "A speed limit must be a whole number of KiB/s, or empty for no limit.";
+
     public string TheProfileRequestIsOutsideTheConnection { get; set; } = "The profile request is outside the connection-management contract bounds.";
 
     public string TheProfileRequestTimedOutBeforeIt { get; set; } = "The profile request timed out before it could start.";

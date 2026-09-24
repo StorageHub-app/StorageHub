@@ -1,4 +1,5 @@
 using StorageHub.Contracts.Ipc;
+using StorageHub.Desktop.Localization;
 
 namespace StorageHub.Desktop.Tests;
 
@@ -20,6 +21,52 @@ public sealed class ConnectionEditorDraftFactoryTests
         Assert.Equal(30, draft.OperationalOptions.ConnectTimeoutSeconds);
         Assert.Equal(operationTimeoutSeconds, draft.OperationalOptions.OperationTimeoutSeconds);
         Assert.Equal(maximumRetryAttempts, draft.OperationalOptions.MaximumRetryAttempts);
+    }
+
+    [Fact]
+    public void SpeedLimitsAreKibibytesPerSecondAndSurviveAnEdit()
+    {
+        var values = ValidValues(StorageProviderKind.Sftp);
+        values[ConnectionEditorDraftFactory.UploadLimitKey] = "512";
+        values[ConnectionEditorDraftFactory.DownloadLimitKey] = " ";
+
+        var draft = ConnectionEditorDraftFactory.Build(StorageProviderKind.Sftp, values);
+        var reopened = ConnectionEditorDraftFactory.ToEditorValues(
+            new ConnectionProfileDocument(Guid.NewGuid(), 1, draft, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch));
+
+        Assert.True(draft.HasValidBounds);
+        Assert.Equal(512 * 1024, draft.OperationalOptions.UploadBytesPerSecond);
+        Assert.Null(draft.OperationalOptions.DownloadBytesPerSecond);
+        Assert.Equal("512", reopened[ConnectionEditorDraftFactory.UploadLimitKey]);
+        Assert.Equal(string.Empty, reopened[ConnectionEditorDraftFactory.DownloadLimitKey]);
+    }
+
+    [Theory]
+    [InlineData("0", null)]
+    [InlineData("1", 1024L)]
+    public void ZeroIsNoLimit(string kib, long? bytesPerSecond)
+    {
+        var values = ValidValues(StorageProviderKind.Ftps);
+        values[ConnectionEditorDraftFactory.DownloadLimitKey] = kib;
+
+        var draft = ConnectionEditorDraftFactory.Build(StorageProviderKind.Ftps, values);
+
+        Assert.Equal(bytesPerSecond, draft.OperationalOptions.DownloadBytesPerSecond);
+    }
+
+    [Theory]
+    [InlineData("-5")]
+    [InlineData("1.5")]
+    [InlineData("fast")]
+    [InlineData("99999999999")]
+    public void ASpeedLimitThatIsNotAWholeNumberIsRefused(string kib)
+    {
+        var values = ValidValues(StorageProviderKind.S3);
+        values[ConnectionEditorDraftFactory.UploadLimitKey] = kib;
+
+        var error = Assert.Throws<ArgumentException>(() => ConnectionEditorDraftFactory.Build(StorageProviderKind.S3, values));
+
+        Assert.StartsWith(Ui.Validation.SpeedLimitMustBeAWholeNumber, error.Message, StringComparison.Ordinal);
     }
 
     [Fact]

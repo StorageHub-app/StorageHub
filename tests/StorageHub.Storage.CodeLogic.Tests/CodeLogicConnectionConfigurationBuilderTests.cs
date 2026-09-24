@@ -475,17 +475,15 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
     }
 
     [Fact]
-    public async Task Unenforceable_proxy_bandwidth_and_split_timeout_options_are_rejected()
+    public async Task Unenforceable_proxy_and_split_timeout_options_are_rejected()
     {
         var endpoint = new FtpEndpoint("ftp.example.test", 21, allowInsecurePlainText: true);
         var authentication = new NoAuthentication();
         var proxy = CreateProfile(endpoint, authentication, proxy: true);
-        var bandwidth = CreateProfile(endpoint, authentication, bandwidth: true);
         var retry = CreateProfile(endpoint, authentication, maximumAttempts: 2);
         var splitTimeout = CreateProfile(endpoint, authentication, splitTimeouts: true);
 
         Assert.Equal("storage.proxy.unsupported", (await CreateBuilder().BuildAsync(proxy)).Error?.Code);
-        Assert.Equal("storage.bandwidth.unsupported", (await CreateBuilder().BuildAsync(bandwidth)).Error?.Code);
         Assert.Equal("storage.timeout.unsupported", (await CreateBuilder().BuildAsync(splitTimeout)).Error?.Code);
 
         // CL.Storage 4.8.93 retries FTP and SFTP itself, so a retry policy is applied, not refused.
@@ -493,6 +491,30 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
         Assert.True(retried.IsSuccess);
         await using var prepared = retried.Value;
         Assert.Equal(1, Assert.IsType<FtpConnectionConfig>(prepared.Configuration).Retry.RetryCount);
+    }
+
+    [Fact]
+    public async Task SpeedLimitsReachTheLibraryForTheConnection()
+    {
+        var limited = await CreateBuilder().BuildAsync(CreateProfile(
+            new FtpEndpoint("ftp.example.test", 21, allowInsecurePlainText: true),
+            new NoAuthentication(),
+            bandwidth: true));
+        var unlimited = await CreateBuilder().BuildAsync(CreateProfile(
+            new FtpEndpoint("ftp.example.test", 21, allowInsecurePlainText: true),
+            new NoAuthentication()));
+
+        Assert.True(limited.IsSuccess, limited.Error?.Message);
+        await using var prepared = limited.Value;
+        var limits = Assert.IsType<FtpConnectionConfig>(prepared.Configuration).TransferLimits;
+        Assert.Equal(1_000_000, limits.MaxUploadBytesPerSecond);
+        Assert.Equal(2_000_000, limits.MaxDownloadBytesPerSecond);
+
+        Assert.True(unlimited.IsSuccess, unlimited.Error?.Message);
+        await using var plain = unlimited.Value;
+        var none = Assert.IsType<FtpConnectionConfig>(plain.Configuration).TransferLimits;
+        Assert.Null(none.MaxUploadBytesPerSecond);
+        Assert.Null(none.MaxDownloadBytesPerSecond);
     }
 
     [Fact]

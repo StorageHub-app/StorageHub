@@ -41,7 +41,7 @@ public static class ConnectionEditorDraftFactory
             metadata,
             endpoint,
             authentication,
-            BuildOperationalOptions(provider, defaults),
+            BuildOperationalOptions(provider, defaults, values),
             Type: descriptor.Type);
         if (!draft.HasValidBounds)
         {
@@ -53,16 +53,49 @@ public static class ConnectionEditorDraftFactory
         return draft;
     }
 
+    /// <summary>The editor's speed limit fields, in KiB/s; empty is no limit.</summary>
+    internal const string UploadLimitKey = "uploadLimitKib";
+
+    internal const string DownloadLimitKey = "downloadLimitKib";
+
+    // 16 GiB/s: far past any link StorageHub will see, and small enough that KiB * 1024 cannot overflow.
+    private const long MaximumSpeedLimitKib = 16L * 1024 * 1024;
+
     private static ConnectionOperationalOptionsDocument BuildOperationalOptions(
         StorageProviderKind provider,
-        ConnectionProviderDefaults? defaults)
+        ConnectionProviderDefaults? defaults,
+        IReadOnlyDictionary<string, string> values)
     {
         defaults ??= ConnectionDefaultSettings.Get(provider, stored: null);
         return new ConnectionOperationalOptionsDocument(
             ConnectTimeoutSeconds: defaults.ConnectTimeoutSeconds,
             OperationTimeoutSeconds: defaults.OperationTimeoutSeconds,
-            MaximumRetryAttempts: defaults.MaximumRetryAttempts);
+            MaximumRetryAttempts: defaults.MaximumRetryAttempts,
+            UploadBytesPerSecond: ParseSpeedLimit(values, UploadLimitKey),
+            DownloadBytesPerSecond: ParseSpeedLimit(values, DownloadLimitKey));
     }
+
+    /// <summary>A limit in KiB/s as bytes per second; empty or 0 is no limit.</summary>
+    private static long? ParseSpeedLimit(IReadOnlyDictionary<string, string> values, string key)
+    {
+        var value = Get(values, key);
+        if (value is null)
+        {
+            return null;
+        }
+
+        if (!long.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var kib) ||
+            kib > MaximumSpeedLimitKib)
+        {
+            throw new ArgumentException(Ui.Validation.SpeedLimitMustBeAWholeNumber, nameof(values));
+        }
+
+        return kib == 0 ? null : kib * 1024;
+    }
+
+    private static string FormatSpeedLimit(long? bytesPerSecond) => bytesPerSecond is { } bytes
+        ? Math.Max(1, bytes / 1024).ToString(CultureInfo.InvariantCulture)
+        : string.Empty;
 
     public static IReadOnlyDictionary<string, string> ToEditorValues(ConnectionProfileDocument profile)
     {
@@ -80,6 +113,8 @@ public static class ConnectionEditorDraftFactory
         };
         AddEndpoint(values, profile.Draft.Endpoint);
         AddAuthentication(values, profile.Draft.Authentication);
+        values[UploadLimitKey] = FormatSpeedLimit(profile.Draft.OperationalOptions.UploadBytesPerSecond);
+        values[DownloadLimitKey] = FormatSpeedLimit(profile.Draft.OperationalOptions.DownloadBytesPerSecond);
         return values;
     }
 

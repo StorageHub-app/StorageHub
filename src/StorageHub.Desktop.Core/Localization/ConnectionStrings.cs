@@ -197,6 +197,13 @@ internal sealed class ConnectionStrings : LocalizationModelBase
 
     public string SectionSecurity { get; set; } = "Security";
 
+    public string SectionSpeedLimits { get; set; } = "Speed limits";
+
+    public string SpeedLimitPlaceholder { get; set; } = "Unlimited";
+
+    public string SpeedLimitHint { get; set; } =
+        "In KiB/s, shared by every transfer on this connection. Leave empty for no limit.";
+
     public string SectionTransfer { get; set; } = "Transfer";
 
     public string SectionOrganisation { get; set; } = "Organisation";

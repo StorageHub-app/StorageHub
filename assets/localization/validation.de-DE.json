@@ -143,6 +143,7 @@
   "thePaneContextKindIsInvalid": "Die Kontextart des Bereichs ist ungültig.",
   "thePaneLocationIsEmptyTooLong": "Der Bereichsort ist leer, zu lang oder enthält nicht unterstützte Zeichen.",
   "thePortMustBeBetween1And": "Der Port muss zwischen 1 und 65.535 liegen.",
+  "speedLimitMustBeAWholeNumber": "Ein Geschwindigkeitslimit muss eine ganze Zahl in KiB/s sein oder leer für kein Limit.",
   "theProfileRequestIsOutsideTheConnection": "Die Profilanforderung liegt außerhalb der Vertragsgrenzen der Verbindungsverwaltung.",
   "theProfileRequestTimedOutBeforeIt": "Bei der Profilanforderung ist vor dem Start eine Zeitüberschreitung aufgetreten.",
   "theProfileRequestTimedOut": "Bei der Profilanforderung ist eine Zeitüberschreitung aufgetreten.",

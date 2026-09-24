@@ -492,6 +492,21 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         new("iconKey", Ui.Connections.FieldIcon, ConnectionFieldKind.Icon)
     ];
 
+    /// <summary>
+    /// How fast a storage connection may move data, for every provider alike.
+    /// </summary>
+    /// <remarks>
+    /// Not in the provider descriptors for the same reason as the identity fields: the library
+    /// enforces them the same way on every provider. An SSH terminal moves no files, so it has none.
+    /// </remarks>
+    private static IReadOnlyList<ConnectionFieldDescriptor> SpeedLimitFields =>
+    [
+        new(ConnectionEditorDraftFactory.UploadLimitKey, Ui.Connections.FieldUploadLimit, ConnectionFieldKind.Text,
+            Placeholder: Ui.Connections.SpeedLimitPlaceholder, HelpText: Ui.Connections.SpeedLimitHint),
+        new(ConnectionEditorDraftFactory.DownloadLimitKey, Ui.Connections.FieldDownloadLimit, ConnectionFieldKind.Text,
+            Placeholder: Ui.Connections.SpeedLimitPlaceholder)
+    ];
+
     /// <summary>Lays out the connection's own fields, then the provider's three sections.</summary>
     private void Rebuild()
     {
@@ -501,6 +516,11 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         Add(Ui.Connections.SectionGeneral, _provider.GeneralFields);
         Add(Ui.Connections.SectionAuthentication, _provider.AuthenticationFields);
         Add(Ui.Connections.SectionSecurity, _provider.SecurityFields);
+        if (_provider.Type == ConnectionProfileType.Storage)
+        {
+            Add(Ui.Connections.SectionSpeedLimits, SpeedLimitFields);
+        }
+
         RaiseCommands();
 
         void Add(string title, IReadOnlyList<ConnectionFieldDescriptor> descriptors)
