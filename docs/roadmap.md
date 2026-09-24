@@ -14,7 +14,7 @@ lands. The Avalonia port's screens 1–9 are done; this picks up from there.
 
 ## 0. CodeLogic.Storage 4.8.95
 
-- [ ] Test lab on a pullable MinIO image (`pgsty/minio`, pinned), packages at CodeLogic.Storage 4.8.95
+- [x] Test lab on a pullable MinIO image (`pgsty/minio`, pinned), packages at CodeLogic.Storage 4.8.95
       and CodeLogic 4.8.20, lock files regenerated, tests and acceptance checks green.
 
 ## 1. Settings that are refused today start working
