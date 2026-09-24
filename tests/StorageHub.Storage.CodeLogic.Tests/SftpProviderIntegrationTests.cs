@@ -208,13 +208,14 @@ public sealed class SftpProviderIntegrationTests : IAsyncLifetime
             settings,
             settings.PasswordPort,
             malformedPin));
-        Assert.Equal(StorageFailureKind.Provider, malformed.Kind);
+        // CL.Storage 4.8.95 rejects a malformed pin while validating the configuration, before connecting.
+        Assert.Equal(StorageFailureKind.Validation, malformed.Kind);
         AssertDoesNotDisclose(malformed, settings, malformedPin);
 
         var missing = CreatePasswordConfiguration(settings, settings.PasswordPort);
         missing.HostKeyFingerprints = [];
         var missingPin = await RejectAsync(missing);
-        Assert.Equal(StorageFailureKind.Provider, missingPin.Kind);
+        Assert.Equal(StorageFailureKind.Validation, missingPin.Kind);
         AssertDoesNotDisclose(missingPin, settings);
     }
 

@@ -4,15 +4,15 @@
     "net10.0": {
       "CodeLogic": {
         "type": "Direct",
-        "requested": "[4.8.19, )",
-        "resolved": "4.8.19",
-        "contentHash": "XRUvqBICo7AfpK0X7B4mp2YoA+iAks10bs9GegLEylighHlSLib60z/AkbYELdJmaqBrZe7WqmG+zFT85zdgOg=="
+        "requested": "[4.8.20, )",
+        "resolved": "4.8.20",
+        "contentHash": "LbQME0BglRO87dcJvJ/v/dC++xWSbQsrFk1WVcNcPVzpTP9qYawsMU3P0gRUzFnT9A5T5DfoN9A69JwTi5n/JA=="
       },
       "CodeLogic.Storage": {
         "type": "Direct",
-        "requested": "[4.8.93, )",
-        "resolved": "4.8.93",
-        "contentHash": "yt1+0iY/4ifEK0IDBMaDGchHiIdseEJ8jp1aAHDdKhAlZLKKqmo6rkd9PZzFPEA3zON3NES62zgj4mV6wHqo3g==",
+        "requested": "[4.8.95, )",
+        "resolved": "4.8.95",
+        "contentHash": "uxe1juW8tk7vC9SAw+ngKIc6a8Uw+RsBR3PUGraK9k8XEFSBiTfLOmioLs/nXVj+vPu5i1609XVyFvuGURQueA==",
         "dependencies": {
           "AWSSDK.S3": "4.0.101.6",
           "Azure.Identity": "1.21.0",
@@ -359,7 +359,7 @@
       "storagehub.agent.windows": {
         "type": "Project",
         "dependencies": {
-          "CodeLogic": "[4.8.19, )",
+          "CodeLogic": "[4.8.20, )",
           "StorageHub.Agent": "[2.0.0, )",
           "StorageHub.Application": "[2.0.0, )",
           "StorageHub.Infrastructure": "[2.0.0, )",
@@ -373,7 +373,7 @@
       "storagehub.application": {
         "type": "Project",
         "dependencies": {
-          "CodeLogic": "[4.8.19, )",
+          "CodeLogic": "[4.8.20, )",
           "Cronos": "[0.13.0, )",
           "StorageHub.Domain": "[2.0.0, )",
           "StorageHub.Security": "[2.0.0, )"
@@ -425,8 +425,8 @@
       "storagehub.storage.codelogic": {
         "type": "Project",
         "dependencies": {
-          "CodeLogic": "[4.8.19, )",
-          "CodeLogic.Storage": "[4.8.93, )",
+          "CodeLogic": "[4.8.20, )",
+          "CodeLogic.Storage": "[4.8.95, )",
           "SSH.NET": "[2026.0.0, )",
           "StorageHub.Application": "[2.0.0, )",
           "StorageHub.Contracts": "[2.0.0, )",

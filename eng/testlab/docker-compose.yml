@@ -138,8 +138,10 @@ services:
   # MinIO speaks the S3 API, so the S3 provider can be exercised without an AWS account and without
   # anything leaving the machine.
 
+  # MinIO no longer publishes public images; pgsty/minio is a pinned community build of the same
+  # server, and it carries mc, so the bucket job below uses it too.
   minio:
-    image: quay.io/minio/minio:latest
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
     restart: unless-stopped
     command: server /data --address ":9000" --console-address ":9001"
     environment:
@@ -158,7 +160,7 @@ services:
   # This runs once, makes it, and exits -- so `up` blocks on it rather than leaving the fixture to
   # race a bucket that is not there yet.
   minio-bucket:
-    image: quay.io/minio/mc:latest
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
     depends_on:
       minio:
         condition: service_healthy

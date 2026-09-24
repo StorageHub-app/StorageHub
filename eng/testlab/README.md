@@ -89,8 +89,9 @@ sharing one would hand out each other's ports.
 
 ### S3
 
-MinIO, on 9000, with a console on 9001 and the bucket created before anything else starts. Its
-images come from `quay.io`; the Docker Hub names are not pullable.
+MinIO, on 9000, with a console on 9001 and the bucket created before anything else starts. MinIO no
+longer publishes public images (neither `quay.io` nor Docker Hub), so the lab uses `pgsty/minio`, a
+community build pinned to one release, for the server and for the bucket job (it carries `mc`).
 
 ### Paths
 

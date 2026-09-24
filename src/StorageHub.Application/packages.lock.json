@@ -4,9 +4,9 @@
     "net10.0": {
       "CodeLogic": {
         "type": "Direct",
-        "requested": "[4.8.19, )",
-        "resolved": "4.8.19",
-        "contentHash": "XRUvqBICo7AfpK0X7B4mp2YoA+iAks10bs9GegLEylighHlSLib60z/AkbYELdJmaqBrZe7WqmG+zFT85zdgOg=="
+        "requested": "[4.8.20, )",
+        "resolved": "4.8.20",
+        "contentHash": "LbQME0BglRO87dcJvJ/v/dC++xWSbQsrFk1WVcNcPVzpTP9qYawsMU3P0gRUzFnT9A5T5DfoN9A69JwTi5n/JA=="
       },
       "Cronos": {
         "type": "Direct",

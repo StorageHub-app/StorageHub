@@ -6,9 +6,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
     <!-- Which build to accept: pass -p:StorageVersion=... -->
-    <StorageVersion Condition="'$(StorageVersion)' == ''">4.8.94-local.2</StorageVersion>
+    <StorageVersion Condition="'$(StorageVersion)' == ''">4.8.95</StorageVersion>
   </PropertyGroup>
   <ItemGroup>
+    <!-- The package allows any CodeLogic 4.x and NuGet would pick 4.0.0; use what StorageHub uses. -->
+    <PackageReference Include="CodeLogic" Version="4.8.20" />
     <PackageReference Include="CodeLogic.Storage" Version="$(StorageVersion)" />
   </ItemGroup>
 </Project>
