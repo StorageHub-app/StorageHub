@@ -192,6 +192,42 @@ public class SettingsPageCatalogTests
         Assert.Equal("1024", limit.Read(DesktopUpdatePreferences.Defaults));
     }
 
+    /// <summary>Total speed limits are KiB/s on screen and bytes per second stored; 0 is no limit.</summary>
+    [Fact]
+    public void TotalSpeedLimitsAreKibibytesPerSecondOnScreenAndZeroIsNone()
+    {
+        var upload = SettingsPageCatalog.AllRows.Single(r => r.Key == "total-upload-limit");
+        var download = SettingsPageCatalog.AllRows.Single(r => r.Key == "total-download-limit");
+
+        var limited = upload.Write(DesktopUpdatePreferences.Defaults, "300");
+        var cleared = upload.Write(limited, "0");
+
+        Assert.Equal(300 * 1024, limited.TotalUploadBytesPerSecond);
+        Assert.Null(limited.TotalDownloadBytesPerSecond);
+        Assert.Equal("300", upload.Read(limited));
+        Assert.Null(cleared.TotalUploadBytesPerSecond);
+        Assert.Equal("0", download.Read(DesktopUpdatePreferences.Defaults));
+        Assert.Contains(
+            SettingsPageCatalog.Pages.Single(p => p.Key == SettingsPageCatalog.PerformancePageKey).Rows,
+            row => row.Key == "total-download-limit");
+    }
+
+    /// <summary>
+    /// The agent reads concurrency and the total speed limits when it starts, so changing one of
+    /// them is what calls for a restart, and changing anything else does not.
+    /// </summary>
+    [Fact]
+    public void OnlyWhatTheAgentReadsCallsForARestart()
+    {
+        var current = DesktopUpdatePreferences.Defaults;
+
+        Assert.True(current.ChangesWhatTheAgentReads(current with { TotalDownloadBytesPerSecond = 1024 }));
+        Assert.True(current.ChangesWhatTheAgentReads(current with { TotalUploadBytesPerSecond = 1024 }));
+        Assert.True(current.ChangesWhatTheAgentReads(current with { PerConnectionConcurrency = 5 }));
+        Assert.False(current.ChangesWhatTheAgentReads(current with { Appearance = DesktopAppearance.Dark }));
+        Assert.False(current.ChangesWhatTheAgentReads(current));
+    }
+
     /// <summary>
     /// The unsafe-edit warning is restored where it says it is.
     /// </summary>

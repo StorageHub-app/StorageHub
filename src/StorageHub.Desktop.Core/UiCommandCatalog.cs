@@ -631,6 +631,7 @@ internal static class UiCommandCatalog
         UiCommandIds.SyncSyncProfiles or
         UiCommandIds.SyncSchedules or
         UiCommandIds.ToolsSettings or
+        UiCommandIds.TransferSpeedLimits or
         UiCommandIds.ToolsExportSettings or
         UiCommandIds.ToolsImportSettings or
         UiCommandIds.HelpCheckForUpdates or

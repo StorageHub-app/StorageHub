@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using StorageHub.Desktop.Settings;
 using StorageHub.Desktop.Themes;
 using StorageHub.Desktop.Views;
 
@@ -42,6 +43,14 @@ public partial class App : global::Avalonia.Application
             model.Router.Handle(UiCommandIds.ToolsSettings, () =>
             {
                 var settings = Views.SettingsWindow.ForCurrentUser();
+                _ = settings.ShowDialog(desktop.MainWindow);
+            });
+
+            // Speed limits live on the Performance page beside concurrency, since both are how the
+            // agent's transfers run; a connection's own limit is in the Connection Manager.
+            model.Router.Handle(UiCommandIds.TransferSpeedLimits, () =>
+            {
+                var settings = Views.SettingsWindow.ForCurrentUser(SettingsPageCatalog.PerformancePageKey);
                 _ = settings.ShowDialog(desktop.MainWindow);
             });
 

@@ -273,6 +273,19 @@ internal sealed class SettingsModel : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
+    /// <summary>Opens on the page with this catalog key, or leaves the selection alone if there is none.</summary>
+    internal void SelectPage(string key)
+    {
+        var index = SettingsPageCatalog.Pages
+            .Select((page, position) => (page.Key, position))
+            .FirstOrDefault(entry => string.Equals(entry.Key, key, StringComparison.Ordinal), (Key: string.Empty, position: -1))
+            .position;
+        if (index >= 0)
+        {
+            SelectedPage = index;
+        }
+    }
+
     /// <summary>What would be written. Exposed so a test can assert without saving.</summary>
     internal DesktopUpdatePreferences Working => _working;
 

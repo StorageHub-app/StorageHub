@@ -4,7 +4,7 @@ using StorageHub.Agent.Host;
 
 namespace StorageHub.Agent.Windows.Tests;
 
-public sealed class AgentConcurrencyConfigurationTests : IDisposable
+public sealed class AgentTransferConfigurationTests : IDisposable
 {
     private readonly string _directory = Path.Combine(
         Path.GetTempPath(),
@@ -24,13 +24,42 @@ public sealed class AgentConcurrencyConfigurationTests : IDisposable
             maximumSyncConcurrency = 5
         }));
 
-        var result = AgentConcurrencyConfiguration.Load(_directory);
+        var result = AgentTransferConfiguration.Load(_directory);
 
         Assert.True(result.Adaptive);
         Assert.Equal(2, result.Minimum);
         Assert.Equal(12, result.MaximumTransfers);
         Assert.Equal(3, result.PerConnection);
         Assert.Equal(5, result.MaximumSyncs);
+    }
+
+    [WindowsOnlyFact]
+    public void Reads_the_total_speed_limits_and_ignores_one_it_cannot_use()
+    {
+        Directory.CreateDirectory(_directory);
+        File.WriteAllText(Path.Combine(_directory, "config.json"), """
+            {"schemaVersion":1,"maximumTransferConcurrency":6,
+             "totalUploadBytesPerSecond":524288,"totalDownloadBytesPerSecond":-1}
+            """);
+
+        var result = AgentTransferConfiguration.Load(_directory);
+
+        Assert.Equal(524_288, result.TotalUploadBytesPerSecond);
+        Assert.Null(result.TotalDownloadBytesPerSecond);
+        // A limit it cannot use costs nothing else: the concurrency beside it still applies.
+        Assert.Equal(6, result.MaximumTransfers);
+    }
+
+    [WindowsOnlyFact]
+    public void No_limits_in_the_file_is_no_limit()
+    {
+        Directory.CreateDirectory(_directory);
+        File.WriteAllText(Path.Combine(_directory, "config.json"), """{"schemaVersion":1}""");
+
+        var result = AgentTransferConfiguration.Load(_directory);
+
+        Assert.Null(result.TotalUploadBytesPerSecond);
+        Assert.Null(result.TotalDownloadBytesPerSecond);
     }
 
     [WindowsOnlyFact]
@@ -42,7 +71,7 @@ public sealed class AgentConcurrencyConfigurationTests : IDisposable
              "maximumTransferConcurrency":99,"perConnectionConcurrency":2,"maximumSyncConcurrency":2}
             """);
 
-        Assert.Equal(AgentConcurrencyConfiguration.Defaults, AgentConcurrencyConfiguration.Load(_directory));
+        Assert.Equal(AgentTransferConfiguration.Defaults, AgentTransferConfiguration.Load(_directory));
     }
 
     /// <summary>
@@ -63,7 +92,7 @@ public sealed class AgentConcurrencyConfigurationTests : IDisposable
             maximumSyncConcurrency = 6
         }));
 
-        var result = AgentConcurrencyConfiguration.Load(_directory);
+        var result = AgentTransferConfiguration.Load(_directory);
 
         Assert.False(result.Adaptive);
         Assert.Equal(10, result.MaximumTransfers);
@@ -95,7 +124,7 @@ public sealed class AgentConcurrencyConfigurationTests : IDisposable
             maximumSyncConcurrency = 2
         }));
 
-        Assert.Equal(10, AgentConcurrencyConfiguration.Load(_directory).MaximumTransfers);
+        Assert.Equal(10, AgentTransferConfiguration.Load(_directory).MaximumTransfers);
     }
 
     /// <summary>An installation that has not migrated yet still gets its policy honoured.</summary>
@@ -112,7 +141,7 @@ public sealed class AgentConcurrencyConfigurationTests : IDisposable
             maximumSyncConcurrency = 2
         }));
 
-        Assert.Equal(7, AgentConcurrencyConfiguration.Load(_directory).MaximumTransfers);
+        Assert.Equal(7, AgentTransferConfiguration.Load(_directory).MaximumTransfers);
     }
 
     [WindowsOnlyFact]
@@ -120,7 +149,7 @@ public sealed class AgentConcurrencyConfigurationTests : IDisposable
     {
         Directory.CreateDirectory(_directory);
 
-        Assert.Equal(AgentConcurrencyConfiguration.Defaults, AgentConcurrencyConfiguration.Load(_directory));
+        Assert.Equal(AgentTransferConfiguration.Defaults, AgentTransferConfiguration.Load(_directory));
     }
 
     /// <summary>
@@ -143,7 +172,7 @@ public sealed class AgentConcurrencyConfigurationTests : IDisposable
             maximumSyncConcurrency = 2
         }));
 
-        Assert.Equal(AgentConcurrencyConfiguration.Defaults, AgentConcurrencyConfiguration.Load(_directory));
+        Assert.Equal(AgentTransferConfiguration.Defaults, AgentTransferConfiguration.Load(_directory));
     }
 
     [WindowsOnlyFact]
@@ -152,7 +181,7 @@ public sealed class AgentConcurrencyConfigurationTests : IDisposable
         Directory.CreateDirectory(_directory);
         File.WriteAllText(Path.Combine(_directory, "config.json"), new string('x', 65 * 1024));
 
-        Assert.Equal(AgentConcurrencyConfiguration.Defaults, AgentConcurrencyConfiguration.Load(_directory));
+        Assert.Equal(AgentTransferConfiguration.Defaults, AgentTransferConfiguration.Load(_directory));
     }
 
     public void Dispose()

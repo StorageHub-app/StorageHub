@@ -52,7 +52,9 @@ internal static class DesktopPreferenceSectionMapper
             preferences.ShowFavoritesInTheirFolders,
             preferences.ToolbarItems,
             preferences.ToolbarLabels,
-            preferences.ColorScheme);
+            preferences.ColorScheme,
+            preferences.TotalUploadBytesPerSecond,
+            preferences.TotalDownloadBytesPerSecond);
     }
 
     /// <summary>
@@ -204,7 +206,10 @@ internal static class DesktopPreferenceSectionMapper
                 : ToolbarLayout.Sanitise(general.ToolbarItems),
             ToolbarLabels = Enum.IsDefined(general.ToolbarLabels)
                 ? general.ToolbarLabels
-                : current.ToolbarLabels
+                : current.ToolbarLabels,
+            // A limit this build cannot use is no limit, the same as repairing a hand-edited file.
+            TotalUploadBytesPerSecond = DesktopUpdatePreferences.ValidSpeedLimit(general.TotalUploadBytesPerSecond),
+            TotalDownloadBytesPerSecond = DesktopUpdatePreferences.ValidSpeedLimit(general.TotalDownloadBytesPerSecond)
         };
 
     private static DesktopUpdatePreferences ApplyMachineSpecific(

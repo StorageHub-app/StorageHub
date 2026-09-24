@@ -292,7 +292,9 @@ internal sealed class DesktopConfigStore
             ToolbarLabels: Enum.IsDefined(general.ToolbarLabels)
                 ? general.ToolbarLabels
                 : ToolbarLabelStyle.IconsOnly,
-            ConnectionGroups: ReadGroups(general.ConnectionGroups));
+            ConnectionGroups: ReadGroups(general.ConnectionGroups),
+            TotalUploadBytesPerSecond: general.TotalUploadBytesPerSecond,
+            TotalDownloadBytesPerSecond: general.TotalDownloadBytesPerSecond);
     }
 
     /// <summary>
@@ -371,7 +373,9 @@ internal sealed class DesktopConfigStore
                     Name = group.Name,
                     Members = [.. group.Members.Select(static id => id.ToString("D"))]
                 })
-                .ToList()
+                .ToList(),
+            TotalUploadBytesPerSecond = preferences.TotalUploadBytesPerSecond,
+            TotalDownloadBytesPerSecond = preferences.TotalDownloadBytesPerSecond
         };
 
         var shortcuts = new DesktopShortcutsConfig

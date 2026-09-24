@@ -272,7 +272,7 @@ internal static class SettingsPageCatalog
             ]),
 
         new(
-            "performance",
+            PerformancePageKey,
             Ui.Settings.CategoryPerformance,
             Ui.Settings.PagePerformanceDescription,
             UiGlyph.Speed,
@@ -317,7 +317,19 @@ internal static class SettingsPageCatalog
                     Maximum = 8,
                     Read = p => Text(p.MaximumSyncConcurrency),
                     Write = (p, v) => p with { MaximumSyncConcurrency = Number(v, 1, 8, p.MaximumSyncConcurrency) }
-                }
+                },
+                SpeedLimitRow(
+                    "total-upload-limit",
+                    Ui.Settings.TotalUploadLimit,
+                    Ui.Settings.TotalSpeedLimitHint,
+                    static p => p.TotalUploadBytesPerSecond,
+                    static (p, limit) => p with { TotalUploadBytesPerSecond = limit }),
+                SpeedLimitRow(
+                    "total-download-limit",
+                    Ui.Settings.TotalDownloadLimit,
+                    null,
+                    static p => p.TotalDownloadBytesPerSecond,
+                    static (p, limit) => p with { TotalDownloadBytesPerSecond = limit })
             ]),
 
         new(
@@ -401,8 +413,38 @@ internal static class SettingsPageCatalog
     /// </remarks>
     internal const string ToolbarPageKey = "toolbar";
 
+    internal const string PerformancePageKey = "performance";
+
     /// <summary>Every row on every page, for a caller that wants them without the grouping.</summary>
     internal static IEnumerable<SettingsRowDefinition> AllRows => Pages.SelectMany(page => page.Rows);
+
+    /// <summary>
+    /// A total speed limit, in KiB/s on screen and bytes per second in the file; 0 is no limit.
+    /// </summary>
+    private static SettingsRowDefinition SpeedLimitRow(
+        string key,
+        string label,
+        string? hint,
+        Func<DesktopUpdatePreferences, long?> read,
+        Func<DesktopUpdatePreferences, long?, DesktopUpdatePreferences> write)
+    {
+        const int maximumKib = (int)(DesktopUpdatePreferences.MaximumSpeedLimitBytesPerSecond / 1024);
+        return new()
+        {
+            Key = key,
+            Label = label,
+            Hint = hint,
+            Kind = SettingsControlKind.Number,
+            Minimum = 0,
+            Maximum = maximumKib,
+            Read = p => Text((int)((read(p) ?? 0) / 1024)),
+            Write = (p, v) =>
+            {
+                var kib = Number(v, 0, maximumKib, (int)((read(p) ?? 0) / 1024));
+                return write(p, kib == 0 ? null : kib * 1024L);
+            }
+        };
+    }
 
     internal static string Text(bool value) => value ? "true" : "false";
 

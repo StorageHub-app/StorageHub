@@ -23,7 +23,7 @@ The profile already stores these; `CodeLogicConnectionProfileConnector.BuildAsyn
 
 - [x] 1.1 Transfer rate and ETA: library `Progress` through `TransferProgress` and IPC to the queue's
       progress column and the status bar (`TransferBytesPerSecond`).
-- [ ] 1.2 Speed limits: per-connection bandwidth to `TransferLimits`, the global limit to `MaxTotal*`;
+- [x] 1.2 Speed limits: per-connection bandwidth to `TransferLimits`, the global limit to `MaxTotal*`;
       the "Speed Limits…" command gets its dialog.
 - [ ] 1.3 Proxy: `StorageProxyConfig` for FTP, SFTP and S3; a proxy section in the connection editor.
 - [ ] 1.4 FTP options: separate connect and read timeouts, filename encoding (code pages), server time

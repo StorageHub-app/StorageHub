@@ -197,7 +197,7 @@ internal sealed class ShellStrings : LocalizationModelBase
     public string AdaptiveConcurrencyActive { get; set; } = "Adaptive concurrency settings are active.";
 
     public string ConcurrencyAgentRestartFailed { get; set; } =
-        "Concurrency settings were saved, but the background Agent could not restart.";
+        "Transfer settings were saved, but the background agent could not restart to use them.";
 
     public string AgentCannotDelete { get; set; } =
         "The background agent could not delete the selected items.";

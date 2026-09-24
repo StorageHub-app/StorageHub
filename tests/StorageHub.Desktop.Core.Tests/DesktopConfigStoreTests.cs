@@ -43,7 +43,8 @@ public sealed class DesktopConfigStoreTests : IDisposable
             Language = "da-DK",
             MaximumTransferConcurrency = 9,
             ConnectionsPanelWidth = 420,
-            DefaultWorkspacePaneCount = 3
+            DefaultWorkspacePaneCount = 3,
+            TotalUploadBytesPerSecond = 256 * 1024
         };
         new DesktopConfigStore(_directory).Save(saved);
 
@@ -124,6 +125,26 @@ public sealed class DesktopConfigStoreTests : IDisposable
             DesktopUpdatePreferences.Defaults.MaximumTransferConcurrency,
             store.Load().MaximumTransferConcurrency);
         Assert.Equal(DesktopUpdatePreferences.DefaultConnectionsPanelWidth, store.Load().ConnectionsPanelWidth);
+    }
+
+    /// <summary>
+    /// A total speed limit the agent could not use is dropped to no limit, and the agent's own
+    /// reader, which shares the file, reads the same names.
+    /// </summary>
+    [Fact]
+    public void ANegativeSpeedLimitIsCorrectedToNoLimit()
+    {
+        Directory.CreateDirectory(_directory);
+        var store = new DesktopConfigStore(_directory);
+        File.WriteAllText(
+            store.GeneralPath,
+            """{"schemaVersion":1,"totalUploadBytesPerSecond":-5,"totalDownloadBytesPerSecond":65536}""");
+
+        var report = store.Preflight();
+
+        Assert.True(report.Repaired);
+        Assert.Null(store.Load().TotalUploadBytesPerSecond);
+        Assert.Equal(65536, store.Load().TotalDownloadBytesPerSecond);
     }
 
     [Fact]

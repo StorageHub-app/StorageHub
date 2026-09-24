@@ -491,9 +491,10 @@ public class ConnectionManagerTests
         // And on SFTP, which is where the secret rows are: a reference box with three buttons
         // under it, twice, plus a fingerprint. The row that wraps or clips is one of these.
         manager.Editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Sftp);
-        // Taller than the window opens, so every row is in the frame rather than under the scroll.
-        window.Measure(new Size(920, 1100));
-        window.Arrange(new Rect(0, 0, 920, 1100));
+        // Taller than the window opens, so every row down to the speed limits is in the frame
+        // rather than under the scroll.
+        window.Measure(new Size(920, 1400));
+        window.Arrange(new Rect(0, 0, 920, 1400));
         window.UpdateLayout();
         var sftp = window.CaptureRenderedFrame();
         Assert.NotNull(sftp);

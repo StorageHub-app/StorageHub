@@ -86,10 +86,10 @@ public class ShellScalingTests
         var window = Shell();
         window.Show();
 
-        // Eight, not the nine UiMenuId declares: Transfer holds nothing that is wired up yet, and
-        // an empty header reads as a broken menu rather than an unfinished feature.
+        // All nine UiMenuId declares. Transfer was left out while it held nothing wired up, since
+        // an empty header reads as a broken menu; Speed Limits is what put it back.
         var menu = window.GetVisualDescendants().OfType<Menu>().Single();
-        Assert.Equal(8, menu.ItemsSource!.Cast<object>().Count());
+        Assert.Equal(9, menu.ItemsSource!.Cast<object>().Count());
 
         var tabs = window.GetVisualDescendants().OfType<TabControl>().ToList();
         Assert.Equal(2, tabs.Count);
@@ -151,7 +151,7 @@ public class ShellScalingTests
             .Where(item => item.IsTopLevel)
             .ToList();
 
-        Assert.Equal(8, roots.Count);
+        Assert.Equal(9, roots.Count);
         Assert.All(roots, root => Assert.True(root.HasSubMenu, $"{root.Header} has no entries"));
     }
 

@@ -97,7 +97,7 @@ var agentRoot = agentDataDirectory.AgentDirectory;
 // WithDataRoot rather than a with-expression on DataRoot alone: the runtime root was derived from
 // the root the platform resolved first, and the leased directory is the one that is real.
 var agentPaths = resolvedPaths.WithDataRoot(storageHubRoot);
-var concurrencyConfiguration = AgentConcurrencyConfiguration.Load(
+var transferConfiguration = AgentTransferConfiguration.Load(
     Path.Combine(storageHubRoot, "Desktop"));
 var runtimeSecretFileMaterializer = agentPlatform.CreateRuntimeSecretFileMaterializer(agentPaths);
 try
@@ -133,7 +133,14 @@ await Libraries.LoadAsync<StorageLibrary>();
 // Until CL.Storage ships RuntimeOnly mode, disabling configured connections is
 // the only safe bootstrap: runtime backends are registered by StorageHub and no
 // provider credential is ever written through CodeLogic configuration.
-Libraries.OverrideConfig<StorageConfig>("CL.Storage", "storage", config => config.Enabled = false);
+Libraries.OverrideConfig<StorageConfig>("CL.Storage", "storage", config =>
+{
+    config.Enabled = false;
+    // The desktop's total speed limits, shared by every connection. Read once, at startup, as the
+    // library does: the desktop restarts the agent when they change.
+    config.MaxTotalUploadBytesPerSecond = transferConfiguration.TotalUploadBytesPerSecond;
+    config.MaxTotalDownloadBytesPerSecond = transferConfiguration.TotalDownloadBytesPerSecond;
+});
 
 var agentInstanceId = Guid.NewGuid();
 AgentRuntimeCoordinator? coordinator = null;
@@ -173,10 +180,10 @@ await using var transferQueueSubsystem = new TransferQueueAgentSubsystem(
     transferEndpointConnector,
     new TransferQueueWorkerOptions
     {
-        AdaptiveConcurrency = concurrencyConfiguration.Adaptive,
-        MinimumConcurrency = concurrencyConfiguration.Minimum,
-        MaximumConcurrency = concurrencyConfiguration.MaximumTransfers,
-        PerConnectionConcurrency = concurrencyConfiguration.PerConnection
+        AdaptiveConcurrency = transferConfiguration.Adaptive,
+        MinimumConcurrency = transferConfiguration.Minimum,
+        MaximumConcurrency = transferConfiguration.MaximumTransfers,
+        PerConnectionConcurrency = transferConfiguration.PerConnection
     });
 await using var storageCommands = new StorageIpcCommandService(
     databaseOptions,
@@ -242,9 +249,9 @@ await using var syncOutboxSubsystem = new SyncOutboxAgentSubsystem(
     syncOutboxProcessor,
     new SyncOutboxWorkerOptions
     {
-        AdaptiveConcurrency = concurrencyConfiguration.Adaptive,
-        MinimumConcurrency = concurrencyConfiguration.Minimum,
-        MaximumConcurrency = concurrencyConfiguration.MaximumSyncs
+        AdaptiveConcurrency = transferConfiguration.Adaptive,
+        MinimumConcurrency = transferConfiguration.Minimum,
+        MaximumConcurrency = transferConfiguration.MaximumSyncs
     });
 var syncCommands = new SyncManagementIpcCommandService(
     syncProfiles,

@@ -167,11 +167,42 @@ internal sealed record DesktopUpdatePreferences(
     /// </summary>
     /// <remarks>
     /// Null rather than "storagehub-dark" so an installation that has never opened Settings keeps
-    /// following the system, which is what it did before schemes existed. Last in the list, as
-    /// every addition to this record has to be.
+    /// following the system, which is what it did before schemes existed.
     /// </remarks>
-    string? ColorScheme = null)
+    string? ColorScheme = null,
+    /// <summary>
+    /// The speed limit shared by everything StorageHub uploads, in bytes per second; null is no
+    /// limit. The agent reads it when it starts. Last in the list, as every addition to this
+    /// record has to be.
+    /// </summary>
+    long? TotalUploadBytesPerSecond = null,
+    /// <summary>The same for downloads.</summary>
+    long? TotalDownloadBytesPerSecond = null)
 {
+    /// <summary>16 GiB/s: far past any link, and small enough that KiB * 1024 cannot overflow.</summary>
+    internal const long MaximumSpeedLimitBytesPerSecond = 16L * 1024 * 1024 * 1024;
+
+    /// <summary>A stored limit the agent can use, or null for none.</summary>
+    internal static long? ValidSpeedLimit(long? bytesPerSecond) =>
+        bytesPerSecond is > 0 and <= MaximumSpeedLimitBytesPerSecond ? bytesPerSecond : null;
+
+    /// <summary>
+    /// Whether going from these preferences to <paramref name="next"/> changes anything the agent
+    /// reads from the settings file. It reads them only when it starts, so such a change means a
+    /// restart; anything else the desktop applies by itself.
+    /// </summary>
+    internal bool ChangesWhatTheAgentReads(DesktopUpdatePreferences next)
+    {
+        ArgumentNullException.ThrowIfNull(next);
+        return AdaptiveConcurrency != next.AdaptiveConcurrency ||
+            MinimumConcurrency != next.MinimumConcurrency ||
+            MaximumTransferConcurrency != next.MaximumTransferConcurrency ||
+            PerConnectionConcurrency != next.PerConnectionConcurrency ||
+            MaximumSyncConcurrency != next.MaximumSyncConcurrency ||
+            TotalUploadBytesPerSecond != next.TotalUploadBytesPerSecond ||
+            TotalDownloadBytesPerSecond != next.TotalDownloadBytesPerSecond;
+    }
+
     /// <summary>Kept in step with the <c>ConnectionsPanelWidth</c> parameter default above.</summary>
     internal const int DefaultConnectionsPanelWidth = 300;
     internal const int MinimumConnectionsPanelWidth = 220;

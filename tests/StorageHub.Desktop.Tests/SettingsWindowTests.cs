@@ -176,8 +176,30 @@ public sealed class SettingsWindowTests : IDisposable
         }
 
         Directory.CreateDirectory(directory);
-        using var stream = File.Create(Path.Combine(directory, "settings.png"));
-        frame!.Save(stream, new PngBitmapEncoderOptions());
+        using (var stream = File.Create(Path.Combine(directory, "settings.png")))
+        {
+            frame!.Save(stream, new PngBitmapEncoderOptions());
+        }
+
+        // The Performance page too, where the total speed limits sit under the concurrency rows.
+        ((SettingsModel)window.DataContext!).SelectPage(SettingsPageCatalog.PerformancePageKey);
+        window.UpdateLayout();
+        using var performance = File.Create(Path.Combine(directory, "settings-performance.png"));
+        window.CaptureRenderedFrame()!.Save(performance, new PngBitmapEncoderOptions());
+    }
+
+    /// <summary>Speed Limits opens Settings on the page that holds them.</summary>
+    [AvaloniaFact]
+    public void TheWindowCanOpenOnAChosenPage()
+    {
+        var model = Model();
+
+        model.SelectPage(SettingsPageCatalog.PerformancePageKey);
+        Assert.Equal(SettingsPageCatalog.PerformancePageKey, SettingsPageCatalog.Pages[model.SelectedPage].Key);
+        Assert.Contains(model.SelectedPageModel.Rows, row => row.Key == "total-upload-limit");
+
+        model.SelectPage("no-such-page");
+        Assert.Equal(SettingsPageCatalog.PerformancePageKey, SettingsPageCatalog.Pages[model.SelectedPage].Key);
     }
 
     private static SettingsRowModel Row(SettingsModel model, string key) =>

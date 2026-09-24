@@ -2,14 +2,23 @@ using System.Text.Json;
 
 namespace StorageHub.Agent.Host;
 
-internal sealed record AgentConcurrencyConfiguration(
+/// <summary>
+/// The transfer policy the desktop chose: how many transfers and syncs run at once, and the speed
+/// limit shared by everything StorageHub uploads or downloads. Null limits are no limit.
+/// </summary>
+internal sealed record AgentTransferConfiguration(
     bool Adaptive,
     int Minimum,
     int MaximumTransfers,
     int PerConnection,
-    int MaximumSyncs)
+    int MaximumSyncs,
+    long? TotalUploadBytesPerSecond = null,
+    long? TotalDownloadBytesPerSecond = null)
 {
-    public static AgentConcurrencyConfiguration Defaults { get; } = new(true, 1, 4, 2, 2);
+    // 16 GiB/s, the same ceiling the desktop allows.
+    private const long MaximumSpeedLimit = 16L * 1024 * 1024 * 1024;
+
+    public static AgentTransferConfiguration Defaults { get; } = new(true, 1, 4, 2, 2);
 
     /// <summary>
     /// Reads the concurrency policy the desktop chose, from whichever file the desktop currently
@@ -31,7 +40,7 @@ internal sealed record AgentConcurrencyConfiguration(
     /// desktop. This is a different process reading a file it does not own.
     /// </para>
     /// </remarks>
-    public static AgentConcurrencyConfiguration Load(string desktopDirectory)
+    public static AgentTransferConfiguration Load(string desktopDirectory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(desktopDirectory);
         return ReadFile(Path.Combine(desktopDirectory, "config.json"), minimumSchema: 1)
@@ -39,7 +48,7 @@ internal sealed record AgentConcurrencyConfiguration(
             ?? Defaults;
     }
 
-    private static AgentConcurrencyConfiguration? ReadFile(string settingsPath, int minimumSchema)
+    private static AgentTransferConfiguration? ReadFile(string settingsPath, int minimumSchema)
     {
         try
         {
@@ -60,7 +69,7 @@ internal sealed record AgentConcurrencyConfiguration(
             using var document = JsonDocument.Parse(stream);
             var root = document.RootElement;
             var schema = ReadInt(root, "schemaVersion", 0);
-            var candidate = new AgentConcurrencyConfiguration(
+            var candidate = new AgentTransferConfiguration(
                 ReadBool(root, "adaptiveConcurrency", Defaults.Adaptive),
                 ReadInt(root, "minimumConcurrency", Defaults.Minimum),
                 ReadInt(root, "maximumTransferConcurrency", Defaults.MaximumTransfers),
@@ -69,7 +78,18 @@ internal sealed record AgentConcurrencyConfiguration(
             // A file that is present but out of bounds resolves to the defaults here rather than
             // falling through to the older file: the desktop's current answer is "these", and a
             // superseded file is not a better one.
-            return schema >= minimumSchema && candidate.HasValidBounds ? candidate : Defaults;
+            if (schema < minimumSchema)
+            {
+                return Defaults;
+            }
+
+            // Each limit stands alone: one the agent cannot use is no limit, and does not cost the
+            // concurrency policy beside it.
+            return (candidate.HasValidBounds ? candidate : Defaults) with
+            {
+                TotalUploadBytesPerSecond = ReadSpeedLimit(root, "totalUploadBytesPerSecond"),
+                TotalDownloadBytesPerSecond = ReadSpeedLimit(root, "totalDownloadBytesPerSecond")
+            };
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException)
         {
@@ -87,6 +107,13 @@ internal sealed record AgentConcurrencyConfiguration(
 
     private static int ReadInt(JsonElement root, string name, int fallback) =>
         root.TryGetProperty(name, out var value) && value.TryGetInt32(out var result) ? result : fallback;
+
+    private static long? ReadSpeedLimit(JsonElement root, string name) =>
+        root.TryGetProperty(name, out var value) &&
+        value.TryGetInt64(out var result) &&
+        result is > 0 and <= MaximumSpeedLimit
+            ? result
+            : null;
 
     private static bool ReadBool(JsonElement root, string name, bool fallback) =>
         root.TryGetProperty(name, out var value) && value.ValueKind is JsonValueKind.True or JsonValueKind.False

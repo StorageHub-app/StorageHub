@@ -137,6 +137,8 @@ internal static class DesktopConfigRepair
             MaximumSyncConcurrency = concurrencyIsValid
                 ? preferences.MaximumSyncConcurrency
                 : defaults.MaximumSyncConcurrency,
+            TotalUploadBytesPerSecond = DesktopUpdatePreferences.ValidSpeedLimit(preferences.TotalUploadBytesPerSecond),
+            TotalDownloadBytesPerSecond = DesktopUpdatePreferences.ValidSpeedLimit(preferences.TotalDownloadBytesPerSecond),
             Appearance = Enum.IsDefined(preferences.Appearance) ? preferences.Appearance : DesktopAppearance.System,
             ConnectionDefaults = preferences.ConnectionDefaults is null
                 ? null
@@ -219,6 +221,8 @@ internal static class DesktopConfigRepair
             preferences.PerConnectionConcurrency is < 1 or > 16 ||
             preferences.MaximumSyncConcurrency is < 1 or > 8 ||
             preferences.MinimumConcurrency > preferences.MaximumSyncConcurrency ||
+            DesktopUpdatePreferences.ValidSpeedLimit(preferences.TotalUploadBytesPerSecond) != preferences.TotalUploadBytesPerSecond ||
+            DesktopUpdatePreferences.ValidSpeedLimit(preferences.TotalDownloadBytesPerSecond) != preferences.TotalDownloadBytesPerSecond ||
             !Enum.IsDefined(preferences.Appearance)
                 ? "External editor preferences exceed the permitted bounds."
                 : null;

@@ -75,7 +75,7 @@
   "agentReconnected": "Der Hintergrundagent hat die Verbindung wiederhergestellt und ist bereit.",
   "agentRestarted": "Der Hintergrundagent wurde neu gestartet und ist bereit.",
   "adaptiveConcurrencyActive": "Die adaptiven Parallelitätseinstellungen sind aktiv.",
-  "concurrencyAgentRestartFailed": "Die Parallelitätseinstellungen wurden gespeichert, aber der Hintergrundagent konnte nicht neu starten.",
+  "concurrencyAgentRestartFailed": "Die Übertragungseinstellungen wurden gespeichert, aber der Hintergrundagent konnte nicht neu starten, um sie zu verwenden.",
   "agentCannotDelete": "Der Hintergrundagent konnte die ausgewählten Elemente nicht löschen.",
   "agentCannotEnqueue": "Der Hintergrundagent konnte die Übertragung nicht in die Warteschlange stellen. Bitte erneut versuchen.",
   "agentCannotReviewDrop": "Der Hintergrundagent konnte die abgelegten Dateien nicht prüfen. Bitte erneut versuchen.",

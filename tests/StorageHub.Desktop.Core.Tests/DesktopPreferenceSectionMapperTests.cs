@@ -70,6 +70,26 @@ public sealed class DesktopPreferenceSectionMapperTests
             DesktopPreferenceSectionMapper.CaptureGeneral(result.Preferences));
     }
 
+    /// <summary>A limit in an imported file that this build cannot use is no limit, not an error.</summary>
+    [Fact]
+    public void AnImportedSpeedLimitOutOfRangeIsNoLimit()
+    {
+        var document = Document() with
+        {
+            DesktopGeneral = DesktopPreferenceSectionMapper.CaptureGeneral(DesktopUpdatePreferences.Defaults) with
+            {
+                TotalUploadBytesPerSecond = -1,
+                TotalDownloadBytesPerSecond = long.MaxValue
+            }
+        };
+
+        var result = DesktopPreferenceSectionMapper.Apply(
+            Customised(), document, [SettingsSectionId.DesktopGeneral]);
+
+        Assert.Null(result.Preferences.TotalUploadBytesPerSecond);
+        Assert.Null(result.Preferences.TotalDownloadBytesPerSecond);
+    }
+
     [Fact]
     public void ImportingNothingChangesNothing()
     {
@@ -307,7 +327,9 @@ public sealed class DesktopPreferenceSectionMapperTests
         ConfirmBeforeDeletingItems = false,
         ExternalEditorPath = Rooted(@"Tools\current.exe"),
         Shortcuts = ShortcutSettings.Resolve(null),
-        SshTerminal = new SshTerminalPreferences("screen-256color")
+        SshTerminal = new SshTerminalPreferences("screen-256color"),
+        TotalUploadBytesPerSecond = 512 * 1024,
+        TotalDownloadBytesPerSecond = 2 * 1024 * 1024
     };
 
     private static DesktopUpdatePreferences WithPrivateKey(string reference) =>

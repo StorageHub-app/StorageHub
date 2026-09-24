@@ -75,7 +75,7 @@
   "agentReconnected": "Baggrundsagenten har oprettet forbindelse igen og er klar.",
   "agentRestarted": "Baggrundsagenten blev genstartet og er klar.",
   "adaptiveConcurrencyActive": "De adaptive samtidighedsindstillinger er aktive.",
-  "concurrencyAgentRestartFailed": "Samtidighedsindstillingerne blev gemt, men baggrundsagenten kunne ikke genstarte.",
+  "concurrencyAgentRestartFailed": "Overførselsindstillingerne blev gemt, men baggrundsagenten kunne ikke genstarte for at bruge dem.",
   "agentCannotDelete": "Baggrundsagenten kunne ikke slette de valgte elementer.",
   "agentCannotEnqueue": "Baggrundsagenten kunne ikke sætte overførslen i kø. Prøv igen.",
   "agentCannotReviewDrop": "Baggrundsagenten kunne ikke gennemgå de slupne filer. Prøv igen.",

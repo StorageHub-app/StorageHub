@@ -178,7 +178,7 @@ internal sealed class SettingsStrings : LocalizationModelBase
 
     // ------------------------------------------------------------ page headings
     public string PagePerformanceDescription { get; set; } =
-        "Control how many transfers and synchronization jobs run at once.";
+        "Control how many transfers and synchronization jobs run at once, and how fast they may go.";
 
     public string PageEditingDescription { get; set; } =
         "Choose how remote files open in an external editor.";
@@ -243,6 +243,13 @@ internal sealed class SettingsStrings : LocalizationModelBase
 
     public string MaximumSynchronizationsHint { get; set; } =
         "Separate ceiling for scheduled and manually approved synchronization runs.";
+
+    public string TotalUploadLimit { get; set; } = "Total upload limit (KiB/s)";
+
+    public string TotalDownloadLimit { get; set; } = "Total download limit (KiB/s)";
+
+    public string TotalSpeedLimitHint { get; set; } =
+        "Shared by every transfer on every connection; 0 is no limit. A connection can have a lower limit of its own.";
 
     public string MinimumConcurrencyHint { get; set; } =
         "The adaptive controller begins conservatively at this many jobs.";

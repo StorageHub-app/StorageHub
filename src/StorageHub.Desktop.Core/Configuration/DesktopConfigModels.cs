@@ -110,6 +110,14 @@ internal sealed class DesktopConfig : ConfigModelBase
     public List<DesktopConnectionGroup>? ConnectionGroups { get; set; }
 
     public ToolbarLabelStyle ToolbarLabels { get; set; } = ToolbarLabelStyle.IconsOnly;
+
+    /// <summary>
+    /// Speed limits shared by every transfer, in bytes per second; absent is no limit. Read by the
+    /// agent as well as the desktop, under these names.
+    /// </summary>
+    public long? TotalUploadBytesPerSecond { get; set; }
+
+    public long? TotalDownloadBytesPerSecond { get; set; }
 }
 
 /// <summary>

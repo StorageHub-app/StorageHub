@@ -294,18 +294,14 @@ internal sealed class SettingsImportService
     }
 
     /// <summary>
-    /// Whether the agent needs restarting for the import to take full effect. It reads these five
-    /// values from settings.json once, at startup, so a changed value is inert until then.
+    /// Whether the agent needs restarting for the import to take full effect. It reads its
+    /// concurrency and total speed limits from the settings file once, at startup, so a changed
+    /// value is inert until then.
     /// </summary>
     internal static bool ConcurrencyDiffers(DesktopUpdatePreferences before, DesktopUpdatePreferences after)
     {
         ArgumentNullException.ThrowIfNull(before);
-        ArgumentNullException.ThrowIfNull(after);
-        return before.AdaptiveConcurrency != after.AdaptiveConcurrency ||
-            before.MinimumConcurrency != after.MinimumConcurrency ||
-            before.MaximumTransferConcurrency != after.MaximumTransferConcurrency ||
-            before.PerConnectionConcurrency != after.PerConnectionConcurrency ||
-            before.MaximumSyncConcurrency != after.MaximumSyncConcurrency;
+        return before.ChangesWhatTheAgentReads(after);
     }
 
     /// <summary>

@@ -38,7 +38,11 @@ internal sealed record DesktopGeneralSection(
     // The scheme's id, which is a name rather than a colour, so it means the same on the other
     // machine. Appended with a default, like everything added to this record: a file exported
     // before schemes existed still imports, and lands on "follow the appearance".
-    string? ColorScheme = null);
+    string? ColorScheme = null,
+    // Total speed limits in bytes per second, null for none. A preference about the person's link
+    // rather than about this machine's files, so it travels; appended with defaults like the rest.
+    long? TotalUploadBytesPerSecond = null,
+    long? TotalDownloadBytesPerSecond = null);
 
 /// <summary>
 /// Settings that name something on one computer: a path, or a reference into that machine's
