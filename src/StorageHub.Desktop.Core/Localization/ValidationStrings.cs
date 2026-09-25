@@ -323,6 +323,23 @@ internal sealed class ValidationStrings : LocalizationModelBase
 
     public string ThePortMustBeBetween1And { get; set; } = "The port must be between 1 and 65,535.";
 
+    public string EncodingIsUnknown { get; set; } =
+        "That encoding is not one this system knows. Try utf-8, windows-1252 or iso-8859-1.";
+
+    public string TimeZoneIsUnknown { get; set; } =
+        "That time zone is not one this system knows. Use a name such as Europe/Copenhagen or UTC.";
+
+    public string TimeoutMustBeSeconds { get; set; } =
+        "A connect timeout must be 1 to 600 seconds, and a read timeout 1 to 86,400.";
+
+    public string ActivePortsAreInvalid { get; set; } =
+        "Active ports must be a range from 1024 to 65535, lowest first, such as 50000-50100.";
+
+    public string ActiveAddressIsInvalid { get; set; } = "The active external address must be an IP address.";
+
+    public string ActiveSettingsNeedActiveMode { get; set; } =
+        "Active ports and an external address only apply when the data connection is active.";
+
     public string ProxyAddressIsInvalid { get; set; } =
         "A proxy address must be http://, socks5:// or socks4://, followed by a host and a port.";
 

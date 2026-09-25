@@ -580,7 +580,7 @@ internal static class ConnectionProfileIpcMapper
                 value.AllowInsecureTransport,
                 value.RootPath),
             StorageConnectionProvider.Ftp => new FtpEndpoint(
-                value.Host!, value.Port!.Value, value.AllowInsecureTransport, value.RootPath),
+                value.Host!, value.Port!.Value, value.AllowInsecureTransport, value.RootPath, ToFtpOptions(value.Ftp)),
             StorageConnectionProvider.Ftps => new FtpsEndpoint(
                 value.Host!,
                 value.Port!.Value,
@@ -590,7 +590,8 @@ internal static class ConnectionProfileIpcMapper
                 MapTlsPolicy(value.TlsPolicy),
                 ParseOptionalSecretReference(value.ClientCertificatePfxReference),
                 ParseOptionalSecretReference(value.ClientCertificatePasswordReference),
-                value.RootPath),
+                value.RootPath,
+                ToFtpOptions(value.Ftp)),
             StorageConnectionProvider.Sftp => new SftpEndpoint(
                 value.Host!, value.Port!.Value, MapSshPolicy(value.SshHostKeyPolicy), value.RootPath),
             StorageConnectionProvider.Ssh => new SshClientEndpoint(
@@ -616,7 +617,8 @@ internal static class ConnectionProfileIpcMapper
             RootPath: endpoint.RootPath,
             Host: endpoint.Host,
             Port: endpoint.Port,
-            AllowInsecureTransport: endpoint.AllowInsecurePlainText),
+            AllowInsecureTransport: endpoint.AllowInsecurePlainText,
+            Ftp: ToFtpOptionsDocument(endpoint.ServerOptions)),
         FtpsEndpoint endpoint => new(
             StorageConnectionProvider.Ftps,
             RootPath: endpoint.RootPath,
@@ -627,7 +629,8 @@ internal static class ConnectionProfileIpcMapper
                 ? ConnectionFtpsTlsMode.Explicit
                 : ConnectionFtpsTlsMode.Implicit,
             ClientCertificatePfxReference: endpoint.ClientCertificatePfxReference?.Value,
-            ClientCertificatePasswordReference: endpoint.ClientCertificatePasswordReference?.Value),
+            ClientCertificatePasswordReference: endpoint.ClientCertificatePasswordReference?.Value,
+            Ftp: ToFtpOptionsDocument(endpoint.ServerOptions)),
         SftpEndpoint endpoint => new(
             StorageConnectionProvider.Sftp,
             RootPath: endpoint.RootPath,
@@ -703,6 +706,36 @@ internal static class ConnectionProfileIpcMapper
             PrivateKeyFormat: MapPrivateKeyFormat(authentication.KeyFormat)),
         _ => throw new NotSupportedException("The connection authentication type is not supported by IPC.")
     };
+
+    private static FtpServerOptions? ToFtpOptions(ConnectionFtpOptionsDocument? value) => value is null
+        ? null
+        : new FtpServerOptions(
+            value.ServerTimeZone,
+            (FtpListingFormat)(int)value.ListingFormat,
+            value.DataConnectionMode == ConnectionFtpDataConnectionMode.Active
+                ? FtpDataConnectionMode.Active
+                : FtpDataConnectionMode.Passive,
+            value.ActivePortMinimum,
+            value.ActivePortMaximum,
+            value.ActiveExternalAddress is null
+                ? null
+                : System.Net.IPAddress.TryParse(value.ActiveExternalAddress, out var address)
+                    ? address
+                    : throw new ArgumentException("The active-mode external address is not an IP address.", nameof(value)));
+
+    // Null for the defaults, so a document about an ordinary FTP server carries nothing extra.
+    private static ConnectionFtpOptionsDocument? ToFtpOptionsDocument(FtpServerOptions value) =>
+        value == FtpServerOptions.Default
+            ? null
+            : new ConnectionFtpOptionsDocument(
+                value.ServerTimeZone,
+                (ConnectionFtpListingFormat)(int)value.ListingFormat,
+                value.DataConnectionMode == FtpDataConnectionMode.Active
+                    ? ConnectionFtpDataConnectionMode.Active
+                    : ConnectionFtpDataConnectionMode.Passive,
+                value.ActivePortMinimum,
+                value.ActivePortMaximum,
+                value.ActiveExternalAddress?.ToString());
 
     private static ConnectionOperationalOptions ToOperationalOptions(ConnectionOperationalOptionsDocument value)
     {

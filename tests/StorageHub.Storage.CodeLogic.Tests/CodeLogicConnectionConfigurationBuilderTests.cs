@@ -480,7 +480,12 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
         var endpoint = new FtpEndpoint("ftp.example.test", 21, allowInsecurePlainText: true);
         var authentication = new NoAuthentication();
         var retry = CreateProfile(endpoint, authentication, maximumAttempts: 2);
-        var splitTimeout = CreateProfile(endpoint, authentication, splitTimeouts: true);
+        // S3 has one timeout for connecting and for everything after; FTP has both (below).
+        var splitTimeout = CreateProfile(
+            new S3Endpoint("archive", "eu-north-1"),
+            new S3DefaultCredentialChainAuthentication(),
+            maximumAttempts: 1,
+            splitTimeouts: true);
 
         Assert.Equal("storage.timeout.unsupported", (await CreateBuilder().BuildAsync(splitTimeout)).Error?.Code);
 
@@ -574,6 +579,74 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
         await using var a = first.Value;
         await using var b = second.Value;
         Assert.Equal(a.RootIdentity, b.RootIdentity);
+    }
+
+    [Fact]
+    public async Task Ftp_timeouts_encoding_and_server_options_reach_the_library()
+    {
+        var built = await CreateBuilder().BuildAsync(CreateProfile(
+            new FtpEndpoint(
+                "ftp.example.test",
+                21,
+                allowInsecurePlainText: true,
+                serverOptions: new FtpServerOptions(
+                    "Europe/Copenhagen",
+                    FtpListingFormat.Windows,
+                    FtpDataConnectionMode.Active,
+                    50_000,
+                    50_100,
+                    System.Net.IPAddress.Parse("203.0.113.7"))),
+            new NoAuthentication(),
+            splitTimeouts: true,
+            encodingName: "windows-1252"));
+
+        Assert.True(built.IsSuccess, built.Error?.Message);
+        await using var prepared = built.Value;
+        var ftp = Assert.IsType<FtpConnectionConfig>(prepared.Configuration);
+        Assert.Equal(30, ftp.ConnectTimeoutSeconds);
+        Assert.Equal(120, ftp.ReadTimeoutSeconds);
+        Assert.Equal(120, ftp.DataConnectionTimeoutSeconds);
+        Assert.Equal("windows-1252", ftp.Encoding);
+        Assert.Equal("Europe/Copenhagen", ftp.ServerTimeZone);
+        Assert.Equal(StorageFtpListingParser.Windows, ftp.ListingParser);
+        Assert.Equal(StorageFtpDataConnectionMode.AutoActive, ftp.DataConnectionMode);
+        Assert.Equal(50_000, ftp.ActivePortMin);
+        Assert.Equal(50_100, ftp.ActivePortMax);
+        Assert.Equal("203.0.113.7", ftp.ActiveExternalIp);
+    }
+
+    [Fact]
+    public async Task An_unknown_encoding_and_an_encoding_on_s3_are_refused_but_sftp_takes_one()
+    {
+        var unknown = await CreateBuilder().BuildAsync(CreateProfile(
+            new FtpEndpoint("ftp.example.test", 21, allowInsecurePlainText: true),
+            new NoAuthentication(),
+            encodingName: "klingon-8"));
+        var s3 = await CreateBuilder().BuildAsync(CreateProfile(
+            new S3Endpoint("archive", "eu-north-1"),
+            new S3DefaultCredentialChainAuthentication(),
+            maximumAttempts: 1,
+            encodingName: "windows-1252"));
+
+        Assert.Equal("storage.encoding.unknown", unknown.Error?.Code);
+        Assert.Equal("storage.encoding.unsupported", s3.Error?.Code);
+    }
+
+    /// <summary>Only passive data connections go through a proxy, so active FTP with one is refused.</summary>
+    [Fact]
+    public async Task Active_ftp_through_a_proxy_is_refused()
+    {
+        var built = await CreateBuilder().BuildAsync(CreateProfile(
+            new FtpEndpoint(
+                "ftp.example.test",
+                21,
+                allowInsecurePlainText: true,
+                serverOptions: new FtpServerOptions(dataConnectionMode: FtpDataConnectionMode.Active)),
+            new NoAuthentication(),
+            proxy: new ConnectionProxy(new Uri("socks5://proxy.example.test:1080"))));
+
+        Assert.Equal("storage.profile.unsupported", built.Error?.Code);
+        Assert.Contains("passive", built.Error?.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -686,7 +759,8 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
         ConnectionProxy? proxy = null,
         bool bandwidth = false,
         bool splitTimeouts = false,
-        ConnectionOperationalOptions? operationalOptions = null)
+        ConnectionOperationalOptions? operationalOptions = null,
+        string encodingName = "utf-8")
     {
         var now = DateTimeOffset.UtcNow;
         return ConnectionProfile.Create(
@@ -702,7 +776,7 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
                 bandwidth
                     ? new ConnectionBandwidthLimits(1_000_000, 2_000_000)
                     : new ConnectionBandwidthLimits(null, null),
-                "utf-8"),
+                encodingName),
             now);
     }
 

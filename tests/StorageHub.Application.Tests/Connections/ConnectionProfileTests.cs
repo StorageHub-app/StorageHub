@@ -52,6 +52,24 @@ public sealed class ConnectionProfileTests
     }
 
     [Fact]
+    public void Ftp_server_options_keep_active_settings_to_active_mode_and_know_their_time_zone()
+    {
+        var active = new FtpServerOptions(
+            " UTC ", FtpListingFormat.Unix, FtpDataConnectionMode.Active, 50_000, 50_100);
+        Assert.Equal("UTC", active.ServerTimeZone);
+        Assert.Equal(FtpServerOptions.Default, new FtpEndpoint("ftp.example.test", 21, true).ServerOptions);
+
+        Assert.Throws<ArgumentException>(() => new FtpServerOptions("Mars/Olympus_Mons"));
+        Assert.Throws<ArgumentException>(() => new FtpServerOptions(activePortMinimum: 50_000, activePortMaximum: 50_100));
+        Assert.Throws<ArgumentException>(() => new FtpServerOptions(
+            dataConnectionMode: FtpDataConnectionMode.Active, activePortMinimum: 50_000));
+        Assert.Throws<ArgumentException>(() => new FtpServerOptions(
+            dataConnectionMode: FtpDataConnectionMode.Active, activePortMinimum: 80, activePortMaximum: 90));
+        Assert.Throws<ArgumentException>(() => new FtpServerOptions(
+            dataConnectionMode: FtpDataConnectionMode.Active, activePortMinimum: 60_000, activePortMaximum: 50_000));
+    }
+
+    [Fact]
     public void A_proxy_signs_in_with_a_user_name_and_a_vault_password_but_socks4_has_none()
     {
         var password = SecretReference.Create();

@@ -438,12 +438,14 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
                 ForcePathStyle: s3.ForcePathStyle, TlsPolicy: s3.TlsPolicy,
                 AllowInsecureHttp: s3.AllowInsecureHttp),
             FtpEndpoint ftp => new PersistedEndpoint(
-                "ftp", RootPath: ftp.RootPath, Host: ftp.Host, Port: ftp.Port, AllowInsecurePlainText: ftp.AllowInsecurePlainText),
+                "ftp", RootPath: ftp.RootPath, Host: ftp.Host, Port: ftp.Port, AllowInsecurePlainText: ftp.AllowInsecurePlainText,
+                Ftp: PersistedFtpOptions.From(ftp.ServerOptions)),
             FtpsEndpoint ftps => new PersistedEndpoint(
                 "ftps", Host: ftps.Host, Port: ftps.Port, TlsMode: ftps.TlsMode, TlsPolicy: ftps.TlsPolicy,
                 PfxReference: ftps.ClientCertificatePfxReference?.Value,
                 PfxPasswordReference: ftps.ClientCertificatePasswordReference?.Value,
-                RootPath: ftps.RootPath),
+                RootPath: ftps.RootPath,
+                Ftp: PersistedFtpOptions.From(ftps.ServerOptions)),
             SftpEndpoint sftp => new PersistedEndpoint(
                 "sftp", RootPath: sftp.RootPath, Host: sftp.Host, Port: sftp.Port, HostKeyPolicy: sftp.HostKeyPolicy),
             SshClientEndpoint ssh => new PersistedEndpoint(
@@ -469,7 +471,8 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
                 value.RootPath),
             "ftp" => new FtpEndpoint(
                 Required(value.Host, "FTP host"), Required(value.Port, "FTP port"), value.AllowInsecurePlainText,
-                value.RootPath),
+                value.RootPath,
+                value.Ftp?.ToOptions()),
             "ftps" => new FtpsEndpoint(
                 Required(value.Host, "FTPS host"),
                 Required(value.Port, "FTPS port"),
@@ -477,7 +480,8 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
                 value.TlsPolicy ?? TlsCertificatePolicy.Unspecified,
                 ParseSecretReference(value.PfxReference),
                 ParseSecretReference(value.PfxPasswordReference),
-                value.RootPath),
+                value.RootPath,
+                value.Ftp?.ToOptions()),
             "sftp" => new SftpEndpoint(
                 Required(value.Host, "SFTP host"),
                 Required(value.Port, "SFTP port"),
@@ -685,7 +689,37 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
         TlsCertificatePolicy? TlsPolicy = null,
         string? PfxReference = null,
         string? PfxPasswordReference = null,
-        SshHostKeyPolicy? HostKeyPolicy = null);
+        SshHostKeyPolicy? HostKeyPolicy = null,
+        PersistedFtpOptions? Ftp = null);
+
+    /// <summary>An FTP server's options; absent from rows written before they existed, which read as the defaults.</summary>
+    private sealed record PersistedFtpOptions(
+        string? ServerTimeZone = null,
+        FtpListingFormat ListingFormat = FtpListingFormat.Auto,
+        FtpDataConnectionMode DataConnectionMode = FtpDataConnectionMode.Passive,
+        int? ActivePortMinimum = null,
+        int? ActivePortMaximum = null,
+        string? ActiveExternalAddress = null)
+    {
+        // Null for the defaults, so an ordinary FTP row stays as it was written before.
+        public static PersistedFtpOptions? From(FtpServerOptions options) => options == FtpServerOptions.Default
+            ? null
+            : new(
+                options.ServerTimeZone,
+                options.ListingFormat,
+                options.DataConnectionMode,
+                options.ActivePortMinimum,
+                options.ActivePortMaximum,
+                options.ActiveExternalAddress?.ToString());
+
+        public FtpServerOptions ToOptions() => new(
+            ServerTimeZone,
+            ListingFormat,
+            DataConnectionMode,
+            ActivePortMinimum,
+            ActivePortMaximum,
+            ActiveExternalAddress is null ? null : System.Net.IPAddress.Parse(ActiveExternalAddress));
+    }
 
     private sealed record PersistedAuthentication(
         string Kind,

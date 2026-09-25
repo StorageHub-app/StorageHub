@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using System.Text;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Localization;
 
@@ -65,6 +66,39 @@ public static class ConnectionEditorDraftFactory
 
     internal const string ProxyPasswordKey = "proxyPasswordReference";
 
+    /// <summary>The Advanced section's fields, which FTP and FTPS have.</summary>
+    internal const string EncodingKey = "encoding";
+
+    internal const string ConnectTimeoutKey = "connectTimeoutSeconds";
+
+    internal const string ReadTimeoutKey = "readTimeoutSeconds";
+
+    internal const string ServerTimeZoneKey = "serverTimeZone";
+
+    internal const string ListingFormatKey = "listingFormat";
+
+    internal const string DataConnectionKey = "dataConnection";
+
+    internal const string ActivePortsKey = "activePorts";
+
+    internal const string ActiveAddressKey = "activeAddress";
+
+    // Choice values, matched below as written, so they are not translated (see the note in
+    // ConnectionProviderCatalog): the technical names are what a server's documentation uses anyway.
+    internal static readonly IReadOnlyList<string> ListingFormats =
+    [
+        "Auto",
+        "MLSD (machine-readable)",
+        "Unix",
+        "Unix (alternative)",
+        "Windows / IIS",
+        "OpenVMS",
+        "IBM z/OS",
+        "HP NonStop"
+    ];
+
+    internal static readonly IReadOnlyList<string> DataConnections = ["Passive (recommended)", "Active"];
+
     // 16 GiB/s: far past any link StorageHub will see, and small enough that KiB * 1024 cannot overflow.
     private const long MaximumSpeedLimitKib = 16L * 1024 * 1024;
 
@@ -74,15 +108,105 @@ public static class ConnectionEditorDraftFactory
         IReadOnlyDictionary<string, string> values)
     {
         defaults ??= ConnectionDefaultSettings.Get(provider, stored: null);
+        var isFtp = provider is StorageProviderKind.Ftp or StorageProviderKind.Ftps;
         return new ConnectionOperationalOptionsDocument(
-            ConnectTimeoutSeconds: defaults.ConnectTimeoutSeconds,
-            OperationTimeoutSeconds: defaults.OperationTimeoutSeconds,
+            // Only FTP keeps a connect and a read timeout apart, so only its editor offers them.
+            ConnectTimeoutSeconds: isFtp ? ParseSeconds(values, ConnectTimeoutKey, 600, defaults.ConnectTimeoutSeconds) : defaults.ConnectTimeoutSeconds,
+            OperationTimeoutSeconds: isFtp ? ParseSeconds(values, ReadTimeoutKey, 86_400, defaults.OperationTimeoutSeconds) : defaults.OperationTimeoutSeconds,
+            EncodingName: isFtp ? ParseEncoding(values) : "utf-8",
             MaximumRetryAttempts: defaults.MaximumRetryAttempts,
             ProxyEndpoint: ParseProxyAddress(values, out var scheme),
             ProxyUsername: ProxySignIn(values, scheme, out var password),
             ProxyPasswordReference: password,
             UploadBytesPerSecond: ParseSpeedLimit(values, UploadLimitKey),
             DownloadBytesPerSecond: ParseSpeedLimit(values, DownloadLimitKey));
+    }
+
+    private static int ParseSeconds(IReadOnlyDictionary<string, string> values, string key, int maximum, int fallback)
+    {
+        var value = Get(values, key);
+        if (value is null)
+        {
+            return fallback;
+        }
+
+        return int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var seconds) &&
+            seconds >= 1 && seconds <= maximum
+                ? seconds
+                : throw new ArgumentException(Ui.Validation.TimeoutMustBeSeconds, nameof(values));
+    }
+
+    /// <summary>The file-name encoding, checked against the same table the agent's FTP client uses.</summary>
+    private static string ParseEncoding(IReadOnlyDictionary<string, string> values)
+    {
+        var name = Get(values, EncodingKey);
+        if (name is null)
+        {
+            return "utf-8";
+        }
+
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        try
+        {
+            _ = Encoding.GetEncoding(name);
+        }
+        catch (ArgumentException)
+        {
+            throw new ArgumentException(Ui.Validation.EncodingIsUnknown, nameof(values));
+        }
+
+        return name.ToLowerInvariant();
+    }
+
+    /// <summary>An FTP server's Advanced options, or null when every one is left as it comes.</summary>
+    private static ConnectionFtpOptionsDocument? BuildFtpOptions(IReadOnlyDictionary<string, string> values)
+    {
+        var timeZone = Get(values, ServerTimeZoneKey);
+        if (timeZone is not null && !TimeZoneInfo.TryFindSystemTimeZoneById(timeZone, out _))
+        {
+            throw new ArgumentException(Ui.Validation.TimeZoneIsUnknown, nameof(values));
+        }
+
+        var format = Get(values, ListingFormatKey) is { } chosen
+            ? Math.Max(0, ListingFormats.ToList().IndexOf(chosen))
+            : 0;
+        var active = string.Equals(Get(values, DataConnectionKey), DataConnections[1], StringComparison.Ordinal);
+
+        int? lowest = null;
+        int? highest = null;
+        if (Get(values, ActivePortsKey) is { } range)
+        {
+            var ends = range.Split('-', 2, StringSplitOptions.TrimEntries);
+            if (ends.Length != 2 ||
+                !int.TryParse(ends[0], NumberStyles.None, CultureInfo.InvariantCulture, out var low) ||
+                !int.TryParse(ends[1], NumberStyles.None, CultureInfo.InvariantCulture, out var high) ||
+                low < 1024 || high > 65_535 || low > high)
+            {
+                throw new ArgumentException(Ui.Validation.ActivePortsAreInvalid, nameof(values));
+            }
+
+            (lowest, highest) = (low, high);
+        }
+
+        var address = Get(values, ActiveAddressKey);
+        if (address is not null && !System.Net.IPAddress.TryParse(address, out _))
+        {
+            throw new ArgumentException(Ui.Validation.ActiveAddressIsInvalid, nameof(values));
+        }
+
+        if (!active && (lowest is not null || address is not null))
+        {
+            throw new ArgumentException(Ui.Validation.ActiveSettingsNeedActiveMode, nameof(values));
+        }
+
+        var options = new ConnectionFtpOptionsDocument(
+            timeZone,
+            (ConnectionFtpListingFormat)format,
+            active ? ConnectionFtpDataConnectionMode.Active : ConnectionFtpDataConnectionMode.Passive,
+            lowest,
+            highest,
+            address);
+        return options == new ConnectionFtpOptionsDocument() ? null : options;
     }
 
     /// <summary>
@@ -187,6 +311,14 @@ public static class ConnectionEditorDraftFactory
         };
         AddEndpoint(values, profile.Draft.Endpoint);
         AddAuthentication(values, profile.Draft.Authentication);
+        if (profile.Draft.Endpoint.Provider is StorageConnectionProvider.Ftp or StorageConnectionProvider.Ftps)
+        {
+            var options = profile.Draft.OperationalOptions;
+            values[EncodingKey] = options.EncodingName;
+            values[ConnectTimeoutKey] = options.ConnectTimeoutSeconds.ToString(CultureInfo.InvariantCulture);
+            values[ReadTimeoutKey] = options.OperationTimeoutSeconds.ToString(CultureInfo.InvariantCulture);
+        }
+
         values[ProxyAddressKey] = profile.Draft.OperationalOptions.ProxyEndpoint?.TrimEnd('/') ?? string.Empty;
         values[ProxyUsernameKey] = profile.Draft.OperationalOptions.ProxyUsername ?? string.Empty;
         values[ProxyPasswordKey] = profile.Draft.OperationalOptions.ProxyPasswordReference ?? string.Empty;
@@ -334,7 +466,8 @@ public static class ConnectionEditorDraftFactory
             RootPath: NormalizeProviderRoot(Get(values, "initialPath")),
             Host: Require(values, "host", Ui.Validation.AnFTPHostIsRequired),
             Port: ParsePort(values, 21),
-            AllowInsecureTransport: true);
+            AllowInsecureTransport: true,
+            Ftp: BuildFtpOptions(values));
     }
 
     private static ConnectionEndpointDocument BuildFtpsEndpoint(IReadOnlyDictionary<string, string> values)
@@ -366,7 +499,8 @@ public static class ConnectionEditorDraftFactory
                     ? ConnectionFtpsTlsMode.Implicit
                     : ConnectionFtpsTlsMode.Explicit,
             ClientCertificatePfxReference: Get(values, "clientCertificateReference"),
-            ClientCertificatePasswordReference: Get(values, "clientCertificatePasswordReference"));
+            ClientCertificatePasswordReference: Get(values, "clientCertificatePasswordReference"),
+            Ftp: BuildFtpOptions(values));
     }
 
     private static ConnectionAuthenticationDocument BuildAuthentication(
@@ -471,7 +605,7 @@ public static class ConnectionEditorDraftFactory
     }
 
     private static void AddEndpoint(
-        IDictionary<string, string> values,
+        Dictionary<string, string> values,
         ConnectionEndpointDocument endpoint)
     {
         Add(values, "rootPath", endpoint.Provider == StorageConnectionProvider.Local ? endpoint.RootPath : null);
@@ -499,6 +633,17 @@ public static class ConnectionEditorDraftFactory
             : "Explicit TLS (recommended)");
         Add(values, "clientCertificateReference", endpoint.ClientCertificatePfxReference);
         Add(values, "clientCertificatePasswordReference", endpoint.ClientCertificatePasswordReference);
+        if (endpoint.Provider is StorageConnectionProvider.Ftp or StorageConnectionProvider.Ftps)
+        {
+            var ftp = endpoint.Ftp ?? new ConnectionFtpOptionsDocument();
+            values[ServerTimeZoneKey] = ftp.ServerTimeZone ?? string.Empty;
+            values[ListingFormatKey] = ListingFormats[(int)ftp.ListingFormat];
+            values[DataConnectionKey] = DataConnections[ftp.DataConnectionMode == ConnectionFtpDataConnectionMode.Active ? 1 : 0];
+            values[ActivePortsKey] = ftp.ActivePortMinimum is { } low && ftp.ActivePortMaximum is { } high
+                ? string.Create(CultureInfo.InvariantCulture, $"{low}-{high}")
+                : string.Empty;
+            values[ActiveAddressKey] = ftp.ActiveExternalAddress ?? string.Empty;
+        }
     }
 
     private static void AddAuthentication(

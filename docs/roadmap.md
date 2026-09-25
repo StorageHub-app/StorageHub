@@ -26,7 +26,7 @@ The profile already stores these; `CodeLogicConnectionProfileConnector.BuildAsyn
 - [x] 1.2 Speed limits: per-connection bandwidth to `TransferLimits`, the global limit to `MaxTotal*`;
       the "Speed Limits…" command gets its dialog.
 - [x] 1.3 Proxy: `StorageProxyConfig` for FTP, SFTP and S3; a proxy section in the connection editor.
-- [ ] 1.4 FTP options: separate connect and read timeouts, filename encoding (code pages), server time
+- [x] 1.4 FTP options: separate connect and read timeouts, filename encoding (code pages), server time
       zone, listing parser, active mode; an "Advanced" expander in the editor.
 - [ ] 1.5 SFTP options: keyboard-interactive login, several keys and inline keys (no temp key file),
       jump host, algorithm lists, session limits.

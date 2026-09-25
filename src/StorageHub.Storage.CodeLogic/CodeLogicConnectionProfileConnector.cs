@@ -312,8 +312,9 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
                 "The connection profile is disabled or deleted.");
         }
 
+        // FTP takes a connect and a read timeout of its own; S3 and SFTP have one timeout for both.
         var usesHistoricalEditorDefaults = UsesHistoricalEditorDefaults(profile.OperationalOptions);
-        if (profile.Provider is not ConnectionProviderKind.Local &&
+        if (profile.Provider is ConnectionProviderKind.S3 or ConnectionProviderKind.Sftp &&
             profile.OperationalOptions.ConnectTimeout != profile.OperationalOptions.OperationTimeout &&
             !usesHistoricalEditorDefaults)
         {
@@ -321,11 +322,19 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
                 "The selected CL.Storage provider exposes one timeout, so connect and operation timeouts must match.");
         }
 
-        if (profile.Provider is ConnectionProviderKind.Ftp or ConnectionProviderKind.Ftps &&
-            !string.Equals(profile.OperationalOptions.EncodingName, "utf-8", StringComparison.OrdinalIgnoreCase))
+        if (!IsUtf8(profile.OperationalOptions.EncodingName))
         {
-            return Unsupported("storage.encoding.unsupported",
-                "The selected CL.Storage FTP provider cannot enforce this filename encoding.");
+            if (profile.Provider is not (ConnectionProviderKind.Ftp or ConnectionProviderKind.Ftps or ConnectionProviderKind.Sftp))
+            {
+                return Unsupported("storage.encoding.unsupported",
+                    "Only FTP and SFTP servers have a filename encoding; this provider's names are always UTF-8.");
+            }
+
+            if (!IsKnownEncoding(profile.OperationalOptions.EncodingName))
+            {
+                return Unsupported("storage.encoding.unknown",
+                    "The filename encoding is not one this system knows, such as utf-8 or windows-1252.");
+            }
         }
 
         var runtimeResources = new List<IAsyncDisposable>();
@@ -578,6 +587,7 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
             Port = endpoint.Port,
             Root = endpoint.RootPath,
             TimeoutSeconds = TimeoutSeconds(profile),
+            Encoding = profile.OperationalOptions.EncodingName,
             Retry = LibraryRetry(profile),
             HostKeyFingerprints = await GetTrustedFingerprintsAsync(
                 TrustArtifactKind.SshHostKey,
@@ -659,9 +669,55 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
                 FtpsEndpoint ftps => ftps.RootPath,
                 _ => string.Empty
             },
-            TimeoutSeconds = TimeoutSeconds(profile),
+            // Connect and read are separate on FTP; a data connection waits as long as a read.
+            TimeoutSeconds = OperationTimeoutSeconds(profile),
+            ConnectTimeoutSeconds = TimeoutSeconds(profile),
+            ReadTimeoutSeconds = OperationTimeoutSeconds(profile),
+            DataConnectionTimeoutSeconds = OperationTimeoutSeconds(profile),
+            Encoding = profile.OperationalOptions.EncodingName,
+            ServerTimeZone = ServerOptionsOf(profile).ServerTimeZone,
+            ListingParser = (StorageFtpListingParser)(int)ServerOptionsOf(profile).ListingFormat,
+            DataConnectionMode = ServerOptionsOf(profile).DataConnectionMode == FtpDataConnectionMode.Active
+                ? StorageFtpDataConnectionMode.AutoActive
+                : StorageFtpDataConnectionMode.AutoPassive,
+            ActivePortMin = ServerOptionsOf(profile).ActivePortMinimum,
+            ActivePortMax = ServerOptionsOf(profile).ActivePortMaximum,
+            ActiveExternalIp = ServerOptionsOf(profile).ActiveExternalAddress?.ToString(),
             Retry = LibraryRetry(profile)
         };
+
+    private static FtpServerOptions ServerOptionsOf(ConnectionProfile profile) => profile.Endpoint switch
+    {
+        FtpEndpoint ftp => ftp.ServerOptions,
+        FtpsEndpoint ftps => ftps.ServerOptions,
+        _ => FtpServerOptions.Default
+    };
+
+    private static int OperationTimeoutSeconds(ConnectionProfile profile) =>
+        checked((int)Math.Ceiling(profile.OperationalOptions.OperationTimeout.TotalSeconds));
+
+    private static bool IsUtf8(string name) =>
+        string.Equals(name, "utf-8", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(name, "utf8", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Whether .NET knows the encoding, legacy code pages included, which is the same table CL.Storage
+    /// looks names up in. Checked here so an unknown name is refused with a reason rather than by the
+    /// library's configuration validation.
+    /// </summary>
+    private static bool IsKnownEncoding(string name)
+    {
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        try
+        {
+            _ = Encoding.GetEncoding(name);
+            return true;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+    }
 
     /// <summary>
     /// The profile's retry policy, for the retries CL.Storage makes itself on FTP and SFTP since
@@ -776,6 +832,10 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
         var target = configuration switch
         {
             S3ConnectionConfig s3 => s3.Proxy,
+            // Only passive data connections go through a proxy; an active one would bypass it.
+            FtpConnectionConfig { DataConnectionMode: StorageFtpDataConnectionMode.AutoActive } =>
+                throw new UnsupportedProfileException(
+                    "Active FTP cannot go through a proxy: the server would connect back around it. Use passive mode."),
             FtpConnectionConfig ftp => ftp.Proxy,
             SftpConnectionConfig sftp => sftp.Proxy,
             _ => throw new UnsupportedProfileException("A local connection cannot use a proxy.")

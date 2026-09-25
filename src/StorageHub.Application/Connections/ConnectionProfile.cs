@@ -44,6 +44,26 @@ public enum FtpsTlsMode
     Implicit = 2
 }
 
+/// <summary>How an FTP server's directory listings are read. Auto asks the server and guesses.</summary>
+public enum FtpListingFormat
+{
+    Auto = 0,
+    MachineReadable = 1,
+    Unix = 2,
+    UnixAlternative = 3,
+    Windows = 4,
+    Vms = 5,
+    IbmZos = 6,
+    NonStop = 7
+}
+
+/// <summary>Who opens an FTP data connection: the client (passive, which works through NAT) or the server.</summary>
+public enum FtpDataConnectionMode
+{
+    Passive = 0,
+    Active = 1
+}
+
 public enum SftpPrivateKeyFormat
 {
     OpenSsh = 1,
@@ -506,9 +526,86 @@ public sealed record S3Endpoint : ConnectionEndpoint
     }
 }
 
+/// <summary>
+/// How to talk to one FTP server, beyond where it is: the time zone it lists in, how to read its
+/// listings, and whether data connections are passive or active.
+/// </summary>
+/// <remarks>
+/// None of this changes which files the connection sees, so none of it is part of the root identity.
+/// </remarks>
+public sealed record FtpServerOptions
+{
+    public static FtpServerOptions Default { get; } = new();
+
+    public FtpServerOptions(
+        string? serverTimeZone = null,
+        FtpListingFormat listingFormat = FtpListingFormat.Auto,
+        FtpDataConnectionMode dataConnectionMode = FtpDataConnectionMode.Passive,
+        int? activePortMinimum = null,
+        int? activePortMaximum = null,
+        IPAddress? activeExternalAddress = null)
+    {
+        var timeZone = string.IsNullOrWhiteSpace(serverTimeZone) ? null : serverTimeZone.Trim();
+        if (timeZone is not null &&
+            (timeZone.Length > 64 || !TimeZoneInfo.TryFindSystemTimeZoneById(timeZone, out _)))
+        {
+            throw new ArgumentException("The server time zone is not one this system knows.", nameof(serverTimeZone));
+        }
+
+        if (!Enum.IsDefined(listingFormat))
+        {
+            throw new ArgumentOutOfRangeException(nameof(listingFormat));
+        }
+
+        if (!Enum.IsDefined(dataConnectionMode))
+        {
+            throw new ArgumentOutOfRangeException(nameof(dataConnectionMode));
+        }
+
+        if (activePortMinimum is null != activePortMaximum is null ||
+            activePortMinimum is < 1024 or > 65_535 ||
+            activePortMaximum is < 1024 or > 65_535 ||
+            activePortMinimum > activePortMaximum)
+        {
+            throw new ArgumentException(
+                "An active port range needs both ends, from 1024 to 65535, lowest first.",
+                nameof(activePortMinimum));
+        }
+
+        if (dataConnectionMode == FtpDataConnectionMode.Passive &&
+            (activePortMinimum is not null || activeExternalAddress is not null))
+        {
+            throw new ArgumentException(
+                "Active ports and an external address only apply to active mode.",
+                nameof(dataConnectionMode));
+        }
+
+        ServerTimeZone = timeZone;
+        ListingFormat = listingFormat;
+        DataConnectionMode = dataConnectionMode;
+        ActivePortMinimum = activePortMinimum;
+        ActivePortMaximum = activePortMaximum;
+        ActiveExternalAddress = activeExternalAddress;
+    }
+
+    /// <summary>An IANA or Windows time-zone id for a server that lists local times; null when it lists UTC.</summary>
+    public string? ServerTimeZone { get; }
+    public FtpListingFormat ListingFormat { get; }
+    public FtpDataConnectionMode DataConnectionMode { get; }
+    public int? ActivePortMinimum { get; }
+    public int? ActivePortMaximum { get; }
+    /// <summary>The address announced in active mode, for a client behind NAT.</summary>
+    public IPAddress? ActiveExternalAddress { get; }
+}
+
 public sealed record FtpEndpoint : ConnectionEndpoint
 {
-    public FtpEndpoint(string host, int port, bool allowInsecurePlainText, string? rootPath = null)
+    public FtpEndpoint(
+        string host,
+        int port,
+        bool allowInsecurePlainText,
+        string? rootPath = null,
+        FtpServerOptions? serverOptions = null)
         : base(ConnectionProviderKind.Ftp)
     {
         if (!allowInsecurePlainText)
@@ -522,12 +619,14 @@ public sealed record FtpEndpoint : ConnectionEndpoint
         Port = ValidatePort(port);
         AllowInsecurePlainText = true;
         RootPath = NormalizeProviderRoot(rootPath, nameof(rootPath));
+        ServerOptions = serverOptions ?? FtpServerOptions.Default;
     }
 
     public string Host { get; }
     public int Port { get; }
     public bool AllowInsecurePlainText { get; }
     public string RootPath { get; }
+    public FtpServerOptions ServerOptions { get; }
 }
 
 public sealed record FtpsEndpoint : ConnectionEndpoint
@@ -539,7 +638,8 @@ public sealed record FtpsEndpoint : ConnectionEndpoint
         TlsCertificatePolicy tlsPolicy,
         SecretReference? clientCertificatePfxReference = null,
         SecretReference? clientCertificatePasswordReference = null,
-        string? rootPath = null)
+        string? rootPath = null,
+        FtpServerOptions? serverOptions = null)
         : base(ConnectionProviderKind.Ftps)
     {
         if (!Enum.IsDefined(tlsMode))
@@ -571,6 +671,7 @@ public sealed record FtpsEndpoint : ConnectionEndpoint
         ClientCertificatePfxReference = clientCertificatePfxReference;
         ClientCertificatePasswordReference = clientCertificatePasswordReference;
         RootPath = NormalizeProviderRoot(rootPath, nameof(rootPath));
+        ServerOptions = serverOptions ?? FtpServerOptions.Default;
     }
 
     public string Host { get; }
@@ -580,6 +681,7 @@ public sealed record FtpsEndpoint : ConnectionEndpoint
     public SecretReference? ClientCertificatePfxReference { get; }
     public SecretReference? ClientCertificatePasswordReference { get; }
     public string RootPath { get; }
+    public FtpServerOptions ServerOptions { get; }
 
     private static void ValidateReference(SecretReference? reference, string parameterName)
     {

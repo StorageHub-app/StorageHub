@@ -61,6 +61,96 @@ public sealed class ConnectionEditorDraftFactoryTests
         Assert.Equal("relay", reopened[ConnectionEditorDraftFactory.ProxyUsernameKey]);
     }
 
+    [Fact]
+    public void FtpAdvancedSettingsSurviveAnEdit()
+    {
+        var values = ValidValues(StorageProviderKind.Ftps);
+        values[ConnectionEditorDraftFactory.EncodingKey] = "Windows-1252";
+        values[ConnectionEditorDraftFactory.ConnectTimeoutKey] = "15";
+        values[ConnectionEditorDraftFactory.ReadTimeoutKey] = "300";
+        values[ConnectionEditorDraftFactory.ServerTimeZoneKey] = "Europe/Copenhagen";
+        values[ConnectionEditorDraftFactory.ListingFormatKey] = "Windows / IIS";
+        values[ConnectionEditorDraftFactory.DataConnectionKey] = "Active";
+        values[ConnectionEditorDraftFactory.ActivePortsKey] = "50000 - 50100";
+        values[ConnectionEditorDraftFactory.ActiveAddressKey] = "203.0.113.7";
+
+        var draft = ConnectionEditorDraftFactory.Build(StorageProviderKind.Ftps, values);
+        var reopened = ConnectionEditorDraftFactory.ToEditorValues(
+            new ConnectionProfileDocument(Guid.NewGuid(), 1, draft, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch));
+
+        Assert.True(draft.HasValidBounds);
+        Assert.Equal("windows-1252", draft.OperationalOptions.EncodingName);
+        Assert.Equal(15, draft.OperationalOptions.ConnectTimeoutSeconds);
+        Assert.Equal(300, draft.OperationalOptions.OperationTimeoutSeconds);
+        var ftp = draft.Endpoint.Ftp!;
+        Assert.Equal("Europe/Copenhagen", ftp.ServerTimeZone);
+        Assert.Equal(ConnectionFtpListingFormat.Windows, ftp.ListingFormat);
+        Assert.Equal(ConnectionFtpDataConnectionMode.Active, ftp.DataConnectionMode);
+        Assert.Equal((50_000, 50_100), (ftp.ActivePortMinimum, ftp.ActivePortMaximum));
+        Assert.Equal("203.0.113.7", ftp.ActiveExternalAddress);
+
+        Assert.Equal("300", reopened[ConnectionEditorDraftFactory.ReadTimeoutKey]);
+        Assert.Equal("Windows / IIS", reopened[ConnectionEditorDraftFactory.ListingFormatKey]);
+        Assert.Equal("Active", reopened[ConnectionEditorDraftFactory.DataConnectionKey]);
+        Assert.Equal("50000-50100", reopened[ConnectionEditorDraftFactory.ActivePortsKey]);
+    }
+
+    /// <summary>An FTP server left as it comes carries no options block, so the stored row is as before.</summary>
+    [Fact]
+    public void AnFtpServerLeftAsItComesHasNoOptions()
+    {
+        var values = ValidValues(StorageProviderKind.Ftp);
+        values[ConnectionEditorDraftFactory.ListingFormatKey] = "Auto";
+        values[ConnectionEditorDraftFactory.DataConnectionKey] = "Passive (recommended)";
+
+        var draft = ConnectionEditorDraftFactory.Build(StorageProviderKind.Ftp, values);
+
+        Assert.Null(draft.Endpoint.Ftp);
+        Assert.Equal("utf-8", draft.OperationalOptions.EncodingName);
+    }
+
+    [Theory]
+    [InlineData(nameof(ConnectionEditorDraftFactory.EncodingKey), "klingon-8", nameof(Ui.Validation.EncodingIsUnknown))]
+    [InlineData(nameof(ConnectionEditorDraftFactory.ConnectTimeoutKey), "0", nameof(Ui.Validation.TimeoutMustBeSeconds))]
+    [InlineData(nameof(ConnectionEditorDraftFactory.ReadTimeoutKey), "soon", nameof(Ui.Validation.TimeoutMustBeSeconds))]
+    [InlineData(nameof(ConnectionEditorDraftFactory.ServerTimeZoneKey), "Mars/Olympus_Mons", nameof(Ui.Validation.TimeZoneIsUnknown))]
+    [InlineData(nameof(ConnectionEditorDraftFactory.ActiveAddressKey), "203.0.113.7", nameof(Ui.Validation.ActiveSettingsNeedActiveMode))]
+    public void AnFtpSettingStorageHubCannotUseIsRefusedBesideTheField(string field, string value, string message)
+    {
+        var values = ValidValues(StorageProviderKind.Ftp);
+        var key = (string)typeof(ConnectionEditorDraftFactory)
+            .GetField(field, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!
+            .GetValue(null)!;
+        values[key] = value;
+
+        var error = Assert.Throws<ArgumentException>(() => ConnectionEditorDraftFactory.Build(StorageProviderKind.Ftp, values));
+
+        var expected = (string)typeof(ValidationStrings).GetProperty(message)!.GetValue(Ui.Validation)!;
+        Assert.StartsWith(expected, error.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("50000")]
+    [InlineData("80-90")]
+    [InlineData("50100-50000")]
+    public void ActivePortsMustBeARangeAboveTheReservedPorts(string range)
+    {
+        var values = ValidValues(StorageProviderKind.Ftp);
+        values[ConnectionEditorDraftFactory.DataConnectionKey] = "Active";
+        values[ConnectionEditorDraftFactory.ActivePortsKey] = range;
+
+        var error = Assert.Throws<ArgumentException>(() => ConnectionEditorDraftFactory.Build(StorageProviderKind.Ftp, values));
+
+        Assert.StartsWith(Ui.Validation.ActivePortsAreInvalid, error.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>The IPC and domain enums are cast between by number, so they must list the same values.</summary>
+    [Fact]
+    public void TheWireListingFormatsMatchTheOffer()
+    {
+        Assert.Equal(Enum.GetValues<ConnectionFtpListingFormat>().Length, ConnectionEditorDraftFactory.ListingFormats.Count);
+    }
+
     /// <summary>With no proxy address, a sign-in left in the other two fields is not saved.</summary>
     [Fact]
     public void NoProxyAddressIsADirectConnection()

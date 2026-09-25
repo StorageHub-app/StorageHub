@@ -201,6 +201,42 @@ internal sealed class ConnectionStrings : LocalizationModelBase
 
     public string SectionProxy { get; set; } = "Proxy";
 
+    public string SectionAdvanced { get; set; } = "Advanced";
+
+    public string EncodingHint { get; set; } =
+        "How the server spells file names: utf-8, or a code page such as windows-1252 or iso-8859-1 for older servers.";
+
+    public string TimeoutSecondsHint { get; set; } = "In seconds.";
+
+    public string FieldServerTimeZone { get; set; } = "Server time zone";
+
+    public string ServerTimeZonePlaceholder { get; set; } = "UTC";
+
+    public string ServerTimeZoneHint { get; set; } =
+        "For a server that lists local times, such as Europe/Copenhagen. Leave empty if it lists UTC.";
+
+    public string FieldDirectoryListing { get; set; } = "Listing format";
+
+    public string ListingFormatHint { get; set; } =
+        "Auto suits almost every server. Choose one only if file dates or names come out wrong.";
+
+    public string FieldDataConnection { get; set; } = "Data connection";
+
+    public string DataConnectionHint { get; set; } =
+        "Passive works through firewalls and proxies. Active has the server connect back to this computer.";
+
+    public string FieldActivePorts { get; set; } = "Active ports";
+
+    public string ActivePortsPlaceholder { get; set; } = "Any";
+
+    public string ActivePortsHint { get; set; } = "A range such as 50000-50100, for a firewall that must allow them.";
+
+    public string FieldActiveAddress { get; set; } = "Active external address";
+
+    public string ActiveAddressPlaceholder { get; set; } = "This computer's address";
+
+    public string ActiveAddressHint { get; set; } = "The public IP address to announce when this computer is behind NAT.";
+
     public string FieldProxyAddress { get; set; } = "Proxy address";
 
     public string ProxyAddressPlaceholder { get; set; } = "Direct connection";

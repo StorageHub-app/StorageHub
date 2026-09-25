@@ -64,6 +64,42 @@ public enum ConnectionFtpsTlsMode
     Implicit = 2
 }
 
+public enum ConnectionFtpListingFormat
+{
+    Auto = 0,
+    MachineReadable = 1,
+    Unix = 2,
+    UnixAlternative = 3,
+    Windows = 4,
+    Vms = 5,
+    IbmZos = 6,
+    NonStop = 7
+}
+
+public enum ConnectionFtpDataConnectionMode
+{
+    Passive = 0,
+    Active = 1
+}
+
+/// <summary>An FTP or FTPS server's options beyond where it is; null on the endpoint means the defaults.</summary>
+public sealed record ConnectionFtpOptionsDocument(
+    string? ServerTimeZone = null,
+    ConnectionFtpListingFormat ListingFormat = ConnectionFtpListingFormat.Auto,
+    ConnectionFtpDataConnectionMode DataConnectionMode = ConnectionFtpDataConnectionMode.Passive,
+    int? ActivePortMinimum = null,
+    int? ActivePortMaximum = null,
+    string? ActiveExternalAddress = null)
+{
+    public bool HasValidBounds =>
+        ConnectionProfileMetadataDocument.IsSafeText(ServerTimeZone, 64) &&
+        Enum.IsDefined(ListingFormat) &&
+        Enum.IsDefined(DataConnectionMode) &&
+        ActivePortMinimum is null or >= 1024 and <= 65_535 &&
+        ActivePortMaximum is null or >= 1024 and <= 65_535 &&
+        ConnectionProfileMetadataDocument.IsSafeText(ActiveExternalAddress, 45);
+}
+
 [JsonConverter(typeof(JsonStringEnumConverter<ConnectionAuthenticationKind>))]
 public enum ConnectionAuthenticationKind
 {
@@ -153,9 +189,12 @@ public sealed record ConnectionEndpointDocument(
     ConnectionFtpsTlsMode FtpsTlsMode = ConnectionFtpsTlsMode.Explicit,
     string? ClientCertificatePfxReference = null,
     string? ClientCertificatePasswordReference = null,
-    ConnectionSshHostKeyPolicy SshHostKeyPolicy = ConnectionSshHostKeyPolicy.Pinned)
+    ConnectionSshHostKeyPolicy SshHostKeyPolicy = ConnectionSshHostKeyPolicy.Pinned,
+    ConnectionFtpOptionsDocument? Ftp = null)
 {
     public bool HasValidBounds =>
+        (Ftp is null || Ftp.HasValidBounds &&
+            Provider is StorageConnectionProvider.Ftp or StorageConnectionProvider.Ftps) &&
         Enum.IsDefined(Provider) &&
         ConnectionProfileMetadataDocument.IsSafePath(RootPath, ConnectionProfileIpcLimits.MaximumPathLength) &&
         ConnectionProfileMetadataDocument.IsSafeText(Host, 253) &&

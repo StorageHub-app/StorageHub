@@ -102,6 +102,32 @@ public class ConnectionManagerTests
         }
     }
 
+    /// <summary>FTP and FTPS have an Advanced section, starting at the provider's own timeouts.</summary>
+    [AvaloniaFact]
+    public void OnlyFtpHasAdvancedSettings()
+    {
+        var editor = new ConnectionEditorModel(() => Controller(new FakeProfiles()));
+
+        foreach (var provider in ConnectionProviderCatalog.All)
+        {
+            editor.Provider = provider;
+
+            var advanced = editor.Sections.SingleOrDefault(static s => s.Title == Ui.Connections.SectionAdvanced);
+            if (provider.Kind is StorageProviderKind.Ftp or StorageProviderKind.Ftps)
+            {
+                var defaults = ConnectionDefaultSettings.Get(provider.Kind, stored: null);
+                Assert.Equal(
+                    defaults.ConnectTimeoutSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    advanced!.Fields.Single(f => f.Key == ConnectionEditorDraftFactory.ConnectTimeoutKey).Value);
+                Assert.Equal("utf-8", advanced.Fields.Single(f => f.Key == ConnectionEditorDraftFactory.EncodingKey).Value);
+            }
+            else
+            {
+                Assert.Null(advanced);
+            }
+        }
+    }
+
     /// <summary>Every provider lays out without a field the editor cannot draw.</summary>
     [AvaloniaFact]
     public void EveryProviderCanBeEdited()
@@ -531,6 +557,19 @@ public class ConnectionManagerTests
             Path.Combine(directory, $"connection-manager-sftp-{(dark ? "dark" : "light")}.png")))
         {
             sftp!.Save(stream, new PngBitmapEncoderOptions());
+        }
+
+        // And FTPS, the longest editor: its certificate rows, then Proxy, Speed limits and Advanced.
+        manager.Editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Ftps);
+        window.Measure(new Size(920, 2100));
+        window.Arrange(new Rect(0, 0, 920, 2100));
+        window.UpdateLayout();
+        var ftps = window.CaptureRenderedFrame();
+        Assert.NotNull(ftps);
+        using (var stream = File.Create(
+            Path.Combine(directory, $"connection-manager-ftps-{(dark ? "dark" : "light")}.png")))
+        {
+            ftps!.Save(stream, new PngBitmapEncoderOptions());
         }
     }
 

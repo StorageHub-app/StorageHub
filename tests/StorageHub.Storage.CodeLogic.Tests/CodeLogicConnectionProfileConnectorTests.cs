@@ -206,6 +206,49 @@ public sealed class CodeLogicConnectionProfileConnectorTests : IAsyncLifetime, I
         }
     }
 
+    /// <summary>
+    /// The FTP settings the editor offers reach a real server and are accepted there: separate
+    /// timeouts, a legacy encoding, a time zone and a listing format. Does nothing without the lab.
+    /// </summary>
+    [Fact]
+    public async Task An_ftp_connection_with_advanced_settings_lists_the_lab_server()
+    {
+        var port = Environment.GetEnvironmentVariable("STORAGEHUB_FTP_PLAIN_PORT");
+        if (port is null)
+        {
+            return;
+        }
+
+        var profile = ConnectionProfile.Create(
+            ConnectionProfileId.New(),
+            new ConnectionProfileMetadata("Old FTP server"),
+            new FtpEndpoint(
+                "127.0.0.1",
+                int.Parse(port, CultureInfo.InvariantCulture),
+                allowInsecurePlainText: true,
+                rootPath: "mounted",
+                serverOptions: new FtpServerOptions("UTC", FtpListingFormat.Unix)),
+            new UsernamePasswordAuthentication(
+                Environment.GetEnvironmentVariable("STORAGEHUB_FTP_USERNAME")!,
+                (await _vault.CreateAsync(Encoding.UTF8.GetBytes(Environment.GetEnvironmentVariable("STORAGEHUB_FTP_PASSWORD")!))).Reference),
+            new ConnectionOperationalOptions(
+                TimeSpan.FromSeconds(10),
+                TimeSpan.FromSeconds(90),
+                new ConnectionRetryPolicy(1, TimeSpan.Zero, TimeSpan.Zero),
+                proxy: null,
+                new ConnectionBandwidthLimits(null, null),
+                "windows-1252"),
+            DateTimeOffset.UtcNow);
+
+        await using var connector = CreateConnector();
+        var opened = await connector.OpenAsync(profile);
+        Assert.True(opened.IsSuccess, opened.Error?.Message);
+        await using var connection = opened.Value;
+        var root = StorageAddress.Create(profile.Id, connection.Session.RootIdentity, string.Empty).Value;
+        var listing = await connection.Session.ListAsync(root);
+        Assert.True(listing.IsSuccess, listing.Error?.Message);
+    }
+
     private async Task<ConnectionProfile> CreateMinioProfileAsync(ProxyLab lab, ConnectionProxy proxy) =>
         ConnectionProfile.Create(
             ConnectionProfileId.New(),

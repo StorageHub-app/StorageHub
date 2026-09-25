@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Windows.Input;
@@ -520,6 +521,40 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
             Placeholder: Ui.Providers.OptionalVaultEntry)
     ];
 
+    /// <summary>
+    /// What an FTP server may need beyond where it is. Defaults suit almost every server, so the
+    /// section sits last and every field starts at what it would be anyway.
+    /// </summary>
+    private IReadOnlyList<ConnectionFieldDescriptor> FtpAdvancedFields()
+    {
+        var defaults = ConnectionDefaultSettings.Get(_provider.Kind, stored: null);
+        return
+        [
+            new(ConnectionEditorDraftFactory.EncodingKey, Ui.Connections.FieldEncoding, ConnectionFieldKind.Text,
+                DefaultValue: "utf-8", HelpText: Ui.Connections.EncodingHint),
+            new(ConnectionEditorDraftFactory.ConnectTimeoutKey, Ui.Connections.FieldConnectTimeout, ConnectionFieldKind.Text,
+                DefaultValue: defaults.ConnectTimeoutSeconds.ToString(CultureInfo.InvariantCulture),
+                HelpText: Ui.Connections.TimeoutSecondsHint),
+            new(ConnectionEditorDraftFactory.ReadTimeoutKey, Ui.Connections.FieldOperationTimeout, ConnectionFieldKind.Text,
+                DefaultValue: defaults.OperationTimeoutSeconds.ToString(CultureInfo.InvariantCulture),
+                HelpText: Ui.Connections.TimeoutSecondsHint),
+            new(ConnectionEditorDraftFactory.ServerTimeZoneKey, Ui.Connections.FieldServerTimeZone, ConnectionFieldKind.Text,
+                Placeholder: Ui.Connections.ServerTimeZonePlaceholder, HelpText: Ui.Connections.ServerTimeZoneHint),
+            new(ConnectionEditorDraftFactory.ListingFormatKey, Ui.Connections.FieldDirectoryListing, ConnectionFieldKind.Choice,
+                DefaultValue: ConnectionEditorDraftFactory.ListingFormats[0],
+                HelpText: Ui.Connections.ListingFormatHint,
+                Choices: ConnectionEditorDraftFactory.ListingFormats),
+            new(ConnectionEditorDraftFactory.DataConnectionKey, Ui.Connections.FieldDataConnection, ConnectionFieldKind.Choice,
+                DefaultValue: ConnectionEditorDraftFactory.DataConnections[0],
+                HelpText: Ui.Connections.DataConnectionHint,
+                Choices: ConnectionEditorDraftFactory.DataConnections),
+            new(ConnectionEditorDraftFactory.ActivePortsKey, Ui.Connections.FieldActivePorts, ConnectionFieldKind.Text,
+                Placeholder: Ui.Connections.ActivePortsPlaceholder, HelpText: Ui.Connections.ActivePortsHint),
+            new(ConnectionEditorDraftFactory.ActiveAddressKey, Ui.Connections.FieldActiveAddress, ConnectionFieldKind.Text,
+                Placeholder: Ui.Connections.ActiveAddressPlaceholder, HelpText: Ui.Connections.ActiveAddressHint)
+        ];
+    }
+
     /// <summary>Lays out the connection's own fields, then the provider's three sections.</summary>
     private void Rebuild()
     {
@@ -537,6 +572,11 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         if (_provider.Type == ConnectionProfileType.Storage)
         {
             Add(Ui.Connections.SectionSpeedLimits, SpeedLimitFields);
+        }
+
+        if (_provider.Kind is StorageProviderKind.Ftp or StorageProviderKind.Ftps)
+        {
+            Add(Ui.Connections.SectionAdvanced, FtpAdvancedFields());
         }
 
         RaiseCommands();
