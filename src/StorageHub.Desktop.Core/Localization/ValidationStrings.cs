@@ -323,6 +323,15 @@ internal sealed class ValidationStrings : LocalizationModelBase
 
     public string ThePortMustBeBetween1And { get; set; } = "The port must be between 1 and 65,535.";
 
+    public string ProxyAddressIsInvalid { get; set; } =
+        "A proxy address must be http://, socks5:// or socks4://, followed by a host and a port.";
+
+    public string HttpsProxiesAreNotSupported { get; set; } =
+        "An HTTPS proxy is not supported: StorageHub cannot use TLS to reach a proxy. Use an HTTP or SOCKS5 proxy.";
+
+    public string ProxyPasswordNeedsAUserName { get; set; } =
+        "A proxy password needs a user name, and SOCKS4 has no passwords.";
+
     public string SpeedLimitMustBeAWholeNumber { get; set; } =
         "A speed limit must be a whole number of KiB/s, or empty for no limit.";
 

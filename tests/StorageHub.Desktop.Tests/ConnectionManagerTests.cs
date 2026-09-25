@@ -73,6 +73,35 @@ public class ConnectionManagerTests
         }
     }
 
+    /// <summary>Every remote storage connection can use a proxy; a local one and a terminal cannot.</summary>
+    [AvaloniaFact]
+    public void OnlyRemoteStorageConnectionsHaveAProxy()
+    {
+        var editor = new ConnectionEditorModel(() => Controller(new FakeProfiles()));
+
+        foreach (var provider in ConnectionProviderCatalog.All)
+        {
+            editor.Provider = provider;
+
+            var proxy = editor.Sections.SingleOrDefault(static s => s.Title == Ui.Connections.SectionProxy);
+            if (provider.Type == ConnectionProfileType.Storage && provider.Kind != StorageProviderKind.Local)
+            {
+                Assert.Equal(
+                    [
+                        ConnectionEditorDraftFactory.ProxyAddressKey,
+                        ConnectionEditorDraftFactory.ProxyUsernameKey,
+                        ConnectionEditorDraftFactory.ProxyPasswordKey
+                    ],
+                    proxy!.Fields.Select(static f => f.Key));
+                Assert.True(proxy.Fields[2].IsSecret);
+            }
+            else
+            {
+                Assert.Null(proxy);
+            }
+        }
+    }
+
     /// <summary>Every provider lays out without a field the editor cannot draw.</summary>
     [AvaloniaFact]
     public void EveryProviderCanBeEdited()
@@ -493,8 +522,8 @@ public class ConnectionManagerTests
         manager.Editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Sftp);
         // Taller than the window opens, so every row down to the speed limits is in the frame
         // rather than under the scroll.
-        window.Measure(new Size(920, 1400));
-        window.Arrange(new Rect(0, 0, 920, 1400));
+        window.Measure(new Size(920, 1600));
+        window.Arrange(new Rect(0, 0, 920, 1600));
         window.UpdateLayout();
         var sftp = window.CaptureRenderedFrame();
         Assert.NotNull(sftp);

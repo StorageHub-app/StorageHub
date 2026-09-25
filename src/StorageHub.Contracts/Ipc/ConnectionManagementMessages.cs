@@ -294,7 +294,8 @@ public sealed record ConnectionOperationalOptionsDocument(
     int InitialRetryDelayMilliseconds = 250,
     int MaximumRetryDelayMilliseconds = 5_000,
     string? ProxyEndpoint = null,
-    Guid? ProxyCredentialReferenceId = null,
+    string? ProxyUsername = null,
+    string? ProxyPasswordReference = null,
     long? UploadBytesPerSecond = null,
     long? DownloadBytesPerSecond = null,
     string EncodingName = "utf-8")
@@ -309,14 +310,15 @@ public sealed record ConnectionOperationalOptionsDocument(
         ConnectionProfileMetadataDocument.IsSafeText(
             ProxyEndpoint,
             ConnectionProfileIpcLimits.MaximumEndpointLength) &&
-        (ProxyCredentialReferenceId is null || ProxyCredentialReferenceId.Value != Guid.Empty) &&
+        ConnectionProfileMetadataDocument.IsSafeText(ProxyUsername, 256) &&
+        ConnectionProfileMetadataDocument.IsSafeText(ProxyPasswordReference, 256) &&
         UploadBytesPerSecond is null or > 0 &&
         DownloadBytesPerSecond is null or > 0 &&
         ConnectionProfileMetadataDocument.IsSafeText(
             EncodingName,
             ConnectionProfileIpcLimits.MaximumEncodingNameLength,
             required: true) &&
-        (ProxyEndpoint is not null || ProxyCredentialReferenceId is null);
+        (ProxyEndpoint is not null || ProxyUsername is null && ProxyPasswordReference is null);
 }
 
 /// <summary>A complete profile draft containing references, but never secret values.</summary>

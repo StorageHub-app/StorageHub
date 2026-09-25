@@ -507,6 +507,19 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
             Placeholder: Ui.Connections.SpeedLimitPlaceholder)
     ];
 
+    /// <summary>
+    /// The proxy a remote connection is routed through, the same on every provider. A local
+    /// connection has no network to route, so it has none.
+    /// </summary>
+    private static IReadOnlyList<ConnectionFieldDescriptor> ProxyFields =>
+    [
+        new(ConnectionEditorDraftFactory.ProxyAddressKey, Ui.Connections.FieldProxyAddress, ConnectionFieldKind.Text,
+            Placeholder: Ui.Connections.ProxyAddressPlaceholder, HelpText: Ui.Connections.ProxyAddressHint),
+        new(ConnectionEditorDraftFactory.ProxyUsernameKey, Ui.Connections.FieldProxyUsername, ConnectionFieldKind.Text),
+        new(ConnectionEditorDraftFactory.ProxyPasswordKey, Ui.Connections.FieldProxyPassword, ConnectionFieldKind.SecretReference,
+            Placeholder: Ui.Providers.OptionalVaultEntry)
+    ];
+
     /// <summary>Lays out the connection's own fields, then the provider's three sections.</summary>
     private void Rebuild()
     {
@@ -516,6 +529,11 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         Add(Ui.Connections.SectionGeneral, _provider.GeneralFields);
         Add(Ui.Connections.SectionAuthentication, _provider.AuthenticationFields);
         Add(Ui.Connections.SectionSecurity, _provider.SecurityFields);
+        if (_provider.Type == ConnectionProfileType.Storage && _provider.Kind != StorageProviderKind.Local)
+        {
+            Add(Ui.Connections.SectionProxy, ProxyFields);
+        }
+
         if (_provider.Type == ConnectionProfileType.Storage)
         {
             Add(Ui.Connections.SectionSpeedLimits, SpeedLimitFields);

@@ -312,12 +312,6 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
                 "The connection profile is disabled or deleted.");
         }
 
-        if (profile.OperationalOptions.Proxy is not null)
-        {
-            return Unsupported("storage.proxy.unsupported",
-                "The selected CL.Storage provider does not expose proxy configuration yet.");
-        }
-
         var usesHistoricalEditorDefaults = UsesHistoricalEditorDefaults(profile.OperationalOptions);
         if (profile.Provider is not ConnectionProviderKind.Local &&
             profile.OperationalOptions.ConnectTimeout != profile.OperationalOptions.OperationTimeout &&
@@ -355,6 +349,11 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
             };
 
             ApplySpeedLimits(configuration, profile.OperationalOptions.Bandwidth);
+            if (profile.OperationalOptions.Proxy is { } proxy)
+            {
+                await ApplyProxyAsync(configuration, proxy, cancellationToken).ConfigureAwait(false);
+            }
+
             return StorageResult<PreparedCodeLogicConnection>.Success(new PreparedCodeLogicConnection(
                 configuration,
                 CreateRootIdentity(profile, rootIdentityEvidence.Items),
@@ -734,14 +733,18 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
             : fingerprints;
     }
 
+    /// <param name="rootIdentityEvidence">
+    /// Where the secret's version is recorded when it decides what the connection sees, or null for
+    /// one that does not, such as a proxy's password: changing it must not look like a new root.
+    /// </param>
     private async ValueTask<string> OpenTextSecretAsync(
         SecretReference reference,
         string role,
-        RootIdentityEvidence rootIdentityEvidence,
+        RootIdentityEvidence? rootIdentityEvidence,
         CancellationToken cancellationToken)
     {
         await using var lease = await _secretVault.OpenAsync(reference, cancellationToken).ConfigureAwait(false);
-        rootIdentityEvidence.AddSecret(role, reference, lease.Version);
+        rootIdentityEvidence?.AddSecret(role, reference, lease.Version);
         var value = StrictUtf8.GetString(lease.Memory.Span);
         if (value.Length == 0 || value.Contains('\0', StringComparison.Ordinal))
         {
@@ -755,6 +758,45 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
         profile.Provider == ConnectionProviderKind.Local
             ? profile.OperationalOptions.OperationTimeout.TotalSeconds
             : profile.OperationalOptions.ConnectTimeout.TotalSeconds));
+
+    /// <summary>
+    /// Routes the connection through its proxy: HTTP CONNECT, SOCKS4 or SOCKS5, which CL.Storage
+    /// applies to every provider's control and data connections alike.
+    /// </summary>
+    /// <remarks>
+    /// An HTTPS proxy is refused rather than downgraded: no provider speaks TLS to the proxy, and
+    /// connecting to it in the clear would send the proxy password unprotected. A local connection
+    /// has no network to route.
+    /// </remarks>
+    private async ValueTask ApplyProxyAsync(
+        object configuration,
+        ConnectionProxy proxy,
+        CancellationToken cancellationToken)
+    {
+        var target = configuration switch
+        {
+            S3ConnectionConfig s3 => s3.Proxy,
+            FtpConnectionConfig ftp => ftp.Proxy,
+            SftpConnectionConfig sftp => sftp.Proxy,
+            _ => throw new UnsupportedProfileException("A local connection cannot use a proxy.")
+        };
+
+        target.Type = proxy.Endpoint.Scheme switch
+        {
+            "http" => StorageProxyType.Http,
+            "socks4" => StorageProxyType.Socks4,
+            "socks5" => StorageProxyType.Socks5,
+            _ => throw new UnsupportedProfileException(
+                "An HTTPS proxy is not supported: StorageHub cannot use TLS to reach a proxy. Use an HTTP or SOCKS5 proxy.")
+        };
+        target.Host = proxy.Endpoint.IdnHost;
+        target.Port = proxy.Endpoint.Port;
+        target.Username = proxy.Username;
+        target.Password = proxy.PasswordReference is { } reference
+            ? await OpenTextSecretAsync(reference, "proxy.password", rootIdentityEvidence: null, cancellationToken)
+                .ConfigureAwait(false)
+            : null;
+    }
 
     /// <summary>
     /// Hands the connection's speed limits to CL.Storage, which enforces them on every download and
@@ -773,14 +815,13 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
         limits.MaxDownloadBytesPerSecond = bandwidth.DownloadBytesPerSecond;
     }
 
-    // Speed limits are left out: they have nothing to do with which timeouts the editor wrote.
+    // Speed limits and the proxy are left out: they have nothing to do with which timeouts the editor wrote.
     private static bool UsesHistoricalEditorDefaults(ConnectionOperationalOptions options) =>
         options.ConnectTimeout == TimeSpan.FromSeconds(30) &&
         options.OperationTimeout == TimeSpan.FromSeconds(60) &&
         options.Retry.MaximumAttempts == 3 &&
         options.Retry.InitialDelay == TimeSpan.FromMilliseconds(250) &&
         options.Retry.MaximumDelay == TimeSpan.FromSeconds(5) &&
-        options.Proxy is null &&
         string.Equals(options.EncodingName, "utf-8", StringComparison.OrdinalIgnoreCase);
 
     private static string CreateRootIdentity(

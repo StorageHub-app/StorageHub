@@ -41,6 +41,72 @@ public sealed class ConnectionEditorDraftFactoryTests
         Assert.Equal(string.Empty, reopened[ConnectionEditorDraftFactory.DownloadLimitKey]);
     }
 
+    [Fact]
+    public void AProxyAndItsSignInSurviveAnEdit()
+    {
+        var values = ValidValues(StorageProviderKind.Sftp);
+        values[ConnectionEditorDraftFactory.ProxyAddressKey] = " socks5://proxy.example.com:1080/ ";
+        values[ConnectionEditorDraftFactory.ProxyUsernameKey] = "relay";
+        values[ConnectionEditorDraftFactory.ProxyPasswordKey] = "shs_CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC";
+
+        var draft = ConnectionEditorDraftFactory.Build(StorageProviderKind.Sftp, values);
+        var reopened = ConnectionEditorDraftFactory.ToEditorValues(
+            new ConnectionProfileDocument(Guid.NewGuid(), 1, draft, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch));
+
+        Assert.True(draft.HasValidBounds);
+        Assert.Equal("socks5://proxy.example.com:1080", draft.OperationalOptions.ProxyEndpoint);
+        Assert.Equal("relay", draft.OperationalOptions.ProxyUsername);
+        Assert.Equal(values[ConnectionEditorDraftFactory.ProxyPasswordKey], draft.OperationalOptions.ProxyPasswordReference);
+        Assert.Equal("socks5://proxy.example.com:1080", reopened[ConnectionEditorDraftFactory.ProxyAddressKey]);
+        Assert.Equal("relay", reopened[ConnectionEditorDraftFactory.ProxyUsernameKey]);
+    }
+
+    /// <summary>With no proxy address, a sign-in left in the other two fields is not saved.</summary>
+    [Fact]
+    public void NoProxyAddressIsADirectConnection()
+    {
+        var values = ValidValues(StorageProviderKind.Ftps);
+        values[ConnectionEditorDraftFactory.ProxyUsernameKey] = "leftover";
+
+        var draft = ConnectionEditorDraftFactory.Build(StorageProviderKind.Ftps, values);
+
+        Assert.Null(draft.OperationalOptions.ProxyEndpoint);
+        Assert.Null(draft.OperationalOptions.ProxyUsername);
+        Assert.True(draft.HasValidBounds);
+    }
+
+    [Theory]
+    [InlineData("https://proxy.example.com:8443", nameof(Ui.Validation.HttpsProxiesAreNotSupported))]
+    [InlineData("socks5://proxy.example.com", nameof(Ui.Validation.ProxyAddressIsInvalid))]
+    [InlineData("ftp://proxy.example.com:21", nameof(Ui.Validation.ProxyAddressIsInvalid))]
+    [InlineData("proxy.example.com:3128", nameof(Ui.Validation.ProxyAddressIsInvalid))]
+    [InlineData("http://user:pw@proxy.example.com:3128", nameof(Ui.Validation.ProxyAddressIsInvalid))]
+    public void AProxyAddressStorageHubCannotUseIsRefusedBesideTheField(string address, string message)
+    {
+        var values = ValidValues(StorageProviderKind.S3);
+        values[ConnectionEditorDraftFactory.ProxyAddressKey] = address;
+
+        var error = Assert.Throws<ArgumentException>(() => ConnectionEditorDraftFactory.Build(StorageProviderKind.S3, values));
+
+        var expected = (string)typeof(ValidationStrings).GetProperty(message)!.GetValue(Ui.Validation)!;
+        Assert.StartsWith(expected, error.Message, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("socks5://proxy.example.com:1080", "")]
+    [InlineData("socks4://proxy.example.com:1080", "relay")]
+    public void AProxyPasswordNeedsAUserNameAndSocks5(string address, string username)
+    {
+        var values = ValidValues(StorageProviderKind.Sftp);
+        values[ConnectionEditorDraftFactory.ProxyAddressKey] = address;
+        values[ConnectionEditorDraftFactory.ProxyUsernameKey] = username;
+        values[ConnectionEditorDraftFactory.ProxyPasswordKey] = "shs_CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC";
+
+        var error = Assert.Throws<ArgumentException>(() => ConnectionEditorDraftFactory.Build(StorageProviderKind.Sftp, values));
+
+        Assert.StartsWith(Ui.Validation.ProxyPasswordNeedsAUserName, error.Message, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("0", null)]
     [InlineData("1", 1024L)]

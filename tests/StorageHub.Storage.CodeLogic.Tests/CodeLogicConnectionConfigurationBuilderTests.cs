@@ -475,15 +475,13 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
     }
 
     [Fact]
-    public async Task Unenforceable_proxy_and_split_timeout_options_are_rejected()
+    public async Task Unenforceable_split_timeout_options_are_rejected()
     {
         var endpoint = new FtpEndpoint("ftp.example.test", 21, allowInsecurePlainText: true);
         var authentication = new NoAuthentication();
-        var proxy = CreateProfile(endpoint, authentication, proxy: true);
         var retry = CreateProfile(endpoint, authentication, maximumAttempts: 2);
         var splitTimeout = CreateProfile(endpoint, authentication, splitTimeouts: true);
 
-        Assert.Equal("storage.proxy.unsupported", (await CreateBuilder().BuildAsync(proxy)).Error?.Code);
         Assert.Equal("storage.timeout.unsupported", (await CreateBuilder().BuildAsync(splitTimeout)).Error?.Code);
 
         // CL.Storage 4.8.93 retries FTP and SFTP itself, so a retry policy is applied, not refused.
@@ -491,6 +489,91 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
         Assert.True(retried.IsSuccess);
         await using var prepared = retried.Value;
         Assert.Equal(1, Assert.IsType<FtpConnectionConfig>(prepared.Configuration).Retry.RetryCount);
+    }
+
+    [Fact]
+    public async Task A_socks5_proxy_and_its_sign_in_reach_the_library()
+    {
+        var password = await StoreTextAsync("proxy-secret");
+        var built = await CreateBuilder().BuildAsync(CreateProfile(
+            new FtpEndpoint("ftp.example.test", 21, allowInsecurePlainText: true),
+            new NoAuthentication(),
+            proxy: new ConnectionProxy(new Uri("socks5://proxy.example.test:1080"), "relay", password)));
+
+        Assert.True(built.IsSuccess, built.Error?.Message);
+        await using var prepared = built.Value;
+        var proxy = Assert.IsType<FtpConnectionConfig>(prepared.Configuration).Proxy;
+        Assert.Equal(StorageProxyType.Socks5, proxy.Type);
+        Assert.Equal("proxy.example.test", proxy.Host);
+        Assert.Equal(1080, proxy.Port);
+        Assert.Equal("relay", proxy.Username);
+        Assert.Equal("proxy-secret", proxy.Password);
+    }
+
+    [Fact]
+    public async Task An_http_proxy_without_a_sign_in_reaches_the_library()
+    {
+        var built = await CreateBuilder().BuildAsync(CreateProfile(
+            new S3Endpoint("archive", "eu-north-1"),
+            new S3DefaultCredentialChainAuthentication(),
+            maximumAttempts: 1,
+            proxy: new ConnectionProxy(new Uri("http://proxy.example.test:3128"))));
+
+        Assert.True(built.IsSuccess, built.Error?.Message);
+        await using var prepared = built.Value;
+        var proxy = Assert.IsType<S3ConnectionConfig>(prepared.Configuration).Proxy;
+        Assert.Equal(StorageProxyType.Http, proxy.Type);
+        Assert.Equal(3128, proxy.Port);
+        Assert.Null(proxy.Username);
+        Assert.Null(proxy.Password);
+    }
+
+    /// <summary>
+    /// No provider speaks TLS to a proxy, so an HTTPS one is refused rather than used in the clear;
+    /// and a local connection has no network to route.
+    /// </summary>
+    [Fact]
+    public async Task An_https_proxy_and_a_proxy_on_a_local_connection_are_refused()
+    {
+        var https = await CreateBuilder().BuildAsync(CreateProfile(
+            new FtpEndpoint("ftp.example.test", 21, allowInsecurePlainText: true),
+            new NoAuthentication(),
+            proxy: new ConnectionProxy(new Uri("https://proxy.example.test:8443"))));
+        var local = await CreateBuilder().BuildAsync(CreateProfile(
+            new LocalEndpoint(Path.GetTempPath()),
+            new NoAuthentication(),
+            proxy: new ConnectionProxy(new Uri("http://proxy.example.test:3128"))));
+
+        Assert.Equal("storage.profile.unsupported", https.Error?.Code);
+        Assert.Contains("HTTPS proxy", https.Error?.Message, StringComparison.Ordinal);
+        Assert.Equal("storage.profile.unsupported", local.Error?.Code);
+    }
+
+    /// <summary>
+    /// Changing the proxy's password must not make the connection look like a different root, which
+    /// would orphan its sync history: the proxy decides the route, not what is at the end of it.
+    /// </summary>
+    [Fact]
+    public async Task The_proxy_password_does_not_change_the_root_identity()
+    {
+        var profile = CreateProfile(
+            new FtpEndpoint("ftp.example.test", 21, allowInsecurePlainText: true),
+            new NoAuthentication(),
+            proxy: new ConnectionProxy(new Uri("socks5://proxy.example.test:1080"), "relay", await StoreTextAsync("one")));
+        var options = profile.OperationalOptions;
+        var rotated = Rehydrate(profile, operationalOptions: new ConnectionOperationalOptions(
+            options.ConnectTimeout,
+            options.OperationTimeout,
+            options.Retry,
+            new ConnectionProxy(new Uri("socks5://proxy.example.test:1080"), "relay", await StoreTextAsync("two")),
+            options.Bandwidth,
+            options.EncodingName));
+        var first = await CreateBuilder().BuildAsync(profile);
+        var second = await CreateBuilder().BuildAsync(rotated);
+
+        await using var a = first.Value;
+        await using var b = second.Value;
+        Assert.Equal(a.RootIdentity, b.RootIdentity);
     }
 
     [Fact]
@@ -600,7 +683,7 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
         ConnectionEndpoint endpoint,
         ConnectionAuthentication authentication,
         int maximumAttempts = 0,
-        bool proxy = false,
+        ConnectionProxy? proxy = null,
         bool bandwidth = false,
         bool splitTimeouts = false,
         ConnectionOperationalOptions? operationalOptions = null)
@@ -615,7 +698,7 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
                 TimeSpan.FromSeconds(30),
                 splitTimeouts ? TimeSpan.FromMinutes(2) : TimeSpan.FromSeconds(30),
                 new ConnectionRetryPolicy(maximumAttempts, TimeSpan.Zero, TimeSpan.Zero),
-                proxy ? new ConnectionProxy(new Uri("https://proxy.example.test:8443")) : null,
+                proxy,
                 bandwidth
                     ? new ConnectionBandwidthLimits(1_000_000, 2_000_000)
                     : new ConnectionBandwidthLimits(null, null),
@@ -626,13 +709,14 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
     private static ConnectionProfile Rehydrate(
         ConnectionProfile profile,
         ConnectionAuthentication? authentication = null,
-        long? version = null) => ConnectionProfile.Rehydrate(
+        long? version = null,
+        ConnectionOperationalOptions? operationalOptions = null) => ConnectionProfile.Rehydrate(
             profile.Id,
             profile.Provider,
             profile.Metadata,
             profile.Endpoint,
             authentication ?? profile.Authentication,
-            profile.OperationalOptions,
+            operationalOptions ?? profile.OperationalOptions,
             profile.IsEnabled,
             version ?? profile.Version,
             profile.CreatedUtc,

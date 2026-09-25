@@ -24,6 +24,7 @@ internal static class ConnectionSecretFields
         "clientCertificateReference" => SecretMaterialPurpose.ClientCertificatePfx,
         "clientCertificatePasswordReference" => SecretMaterialPurpose.ClientCertificatePassword,
         "credentialReference" => SecretMaterialPurpose.ProxyCredential,
+        ConnectionEditorDraftFactory.ProxyPasswordKey => SecretMaterialPurpose.ProxyCredential,
         _ => SecretMaterialPurpose.Password
     };
 

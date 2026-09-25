@@ -225,7 +225,7 @@ public sealed class SqliteConnectionProfileRepositoryTests : IDisposable
         TimeSpan.FromSeconds(10),
         TimeSpan.FromMinutes(2),
         new ConnectionRetryPolicy(3, TimeSpan.FromMilliseconds(250), TimeSpan.FromSeconds(5)),
-        new ConnectionProxy(new Uri("socks5://proxy.example.test:1080"), CredentialReferenceId.New()),
+        new ConnectionProxy(new Uri("socks5://proxy.example.test:1080"), "relay", SecretReference.Create()),
         new ConnectionBandwidthLimits(10_000_000, 20_000_000),
         "utf-8");
 

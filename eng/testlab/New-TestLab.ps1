@@ -200,6 +200,15 @@ $settings = [ordered] @{
     STORAGEHUB_MINIO_SECRET_KEY          = 'storagehub-testlab-secret'
     STORAGEHUB_MINIO_BUCKET              = 'storagehub-testlab'
 
+    # A proxy in front of the servers above. The tests reach MinIO through it by its service name,
+    # which is why these name the proxy and not the servers behind it.
+    STORAGEHUB_REQUIRE_PROXY             = '1'
+    STORAGEHUB_PROXY_HTTP_PORT           = '13128'
+    STORAGEHUB_PROXY_SOCKS5_PORT         = '11080'
+    STORAGEHUB_PROXY_USERNAME            = 'storagehub'
+    STORAGEHUB_PROXY_PASSWORD            = 'storagehub-testlab-proxy'
+    STORAGEHUB_PROXY_MINIO_ENDPOINT      = 'http://minio:9000/'
+
     # The sync engine, driven between the SFTP server and MinIO. Its own prefix rather than the
     # STORAGEHUB_SFTP_* names above, because SftpProviderIntegrationTests treats any one of those
     # being set as "configured" and then throws over the rest -- so sharing them would make
@@ -255,6 +264,7 @@ Write-Host ('  FTPS explicit   127.0.0.1:{0}' -f $settings.STORAGEHUB_FTP_EXPLIC
 Write-Host ('  FTPS implicit   127.0.0.1:{0}' -f $settings.STORAGEHUB_FTP_IMPLICIT_PORT)
 Write-Host ('  FTPS mutual     127.0.0.1:{0}' -f $settings.STORAGEHUB_FTP_MTLS_PORT)
 Write-Host  '  MinIO (S3)      127.0.0.1:9000, console on 9001'
+Write-Host ('  Proxy           HTTP 127.0.0.1:{0}, SOCKS5 127.0.0.1:{1}' -f $settings.STORAGEHUB_PROXY_HTTP_PORT, $settings.STORAGEHUB_PROXY_SOCKS5_PORT)
 Write-Host ''
 Write-Host 'Point a shell at it with:' -ForegroundColor Cyan
 Write-Host '  . ./eng/testlab/.fixtures/env.ps1'

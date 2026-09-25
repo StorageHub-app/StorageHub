@@ -58,6 +58,13 @@ public static class ConnectionEditorDraftFactory
 
     internal const string DownloadLimitKey = "downloadLimitKib";
 
+    /// <summary>The editor's proxy fields: an address such as socks5://host:1080, and its sign-in.</summary>
+    internal const string ProxyAddressKey = "proxyAddress";
+
+    internal const string ProxyUsernameKey = "proxyUsername";
+
+    internal const string ProxyPasswordKey = "proxyPasswordReference";
+
     // 16 GiB/s: far past any link StorageHub will see, and small enough that KiB * 1024 cannot overflow.
     private const long MaximumSpeedLimitKib = 16L * 1024 * 1024;
 
@@ -71,8 +78,75 @@ public static class ConnectionEditorDraftFactory
             ConnectTimeoutSeconds: defaults.ConnectTimeoutSeconds,
             OperationTimeoutSeconds: defaults.OperationTimeoutSeconds,
             MaximumRetryAttempts: defaults.MaximumRetryAttempts,
+            ProxyEndpoint: ParseProxyAddress(values, out var scheme),
+            ProxyUsername: ProxySignIn(values, scheme, out var password),
+            ProxyPasswordReference: password,
             UploadBytesPerSecond: ParseSpeedLimit(values, UploadLimitKey),
             DownloadBytesPerSecond: ParseSpeedLimit(values, DownloadLimitKey));
+    }
+
+    /// <summary>
+    /// The proxy as scheme://host:port, or null to connect directly.
+    /// </summary>
+    /// <remarks>
+    /// HTTPS is refused here, where it can be said beside the field, rather than saved and then
+    /// refused on connecting: no provider can speak TLS to a proxy.
+    /// </remarks>
+    private static string? ParseProxyAddress(IReadOnlyDictionary<string, string> values, out string? scheme)
+    {
+        scheme = null;
+        var value = Get(values, ProxyAddressKey);
+        if (value is null)
+        {
+            return null;
+        }
+
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var address) ||
+            string.IsNullOrEmpty(address.Host) ||
+            !string.IsNullOrEmpty(address.UserInfo) ||
+            address.AbsolutePath is not ("" or "/") ||
+            !string.IsNullOrEmpty(address.Query) ||
+            !string.IsNullOrEmpty(address.Fragment))
+        {
+            throw new ArgumentException(Ui.Validation.ProxyAddressIsInvalid, nameof(values));
+        }
+
+        if (address.Scheme == Uri.UriSchemeHttps)
+        {
+            throw new ArgumentException(Ui.Validation.HttpsProxiesAreNotSupported, nameof(values));
+        }
+
+        // A SOCKS address has no default port to fall back on, and "socks5://host" would otherwise
+        // parse with port -1.
+        if (address.Scheme is not ("http" or "socks4" or "socks5") || address.Port <= 0)
+        {
+            throw new ArgumentException(Ui.Validation.ProxyAddressIsInvalid, nameof(values));
+        }
+
+        scheme = address.Scheme;
+        return address.GetLeftPart(UriPartial.Authority);
+    }
+
+    private static string? ProxySignIn(
+        IReadOnlyDictionary<string, string> values,
+        string? scheme,
+        out string? passwordReference)
+    {
+        var username = Get(values, ProxyUsernameKey);
+        passwordReference = Get(values, ProxyPasswordKey);
+        if (scheme is null)
+        {
+            // No proxy, so nothing to sign in to; whatever was left in the fields is dropped.
+            passwordReference = null;
+            return null;
+        }
+
+        if (passwordReference is not null && (username is null || scheme == "socks4"))
+        {
+            throw new ArgumentException(Ui.Validation.ProxyPasswordNeedsAUserName, nameof(values));
+        }
+
+        return username;
     }
 
     /// <summary>A limit in KiB/s as bytes per second; empty or 0 is no limit.</summary>
@@ -113,6 +187,9 @@ public static class ConnectionEditorDraftFactory
         };
         AddEndpoint(values, profile.Draft.Endpoint);
         AddAuthentication(values, profile.Draft.Authentication);
+        values[ProxyAddressKey] = profile.Draft.OperationalOptions.ProxyEndpoint?.TrimEnd('/') ?? string.Empty;
+        values[ProxyUsernameKey] = profile.Draft.OperationalOptions.ProxyUsername ?? string.Empty;
+        values[ProxyPasswordKey] = profile.Draft.OperationalOptions.ProxyPasswordReference ?? string.Empty;
         values[UploadLimitKey] = FormatSpeedLimit(profile.Draft.OperationalOptions.UploadBytesPerSecond);
         values[DownloadLimitKey] = FormatSpeedLimit(profile.Draft.OperationalOptions.DownloadBytesPerSecond);
         return values;

@@ -216,14 +216,26 @@ public sealed record ConnectionRetryPolicy
     public TimeSpan MaximumDelay { get; }
 }
 
+/// <summary>
+/// A proxy a connection is routed through: an HTTP proxy (CONNECT) or a SOCKS4 or SOCKS5 one, with
+/// an optional sign-in whose password is kept in the vault like any other connection secret.
+/// </summary>
+/// <remarks>
+/// HTTPS is accepted here so a stored profile that names one still loads, but no provider can speak
+/// TLS to a proxy, so the connector refuses it rather than silently connecting in the clear.
+/// </remarks>
 public sealed record ConnectionProxy
 {
-    public ConnectionProxy(Uri endpoint, CredentialReferenceId? credentialId = null)
+    private const int MaximumUsernameLength = 256;
+
+    public ConnectionProxy(Uri endpoint, string? username = null, SecretReference? passwordReference = null)
     {
         ArgumentNullException.ThrowIfNull(endpoint);
-        if (!endpoint.IsAbsoluteUri || endpoint.Scheme is not ("http" or "https" or "socks5"))
+        if (!endpoint.IsAbsoluteUri || endpoint.Scheme is not ("http" or "https" or "socks4" or "socks5"))
         {
-            throw new ArgumentException("The proxy must be an absolute HTTP, HTTPS, or SOCKS5 URI.", nameof(endpoint));
+            throw new ArgumentException(
+                "The proxy must be an absolute HTTP, HTTPS, SOCKS4, or SOCKS5 URI.",
+                nameof(endpoint));
         }
 
         if (!string.IsNullOrEmpty(endpoint.UserInfo) ||
@@ -232,21 +244,41 @@ public sealed record ConnectionProxy
             endpoint.AbsolutePath is not ("" or "/"))
         {
             throw new ArgumentException(
-                "Proxy endpoints cannot contain credentials, query parameters, fragments, or paths; use a credential reference.",
+                "Proxy endpoints cannot contain credentials, query parameters, fragments, or paths; " +
+                "give the user name and password separately.",
                 nameof(endpoint));
         }
 
-        if (credentialId is { IsEmpty: true })
+        if (endpoint.IsDefaultPort && endpoint.Scheme is "socks4" or "socks5")
         {
-            throw new ArgumentException("The proxy credential reference cannot be empty.", nameof(credentialId));
+            throw new ArgumentException("A SOCKS proxy needs its port.", nameof(endpoint));
+        }
+
+        var normalizedUsername = string.IsNullOrWhiteSpace(username) ? null : username.Trim();
+        if (normalizedUsername is { Length: > MaximumUsernameLength } ||
+            normalizedUsername?.Any(char.IsControl) == true)
+        {
+            throw new ArgumentException("The proxy user name is too long or contains control characters.", nameof(username));
+        }
+
+        if (passwordReference is not null && normalizedUsername is null)
+        {
+            throw new ArgumentException("A proxy password needs a user name.", nameof(passwordReference));
+        }
+
+        if (passwordReference is not null && endpoint.Scheme == "socks4")
+        {
+            throw new ArgumentException("SOCKS4 has no passwords; use SOCKS5 to sign in.", nameof(passwordReference));
         }
 
         Endpoint = endpoint;
-        CredentialId = credentialId;
+        Username = normalizedUsername;
+        PasswordReference = passwordReference;
     }
 
     public Uri Endpoint { get; }
-    public CredentialReferenceId? CredentialId { get; }
+    public string? Username { get; }
+    public SecretReference? PasswordReference { get; }
 }
 
 public sealed record ConnectionBandwidthLimits

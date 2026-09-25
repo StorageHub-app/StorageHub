@@ -93,6 +93,12 @@ MinIO, on 9000, with a console on 9001 and the bucket created before anything el
 longer publishes public images (neither `quay.io` nor Docker Hub), so the lab uses `pgsty/minio`, a
 community build pinned to one release, for the server and for the bucket job (it carries `mc`).
 
+### Proxy
+
+gost, pinned, as an HTTP proxy on 13128 and a SOCKS5 proxy on 11080 that wants the user name and
+password in `.env`. The proxy tests reach MinIO through it as `http://minio:9000`: that name only
+resolves inside the lab's network, so a test cannot pass by going around the proxy.
+
 ### Paths
 
 The storage fixtures connect with `Root = "mounted"`, which CodeLogic resolves against the server's

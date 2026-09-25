@@ -199,6 +199,19 @@ internal sealed class ConnectionStrings : LocalizationModelBase
 
     public string SectionSpeedLimits { get; set; } = "Speed limits";
 
+    public string SectionProxy { get; set; } = "Proxy";
+
+    public string FieldProxyAddress { get; set; } = "Proxy address";
+
+    public string ProxyAddressPlaceholder { get; set; } = "Direct connection";
+
+    public string ProxyAddressHint { get; set; } =
+        "http://, socks5:// or socks4:// with host:port. Empty connects directly.";
+
+    public string FieldProxyUsername { get; set; } = "Proxy user name";
+
+    public string FieldProxyPassword { get; set; } = "Proxy password reference";
+
     public string SpeedLimitPlaceholder { get; set; } = "Unlimited";
 
     public string SpeedLimitHint { get; set; } =

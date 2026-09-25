@@ -561,10 +561,12 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
             options.Retry.InitialDelay.Ticks,
             options.Retry.MaximumDelay.Ticks,
             options.Proxy?.Endpoint.AbsoluteUri,
-            options.Proxy?.CredentialId?.ToString(),
+            ProxyCredentialId: null,
             options.Bandwidth.UploadBytesPerSecond,
             options.Bandwidth.DownloadBytesPerSecond,
-            options.EncodingName),
+            options.EncodingName,
+            options.Proxy?.Username,
+            options.Proxy?.PasswordReference?.Value),
         JsonOptions);
 
     private static ConnectionOperationalOptions DeserializeOptions(string json)
@@ -574,9 +576,8 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
             ? null
             : new ConnectionProxy(
                 new Uri(value.ProxyEndpoint, UriKind.Absolute),
-                value.ProxyCredentialId is null
-                    ? null
-                    : CredentialReferenceId.Parse(value.ProxyCredentialId));
+                value.ProxyUsername,
+                ParseSecretReference(value.ProxyPasswordReference));
         return new ConnectionOperationalOptions(
             TimeSpan.FromTicks(value.ConnectTimeoutTicks),
             TimeSpan.FromTicks(value.OperationTimeoutTicks),
@@ -705,8 +706,12 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
         long InitialRetryDelayTicks,
         long MaximumRetryDelayTicks,
         string? ProxyEndpoint,
+        // Written before proxies had a sign-in of their own, and never resolvable to one: read so
+        // an old row still loads, and otherwise ignored.
         string? ProxyCredentialId,
         long? UploadBytesPerSecond,
         long? DownloadBytesPerSecond,
-        string EncodingName);
+        string EncodingName,
+        string? ProxyUsername = null,
+        string? ProxyPasswordReference = null);
 }

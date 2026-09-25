@@ -171,3 +171,18 @@ services:
       echo 'bucket ${STORAGEHUB_MINIO_BUCKET} ready'
       "
     restart: "no"
+
+  # ---------------------------------------------------------------- proxy
+  # An HTTP proxy, and a SOCKS5 one that wants a sign-in. The proxy tests address the servers
+  # above by their service names (minio, sftp-password), which resolve only inside this network,
+  # so a test that passes has gone through the proxy rather than around it.
+
+  proxy:
+    image: gogost/gost:3.3.0
+    restart: unless-stopped
+    command: >
+      -L http://:3128
+      -L socks5://${STORAGEHUB_PROXY_USERNAME}:${STORAGEHUB_PROXY_PASSWORD}@:1080
+    ports:
+      - "127.0.0.1:${STORAGEHUB_PROXY_HTTP_PORT}:3128"
+      - "127.0.0.1:${STORAGEHUB_PROXY_SOCKS5_PORT}:1080"

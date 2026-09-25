@@ -271,8 +271,11 @@ internal static class SettingsAgentTransfer
         bool sameMachine,
         out bool needsCredentials)
     {
-        needsCredentials = !sameMachine && draft.Authentication.Kind is not
-            (ConnectionAuthenticationKind.None or ConnectionAuthenticationKind.S3DefaultCredentialChain);
+        // A proxy's password is a vault reference too, and resolves to nothing elsewhere just the same.
+        needsCredentials = !sameMachine &&
+            (draft.Authentication.Kind is not
+                (ConnectionAuthenticationKind.None or ConnectionAuthenticationKind.S3DefaultCredentialChain) ||
+             draft.OperationalOptions.ProxyPasswordReference is not null);
         if (!needsCredentials) return draft;
 
         // Tags are declared nullable on the wire, and a hand-edited file can omit them.

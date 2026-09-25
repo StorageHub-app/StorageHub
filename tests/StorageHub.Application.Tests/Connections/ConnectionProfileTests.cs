@@ -52,6 +52,23 @@ public sealed class ConnectionProfileTests
     }
 
     [Fact]
+    public void A_proxy_signs_in_with_a_user_name_and_a_vault_password_but_socks4_has_none()
+    {
+        var password = SecretReference.Create();
+
+        var socks5 = new ConnectionProxy(new Uri("socks5://proxy.example.test:1080"), " relay ", password);
+        Assert.Equal("relay", socks5.Username);
+        Assert.Equal(password, socks5.PasswordReference);
+
+        Assert.Throws<ArgumentException>(() => new ConnectionProxy(
+            new Uri("socks5://proxy.example.test:1080"), username: null, password));
+        Assert.Throws<ArgumentException>(() => new ConnectionProxy(
+            new Uri("socks4://proxy.example.test:1080"), "relay", password));
+        Assert.Throws<ArgumentException>(() => new ConnectionProxy(new Uri("socks5://proxy.example.test")));
+        Assert.Throws<ArgumentException>(() => new ConnectionProxy(new Uri("ftp://proxy.example.test:21")));
+    }
+
+    [Fact]
     public void Endpoints_reject_embedded_credentials_and_insecure_s3_without_acknowledgement()
     {
         Assert.Throws<ArgumentException>(() => new ConnectionProxy(

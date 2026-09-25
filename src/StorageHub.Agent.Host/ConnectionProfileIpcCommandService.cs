@@ -711,11 +711,12 @@ internal static class ConnectionProfileIpcMapper
         {
             proxy = new ConnectionProxy(
                 new Uri(value.ProxyEndpoint, UriKind.Absolute),
-                value.ProxyCredentialReferenceId is { } id ? new CredentialReferenceId(id) : null);
+                value.ProxyUsername,
+                value.ProxyPasswordReference is { } reference ? SecretReference.Parse(reference) : null);
         }
-        else if (value.ProxyCredentialReferenceId is not null)
+        else if (value.ProxyUsername is not null || value.ProxyPasswordReference is not null)
         {
-            throw new ArgumentException("A proxy credential reference requires a proxy endpoint.", nameof(value));
+            throw new ArgumentException("A proxy sign-in requires a proxy endpoint.", nameof(value));
         }
 
         return new ConnectionOperationalOptions(
@@ -737,7 +738,8 @@ internal static class ConnectionProfileIpcMapper
         checked((int)value.Retry.InitialDelay.TotalMilliseconds),
         checked((int)value.Retry.MaximumDelay.TotalMilliseconds),
         value.Proxy?.Endpoint.AbsoluteUri,
-        value.Proxy?.CredentialId?.Value,
+        value.Proxy?.Username,
+        value.Proxy?.PasswordReference?.Value,
         value.Bandwidth.UploadBytesPerSecond,
         value.Bandwidth.DownloadBytesPerSecond,
         value.EncodingName);

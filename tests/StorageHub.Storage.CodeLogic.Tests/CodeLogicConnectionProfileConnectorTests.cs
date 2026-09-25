@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using StorageHub.Application.Connections;
 using StorageHub.Domain.Identifiers;
 using StorageHub.Domain.Storage;
@@ -156,6 +157,106 @@ public sealed class CodeLogicConnectionProfileConnectorTests : IAsyncLifetime, I
 
         // Four seconds of data at the limit. Allowing for a first second's burst, at least two.
         Assert.True(started.Elapsed >= TimeSpan.FromSeconds(2), $"Read in {started.Elapsed}.");
+    }
+
+    /// <summary>
+    /// A connection routed through the lab's proxies reaches MinIO by its service name, which only
+    /// resolves inside the lab's network: listing it at all is proof the traffic went through the
+    /// proxy. SOCKS5 signs in with a password kept in the vault; a wrong one is refused.
+    /// </summary>
+    /// <remarks>Does nothing without the lab, like the other provider suites; STORAGEHUB_REQUIRE_PROXY makes it required.</remarks>
+    [Fact]
+    public async Task A_connection_through_the_lab_proxies_reaches_a_server_only_the_proxy_can_see()
+    {
+        var lab = ProxyLab.Load();
+        if (lab is null)
+        {
+            return;
+        }
+
+        var http = new ConnectionProxy(new Uri($"http://127.0.0.1:{lab.HttpPort}"));
+        var socks5 = new ConnectionProxy(
+            new Uri($"socks5://127.0.0.1:{lab.Socks5Port}"),
+            lab.Username,
+            (await _vault.CreateAsync(Encoding.UTF8.GetBytes(lab.Password))).Reference);
+        var wrongPassword = new ConnectionProxy(
+            new Uri($"socks5://127.0.0.1:{lab.Socks5Port}"),
+            lab.Username,
+            (await _vault.CreateAsync("not-the-password"u8.ToArray())).Reference);
+
+        await using var connector = CreateConnector();
+        foreach (var proxy in new[] { http, socks5 })
+        {
+            var profile = await CreateMinioProfileAsync(lab, proxy);
+            var opened = await connector.OpenAsync(profile);
+            Assert.True(opened.IsSuccess, $"{proxy.Endpoint}: {opened.Error?.Message}");
+            await using var connection = opened.Value;
+            var root = StorageAddress.Create(profile.Id, connection.Session.RootIdentity, string.Empty).Value;
+            var listing = await connection.Session.ListAsync(root);
+            Assert.True(listing.IsSuccess, $"{proxy.Endpoint}: {listing.Error?.Message}");
+        }
+
+        var refusedProfile = await CreateMinioProfileAsync(lab, wrongPassword);
+        var refusedOpen = await connector.OpenAsync(refusedProfile);
+        if (refusedOpen.IsSuccess)
+        {
+            await using var connection = refusedOpen.Value;
+            var root = StorageAddress.Create(refusedProfile.Id, connection.Session.RootIdentity, string.Empty).Value;
+            Assert.True((await connection.Session.ListAsync(root)).IsFailure, "A wrong proxy password still listed.");
+        }
+    }
+
+    private async Task<ConnectionProfile> CreateMinioProfileAsync(ProxyLab lab, ConnectionProxy proxy) =>
+        ConnectionProfile.Create(
+            ConnectionProfileId.New(),
+            new ConnectionProfileMetadata("MinIO through a proxy"),
+            new S3Endpoint(lab.Bucket, "us-east-1", lab.MinioBehindProxy, forcePathStyle: true, allowInsecureHttp: true),
+            new S3AccessKeyAuthentication(
+                (await _vault.CreateAsync(Encoding.UTF8.GetBytes(lab.AccessKey))).Reference,
+                (await _vault.CreateAsync(Encoding.UTF8.GetBytes(lab.SecretKey))).Reference),
+            new ConnectionOperationalOptions(
+                TimeSpan.FromSeconds(30),
+                TimeSpan.FromSeconds(30),
+                new ConnectionRetryPolicy(1, TimeSpan.Zero, TimeSpan.Zero),
+                proxy,
+                new ConnectionBandwidthLimits(null, null),
+                "utf-8"),
+            DateTimeOffset.UtcNow);
+
+    /// <summary>The lab's proxies and the MinIO behind them, from eng/testlab's settings.</summary>
+    private sealed record ProxyLab(
+        int HttpPort,
+        int Socks5Port,
+        string Username,
+        string Password,
+        Uri MinioBehindProxy,
+        string AccessKey,
+        string SecretKey,
+        string Bucket)
+    {
+        public static ProxyLab? Load()
+        {
+            static string? Get(string name) => Environment.GetEnvironmentVariable(name);
+            if (Get("STORAGEHUB_PROXY_HTTP_PORT") is null)
+            {
+                return Get("STORAGEHUB_REQUIRE_PROXY") == "1"
+                    ? throw new InvalidOperationException("STORAGEHUB_REQUIRE_PROXY is set but the proxy settings are not.")
+                    : null;
+            }
+
+            static string Required(string name) => Get(name) is { Length: > 0 } value
+                ? value
+                : throw new InvalidOperationException($"{name} is missing.");
+            return new ProxyLab(
+                int.Parse(Required("STORAGEHUB_PROXY_HTTP_PORT"), CultureInfo.InvariantCulture),
+                int.Parse(Required("STORAGEHUB_PROXY_SOCKS5_PORT"), CultureInfo.InvariantCulture),
+                Required("STORAGEHUB_PROXY_USERNAME"),
+                Required("STORAGEHUB_PROXY_PASSWORD"),
+                new Uri(Required("STORAGEHUB_PROXY_MINIO_ENDPOINT")),
+                Required("STORAGEHUB_MINIO_ACCESS_KEY"),
+                Required("STORAGEHUB_MINIO_SECRET_KEY"),
+                Required("STORAGEHUB_MINIO_BUCKET"));
+        }
     }
 
     private static ConnectionProfile CreateLocalProfile(string rootPath, ConnectionBandwidthLimits? limits = null) => ConnectionProfile.Create(

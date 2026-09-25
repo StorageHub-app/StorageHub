@@ -23,6 +23,7 @@ public class ConnectionSecretFieldsTests
     [InlineData("clientCertificateReference", (int)SecretMaterialPurpose.ClientCertificatePfx)]
     [InlineData("clientCertificatePasswordReference", (int)SecretMaterialPurpose.ClientCertificatePassword)]
     [InlineData("credentialReference", (int)SecretMaterialPurpose.ProxyCredential)]
+    [InlineData("proxyPasswordReference", (int)SecretMaterialPurpose.ProxyCredential)]
     [InlineData("passwordReference", (int)SecretMaterialPurpose.Password)]
     public void EveryFieldEnrolsUnderItsOwnPurpose(string key, int purpose) =>
         Assert.Equal((SecretMaterialPurpose)purpose, ConnectionSecretFields.Purpose(key));
