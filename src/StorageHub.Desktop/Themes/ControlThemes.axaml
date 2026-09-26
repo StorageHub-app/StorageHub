@@ -23,32 +23,40 @@
       over - workspaces, the queue, and a page's own sub-tabs - owning the template is cheaper than
       overriding parts of somebody else's by name.
     -->
+    <!--
+      Boxed, as 1.4 drew them (ui-reference 01, 03, 05): every tab is a raised box of its own with a
+      minimum width, and the selected one carries the accent along its top edge. An underline under
+      bare text was the Fluent idiom and made the strip read as a different app.
+    -->
     <ControlTheme x:Key="{x:Type TabItem}" TargetType="TabItem">
-      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}"/>
+      <Setter Property="MinWidth" Value="{StaticResource TabMinWidth}"/>
+      <Setter Property="Margin" Value="{StaticResource TabMargin}"/>
       <Setter Property="Template">
         <ControlTemplate>
-          <Border Name="PART_Root" Background="{TemplateBinding Background}">
-            <Grid RowDefinitions="*,Auto">
-              <ContentPresenter Name="PART_ContentPresenter"
+          <Border Name="PART_Root" Background="{TemplateBinding Background}"
+                  CornerRadius="{StaticResource TabRadius}" ClipToBounds="True">
+            <Grid RowDefinitions="Auto,*">
+              <!-- The accent belongs to selection alone. -->
+              <Border Name="PART_Accent" Grid.Row="0"
+                      Height="{StaticResource TabAccentThickness}"
+                      Background="Transparent"/>
+              <ContentPresenter Name="PART_ContentPresenter" Grid.Row="1"
                                 Content="{TemplateBinding Header}"
                                 ContentTemplate="{TemplateBinding HeaderTemplate}"
                                 Margin="{TemplateBinding Padding}"
                                 VerticalAlignment="Center"
-                                HorizontalAlignment="Center"/>
-              <!-- The accent belongs to selection alone. -->
-              <Border Name="PART_Accent" Grid.Row="1"
-                      Height="{StaticResource TabAccentThickness}"
-                      Background="Transparent"/>
+                                HorizontalAlignment="Left"/>
             </Grid>
           </Border>
         </ControlTemplate>
       </Setter>
 
       <Style Selector="^:pointerover /template/ Border#PART_Root">
-        <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource ElevatedBrush}"/>
       </Style>
       <Style Selector="^:selected /template/ Border#PART_Root">
-        <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}"/>
+        <Setter Property="Background" Value="{DynamicResource ElevatedBrush}"/>
       </Style>
       <Style Selector="^:selected /template/ Border#PART_Accent">
         <Setter Property="Background" Value="{DynamicResource PrimaryBrush}"/>
@@ -225,6 +233,18 @@
   <Style Selector="Button.tool:pointerover /template/ ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}"/>
   </Style>
+  <!--
+    An unavailable tool stays flat and dims, as 1.4's did. Fluent fills a disabled button's
+    presenter with its own grey, and most toolbar and queue commands are unavailable most of the
+    time, so the whole bar read as a row of filled boxes.
+  -->
+  <Style Selector="Button.tool:disabled /template/ ContentPresenter">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="BorderBrush" Value="Transparent"/>
+  </Style>
+  <Style Selector="Button.tool:disabled">
+    <Setter Property="Opacity" Value="0.45"/>
+  </Style>
 
   <Style Selector="TextBox">
     <Setter Property="Background" Value="{DynamicResource InputBrush}"/>
@@ -344,8 +364,8 @@
   <!-- Compact tab headers, closer to the shell's own than Fluent's default. -->
   <Style Selector="TabItem">
     <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
-    <Setter Property="Padding" Value="{StaticResource PaddingLg}"/>
-    <Setter Property="MinHeight" Value="{StaticResource ToolbarHeight}"/>
+    <Setter Property="Padding" Value="{StaticResource TabPadding}"/>
+    <Setter Property="MinHeight" Value="{StaticResource TabHeight}"/>
     <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
   </Style>
   <Style Selector="TabItem:selected">
@@ -594,11 +614,29 @@
     <Setter Property="FontSize" Value="{StaticResource FontSizeCaption}"/>
     <Setter Property="Padding" Value="{StaticResource PaddingMd}"/>
     <Setter Property="MinHeight" Value="{StaticResource ListRowHeight}"/>
+    <Setter Property="MinWidth" Value="0"/>
   </Style>
 
   <Style Selector="TableView">
     <Setter Property="Background" Value="Transparent"/>
     <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
+  </Style>
+
+  <!--
+    Column headings as 1.4 drew them (ui-reference 01, 05): regular weight, muted, with a rule
+    underneath. Fluent's are semibold. The band's colour and padding are Fluent resources, which
+    DesignTokens.axaml redefines; the template sets them locally, so a style here cannot.
+  -->
+  <Style Selector="TableViewColumnHeader">
+    <Setter Property="FontWeight" Value="Normal"/>
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+  </Style>
+  <Style Selector="TableView /template/ ScrollViewer#PART_ScrollViewer /template/ DockPanel#ContentPanel > Border">
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+    <Setter Property="BorderThickness" Value="0,0,0,1"/>
+  </Style>
+  <Style Selector="TableView /template/ ScrollViewer#PART_ScrollViewer /template/ Panel#PART_ScrollBarsSeparator">
+    <Setter Property="Background" Value="Transparent"/>
   </Style>
 
 </Styles>

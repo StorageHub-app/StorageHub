@@ -28,9 +28,15 @@ improvements, not a new design, so this comes ahead of the rest of section 1. Th
 An item is done when its screen, photographed at 1.25x in both light and dark, reads as the matching
 reference shot.
 
-- [ ] L.1 Shared chrome (every screen): flat toolbar icons with no filled boxes; table headers in the
-      regular weight with no dark band; boxed tabs, with a close button and the `*` for unsaved changes
-      on workspace tabs; body text size and weight back to 1.4's.
+- [x] L.1 Shared chrome (every screen): flat toolbar and queue buttons that dim rather than fill when
+      unavailable; column headings in the regular weight, on a band in the palette, with rows as
+      dense as 1.4's (Fluent's `TableViewRowPadding` made each row 37 tall); boxed tabs with the accent
+      along the top. Text size was a false alarm: body text is 12 px like 1.4's 9 pt Segoe UI, and the
+      "1.25x" shell shots lay out a larger window at 1.0 rather than scaling, which makes text look
+      small beside a 125% reference.
+- [ ] L.8 Workspace tabs: Save, Save As, Open and Close workspace have no handlers in 2.0. The tab's
+      close button and its `*` for unsaved changes come with them, so this is behaviour rather than
+      look, but 1.4 had it and ui-reference 05 shows it.
 - [ ] L.2 The file pane (ref 05): the connection chip with its `STORAGE`/`LOCAL` badges and the
       "● Ready" status line in place of the "Select the profile to connect" drop-down; the labelled
       `FILES` command row (New folder · Copy · Move · Paste · Delete · overflow) in place of the icon

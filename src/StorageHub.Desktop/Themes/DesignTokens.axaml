@@ -126,6 +126,13 @@
   <SolidColorBrush x:Key="DangerTintBrush" Color="{DynamicResource DangerTintColor}"/>
 
   <!--
+    Fluent keys that TableView's template reads directly. The column-heading band is painted with
+    this brush, which Fluent resolves to its own #1F1F1F in every scheme; pointing it at the surface
+    puts the band back in the palette.
+  -->
+  <SolidColorBrush x:Key="SystemControlBackgroundChromeMediumBrush" Color="{DynamicResource SurfaceColor}"/>
+
+  <!--
     Spacing, on a four-unit scale. A view picks a step rather than a number, which is what keeps
     two panels that should look alike from drifting a pixel apart.
   -->
@@ -163,11 +170,20 @@
        slot and the labels clip at both ends rather than the row growing. -->
   <!-- The bar under a selected tab. Selection's alone: hover does not draw it. -->
   <sys:Double x:Key="TabAccentThickness">2</sys:Double>
+  <!-- A boxed tab, from 1.4's strip: about 120 wide at minimum, one list row tall, 2 apart. -->
+  <sys:Double x:Key="TabMinWidth">120</sys:Double>
+  <sys:Double x:Key="TabHeight">26</sys:Double>
+  <Thickness x:Key="TabPadding">10,3</Thickness>
+  <Thickness x:Key="TabMargin">0,2,2,0</Thickness>
+  <CornerRadius x:Key="TabRadius">4,4,0,0</CornerRadius>
   <sys:Double x:Key="MenuBarHeight">30</sys:Double>
   <Thickness x:Key="MenuItemPadding">10,0</Thickness>
   <sys:Double x:Key="ToolbarHeight">36</sys:Double>
   <sys:Double x:Key="StatusBarHeight">26</sys:Double>
   <sys:Double x:Key="ListRowHeight">24</sys:Double>
+  <!-- Fluent's own key: the padding of every TableView row and of its heading band. Fluent's
+       6,9,6,12 made a row 37 tall; 1.4's lists were about 20, as dense as Explorer's. -->
+  <Thickness x:Key="TableViewRowPadding">6,3</Thickness>
   <sys:Double x:Key="TreeRowHeight">22</sys:Double>
   <sys:Double x:Key="SidebarMinWidth">180</sys:Double>
   <sys:Double x:Key="SidebarMaxWidth">480</sys:Double>
