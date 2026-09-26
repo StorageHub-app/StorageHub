@@ -294,6 +294,48 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
 
     public bool HasStatus => !string.IsNullOrEmpty(_status);
 
+    /// <summary>
+    /// "This folder is empty." or "No items match the current filter.", centred over the list as
+    /// 1.x showed it, rather than in a strip at the bottom of an otherwise blank table.
+    /// </summary>
+    public string EmptyNotice =>
+        !IsListing || _source is null || _failed || _busy || Rows.Any(static row => !row.IsParentNavigation)
+            ? string.Empty
+            : HasFilter ? Ui.Pane.NoItemsMatchFilter : Ui.Pane.FolderIsEmpty;
+
+    public bool HasEmptyNotice => EmptyNotice.Length > 0;
+
+    /// <summary>"Fetching folder…" over the list while it is being read, as 1.x's overlay said.</summary>
+    public bool ShowsLoading => _busy && IsListing;
+
+    public static string FetchingFolderLabel => Ui.Pane.FetchingFolder;
+
+    /// <summary>
+    /// Whether what the banner says is a failure, drawn as a warning and clickable to try again.
+    /// Anything else there -- a note that the pane landed on the nearest folder that exists -- is
+    /// information and is drawn quietly.
+    /// </summary>
+    public bool StatusIsWarning => _failed;
+
+    /// <summary>Tries again: the connection if it never opened, the folder if it did.</summary>
+    public ICommand RetryCommand => _retry ??= new RelayCommand(_ =>
+    {
+        if (_source is null && _connection is { } connection) _ = OpenAsync(connection);
+        else RefreshCommand.Execute(null);
+    });
+
+    private RelayCommand? _retry;
+
+    public static string RetryHint => Ui.Commands.ViewRefresh;
+
+    private void RaiseListingState()
+    {
+        Raise(nameof(EmptyNotice));
+        Raise(nameof(HasEmptyNotice));
+        Raise(nameof(ShowsLoading));
+        Raise(nameof(StatusIsWarning));
+    }
+
     public bool IsBusy
     {
         get => _busy;
@@ -303,6 +345,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             _busy = value;
             Raise(nameof(IsBusy));
             RaiseConnectionState();
+            RaiseListingState();
         }
     }
 
@@ -1008,7 +1051,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             Rows.Insert(position++, row);
         }
 
-        if (Status == Ui.Pane.FolderIsEmpty && view.Count > 0) Status = string.Empty;
+        RaiseListingState();
         RaiseCommands();
     }
 
@@ -1612,6 +1655,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             Status = result.Error ?? Ui.Pane.Disconnected;
             _failed = true;
             RaiseConnectionState();
+            RaiseListingState();
             RaiseCommands();
             return;
         }
@@ -1710,11 +1754,8 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         // A navigation can succeed and still have something to say. Asking for a folder that has
         // been deleted lands on the nearest parent that does exist, and the message is the only
         // thing that explains why the listing is not the one that was asked for.
-        Status = _note is { Length: > 0 } note
-            ? note
-            : matched > 0 ? string.Empty
-            : HasFilter ? Ui.Pane.NoItemsMatchFilter
-            : Ui.Pane.FolderIsEmpty;
+        Status = _note ?? string.Empty;
+        RaiseListingState();
 
         Raise(nameof(NameHeader));
         Raise(nameof(SizeHeader));

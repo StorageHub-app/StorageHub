@@ -93,7 +93,7 @@ setting to choose it (P.5.1).
 - [x] P.2.6 An editable address bar (Enter goes there, a bad path says why) and Ctrl+L to focus it.
 - [x] P.2.7 A failed switch to another connection clears the old listing rather than showing A's files
       under B's name.
-- [ ] P.2.8 Loading overlay ("Fetching folder") over the list; a centred empty-folder notice; a warning
+- [x] P.2.8 Loading overlay ("Fetching folder") over the list; a centred empty-folder notice; a warning
       banner for errors that retries when clicked.
 - [x] P.2.9 The directory tree (was 3.1). Built from what the pane lists, as 1.x's was.
 - [ ] P.2.10 Delete: local items to the Recycle Bin; a confirmation listing up to six items with

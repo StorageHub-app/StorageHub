@@ -282,13 +282,25 @@
         <TextBlock Grid.Column="1" Classes="muted" Text="{Binding SelectionSummary}" VerticalAlignment="Center"/>
       </Grid>
 
-      <!-- Sits over the table rather than replacing it: a failed navigation keeps the listing
-           somebody was looking at, so a typo in a path costs nothing to recover from. -->
-      <Border DockPanel.Dock="Bottom" Classes="toolbar"
+      <!--
+        What the pane has to say, above the list as 1.x's banner was: a failure in the warning
+        colour, clickable to try again, and a note (landing on the nearest folder that exists)
+        quietly. It sits over nothing: a failed navigation keeps the listing somebody was looking
+        at, so a typo in a path costs nothing to recover from.
+      -->
+      <Button DockPanel.Dock="Top" Classes="pane-banner"
+              Classes.warning="{Binding StatusIsWarning}"
               IsVisible="{Binding HasStatus}"
-              Padding="{StaticResource PaddingMd}">
-        <TextBlock Classes="muted" Text="{Binding Status}" TextWrapping="Wrap"/>
-      </Border>
+              IsHitTestVisible="{Binding StatusIsWarning}"
+              Command="{Binding RetryCommand}"
+              ToolTip.Tip="{Binding RetryHint}"
+              HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
+        <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceSm}">
+          <LucideIcon Kind="TriangleAlert" Size="{StaticResource IconSizeSm}" Classes="warning"
+                      IsVisible="{Binding StatusIsWarning}"/>
+          <TextBlock Text="{Binding Status}" TextWrapping="Wrap"/>
+        </StackPanel>
+      </Button>
 
       <!--
         The body is whichever of the two a pane is: a listing, or a terminal. Both live under the
@@ -379,6 +391,23 @@
                 <TableViewColumn Binding="{Binding Status}" Width="90"/>
               </TableView.Columns>
             </TableView>
+
+            <!-- The empty folder, said in the middle of the list rather than left blank. The
+                 list underneath still takes a drop, so dragging into an empty folder works. -->
+            <TextBlock Classes="muted" Text="{Binding EmptyNotice}" IsVisible="{Binding HasEmptyNotice}"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                       IsHitTestVisible="False"/>
+
+            <!-- While a folder is read: the list is covered, so rows from the last one cannot be
+                 acted on while they are about to be replaced. -->
+            <Border Classes="pane-loading" IsVisible="{Binding ShowsLoading}">
+              <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                          Spacing="{StaticResource SpaceSm}" Width="200"
+                          AutomationProperties.Name="{Binding FetchingFolderLabel}">
+                <TextBlock Text="{Binding FetchingFolderLabel}" HorizontalAlignment="Center"/>
+                <ProgressBar IsIndeterminate="True" MinHeight="4"/>
+              </StackPanel>
+            </Border>
           </Panel>
         </Grid>
 

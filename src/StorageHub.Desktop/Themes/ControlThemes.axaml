@@ -580,6 +580,36 @@
     <Setter Property="Padding" Value="0"/>
   </Style>
 
+  <!-- A pane's banner above the list: quiet for a note, the warning colour for a failure. -->
+  <Style Selector="Button.pane-banner">
+    <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}"/>
+    <Setter Property="BorderThickness" Value="0,0,0,1"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+    <Setter Property="CornerRadius" Value="0"/>
+    <Setter Property="Padding" Value="10,6"/>
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+  </Style>
+  <Style Selector="Button.pane-banner.warning">
+    <Setter Property="Background" Value="{DynamicResource WarningTintBrush}"/>
+    <Setter Property="Foreground" Value="{DynamicResource WarningBrush}"/>
+  </Style>
+  <Style Selector="Button.pane-banner.warning /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource WarningTintBrush}"/>
+  </Style>
+  <Style Selector="Button.pane-banner.warning:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource WarningTintBrush}"/>
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource WarningBrush}"/>
+  </Style>
+  <Style Selector="Button.pane-banner TextBlock">
+    <Setter Property="Foreground" Value="{Binding $parent[Button].Foreground}"/>
+  </Style>
+
+  <!-- The cover over a list being read. -->
+  <Style Selector="Border.pane-loading">
+    <Setter Property="Background" Value="{DynamicResource CanvasBrush}"/>
+    <Setter Property="Opacity" Value="0.85"/>
+  </Style>
+
   <!-- The splash: the mark and the name on the surface, framed so a borderless window has an edge. -->
   <Style Selector="Border.splash">
     <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>

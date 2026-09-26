@@ -137,7 +137,7 @@ public class PaneSortFilterTests
         pane.Filter = "no-such-thing";
 
         Assert.Empty(pane.Rows);
-        Assert.Equal(Ui.Pane.NoItemsMatchFilter, pane.Status);
+        Assert.Equal(Ui.Pane.NoItemsMatchFilter, pane.EmptyNotice);
     }
 
     /// <summary>

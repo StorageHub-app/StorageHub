@@ -87,6 +87,85 @@ public class AddressBarTests
         Assert.True(pane.ConnectionStateIsFailed);
     }
 
+    /// <summary>An empty folder says so in the middle of the list; a full one says nothing.</summary>
+    [AvaloniaFact]
+    public async Task AnEmptyFolderSaysSoInTheList()
+    {
+        var folder = Directory.CreateTempSubdirectory("storagehub-empty-");
+        try
+        {
+            await using var pane = await ThisPcAsync();
+            Assert.False(pane.HasEmptyNotice);
+
+            pane.Address = folder.FullName;
+            await pane.GoToAddressAsync(TestContext.Current.CancellationToken);
+
+            Assert.Equal(Ui.Pane.FolderIsEmpty, pane.EmptyNotice);
+            Assert.False(pane.HasStatus);
+            Assert.False(pane.ShowsLoading);
+        }
+        finally
+        {
+            folder.Delete(recursive: true);
+        }
+    }
+
+    /// <summary>A failure is a warning, and trying again reopens what failed.</summary>
+    [AvaloniaFact]
+    public async Task AFailureIsAWarningThatCanBeRetried()
+    {
+        var connection = WorkspaceFakes.Summary("Offline bucket");
+        await using var pane = new BrowserPaneModel(new Refusing(connection));
+        await pane.LoadConnectionsAsync(TestContext.Current.CancellationToken);
+        await pane.OpenConnectionAsync(connection.ConnectionId, TestContext.Current.CancellationToken);
+
+        Assert.True(pane.StatusIsWarning);
+        Assert.True(pane.HasStatus);
+        Assert.False(pane.HasEmptyNotice);
+        Assert.True(pane.RetryCommand.CanExecute(null));
+    }
+
+    /// <summary>The empty and the failed pane, for a human to look at. STORAGEHUB_SHOT_DIR keeps them.</summary>
+    [AvaloniaFact]
+    public async Task TheEmptyAndTheFailedPaneCanBePhotographed()
+    {
+        var folder = Directory.CreateTempSubdirectory("storagehub-empty-");
+        try
+        {
+            await using var empty = await ThisPcAsync();
+            empty.Address = folder.FullName;
+            await empty.GoToAddressAsync(TestContext.Current.CancellationToken);
+
+            var connection = WorkspaceFakes.Summary("Offline bucket");
+            await using var failed = new BrowserPaneModel(new Refusing(connection));
+            await failed.LoadConnectionsAsync(TestContext.Current.CancellationToken);
+            await failed.OpenConnectionAsync(connection.ConnectionId, TestContext.Current.CancellationToken);
+
+            foreach (var (pane, name) in new[] { (empty, "pane-empty"), (failed, "pane-failed") })
+            {
+                var window = new Avalonia.Controls.Window
+                {
+                    Content = new BrowserPaneView { DataContext = pane }, Width = 700, Height = 360
+                };
+                window.Show();
+                window.Measure(new Avalonia.Size(700, 360));
+                window.Arrange(new Avalonia.Rect(0, 0, 700, 360));
+                window.UpdateLayout();
+                var frame = Avalonia.Headless.HeadlessWindowExtensions.CaptureRenderedFrame(window);
+                Assert.NotNull(frame);
+                var directory = Environment.GetEnvironmentVariable("STORAGEHUB_SHOT_DIR");
+                if (string.IsNullOrWhiteSpace(directory)) continue;
+                Directory.CreateDirectory(directory);
+                using var stream = File.Create(Path.Combine(directory, name + ".png"));
+                frame!.Save(stream, new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
+            }
+        }
+        finally
+        {
+            folder.Delete(recursive: true);
+        }
+    }
+
     private static async Task<BrowserPaneModel> ThisPcAsync()
     {
         var pane = new BrowserPaneModel(new Refusing(WorkspaceFakes.Summary("unused")));
