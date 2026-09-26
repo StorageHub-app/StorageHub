@@ -119,6 +119,14 @@ internal sealed class DesktopBoot : IDisposable
                 }
             }
 
+            // Every launch, as 1.x did: it is what lets a file dragged out of a connection land in
+            // Explorer, and a registration another install replaced is put back rather than left
+            // pointing at a DLL that has moved.
+            if (OperatingSystem.IsWindows())
+            {
+                _ = ExplorerDropBrokerInstaller.EnsureRegistered(AppContext.BaseDirectory);
+            }
+
             _model.Report(BootStatus.StartingAgent);
             var patience = new DispatcherTimer(PatienceDelay, DispatcherPriority.Background, (sender, _) =>
             {
@@ -147,10 +155,12 @@ internal sealed class DesktopBoot : IDisposable
         }
         catch (DesktopBootException error)
         {
+            DesktopErrorLog.Write("boot", error);
             _model.ShowFailure(BootText.DescribeFailure(error.Stage), error.Message, canRetry: false);
         }
         catch (Exception error)
         {
+            DesktopErrorLog.Write("boot", error);
             _model.ShowFailure(BootText.CouldNotStart, $"{error.GetType().Name}: {error.Message}", canRetry: false);
         }
     }

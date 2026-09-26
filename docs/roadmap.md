@@ -46,7 +46,7 @@ setting to choose it (P.5.1).
 - [x] P.1.2 Start the agent at launch and wait for it (`EnsureAgentAsync`, 8 s start / 12 s ready), with
       `DesktopStartupPreflight.DescribeFailure` on the splash. Nothing starts it today: without the
       service the app sits at "Agent: not connected".
-- [ ] P.1.3 Restart the agent when it drops, and reload the panes, Welcome, Sync tasks and the queue when
+- [x] P.1.3 Restart the agent when it drops, and reload the panes, Welcome, Sync tasks and the queue when
       it comes back (`DesktopAgentAvailability.Changed`). `MainForm.cs:3404-3437, 3520-3551`.
 - [x] P.1.4 Load the framework and the language: `EnsureCreated`, `EnsureSupportedCultures`,
       `SeedShippedTranslations`, `Ui.UseFramework`. 2.0 is English whatever is configured.
@@ -61,14 +61,14 @@ setting to choose it (P.5.1).
 - [x] P.1.6 `--agent-only` (the sign-in autostart) ensures the agent and exits without a window, and
       honours `STORAGEHUB_DISABLE_AUTOSTART`; intercept `--version/--info/--health/--dry-run/
       --generate-configs` before the framework. `Program.cs:15-53`; `DesktopCommandLine` is uncalled.
-- [ ] P.1.7 Register the Explorer drop broker on launch (`ExplorerDropBrokerInstaller.EnsureRegistered`).
+- [x] P.1.7 Register the Explorer drop broker on launch (`ExplorerDropBrokerInstaller.EnsureRegistered`).
 - [ ] P.1.8 Update check on start, close the shell when an update is installing, and the update link in
       the status bar -- on the MSI updater from P.1.5. `MainForm.cs:246-250, 3604-3693`.
-- [ ] P.1.9 Stop the agent on exit in "only while StorageHub is open" mode (`DesktopStopsAgent`); ask to
+- [ ] P.1.9 (Done but the save prompt, which waits for P.3.1.) Stop the agent on exit in "only while StorageHub is open" mode (`DesktopStopsAgent`); ask to
       save each changed workspace before closing; make shutdown finish before the process exits (the
       async `ShutdownRequested` handler is not awaited).
 - [ ] P.1.10 First-run "How should StorageHub run?" prompt and `AgentHostModeController` (Windows).
-- [ ] P.1.11 Unhandled exceptions are reported rather than ending the process silently; logs go to disk
+- [x] P.1.11 Unhandled exceptions are reported rather than ending the process silently; logs go to disk
       (only `LogToTrace` today). A settings folder that cannot be read says so instead of opening on
       defaults.
 
@@ -137,6 +137,8 @@ setting to choose it (P.5.1).
 - [ ] P.4.8 Schedule delete asks "Delete schedule …?" (`DeleteSchedulePrompt`), not the disabled-profile
       text followed by "Schedule deleted".
 - [ ] P.4.9 Previewing from the editor loads the run and the history reliably on the first visit.
+      `SyncRunHistoryTests.ApprovingDispatchesTheRunThatWasReviewed` failed once under a full-suite
+      run on 2026-09-26 and passed alone three times; likely the same race.
 - [ ] P.4.10 The "previewed while disabled" and "non-atomic" warnings are seen before the editor closes.
 - [ ] P.4.11 Maximum deletion accepts 0.01-100 in steps of 0.25, so a saved 0.5 % is not clamped to 1.
 - [ ] P.4.12 A completed transfer of unknown size draws a full bar.

@@ -345,6 +345,69 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
 
     public ConnectionsSidebar Sidebar { get; init; } = null!;
 
+    /// <summary>
+    /// Brings a stopped agent back, the same way startup does. Set by the application; null in a
+    /// preview, which has nothing to start.
+    /// </summary>
+    internal Func<CancellationToken, Task<AgentEnsureResult>>? RecoverAgent { get; set; }
+
+    /// <summary>How long after a failed attempt the next one waits, so an absent agent is not
+    /// relaunched on every eight-second poll.</summary>
+    private static readonly TimeSpan RecoveryBackoff = TimeSpan.FromSeconds(30);
+
+    private bool _recovering;
+    private DateTimeOffset _nextRecovery = DateTimeOffset.MinValue;
+
+    /// <summary>
+    /// Restarts the agent when it drops, as 1.x did, and reloads everything once it answers.
+    /// </summary>
+    private async Task RecoverAgentAsync()
+    {
+        if (RecoverAgent is not { } recover || _recovering || DateTimeOffset.UtcNow < _nextRecovery) return;
+
+        _recovering = true;
+        ShellStatus = ShellStatus with { AgentState = AgentConnectionState.Starting };
+        try
+        {
+            var result = await recover(CancellationToken.None).ConfigureAwait(true);
+            if (result.IsReady)
+            {
+                ShellStatus = ShellStatus with { AgentState = AgentConnectionState.Connected };
+                ReloadEverything();
+            }
+            else
+            {
+                _nextRecovery = DateTimeOffset.UtcNow + RecoveryBackoff;
+                ShellStatus = ShellStatus with { AgentState = AgentConnectionState.Disconnected };
+            }
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            _nextRecovery = DateTimeOffset.UtcNow + RecoveryBackoff;
+        }
+        finally
+        {
+            _recovering = false;
+        }
+    }
+
+    /// <summary>Welcome, the panel, Sync tasks, the queue and every pane with a connection.</summary>
+    private void ReloadEverything()
+    {
+        _ = Overview?.RefreshAsync();
+        _ = Sidebar.RefreshAsync();
+        _ = SyncTasks?.RefreshAsync();
+        _ = Queue.RefreshAsync(background: true);
+        foreach (var pane in Workspaces
+            .Select(static tab => tab.Workspace)
+            .OfType<WorkspaceModel>()
+            .SelectMany(static workspace => workspace.Panes)
+            .Where(static pane => pane.Connection is not null && !pane.IsTerminal))
+        {
+            if (pane.RefreshCommand.CanExecute(null)) pane.RefreshCommand.Execute(null);
+        }
+    }
+
     /// <summary>The Welcome page, which follows the status bar and reloads when the agent connects.</summary>
     internal OverviewModel? Overview { get; set; }
 
@@ -480,7 +543,16 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
                 AgentState = e.Status.State,
                 ActiveJobs = e.Status.ActiveTransfers,
             };
+
+            if (e.Status.State == AgentConnectionState.Disconnected) _ = RecoverAgentAsync();
         });
+
+        // Every surface reloads when the agent comes back, and so do the panes: a pane that failed
+        // while the agent was away kept its error until somebody refreshed it by hand.
+        DesktopAgentAvailability.Changed += (_, e) =>
+        {
+            if (e.Recovered) Dispatcher.UIThread.Post(ReloadEverything);
+        };
 
         monitor.Start();
     }

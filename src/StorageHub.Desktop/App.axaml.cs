@@ -23,6 +23,7 @@ public partial class App : global::Avalonia.Application
             // agent, and only then the shell. The shell used to open at once, before any of those
             // had happened -- which is why it spoke English whatever was configured and sat at
             // "Agent: not connected" when the service was not already running.
+            Services.DesktopErrors.Install(desktop);
             Services.DesktopBoot.Start(desktop, OpenShell);
         }
 
@@ -37,6 +38,9 @@ public partial class App : global::Avalonia.Application
     {
         var model = ShellPreview.CreateLive();
         var window = new MainWindow { DataContext = model };
+
+        // When the agent drops, the shell brings it back the way startup did.
+        model.RecoverAgent = DesktopAgentStartup.EnsureAsync;
 
         // The first command with somewhere to go. Settings opens over the shell, edits a
         // working copy, and writes through DesktopConfigStore on Apply.
@@ -144,19 +148,49 @@ public partial class App : global::Avalonia.Application
         // An edited file that was uploaded shows up in the pane it came from.
         Services.ShellServices.EditedFileUploaded += (_, _) => _ = model.EditedFileUploadedAsync();
 
-        desktop.ShutdownRequested += async (_, _) =>
+        // Everything the shell holds, closed before the window goes. Avalonia does not wait for an
+        // async handler, so this used to be cut off at its first await when the process exited:
+        // the first close is held, the cleanup runs to completion (bounded, so a stuck agent cannot
+        // hold the window open), and the window closes again.
+        var cleanedUp = false;
+        window.Closing += async (_, e) =>
+        {
+            if (cleanedUp) return;
+            e.Cancel = true;
+            try
+            {
+                await CloseEverythingAsync().WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(true);
+            }
+            catch (Exception error) when (error is TimeoutException or IOException or InvalidOperationException or ObjectDisposedException)
+            {
+                Framework.DesktopErrorLog.Write("shutdown", error);
+            }
+
+            cleanedUp = true;
+            window.Close();
+        };
+
+        async Task CloseEverythingAsync()
         {
             updater.Dispose();
-            await Services.ShellServices.CloseEditingAsync().ConfigureAwait(false);
-            await monitor.DisposeAsync().ConfigureAwait(false);
-            await model.Queue.DisposeAsync().ConfigureAwait(false);
+            await Services.ShellServices.CloseEditingAsync().ConfigureAwait(true);
+            await monitor.DisposeAsync().ConfigureAwait(true);
+            await model.Queue.DisposeAsync().ConfigureAwait(true);
             foreach (var workspace in model.Workspaces
                 .Select(static tab => tab.Workspace)
                 .OfType<WorkspaceModel>())
             {
-                await workspace.DisposeAsync().ConfigureAwait(false);
+                await workspace.DisposeAsync().ConfigureAwait(true);
             }
-        };
+
+            // "Only while StorageHub is open" means exactly that, so the agent goes with the window,
+            // as it did in 1.x. Only Windows has that mode; on Linux the agent is the user's unit.
+            if (OperatingSystem.IsWindows() && DesktopAgentHost.DesktopStopsAgent)
+            {
+                using var lifecycle = WindowsDesktopLifecycle.Create();
+                _ = await lifecycle.TryStopAgentAsync(AgentShutdownReason.Restart).ConfigureAwait(true);
+            }
+        }
 
         return window;
     }

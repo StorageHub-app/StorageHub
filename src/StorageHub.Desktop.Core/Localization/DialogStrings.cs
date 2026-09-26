@@ -290,4 +290,12 @@ internal sealed class DialogStrings : LocalizationModelBase
     public string LanguageRestartPromptFormat { get; set; } =
         "StorageHub needs to restart to switch to {0}.\n\nRestart now? Transfers and synchronization keep running in the background agent.";
 
+
+    // ------------------------------------------------------ unexpected errors
+    public string UnexpectedErrorCaption { get; set; } = "StorageHub";
+
+    /// <summary>{0} = what went wrong; {1} = the log file it was written to.</summary>
+    public string UnexpectedErrorFormat { get; set; } =
+        "Something went wrong that StorageHub did not expect: {0}\n\n" +
+        "StorageHub will keep running. The details were written to {1}.";
 }
