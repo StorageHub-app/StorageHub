@@ -819,6 +819,12 @@
     <Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/>
   </Style>
 
+  <!-- A folder or a drive in a listing, when there is no system icon: the folder colour, as a
+       file manager's folders are, so they stand apart from the files beside them. -->
+  <Style Selector="LucideIcon.folder">
+    <Setter Property="Foreground" Value="{DynamicResource WarningBrush}"/>
+  </Style>
+
   <Style Selector="LucideIcon.success">
     <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}"/>
   </Style>

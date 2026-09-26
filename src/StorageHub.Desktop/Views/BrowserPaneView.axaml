@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
              xmlns:core="clr-namespace:StorageHub.Desktop;assembly=StorageHub.Desktop.Core"
+             xmlns:themes="clr-namespace:StorageHub.Desktop.Themes"
              x:Class="StorageHub.Desktop.Views.BrowserPaneView"
              x:DataType="vm:BrowserPaneModel">
 
@@ -311,7 +312,27 @@
               name as an ellipsis in a four-pane workspace - which is the one column somebody is
               actually reading.
             -->
-            <TableViewColumn Binding="{Binding Name}" Width="*"/>
+            <TableViewColumn Width="*">
+              <!-- The name with its icon, as 1.x's list drew it: the system's own icon where
+                   there is one, a glyph chosen from the extension where there is not. -->
+              <TableViewColumn.CellTemplate>
+                <DataTemplate DataType="core:BrowserListItem">
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <Panel Width="16" Height="16" VerticalAlignment="Center">
+                      <Image Width="16" Height="16"
+                             RenderOptions.BitmapInterpolationMode="HighQuality"
+                             Source="{Binding Converter={x:Static themes:FileSystemIconConverter.Instance}}"/>
+                      <LucideIcon Size="16"
+                                  Kind="{Binding Converter={x:Static themes:FileGlyphConverter.Instance}}"
+                                  Classes.folder="{Binding Converter={x:Static themes:IsContainerRowConverter.Instance}}"
+                                  IsVisible="{Binding Converter={x:Static themes:HasNoSystemIconConverter.Instance}}"/>
+                    </Panel>
+                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis"/>
+                  </StackPanel>
+                </DataTemplate>
+              </TableViewColumn.CellTemplate>
+            </TableViewColumn>
             <TableViewColumn Binding="{Binding Size}" Width="80"/>
             <TableViewColumn Binding="{Binding Type}" Width="110"/>
             <TableViewColumn Binding="{Binding Modified}" Width="120"/>
