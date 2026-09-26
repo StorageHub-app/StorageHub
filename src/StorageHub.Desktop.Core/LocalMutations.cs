@@ -20,6 +20,15 @@ public interface ILocalMutations
 
     /// <summary>Removes <paramref name="path"/>, recursively when it is a folder.</summary>
     void Delete(string path, bool container);
+
+    /// <summary>
+    /// Whether a local delete can go somewhere it can be brought back from: the Recycle Bin on
+    /// Windows, the desktop's Trash on Linux.
+    /// </summary>
+    bool CanRecycle => false;
+
+    /// <summary>Sends <paramref name="path"/> to the Recycle Bin or the Trash.</summary>
+    void Recycle(string path, bool container) => Delete(path, container);
 }
 
 /// <summary>The real filesystem.</summary>
@@ -95,6 +104,50 @@ internal sealed class LocalMutations : ILocalMutations
         if (container) Directory.Delete(target, recursive: true);
         else File.Delete(target);
     }
+
+    /// <summary>
+    /// The Recycle Bin on Windows, as 1.x used; the freedesktop Trash on Linux, through
+    /// <c>gio trash</c>, which every mainstream desktop provides. 2.0 deleted permanently on both,
+    /// for want of a cross-platform call -- which cost Windows users the undo they had.
+    /// </summary>
+    public bool CanRecycle => OperatingSystem.IsWindows() || (OperatingSystem.IsLinux() && Gio.Value is not null);
+
+    public void Recycle(string path, bool container)
+    {
+        var target = Path.GetFullPath(path);
+        if (OperatingSystem.IsWindows())
+        {
+            WindowsRecycleBin.Send(target);
+            return;
+        }
+
+        if (Gio.Value is not { } gio)
+        {
+            Delete(path, container);
+            return;
+        }
+
+        using var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(gio)
+        {
+            ArgumentList = { "trash", "--", target },
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        }) ?? throw new IOException("gio could not be started.");
+        var error = process.StandardError.ReadToEnd();
+        process.WaitForExit();
+        if (process.ExitCode != 0)
+        {
+            throw new IOException(string.IsNullOrWhiteSpace(error) ? $"gio trash exited with {process.ExitCode}." : error.Trim());
+        }
+    }
+
+    /// <summary>Where <c>gio</c> is on the PATH, looked up once.</summary>
+    private static readonly Lazy<string?> Gio = new(static () =>
+        (Environment.GetEnvironmentVariable("PATH") ?? string.Empty)
+            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
+            .Select(static folder => Path.Combine(folder, "gio"))
+            .FirstOrDefault(File.Exists));
 
     private static void Move(string source, string destination, bool container)
     {

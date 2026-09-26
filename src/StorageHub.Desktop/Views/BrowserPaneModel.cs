@@ -192,6 +192,14 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
 
     public ObservableCollection<PaneConnection> Connections { get; } = [];
 
+    /// <summary>
+    /// Whether to ask before deleting: the "Warn before deleting" setting. Null asks every time.
+    /// </summary>
+    internal Func<bool>? DeleteConfirmation { get; set; }
+
+    /// <summary>Turns that setting off, for the review's "Don't show this warning again".</summary>
+    internal Action? StopDeleteConfirmation { get; set; }
+
     /// <summary>The folder tree beside the list.</summary>
     public PaneTreeModel Tree { get; } = new();
 
@@ -1439,22 +1447,44 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         var items = selection.Value.Items;
         if (items.Count == 0) return;
 
-        var summary = items.Count == 1
-            ? items[0].Name
-            : Ui.Format(Ui.Dialogs.SelectedItemsFormat, items.Count);
-        var choice = await _dialogs!.ConfirmAsync(
-            new DialogRequest
-            {
-                Title = Ui.Shell.DeleteItemsCaption,
-                Message = Ui.Format(Ui.Shell.DeleteItemsPromptFormat, summary),
-                Detail = Ui.Shell.DeleteItemsDetail,
-                Severity = DialogSeverity.Warning,
-                Buttons = DialogButtons.YesNo
-            },
-            cancellationToken).ConfigureAwait(true);
-        if (choice != DialogChoice.Yes) return;
-
         await using var mutations = _mutations!();
+        var local = location.Kind == PaneTransferContextKind.ThisPc;
+
+        // 1.x's review: what is about to go, up to six by name, and where it goes -- the Recycle
+        // Bin or Trash for this computer, gone for good on a connection. Skipped when somebody
+        // has said not to ask; the setting was saved and never read.
+        if (DeleteConfirmation?.Invoke() != false)
+        {
+            var preview = string.Join(
+                Environment.NewLine,
+                items.Take(6).Select(static item => Ui.Format(Ui.Dialogs.DeletePreviewItemFormat, item.Name)));
+            if (items.Count > 6)
+            {
+                preview += Environment.NewLine + Ui.Format(Ui.Dialogs.DeletePreviewMoreFormat, items.Count - 6);
+            }
+
+            var choice = await _dialogs!.ConfirmAsync(
+                new DialogRequest
+                {
+                    Title = Ui.Dialogs.ReviewDeleteCaption,
+                    Message = Ui.Format(Ui.Dialogs.DeleteItemsPromptFormat, items.Count),
+                    Detail = preview + Environment.NewLine + Environment.NewLine +
+                        (local && mutations.RecyclesLocalDeletes
+                            ? Ui.Dialogs.DeleteLocalToRecycleBin
+                            : local ? Ui.Shell.DeleteItemsDetail : Ui.Dialogs.DeleteRemotePermanent),
+                    Severity = DialogSeverity.Warning,
+                    Buttons = DialogButtons.YesNo,
+                    Default = DialogChoice.No,
+                    CheckBoxLabel = StopDeleteConfirmation is null ? null : Ui.Dialogs.DontShowWarningAgain,
+                    CheckBoxAnswered = ticked =>
+                    {
+                        if (ticked) StopDeleteConfirmation?.Invoke();
+                    }
+                },
+                cancellationToken).ConfigureAwait(true);
+            if (choice != DialogChoice.Yes) return;
+        }
+
         var outcome = await mutations
             .DeleteAsync(location, items, cancellationToken)
             .ConfigureAwait(true);
@@ -1466,6 +1496,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         // this happened" is a different situation from "nothing was deleted".
         Status = outcome switch
         {
+            { IsSuccess: true, Recycled: true } => Ui.Format(Ui.Shell.SentToRecycleBinFormat, outcome.Deleted),
             { IsSuccess: true } => Ui.Format(Ui.Shell.DeletedItemsFormat, outcome.Deleted),
             { Deleted: 0 } => Ui.Format(Ui.Shell.ItemsDeleteFailedFormat, outcome.Failure!.Message),
             _ => Ui.Format(Ui.Shell.DeletedThenStoppedFormat, outcome.Deleted, outcome.Failure!.Message)

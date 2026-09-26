@@ -76,6 +76,17 @@ internal sealed record DialogRequest
     /// answer must never be the one a stray Enter picks.
     /// </remarks>
     public DialogChoice? Default { get; init; }
+
+    /// <summary>
+    /// A checkbox under the message, such as "Don't show this warning again". Null draws none.
+    /// </summary>
+    public string? CheckBoxLabel { get; init; }
+
+    /// <summary>
+    /// Told whether the checkbox was ticked, once the dialog is answered with anything but
+    /// Cancel or No -- a warning dismissed is not a warning agreed to never see again.
+    /// </summary>
+    public Action<bool>? CheckBoxAnswered { get; init; }
 }
 
 /// <summary>

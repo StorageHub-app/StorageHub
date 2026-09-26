@@ -727,11 +727,43 @@ internal static class ShellPreview
     }
 
 
-    /// <summary>A pane that, in the running application, starts reading its connections at once.</summary>
+    /// <summary>
+    /// A pane that, in the running application, starts reading its connections at once and asks
+    /// before deleting according to the saved setting.
+    /// </summary>
     private static BrowserPaneModel Loaded(bool live, BrowserPaneModel pane)
     {
-        if (live) _ = pane.LoadConnectionsAsync();
+        if (!live) return pane;
+        pane.DeleteConfirmation = static () => ReadPreferences()?.ConfirmBeforeDeletingItems ?? true;
+        pane.StopDeleteConfirmation = static () => UpdatePreferences(static preferences =>
+            preferences with { ConfirmBeforeDeletingItems = false });
+        _ = pane.LoadConnectionsAsync();
         return pane;
+    }
+
+    private static DesktopUpdatePreferences? ReadPreferences()
+    {
+        try
+        {
+            return new DesktopConfigStore(DesktopFrameworkPaths.Resolve().ApplicationRoot).Load();
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            return null;
+        }
+    }
+
+    private static void UpdatePreferences(Func<DesktopUpdatePreferences, DesktopUpdatePreferences> change)
+    {
+        try
+        {
+            var store = new DesktopConfigStore(DesktopFrameworkPaths.Resolve().ApplicationRoot);
+            store.Save(change(store.Load()));
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            // The warning comes back next time rather than failing the delete over it.
+        }
     }
 
     /// <summary>

@@ -96,9 +96,10 @@ setting to choose it (P.5.1).
 - [x] P.2.8 Loading overlay ("Fetching folder") over the list; a centred empty-folder notice; a warning
       banner for errors that retries when clicked.
 - [x] P.2.9 The directory tree (was 3.1). Built from what the pane lists, as 1.x's was.
-- [ ] P.2.10 Delete: local items to the Recycle Bin; a confirmation listing up to six items with
+- [x] P.2.10 Delete: local items to the Recycle Bin; a confirmation listing up to six items with
       "don't show again", skipped when "Warn before deleting" is off (the setting is saved and unread).
-      `DeleteItemsConfirmationForm.cs`.
+      `DeleteItemsConfirmationForm.cs`. Done, and Linux too: the desktop Trash through `gio trash`,
+      permanent only where there is no gio -- the reason 2.0 had given for dropping the Recycle Bin.
 - [ ] P.2.11 Drag out to Explorer: real paths from This PC, the drop broker from a connection; highlight
       the pane being dragged over. Files dropped from Explorer go through the agent's plan and ask
       Replace/Skip/Cancel on conflicts, as 1.4 did, rather than queueing at once.

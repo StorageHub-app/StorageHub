@@ -132,14 +132,10 @@ public class PaneFileOperationTests
     }
 
     /// <summary>
-    /// The confirmation says the deletion cannot be undone, because in 2.0 it cannot.
+    /// The review names what is about to go and says a connection's delete is for good, as 1.x's did.
     /// </summary>
-    /// <remarks>
-    /// 1.x sent local deletions to the Windows Recycle Bin. There is no cross-platform equivalent,
-    /// so the honest thing is to say so rather than offer a recovery that exists on one platform.
-    /// </remarks>
     [AvaloniaFact]
-    public async Task TheDeleteConfirmationSaysItCannotBeUndone()
+    public async Task TheDeleteReviewNamesTheItemsAndSaysARemoteDeleteIsPermanent()
     {
         await using var fixture = await OpenedAsync();
         var (pane, _, dialogs) = fixture;
@@ -148,8 +144,69 @@ public class PaneFileOperationTests
 
         await pane.DeleteAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(Ui.Shell.DeleteItemsDetail, dialogs.LastRequest!.Detail);
+        Assert.Equal(Ui.Dialogs.ReviewDeleteCaption, dialogs.LastRequest!.Title);
+        Assert.Contains(Ui.Format(Ui.Dialogs.DeletePreviewItemFormat, pane.Rows[0].Name), dialogs.LastRequest.Detail, StringComparison.Ordinal);
+        Assert.EndsWith(Ui.Dialogs.DeleteRemotePermanent, dialogs.LastRequest.Detail, StringComparison.Ordinal);
         Assert.Equal(DialogSeverity.Warning, dialogs.LastRequest.Severity);
+        Assert.Equal(DialogChoice.No, dialogs.LastRequest.Default);
+    }
+
+    /// <summary>On this computer the review says Recycle Bin, and the delete goes there.</summary>
+    [AvaloniaFact]
+    public async Task ALocalDeleteGoesToTheRecycleBin()
+    {
+        var folder = Directory.CreateTempSubdirectory("storagehub-recycle-");
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(folder.FullName, "old.txt"), "x", TestContext.Current.CancellationToken);
+            var local = new RecordingLocal();
+            var dialogs = new RecordingDialogs { Choice = DialogChoice.Yes };
+            await using var pane = new BrowserPaneModel(
+                new RecordingAgent([]),
+                mutations: () => new PaneMutationController(static () => throw new InvalidOperationException(), local),
+                dialogs: dialogs);
+            await pane.LoadConnectionsAsync(TestContext.Current.CancellationToken);
+            await pane.OpenAsync(pane.Connections.Single(c => c.Id is null), TestContext.Current.CancellationToken);
+            await pane.NavigateAsync(folder.FullName, TestContext.Current.CancellationToken);
+            pane.SelectedRows.Add(pane.Rows.Single(static row => row.Name == "old.txt"));
+
+            await pane.DeleteAsync(TestContext.Current.CancellationToken);
+
+            Assert.EndsWith(Ui.Dialogs.DeleteLocalToRecycleBin, dialogs.LastRequest!.Detail, StringComparison.Ordinal);
+            Assert.Equal("old.txt", Path.GetFileName(Assert.Single(local.Recycled)));
+            Assert.Empty(local.Deleted);
+            Assert.Equal(Ui.Format(Ui.Shell.SentToRecycleBinFormat, 1), pane.Status);
+        }
+        finally
+        {
+            folder.Delete(recursive: true);
+        }
+    }
+
+    /// <summary>"Don't show this warning again" turns the setting off; with it off, nothing asks.</summary>
+    [AvaloniaFact]
+    public async Task TheWarningCanBeTurnedOffAndThenIsNotShown()
+    {
+        await using var fixture = await OpenedAsync();
+        var (pane, agent, dialogs) = fixture;
+        var confirm = true;
+        pane.DeleteConfirmation = () => confirm;
+        pane.StopDeleteConfirmation = () => confirm = false;
+        pane.SelectedRows.Add(pane.Rows.Single(static row => row.Name == "render.exr"));
+        dialogs.Choice = DialogChoice.Yes;
+        dialogs.Tick = true;
+
+        await pane.DeleteAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(Ui.Dialogs.DontShowWarningAgain, dialogs.LastRequest!.CheckBoxLabel);
+        Assert.False(confirm);
+
+        dialogs.LastRequest = null;
+        pane.SelectedRows.Clear();
+        pane.SelectedRows.Add(pane.Rows.Single(static row => row.Name == "reports"));
+        await pane.DeleteAsync(TestContext.Current.CancellationToken);
+
+        Assert.Null(dialogs.LastRequest);
+        Assert.Equal(2, agent.Deletes.Count);
     }
 
     [AvaloniaFact]
@@ -240,6 +297,24 @@ public class PaneFileOperationTests
     }
 
     /// <summary>The dialogs, answered by the test instead of by a person.</summary>
+    /// <summary>This computer, recording what it was asked to recycle or delete, and doing neither.</summary>
+    private sealed class RecordingLocal : ILocalMutations
+    {
+        internal List<string> Recycled { get; } = [];
+
+        internal List<string> Deleted { get; } = [];
+
+        public bool CanRecycle => true;
+
+        public void Create(string parent, string name, bool container) => throw new NotSupportedException();
+
+        public void Rename(string path, string newName, bool container) => throw new NotSupportedException();
+
+        public void Delete(string path, bool container) => Deleted.Add(path);
+
+        public void Recycle(string path, bool container) => Recycled.Add(path);
+    }
+
     private sealed class RecordingDialogs : IDialogService
     {
         internal string? Answer { get; set; }
@@ -248,7 +323,7 @@ public class PaneFileOperationTests
 
         internal DialogPromptRequest? LastPrompt { get; private set; }
 
-        internal DialogRequest? LastRequest { get; private set; }
+        internal DialogRequest? LastRequest { get; set; }
 
         public Task ShowAsync(DialogRequest request, CancellationToken cancellationToken = default)
         {
@@ -256,11 +331,15 @@ public class PaneFileOperationTests
             return Task.CompletedTask;
         }
 
+        /// <summary>Whether the dialog's checkbox is ticked when it is answered.</summary>
+        internal bool Tick { get; set; }
+
         public Task<DialogChoice> ConfirmAsync(
             DialogRequest request,
             CancellationToken cancellationToken = default)
         {
             LastRequest = request;
+            if (Choice is not (DialogChoice.Cancel or DialogChoice.No)) request.CheckBoxAnswered?.Invoke(Tick);
             return Task.FromResult(Choice);
         }
 

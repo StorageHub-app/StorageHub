@@ -46,6 +46,11 @@ public partial class DialogWindow : Window
         detail.Text = request.Detail;
         detail.IsVisible = !string.IsNullOrWhiteSpace(request.Detail);
 
+        var check = this.GetControl<CheckBox>("PART_CheckBox");
+        check.Content = request.CheckBoxLabel;
+        check.IsVisible = !string.IsNullOrWhiteSpace(request.CheckBoxLabel);
+        _checkBoxAnswered = request.CheckBoxAnswered;
+
         var icon = this.GetControl<LucideIcon>("PART_Icon");
         icon.Kind = KindFor(request.Severity);
         icon.Foreground = BrushFor(request.Severity);
@@ -92,9 +97,16 @@ public partial class DialogWindow : Window
         base.OnKeyDown(e);
     }
 
+    private Action<bool>? _checkBoxAnswered;
+
     private void Close(DialogChoice choice)
     {
         _result = choice;
+        if (choice is not (DialogChoice.Cancel or DialogChoice.No) && _checkBoxAnswered is { } answered)
+        {
+            answered(this.GetControl<CheckBox>("PART_CheckBox").IsChecked == true);
+        }
+
         Close();
     }
 

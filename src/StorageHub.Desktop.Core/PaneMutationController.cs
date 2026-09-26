@@ -7,7 +7,7 @@ namespace StorageHub.Desktop;
 
 /// <summary>What a batch of deletions actually managed to do.</summary>
 /// <param name="Deleted">How many were removed before it stopped, if it stopped.</param>
-public sealed record PaneDeleteOutcome(int Deleted, StorageFailure? Failure)
+public sealed record PaneDeleteOutcome(int Deleted, StorageFailure? Failure, bool Recycled = false)
 {
     public bool IsSuccess => Failure is null;
 }
@@ -37,6 +37,9 @@ public sealed class PaneMutationController(
         inspector ?? throw new ArgumentNullException(nameof(inspector));
 
     private readonly ILocalMutations _local = local ?? new LocalMutations();
+
+    /// <summary>Whether a delete on this computer goes to the Recycle Bin or the Trash.</summary>
+    public bool RecyclesLocalDeletes => _local.CanRecycle;
 
     /// <summary>Makes an empty folder in the pane's current location.</summary>
     public Task<StorageResult> CreateFolderAsync(
@@ -143,14 +146,18 @@ public sealed class PaneMutationController(
         {
             if (location.Kind == PaneTransferContextKind.ThisPc)
             {
+                // To the Recycle Bin or the Trash where this computer has one, as 1.x did on
+                // Windows; removed outright only where it has neither.
+                var recycle = _local.CanRecycle;
                 foreach (var item in items)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    _local.Delete(item.RelativePath, item.IsContainer);
+                    if (recycle) _local.Recycle(item.RelativePath, item.IsContainer);
+                    else _local.Delete(item.RelativePath, item.IsContainer);
                     deleted++;
                 }
 
-                return new PaneDeleteOutcome(deleted, null);
+                return new PaneDeleteOutcome(deleted, null, recycle);
             }
 
             if (!Addressable(location, out var connectionId, out var rootIdentity))

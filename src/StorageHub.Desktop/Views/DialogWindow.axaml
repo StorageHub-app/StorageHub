@@ -51,6 +51,7 @@
                      Classes="muted"
                      TextWrapping="Wrap"
                      IsVisible="False"/>
+          <CheckBox Name="PART_CheckBox" IsVisible="False" Margin="0,6,0,0"/>
         </StackPanel>
       </Grid>
 
