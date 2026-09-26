@@ -51,7 +51,11 @@ internal sealed record WorkspaceTab(
     string Title,
     LucideIconKind Icon,
     object? Page,
-    WorkspaceModel? Workspace = null);
+    WorkspaceModel? Workspace = null)
+{
+    /// <summary>Whether the tab has a close button: a workspace does, a page of the shell does not.</summary>
+    public bool IsClosable => Workspace is not null;
+}
 
 internal sealed record QueueTab(string Title, LucideIconKind Icon);
 
@@ -342,6 +346,39 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
     public ConnectionsSidebar Sidebar { get; init; } = null!;
 
     public ICommand NewWorkspaceCommand { get; init; } = null!;
+
+    /// <summary>The X on a workspace tab; its parameter is the tab.</summary>
+    public ICommand CloseWorkspaceCommand => _closeWorkspace ??= new RelayCommand(
+        tab => _ = CloseWorkspaceAsync(tab as WorkspaceTab),
+        tab => tab is WorkspaceTab { IsClosable: true });
+
+    private RelayCommand? _closeWorkspace;
+
+    public static string CloseWorkspaceLabel => Ui.Commands.WorkspaceCloseWorkspace;
+
+    /// <summary>
+    /// Closes a workspace tab, or the one showing when no tab is named.
+    /// </summary>
+    /// <remarks>
+    /// Its panes are disposed with it, which closes their connections and any shell they held: a
+    /// closed tab that kept a socket open would be one nobody could reach to close it. The tab to
+    /// its left is shown next, as 1.x did, so closing is never a jump to somewhere unrelated.
+    /// </remarks>
+    internal async Task CloseWorkspaceAsync(WorkspaceTab? tab = null)
+    {
+        tab ??= Workspaces.ElementAtOrDefault(SelectedWorkspace);
+        if (tab is not { Workspace: { } workspace }) return;
+
+        var index = Workspaces.IndexOf(tab);
+        if (index < 0) return;
+
+        var showing = SelectedWorkspace;
+        Workspaces.RemoveAt(index);
+        SelectedWorkspace = showing > index || showing >= Workspaces.Count
+            ? Math.Max(0, showing - 1)
+            : showing;
+        await workspace.DisposeAsync().ConfigureAwait(true);
+    }
 
     public string NewWorkspaceLabel { get; init; } = string.Empty;
 

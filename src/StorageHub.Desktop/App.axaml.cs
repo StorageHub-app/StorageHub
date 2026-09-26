@@ -58,6 +58,7 @@ public partial class App : global::Avalonia.Application
             // which is what the chooser's "stop asking" box does, and what makes the dialog worth
             // having rather than something to dismiss.
             model.Router.Handle(UiCommandIds.WorkspaceNewWorkspace, () => _ = AddWorkspaceAsync(model));
+            model.Router.Handle(UiCommandIds.WorkspaceCloseWorkspace, () => _ = model.CloseWorkspaceAsync());
 
             // The Connection Manager, from the menu and from the panel's own New button. Both open
             // the same window: "new connection" is the manager with an empty editor, which is one

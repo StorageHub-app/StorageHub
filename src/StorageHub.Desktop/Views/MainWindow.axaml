@@ -135,9 +135,18 @@
           </TabControl.Tag>
           <TabControl.ItemTemplate>
             <DataTemplate DataType="vm:WorkspaceTab">
+              <!-- A workspace carries its own close button, as 1.x's tabs did; Welcome and Sync
+                   tasks are the shell's own pages and stay. -->
               <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceSm}">
                 <LucideIcon Kind="{Binding Icon}" Size="{StaticResource IconSizeSm}"/>
-                <TextBlock Text="{Binding Title}"/>
+                <TextBlock Text="{Binding Title}" VerticalAlignment="Center"/>
+                <Button Classes="tool tab-close" IsVisible="{Binding IsClosable}"
+                        Command="{Binding $parent[TabControl].((vm:ShellPreviewModel)DataContext).CloseWorkspaceCommand}"
+                        CommandParameter="{Binding}"
+                        ToolTip.Tip="{x:Static vm:ShellPreviewModel.CloseWorkspaceLabel}"
+                        AutomationProperties.Name="{x:Static vm:ShellPreviewModel.CloseWorkspaceLabel}">
+                  <LucideIcon Kind="X" Size="12"/>
+                </Button>
               </StackPanel>
             </DataTemplate>
           </TabControl.ItemTemplate>

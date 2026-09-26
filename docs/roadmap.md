@@ -34,9 +34,9 @@ reference shot.
       along the top. Text size was a false alarm: body text is 12 px like 1.4's 9 pt Segoe UI, and the
       "1.25x" shell shots lay out a larger window at 1.0 rather than scaling, which makes text look
       small beside a 125% reference.
-- [ ] L.8 Workspace tabs: Save, Save As, Open and Close workspace have no handlers in 2.0. The tab's
-      close button and its `*` for unsaved changes come with them, so this is behaviour rather than
-      look, but 1.4 had it and ui-reference 05 shows it.
+- [ ] L.8 Workspace tabs: Save, Save As and Open workspace have no handlers in 2.0, and the tab's `*`
+      for unsaved changes comes with them. Close is done: the X on a workspace tab and
+      Workspace > Close Workspace both close it and release its panes' connections.
 - [ ] L.2 The file pane (ref 05). Done apart from the drag-hint row: the chip, the badges, the state
       line, the `FILES` row with its overflow, "Filter:" and the item count. Was: the connection chip with its `STORAGE`/`LOCAL` badges and the
       "● Ready" status line in place of the "Select the profile to connect" drop-down; the labelled
