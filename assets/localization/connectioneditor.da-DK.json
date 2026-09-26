@@ -124,5 +124,7 @@
   "typeLabel": "Type",
   "tabSecurity": "TLS / SSH-tillid",
   "providerColorBadgeFormat": "  {0}  · udbyderfarve {1}",
+  "typeStorage": "Lager",
+  "typeClient": "Klient",
   "culture": "da-DK"
 }

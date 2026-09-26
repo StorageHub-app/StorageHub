@@ -222,8 +222,58 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             if (string.Equals(_path, value, StringComparison.Ordinal)) return;
             _path = value;
             Raise(nameof(Path));
+            Address = value;
         }
     }
+
+    private string _address = "/";
+
+    /// <summary>
+    /// What is typed in the address bar. It follows <see cref="Path"/> until somebody types in it,
+    /// and Enter goes there, as 1.x's editable address did; 2.0's box was read-only.
+    /// </summary>
+    public string Address
+    {
+        get => _address;
+        set
+        {
+            value ??= string.Empty;
+            if (string.Equals(_address, value, StringComparison.Ordinal)) return;
+            _address = value;
+            Raise(nameof(Address));
+        }
+    }
+
+    /// <summary>Goes to what is typed in the address bar.</summary>
+    public ICommand GoToAddressCommand => _goToAddress ??= new RelayCommand(
+        _ => _ = GoToAddressAsync(), _ => _source is not null && !IsTerminal);
+
+    private RelayCommand? _goToAddress;
+
+    /// <summary>
+    /// Goes to a typed address. A path that does not work says why in the pane and leaves the
+    /// listing where it was, so a typo costs nothing; the typed text stays to be corrected.
+    /// </summary>
+    internal async Task GoToAddressAsync(CancellationToken cancellationToken = default)
+    {
+        var typed = _address.Trim();
+        if (typed.Length == 0 || string.Equals(typed, _path, StringComparison.Ordinal)) return;
+
+        // This PC's own name goes back to the drive list, as it did in 1.x.
+        await NavigateAsync(
+            string.Equals(typed, Ui.Pane.ThisPc, StringComparison.OrdinalIgnoreCase) && _source is LocalPaneSource
+                ? string.Empty
+                : typed,
+            cancellationToken).ConfigureAwait(true);
+    }
+
+    /// <summary>Puts the current path back in the address bar, as Escape does.</summary>
+    internal void ResetAddress() => Address = _path;
+
+    /// <summary>Asks the view to put the cursor in the address bar, as Ctrl+L does.</summary>
+    internal void FocusAddress() => FocusAddressRequested?.Invoke(this, EventArgs.Empty);
+
+    internal event EventHandler? FocusAddressRequested;
 
     /// <summary>What the pane is doing, or why it is not showing anything.</summary>
     public string Status
@@ -1076,7 +1126,24 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             {
                 var remote = new RemotePaneSource(_controller, choice.Name);
                 _source = remote;
-                Report(await remote.OpenAsync(connectionId, cancellationToken).ConfigureAwait(true));
+                var opened = await remote.OpenAsync(connectionId, cancellationToken).ConfigureAwait(true);
+
+                // A connection that would not open shows nothing, not the previous connection's
+                // files under this one's name -- rows nothing could act on, since they belong to
+                // a source this pane no longer holds.
+                if (opened.Listing is null)
+                {
+                    Rows.Clear();
+                    SelectedRows.Clear();
+                    Index.Reset([]);
+                    _hasMore = false;
+                    _isAtRoot = true;
+                    Path = "/";
+                    Raise(nameof(ItemCount));
+                    Raise(nameof(HasMorePages));
+                }
+
+                Report(opened);
                 return;
             }
 

@@ -88,5 +88,7 @@
   "buttonContinueAnyway": "Fortsæt alligevel",
   "languageRestartCaption": "Skift sprog",
   "languageRestartPromptFormat": "StorageHub skal genstarte for at skifte til {0}.\n\nGenstart nu? Overførsler og synkronisering fortsætter i baggrundsagenten.",
+  "unexpectedErrorCaption": "StorageHub",
+  "unexpectedErrorFormat": "Der skete noget, som StorageHub ikke forventede: {0}\n\nStorageHub kører videre. Detaljerne er skrevet til {1}.",
   "culture": "da-DK"
 }

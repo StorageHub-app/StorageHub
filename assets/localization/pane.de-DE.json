@@ -131,5 +131,10 @@
   "terminalConnectHint": "SSH-Clients öffnen hier ein Terminal statt einer Dateiliste.",
   "columnType": "Typ",
   "droppedItemsUnusable": "Hier können nur Dateien und Ordner dieses Computers abgelegt werden.",
+  "itemCountFormat": "{0:N0} Elemente",
+  "itemCountFilteredFormat": "{0:N0} von {1:N0} Elementen",
+  "filesCaption": "DATEIEN",
+  "moreAvailableSuffix": " | weitere verfügbar",
+  "indexingNextPageSuffix": " | nächste Seite wird indiziert…",
   "culture": "de-DE"
 }

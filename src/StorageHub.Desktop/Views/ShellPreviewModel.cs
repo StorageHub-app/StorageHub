@@ -106,6 +106,9 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         Router.Handle(UiCommandIds.EditSelectAll, () => ActivePane()?.SelectAll());
         Router.Handle(UiCommandIds.EditInvertSelection, () => ActivePane()?.InvertSelection());
 
+        // Ctrl+L, as 1.x and every browser have it: the cursor in the address, all of it selected.
+        Router.Handle(UiCommandIds.GoFocusAddress, () => ActivePane()?.FocusAddress());
+
         // Everything else the pane already draws a button for. Routed through the command rather
         // than the method so the menu entry and the button decline in the same cases -- a rename
         // with two rows selected, a paste into a terminal -- instead of the menu finding out by
@@ -344,6 +347,9 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
     }
 
     public ConnectionsSidebar Sidebar { get; init; } = null!;
+
+    /// <summary>What a pane's right-click menu offers after its own Open and Edit.</summary>
+    internal IReadOnlyList<object> PaneContextEntries { get; init; } = [];
 
     /// <summary>
     /// Brings a stopped agent back, the same way startup does. Set by the application; null in a
@@ -617,6 +623,7 @@ internal static class ShellPreview
         var model = new ShellPreviewModel(router)
         {
             Menus = BuildMenus(router),
+            PaneContextEntries = BuildPaneContextMenu(router),
             Toolbar = BuildToolbar(router),
             SelectedWorkspace = selectedWorkspace,
             Sidebar = BuildSidebar(router),
@@ -840,6 +847,29 @@ internal static class ShellPreview
             .Select(object (id) => id == ToolbarLayout.Separator
                 ? ToolbarSeparator.Instance
                 : ToEntry(UiCommandCatalog.GetDefinition(id), router)),
+    ];
+
+    /// <summary>
+    /// A pane's right-click menu, as 1.x had it: making things, then changing the selection, then
+    /// moving it between panes, then the pane itself. Built from the catalog, so each entry is the
+    /// menu bar's own -- the same label, icon, shortcut and routing to the pane it was opened on.
+    /// Open and Edit are the pane's own and are added by the view in front of these.
+    /// </summary>
+    private static IReadOnlyList<object> BuildPaneContextMenu(ShellCommandRouter router) =>
+    [
+        .. new[]
+        {
+            UiCommandIds.EditNewFolder, UiCommandIds.EditNewEmptyFile, ToolbarLayout.Separator,
+            UiCommandIds.EditRename, UiCommandIds.EditBatchRename, ToolbarLayout.Separator,
+            UiCommandIds.EditCopy, UiCommandIds.EditCut, UiCommandIds.EditPaste, UiCommandIds.EditDelete,
+            ToolbarLayout.Separator,
+            UiCommandIds.ViewRefresh, UiCommandIds.EditSelectAll, ToolbarLayout.Separator,
+            UiCommandIds.EditProperties,
+        }
+        .Where(id => id == ToolbarLayout.Separator || UiCommandCatalog.IsAvailable(id))
+        .Select(object (id) => id == ToolbarLayout.Separator
+            ? ToolbarSeparator.Instance
+            : ToEntry(UiCommandCatalog.GetDefinition(id), router)),
     ];
 
     private static CommandEntry ToEntry(UiCommandDefinition definition, ShellCommandRouter router) => new(

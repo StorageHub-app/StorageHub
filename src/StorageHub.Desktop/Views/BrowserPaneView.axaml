@@ -244,7 +244,9 @@
         <Button Grid.Column="2" Classes="tool" Command="{Binding UpCommand}">
           <LucideIcon Kind="ArrowUp" Size="{StaticResource IconSizeSm}"/>
         </Button>
-        <TextBox Grid.Column="3" Classes="dense" Text="{Binding Path}" IsReadOnly="True"
+        <TextBox x:Name="PART_Address" Grid.Column="3" Classes="dense"
+                 Text="{Binding Address, Mode=TwoWay}"
+                 AutomationProperties.Name="{Binding Path}"
                  VerticalAlignment="Center"/>
         <Button Grid.Column="4" Classes="tool" Command="{Binding RefreshCommand}"
                 ToolTip.Tip="{Binding RefreshLabel}">

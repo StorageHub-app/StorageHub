@@ -5,6 +5,8 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.VisualTree;
+using Lucide.Avalonia;
+using StorageHub.Desktop.Localization;
 
 namespace StorageHub.Desktop.Views;
 
@@ -48,6 +50,32 @@ public partial class BrowserPaneView : UserControl
         AddHandler(TappedEvent, OnTapped, RoutingStrategies.Bubble, handledEventsToo: true);
         DataContextChanged += (_, _) => Bind(Model);
         AddHandler(ScrollViewer.ScrollChangedEvent, OnScrollChanged, RoutingStrategies.Bubble);
+        AddHandler(ContextRequestedEvent, OnContextRequested, RoutingStrategies.Tunnel);
+        if (this.FindControl<TextBox>("PART_Address") is { } address)
+        {
+            // Enter goes there; Escape puts back where the pane is. Handled here so the list's own
+            // Enter and Backspace, which open and go up, never see keys meant for the address.
+            address.KeyDown += (_, e) =>
+            {
+                if (Model is not { } model) return;
+                if (e.Key == Key.Enter)
+                {
+                    model.GoToAddressCommand.Execute(null);
+                    e.Handled = true;
+                }
+                else if (e.Key == Key.Escape)
+                {
+                    model.ResetAddress();
+                    Table?.Focus();
+                    e.Handled = true;
+                }
+            };
+            address.LostFocus += (_, _) =>
+            {
+                // Left without going anywhere: show where the pane actually is again.
+                if (Model is { } model && !model.IsBusy) model.ResetAddress();
+            };
+        }
         PaneDragHandler.Attach(this, () => Model);
         RefreshHeadings();
         AttachConnectionPicker();
@@ -122,10 +150,27 @@ public partial class BrowserPaneView : UserControl
     private void Bind(BrowserPaneModel? model)
     {
         if (ReferenceEquals(_bound, model)) return;
-        if (_bound is not null) _bound.PropertyChanged -= OnModelChanged;
+        if (_bound is not null)
+        {
+            _bound.PropertyChanged -= OnModelChanged;
+            _bound.FocusAddressRequested -= OnFocusAddress;
+        }
+
         _bound = model;
-        if (_bound is not null) _bound.PropertyChanged += OnModelChanged;
+        if (_bound is not null)
+        {
+            _bound.PropertyChanged += OnModelChanged;
+            _bound.FocusAddressRequested += OnFocusAddress;
+        }
+
         RefreshHeadings();
+    }
+
+    private void OnFocusAddress(object? sender, EventArgs e)
+    {
+        if (this.FindControl<TextBox>("PART_Address") is not { } address) return;
+        address.Focus();
+        address.SelectAll();
     }
 
     private void OnModelChanged(object? sender, PropertyChangedEventArgs e)
@@ -185,7 +230,73 @@ public partial class BrowserPaneView : UserControl
     /// </remarks>
     private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (Model is { IsActive: false } model) model.IsActive = true;
+        if (Model is not { } model) return;
+        if (!model.IsActive) model.IsActive = true;
+
+        // A right-click on a row that is not part of the selection makes it the selection, as
+        // Explorer and 1.x did, so the menu acts on what was clicked rather than on something
+        // selected elsewhere in the list.
+        if (e.GetCurrentPoint(this).Properties.IsRightButtonPressed &&
+            e.Source is Visual source &&
+            source.FindAncestorOfType<TableView>() is not null &&
+            (source as StyledElement ?? source.FindAncestorOfType<StyledElement>())?.DataContext is BrowserListItem row &&
+            !model.SelectedRows.Contains(row))
+        {
+            model.SelectedRows.Clear();
+            model.SelectedRows.Add(row);
+            model.Selected = row;
+        }
+    }
+
+    /// <summary>
+    /// The list's right-click menu: Open and Edit, which are this pane's, then the shell's own
+    /// entries for everything else, with their shortcuts shown.
+    /// </summary>
+    /// <remarks>
+    /// Built when it opens, so Open says "Go up one level" on ".." and each entry's availability is
+    /// the one at that moment. The shell's entries route to the active pane, which the right-click
+    /// has just made this one.
+    /// </remarks>
+    private void OnContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        if (Model is not { IsListing: true } model || Table is not { } table) return;
+        if (e.Source is not Visual source || source.FindAncestorOfType<TableView>() is null && source != table) return;
+
+        var items = new List<Control>
+        {
+            new MenuItem
+            {
+                Header = model.Selected is { IsParentNavigation: true } ? Ui.Pane.GoUpOneLevel : Ui.Pane.Open,
+                Command = model.OpenCommand,
+                FontWeight = Avalonia.Media.FontWeight.SemiBold,
+                Icon = new LucideIcon { Kind = LucideIconKind.FolderOpen, Size = 16 },
+            },
+            new MenuItem
+            {
+                Header = Ui.Pane.EditInExternalEditor,
+                Command = model.EditCommand,
+                Icon = new LucideIcon { Kind = LucideIconKind.FilePen, Size = 16 },
+            },
+            new Separator(),
+        };
+
+        if (TopLevel.GetTopLevel(this)?.DataContext is ShellPreviewModel shell)
+        {
+            foreach (var entry in shell.PaneContextEntries)
+            {
+                items.Add(entry is CommandEntry command
+                    ? new MenuItem
+                    {
+                        Header = command.Label,
+                        Command = command.Command,
+                        InputGesture = command.Shortcut,
+                        Icon = command.Icon is { } icon ? new LucideIcon { Kind = icon, Size = 16 } : null,
+                    }
+                    : new Separator());
+            }
+        }
+
+        table.ContextMenu = new ContextMenu { ItemsSource = items };
     }
 
     private void Open(RoutedEventArgs e)

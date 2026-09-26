@@ -124,5 +124,7 @@
   "typeLabel": "Typ",
   "tabSecurity": "TLS / SSH-Vertrauen",
   "providerColorBadgeFormat": "  {0}  · Anbieterfarbe {1}",
+  "typeStorage": "Speicher",
+  "typeClient": "Client",
   "culture": "de-DE"
 }

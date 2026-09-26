@@ -50,6 +50,16 @@ public readonly record struct LocalBrowserLocation
             candidate = candidate[1..^1].Trim();
         }
 
+        // A relative path would be resolved against the process's working directory -- the
+        // install folder, as far as anybody typing knows -- so "photos" opened a folder under
+        // StorageHub itself. An address bar has no current folder of that kind; it takes a full
+        // path or This PC.
+        if (!Path.IsPathFullyQualified(candidate))
+        {
+            errorMessage = Ui.Validation.EnterAFolderPathOrThisPC;
+            return false;
+        }
+
         try
         {
             location = FromDirectory(candidate);

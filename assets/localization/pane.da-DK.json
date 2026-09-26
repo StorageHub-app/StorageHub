@@ -131,5 +131,10 @@
   "terminalConnectHint": "SSH-klienter åbner en terminal her i stedet for en filliste.",
   "columnType": "Type",
   "droppedItemsUnusable": "Kun filer og mapper på denne computer kan slippes her.",
+  "itemCountFormat": "{0:N0} elementer",
+  "itemCountFilteredFormat": "{0:N0} af {1:N0} elementer",
+  "filesCaption": "FILER",
+  "moreAvailableSuffix": " | flere tilgængelige",
+  "indexingNextPageSuffix": " | indekserer næste side…",
   "culture": "da-DK"
 }

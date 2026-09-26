@@ -82,11 +82,12 @@ setting to choose it (P.5.1).
 - [x] P.2.3 The collision check reads the whole folder, not the filtered rows.
 - [x] P.2.4 Icons: shell icons per extension on Windows, drive icons on This PC, folder/file glyphs as
       the fallback and on Linux. `WindowsShellIconProvider.cs`, `BrowserPaneControl.cs:1199-1206`.
-- [ ] P.2.5 Right-click menu on the list, selecting the row under the pointer: New folder, New file,
+- [x] P.2.5 Right-click menu on the list, selecting the row under the pointer: New folder, New file,
       Open/Go up, Edit, Rename, Batch rename, Copy, Cut, Paste, Delete, Refresh, Select all, Properties,
-      with shortcuts. `BrowserPaneControl.cs:498-574`.
-- [ ] P.2.6 An editable address bar (Enter goes there, a bad path says why) and Ctrl+L to focus it.
-- [ ] P.2.7 A failed switch to another connection clears the old listing rather than showing A's files
+      with shortcuts. `BrowserPaneControl.cs:498-574`. The address bar also stopped taking relative
+      paths, which both 1.x and 2.0 resolved against the process's working directory.
+- [x] P.2.6 An editable address bar (Enter goes there, a bad path says why) and Ctrl+L to focus it.
+- [x] P.2.7 A failed switch to another connection clears the old listing rather than showing A's files
       under B's name.
 - [ ] P.2.8 Loading overlay ("Fetching folder") over the list; a centred empty-folder notice; a warning
       banner for errors that retries when clicked.
