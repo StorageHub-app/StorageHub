@@ -17,6 +17,41 @@ lands. The Avalonia port's screens 1–9 are done; this picks up from there.
 - [x] Test lab on a pullable MinIO image (`pgsty/minio`, pinned), packages at CodeLogic.Storage 4.8.95
       and CodeLogic 4.8.20, lock files regenerated, tests and acceptance checks green.
 
+## L. Look parity with 1.4 (before 1.5)
+
+An audit on 2026-09-26 put the Avalonia shots beside `docs/ui-reference/`. The welcome, sync tasks, new
+workspace, connection picker and queue still read as 1.4. The pane, the connection editor, settings and
+the sidebar don't, and the chrome shared by every screen adds to it. 2.0 is meant to be 1.4 plus
+improvements, not a new design, so this comes ahead of the rest of section 1. The new fields from 1.2–1.4
+(speed limits, proxy, FTP options) stay; they are filed where 1.4 would have put them.
+
+An item is done when its screen, photographed at 1.25x in both light and dark, reads as the matching
+reference shot.
+
+- [ ] L.1 Shared chrome (every screen): flat toolbar icons with no filled boxes; table headers in the
+      regular weight with no dark band; boxed tabs, with a close button and the `*` for unsaved changes
+      on workspace tabs; body text size and weight back to 1.4's.
+- [ ] L.2 The file pane (ref 05): the connection chip with its `STORAGE`/`LOCAL` badges and the
+      "● Ready" status line in place of the "Select the profile to connect" drop-down; the labelled
+      `FILES` command row (New folder · Copy · Move · Paste · Delete · overflow) in place of the icon
+      strip, with Copy/Move/Paste taken out of the bottom-right corner; "Filter:" beside the path box;
+      the "N items" footer; the drag-hint row under the tab strip.
+- [ ] L.3 A new pane opens on This PC with the drives listed, not on an empty `/`.
+- [ ] L.4 The connection editor (ref 08): back to the dialog shape. Type and Provider / protocol
+      drop-downs in a fixed header with the provider's description under them; General,
+      Authentication and TLS / SSH Trust tabs; each description under its control rather than under
+      its label; a red asterisk on required fields; icon and colour swatches; the badge preview; the
+      "Loaded version N" status in the footer. Proxy, speed limits and FTP Advanced go into the tabs.
+- [ ] L.5 Settings pages (ref 02): Shortcuts, Connections & trust (per-provider defaults under a
+      `STORAGE` caption, SSH Terminal under `CLIENTS`) and Background agent come back. Performance and
+      Confirmations fold back into "Transfers & sync".
+- [ ] L.6 Settings rows (ref 02): rows grouped in one card under capitalised captions (`CONCURRENCY`,
+      `CONFIRMATIONS`) instead of a card each; units inside number fields ("4 jobs"); buttons ordered
+      Apply / Cancel / OK.
+- [ ] L.7 The connections sidebar (ref 09): coloured rounded icon tiles in place of the
+      `STORAGE`/`CLIENT` text badges; tag chips under each card; a Favorites section above the
+      storage groups; inline edit and delete on the selected card.
+
 ## 1. Settings that are refused today start working
 
 The profile already stores these; `CodeLogicConnectionProfileConnector.BuildAsync` refuses them.
