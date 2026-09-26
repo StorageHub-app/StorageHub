@@ -72,6 +72,10 @@ setting to choose it (P.5.1).
       (only `LogToTrace` today). A settings folder that cannot be read says so instead of opening on
       defaults.
 
+- [ ] P.1.12 A full `dotnet test StorageHub.slnx` stopped a hand-started dev agent listening on the
+      default pipe (graceful "Stopping application" at 19:54:16 on 2026-09-26, during the run). Some
+      test reaches the real endpoint rather than one of its own; find it and give it its own pipe.
+
 ### P.2 The file pane
 
 - [x] P.2.1 Paging: load the next page as the list scrolls, "Load more", and "more available" in the
