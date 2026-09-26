@@ -17,6 +17,132 @@ lands. The Avalonia port's screens 1–9 are done; this picks up from there.
 - [x] Test lab on a pullable MinIO image (`pgsty/minio`, pinned), packages at CodeLogic.Storage 4.8.95
       and CodeLogic 4.8.20, lock files regenerated, tests and acceptance checks green.
 
+## P. Behaviour parity with 1.4 (first)
+
+A code-against-code sweep on 2026-09-26 compared what 1.4 does in five areas with what 2.0 does. It
+found much more than looks: whole startup steps that never run, commands that are drawn but not wired,
+and settings that are saved but never read. Section L is how 2.0 looks; this is whether it works as 1.4
+did, so it comes first. Each item names the 1.4 source to port from, under
+`C:\Projects\StorageHubOld\src\StorageHub.Desktop.WinForms`.
+
+Already done in this pass: the Welcome page is live and its buttons work (e174058); the app opens on
+Welcome and Sync tasks with no workspace, and opening a connection with none open makes one (e174058);
+panes in a workspace added later load their connections (e174058); This PC's drive list refuses New,
+Rename and Delete, which in 2.0 would have deleted a volume's contents permanently (31e8cc9).
+
+### P.1 Startup, shutdown and install (blocks shipping)
+
+- [ ] P.1.1 Splash while starting, with 1.4's stages (preparing data, framework, environment, settings,
+      language, starting the agent, opening), "this can take a few seconds the first time", and a
+      failure screen with Retry, Quit, Check installation and Copy details. `StorageHubSplashForm.cs`,
+      `DesktopBootContext.cs`; `BootStatus`/`BootStage` are already in Desktop.Core and unused.
+- [ ] P.1.2 Start the agent at launch and wait for it (`EnsureAgentAsync`, 8 s start / 12 s ready), with
+      `DesktopStartupPreflight.DescribeFailure` on the splash. Nothing starts it today: without the
+      service the app sits at "Agent: not connected".
+- [ ] P.1.3 Restart the agent when it drops, and reload the panes, Welcome, Sync tasks and the queue when
+      it comes back (`DesktopAgentAvailability.Changed`). `MainForm.cs:3404-3437, 3520-3551`.
+- [ ] P.1.4 Load the framework and the language: `EnsureCreated`, `EnsureSupportedCultures`,
+      `SeedShippedTranslations`, `Ui.UseFramework`. 2.0 is English whatever is configured.
+      `Framework/DesktopFrameworkHost.cs`.
+- [ ] P.1.5 Velopack: `VelopackApp.Build()...Run()` first in `Main`, and the hooks in
+      `Desktop.Core/Windows/DesktopPackageLifecycleHooks.cs` (autostart on install and update, stop the
+      agent before update and uninstall, remove autostart and the drop broker on uninstall). Today the
+      hooks open the full window and uninstall leaves the Run key and COM registration behind.
+- [ ] P.1.6 `--agent-only` (the sign-in autostart) ensures the agent and exits without a window, and
+      honours `STORAGEHUB_DISABLE_AUTOSTART`; intercept `--version/--info/--health/--dry-run/
+      --generate-configs` before the framework. `Program.cs:15-53`; `DesktopCommandLine` is uncalled.
+- [ ] P.1.7 Register the Explorer drop broker on launch (`ExplorerDropBrokerInstaller.EnsureRegistered`).
+- [ ] P.1.8 Update check on start (`RunAutomaticAsync`), close the shell on `RestartRequested` so a staged
+      update applies, and the update link in the status bar. `MainForm.cs:246-250, 3604-3693`.
+- [ ] P.1.9 Stop the agent on exit in "only while StorageHub is open" mode (`DesktopStopsAgent`); ask to
+      save each changed workspace before closing; make shutdown finish before the process exits (the
+      async `ShutdownRequested` handler is not awaited).
+- [ ] P.1.10 First-run "How should StorageHub run?" prompt and `AgentHostModeController` (Windows).
+- [ ] P.1.11 Unhandled exceptions are reported rather than ending the process silently; logs go to disk
+      (only `LogToTrace` today). A settings folder that cannot be read says so instead of opening on
+      defaults.
+
+### P.2 The file pane
+
+- [ ] P.2.1 Paging: load the next page as the list scrolls, "Load more", and "more available" in the
+      footer. A remote page is 40 rows, so any folder over 40 shows 40 today. `BrowserPaneControl.cs:
+      1236-1275, 354-370, 2048-2054`.
+- [ ] P.2.2 Paste or drop into a folder with more than one page loads every page first rather than
+      refusing "finish indexing first" (`MainForm.cs:2581`). Today that paste never works.
+- [ ] P.2.3 The collision check reads the whole folder, not the filtered rows.
+- [ ] P.2.4 Icons: shell icons per extension on Windows, drive icons on This PC, folder/file glyphs as
+      the fallback and on Linux. `WindowsShellIconProvider.cs`, `BrowserPaneControl.cs:1199-1206`.
+- [ ] P.2.5 Right-click menu on the list, selecting the row under the pointer: New folder, New file,
+      Open/Go up, Edit, Rename, Batch rename, Copy, Cut, Paste, Delete, Refresh, Select all, Properties,
+      with shortcuts. `BrowserPaneControl.cs:498-574`.
+- [ ] P.2.6 An editable address bar (Enter goes there, a bad path says why) and Ctrl+L to focus it.
+- [ ] P.2.7 A failed switch to another connection clears the old listing rather than showing A's files
+      under B's name.
+- [ ] P.2.8 Loading overlay ("Fetching folder") over the list; a centred empty-folder notice; a warning
+      banner for errors that retries when clicked.
+- [ ] P.2.9 The directory tree (was 3.1).
+- [ ] P.2.10 Delete: local items to the Recycle Bin; a confirmation listing up to six items with
+      "don't show again", skipped when "Warn before deleting" is off (the setting is saved and unread).
+      `DeleteItemsConfirmationForm.cs`.
+- [ ] P.2.11 Drag out to Explorer: real paths from This PC, the drop broker from a connection; highlight
+      the pane being dragged over. Files dropped from Explorer go through the agent's plan and ask
+      Replace/Skip/Cancel on conflicts, as 1.4 did, rather than queueing at once.
+- [ ] P.2.12 Panes re-read while transfers run and once they settle (1.4's 5 s timer).
+- [ ] P.2.13 Filter survives navigation; sort and filter are saved with the pane; Size right-aligned.
+- [ ] P.2.14 The staging bar always shows ("Clipboard: empty"), with "Paste to active pane"; the drag-hint
+      row above the panes.
+- [ ] P.2.15 A thin accent strip across each pane in the connection's colour; opening a connection records
+      it in Welcome's recent list; "Open in new pane".
+- [ ] P.2.16 Connections Home (was L.9).
+
+### P.3 The shell
+
+- [ ] P.3.1 Workspaces: Save, Save As, Open (.shw), Rename, and the tab's `*` (was L.8); Welcome's
+      workspace list with Open, Pin, Remove and Copy path; Workspace menu Pinned/Recent and Pin/Unpin.
+- [ ] P.3.2 Workspace > Exit; workspace commands dimmed on Welcome and Sync tasks.
+- [ ] P.3.3 View > Connections panel (Ctrl+B), Move connections panel, and the panel's width, side and
+      visibility remembered.
+- [ ] P.3.4 Rebound shortcuts are dispatched and shown; the toolbar is built from the saved layout and
+      rebuilt when Settings changes it.
+- [ ] P.3.5 Go menu Favorites (`FavoriteConnectionMenu` is in Core, unused).
+- [ ] P.3.6 Status bar: the agent cell opens Agent control and carries its detail as a tooltip; the
+      transfer speed cell (the queue already has `BytesPerSecond`); short messages for copied, staged,
+      imported, exported.
+- [ ] P.3.7 A concurrency change waits for running transfers before restarting the agent, as 1.4 did.
+- [ ] P.3.8 The window opens centred.
+
+### P.4 Transfers and sync
+
+- [ ] P.4.1 Queue selection survives each poll (rows are rebuilt and the selection lost every 0.5-2 s);
+      Cancel/Retry/Apply follow the selection at once; several rows can be acted on.
+- [ ] P.4.2 Queue context menu: Clear selected, Cancel and clear, Clear all history, with the "warn before
+      clearing" confirmation (the setting is saved and unread).
+- [ ] P.4.3 Cancel, retry and reconcile say what happened ("Updated 3", "2 conflicts") and refusals are
+      shown; Reconcile defaults to Restart for a conflict; MarkFailed and Cancel are offered.
+- [ ] P.4.4 Queue paging past 100 rows (a cursor), and "Next" pages again.
+- [ ] P.4.5 Source and Destination name the connection; Status reads "State: error".
+- [ ] P.4.6 Explorer drops waiting to be queued show in Active and Logs and can be cancelled
+      (`PendingDropRegistry` is in Core, unused).
+- [ ] P.4.7 Sync tasks loads when it is first shown, not only on Refresh.
+- [ ] P.4.8 Schedule delete asks "Delete schedule …?" (`DeleteSchedulePrompt`), not the disabled-profile
+      text followed by "Schedule deleted".
+- [ ] P.4.9 Previewing from the editor loads the run and the history reliably on the first visit.
+- [ ] P.4.10 The "previewed while disabled" and "non-atomic" warnings are seen before the editor closes.
+- [ ] P.4.11 Maximum deletion accepts 0.01-100 in steps of 0.25, so a saved 0.5 % is not clamped to 1.
+- [ ] P.4.12 A completed transfer of unknown size draws a full bar.
+
+### P.5 Settings and dialogs
+
+- [ ] P.5.1 Language on the Appearance page, applied at startup and by restarting the shell.
+- [ ] P.5.2 SSH terminal settings reach the session (type, keep-alive, font, scrollback, bold); today the
+      session gets `preferences: null` and a fixed font.
+- [ ] P.5.3 Per-provider connection defaults prefill a new connection (the editor passes `stored: null`).
+- [ ] P.5.4 "New workspace layout" (a preset or "Ask every time"); ticking "stop asking" can be undone.
+- [ ] P.5.5 "Start with" concurrency, enabled only when adaptive is on; the update toggles depend on one
+      another; the update source and installed version under Updates.
+- [ ] P.5.6 Installation check window, from Agent control and from the splash.
+- [ ] P.5.7 Open an SSH client in its own window from the Connection Manager.
+
 ## L. Look parity with 1.4 (before 1.5)
 
 An audit on 2026-09-26 put the Avalonia shots beside `docs/ui-reference/`. The welcome, sync tasks, new
@@ -48,8 +174,8 @@ reference shot.
       have yet (L.9).
 - [ ] L.9 Connections Home: a pane pointed at no connection lists the saved ones as rows, as 1.x's
       second pane did, and opening a row opens that connection.
-- [ ] L.10 The overview's Agent card still says "Starting" after the status bar has moved to
-      "Agent: connected". Seen in the running app on 2026-09-26.
+- [x] L.10 The overview's Agent card still said "Starting" after the status bar had moved to
+      "Agent: connected". Fixed with the live Welcome page (e174058).
 - [x] L.4 The connection editor (ref 08). Done, with the Connection Manager's list still beside it:
       the sidebar has no Edit or Delete of its own yet, so the list stays until L.7 gives it them,
       and then the editor becomes 1.x's plain "Edit Connection" dialog. Was: back to the dialog shape. Type and Provider / protocol
