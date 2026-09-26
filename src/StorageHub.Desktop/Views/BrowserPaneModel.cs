@@ -978,6 +978,30 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     }
 
     /// <summary>
+    /// Re-reads the folder without covering the list, keeping the filter, the selection and where
+    /// the list is scrolled to -- what the shell does every few seconds while transfers run, so
+    /// files appear as they land, as they did in 1.x.
+    /// </summary>
+    /// <remarks>
+    /// Skipped while the pane is busy with anything else, and a failure changes nothing: the next
+    /// tick tries again, and a banner every five seconds for a flaky connection would be noise.
+    /// </remarks>
+    internal async Task RefreshQuietlyAsync(CancellationToken cancellationToken = default)
+    {
+        if (_source is not { } source || IsTerminal || _busy || _loadingMore is not null) return;
+
+        var result = await source.MoveAsync(PaneNavigationKind.Refresh, cancellationToken: cancellationToken)
+            .ConfigureAwait(true);
+        if (!ReferenceEquals(source, _source) || _busy || result.Listing is not { } listing) return;
+
+        _hasMore = listing.HasMore;
+        Index.Reset(listing.Rows);
+        SyncView();
+        FollowTree(listing.Rows, append: false);
+        Raise(nameof(HasMorePages));
+    }
+
+    /// <summary>
     /// Reads every remaining page, which a paste or a drop needs: the conflict check has to see the
     /// whole destination, and 1.x read it all before building one.
     /// </summary>
@@ -1015,7 +1039,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
 
             _hasMore = listing.HasMore;
             Index.Append(listing.Rows);
-            MergeView();
+            SyncView();
             FollowTree(listing.Rows, append: true);
             return true;
         }
@@ -1030,35 +1054,51 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     }
 
     /// <summary>
-    /// Puts rows a new page added into the list where they belong, leaving the rest in place.
+    /// Brings the list in line with the index without rebuilding it: rows that went are removed,
+    /// rows that came are inserted where the sort puts them, and the rest stay where they are.
     /// </summary>
     /// <remarks>
-    /// The rows already shown keep their relative order under the same sort and filter, so the new
-    /// view is the old one with rows inserted; walking both is enough to insert each where it goes.
-    /// Anything else -- which would be a bug -- falls back to rebuilding.
+    /// Rebuilding clears the list, which throws the scroll position back to the top -- fine for a
+    /// new folder, wrong for a further page arriving while somebody scrolls, and wrong for the quiet
+    /// re-read during a transfer. A row that changed (a size, a date) is a different row and is
+    /// replaced in place. What was selected stays selected, by location.
     /// </remarks>
-    private void MergeView()
+    private void SyncView()
     {
-        var view = Index.CreateView(_sortColumn, _sortAscending, NullIfEmpty(_filter));
-        var offset = _isAtRoot ? 0 : 1;
-        var position = offset;
-        foreach (var row in view)
+        var chosen = SelectedRows
+            .Where(static row => row.Location is not null)
+            .Select(static row => row.Location!)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var target = new List<BrowserListItem>();
+        if (!_isAtRoot) target.Add(BrowserParentNavigation.Item);
+        target.AddRange(Index.CreateView(_sortColumn, _sortAscending, NullIfEmpty(_filter)));
+        var wanted = target.ToHashSet();
+
+        for (var index = Rows.Count - 1; index >= 0; index--)
         {
-            if (position < Rows.Count && Rows[position] == row)
-            {
-                position++;
-                continue;
-            }
-
-            if (Rows.Skip(position).Contains(row))
-            {
-                ApplyView();
-                return;
-            }
-
-            Rows.Insert(position++, row);
+            if (!wanted.Contains(Rows[index])) Rows.RemoveAt(index);
         }
 
+        for (var index = 0; index < target.Count; index++)
+        {
+            if (index < Rows.Count && Rows[index] == target[index]) continue;
+            var existing = Rows.IndexOf(target[index]);
+            if (existing > index) Rows.Move(existing, index);
+            else Rows.Insert(index, target[index]);
+        }
+
+        while (Rows.Count > target.Count) Rows.RemoveAt(Rows.Count - 1);
+
+        foreach (var row in Rows)
+        {
+            if (row.Location is not null && chosen.Contains(row.Location) && !SelectedRows.Contains(row))
+            {
+                SelectedRows.Add(row);
+            }
+        }
+
+        Raise(nameof(ItemCount));
         RaiseListingState();
         RaiseCommands();
     }

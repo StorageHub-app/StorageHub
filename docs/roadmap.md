@@ -103,7 +103,7 @@ setting to choose it (P.5.1).
 - [ ] P.2.11 Drag out to Explorer: real paths from This PC, the drop broker from a connection; highlight
       the pane being dragged over. Files dropped from Explorer go through the agent's plan and ask
       Replace/Skip/Cancel on conflicts, as 1.4 did, rather than queueing at once.
-- [ ] P.2.12 Panes re-read while transfers run and once they settle (1.4's 5 s timer).
+- [x] P.2.12 Panes re-read while transfers run and once they settle (1.4's 5 s timer). Quietly: no cover, the filter, selection and scroll kept. A folder over a page re-reads its first page and brings the rest back on scroll.
 - [ ] P.2.13 Filter survives navigation; sort and filter are saved with the pane; Size right-aligned.
 - [ ] P.2.14 The staging bar always shows ("Clipboard: empty"), with "Paste to active pane"; the drag-hint
       row above the panes.

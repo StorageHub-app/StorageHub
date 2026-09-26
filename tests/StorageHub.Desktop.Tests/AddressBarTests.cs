@@ -166,6 +166,43 @@ public class AddressBarTests
         }
     }
 
+    /// <summary>
+    /// The quiet re-read during a transfer: a file that landed appears, and nothing else moves --
+    /// not the filter, not the selection, not the rows already shown.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task AQuietRefreshShowsWhatLandedAndKeepsEverythingElse()
+    {
+        var folder = Directory.CreateTempSubdirectory("storagehub-quiet-");
+        try
+        {
+            foreach (var name in new[] { "a.txt", "b.txt", "notes.md" })
+            {
+                await File.WriteAllTextAsync(Path.Combine(folder.FullName, name), "x", TestContext.Current.CancellationToken);
+            }
+
+            await using var pane = await ThisPcAsync();
+            pane.Address = folder.FullName;
+            await pane.GoToAddressAsync(TestContext.Current.CancellationToken);
+            pane.Filter = "*.txt";
+            var a = pane.Rows.Single(static row => row.Name == "a.txt");
+            pane.SelectedRows.Add(a);
+
+            await File.WriteAllTextAsync(Path.Combine(folder.FullName, "c.txt"), "x", TestContext.Current.CancellationToken);
+            await pane.RefreshQuietlyAsync(TestContext.Current.CancellationToken);
+
+            Assert.Equal("*.txt", pane.Filter);
+            Assert.Equal(["a.txt", "b.txt", "c.txt"], pane.Rows.Where(static row => !row.IsParentNavigation).Select(static row => row.Name));
+            Assert.Same(a, pane.Rows.Single(static row => row.Name == "a.txt"));
+            Assert.Contains(a, pane.SelectedRows);
+            Assert.False(pane.ShowsLoading);
+        }
+        finally
+        {
+            folder.Delete(recursive: true);
+        }
+    }
+
     private static async Task<BrowserPaneModel> ThisPcAsync()
     {
         var pane = new BrowserPaneModel(new Refusing(WorkspaceFakes.Summary("unused")));

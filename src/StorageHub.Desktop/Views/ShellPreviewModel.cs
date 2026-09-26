@@ -183,6 +183,7 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
                     QueuedJobs = Queue.QueuedCount,
                     TransferBytesPerSecond = Queue.BytesPerSecond
                 };
+                FollowTransfers();
             }
         };
 
@@ -395,6 +396,42 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         {
             _recovering = false;
         }
+    }
+
+    /// <summary>How often the open workspace's panes are re-read while transfers run, as in 1.x.</summary>
+    private static readonly TimeSpan TransferRefreshInterval = TimeSpan.FromSeconds(5);
+
+    private DispatcherTimer? _transferRefresh;
+    private bool _reloadWhenTransfersSettle;
+
+    /// <summary>
+    /// Files appear in a folder as a copy runs, so the open workspace is re-read while anything is
+    /// queued or running, and once more when it stops. Not per transfer: a folder copy finishes
+    /// thousands of them, and a reload each would spend the copy re-listing the destination.
+    /// </summary>
+    private void FollowTransfers()
+    {
+        if (Queue.ActiveCount + Queue.QueuedCount > 0)
+        {
+            _reloadWhenTransfersSettle = true;
+            _transferRefresh ??= new DispatcherTimer(
+                TransferRefreshInterval, DispatcherPriority.Background, (_, _) => RefreshOpenPanesQuietly());
+            _transferRefresh.Start();
+            return;
+        }
+
+        _transferRefresh?.Stop();
+        if (_reloadWhenTransfersSettle)
+        {
+            _reloadWhenTransfersSettle = false;
+            RefreshOpenPanesQuietly();
+        }
+    }
+
+    private void RefreshOpenPanesQuietly()
+    {
+        if (Workspaces.ElementAtOrDefault(SelectedWorkspace)?.Workspace is not { } workspace) return;
+        foreach (var pane in workspace.Panes) _ = pane.RefreshQuietlyAsync();
     }
 
     /// <summary>Welcome, the panel, Sync tasks, the queue and every pane with a connection.</summary>
