@@ -5,15 +5,112 @@
         x:Class="StorageHub.Desktop.Views.ConnectionManagerWindow"
         x:DataType="vm:ConnectionManagerModel"
         Title="{Binding Title}"
-        Width="920" Height="620"
+        Width="1040" Height="720"
         WindowStartupLocation="CenterOwner">
 
   <!--
-    A list and a form. The form's rows are not written here: a provider's fields come from
-    ConnectionProviderCatalog, and six providers with three sections each is around two hundred
-    rows. Writing them out would be two hundred places for this and ConnectionEditorDraftFactory to
-    disagree about a field's key, which is the pair that decides what gets saved.
+    A section and a field, as 1.x laid them out (ui-reference 08): a heading with its hint, then rows
+    whose label sits in a left column, whose control fills the rest, and whose description runs
+    under the control rather than under the label. A required field says so with a red asterisk.
+
+    The rows are not written out: a provider's fields come from ConnectionProviderCatalog, and six
+    providers with three sections each is around two hundred rows. Writing them here would be two
+    hundred places for this and ConnectionEditorDraftFactory to disagree about a field's key.
   -->
+  <Window.DataTemplates>
+    <DataTemplate DataType="vm:ConnectionSectionModel">
+      <StackPanel Classes="editor-section">
+        <TextBlock Classes="heading-sm" Text="{Binding Title}"/>
+        <TextBlock Classes="muted" IsVisible="{Binding HasHint}" Text="{Binding Hint}"
+                   TextWrapping="Wrap" Margin="0,2,0,10"/>
+        <ItemsControl ItemsSource="{Binding Fields}"/>
+      </StackPanel>
+    </DataTemplate>
+
+    <DataTemplate DataType="vm:ConnectionFieldModel">
+      <Grid ColumnDefinitions="190,*" RowDefinitions="Auto,Auto,Auto,Auto"
+            ColumnSpacing="{StaticResource SpaceMd}" Margin="0,0,0,12">
+        <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal"
+                    Spacing="{StaticResource SpaceXs}" VerticalAlignment="Center">
+          <TextBlock Text="{Binding Label}" TextWrapping="Wrap" MaxWidth="180"/>
+          <TextBlock Classes="danger" Text="{Binding RequiredMark}"/>
+        </StackPanel>
+
+        <!-- One row per field, four ways to fill it in. A binding cannot switch on an enum, so
+             the model says which one applies. -->
+        <TextBox Grid.Row="0" Grid.Column="1" IsVisible="{Binding IsText}"
+                 Text="{Binding Value, Mode=TwoWay}"
+                 PlaceholderText="{Binding Placeholder}"
+                 AutomationProperties.Name="{Binding Label}"/>
+
+        <!-- A secret is never typed here. The box shows the vault's opaque reference and cannot
+             be edited; the buttons are how it changes. -->
+        <StackPanel Grid.Row="0" Grid.Column="1" IsVisible="{Binding IsSecret}"
+                    Spacing="{StaticResource SpaceXs}">
+          <TextBox IsReadOnly="True" Text="{Binding Value}"
+                   PlaceholderText="{Binding Placeholder}"
+                   AutomationProperties.Name="{Binding Label}"
+                   AutomationProperties.HelpText="{Binding SecretHint}"/>
+          <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+            <Button Content="{Binding EnrollLabel}" Command="{Binding EnrollCommand}"/>
+            <Button Content="{Binding DeleteSecretLabel}" Command="{Binding DeleteSecretCommand}"/>
+            <Button IsVisible="{Binding IsKeyStoreSlot}" Content="{Binding KeyStoreLabel}"
+                    Command="{Binding ChooseFromKeyStoreCommand}"/>
+          </StackPanel>
+        </StackPanel>
+        <ComboBox Grid.Row="0" Grid.Column="1" IsVisible="{Binding IsChoice}"
+                  HorizontalAlignment="Stretch"
+                  ItemsSource="{Binding Choices}"
+                  SelectedItem="{Binding Value, Mode=TwoWay}"
+                  AutomationProperties.Name="{Binding Label}"/>
+        <CheckBox Grid.Row="0" Grid.Column="1" IsVisible="{Binding IsToggle}"
+                  IsChecked="{Binding IsOn, Mode=TwoWay}"
+                  AutomationProperties.Name="{Binding Label}"/>
+
+        <!-- Icon and colour: the icon button, then 1.x's twelve swatches. -->
+        <StackPanel Grid.Row="0" Grid.Column="1" IsVisible="{Binding IsIcon}"
+                    Orientation="Horizontal" Spacing="{StaticResource SpaceLg}">
+          <Button Command="{Binding ChooseIconCommand}" VerticalAlignment="Center"
+                  AutomationProperties.Name="{Binding Label}">
+            <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceSm}">
+              <LucideIcon Kind="{Binding IconKind}" Size="{StaticResource IconSizeSm}"/>
+              <TextBlock Text="{Binding ChooseIconLabel}"/>
+            </StackPanel>
+          </Button>
+          <ItemsControl ItemsSource="{Binding Editor.AccentChoices}" MaxWidth="200"
+                        VerticalAlignment="Center">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel ItemSpacing="6" LineSpacing="6"/>
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate DataType="vm:AccentSwatch">
+                <Button Classes="swatch" Background="{Binding Brush}"
+                        ToolTip.Tip="{Binding Hex}"
+                        AutomationProperties.Name="{Binding Hex}"
+                        Command="{Binding $parent[ItemsControl].((vm:ConnectionFieldModel)DataContext).Editor.ChooseAccentCommand}"
+                        CommandParameter="{Binding Hex}"/>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+
+        <TextBlock Grid.Row="1" Grid.Column="1" Classes="caption" IsVisible="{Binding HasHelp}"
+                   Text="{Binding HelpText}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+
+        <!-- The badge preview follows the colour: how this connection will read in a pane. -->
+        <TextBlock Grid.Row="2" Grid.Column="0" IsVisible="{Binding IsIcon}"
+                   Text="{Binding Editor.BadgeLabel}" VerticalAlignment="Center" Margin="0,12,0,0"/>
+        <Border Grid.Row="2" Grid.Column="1" Classes="badge-preview" IsVisible="{Binding IsIcon}"
+                Margin="0,12,0,0">
+          <TextBlock Text="{Binding Editor.BadgeText}" Foreground="{Binding Editor.AccentBrush}"/>
+        </Border>
+        <TextBlock Grid.Row="3" Grid.Column="1" Classes="caption" IsVisible="{Binding IsIcon}"
+                   Text="{Binding Editor.BadgeHint}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+      </Grid>
+    </DataTemplate>
+  </Window.DataTemplates>
 
   <Border Classes="surface">
     <Grid ColumnDefinitions="280,Auto,*">
@@ -59,113 +156,86 @@
 
       <Border Grid.Column="1" Width="1" Background="{DynamicResource BorderBrush}"/>
 
-      <DockPanel Grid.Column="2" Margin="{StaticResource PaddingLg}"
-                 DataContext="{Binding Editor}">
+      <!--
+        The editor, in the shape 1.x gave it (ui-reference 08): Type and Provider / protocol fixed
+        at the top with the provider's description under them, then General, Authentication and
+        TLS / SSH Trust as tabs, and a footer carrying the loaded version against Cancel and Save.
+      -->
+      <DockPanel Grid.Column="2">
 
-        <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceSm}"
-              Margin="0,0,0,12">
-          <TextBlock Grid.Column="0" Text="{Binding ProviderLabel}" VerticalAlignment="Center"/>
-          <ComboBox Grid.Column="1" HorizontalAlignment="Stretch"
-                    ItemsSource="{Binding Providers}"
-                    SelectedItem="{Binding Provider, Mode=TwoWay}">
-            <ComboBox.ItemTemplate>
-              <DataTemplate DataType="core:ConnectionProviderDescriptor">
-                <TextBlock Text="{Binding DisplayName}"/>
-              </DataTemplate>
-            </ComboBox.ItemTemplate>
-          </ComboBox>
-        </Grid>
-
-        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
-                    HorizontalAlignment="Right" Spacing="{StaticResource SpaceSm}"
-                    Margin="0,12,0,0">
-          <TextBlock Classes="caption" VerticalAlignment="Center"
-                     IsVisible="{Binding HasStatus}" Text="{Binding Status}"/>
-          <Button Content="{Binding TestLabel}" Command="{Binding TestCommand}"/>
-          <Button Classes="primary" Content="{Binding SaveLabel}" Command="{Binding SaveCommand}"/>
-        </StackPanel>
-
-        <ScrollViewer>
-          <StackPanel Spacing="{StaticResource SpaceMd}">
-            <TextBlock Classes="muted" Text="{Binding Summary}" TextWrapping="Wrap"/>
-            <Border Classes="toolbar" IsVisible="{Binding HasTrustNotice}"
-                    Padding="{StaticResource PaddingMd}">
-              <TextBlock Classes="caption" Text="{Binding TrustNotice}" TextWrapping="Wrap"/>
-            </Border>
-
-            <ItemsControl ItemsSource="{Binding Sections}">
-              <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                  <StackPanel Spacing="{StaticResource SpaceMd}"/>
-                </ItemsPanelTemplate>
-              </ItemsControl.ItemsPanel>
-              <ItemsControl.ItemTemplate>
-                <DataTemplate DataType="vm:ConnectionSectionModel">
-                  <StackPanel Spacing="{StaticResource SpaceSm}">
-                    <TextBlock Classes="group-title" Text="{Binding Title}"/>
-                    <ItemsControl ItemsSource="{Binding Fields}">
-                      <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                          <StackPanel Spacing="{StaticResource SpaceSm}"/>
-                        </ItemsPanelTemplate>
-                      </ItemsControl.ItemsPanel>
-                      <ItemsControl.ItemTemplate>
-                        <DataTemplate DataType="vm:ConnectionFieldModel">
-                          <Grid ColumnDefinitions="200,*" ColumnSpacing="{StaticResource SpaceSm}">
-                            <StackPanel Grid.Column="0">
-                              <TextBlock Text="{Binding Label}" TextWrapping="Wrap"/>
-                              <TextBlock Classes="caption" IsVisible="{Binding HasHelp}"
-                                         Text="{Binding HelpText}" TextWrapping="Wrap"/>
-                            </StackPanel>
-
-                            <!-- One row per field, four ways to fill it in. A binding cannot
-                                 switch on an enum, so the model says which one applies. -->
-                            <TextBox Grid.Column="1" IsVisible="{Binding IsText}"
-                                     Text="{Binding Value, Mode=TwoWay}"
-                                     PlaceholderText="{Binding Placeholder}"
-                                     AutomationProperties.Name="{Binding Label}"/>
-
-                            <!-- A secret is never typed here. The box shows the vault's opaque
-                                 reference and cannot be edited; the buttons are how it changes.
-                                 They sit under the box because three of them beside it leave no
-                                 room for the reference at the window's default width. -->
-                            <StackPanel Grid.Column="1" IsVisible="{Binding IsSecret}"
-                                        Spacing="{StaticResource SpaceXs}">
-                              <TextBox IsReadOnly="True" Text="{Binding Value}"
-                                       PlaceholderText="{Binding Placeholder}"
-                                       AutomationProperties.Name="{Binding Label}"
-                                       AutomationProperties.HelpText="{Binding SecretHint}"/>
-                              <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
-                                <Button Content="{Binding EnrollLabel}" Command="{Binding EnrollCommand}"/>
-                                <Button Content="{Binding DeleteSecretLabel}" Command="{Binding DeleteSecretCommand}"/>
-                                <Button IsVisible="{Binding IsKeyStoreSlot}" Content="{Binding KeyStoreLabel}"
-                                        Command="{Binding ChooseFromKeyStoreCommand}"/>
-                              </StackPanel>
-                            </StackPanel>
-                            <ComboBox Grid.Column="1" IsVisible="{Binding IsChoice}"
-                                      HorizontalAlignment="Stretch"
-                                      ItemsSource="{Binding Choices}"
-                                      SelectedItem="{Binding Value, Mode=TwoWay}"
-                                      AutomationProperties.Name="{Binding Label}"/>
-                            <StackPanel Grid.Column="1" IsVisible="{Binding IsIcon}"
-                                        Orientation="Horizontal" Spacing="{StaticResource SpaceSm}">
-                              <LucideIcon Kind="{Binding IconKind}" Size="22" VerticalAlignment="Center"/>
-                              <Button Content="{Binding ChooseIconLabel}" Command="{Binding ChooseIconCommand}"
-                                      AutomationProperties.Name="{Binding Label}"/>
-                            </StackPanel>
-                            <CheckBox Grid.Column="1" IsVisible="{Binding IsToggle}"
-                                      IsChecked="{Binding IsOn, Mode=TwoWay}"
-                                      AutomationProperties.Name="{Binding Label}"/>
-                          </Grid>
-                        </DataTemplate>
-                      </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                  </StackPanel>
+        <Border DockPanel.Dock="Top" Classes="editor-header" DataContext="{Binding Editor}">
+          <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto"
+                ColumnSpacing="{StaticResource SpaceLg}" RowSpacing="{StaticResource SpaceSm}">
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding TypeLabel}" VerticalAlignment="Center"/>
+            <ComboBox Grid.Row="0" Grid.Column="1" Width="260"
+                      ItemsSource="{Binding Types}"
+                      SelectedItem="{Binding Type, Mode=TwoWay}"
+                      AutomationProperties.Name="{Binding TypeLabel}"/>
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="{Binding ProviderProtocolLabel}" VerticalAlignment="Center"/>
+            <ComboBox Grid.Row="1" Grid.Column="1" Width="260"
+                      ItemsSource="{Binding ProvidersForType}"
+                      SelectedItem="{Binding Provider, Mode=TwoWay}"
+                      AutomationProperties.Name="{Binding ProviderProtocolLabel}">
+              <ComboBox.ItemTemplate>
+                <DataTemplate DataType="core:ConnectionProviderDescriptor">
+                  <TextBlock Text="{Binding DisplayName}"/>
                 </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-          </StackPanel>
-        </ScrollViewer>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+            <TextBlock Grid.Row="2" Grid.Column="1" Classes="muted"
+                       Text="{Binding Summary}" TextWrapping="Wrap"/>
+          </Grid>
+        </Border>
+
+        <Border DockPanel.Dock="Bottom" Classes="editor-footer">
+          <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="{StaticResource SpaceSm}">
+            <TextBlock Grid.Column="0" Classes="success" VerticalAlignment="Center"
+                       DataContext="{Binding Editor}"
+                       IsVisible="{Binding HasLoadedVersion}" Text="{Binding LoadedVersion}"/>
+            <TextBlock Grid.Column="0" Classes="muted" VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis"
+                       DataContext="{Binding Editor}"
+                       IsVisible="{Binding HasStatus}" Text="{Binding Status}"/>
+            <Button Grid.Column="1" DataContext="{Binding Editor}"
+                    Content="{Binding TestLabel}" Command="{Binding TestCommand}"/>
+            <Button Grid.Column="2" Content="{Binding CancelLabel}" Command="{Binding CloseCommand}"/>
+            <Button Grid.Column="3" Classes="primary" DataContext="{Binding Editor}"
+                    Content="{Binding SaveProfileLabel}" Command="{Binding SaveCommand}"/>
+          </Grid>
+        </Border>
+
+        <TabControl Classes="editor-tabs" DataContext="{Binding Editor}">
+          <TabItem Header="{Binding GeneralTabLabel}">
+            <ScrollViewer>
+              <ItemsControl ItemsSource="{Binding GeneralSections}" Classes="editor-sections"/>
+            </ScrollViewer>
+          </TabItem>
+          <TabItem Header="{Binding AuthenticationTabLabel}" IsVisible="{Binding HasAuthentication}">
+            <ScrollViewer>
+              <ItemsControl ItemsSource="{Binding AuthenticationSections}" Classes="editor-sections"/>
+            </ScrollViewer>
+          </TabItem>
+          <TabItem Header="{Binding TrustTabLabel}">
+            <ScrollViewer>
+              <StackPanel>
+                <!-- The provider's transport policy, green when it encrypts by default and amber
+                     when it does not, above the fields that pin what it trusts. -->
+                <Border Classes="trust-notice" Classes.secure="{Binding EncryptedByDefault}"
+                        IsVisible="{Binding HasTrustNotice}">
+                  <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceLg}">
+                    <LucideIcon Grid.Column="0" Kind="ShieldCheck" Size="{StaticResource IconSizeLg}"
+                                IsVisible="{Binding EncryptedByDefault}" Classes="success"/>
+                    <LucideIcon Grid.Column="0" Kind="TriangleAlert" Size="{StaticResource IconSizeLg}"
+                                IsVisible="{Binding !EncryptedByDefault}" Classes="warning"/>
+                    <TextBlock Grid.Column="1" Text="{Binding TrustNotice}" TextWrapping="Wrap"
+                               VerticalAlignment="Center"/>
+                  </Grid>
+                </Border>
+                <ItemsControl ItemsSource="{Binding TrustSections}" Classes="editor-sections"/>
+              </StackPanel>
+            </ScrollViewer>
+          </TabItem>
+        </TabControl>
       </DockPanel>
     </Grid>
   </Border>

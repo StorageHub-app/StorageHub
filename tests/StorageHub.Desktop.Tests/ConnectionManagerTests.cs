@@ -31,22 +31,49 @@ public class ConnectionManagerTests
     public void TheEditorAsksTheCatalogWhichFieldsAProviderHas()
     {
         var editor = new ConnectionEditorModel(() => Controller(new FakeProfiles()));
-
         var descriptor = ConnectionProviderCatalog.All[0];
-        var expected = 1 +
-            (descriptor.GeneralFields.Count > 0 ? 1 : 0) +
-            (descriptor.AuthenticationFields.Count > 0 ? 1 : 0) +
-            (descriptor.SecurityFields.Count > 0 ? 1 : 0) +
-            (descriptor.Type == ConnectionProfileType.Storage ? 1 : 0);
 
-        // Two more than a storage provider has: a name and a folder belong to the profile rather
-        // than to the provider, and speed limits work the same on every provider, so the editor
-        // supplies both.
-        Assert.Equal(expected, editor.Sections.Count);
-        Assert.Equal(Ui.Connections.SectionIdentity, editor.Sections[0].Title);
+        // Laid out on 1.x's three tabs (ui-reference 08). General opens on the endpoint: the
+        // profile's own fields -- name, folder, labels, icon -- then the provider's general ones.
+        var endpoint = editor.GeneralSections.First();
+        Assert.Equal(Ui.ConnectionEditor.TabEndpoint, endpoint.Title);
+        Assert.Equal(descriptor.EndpointExample, endpoint.Hint);
         Assert.Equal(
-            descriptor.GeneralFields.Select(static f => f.Key),
-            editor.Sections[1].Fields.Select(static f => f.Key));
+            ["profileName", "folder", "labels", "iconKey", .. descriptor.GeneralFields.Select(static f => f.Key)],
+            endpoint.Fields.Select(static f => f.Key));
+
+        Assert.Equal(
+            descriptor.AuthenticationFields.Select(static f => f.Key),
+            editor.AuthenticationSections.SelectMany(static s => s.Fields).Select(static f => f.Key));
+        Assert.Equal(
+            descriptor.SecurityFields.Select(static f => f.Key),
+            editor.TrustSections.SelectMany(static s => s.Fields).Select(static f => f.Key));
+    }
+
+    /// <summary>The Type drop-down narrows the providers to its kind, as 1.x's two drop-downs did.</summary>
+    [AvaloniaFact]
+    public void ChoosingATypeOffersOnlyThatTypesProviders()
+    {
+        var editor = new ConnectionEditorModel(() => Controller(new FakeProfiles()));
+
+        editor.Type = ConnectionEditorModel.Types.Single(static t => t.Type == ConnectionProfileType.Client);
+
+        Assert.Equal(ConnectionProfileType.Client, editor.Provider.Type);
+        Assert.All(editor.ProvidersForType, static p => Assert.Equal(ConnectionProfileType.Client, p.Type));
+    }
+
+    /// <summary>A swatch sets the colour the profile is saved with, and the badge follows it.</summary>
+    [AvaloniaFact]
+    public void ChoosingASwatchColoursTheBadgeAndNeedsSaving()
+    {
+        var editor = new ConnectionEditorModel(() => Controller(new FakeProfiles()));
+        var swatch = ConnectionEditorModel.AccentChoices[4].Hex;
+
+        editor.ChooseAccentCommand.Execute(swatch);
+
+        Assert.Equal(swatch, editor.AccentColor);
+        Assert.Contains(swatch, editor.BadgeText, StringComparison.Ordinal);
+        Assert.True(editor.IsDirty);
     }
 
     /// <summary>A storage connection can be given speed limits; an SSH terminal moves no files, so it cannot.</summary>

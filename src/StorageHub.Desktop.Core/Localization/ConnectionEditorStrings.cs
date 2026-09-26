@@ -328,6 +328,10 @@ internal sealed class ConnectionEditorStrings : LocalizationModelBase
 
     public string TypeLabel { get; set; } = "Type";
 
+    public string TypeStorage { get; set; } = "Storage";
+
+    public string TypeClient { get; set; } = "Client";
+
     public string TabSecurity { get; set; } = "TLS / SSH Trust";
 
     /// <summary>{0} = the provider's short name, {1} = its accent colour as a hex value.</summary>

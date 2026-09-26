@@ -50,7 +50,9 @@ reference shot.
       second pane did, and opening a row opens that connection.
 - [ ] L.10 The overview's Agent card still says "Starting" after the status bar has moved to
       "Agent: connected". Seen in the running app on 2026-09-26.
-- [ ] L.4 The connection editor (ref 08): back to the dialog shape. Type and Provider / protocol
+- [x] L.4 The connection editor (ref 08). Done, with the Connection Manager's list still beside it:
+      the sidebar has no Edit or Delete of its own yet, so the list stays until L.7 gives it them,
+      and then the editor becomes 1.x's plain "Edit Connection" dialog. Was: back to the dialog shape. Type and Provider / protocol
       drop-downs in a fixed header with the provider's description under them; General,
       Authentication and TLS / SSH Trust tabs; each description under its control rather than under
       its label; a red asterisk on required fields; icon and colour swatches; the badge preview; the

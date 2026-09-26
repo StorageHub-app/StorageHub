@@ -38,6 +38,15 @@ internal sealed class ConnectionFieldModel(ConnectionFieldDescriptor descriptor,
 
     public bool HasHelp => descriptor.HelpText.Length > 0;
 
+    /// <summary>The red asterisk after a required field's label.</summary>
+    public string RequiredMark => descriptor.Required ? "*" : string.Empty;
+
+    /// <summary>
+    /// The editor this field belongs to, for the icon row: it also draws the colour swatches and
+    /// the badge preview, which are the connection's rather than the field's.
+    /// </summary>
+    public ConnectionEditorModel? Editor { get; internal set; }
+
     public IReadOnlyList<string> Choices => descriptor.Choices ?? [];
 
     /// <summary>Which editor to draw, because a binding cannot switch on an enum.</summary>
@@ -133,10 +142,44 @@ internal sealed class ConnectionFieldModel(ConnectionFieldDescriptor descriptor,
     private void Raise(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }
 
+/// <summary>The editor's three tabs, as 1.x had them (ui-reference 08).</summary>
+internal enum ConnectionEditorTab
+{
+    General,
+    Authentication,
+    Trust
+}
+
 /// <summary>One titled group of fields, as the provider's descriptor arranges them.</summary>
-internal sealed record ConnectionSectionModel(string Title, IReadOnlyList<ConnectionFieldModel> Fields)
+/// <param name="Tab">Which of the editor's tabs the group is drawn on.</param>
+/// <param name="Hint">The line under the heading, e.g. the endpoint's example.</param>
+internal sealed record ConnectionSectionModel(
+    string Title,
+    IReadOnlyList<ConnectionFieldModel> Fields,
+    ConnectionEditorTab Tab = ConnectionEditorTab.General,
+    string Hint = "")
 {
     public bool HasFields => Fields.Count > 0;
+
+    public bool HasHint => Hint.Length > 0;
+}
+
+/// <summary>One of the colour swatches beside a connection's icon.</summary>
+internal sealed record AccentSwatch(string Hex)
+{
+    public Avalonia.Media.IBrush Brush => BrushFor(Hex);
+
+    /// <summary>A hex colour as a brush, or the neutral grey for anything that does not parse.</summary>
+    internal static Avalonia.Media.IBrush BrushFor(string hex) =>
+        Avalonia.Media.Color.TryParse(hex, out var color)
+            ? new Avalonia.Media.SolidColorBrush(color)
+            : Avalonia.Media.Brushes.Gray;
+}
+
+/// <summary>A choice in the Type drop-down: storage, or a client such as an SSH terminal.</summary>
+internal sealed record ConnectionTypeChoice(ConnectionProfileType Type, string Label)
+{
+    public override string ToString() => Label;
 }
 
 /// <summary>
@@ -225,10 +268,119 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
             Raise(nameof(Summary));
             Raise(nameof(TrustNotice));
             Raise(nameof(HasTrustNotice));
+            Raise(nameof(AccentColor));
+            Raise(nameof(AccentBrush));
+            Raise(nameof(BadgeText));
+            Raise(nameof(EncryptedByDefault));
+            Raise(nameof(HasAuthentication));
         }
     }
 
     public string Summary => _provider.Summary;
+
+    public IEnumerable<ConnectionSectionModel> GeneralSections =>
+        Sections.Where(static section => section.Tab == ConnectionEditorTab.General);
+
+    public IEnumerable<ConnectionSectionModel> AuthenticationSections =>
+        Sections.Where(static section => section.Tab == ConnectionEditorTab.Authentication);
+
+    public IEnumerable<ConnectionSectionModel> TrustSections =>
+        Sections.Where(static section => section.Tab == ConnectionEditorTab.Trust);
+
+    public bool HasAuthentication => AuthenticationSections.Any();
+
+    public static IReadOnlyList<ConnectionTypeChoice> Types { get; } =
+    [
+        new(ConnectionProfileType.Storage, Ui.ConnectionEditor.TypeStorage),
+        new(ConnectionProfileType.Client, Ui.ConnectionEditor.TypeClient)
+    ];
+
+    /// <summary>
+    /// Storage or client. Changing it moves to that type's first provider, which is how 1.x's two
+    /// drop-downs worked: the second only ever lists providers of the first's kind.
+    /// </summary>
+    public ConnectionTypeChoice Type
+    {
+        get => Types.First(choice => choice.Type == _provider.Type);
+        set
+        {
+            if (value is null || value.Type == _provider.Type) return;
+            Provider = Providers.First(provider => provider.Type == value.Type);
+            Raise(nameof(Type));
+            Raise(nameof(ProvidersForType));
+        }
+    }
+
+    public IReadOnlyList<ConnectionProviderDescriptor> ProvidersForType =>
+        [.. Providers.Where(provider => provider.Type == _provider.Type)];
+
+    /// <summary>The twelve colours 1.x offered beside the icon.</summary>
+    public static IReadOnlyList<AccentSwatch> AccentChoices { get; } =
+    [
+        .. new[]
+        {
+            "#2563EB", "#7C3AED", "#DB2777", "#DC2626", "#EA580C", "#CA8A04",
+            "#16A34A", "#0891B2", "#0EA5E9", "#64748B", "#475569", "#0F172A"
+        }.Select(static hex => new AccentSwatch(hex))
+    ];
+
+    /// <summary>The chosen colour as something a view can paint with.</summary>
+    public Avalonia.Media.IBrush AccentBrush => AccentSwatch.BrushFor(AccentColor);
+
+    /// <summary>
+    /// The connection's colour, or the provider's own when none was chosen -- which is what the
+    /// draft factory stores for an empty value, so the preview shows what will be saved.
+    /// </summary>
+    public string AccentColor
+    {
+        get => _values.TryGetValue("accentColor", out var chosen) && !string.IsNullOrWhiteSpace(chosen)
+            ? chosen
+            : _provider.AccentHex;
+        set
+        {
+            if (string.IsNullOrWhiteSpace(value) ||
+                string.Equals(AccentColor, value, StringComparison.OrdinalIgnoreCase)) return;
+            _values["accentColor"] = value;
+            IsDirty = true;
+            Raise(nameof(AccentColor));
+            Raise(nameof(AccentBrush));
+            Raise(nameof(BadgeText));
+        }
+    }
+
+    public ICommand ChooseAccentCommand => _chooseAccent ??= new RelayCommand(
+        color => AccentColor = color as string ?? string.Empty);
+
+    private RelayCommand? _chooseAccent;
+
+    /// <summary>"LOCAL · provider color #4C8BF5": how the connection reads in a pane's header.</summary>
+    public string BadgeText => Ui.Format(
+        Ui.ConnectionEditor.ProviderColorBadgeFormat, _provider.ShortName, AccentColor).Trim();
+
+    public static string BadgeLabel => Ui.ConnectionEditor.ConnectionBadge;
+
+    public static string BadgeHint => Ui.ConnectionEditor.BadgeHint;
+
+    public bool EncryptedByDefault => _provider.EncryptedByDefault;
+
+    /// <summary>"Loaded version 3", in the footer: the version a save will be checked against.</summary>
+    public string LoadedVersion => _current is { } current
+        ? Ui.Format(Ui.ConnectionEditor.LoadedVersionFormat, current.Version)
+        : string.Empty;
+
+    public bool HasLoadedVersion => _current is not null && !HasStatus;
+
+    public static string TypeLabel => Ui.ConnectionEditor.TypeLabel;
+
+    public static string ProviderProtocolLabel => Ui.ConnectionEditor.ProviderProtocol;
+
+    public static string GeneralTabLabel => Ui.ConnectionEditor.TabGeneral;
+
+    public static string AuthenticationTabLabel => Ui.ConnectionEditor.TabAuthentication;
+
+    public static string TrustTabLabel => Ui.ConnectionEditor.TabSecurity;
+
+    public static string SaveProfileLabel => Ui.ConnectionEditor.SaveProfile;
 
     public string TrustNotice => _provider.TrustNotice;
 
@@ -272,6 +424,7 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
             _status = value;
             Raise(nameof(Status));
             Raise(nameof(HasStatus));
+            Raise(nameof(HasLoadedVersion));
         }
     }
 
@@ -490,7 +643,8 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
 
         // Carried through every save already -- the draft factory keeps it -- but until now there
         // was no way to change it, so an icon chosen in 1.x could be kept and never replaced.
-        new("iconKey", Ui.Connections.FieldIcon, ConnectionFieldKind.Icon)
+        new("iconKey", Ui.ConnectionEditor.Appearance, ConnectionFieldKind.Icon,
+            HelpText: Ui.ConnectionEditor.AppearanceHint)
     ];
 
     /// <summary>
@@ -560,28 +714,41 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     {
         Sections.Clear();
         _fieldCommands.Clear();
-        Add(Ui.Connections.SectionIdentity, IdentityFields);
-        Add(Ui.Connections.SectionGeneral, _provider.GeneralFields);
-        Add(Ui.Connections.SectionAuthentication, _provider.AuthenticationFields);
-        Add(Ui.Connections.SectionSecurity, _provider.SecurityFields);
+
+        // The General tab opens on the endpoint, as 1.x's did: the connection's own fields first,
+        // then where it points. What 2.0 added -- proxy, speed limits, FTP's advanced options --
+        // follows under its own heading on the same tab, rather than as a new screen.
+        Add(Ui.ConnectionEditor.TabEndpoint, [.. IdentityFields, .. _provider.GeneralFields],
+            ConnectionEditorTab.General, _provider.EndpointExample);
         if (_provider.Type == ConnectionProfileType.Storage && _provider.Kind != StorageProviderKind.Local)
         {
-            Add(Ui.Connections.SectionProxy, ProxyFields);
+            Add(Ui.Connections.SectionProxy, ProxyFields, ConnectionEditorTab.General);
         }
 
         if (_provider.Type == ConnectionProfileType.Storage)
         {
-            Add(Ui.Connections.SectionSpeedLimits, SpeedLimitFields);
+            Add(Ui.Connections.SectionSpeedLimits, SpeedLimitFields, ConnectionEditorTab.General);
         }
 
         if (_provider.Kind is StorageProviderKind.Ftp or StorageProviderKind.Ftps)
         {
-            Add(Ui.Connections.SectionAdvanced, FtpAdvancedFields());
+            Add(Ui.Connections.SectionAdvanced, FtpAdvancedFields(), ConnectionEditorTab.General);
         }
 
+        Add(Ui.ConnectionEditor.TabAuthentication, _provider.AuthenticationFields,
+            ConnectionEditorTab.Authentication, Ui.ConnectionEditor.SecretsLiveInVault);
+        Add(Ui.ConnectionEditor.TabTrust, _provider.SecurityFields, ConnectionEditorTab.Trust);
+
+        Raise(nameof(GeneralSections));
+        Raise(nameof(AuthenticationSections));
+        Raise(nameof(TrustSections));
         RaiseCommands();
 
-        void Add(string title, IReadOnlyList<ConnectionFieldDescriptor> descriptors)
+        void Add(
+            string title,
+            IReadOnlyList<ConnectionFieldDescriptor> descriptors,
+            ConnectionEditorTab tab,
+            string hint = "")
         {
             if (descriptors.Count == 0) return;
             var fields = new List<ConnectionFieldModel>(descriptors.Count);
@@ -597,10 +764,11 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
                 };
                 if (field.IsSecret) Arm(field);
                 if (field.IsIcon) ArmIcon(field);
+                field.Editor = this;
                 fields.Add(field);
             }
 
-            Sections.Add(new ConnectionSectionModel(title, fields));
+            Sections.Add(new ConnectionSectionModel(title, fields, tab, hint));
         }
     }
 
@@ -921,6 +1089,15 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     {
         Raise(nameof(IsNew));
         Raise(nameof(Provider));
+        Raise(nameof(Type));
+        Raise(nameof(ProvidersForType));
+        Raise(nameof(AccentColor));
+        Raise(nameof(AccentBrush));
+        Raise(nameof(BadgeText));
+        Raise(nameof(EncryptedByDefault));
+        Raise(nameof(LoadedVersion));
+        Raise(nameof(HasLoadedVersion));
+        Raise(nameof(HasAuthentication));
         Raise(nameof(Summary));
         Raise(nameof(TrustNotice));
         Raise(nameof(HasTrustNotice));

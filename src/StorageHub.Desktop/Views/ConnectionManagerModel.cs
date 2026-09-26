@@ -106,6 +106,13 @@ internal sealed class ConnectionManagerModel : INotifyPropertyChanged
 
     public ICommand DeleteCommand { get; }
 
+    /// <summary>Cancel, in the footer: closes the window, leaving anything unsaved unsaved.</summary>
+    public ICommand CloseCommand => _close ??= new RelayCommand(_ => Close());
+
+    private RelayCommand? _close;
+
+    public static string CancelLabel => Ui.ConnectionEditor.Cancel;
+
     public static string Title => Ui.Connections.ManagerTitle;
 
     public static string NewLabel => Ui.Connections.NewConnection;
