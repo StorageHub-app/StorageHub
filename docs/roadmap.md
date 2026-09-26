@@ -37,12 +37,19 @@ reference shot.
 - [ ] L.8 Workspace tabs: Save, Save As, Open and Close workspace have no handlers in 2.0. The tab's
       close button and its `*` for unsaved changes come with them, so this is behaviour rather than
       look, but 1.4 had it and ui-reference 05 shows it.
-- [ ] L.2 The file pane (ref 05): the connection chip with its `STORAGE`/`LOCAL` badges and the
+- [ ] L.2 The file pane (ref 05). Done apart from the drag-hint row: the chip, the badges, the state
+      line, the `FILES` row with its overflow, "Filter:" and the item count. Was: the connection chip with its `STORAGE`/`LOCAL` badges and the
       "● Ready" status line in place of the "Select the profile to connect" drop-down; the labelled
       `FILES` command row (New folder · Copy · Move · Paste · Delete · overflow) in place of the icon
       strip, with Copy/Move/Paste taken out of the bottom-right corner; "Filter:" beside the path box;
       the "N items" footer; the drag-hint row under the tab strip.
-- [ ] L.3 A new pane opens on This PC with the drives listed, not on an empty `/`.
+- [x] L.3 A new pane opens on This PC with the drives listed, not on an empty `/`. Every pane does:
+      1.x opened the second on "Connections Home", a listing of saved connections that 2.0 does not
+      have yet (L.9).
+- [ ] L.9 Connections Home: a pane pointed at no connection lists the saved ones as rows, as 1.x's
+      second pane did, and opening a row opens that connection.
+- [ ] L.10 The overview's Agent card still says "Starting" after the status bar has moved to
+      "Agent: connected". Seen in the running app on 2026-09-26.
 - [ ] L.4 The connection editor (ref 08): back to the dialog shape. Type and Provider / protocol
       drop-downs in a fixed header with the provider's description under them; General,
       Authentication and TLS / SSH Trust tabs; each description under its control rather than under

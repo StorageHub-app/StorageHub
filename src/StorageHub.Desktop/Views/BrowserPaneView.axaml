@@ -86,127 +86,154 @@
         </Grid>
       </Border>
 
-      <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto"
+      <!--
+        The connection bar, as 1.x drew it (ui-reference 05): a chip naming what the pane is showing
+        with its two badges, then how that connection is doing and the button that changes it. The
+        badges are what let four panes on four different servers tell themselves apart at a glance,
+        which is why the name alone was not enough.
+      -->
+      <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*"
             IsVisible="{Binding ShowConnectionBar}"
-            ColumnSpacing="{StaticResource SpaceSm}"
+            ColumnSpacing="{StaticResource SpaceMd}"
             Margin="{StaticResource PaddingMd}">
-        <!-- A button over a searchable picker rather than a drop-down list, which stops scaling
-             past a handful of connections. The picker is made fresh each time it opens. -->
-        <Button x:Name="PART_ConnectionButton" Grid.Column="0"
-                HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
-                AutomationProperties.Name="{Binding Title}">
-          <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource SpaceSm}">
-            <LucideIcon Grid.Column="0" Kind="{Binding ConnectionIcon}"
-                        Size="{StaticResource IconSizeSm}" VerticalAlignment="Center"/>
-            <TextBlock Grid.Column="1" Text="{Binding Title}"
-                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
-            <LucideIcon Grid.Column="2" Kind="ChevronDown"
-                        Size="{StaticResource IconSizeSm}" VerticalAlignment="Center"/>
+        <Border Grid.Column="0" Classes="pane-chip">
+          <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceMd}">
+            <TextBlock Classes="pane-chip-name" Text="{Binding Title}"
+                       MaxWidth="260" TextTrimming="CharacterEllipsis"
+                       VerticalAlignment="Center"/>
+            <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceSm}"
+                        IsVisible="{Binding HasBadges}" VerticalAlignment="Center">
+              <Border Classes="pill primary">
+                <TextBlock Text="{Binding TypeBadge}"/>
+              </Border>
+              <Border Classes="pill">
+                <TextBlock Text="{Binding ProviderBadge}"/>
+              </Border>
+            </StackPanel>
+          </StackPanel>
+        </Border>
+
+        <Border Grid.Column="1" Classes="pane-chip">
+          <Grid ColumnDefinitions="*,280" ColumnSpacing="{StaticResource SpaceMd}">
+            <TextBlock Grid.Column="0" Classes="pane-state" VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis"
+                       Text="{Binding ConnectionState}"
+                       Classes.ready="{Binding ConnectionStateIsReady}"
+                       Classes.busy="{Binding ConnectionStateIsBusy}"
+                       Classes.failed="{Binding ConnectionStateIsFailed}"/>
+            <!-- A button over a searchable picker rather than a drop-down list, which stops
+                 scaling past a handful of connections. The picker is made fresh each time. -->
+            <Button x:Name="PART_ConnectionButton" Grid.Column="1" Classes="picker"
+                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                    AutomationProperties.Name="{Binding Title}">
+              <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource SpaceSm}">
+                <LucideIcon Grid.Column="0" Kind="{Binding ConnectionIcon}"
+                            Size="{StaticResource IconSizeSm}" VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="1" Text="{Binding Title}"
+                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                <LucideIcon Grid.Column="2" Kind="ChevronDown"
+                            Size="{StaticResource IconSizeSm}" VerticalAlignment="Center"/>
+              </Grid>
+              <Button.Flyout>
+                <Flyout Placement="BottomEdgeAlignedLeft">
+                  <vm:ConnectionPickerView x:Name="PART_ConnectionPicker"/>
+                </Flyout>
+              </Button.Flyout>
+            </Button>
           </Grid>
-          <Button.Flyout>
-            <Flyout Placement="BottomEdgeAlignedLeft">
-              <vm:ConnectionPickerView x:Name="PART_ConnectionPicker"/>
-            </Flyout>
-          </Button.Flyout>
-        </Button>
-
-        <Button Grid.Column="1" Classes="tool" Command="{Binding RefreshCommand}"
-                ToolTip.Tip="{Binding RefreshLabel}">
-          <LucideIcon Kind="RefreshCw" Size="{StaticResource IconSizeSm}"/>
-        </Button>
+        </Border>
       </Grid>
 
       <!--
-        Copy and move stage this pane's selection; paste puts what is staged into this pane. Three
+        The file commands, labelled, under a FILES caption, as 1.x had them: New folder, then the
+        three that move things between panes, then Delete, with the rest behind the overflow. Copy
+        and move stage this pane's selection; paste puts what is staged into this pane - three
         buttons rather than two because a workspace can hold four panes, and "the other one" stops
-        naming anything past two. The commands come from the workspace, which is the only thing
-        that knows there are other panes at all.
+        naming anything past two.
       -->
-      <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto,Auto,Auto"
-            ColumnSpacing="{StaticResource SpaceSm}"
-            IsVisible="{Binding IsListing}"
-            Margin="{StaticResource PaddingMd}">
-        <TextBlock Grid.Column="0" Classes="caption" VerticalAlignment="Center"
-                   Text="{Binding SelectionSummary}"/>
-        <Button Grid.Column="1" Classes="tool" Command="{Binding CopyCommand}"
-                ToolTip.Tip="{Binding CopyHint}">
+      <Border DockPanel.Dock="Top" Classes="pane-commands" IsVisible="{Binding IsListing}">
+        <DockPanel>
+          <Button DockPanel.Dock="Right" Classes="tool"
+                  ToolTip.Tip="{Binding MoreFileCommandsLabel}"
+                  AutomationProperties.Name="{Binding MoreFileCommandsLabel}">
+            <LucideIcon Kind="Ellipsis" Size="{StaticResource IconSizeSm}"/>
+            <Button.Flyout>
+              <MenuFlyout>
+                <MenuItem Header="{Binding NewFileLabel}" Command="{Binding NewFileCommand}">
+                  <MenuItem.Icon><LucideIcon Kind="FilePlus" Size="{StaticResource IconSizeSm}"/></MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="{Binding RenameLabel}" Command="{Binding RenameCommand}">
+                  <MenuItem.Icon><LucideIcon Kind="PencilLine" Size="{StaticResource IconSizeSm}"/></MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="{Binding BatchRenameLabel}" Command="{Binding BatchRenameCommand}">
+                  <MenuItem.Icon><LucideIcon Kind="ReplaceAll" Size="{StaticResource IconSizeSm}"/></MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="{Binding EditLabel}" Command="{Binding EditCommand}">
+                  <MenuItem.Icon><LucideIcon Kind="FilePen" Size="{StaticResource IconSizeSm}"/></MenuItem.Icon>
+                </MenuItem>
+                <Separator/>
+                <MenuItem Header="{Binding SelectAllLabel}" Command="{Binding SelectAllCommand}">
+                  <MenuItem.Icon><LucideIcon Kind="ListChecks" Size="{StaticResource IconSizeSm}"/></MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="{Binding InvertSelectionLabel}" Command="{Binding InvertSelectionCommand}">
+                  <MenuItem.Icon><LucideIcon Kind="Replace" Size="{StaticResource IconSizeSm}"/></MenuItem.Icon>
+                </MenuItem>
+                <Separator/>
+                <MenuItem Header="{Binding PropertiesLabel}" Command="{Binding PropertiesCommand}">
+                  <MenuItem.Icon><LucideIcon Kind="Info" Size="{StaticResource IconSizeSm}"/></MenuItem.Icon>
+                </MenuItem>
+              </MenuFlyout>
+            </Button.Flyout>
+          </Button>
           <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
-            <LucideIcon Kind="Copy" Size="{StaticResource IconSizeSm}"/>
-            <TextBlock Text="{Binding CopyLabel}"/>
+            <TextBlock Classes="pane-caption" Text="{Binding FilesCaption}" VerticalAlignment="Center"/>
+            <Border Classes="toolbar-separator"/>
+            <Button Classes="tool" Command="{Binding NewFolderCommand}"
+                    ToolTip.Tip="{Binding NewFolderLabel}">
+              <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+                <LucideIcon Kind="FolderPlus" Size="{StaticResource IconSizeSm}"/>
+                <TextBlock Text="{Binding NewFolderLabel}"/>
+              </StackPanel>
+            </Button>
+            <Border Classes="toolbar-separator"/>
+            <Button Classes="tool" Command="{Binding CopyCommand}" ToolTip.Tip="{Binding CopyHint}">
+              <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+                <LucideIcon Kind="Copy" Size="{StaticResource IconSizeSm}"/>
+                <TextBlock Text="{Binding CopyLabel}"/>
+              </StackPanel>
+            </Button>
+            <Button Classes="tool" Command="{Binding MoveCommand}" ToolTip.Tip="{Binding MoveHint}">
+              <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+                <LucideIcon Kind="ArrowRight" Size="{StaticResource IconSizeSm}"/>
+                <TextBlock Text="{Binding MoveLabel}"/>
+              </StackPanel>
+            </Button>
+            <Button Classes="tool" Command="{Binding PasteCommand}" ToolTip.Tip="{Binding PasteHint}">
+              <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+                <LucideIcon Kind="ClipboardPaste" Size="{StaticResource IconSizeSm}"/>
+                <TextBlock Text="{Binding PasteLabel}"/>
+              </StackPanel>
+            </Button>
+            <Border Classes="toolbar-separator"/>
+            <Button Classes="tool" Command="{Binding DeleteCommand}" ToolTip.Tip="{Binding DeleteLabel}">
+              <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+                <LucideIcon Kind="Trash" Size="{StaticResource IconSizeSm}"/>
+                <TextBlock Text="{Binding DeleteLabel}"/>
+              </StackPanel>
+            </Button>
           </StackPanel>
-        </Button>
-        <Button Grid.Column="2" Classes="tool" Command="{Binding MoveCommand}"
-                ToolTip.Tip="{Binding MoveHint}">
-          <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
-            <LucideIcon Kind="ArrowRight" Size="{StaticResource IconSizeSm}"/>
-            <TextBlock Text="{Binding MoveLabel}"/>
-          </StackPanel>
-        </Button>
-        <Button Grid.Column="3" Classes="tool" Command="{Binding PasteCommand}"
-                ToolTip.Tip="{Binding PasteHint}">
-          <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
-            <LucideIcon Kind="ClipboardPaste" Size="{StaticResource IconSizeSm}"/>
-            <TextBlock Text="{Binding PasteLabel}"/>
-          </StackPanel>
-        </Button>
-      </Grid>
+        </DockPanel>
+      </Border>
 
       <!--
-        What can be done to what is in this pane. Beside the address rather than in a context menu
-        only, because a file manager whose only way to make a folder is a right-click is one people
-        keep a second file manager open beside.
-      -->
-      <StackPanel DockPanel.Dock="Top" Orientation="Horizontal"
-                  Spacing="{StaticResource SpaceXs}"
-                  IsVisible="{Binding IsListing}"
-                  Margin="{StaticResource PaddingMd}, 0, {StaticResource PaddingMd}, {StaticResource PaddingMd}">
-        <Button Classes="tool" Command="{Binding NewFolderCommand}"
-                ToolTip.Tip="{Binding NewFolderLabel}">
-          <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
-            <LucideIcon Kind="FolderPlus" Size="{StaticResource IconSizeSm}"/>
-            <TextBlock Text="{Binding NewFolderLabel}"/>
-          </StackPanel>
-        </Button>
-        <Button Classes="tool" Command="{Binding NewFileCommand}"
-                ToolTip.Tip="{Binding NewFileLabel}">
-          <LucideIcon Kind="FilePlus" Size="{StaticResource IconSizeSm}"/>
-        </Button>
-        <Button Classes="tool" Command="{Binding RenameCommand}"
-                ToolTip.Tip="{Binding RenameLabel}">
-          <LucideIcon Kind="PencilLine" Size="{StaticResource IconSizeSm}"/>
-        </Button>
-        <Button Classes="tool" Command="{Binding BatchRenameCommand}"
-                ToolTip.Tip="{Binding BatchRenameLabel}">
-          <LucideIcon Kind="ReplaceAll" Size="{StaticResource IconSizeSm}"/>
-        </Button>
-        <Button Classes="tool" Command="{Binding DeleteCommand}"
-                ToolTip.Tip="{Binding DeleteLabel}">
-          <LucideIcon Kind="Trash" Size="{StaticResource IconSizeSm}"/>
-        </Button>
-        <Button Classes="tool" Command="{Binding EditCommand}"
-                ToolTip.Tip="{Binding EditLabel}">
-          <LucideIcon Kind="FilePen" Size="{StaticResource IconSizeSm}"/>
-        </Button>
-        <Button Classes="tool" Command="{Binding PropertiesCommand}"
-                ToolTip.Tip="{Binding PropertiesLabel}">
-          <LucideIcon Kind="Info" Size="{StaticResource IconSizeSm}"/>
-        </Button>
-      </StackPanel>
-
-      <!--
-        Where the pane is, and what it is showing of it, on one row. Two rows read more clearly on
-        a wide single pane and cost a listing's worth of height on four - the 1.x pane put the path
-        and the filter side by side for exactly that reason, and four panes make the argument
-        rather than settle it.
-
-        The filter narrows what is shown, not what was fetched, so clearing it costs nothing.
-        Select all and invert sit beside it deliberately: both act on what the filter is showing,
-        and putting them anywhere else would hide that they do.
+        Where the pane is, and what it is showing of it, on one row: back, forward and up, the
+        address, refresh, then the filter under its own label. The filter narrows what is shown,
+        not what was fetched, so clearing it costs nothing.
       -->
       <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto,Auto"
             ColumnSpacing="{StaticResource SpaceXs}"
             IsVisible="{Binding IsListing}"
-            Margin="{StaticResource PaddingMd}, 0, {StaticResource PaddingMd}, {StaticResource PaddingMd}">
+            Margin="8,4">
         <Button Grid.Column="0" Classes="tool" Command="{Binding BackCommand}">
           <LucideIcon Kind="ArrowLeft" Size="{StaticResource IconSizeSm}"/>
         </Button>
@@ -216,24 +243,36 @@
         <Button Grid.Column="2" Classes="tool" Command="{Binding UpCommand}">
           <LucideIcon Kind="ArrowUp" Size="{StaticResource IconSizeSm}"/>
         </Button>
-        <TextBox Grid.Column="3" Text="{Binding Path}" IsReadOnly="True"
+        <TextBox Grid.Column="3" Classes="dense" Text="{Binding Path}" IsReadOnly="True"
                  VerticalAlignment="Center"/>
-        <TextBox Grid.Column="4" Width="190" Text="{Binding Filter, Mode=TwoWay}"
+        <Button Grid.Column="4" Classes="tool" Command="{Binding RefreshCommand}"
+                ToolTip.Tip="{Binding RefreshLabel}">
+          <LucideIcon Kind="RefreshCw" Size="{StaticResource IconSizeSm}"/>
+        </Button>
+        <TextBlock Grid.Column="5" Classes="muted" Text="{Binding FilterLabel}"
+                   VerticalAlignment="Center" Margin="{StaticResource PaddingSm}"/>
+        <TextBox Grid.Column="6" Classes="dense" Width="170" Text="{Binding Filter, Mode=TwoWay}"
                  Watermark="{Binding FilterPlaceholder}"
                  AutomationProperties.Name="{Binding FilterAccessibleName}"
-                 VerticalAlignment="Center"/>
-        <Button Grid.Column="5" Classes="tool" Command="{Binding ClearFilterCommand}"
+                 VerticalAlignment="Center">
+          <TextBox.InnerLeftContent>
+            <LucideIcon Kind="Search" Size="{StaticResource IconSizeSm}"
+                        Margin="6,0,0,0" VerticalAlignment="Center"/>
+          </TextBox.InnerLeftContent>
+        </TextBox>
+        <Button Grid.Column="7" Classes="tool" Command="{Binding ClearFilterCommand}"
                 IsVisible="{Binding HasFilter}">
           <LucideIcon Kind="X" Size="{StaticResource IconSizeSm}"/>
         </Button>
-        <Button Grid.Column="6" Classes="tool" Command="{Binding SelectAllCommand}"
-                ToolTip.Tip="{Binding SelectAllLabel}">
-          <LucideIcon Kind="ListChecks" Size="{StaticResource IconSizeSm}"/>
-        </Button>
-        <Button Grid.Column="7" Classes="tool" Command="{Binding InvertSelectionCommand}"
-                ToolTip.Tip="{Binding InvertSelectionLabel}">
-          <LucideIcon Kind="Replace" Size="{StaticResource IconSizeSm}"/>
-        </Button>
+      </Grid>
+
+      <!-- "12 items" and what is selected, under the listing, as 1.x's pane footer read. -->
+      <Grid DockPanel.Dock="Bottom" ColumnDefinitions="Auto,*"
+            ColumnSpacing="{StaticResource SpaceLg}"
+            IsVisible="{Binding IsListing}"
+            Margin="8,4">
+        <TextBlock Grid.Column="0" Classes="muted" Text="{Binding ItemCount}"/>
+        <TextBlock Grid.Column="1" Classes="muted" Text="{Binding SelectionSummary}"/>
       </Grid>
 
       <!-- Sits over the table rather than replacing it: a failed navigation keeps the listing

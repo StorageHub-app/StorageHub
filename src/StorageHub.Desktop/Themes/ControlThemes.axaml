@@ -506,6 +506,86 @@
   </Style>
 
   <!--
+    A pane's connection bar, as 1.x drew it (ui-reference 05): two framed boxes on the surface,
+    one naming the connection with its badges, one saying how it is and holding the picker.
+  -->
+  <Style Selector="Border.pane-chip">
+    <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="CornerRadius" Value="{StaticResource DenseFieldRadius}"/>
+    <Setter Property="Padding" Value="10,4"/>
+    <Setter Property="MinHeight" Value="34"/>
+  </Style>
+  <Style Selector="TextBlock.pane-chip-name">
+    <Setter Property="FontSize" Value="{StaticResource FontSizeSubtitle}"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+  </Style>
+
+  <!-- A rounded badge in a pane's chip: STORAGE in the accent, the protocol muted. -->
+  <Style Selector="Border.pill">
+    <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="CornerRadius" Value="10"/>
+    <Setter Property="Padding" Value="8,1"/>
+  </Style>
+  <Style Selector="Border.pill TextBlock">
+    <Setter Property="FontSize" Value="10"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+  </Style>
+  <Style Selector="Border.pill.primary">
+    <Setter Property="Background" Value="{DynamicResource SelectionBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
+  </Style>
+  <Style Selector="Border.pill.primary TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}"/>
+  </Style>
+
+  <!-- The state line: its colour says what its words say. -->
+  <Style Selector="TextBlock.pane-state">
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+  </Style>
+  <Style Selector="TextBlock.pane-state.ready">
+    <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}"/>
+  </Style>
+  <Style Selector="TextBlock.pane-state.busy">
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}"/>
+  </Style>
+  <Style Selector="TextBlock.pane-state.failed">
+    <Setter Property="Foreground" Value="{DynamicResource WarningBrush}"/>
+  </Style>
+
+  <!-- The flat, bordered button that opens a pane's connection picker. -->
+  <Style Selector="Button.picker">
+    <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+    <Setter Property="Padding" Value="{StaticResource DenseFieldPadding}"/>
+    <Setter Property="CornerRadius" Value="{StaticResource DenseFieldRadius}"/>
+  </Style>
+
+  <!-- The FILES row: a strip on the surface with its small capitalised caption. -->
+  <Style Selector="Border.pane-commands">
+    <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+    <Setter Property="BorderThickness" Value="0,1"/>
+    <Setter Property="Padding" Value="8,2"/>
+  </Style>
+  <Style Selector="TextBlock.pane-caption">
+    <Setter Property="FontSize" Value="10"/>
+    <Setter Property="FontWeight" Value="Bold"/>
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+    <Setter Property="Margin" Value="2,0,4,0"/>
+  </Style>
+
+  <!-- A field in a pane's navigation row: as tall as the buttons beside it, not a dialog's. -->
+  <Style Selector="TextBox.dense">
+    <Setter Property="Padding" Value="{StaticResource DenseFieldPadding}"/>
+    <Setter Property="MinHeight" Value="26"/>
+    <Setter Property="CornerRadius" Value="{StaticResource DenseFieldRadius}"/>
+  </Style>
+
+  <!--
     A card in the New Workspace chooser: a picture of an arrangement, its name, and what it is for.
     Quiet until it is pointed at, because six lit cards would be six things asking to be pressed.
   -->

@@ -98,6 +98,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     private bool _sortAscending = true;
     private string _filter = string.Empty;
     private bool _isAtRoot = true;
+    private bool _failed;
 
     /// <param name="mutations">
     /// How the pane creates, renames and deletes. Null leaves those commands unavailable, which is
@@ -245,7 +246,74 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             if (_busy == value) return;
             _busy = value;
             Raise(nameof(IsBusy));
+            RaiseConnectionState();
         }
+    }
+
+    /// <summary>
+    /// The line beside the connection button: "● Ready", "● Loading…", "○ Choose a saved
+    /// connection", as 1.x's pane header said it.
+    /// </summary>
+    public string ConnectionState =>
+        _connection is null ? Ui.Pane.StateChooseConnection
+        : _busy ? Ui.Pane.StateLoading
+        : IsTerminal ? Ui.Pane.StateSshTerminal
+        : _failed ? Ui.Pane.StateLocationUnavailable
+        : Ui.Pane.StateReady;
+
+    /// <summary>The tone the state line is drawn in: the words and the colour say the same thing.</summary>
+    public bool ConnectionStateIsReady => _connection is not null && !_busy && !_failed;
+
+    public bool ConnectionStateIsBusy => _connection is not null && _busy;
+
+    public bool ConnectionStateIsFailed => _connection is not null && !_busy && _failed;
+
+    /// <summary>
+    /// The chip's first badge: what kind of connection this is. Storage is the accent, as in 1.x.
+    /// </summary>
+    public string TypeBadge => ConnectionCard()?.Type == ConnectionProfileType.Client
+        ? Ui.Connections.BadgeClient
+        : Ui.Connections.BadgeStorage;
+
+    /// <summary>The chip's second badge: the protocol, e.g. LOCAL, S3, SFTP.</summary>
+    public string ProviderBadge =>
+        (ConnectionCard()?.Provider ?? StorageProviderKind.Local).ToString().ToUpperInvariant();
+
+    public bool HasBadges => _connection is not null;
+
+    /// <summary>"12 items", or "3 of 12 items" while a filter is narrowing the listing.</summary>
+    public string ItemCount
+    {
+        get
+        {
+            var shown = Rows.Count(static row => !row.IsParentNavigation);
+            return HasFilter && _index is not null
+                ? Ui.Format(Ui.Pane.ItemCountFilteredFormat, shown,
+                    _index.CreateView(_sortColumn, _sortAscending, null).Count)
+                : Ui.Format(Ui.Pane.ItemCountFormat, shown);
+        }
+    }
+
+    public static string FilesCaption => Ui.Pane.FilesCaption;
+
+    public static string FilterLabel => Ui.Pane.FilterLabel;
+
+    public static string MoreFileCommandsLabel => Ui.Pane.MoreFileCommands;
+
+    /// <summary>The saved connection behind the pane's choice, or This PC's card for no id.</summary>
+    private ConnectionCardModel? ConnectionCard() => _connection is null
+        ? null
+        : _cards.FirstOrDefault(card => card.ConnectionId == _connection.Id);
+
+    private void RaiseConnectionState()
+    {
+        Raise(nameof(ConnectionState));
+        Raise(nameof(ConnectionStateIsReady));
+        Raise(nameof(ConnectionStateIsBusy));
+        Raise(nameof(ConnectionStateIsFailed));
+        Raise(nameof(TypeBadge));
+        Raise(nameof(ProviderBadge));
+        Raise(nameof(HasBadges));
     }
 
     /// <summary>Whether this is the pane a pane command would act on.</summary>
@@ -273,6 +341,8 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             Raise(nameof(Connection));
             Raise(nameof(Title));
             Raise(nameof(ConnectionIcon));
+            _failed = false;
+            RaiseConnectionState();
             if (value is not null) _ = OpenAsync(value);
         }
     }
@@ -531,6 +601,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             Raise(nameof(ContentKind));
             Raise(nameof(IsTerminal));
             Raise(nameof(IsListing));
+            RaiseConnectionState();
             RaiseCommands();
         }
     }
@@ -788,6 +859,11 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         finally
         {
             IsBusy = false;
+
+            // A pane that has not been pointed anywhere opens on This PC, as 1.x's did, rather
+            // than on an empty "/" waiting to be told. Whether or not the agent answered: this
+            // computer can be browsed either way.
+            if (_connection is null && Connections.Count > 0) Connection = Connections[0];
         }
     }
 
@@ -1289,9 +1365,14 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         if (result.Listing is not { } listing)
         {
             Status = result.Error ?? Ui.Pane.Disconnected;
+            _failed = true;
+            RaiseConnectionState();
             RaiseCommands();
             return;
         }
+
+        _failed = false;
+        RaiseConnectionState();
 
         Path = listing.DisplayPath;
         _hasMore = listing.HasMore;
@@ -1370,6 +1451,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         Raise(nameof(TypeHeader));
         Raise(nameof(ModifiedHeader));
         Raise(nameof(StatusHeader));
+        Raise(nameof(ItemCount));
         RaiseCommands();
     }
 
