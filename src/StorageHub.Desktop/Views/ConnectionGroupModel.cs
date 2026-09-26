@@ -14,8 +14,12 @@ namespace StorageHub.Desktop.Views;
 /// client and an SFTP connection to the same host look identical without it -- and it is not a
 /// reason to organise the whole panel around.
 /// </remarks>
-internal sealed record ConnectionRowModel(ConnectionCardModel Card)
+internal sealed class ConnectionRowModel(ConnectionCardModel card) : INotifyPropertyChanged
 {
+    private bool _isSelected;
+
+    public ConnectionCardModel Card { get; } = card;
+
     public Guid Id => Card.ConnectionId ?? Guid.Empty;
 
     public string Name => Card.Name;
@@ -28,11 +32,43 @@ internal sealed record ConnectionRowModel(ConnectionCardModel Card)
 
     public string Badge => ConnectionGrouping.BadgeFor(Card);
 
-    /// <summary>Whether this is a shell rather than storage, which the badge is coloured by.</summary>
     public bool IsClient => Card.Type == Contracts.Ipc.ConnectionProfileType.Client;
 
-    /// <summary>What a double-click does, said where somebody would look for it.</summary>
     public static string OpenHint => Ui.Connections.OpenInActivePane;
+
+    /// <summary>
+    /// The connection's own icon, drawn on its colour in a rounded tile, as 1.x's cards were
+    /// (ui-reference 09). The colour is the one chosen in the editor, or the provider's.
+    /// </summary>
+    public Lucide.Avalonia.LucideIconKind Icon => Themes.IconCatalog.Resolve(
+            ConnectionIconCatalog.ResolveForConnection(Card.IconKey, Card.Provider, Card.Type))
+        ?? Lucide.Avalonia.LucideIconKind.Cloud;
+
+    public Avalonia.Media.IBrush AccentBrush => AccentSwatch.BrushFor(Card.AccentHex);
+
+    /// <summary>"Local / UNC · Studio · Not tested": provider, folder and health on one muted line.</summary>
+    public string Subtitle => string.Join(
+        " · ",
+        new[] { Card.Descriptor.DisplayName, Card.FolderPath, Card.State }
+            .Where(static part => !string.IsNullOrWhiteSpace(part)));
+
+    public IReadOnlyList<string> Tags => Card.DisplayTags;
+
+    public bool HasTags => Card.DisplayTags.Count > 0;
+
+    /// <summary>The card the details panel is showing, which wears the accent border.</summary>
+    public bool IsSelected
+    {
+        get => _isSelected;
+        internal set
+        {
+            if (_isSelected == value) return;
+            _isSelected = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsSelected)));
+        }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
 }
 
 /// <summary>

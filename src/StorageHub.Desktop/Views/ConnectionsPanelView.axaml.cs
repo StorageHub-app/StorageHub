@@ -21,6 +21,24 @@ public partial class ConnectionsPanelView : UserControl
         AvaloniaXamlLoader.Load(this);
         ConnectionDragHandler.Attach(this, () => DataContext as ConnectionsSidebar);
         AddHandler(DoubleTappedEvent, OnDoubleTapped, RoutingStrategies.Bubble);
+        AddHandler(TappedEvent, OnTapped, RoutingStrategies.Bubble);
+    }
+
+    /// <summary>A single click selects a card and fills the details panel; a double click opens it.</summary>
+    private void OnTapped(object? sender, TappedEventArgs e)
+    {
+        if (DataContext is not ConnectionsSidebar sidebar) return;
+        if (e.Source is not Visual source) return;
+
+        for (Visual? step = source; step is not null; step = step.GetVisualParent())
+        {
+            // A button on the card acts on the card; it does not need to select it first.
+            if (step is Button) return;
+            if (step is not StyledElement { DataContext: ConnectionRowModel row }) continue;
+
+            sidebar.Select(row);
+            return;
+        }
     }
 
     /// <summary>

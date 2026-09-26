@@ -459,6 +459,54 @@
     <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}"/>
   </Style>
 
+  <!--
+    A connection card's parts (ui-reference 09): the rounded tile in the connection's own colour
+    with a white glyph, its tags as quiet chips, and the provider badge in the details panel.
+  -->
+  <Style Selector="Border.card.connection-row">
+    <Setter Property="Padding" Value="10,8"/>
+    <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+  </Style>
+  <Style Selector="Border.card.connection-row:pointerover">
+    <Setter Property="BorderBrush" Value="{DynamicResource TextMutedBrush}"/>
+  </Style>
+  <Style Selector="Border.card.connection-row.selected">
+    <Setter Property="Background" Value="{DynamicResource SelectionBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
+  </Style>
+  <Style Selector="Border.icon-tile">
+    <Setter Property="Width" Value="34"/>
+    <Setter Property="Height" Value="34"/>
+    <Setter Property="CornerRadius" Value="8"/>
+  </Style>
+  <Style Selector="Border.icon-tile LucideIcon">
+    <Setter Property="Foreground" Value="White"/>
+    <Setter Property="HorizontalAlignment" Value="Center"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+  </Style>
+  <Style Selector="Border.tag">
+    <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}"/>
+    <Setter Property="CornerRadius" Value="4"/>
+    <Setter Property="Padding" Value="6,1"/>
+  </Style>
+  <Style Selector="Border.tag TextBlock">
+    <Setter Property="FontSize" Value="{StaticResource FontSizeCaption}"/>
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+  </Style>
+  <Style Selector="Border.detail-badge">
+    <Setter Property="CornerRadius" Value="4"/>
+    <Setter Property="Padding" Value="6,2"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+  </Style>
+  <Style Selector="Border.detail-badge TextBlock">
+    <Setter Property="Foreground" Value="White"/>
+    <Setter Property="FontSize" Value="{StaticResource FontSizeCaption}"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+  </Style>
+  <Style Selector="Grid.detail-row">
+    <Setter Property="Margin" Value="0,1"/>
+  </Style>
+
   <!-- A connection nobody can open reads as unavailable rather than as missing. -->
   <Style Selector="Border.connection-row.disabled">
     <Setter Property="Opacity" Value="0.55"/>

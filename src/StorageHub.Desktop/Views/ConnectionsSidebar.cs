@@ -19,6 +19,9 @@ namespace StorageHub.Desktop.Views;
 /// time here would let the two surfaces disagree about a connection's name, provider or health
 /// wording - the exact reason that factory was extracted in the first place.
 /// </remarks>
+/// <summary>One key and value in the details panel, e.g. "Provider  S3 / Object Storage".</summary>
+internal sealed record ConnectionDetailRow(string Key, string Value);
+
 internal sealed class ConnectionsSidebar : INotifyPropertyChanged
 {
     private readonly Func<IRemoteStorageAgentClient>? _client;
@@ -42,6 +45,9 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     private IReadOnlyList<ConnectionGroupEntry> _arrangement = [];
     private string _status = string.Empty;
     private bool _isEmpty = true;
+    private ConnectionRowModel? _selected;
+    private string _detailStatus = string.Empty;
+    private bool _testing;
 
     /// <param name="load">Where the saved arrangement comes from. Null means nothing is remembered.</param>
     /// <param name="save">
@@ -72,6 +78,156 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         Status = Ui.Connections.SidebarEmpty;
         NewGroupCommand = new RelayCommand(_ => _ = AddGroupAsync(), _ => _dialogs is not null);
         ClearSearchCommand = new RelayCommand(_ => Search = string.Empty);
+
+        OpenSelectedCommand = new RelayCommand(
+            _ => { if (_selected is { } row) OpenConnection?.Invoke(row.Id); },
+            _ => _selected is not null && OpenConnection is not null);
+        TestSelectedCommand = new RelayCommand(
+            _ => _ = TestSelectedAsync(), _ => _selected is not null && _client is not null && !_testing);
+        EditSelectedCommand = new RelayCommand(
+            row => { if ((row as ConnectionRowModel ?? _selected) is { } chosen) EditConnection?.Invoke(chosen.Id); },
+            _ => EditConnection is not null);
+        DeleteSelectedCommand = new RelayCommand(
+            row => { if ((row as ConnectionRowModel ?? _selected) is { } chosen && DeleteConnection is { } delete) _ = DeleteAndRefreshAsync(delete, chosen.Id); },
+            _ => DeleteConnection is not null);
+    }
+
+    /// <summary>
+    /// The card the details panel is showing.
+    /// </summary>
+    /// <remarks>
+    /// Kept by id across a rebuild, so a search or a drag does not throw the details away while
+    /// the connection they describe is still on screen.
+    /// </remarks>
+    public ConnectionRowModel? Selected
+    {
+        get => _selected;
+        private set
+        {
+            if (ReferenceEquals(_selected, value)) return;
+            if (_selected is not null) _selected.IsSelected = false;
+            _selected = value;
+            if (value is not null) value.IsSelected = true;
+            DetailStatus = string.Empty;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Selected)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasSelection)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Details)));
+            RaiseDetailCommands();
+        }
+    }
+
+    public bool HasSelection => _selected is not null;
+
+    /// <summary>Selects a card, as a single click does.</summary>
+    internal void Select(ConnectionRowModel? row) => Selected = row;
+
+    /// <summary>
+    /// The details panel's rows for the selected connection, as 1.x listed them under it.
+    /// </summary>
+    public IReadOnlyList<ConnectionDetailRow> Details => _selected is not { Card: var card }
+        ? []
+        : [.. new ConnectionDetailRow[]
+            {
+                new(Ui.Connections.Provider, card.Descriptor.DisplayName),
+                new(Ui.Connections.FieldFolder, card.FolderPath ?? string.Empty),
+                new(Ui.Connections.FieldTags, string.Join(", ", card.DisplayTags)),
+                new(Ui.Connections.FieldState, card.State)
+            }.Where(static row => !string.IsNullOrWhiteSpace(row.Value))];
+
+    /// <summary>What the last test said, under the details.</summary>
+    public string DetailStatus
+    {
+        get => _detailStatus;
+        private set
+        {
+            Set(ref _detailStatus, value, nameof(DetailStatus));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasDetailStatus)));
+        }
+    }
+
+    public bool HasDetailStatus => _detailStatus.Length > 0;
+
+    public ICommand OpenSelectedCommand { get; }
+
+    public ICommand TestSelectedCommand { get; }
+
+    /// <summary>Edit, on the selected card and in the details panel. Its parameter is the row, if any.</summary>
+    public ICommand EditSelectedCommand { get; }
+
+    /// <summary>Delete, likewise. The shell asks first; the panel refreshes after.</summary>
+    public ICommand DeleteSelectedCommand { get; }
+
+    /// <summary>Opens the editor on a connection. Assigned by the shell, which owns the windows.</summary>
+    public Action<Guid>? EditConnection
+    {
+        get;
+        internal set
+        {
+            field = value;
+            RaiseDetailCommands();
+        }
+    }
+
+    /// <summary>
+    /// Deletes a connection, confirming first. Assigned by the shell, so the check against the
+    /// listed version is the Connection Manager's and not a second copy of it.
+    /// </summary>
+    public Func<Guid, Task>? DeleteConnection
+    {
+        get;
+        internal set
+        {
+            field = value;
+            RaiseDetailCommands();
+        }
+    }
+
+    private async Task DeleteAndRefreshAsync(Func<Guid, Task> delete, Guid id)
+    {
+        await delete(id).ConfigureAwait(true);
+        await RefreshAsync().ConfigureAwait(true);
+    }
+
+    /// <summary>Asks the agent whether the selected connection answers, and says so under it.</summary>
+    internal async Task TestSelectedAsync(CancellationToken cancellationToken = default)
+    {
+        if (_selected is not { } row || _client is null) return;
+
+        _testing = true;
+        DetailStatus = Ui.Connections.DetailTesting;
+        RaiseDetailCommands();
+        try
+        {
+            await using var client = _client();
+            var response = await client
+                .TestConnectionAsync(
+                    new ConnectionTestRequest(StorageIpcContract.CurrentVersion, row.Id),
+                    cancellationToken)
+                .ConfigureAwait(true);
+
+            DetailStatus = response.Failure is { } failure
+                ? failure.Message
+                : response.Succeeded
+                    ? Ui.Connections.ConnectionReachable
+                    : Ui.Connections.ConnectionUnreachable;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            DetailStatus = Ui.Shell.AgentNotConnected;
+        }
+        finally
+        {
+            _testing = false;
+            RaiseDetailCommands();
+        }
+    }
+
+    private void RaiseDetailCommands()
+    {
+        (OpenSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        (TestSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        (EditSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        (DeleteSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -124,7 +280,15 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     /// Assigned by the shell, because the panel does not know there are panes. Null leaves a row
     /// inert, which is what it was before: the rows had no click behaviour at all.
     /// </remarks>
-    public Action<Guid>? OpenConnection { get; internal set; }
+    public Action<Guid>? OpenConnection
+    {
+        get;
+        internal set
+        {
+            field = value;
+            RaiseDetailCommands();
+        }
+    }
 
     /// <summary>
     /// Opens the Connection Manager, where a saved connection is edited.
@@ -164,6 +328,16 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     public string ClearSearchLabel => Ui.Connections.ClearSearch;
 
     public string DragHint => Ui.Connections.DragConnectionHint;
+
+    public string DetailTitle => Ui.Connections.DetailViewTitle;
+
+    public string OpenLabel => Ui.Connections.DetailOpen;
+
+    public string TestLabel => Ui.Connections.DetailTest;
+
+    public string EditLabel => Ui.Connections.DetailEdit;
+
+    public string DeleteLabel => Ui.Connections.DetailDelete;
 #pragma warning restore CA1822
 
     /// <summary>
@@ -350,6 +524,7 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     /// <summary>Turns the arrangement into what the panel draws.</summary>
     private void Rebuild()
     {
+        var chosen = _selected?.Id;
         var byId = _cards
             .Where(static card => card.ConnectionId is not null)
             .ToDictionary(static card => card.ConnectionId!.Value);
@@ -379,6 +554,10 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         // picture as having no connections at all and a very different situation. Anything the
         // listing itself had to say outranks it: an agent that did not answer is the more useful
         // thing to be told, and is still true whatever is typed in the box.
+        _selected = null;
+        Selected = Groups.SelectMany(static group => group.Connections)
+            .FirstOrDefault(row => row.Id == chosen);
+
         var searchFoundNothing = HasSearch && matched == 0 && _cards.Count > 0;
         IsEmpty = _cards.Count == 0 || searchFoundNothing;
         Status = searchFoundNothing ? Ui.Connections.NoMatches : _listingStatus;

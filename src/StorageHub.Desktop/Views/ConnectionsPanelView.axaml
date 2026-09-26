@@ -66,16 +66,77 @@
                     Margin="{StaticResource PaddingLg}"/>
       </Grid>
   
-      <!-- Details for the selected connection, below its own rule. Empty until one is picked,
-           which is the state the shell spends most of its life in. -->
-      <Border DockPanel.Dock="Bottom" Height="200"
+      <!--
+        Details for the selected connection, below its own rule, as 1.x's panel had them
+        (ui-reference 09): a provider badge and the name, the connection's facts as key and value,
+        and its actions, with Delete styled as the destructive one.
+      -->
+      <Border DockPanel.Dock="Bottom" Height="230"
               BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0"
               Padding="{StaticResource PaddingLg}">
-        <TextBlock Classes="muted" Text="{Binding DetailPlaceholder}"
-                   TextWrapping="Wrap"
-                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        <Panel>
+          <TextBlock Classes="muted" Text="{Binding DetailPlaceholder}"
+                     IsVisible="{Binding !HasSelection}"
+                     TextWrapping="Wrap"
+                     HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          <DockPanel IsVisible="{Binding HasSelection}">
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal"
+                        Spacing="{StaticResource SpaceSm}" Margin="0,0,0,8">
+              <Border Classes="detail-badge" Background="{Binding Selected.AccentBrush}">
+                <TextBlock Text="{Binding Selected.Card.Descriptor.ShortName}"/>
+              </Border>
+              <TextBlock Classes="heading-sm" Text="{Binding Selected.Name}"
+                         TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+            </StackPanel>
+
+            <WrapPanel DockPanel.Dock="Bottom" ItemSpacing="6" LineSpacing="6" Margin="0,8,0,0">
+              <Button Command="{Binding OpenSelectedCommand}">
+                <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+                  <LucideIcon Kind="FolderOpen" Size="{StaticResource IconSizeSm}"/>
+                  <TextBlock Text="{Binding OpenLabel}"/>
+                </StackPanel>
+              </Button>
+              <Button Command="{Binding TestSelectedCommand}">
+                <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+                  <LucideIcon Kind="CircleCheck" Size="{StaticResource IconSizeSm}"/>
+                  <TextBlock Text="{Binding TestLabel}"/>
+                </StackPanel>
+              </Button>
+              <Button Command="{Binding EditSelectedCommand}">
+                <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+                  <LucideIcon Kind="Pencil" Size="{StaticResource IconSizeSm}"/>
+                  <TextBlock Text="{Binding EditLabel}"/>
+                </StackPanel>
+              </Button>
+              <Button Classes="danger" Command="{Binding DeleteSelectedCommand}">
+                <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+                  <LucideIcon Kind="Trash" Size="{StaticResource IconSizeSm}"/>
+                  <TextBlock Text="{Binding DeleteLabel}"/>
+                </StackPanel>
+              </Button>
+            </WrapPanel>
+
+            <TextBlock DockPanel.Dock="Bottom" Classes="caption" TextWrapping="Wrap"
+                       IsVisible="{Binding HasDetailStatus}" Text="{Binding DetailStatus}"/>
+
+            <ScrollViewer>
+              <ItemsControl ItemsSource="{Binding Details}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate DataType="vm:ConnectionDetailRow">
+                    <Grid ColumnDefinitions="80,*" ColumnSpacing="{StaticResource SpaceSm}"
+                          Classes="detail-row">
+                      <TextBlock Grid.Column="0" Classes="muted" Text="{Binding Key}"/>
+                      <TextBlock Grid.Column="1" Text="{Binding Value}"
+                                 TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Value}"/>
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </DockPanel>
+        </Panel>
       </Border>
-  
+
       <Panel Margin="12,12,12,0">
         <TextBlock Classes="muted" Text="{Binding Status}"
                    HorizontalAlignment="Center" VerticalAlignment="Top"
@@ -134,18 +195,55 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                       <DataTemplate DataType="vm:ConnectionRowModel">
+                        <!--
+                          A card as 1.x drew it (ui-reference 09): a rounded tile in the
+                          connection's colour with its icon, the name, a muted line of provider,
+                          folder and health, and its tags as chips. The selected card takes the
+                          accent border and shows edit and delete beside it.
+                        -->
                         <Border Classes="card connection-row" Classes.disabled="{Binding !IsEnabled}"
+                                Classes.selected="{Binding IsSelected}"
                                 ToolTip.Tip="{Binding OpenHint}">
-                          <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceSm}">
-                            <Border Grid.Column="0" Classes="badge"
-                                    Classes.client="{Binding IsClient}"
+                          <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource SpaceMd}">
+                            <Border Grid.Column="0" Classes="icon-tile" Background="{Binding AccentBrush}"
                                     VerticalAlignment="Top">
-                              <TextBlock Text="{Binding Badge}"/>
+                              <LucideIcon Kind="{Binding Icon}" Size="{StaticResource IconSizeMd}"/>
                             </Border>
-                            <StackPanel Grid.Column="1">
-                              <TextBlock Text="{Binding Name}"/>
-                              <TextBlock Classes="caption" Text="{Binding Endpoint}"/>
-                              <TextBlock Classes="caption" Text="{Binding State}"/>
+                            <StackPanel Grid.Column="1" Spacing="2">
+                              <TextBlock Text="{Binding Name}" FontWeight="SemiBold"
+                                         TextTrimming="CharacterEllipsis"/>
+                              <TextBlock Classes="caption" Text="{Binding Subtitle}"
+                                         TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Endpoint}"/>
+                              <ItemsControl ItemsSource="{Binding Tags}" IsVisible="{Binding HasTags}"
+                                            Margin="0,2,0,0">
+                                <ItemsControl.ItemsPanel>
+                                  <ItemsPanelTemplate>
+                                    <WrapPanel ItemSpacing="4" LineSpacing="4"/>
+                                  </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                  <DataTemplate x:DataType="x:String">
+                                    <Border Classes="tag">
+                                      <TextBlock Text="{Binding}"/>
+                                    </Border>
+                                  </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                              </ItemsControl>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"
+                                        IsVisible="{Binding IsSelected}">
+                              <Button Classes="tool"
+                                      Command="{Binding $parent[UserControl].((vm:ConnectionsSidebar)DataContext).EditSelectedCommand}"
+                                      CommandParameter="{Binding}"
+                                      ToolTip.Tip="{Binding $parent[UserControl].((vm:ConnectionsSidebar)DataContext).EditLabel}">
+                                <LucideIcon Kind="Pencil" Size="{StaticResource IconSizeSm}"/>
+                              </Button>
+                              <Button Classes="tool"
+                                      Command="{Binding $parent[UserControl].((vm:ConnectionsSidebar)DataContext).DeleteSelectedCommand}"
+                                      CommandParameter="{Binding}"
+                                      ToolTip.Tip="{Binding $parent[UserControl].((vm:ConnectionsSidebar)DataContext).DeleteLabel}">
+                                <LucideIcon Kind="Trash" Size="{StaticResource IconSizeSm}" Classes="danger"/>
+                              </Button>
                             </StackPanel>
                           </Grid>
                         </Border>

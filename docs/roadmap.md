@@ -63,7 +63,11 @@ reference shot.
 - [ ] L.6 Settings rows (ref 02): rows grouped in one card under capitalised captions (`CONCURRENCY`,
       `CONFIRMATIONS`) instead of a card each; units inside number fields ("4 jobs"); buttons ordered
       Apply / Cancel / OK.
-- [ ] L.7 The connections sidebar (ref 09): coloured rounded icon tiles in place of the
+- [x] L.7 The connections sidebar (ref 09). Done for the cards and the details panel: coloured
+      icon tiles, the provider / folder / health line, tag chips, a selected card with inline edit
+      and delete, and a details panel with Open, Test, Edit and Delete. Kept from 2.0: groups made
+      by hand rather than 1.x's fixed Storage and Clients sections (c4886f7). Not done: a Favorites
+      section, which the hand-made groups replaced; say if it should come back. Was: coloured rounded icon tiles in place of the
       `STORAGE`/`CLIENT` text badges; tag chips under each card; a Favorites section above the
       storage groups; inline edit and delete on the selected card.
 

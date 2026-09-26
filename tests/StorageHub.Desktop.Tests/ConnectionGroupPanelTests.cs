@@ -163,21 +163,30 @@ public class ConnectionGroupPanelTests
         Assert.Equal(LucideIconKind.Folder, sidebar.Groups[0].Icon);
     }
 
-    /// <summary>Every connection reaches the panel, with a badge, under its group's heading.</summary>
+    /// <summary>
+    /// Every connection reaches the panel as 1.x's card: a tile in its colour, and a line saying
+    /// what it is -- which is where a client and a bucket now tell themselves apart.
+    /// </summary>
     [AvaloniaFact]
-    public async Task EveryConnectionIsDrawnWithItsBadge()
+    public async Task EveryConnectionIsDrawnWithItsTile()
     {
         var window = await PanelAsync(
             Summary("Studio Assets", "Team"),
             Summary("build-box", "Team", StorageConnectionProvider.Ssh, client: true),
             Summary("Scratch"));
 
-        var badges = window.GetVisualDescendants().OfType<Border>()
-            .Where(border => border.Classes.Contains("badge"))
+        var tiles = window.GetVisualDescendants().OfType<Border>()
+            .Where(border => border.Classes.Contains("icon-tile"))
             .ToArray();
+        var rows = tiles.Select(static tile => (ConnectionRowModel)tile.DataContext!).ToArray();
 
-        Assert.Equal(3, badges.Length);
-        Assert.Equal(1, badges.Count(badge => badge.Classes.Contains("client")));
+        Assert.Equal(3, tiles.Length);
+        Assert.All(tiles, static tile => Assert.IsType<global::Avalonia.Media.SolidColorBrush>(tile.Background));
+        Assert.Single(rows, static row => row.IsClient);
+        Assert.StartsWith(
+            ConnectionProviderCatalog.Get(StorageProviderKind.Ssh).DisplayName,
+            rows.Single(static row => row.IsClient).Subtitle,
+            StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -202,6 +211,14 @@ public class ConnectionGroupPanelTests
             Summary("build-box", "Team", StorageConnectionProvider.Ssh, client: true),
             Summary("Site Backups"),
             Summary("Old NAS"));
+
+        // With one card selected, so the photograph shows its border, its edit and delete, and a
+        // details panel with something in it.
+        var sidebar = (ConnectionsSidebar)((ConnectionsPanelView)window.Content!).DataContext!;
+        sidebar.EditConnection = static _ => { };
+        sidebar.DeleteConnection = static _ => Task.CompletedTask;
+        sidebar.Select(sidebar.Groups[0].Connections[0]);
+        window.UpdateLayout();
 
         var frame = window.CaptureRenderedFrame();
         Assert.NotNull(frame);
@@ -263,6 +280,57 @@ public class ConnectionGroupPanelTests
 
         public Task<string?> PromptAsync(DialogPromptRequest request, CancellationToken cancellationToken = default) =>
             Task.FromResult<string?>(answer);
+    }
+
+    /// <summary>
+    /// Clicking a card selects it and fills the details panel, as 1.x's sidebar did (ui-reference 09).
+    /// </summary>
+    [AvaloniaFact]
+    public async Task SelectingACardFillsTheDetailsAndKeepsItAcrossASearch()
+    {
+        var saved = new List<ConnectionGroupEntry>();
+        var sidebar = Sidebar(saved, Summary("Studio Assets", "Team"), Summary("Scratch"));
+        await sidebar.RefreshAsync(TestContext.Current.CancellationToken);
+        var row = sidebar.Groups[0].Connections[0];
+
+        sidebar.Select(row);
+
+        Assert.True(row.IsSelected);
+        Assert.Contains(sidebar.Details, detail => detail.Value == "Team");
+
+        // A search that still shows the card keeps it selected, on the new row object.
+        sidebar.Search = "Studio";
+        Assert.Equal(row.Id, sidebar.Selected?.Id);
+        Assert.True(sidebar.Selected!.IsSelected);
+
+        // One that hides it lets the selection go, rather than describing something off screen.
+        sidebar.Search = "Scratch";
+        Assert.False(sidebar.HasSelection);
+    }
+
+    /// <summary>Edit and Delete act on the card they are pressed on, or on the selected one.</summary>
+    [AvaloniaFact]
+    public async Task EditAndDeleteNameTheConnectionTheyAreFor()
+    {
+        var saved = new List<ConnectionGroupEntry>();
+        var sidebar = Sidebar(saved, Summary("Studio Assets", "Team"));
+        await sidebar.RefreshAsync(TestContext.Current.CancellationToken);
+        var row = sidebar.Groups[0].Connections[0];
+        Guid? edited = null;
+        Guid? deleted = null;
+        sidebar.EditConnection = id => edited = id;
+        sidebar.DeleteConnection = id =>
+        {
+            deleted = id;
+            return Task.CompletedTask;
+        };
+
+        sidebar.EditSelectedCommand.Execute(row);
+        sidebar.Select(row);
+        sidebar.DeleteSelectedCommand.Execute(null);
+
+        Assert.Equal(row.Id, edited);
+        Assert.Equal(row.Id, deleted);
     }
 
     /// <summary>A sidebar over a fixed set of connections, saving into a list.</summary>

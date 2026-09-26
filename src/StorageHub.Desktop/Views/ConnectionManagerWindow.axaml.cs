@@ -35,6 +35,17 @@ public partial class ConnectionManagerWindow : Window
     /// window is modal to the shell and a dialog owned by something behind a modal ends up behind
     /// it too.
     /// </remarks>
+    /// <summary>
+    /// The manager without a window, for the sidebar's Delete: it lists, selects and deletes with
+    /// the same confirmation and version check the window uses.
+    /// </summary>
+    internal static ConnectionManagerModel HeadlessForCurrentAgent() => new(
+        static () => new NamedPipeRemoteStorageAgentClient(),
+        static () => new ConnectionManagerController(
+            new NamedPipeRemoteConnectionProfileClient(),
+            new NamedPipeRemoteSecretVaultClient()),
+        ShellServices.Dialogs);
+
     internal static ConnectionManagerWindow ForCurrentAgent()
     {
         var window = new ConnectionManagerWindow();

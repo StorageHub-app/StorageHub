@@ -68,6 +68,16 @@ public partial class App : global::Avalonia.Application
             model.Sidebar.ManageCommand = new RelayCommand(
                 _ => ShowConnections(desktop, model, startNew: false));
 
+            // The details panel's Edit and Delete, and the same two on a selected card. Both go
+            // through the Connection Manager: Edit opens it on that connection, and Delete uses its
+            // confirmation and its check against the listed version rather than a second copy.
+            model.Sidebar.EditConnection = id => ShowConnections(desktop, model, startNew: false, select: id);
+            model.Sidebar.DeleteConnection = async id =>
+            {
+                var manager = Views.ConnectionManagerWindow.HeadlessForCurrentAgent();
+                if (await manager.SelectAsync(id).ConfigureAwait(true)) await manager.DeleteAsync().ConfigureAwait(true);
+            };
+
             // The key store: import a key or a certificate once, and reference it from any number
             // of connections. It is what the Connection Manager's "Key Store…" buttons pick from.
             model.Router.Handle(UiCommandIds.ConnectionsKeyStore, () => ShowKeyStore(desktop));
@@ -166,12 +176,14 @@ public partial class App : global::Avalonia.Application
     private static void ShowConnections(
         IClassicDesktopStyleApplicationLifetime desktop,
         ShellPreviewModel model,
-        bool startNew)
+        bool startNew,
+        Guid? select = null)
     {
         var window = Views.ConnectionManagerWindow.ForCurrentAgent();
-        if (startNew && window.DataContext is Views.ConnectionManagerModel manager)
+        if (window.DataContext is Views.ConnectionManagerModel manager)
         {
-            manager.StartNew();
+            if (startNew) manager.StartNew();
+            if (select is { } id) window.Opened += (_, _) => _ = manager.SelectAsync(id);
         }
 
         window.Closed += (_, _) => _ = model.Sidebar.RefreshAsync();

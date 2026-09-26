@@ -178,6 +178,18 @@ internal sealed class ConnectionManagerModel : INotifyPropertyChanged
         }
     }
 
+    /// <summary>
+    /// Lists what the agent has and selects one connection, as the sidebar's Edit and Delete do.
+    /// </summary>
+    /// <returns>Whether the connection was there to select.</returns>
+    internal async Task<bool> SelectAsync(Guid connectionId, CancellationToken cancellationToken = default)
+    {
+        await RefreshAsync(cancellationToken).ConfigureAwait(true);
+        if (Connections.FirstOrDefault(entry => entry.Id == connectionId) is not { } entry) return false;
+        Selected = entry;
+        return true;
+    }
+
     /// <summary>Clears the selection and offers an empty editor.</summary>
     internal void StartNew()
     {
