@@ -32,28 +32,38 @@ Rename and Delete, which in 2.0 would have deleted a volume's contents permanent
 
 ### P.1 Startup, shutdown and install (blocks shipping)
 
-- [ ] P.1.1 Splash while starting, with 1.4's stages (preparing data, framework, environment, settings,
+P.1.1, P.1.2, P.1.4 and P.1.6 landed together: `Services/DesktopBoot.cs` runs 1.x's sequence behind
+`SplashWindow`, `Framework/DesktopFrameworkHost.cs` is ported to Desktop.Core, and
+`DesktopAgentStartup` ensures the agent on both platforms (the packaged lifecycle on Windows, the
+user's systemd unit on Linux; a build from source uses an agent started by hand). The Check
+installation button waits for P.5.6. The language is loaded and applied, but there is still no
+setting to choose it (P.5.1).
+
+- [x] P.1.1 Splash while starting, with 1.4's stages (preparing data, framework, environment, settings,
       language, starting the agent, opening), "this can take a few seconds the first time", and a
       failure screen with Retry, Quit, Check installation and Copy details. `StorageHubSplashForm.cs`,
       `DesktopBootContext.cs`; `BootStatus`/`BootStage` are already in Desktop.Core and unused.
-- [ ] P.1.2 Start the agent at launch and wait for it (`EnsureAgentAsync`, 8 s start / 12 s ready), with
+- [x] P.1.2 Start the agent at launch and wait for it (`EnsureAgentAsync`, 8 s start / 12 s ready), with
       `DesktopStartupPreflight.DescribeFailure` on the splash. Nothing starts it today: without the
       service the app sits at "Agent: not connected".
 - [ ] P.1.3 Restart the agent when it drops, and reload the panes, Welcome, Sync tasks and the queue when
       it comes back (`DesktopAgentAvailability.Changed`). `MainForm.cs:3404-3437, 3520-3551`.
-- [ ] P.1.4 Load the framework and the language: `EnsureCreated`, `EnsureSupportedCultures`,
+- [x] P.1.4 Load the framework and the language: `EnsureCreated`, `EnsureSupportedCultures`,
       `SeedShippedTranslations`, `Ui.UseFramework`. 2.0 is English whatever is configured.
       `Framework/DesktopFrameworkHost.cs`.
-- [ ] P.1.5 Velopack: `VelopackApp.Build()...Run()` first in `Main`, and the hooks in
-      `Desktop.Core/Windows/DesktopPackageLifecycleHooks.cs` (autostart on install and update, stop the
-      agent before update and uninstall, remove autostart and the drop broker on uninstall). Today the
-      hooks open the full window and uninstall leaves the Run key and COM registration behind.
-- [ ] P.1.6 `--agent-only` (the sign-in autostart) ensures the agent and exits without a window, and
+- [ ] P.1.5 Installers: a plain WiX MSI on Windows and the .deb on Linux, nothing else (decided
+      2026-09-26). Velopack goes: drop `vpk` from `eng/package-windows.ps1` (no Setup.exe, no portable
+      ZIP), and the hooks in `DesktopPackageLifecycleHooks` become MSI custom actions -- autostart on
+      install and upgrade, stop the agent before upgrade and uninstall, remove the Run entry and the
+      drop broker's COM registration on uninstall. `DesktopUpdater` is Velopack-based and needs a
+      replacement: find the newer release, download its MSI, verify it, and run it. Update
+      `docs/releasing.md` and `eng/test-windows-installer.ps1` to match.
+- [x] P.1.6 `--agent-only` (the sign-in autostart) ensures the agent and exits without a window, and
       honours `STORAGEHUB_DISABLE_AUTOSTART`; intercept `--version/--info/--health/--dry-run/
       --generate-configs` before the framework. `Program.cs:15-53`; `DesktopCommandLine` is uncalled.
 - [ ] P.1.7 Register the Explorer drop broker on launch (`ExplorerDropBrokerInstaller.EnsureRegistered`).
-- [ ] P.1.8 Update check on start (`RunAutomaticAsync`), close the shell on `RestartRequested` so a staged
-      update applies, and the update link in the status bar. `MainForm.cs:246-250, 3604-3693`.
+- [ ] P.1.8 Update check on start, close the shell when an update is installing, and the update link in
+      the status bar -- on the MSI updater from P.1.5. `MainForm.cs:246-250, 3604-3693`.
 - [ ] P.1.9 Stop the agent on exit in "only while StorageHub is open" mode (`DesktopStopsAgent`); ask to
       save each changed workspace before closing; make shutdown finish before the process exits (the
       async `ShutdownRequested` handler is not awaited).

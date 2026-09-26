@@ -19,147 +19,146 @@ public partial class App : global::Avalonia.Application
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            // Whatever was saved last time, before the window is shown, so the shell opens in the
-            // scheme rather than flashing the default and changing. First of all, too: building
-            // the shell reads settings, and only the first read can see a damaged file.
-            var settingsCheck = Views.SettingsWindow.ApplySavedScheme();
-
-            var model = ShellPreview.CreateLive();
-            desktop.MainWindow = new MainWindow { DataContext = model };
-
-            // What that check had to do -- a file set aside, a value corrected, 1.x settings
-            // carried over -- said once the window is there to say it over. 1.x showed these on
-            // its splash; 2.0 opens without waiting on anything, so there is no splash to show
-            // them on, and dropping them would reset somebody's settings without a word.
-            if (settingsCheck.ToNotice() is { } notice)
-            {
-                desktop.MainWindow.Opened += async (_, _) =>
-                    await new Services.AvaloniaDialogService(() => desktop.MainWindow)
-                        .ShowAsync(notice).ConfigureAwait(true);
-            }
-
-            // The first command with somewhere to go. Settings opens over the shell, edits a
-            // working copy, and writes through DesktopConfigStore on Apply.
-            model.Router.Handle(UiCommandIds.ToolsSettings, () =>
-            {
-                var settings = Views.SettingsWindow.ForCurrentUser();
-                _ = settings.ShowDialog(desktop.MainWindow);
-            });
-
-            // Speed limits live on the Performance page beside concurrency, since both are how the
-            // agent's transfers run; a connection's own limit is in the Connection Manager.
-            model.Router.Handle(UiCommandIds.TransferSpeedLimits, () =>
-            {
-                var settings = Views.SettingsWindow.ForCurrentUser(SettingsPageCatalog.PerformancePageKey);
-                _ = settings.ShowDialog(desktop.MainWindow);
-            });
-
-            // The "+" beside the tabs. It asks which arrangement, unless the answer was saved --
-            // which is what the chooser's "stop asking" box does, and what makes the dialog worth
-            // having rather than something to dismiss.
-            model.Router.Handle(UiCommandIds.WorkspaceNewWorkspace, () => _ = AddWorkspaceAsync(model));
-            model.Router.Handle(UiCommandIds.WorkspaceCloseWorkspace, () => _ = model.CloseWorkspaceAsync());
-
-            // The Connection Manager, from the menu and from the panel's own New button. Both open
-            // the same window: "new connection" is the manager with an empty editor, which is one
-            // screen rather than a second one that would have to agree with it about every field.
-            model.Router.Handle(UiCommandIds.ConnectionsNewConnection, () =>
-                ShowConnections(desktop, model, startNew: true));
-            model.Sidebar.ManageCommand = new RelayCommand(
-                _ => ShowConnections(desktop, model, startNew: false));
-
-            // The details panel's Edit and Delete, and the same two on a selected card. Both go
-            // through the Connection Manager: Edit opens it on that connection, and Delete uses its
-            // confirmation and its check against the listed version rather than a second copy.
-            model.Sidebar.EditConnection = id => ShowConnections(desktop, model, startNew: false, select: id);
-            model.Sidebar.DeleteConnection = async id =>
-            {
-                var manager = Views.ConnectionManagerWindow.HeadlessForCurrentAgent();
-                if (await manager.SelectAsync(id).ConfigureAwait(true)) await manager.DeleteAsync().ConfigureAwait(true);
-            };
-
-            // The key store: import a key or a certificate once, and reference it from any number
-            // of connections. It is what the Connection Manager's "Key Store…" buttons pick from.
-            model.Router.Handle(UiCommandIds.ConnectionsKeyStore, () => ShowKeyStore(desktop));
-
-            // The sync profile editor, from the menu and from the tasks screen's New button.
-            // Review & run opens the same window: in 1.x it was a second entry point into the same
-            // form, and previewing is what its primary button already does.
-            model.Router.Handle(UiCommandIds.SyncSyncProfiles, () => ShowSyncEditor(desktop, model));
-            model.Router.Handle(UiCommandIds.SyncReviewRun, () => ShowSyncEditor(desktop, model));
-            // And the schedule manager, which is what turns a profile into something that runs
-            // without anybody present.
-            model.Router.Handle(UiCommandIds.SyncSchedules, () => ShowSchedules(desktop, model));
-
-            // Settings out to a file and back in again. Import is the one that can change what
-            // the agent holds, so the shell refreshes itself when it reports that it did.
-            model.Router.Handle(UiCommandIds.ToolsExportSettings, () => ShowExportSettings(desktop));
-            model.Router.Handle(UiCommandIds.ToolsImportSettings, () => ShowImportSettings(desktop, model));
-
-            // The background agent's own screen. It is the only place the agent can be started or
-            // stopped from, which matters most on Linux: the .deb installs the unit but leaves
-            // enabling it to each user, and its own postinst points them here.
-            model.Router.Handle(UiCommandIds.ToolsBackgroundAgent, () => ShowAgentControl(desktop, model));
-
-            // One updater for the session, shared with the window that shows it. Two would each
-            // stage the same release into the same directory, and the second would find it taken.
-            var updater = Views.UpdateCheckerWindow.CreateUpdater();
-            model.Router.Handle(
-                UiCommandIds.HelpCheckForUpdates, () => ShowUpdateChecker(desktop, updater));
-            model.Router.Handle(UiCommandIds.HelpAboutStorageHub, () =>
-            {
-                var about = Views.AboutWindow.Create();
-                if (desktop.MainWindow is { } owner) _ = about.ShowDialog(owner);
-                else about.Show();
-            });
-            if (model.SyncTasks is { } syncTasks)
-            {
-                syncTasks.NewProfileCommand = new RelayCommand(
-                    _ => ShowSyncEditor(desktop, model, startNew: true));
-                syncTasks.SchedulesCommand = new RelayCommand(_ => ShowSchedules(desktop, model));
-            }
-
-            // Started here rather than in the model so the headless tests measure a shell that is
-            // not polling a socket. On Linux this reaches an agent.sock under the runtime root; on
-            // Windows, the named pipe - the desktop no longer knows which.
-            // Held by the shutdown handler rather than by a field: the application outlives
-            // nothing, so a field would only make App disposable for no one to dispose it.
-            var monitor = new AgentStatusMonitor();
-            model.Watch(monitor);
-
-            // Fire and forget, deliberately: the window opens on whatever the sidebar already says
-            // and fills in when the agent answers. Awaiting here would hold the shell closed behind
-            // a process that may not be running.
-            _ = model.Sidebar.RefreshAsync();
-
-            // The queue polls on its own timer and reports what the agent holds. Started here for
-            // the same reason the monitor is: a headless test measures a shell that is not talking
-            // to a socket unless it asked to.
-            model.Queue.Start();
-
-            // The Welcome page asks the agent for itself once the window is up; after that it
-            // reloads on its Refresh button and whenever the agent reconnects. Each pane reads
-            // its own connections as it is made.
-            _ = model.Overview?.RefreshAsync();
-            // An edited file that was uploaded shows up in the pane it came from.
-            Services.ShellServices.EditedFileUploaded += (_, _) => _ = model.EditedFileUploadedAsync();
-
-            desktop.ShutdownRequested += async (_, _) =>
-            {
-                updater.Dispose();
-                await Services.ShellServices.CloseEditingAsync().ConfigureAwait(false);
-                await monitor.DisposeAsync().ConfigureAwait(false);
-                await model.Queue.DisposeAsync().ConfigureAwait(false);
-                foreach (var workspace in model.Workspaces
-                    .Select(static tab => tab.Workspace)
-                    .OfType<WorkspaceModel>())
-                {
-                    await workspace.DisposeAsync().ConfigureAwait(false);
-                }
-            };
+            // The splash first, as 1.x opened: settings, the framework and the language, then the
+            // agent, and only then the shell. The shell used to open at once, before any of those
+            // had happened -- which is why it spoke English whatever was configured and sat at
+            // "Agent: not connected" when the service was not already running.
+            Services.DesktopBoot.Start(desktop, OpenShell);
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    /// <summary>
+    /// Builds the shell and wires every command that opens a window. Called by the boot once the
+    /// agent is answering, with the splash still up.
+    /// </summary>
+    private static MainWindow OpenShell(IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        var model = ShellPreview.CreateLive();
+        var window = new MainWindow { DataContext = model };
+
+        // The first command with somewhere to go. Settings opens over the shell, edits a
+        // working copy, and writes through DesktopConfigStore on Apply.
+        model.Router.Handle(UiCommandIds.ToolsSettings, () =>
+        {
+            var settings = Views.SettingsWindow.ForCurrentUser();
+            _ = settings.ShowDialog(window);
+        });
+
+        // Speed limits live on the Performance page beside concurrency, since both are how the
+        // agent's transfers run; a connection's own limit is in the Connection Manager.
+        model.Router.Handle(UiCommandIds.TransferSpeedLimits, () =>
+        {
+            var settings = Views.SettingsWindow.ForCurrentUser(SettingsPageCatalog.PerformancePageKey);
+            _ = settings.ShowDialog(window);
+        });
+
+        // The "+" beside the tabs. It asks which arrangement, unless the answer was saved --
+        // which is what the chooser's "stop asking" box does, and what makes the dialog worth
+        // having rather than something to dismiss.
+        model.Router.Handle(UiCommandIds.WorkspaceNewWorkspace, () => _ = AddWorkspaceAsync(model));
+        model.Router.Handle(UiCommandIds.WorkspaceCloseWorkspace, () => _ = model.CloseWorkspaceAsync());
+
+        // The Connection Manager, from the menu and from the panel's own New button. Both open
+        // the same window: "new connection" is the manager with an empty editor, which is one
+        // screen rather than a second one that would have to agree with it about every field.
+        model.Router.Handle(UiCommandIds.ConnectionsNewConnection, () =>
+            ShowConnections(desktop, model, startNew: true));
+        model.Sidebar.ManageCommand = new RelayCommand(
+            _ => ShowConnections(desktop, model, startNew: false));
+
+        // The details panel's Edit and Delete, and the same two on a selected card. Both go
+        // through the Connection Manager: Edit opens it on that connection, and Delete uses its
+        // confirmation and its check against the listed version rather than a second copy.
+        model.Sidebar.EditConnection = id => ShowConnections(desktop, model, startNew: false, select: id);
+        model.Sidebar.DeleteConnection = async id =>
+        {
+            var manager = Views.ConnectionManagerWindow.HeadlessForCurrentAgent();
+            if (await manager.SelectAsync(id).ConfigureAwait(true)) await manager.DeleteAsync().ConfigureAwait(true);
+        };
+
+        // The key store: import a key or a certificate once, and reference it from any number
+        // of connections. It is what the Connection Manager's "Key Store…" buttons pick from.
+        model.Router.Handle(UiCommandIds.ConnectionsKeyStore, () => ShowKeyStore(desktop));
+
+        // The sync profile editor, from the menu and from the tasks screen's New button.
+        // Review & run opens the same window: in 1.x it was a second entry point into the same
+        // form, and previewing is what its primary button already does.
+        model.Router.Handle(UiCommandIds.SyncSyncProfiles, () => ShowSyncEditor(desktop, model));
+        model.Router.Handle(UiCommandIds.SyncReviewRun, () => ShowSyncEditor(desktop, model));
+        // And the schedule manager, which is what turns a profile into something that runs
+        // without anybody present.
+        model.Router.Handle(UiCommandIds.SyncSchedules, () => ShowSchedules(desktop, model));
+
+        // Settings out to a file and back in again. Import is the one that can change what
+        // the agent holds, so the shell refreshes itself when it reports that it did.
+        model.Router.Handle(UiCommandIds.ToolsExportSettings, () => ShowExportSettings(desktop));
+        model.Router.Handle(UiCommandIds.ToolsImportSettings, () => ShowImportSettings(desktop, model));
+
+        // The background agent's own screen. It is the only place the agent can be started or
+        // stopped from, which matters most on Linux: the .deb installs the unit but leaves
+        // enabling it to each user, and its own postinst points them here.
+        model.Router.Handle(UiCommandIds.ToolsBackgroundAgent, () => ShowAgentControl(desktop, model));
+
+        // One updater for the session, shared with the window that shows it. Two would each
+        // stage the same release into the same directory, and the second would find it taken.
+        var updater = Views.UpdateCheckerWindow.CreateUpdater();
+        model.Router.Handle(
+            UiCommandIds.HelpCheckForUpdates, () => ShowUpdateChecker(desktop, updater));
+        model.Router.Handle(UiCommandIds.HelpAboutStorageHub, () =>
+        {
+            var about = Views.AboutWindow.Create();
+            if (desktop.MainWindow is { } owner) _ = about.ShowDialog(owner);
+            else about.Show();
+        });
+        if (model.SyncTasks is { } syncTasks)
+        {
+            syncTasks.NewProfileCommand = new RelayCommand(
+                _ => ShowSyncEditor(desktop, model, startNew: true));
+            syncTasks.SchedulesCommand = new RelayCommand(_ => ShowSchedules(desktop, model));
+        }
+
+        // Started here rather than in the model so the headless tests measure a shell that is
+        // not polling a socket. On Linux this reaches an agent.sock under the runtime root; on
+        // Windows, the named pipe - the desktop no longer knows which.
+        // Held by the shutdown handler rather than by a field: the application outlives
+        // nothing, so a field would only make App disposable for no one to dispose it.
+        var monitor = new AgentStatusMonitor();
+        model.Watch(monitor);
+
+        // Fire and forget, deliberately: the window opens on whatever the sidebar already says
+        // and fills in when the agent answers. Awaiting here would hold the shell closed behind
+        // a process that may not be running.
+        _ = model.Sidebar.RefreshAsync();
+
+        // The queue polls on its own timer and reports what the agent holds. Started here for
+        // the same reason the monitor is: a headless test measures a shell that is not talking
+        // to a socket unless it asked to.
+        model.Queue.Start();
+
+        // The Welcome page asks the agent for itself once the window is up; after that it
+        // reloads on its Refresh button and whenever the agent reconnects. Each pane reads
+        // its own connections as it is made.
+        _ = model.Overview?.RefreshAsync();
+        // An edited file that was uploaded shows up in the pane it came from.
+        Services.ShellServices.EditedFileUploaded += (_, _) => _ = model.EditedFileUploadedAsync();
+
+        desktop.ShutdownRequested += async (_, _) =>
+        {
+            updater.Dispose();
+            await Services.ShellServices.CloseEditingAsync().ConfigureAwait(false);
+            await monitor.DisposeAsync().ConfigureAwait(false);
+            await model.Queue.DisposeAsync().ConfigureAwait(false);
+            foreach (var workspace in model.Workspaces
+                .Select(static tab => tab.Workspace)
+                .OfType<WorkspaceModel>())
+            {
+                await workspace.DisposeAsync().ConfigureAwait(false);
+            }
+        };
+
+        return window;
     }
 
     /// <summary>

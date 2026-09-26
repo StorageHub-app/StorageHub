@@ -5,8 +5,24 @@ namespace StorageHub.Desktop;
 public static class Program
 {
     [System.STAThread]
-    public static int Main(string[] args) =>
-        BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+    public static int Main(string[] args)
+    {
+        // Before anything initializes the framework: CodeLogic's parser reads the process command
+        // line unconditionally and would answer these into a console a windowed app does not own.
+        if (DesktopCommandLine.TryHandleFrameworkArguments(args, out var frameworkExitCode))
+        {
+            return frameworkExitCode;
+        }
+
+        // The sign-in autostart. It starts the agent and exits without a window; ignoring it, as
+        // 2.0 did, opened the whole shell at every sign-in.
+        if (DesktopCommandLine.IsAgentOnly(args))
+        {
+            return RunAgentOnly();
+        }
+
+        return BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+    }
 
     /// <summary>
     /// Public and static so the headless test host builds the same application the executable does.
@@ -21,4 +37,28 @@ public static class Program
             .UsePlatformDetect()
             .WithInterFont()
             .LogToTrace();
+
+    /// <summary>
+    /// The autostart path: start the agent and exit, as 1.x did.
+    /// </summary>
+    /// <remarks>
+    /// Only Windows registers one. On Linux the agent's autostart is the user's systemd unit, which
+    /// never runs the desktop at all, so the argument has nothing to do there.
+    /// </remarks>
+    private static int RunAgentOnly()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return 0;
+        }
+
+        using var lifecycle = WindowsDesktopLifecycle.Create();
+        if (lifecycle.IsAutostartDisabled)
+        {
+            _ = lifecycle.RemoveAutostart();
+            return 0;
+        }
+
+        return lifecycle.EnsureAgentAsync().AsTask().GetAwaiter().GetResult().IsReady ? 0 : 1;
+    }
 }
