@@ -142,6 +142,37 @@ public class LocalPaneTests
         Assert.Equal(FakeDisks.RootNames, pane.Rows.Select(row => row.Name));
     }
 
+    /// <summary>
+    /// The drive list takes no changes: nothing is made there, and a drive is not a folder.
+    /// </summary>
+    /// <remarks>
+    /// Deleting a drive row asked the filesystem to remove the whole volume's contents,
+    /// permanently. Inside a drive the same commands are offered as anywhere else.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task TheDriveListOffersNoFileOperations()
+    {
+        await using var pane = new BrowserPaneModel(
+            new FakeAgent([]),
+            () => new FakeDisks(),
+            mutations: static () => new PaneMutationController(
+                static () => throw new InvalidOperationException("Not reached at the drive list.")),
+            dialogs: new KeyStoreTests.RecordingDialogs());
+        await pane.LoadConnectionsAsync(TestContext.Current.CancellationToken);
+        await pane.OpenAsync(pane.Connections.Single(c => c.Id is null), TestContext.Current.CancellationToken);
+        pane.SelectedRows.Add(pane.Rows[0]);
+
+        Assert.False(pane.NewFolderCommand.CanExecute(null));
+        Assert.False(pane.RenameCommand.CanExecute(null));
+        Assert.False(pane.DeleteCommand.CanExecute(null));
+
+        pane.SelectedRows.Clear();
+        pane.Selected = pane.Rows[0];
+        await pane.OpenSelectedAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(pane.NewFolderCommand.CanExecute(null));
+    }
+
     private static async Task<BrowserPaneModel> OpenedAsync()
     {
         var pane = new BrowserPaneModel(new FakeAgent([]), () => new FakeDisks());

@@ -744,8 +744,12 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         _mutations is not null &&
         _dialogs is not null &&
         !IsTerminal &&
-        PaneTransferSnapshots.ContextFor(_source) is { IsSuccess: true, Value.Kind:
-            PaneTransferContextKind.ThisPc or PaneTransferContextKind.SavedConnection };
+        PaneTransferSnapshots.ContextFor(_source) is { IsSuccess: true, Value: var here } &&
+        (here.Kind == PaneTransferContextKind.SavedConnection ||
+         // This PC's own listing is the drives. Nothing is created there, and a drive is not a
+         // folder to rename or delete: deleting a row there asked the filesystem to remove a
+         // whole volume's contents, permanently. 1.x refused it too.
+         (here.Kind == PaneTransferContextKind.ThisPc && here.RelativePath.Length > 0));
 
     public static string NewFolderLabel => Ui.Shell.NewFolderTitle;
 
@@ -863,7 +867,20 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             // A pane that has not been pointed anywhere opens on This PC, as 1.x's did, rather
             // than on an empty "/" waiting to be told. Whether or not the agent answered: this
             // computer can be browsed either way.
-            if (_connection is null && Connections.Count > 0) Connection = Connections[0];
+            if (_connection is null && Connections.Count > 0)
+            {
+                Connection = Connections[0];
+            }
+            else if (_connection is { Name.Length: 0, Id: { } opened } &&
+                     Connections.FirstOrDefault(candidate => candidate.Id == opened) is { } named)
+            {
+                // Opened by id before the list arrived; now it has a name and an icon to show.
+                _connection = named;
+                Raise(nameof(Connection));
+                Raise(nameof(Title));
+                Raise(nameof(ConnectionIcon));
+                RaiseConnectionState();
+            }
         }
     }
 
@@ -972,6 +989,15 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     {
         var choice = Connections.FirstOrDefault(candidate => candidate.Id == connectionId)
             ?? new PaneConnection(connectionId, string.Empty, LucideIconKind.Cloud);
+
+        // Recorded as the pane's choice, not only opened: the chip names what is showing, and a
+        // pane with no choice recorded is one that falls back to This PC once its list arrives.
+        _connection = choice;
+        _failed = false;
+        Raise(nameof(Connection));
+        Raise(nameof(Title));
+        Raise(nameof(ConnectionIcon));
+        RaiseConnectionState();
         return OpenAsync(choice, cancellationToken);
     }
 
