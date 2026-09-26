@@ -47,9 +47,27 @@ public partial class BrowserPaneView : UserControl
         // reordering. Without it the sort click is swallowed by the control it is aimed at.
         AddHandler(TappedEvent, OnTapped, RoutingStrategies.Bubble, handledEventsToo: true);
         DataContextChanged += (_, _) => Bind(Model);
+        AddHandler(ScrollViewer.ScrollChangedEvent, OnScrollChanged, RoutingStrategies.Bubble);
         PaneDragHandler.Attach(this, () => Model);
         RefreshHeadings();
         AttachConnectionPicker();
+    }
+
+    /// <summary>
+    /// Reads the next page once the listing is within a screen of its end, as 1.x did.
+    /// </summary>
+    /// <remarks>
+    /// A scroll change is raised when the content grows as well as when it is scrolled, so a first
+    /// page too short to fill the pane asks for the next one on its own, and so on until either the
+    /// pane is full or the folder is. Only the listing's own scroller counts; the terminal has one too.
+    /// </remarks>
+    private void OnScrollChanged(object? sender, ScrollChangedEventArgs e)
+    {
+        if (Model is not { HasMorePages: true, IsLoadingMore: false } model) return;
+        if (e.Source is not ScrollViewer scroller || scroller.TemplatedParent != Table) return;
+
+        var remaining = scroller.Extent.Height - scroller.Offset.Y - scroller.Viewport.Height;
+        if (remaining <= scroller.Viewport.Height) _ = model.LoadMoreAsync();
     }
 
     /// <summary>

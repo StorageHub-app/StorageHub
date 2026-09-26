@@ -271,8 +271,12 @@
             ColumnSpacing="{StaticResource SpaceLg}"
             IsVisible="{Binding IsListing}"
             Margin="8,4">
-        <TextBlock Grid.Column="0" Classes="muted" Text="{Binding ItemCount}"/>
-        <TextBlock Grid.Column="1" Classes="muted" Text="{Binding SelectionSummary}"/>
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="{StaticResource SpaceSm}">
+          <TextBlock Classes="muted" Text="{Binding ItemCount}" VerticalAlignment="Center"/>
+          <Button Classes="link" Content="{Binding LoadMoreLabel}" Command="{Binding LoadMoreCommand}"
+                  IsVisible="{Binding HasMorePages}" VerticalAlignment="Center"/>
+        </StackPanel>
+        <TextBlock Grid.Column="1" Classes="muted" Text="{Binding SelectionSummary}" VerticalAlignment="Center"/>
       </Grid>
 
       <!-- Sits over the table rather than replacing it: a failed navigation keeps the listing

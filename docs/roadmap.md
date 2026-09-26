@@ -74,12 +74,12 @@ setting to choose it (P.5.1).
 
 ### P.2 The file pane
 
-- [ ] P.2.1 Paging: load the next page as the list scrolls, "Load more", and "more available" in the
+- [x] P.2.1 Paging: load the next page as the list scrolls, "Load more", and "more available" in the
       footer. A remote page is 40 rows, so any folder over 40 shows 40 today. `BrowserPaneControl.cs:
       1236-1275, 354-370, 2048-2054`.
-- [ ] P.2.2 Paste or drop into a folder with more than one page loads every page first rather than
+- [x] P.2.2 Paste or drop into a folder with more than one page loads every page first rather than
       refusing "finish indexing first" (`MainForm.cs:2581`). Today that paste never works.
-- [ ] P.2.3 The collision check reads the whole folder, not the filtered rows.
+- [x] P.2.3 The collision check reads the whole folder, not the filtered rows.
 - [ ] P.2.4 Icons: shell icons per extension on Windows, drive icons on This PC, folder/file glyphs as
       the fallback and on Linux. `WindowsShellIconProvider.cs`, `BrowserPaneControl.cs:1199-1206`.
 - [ ] P.2.5 Right-click menu on the list, selecting the row under the pointer: New folder, New file,

@@ -77,6 +77,15 @@ internal interface IPaneSource : IAsyncDisposable
         PaneNavigationKind kind,
         string? target = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The next page of the folder being shown: only the new rows, to add to what is there.
+    /// </summary>
+    /// <remarks>
+    /// A remote page is 40 entries. Nothing asked for a second one, so any bigger folder showed
+    /// its first 40 and counted 40, and a paste into it was refused for not being fully read.
+    /// </remarks>
+    Task<PaneNavigationResult> LoadMoreAsync(CancellationToken cancellationToken = default);
 }
 
 /// <summary>A pane over a saved connection, through the agent.</summary>
@@ -128,6 +137,22 @@ internal sealed class RemotePaneSource(RemoteBrowserController controller, strin
             snapshot.RelativePath.Length == 0,
             snapshot.HasMore,
             result.ErrorMessage));
+    }
+
+    public async Task<PaneNavigationResult> LoadMoreAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await controller.LoadMoreAsync(cancellationToken).ConfigureAwait(false);
+        if (result.Status != RemoteBrowserOperationStatus.Succeeded || result.Snapshot is null)
+        {
+            return PaneNavigationResult.Failed(result.ErrorMessage);
+        }
+
+        var snapshot = result.Snapshot;
+        return PaneNavigationResult.Ok(new PaneListing(
+            snapshot.DisplayPath,
+            [.. snapshot.Entries.Select(BrowserRowFactory.FromRemote)],
+            snapshot.RelativePath.Length == 0,
+            snapshot.HasMore));
     }
 
     /// <summary>Opens the connection's root, which is also what makes the pane usable at all.</summary>
@@ -224,6 +249,22 @@ internal sealed class LocalPaneSource(LocalBrowserController controller) : IPane
             snapshot.Location.IsThisPc,
             snapshot.HasMore,
             result.ErrorMessage));
+    }
+
+    public async Task<PaneNavigationResult> LoadMoreAsync(CancellationToken cancellationToken = default)
+    {
+        var result = await controller.LoadMoreAsync(cancellationToken).ConfigureAwait(false);
+        if (result.Status != LocalBrowserNavigationStatus.Succeeded || result.Snapshot is null)
+        {
+            return PaneNavigationResult.Failed(result.ErrorMessage);
+        }
+
+        var snapshot = result.Snapshot;
+        return PaneNavigationResult.Ok(new PaneListing(
+            snapshot.Location.DisplayText,
+            [.. snapshot.Entries.Select(BrowserRowFactory.FromLocal)],
+            snapshot.Location.IsThisPc,
+            snapshot.HasMore));
     }
 
     public ValueTask DisposeAsync() => controller.DisposeAsync();

@@ -180,6 +180,23 @@
     <Setter Property="TextDecorations" Value="Underline"/>
   </Style>
 
+  <!-- A button that reads as a link: no box, the accent, underlined, e.g. the pane's "Load more". -->
+  <Style Selector="Button.link">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="Padding" Value="0"/>
+    <Setter Property="MinHeight" Value="0"/>
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}"/>
+  </Style>
+  <Style Selector="Button.link /template/ ContentPresenter">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource PrimaryBrush}"/>
+  </Style>
+  <Style Selector="Button.link:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource PrimaryHoverBrush}"/>
+  </Style>
+
   <!-- The three button variants StorageHubButton painted by hand. -->
   <Style Selector="Button">
     <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}"/>

@@ -277,8 +277,11 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
         BrowserPaneModel destination,
         CancellationToken cancellationToken)
     {
+        // The whole destination first, as 1.x read it: a folder bigger than one page used to be
+        // refused outright ("finish indexing first"), and nothing ever finished it.
+        await destination.LoadAllAsync(cancellationToken).ConfigureAwait(true);
         var target = PaneTransferSnapshots.DestinationFor(
-            destination.Source, destination.Rows, destination.HasMorePages);
+            destination.Source, destination.AllRows, destination.HasMorePages);
         if (target.IsFailure)
         {
             Message = target.Error.Message;

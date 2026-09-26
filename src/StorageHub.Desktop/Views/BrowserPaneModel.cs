@@ -99,6 +99,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     private string _filter = string.Empty;
     private bool _isAtRoot = true;
     private bool _failed;
+    private Task<bool>? _loadingMore;
 
     /// <param name="mutations">
     /// How the pane creates, renames and deletes. Null leaves those commands unavailable, which is
@@ -185,6 +186,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         BackCommand = new RelayCommand(_ => _ = BackAsync(), _ => _source?.CanGoBack == true);
         ForwardCommand = new RelayCommand(_ => _ = ForwardAsync(), _ => _source?.CanGoForward == true);
         RefreshCommand = new RelayCommand(_ => _ = MoveAsync(PaneNavigationKind.Refresh));
+        LoadMoreCommand = new RelayCommand(_ => _ = LoadMoreAsync(), _ => _hasMore && _loadingMore is null);
     }
 
     public ObservableCollection<PaneConnection> Connections { get; } = [];
@@ -281,16 +283,22 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
 
     public bool HasBadges => _connection is not null;
 
-    /// <summary>"12 items", or "3 of 12 items" while a filter is narrowing the listing.</summary>
+    /// <summary>
+    /// "12 items", "3 of 12 items" while a filter narrows it, and "| more available" or
+    /// "| indexing next page…" while the folder has more than has been read, as 1.x's footer said.
+    /// </summary>
     public string ItemCount
     {
         get
         {
             var shown = Rows.Count(static row => !row.IsParentNavigation);
-            return HasFilter && _index is not null
+            var count = HasFilter && _index is not null
                 ? Ui.Format(Ui.Pane.ItemCountFilteredFormat, shown,
                     _index.CreateView(_sortColumn, _sortAscending, null).Count)
                 : Ui.Format(Ui.Pane.ItemCountFormat, shown);
+            return !_hasMore ? count
+                : _loadingMore is not null ? count + Ui.Pane.IndexingNextPageSuffix
+                : count + Ui.Pane.MoreAvailableSuffix;
         }
     }
 
@@ -541,7 +549,17 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     internal IPaneSource? Source => _source;
 
     /// <summary>Whether the listing has pages nobody has asked for yet.</summary>
-    internal bool HasMorePages => _hasMore;
+    public bool HasMorePages => _hasMore;
+
+    /// <summary>
+    /// Every row of the folder that has been read, whatever the filter is showing.
+    /// </summary>
+    /// <remarks>
+    /// What a paste checks for name clashes. It used the filtered rows, so a file the filter was
+    /// hiding looked absent and a clash with it was not caught before queueing.
+    /// </remarks>
+    internal IReadOnlyList<BrowserListItem> AllRows =>
+        _index?.CreateView(_sortColumn, _sortAscending, null) ?? [];
 
     /// <summary>
     /// Copy and move, which the workspace owns and the pane only shows.
@@ -811,6 +829,133 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     public ICommand ForwardCommand { get; }
 
     public ICommand RefreshCommand { get; }
+
+    /// <summary>"Load more", in the footer while the folder has more than has been read.</summary>
+    public ICommand LoadMoreCommand { get; }
+
+    public static string LoadMoreLabel => Ui.Pane.LoadMore;
+
+    public bool IsLoadingMore => _loadingMore is not null;
+
+    /// <summary>
+    /// Reads the next page of this folder and adds it to what is shown.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// One page at a time: a second call while one is in flight waits for that one rather than
+    /// asking for the same page twice. The view calls this as the list is scrolled near its end,
+    /// as 1.x's did, and the footer's Load more calls it by hand.
+    /// </para>
+    /// <para>
+    /// The new rows are merged in where the sort puts them, not by rebuilding the list, which
+    /// would throw the scroll position back to the top in the middle of scrolling.
+    /// </para>
+    /// </remarks>
+    /// <returns>Whether a page was added.</returns>
+    internal Task<bool> LoadMoreAsync(CancellationToken cancellationToken = default)
+    {
+        if (_loadingMore is { } running) return running;
+        if (!_hasMore || _source is not { } source) return Task.FromResult(false);
+
+        // Recorded only if it is still running: a page that came back at once has already cleared
+        // the marker on its way out, and storing the finished task after that would leave every
+        // later call handed the same finished page, forever.
+        var page = LoadNextPageAsync(source, cancellationToken);
+        if (!page.IsCompleted)
+        {
+            _loadingMore = page;
+            Raise(nameof(IsLoadingMore));
+            Raise(nameof(ItemCount));
+            (LoadMoreCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        }
+
+        return page;
+    }
+
+    /// <summary>
+    /// Reads every remaining page, which a paste or a drop needs: the conflict check has to see the
+    /// whole destination, and 1.x read it all before building one.
+    /// </summary>
+    /// <returns>Whether the folder is now fully read.</returns>
+    internal async Task<bool> LoadAllAsync(CancellationToken cancellationToken = default)
+    {
+        while (_hasMore)
+        {
+            var before = AllRows.Count;
+            if (!await LoadMoreAsync(cancellationToken).ConfigureAwait(true)) return !_hasMore;
+
+            // A page that added nothing is a provider going round in circles; stop rather than
+            // spin, and leave the folder marked as not fully read.
+            if (AllRows.Count == before) return false;
+        }
+
+        return true;
+    }
+
+    private async Task<bool> LoadNextPageAsync(IPaneSource source, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await source.LoadMoreAsync(cancellationToken).ConfigureAwait(true);
+
+            // The pane moved on while the page was in flight; the page belongs to a folder that is
+            // no longer showing.
+            if (!ReferenceEquals(source, _source)) return false;
+
+            if (result.Listing is not { } listing)
+            {
+                if (!string.IsNullOrEmpty(result.Error)) Status = result.Error;
+                return false;
+            }
+
+            _hasMore = listing.HasMore;
+            Index.Append(listing.Rows);
+            MergeView();
+            return true;
+        }
+        finally
+        {
+            _loadingMore = null;
+            Raise(nameof(IsLoadingMore));
+            Raise(nameof(HasMorePages));
+            Raise(nameof(ItemCount));
+            (LoadMoreCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        }
+    }
+
+    /// <summary>
+    /// Puts rows a new page added into the list where they belong, leaving the rest in place.
+    /// </summary>
+    /// <remarks>
+    /// The rows already shown keep their relative order under the same sort and filter, so the new
+    /// view is the old one with rows inserted; walking both is enough to insert each where it goes.
+    /// Anything else -- which would be a bug -- falls back to rebuilding.
+    /// </remarks>
+    private void MergeView()
+    {
+        var view = Index.CreateView(_sortColumn, _sortAscending, NullIfEmpty(_filter));
+        var offset = _isAtRoot ? 0 : 1;
+        var position = offset;
+        foreach (var row in view)
+        {
+            if (position < Rows.Count && Rows[position] == row)
+            {
+                position++;
+                continue;
+            }
+
+            if (Rows.Skip(position).Contains(row))
+            {
+                ApplyView();
+                return;
+            }
+
+            Rows.Insert(position++, row);
+        }
+
+        if (Status == Ui.Pane.FolderIsEmpty && view.Count > 0) Status = string.Empty;
+        RaiseCommands();
+    }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -1402,6 +1547,8 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
 
         Path = listing.DisplayPath;
         _hasMore = listing.HasMore;
+        Raise(nameof(HasMorePages));
+        (LoadMoreCommand as RelayCommand)?.RaiseCanExecuteChanged();
         _isAtRoot = listing.IsAtRoot;
         _note = listing.Note;
 

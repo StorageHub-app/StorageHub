@@ -145,6 +145,12 @@ internal sealed class PaneStrings : LocalizationModelBase
 
     public string LoadMore { get; set; } = "Load more";
 
+    /// <summary>After the item count while the folder has more than has been read.</summary>
+    public string MoreAvailableSuffix { get; set; } = " | more available";
+
+    /// <summary>After the item count while the next page is being read.</summary>
+    public string IndexingNextPageSuffix { get; set; } = " | indexing next page\u2026";
+
     public string LoadNextPage { get; set; } = "Load the next page";
 
     public string LoadNextPageHint { get; set; } =
