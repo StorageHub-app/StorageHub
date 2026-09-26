@@ -24,7 +24,7 @@ public partial class App : global::Avalonia.Application
             // the shell reads settings, and only the first read can see a damaged file.
             var settingsCheck = Views.SettingsWindow.ApplySavedScheme();
 
-            var model = ShellPreview.Sample;
+            var model = ShellPreview.CreateLive();
             desktop.MainWindow = new MainWindow { DataContext = model };
 
             // What that check had to do -- a file set aside, a value corrected, 1.x settings
@@ -137,13 +137,10 @@ public partial class App : global::Avalonia.Application
             // to a socket unless it asked to.
             model.Queue.Start();
 
-            // Each pane reads the connections it can be pointed at. Fire and forget, for the same
-            // reason the sidebar is: the window opens on what it already has and fills in when the
-            // agent answers, rather than being held closed behind a process that may not be running.
-            foreach (var pane in model.Workspaces.SelectMany(Panes))
-            {
-                _ = pane.LoadConnectionsAsync();
-            }
+            // The Welcome page asks the agent for itself once the window is up; after that it
+            // reloads on its Refresh button and whenever the agent reconnects. Each pane reads
+            // its own connections as it is made.
+            _ = model.Overview?.RefreshAsync();
             // An edited file that was uploaded shows up in the pane it came from.
             Services.ShellServices.EditedFileUploaded += (_, _) => _ = model.EditedFileUploadedAsync();
 
@@ -332,8 +329,4 @@ public partial class App : global::Avalonia.Application
             model.AddWorkspace(preset);
         }
     }
-
-    /// <summary>Both panes of a workspace tab, or none for a tab that is a page.</summary>
-    private static IEnumerable<BrowserPaneModel> Panes(WorkspaceTab tab) =>
-        tab.Workspace is { } workspace ? workspace.Panes : [];
 }

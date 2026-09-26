@@ -18,20 +18,20 @@
       </StackPanel>
 
       <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceMd}">
-        <Button Classes="primary" Content="{Binding NewWorkspaceLabel}"/>
-        <Button>
+        <Button Classes="primary" Content="{Binding NewWorkspaceLabel}" Command="{Binding NewWorkspaceCommand}"/>
+        <Button Command="{Binding ConnectionsCommand}">
           <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
             <LucideIcon Kind="Network" Size="{StaticResource IconSizeSm}"/>
             <TextBlock Text="{Binding ConnectionsLabel}"/>
           </StackPanel>
         </Button>
-        <Button>
+        <Button Command="{Binding SyncTasksCommand}">
           <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
             <LucideIcon Kind="ArrowLeftRight" Size="{StaticResource IconSizeSm}"/>
             <TextBlock Text="{Binding SyncTasksLabel}"/>
           </StackPanel>
         </Button>
-        <Button>
+        <Button Command="{Binding RefreshCommand}">
           <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
             <LucideIcon Kind="RefreshCw" Size="{StaticResource IconSizeSm}"/>
             <TextBlock Text="{Binding RefreshLabel}"/>

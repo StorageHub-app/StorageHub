@@ -345,6 +345,9 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
 
     public ConnectionsSidebar Sidebar { get; init; } = null!;
 
+    /// <summary>The Welcome page, which follows the status bar and reloads when the agent connects.</summary>
+    internal OverviewModel? Overview { get; set; }
+
     public ICommand NewWorkspaceCommand { get; init; } = null!;
 
     /// <summary>The X on a workspace tab; its parameter is the tab.</summary>
@@ -441,6 +444,7 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
             if (_shellStatus == value) return;
             _shellStatus = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShellStatus)));
+            Overview?.UpdateStatus(value);
         }
     }
 
@@ -511,8 +515,18 @@ internal static class ShellPreview
         Func<ISshTerminalAgentClient>? terminals = null) =>
         Build(selectedWorkspace: 2, terminals);
 
+    /// <summary>
+    /// The shell the application runs: Welcome and Sync tasks, and no workspace until somebody
+    /// asks for one, as 1.x opened. Its Welcome page and its panes ask the agent for what there is.
+    /// </summary>
+    /// <remarks>
+    /// The samples above keep a workspace open because the tests photograph and drive one; the
+    /// application used to share them, which is why it opened on a "Workspace 1" nobody made.
+    /// </remarks>
+    internal static ShellPreviewModel CreateLive() => Build(live: true);
+
     private static ShellPreviewModel Build(
-        int selectedWorkspace = 0, Func<ISshTerminalAgentClient>? terminals = null)
+        int selectedWorkspace = 0, Func<ISshTerminalAgentClient>? terminals = null, bool live = false)
     {
         terminals ??= static () => new NamedPipeSshTerminalAgentClient();
         var router = new ShellCommandRouter();
@@ -549,7 +563,7 @@ internal static class ShellPreview
                 new WorkspaceModel(
                     // A pane makes its own inspector client per operation, for the same reason a
                     // transfer does: one held open is one that broke when the agent restarted.
-                    () => new BrowserPaneModel(
+                    () => Loaded(live, new BrowserPaneModel(
                         mutations: static () => new PaneMutationController(
                             static () => new NamedPipeObjectInspectorAgentClient()),
                         dialogs: Services.ShellServices.Dialogs,
@@ -565,7 +579,7 @@ internal static class ShellPreview
                         inspect: Services.ShellServices.InspectObjectAsync,
                         edit: Services.ShellServices.EditExternallyAsync,
                         batchRename: static (sources, occupied) => Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(
-                            () => BatchRenameWindow.AskAsync(Services.ShellServices.MainWindow(), sources, occupied))),
+                            () => BatchRenameWindow.AskAsync(Services.ShellServices.MainWindow(), sources, occupied)))),
                     static () => new NamedPipeTransferQueueAgentClient(),
                     static () => new NamedPipeRemoteStorageAgentClient(),
                     static () => new NamedPipeObjectInspectorAgentClient(),
@@ -574,10 +588,18 @@ internal static class ShellPreview
                     Services.ShellServices.Dialogs)),
         };
 
-        model.Workspaces.Add(new WorkspaceTab(
-            Ui.Shell.TabWelcome,
-            LucideIconKind.House,
-            OverviewModel.Create(ShellStatusSnapshot.Initial)));
+        // The Welcome page. Live, it asks the agent itself, as 1.x's did; its buttons go where the
+        // same commands go from the menu and the toolbar.
+        var overview = live
+            ? OverviewModel.ForAgent(
+                ShellStatusSnapshot.Initial,
+                static () => new NamedPipeRemoteStorageAgentClient(),
+                static () => new NamedPipeTransferQueueAgentClient())
+            : OverviewModel.Create(ShellStatusSnapshot.Initial);
+        overview.NewWorkspaceCommand = router.For(UiCommandIds.WorkspaceNewWorkspace);
+        overview.ConnectionsCommand = new RelayCommand(_ => model.Sidebar.ManageCommand?.Execute(null));
+        model.Overview = overview;
+        model.Workspaces.Add(new WorkspaceTab(Ui.Shell.TabWelcome, LucideIconKind.House, overview));
         var syncPage = new TabbedPageModel(
             [
                 // The tasks screen asks the agent for the saved profiles and the runs behind them.
@@ -597,8 +619,9 @@ internal static class ShellPreview
                         Services.ShellServices.Dialogs)),
             ]);
         model.SyncPage = syncPage;
-        model.Workspaces.Add(new WorkspaceTab(
-            Ui.Shell.TabSyncTasks, LucideIconKind.ArrowLeftRight, syncPage));
+        var syncTab = new WorkspaceTab(Ui.Shell.TabSyncTasks, LucideIconKind.ArrowLeftRight, syncPage);
+        model.Workspaces.Add(syncTab);
+        overview.SyncTasksCommand = new RelayCommand(_ => model.SelectedWorkspace = model.Workspaces.IndexOf(syncTab));
 
         // The tasks screen's own Run history button goes to the sub-tab beside it. It knows the
         // page it is on no more than the panel knows what a pane is, so the shell says what it does.
@@ -607,7 +630,7 @@ internal static class ShellPreview
             tasks.RunHistoryCommand = new RelayCommand(_ => syncPage.SelectedIndex = 1);
         }
 
-        model.AddWorkspace(WorkspacePreset.All[1]);
+        if (!live) model.AddWorkspace(WorkspacePreset.All[1]);
         model.SelectedWorkspace = selectedWorkspace;
         model.RouteToActivePane();
         model.WatchTheStatusBar();
@@ -616,11 +639,21 @@ internal static class ShellPreview
         // act on a row: what to do with a connection id.
         model.Sidebar.OpenConnection = id =>
         {
+            // From Welcome or Sync tasks there is no pane to open into, so a workspace is made
+            // for it, as 1.x did, rather than the double-click doing nothing.
+            if (model.ActivePane() is null) model.AddWorkspace(WorkspacePreset.All[1]);
             if (model.ActivePane() is { } pane) _ = pane.OpenConnectionAsync(id);
         };
         return model;
     }
 
+
+    /// <summary>A pane that, in the running application, starts reading its connections at once.</summary>
+    private static BrowserPaneModel Loaded(bool live, BrowserPaneModel pane)
+    {
+        if (live) _ = pane.LoadConnectionsAsync();
+        return pane;
+    }
 
     /// <summary>
     /// The sidebar, asking a real agent.

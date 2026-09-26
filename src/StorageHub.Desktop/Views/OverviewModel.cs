@@ -1,4 +1,8 @@
+using System.ComponentModel;
+using System.Globalization;
+using System.Windows.Input;
 using Lucide.Avalonia;
+using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Localization;
 
 namespace StorageHub.Desktop.Views;
@@ -53,36 +57,73 @@ internal sealed record AttentionRow(string Name, string State, string Updated);
 /// The overview, which is what the Welcome tab shows.
 /// </summary>
 /// <remarks>
-/// The first screen anyone sees, so it is the first one ported. Every string comes from
-/// OverviewStrings, which already had all of them - including the empty states, which this screen
-/// spends most of its life showing and which are written out rather than left blank.
+/// <para>
+/// Every string comes from OverviewStrings, which already had all of them - including the empty
+/// states, which this screen spends most of its life showing and which are written out rather than
+/// left blank.
+/// </para>
+/// <para>
+/// Live, as 1.x's was: it asks the agent for the saved connections and for the active, queued and
+/// failed transfers when it is refreshed, and again whenever the agent connects. It was a record
+/// built once from the snapshot at startup, which is how its Agent card came to say "Starting"
+/// while the status bar under it said "Agent: connected", and why its buttons did nothing.
+/// </para>
 /// </remarks>
-internal sealed record OverviewModel(
-    string Headline,
-    string Subheading,
-    string NewWorkspaceLabel,
-    string ConnectionsLabel,
-    string SyncTasksLabel,
-    string RefreshLabel,
-    IReadOnlyList<MetricCard> Metrics,
-    string WorkspacesTitle,
-    string WorkspacesSubtitle,
-    IReadOnlyList<WorkspaceRow> Workspaces,
-    string ConnectionsTitle,
-    string ConnectionsSubtitle,
-    IReadOnlyList<RecentConnectionRow> RecentConnections,
-    string AttentionTitle,
-    string AttentionSubtitle,
-    IReadOnlyList<AttentionRow> Attention,
-    string ColumnName,
-    string ColumnLocation,
-    string ColumnState,
-    string ColumnProvider,
-    string ColumnDetails,
-    string ColumnUpdated)
+internal sealed class OverviewModel : INotifyPropertyChanged
 {
+    private static readonly TransferQueueState[] ActiveStates =
+    [
+        TransferQueueState.Preparing,
+        TransferQueueState.Connecting,
+        TransferQueueState.Transferring,
+        TransferQueueState.Verifying,
+        TransferQueueState.Finalizing
+    ];
+
+    private static readonly TransferQueueState[] QueuedStates =
+        [TransferQueueState.Pending, TransferQueueState.Retrying];
+
+    private static readonly TransferQueueState[] AttentionStates =
+    [
+        TransferQueueState.Failed,
+        TransferQueueState.Interrupted,
+        TransferQueueState.NeedsReconciliation,
+        TransferQueueState.BlockedCredential,
+        TransferQueueState.BlockedTrust
+    ];
+
+    /// <summary>How many rows each table shows, as in 1.x.</summary>
+    private const int MaximumListRows = 12;
+
+    private readonly Func<IRemoteStorageAgentClient>? _storage;
+    private readonly Func<ITransferQueueAgentClient>? _transfers;
+    private ShellStatusSnapshot _status;
+    private string _active = "0";
+    private string _queued = "0";
+    private string _attentionCount = "0";
+    private string _statusText = string.Empty;
+    private bool _statusIsWarning;
+    private int _refreshing;
+
+    private OverviewModel(
+        ShellStatusSnapshot status,
+        Func<IRemoteStorageAgentClient>? storage,
+        Func<ITransferQueueAgentClient>? transfers)
+    {
+        _status = status;
+        _storage = storage;
+        _transfers = transfers;
+        RefreshCommand = new RelayCommand(_ => _ = RefreshAsync());
+        _active = status.ActiveJobs.ToString(CultureInfo.CurrentCulture);
+        _queued = status.QueuedJobs.ToString(CultureInfo.CurrentCulture);
+        var strings = Ui.Overview;
+        Workspaces = [new(strings.WorkspacesEmpty, strings.WorkspacesEmptyHint, string.Empty)];
+        RecentConnections = [new(strings.ConnectionsEmpty, string.Empty, string.Empty)];
+        Attention = [new(strings.AttentionEmpty, string.Empty, string.Empty)];
+    }
+
     /// <summary>
-    /// The overview as it stands with nothing saved and nothing running.
+    /// The overview as it stands with nothing saved and nothing running, and nothing to ask.
     /// </summary>
     /// <remarks>
     /// The empty rows are rows, not an absence of them: the WinForms screen fills each table with a
@@ -92,49 +133,229 @@ internal sealed record OverviewModel(
     internal static OverviewModel Create(ShellStatusSnapshot status)
     {
         ArgumentNullException.ThrowIfNull(status);
-        var strings = Ui.Overview;
-
-        return new(
-            strings.Headline,
-            strings.Subheading,
-            strings.ActionNewWorkspace,
-            strings.ActionConnections,
-            strings.ActionSyncTasks,
-            strings.ActionRefresh,
-            [
-                new(
-                    AgentValue(status, strings),
-                    strings.MetricAgent,
-                    LucideIconKind.Server,
-                    status.AgentIsHealthy ? MetricTone.Success : MetricTone.Primary),
-                new(
-                    status.ActiveJobs.ToString(System.Globalization.CultureInfo.CurrentCulture),
-                    strings.MetricActiveTransfers,
-                    LucideIconKind.Play,
-                    MetricTone.Success),
-                new(
-                    status.QueuedJobs.ToString(System.Globalization.CultureInfo.CurrentCulture),
-                    strings.MetricQueued,
-                    LucideIconKind.ListOrdered,
-                    MetricTone.Primary),
-                new("0", strings.MetricNeedsAttention, LucideIconKind.TriangleAlert, MetricTone.Warning),
-            ],
-            strings.WorkspacesTitle,
-            strings.WorkspacesSubtitle,
-            [new(strings.WorkspacesEmpty, strings.WorkspacesEmptyHint, string.Empty)],
-            strings.ConnectionsTitle,
-            strings.ConnectionsSubtitle,
-            [new(strings.ConnectionsEmpty, string.Empty, string.Empty)],
-            strings.AttentionTitle,
-            strings.AttentionSubtitle,
-            [new(strings.AttentionEmpty, string.Empty, string.Empty)],
-            strings.ColumnName,
-            strings.ColumnLocation,
-            strings.ColumnState,
-            strings.ColumnProvider,
-            strings.ColumnDetails,
-            strings.ColumnUpdated);
+        return new(status, null, null);
     }
+
+    /// <summary>The overview the application shows: one that asks the agent what there is.</summary>
+    internal static OverviewModel ForAgent(
+        ShellStatusSnapshot status,
+        Func<IRemoteStorageAgentClient> storage,
+        Func<ITransferQueueAgentClient> transfers)
+    {
+        ArgumentNullException.ThrowIfNull(status);
+        return new(status, storage, transfers);
+    }
+
+    // A binding target has to be an instance property, and these are resolved per call rather than
+    // captured so that they follow a language change. CA1822 sees only that they touch no field.
+#pragma warning disable CA1822
+    public string Headline => Ui.Overview.Headline;
+
+    public string Subheading => Ui.Overview.Subheading;
+
+    public string NewWorkspaceLabel => Ui.Overview.ActionNewWorkspace;
+
+    public string ConnectionsLabel => Ui.Overview.ActionConnections;
+
+    public string SyncTasksLabel => Ui.Overview.ActionSyncTasks;
+
+    public string RefreshLabel => Ui.Overview.ActionRefresh;
+
+    public string WorkspacesTitle => Ui.Overview.WorkspacesTitle;
+
+    public string WorkspacesSubtitle => Ui.Overview.WorkspacesSubtitle;
+
+    public string ConnectionsTitle => Ui.Overview.ConnectionsTitle;
+
+    public string ConnectionsSubtitle => Ui.Overview.ConnectionsSubtitle;
+
+    public string AttentionTitle => Ui.Overview.AttentionTitle;
+
+    public string AttentionSubtitle => Ui.Overview.AttentionSubtitle;
+
+    public string ColumnName => Ui.Overview.ColumnName;
+
+    public string ColumnLocation => Ui.Overview.ColumnLocation;
+
+    public string ColumnState => Ui.Overview.ColumnState;
+
+    public string ColumnProvider => Ui.Overview.ColumnProvider;
+
+    public string ColumnDetails => Ui.Overview.ColumnDetails;
+
+    public string ColumnUpdated => Ui.Overview.ColumnUpdated;
+#pragma warning restore CA1822
+
+    /// <summary>The four cards: the agent, then active, queued and needing attention.</summary>
+    public IReadOnlyList<MetricCard> Metrics =>
+    [
+        new(
+            AgentValue(_status, Ui.Overview),
+            Ui.Overview.MetricAgent,
+            LucideIconKind.Server,
+            _status.AgentIsHealthy ? MetricTone.Success : MetricTone.Primary),
+        new(_active, Ui.Overview.MetricActiveTransfers, LucideIconKind.Play, MetricTone.Success),
+        new(_queued, Ui.Overview.MetricQueued, LucideIconKind.ListOrdered, MetricTone.Primary),
+        new(_attentionCount, Ui.Overview.MetricNeedsAttention, LucideIconKind.TriangleAlert, MetricTone.Warning),
+    ];
+
+    public IReadOnlyList<WorkspaceRow> Workspaces { get; private set; }
+
+    public IReadOnlyList<RecentConnectionRow> RecentConnections { get; private set; }
+
+    public IReadOnlyList<AttentionRow> Attention { get; private set; }
+
+    /// <summary>"Updated 12:26", or why the last refresh could not finish.</summary>
+    public string StatusText
+    {
+        get => _statusText;
+        private set
+        {
+            if (string.Equals(_statusText, value, StringComparison.Ordinal)) return;
+            _statusText = value;
+            Raise(nameof(StatusText));
+            Raise(nameof(HasStatusText));
+        }
+    }
+
+    public bool HasStatusText => _statusText.Length > 0;
+
+    public bool StatusIsWarning
+    {
+        get => _statusIsWarning;
+        private set
+        {
+            if (_statusIsWarning == value) return;
+            _statusIsWarning = value;
+            Raise(nameof(StatusIsWarning));
+        }
+    }
+
+    /// <summary>New workspace: the arrangement chooser. Set by the shell.</summary>
+    public ICommand? NewWorkspaceCommand { get; internal set; }
+
+    /// <summary>Connections: the Connection Manager. Set by the shell, which owns the windows.</summary>
+    public ICommand? ConnectionsCommand { get; internal set; }
+
+    /// <summary>Sync tasks: the tab beside this one. Set by the shell.</summary>
+    public ICommand? SyncTasksCommand { get; internal set; }
+
+    public ICommand RefreshCommand { get; }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    /// <summary>
+    /// Takes the status bar's snapshot, and refreshes when the agent has just come back.
+    /// </summary>
+    /// <remarks>
+    /// The overview is usually what somebody is looking at when the agent restarts, so it is the
+    /// surface most worth not leaving stale - which is what 1.x reloaded it on, too.
+    /// </remarks>
+    internal void UpdateStatus(ShellStatusSnapshot status)
+    {
+        ArgumentNullException.ThrowIfNull(status);
+        var connected = !_status.AgentIsHealthy && status.AgentIsHealthy;
+        _status = status;
+        if (_storage is null)
+        {
+            _active = status.ActiveJobs.ToString(CultureInfo.CurrentCulture);
+            _queued = status.QueuedJobs.ToString(CultureInfo.CurrentCulture);
+        }
+
+        Raise(nameof(Metrics));
+        if (connected) _ = RefreshAsync();
+    }
+
+    /// <summary>Asks the agent for the connections and the transfers, and fills the page.</summary>
+    internal async Task RefreshAsync(CancellationToken cancellationToken = default)
+    {
+        if (_storage is null || _transfers is null) return;
+        if (Interlocked.Exchange(ref _refreshing, 1) != 0) return;
+
+        try
+        {
+            StatusText = Ui.Overview.StatusRefreshing;
+            StatusIsWarning = false;
+
+            await using var storage = _storage();
+            await using var transfers = _transfers();
+            var connections = await storage
+                .ListConnectionsAsync(
+                    new ConnectionListRequest(IncludeDisabled: false, Limit: StorageIpcLimits.MaximumConnectionResults),
+                    cancellationToken)
+                .ConfigureAwait(true);
+            ThrowIfFailure(connections.Failure);
+            var active = await ListAsync(transfers, ActiveStates, cancellationToken).ConfigureAwait(true);
+            var queued = await ListAsync(transfers, QueuedStates, cancellationToken).ConfigureAwait(true);
+            var attention = await ListAsync(transfers, AttentionStates, cancellationToken).ConfigureAwait(true);
+
+            _active = Count(active);
+            _queued = Count(queued);
+            _attentionCount = Count(attention);
+            Raise(nameof(Metrics));
+
+            var rows = connections.Connections
+                .OrderByDescending(static value => value.IsFavorite)
+                .ThenBy(static value => value.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+                .Take(MaximumListRows)
+                .Select(static value => new RecentConnectionRow(
+                    value.DisplayName,
+                    value.Provider.ToString(),
+                    value.IsFavorite ? Ui.Overview.ConnectionFavorite : value.FolderPath ?? string.Empty))
+                .ToArray();
+            RecentConnections = rows.Length > 0 ? rows : [new(Ui.Overview.ConnectionsEmpty, string.Empty, string.Empty)];
+            Raise(nameof(RecentConnections));
+
+            var problems = attention.Transfers
+                .OrderByDescending(static value => value.UpdatedUtc)
+                .Take(MaximumListRows)
+                .Select(static value => new AttentionRow(
+                    $"{value.Operation}: {(string.IsNullOrWhiteSpace(value.SourcePath) ? value.DestinationPath : value.SourcePath)}",
+                    UiEnumNames.Describe(value.State),
+                    value.UpdatedUtc.LocalDateTime.ToString("g", CultureInfo.CurrentCulture)))
+                .ToArray();
+            Attention = problems.Length > 0 ? problems : [new(Ui.Overview.AttentionEmpty, string.Empty, string.Empty)];
+            Raise(nameof(Attention));
+
+            StatusText = Ui.Format(Ui.Overview.StatusUpdatedFormat, DateTime.Now);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            // Said once, in the shell's own words for an agent that did not answer, rather than as
+            // the exception's message - which is how "Pipe is broken." used to reach this page.
+            StatusText = Ui.Shell.AgentNotConnected;
+            StatusIsWarning = true;
+        }
+        finally
+        {
+            Volatile.Write(ref _refreshing, 0);
+        }
+    }
+
+    private static async Task<TransferListResponse> ListAsync(
+        ITransferQueueAgentClient client,
+        TransferQueueState[] states,
+        CancellationToken cancellationToken)
+    {
+        var response = await client
+            .ListAsync(new TransferListRequest(TransferQueueIpcContract.CurrentVersion, states, PageSize: 25), cancellationToken)
+            .ConfigureAwait(true);
+        ThrowIfFailure(response.Failure);
+        return response;
+    }
+
+    /// <summary>A count, with a "+" when there was more than one page of it.</summary>
+    private static string Count(TransferListResponse response) =>
+        response.ContinuationToken is null
+            ? response.Transfers.Length.ToString(CultureInfo.CurrentCulture)
+            : $"{response.Transfers.Length}+";
+
+    private static void ThrowIfFailure(StorageIpcFailure? failure)
+    {
+        if (failure is not null) throw new InvalidOperationException(failure.Message);
+    }
+
+    private void Raise(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 
     /// <summary>
     /// The agent's state in the card's own shorter wording.
