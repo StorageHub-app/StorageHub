@@ -30,6 +30,22 @@ public class TransferQueueModelTests
         Assert.Equal([TransferQueueState.Failed], agent.LastStates);
     }
 
+    /// <summary>
+    /// More than a page is read a page at a time, within the contract's limit, and shown whole.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task MoreThanOnePageIsReadAPageAtATime()
+    {
+        var agent = new FakeQueueAgent();
+        for (var index = 0; index < 120; index++) agent.Transfers.Add(Summary(TransferQueueState.Transferring));
+        await using var queue = new TransferQueueModel(() => agent);
+
+        await queue.RefreshAsync();
+
+        Assert.Equal(120, queue.Rows.Count);
+        Assert.False(queue.HasMessage);
+    }
+
     [AvaloniaFact]
     public async Task EveryTabShowsTheCountTheAgentReportedForIt()
     {
@@ -254,12 +270,25 @@ public class TransferQueueModelTests
         {
             if (Throw) throw new IOException("The agent is not listening.");
 
+            // As the real client does: a request outside the contract is refused before it is sent.
+            // The fake used to accept anything, which is how a page size of 100 against a limit of
+            // 50 passed every test here while the real queue never listed a thing.
+            if (!request.HasValidBounds)
+            {
+                throw new ArgumentException("The transfer request is outside the negotiated IPC contract bounds.", nameof(request));
+            }
+
             LastStates = request.States;
             var matching = Transfers.Where(t => request.States.Contains(t.State)).ToArray();
+            var start = request.ContinuationToken is { } token ? int.Parse(token, System.Globalization.CultureInfo.InvariantCulture) : 0;
+            var page = matching.Skip(start).Take(request.PageSize).ToArray();
+            var next = start + page.Length < matching.Length
+                ? (start + page.Length).ToString(System.Globalization.CultureInfo.InvariantCulture)
+                : null;
             return Task.FromResult(new TransferListResponse(
                 TransferQueueIpcContract.CurrentVersion,
-                matching,
-                ContinuationToken: null,
+                page,
+                ContinuationToken: next,
                 Failure: null,
                 Counts,
                 TotalBytesPerSecond));

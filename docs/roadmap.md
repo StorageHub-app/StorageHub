@@ -129,7 +129,11 @@ setting to choose it (P.5.1).
       clearing" confirmation (the setting is saved and unread).
 - [ ] P.4.3 Cancel, retry and reconcile say what happened ("Updated 3", "2 conflicts") and refusals are
       shown; Reconcile defaults to Restart for a conflict; MarkFailed and Cancel are offered.
-- [ ] P.4.4 Queue paging past 100 rows (a cursor), and "Next" pages again.
+- [x] P.4.4 Queue paging. Worse than the sweep thought: the queue asked for 100 rows per page against
+      a contract limit of 50, the client refused every request, and the refusal was lost in a
+      fire-and-forget -- so the 2.0 queue never listed anything. Found by the new error log; it now
+      reads 50 at a time up to 200, and the test fake enforces the contract as the real client does.
+      "Next" paging again is still open, with P.4.1.
 - [ ] P.4.5 Source and Destination name the connection; Status reads "State: error".
 - [ ] P.4.6 Explorer drops waiting to be queued show in Active and Logs and can be cancelled
       (`PendingDropRegistry` is in Core, unused).

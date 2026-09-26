@@ -305,22 +305,52 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
         _lifetime.Dispose();
     }
 
+    /// <summary>How many rows a tab shows at most: four pages.</summary>
+    private const int MaximumRows = TransferQueueIpcLimits.MaximumPageSize * 4;
+
     private async Task<TransferListResponse?> ListAsync(IReadOnlyList<TransferQueueState> states)
     {
         try
         {
             _client ??= _connect();
+
+            // A page at a time, as the contract allows, up to MaximumRows. This asked for 100 in
+            // one page against a limit of 50, which the client refuses before sending -- so the
+            // queue never listed anything, and the refusal was thrown into a fire-and-forget.
             var response = await _client.ListAsync(
                 new TransferListRequest(
                     TransferQueueIpcContract.CurrentVersion,
                     [.. states],
-                    PageSize: 100),
+                    PageSize: TransferQueueIpcLimits.MaximumPageSize),
                 _lifetime.Token).ConfigureAwait(true);
+            var rows = new List<TransferQueueSummary>(response.Transfers);
+            while (response.Failure is null &&
+                   response.ContinuationToken is { } next &&
+                   rows.Count < MaximumRows)
+            {
+                response = await _client.ListAsync(
+                    new TransferListRequest(
+                        TransferQueueIpcContract.CurrentVersion,
+                        [.. states],
+                        PageSize: TransferQueueIpcLimits.MaximumPageSize,
+                        ContinuationToken: next),
+                    _lifetime.Token).ConfigureAwait(true);
+                rows.AddRange(response.Transfers);
+            }
 
             Message = response.Failure is { } failure
                 ? failure.Message
                 : string.Empty;
-            return response;
+            return response with { Transfers = [.. rows] };
+        }
+        catch (ArgumentException error)
+        {
+            // A request the client would not send is a defect here rather than a state of the
+            // agent. Said, logged, and survived -- not thrown out of a timer callback.
+            Framework.DesktopErrorLog.Write("queue", error);
+            Message = Ui.Transfer.QueueUnavailable;
+            Raise(nameof(HasMessage));
+            return null;
         }
         catch (OperationCanceledException)
         {
