@@ -1741,12 +1741,10 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         _isAtRoot = listing.IsAtRoot;
         _note = listing.Note;
 
-        // A new folder is a new listing, so the filter goes with the old one. Carrying it across
-        // would leave somebody in an empty folder that is not empty, with the reason two controls
-        // away from where they are looking.
-        _filter = string.Empty;
-        Raise(nameof(Filter));
-        Raise(nameof(HasFilter));
+        // The filter stays from folder to folder, as it did in 1.x: "*.pdf" is usually a question
+        // about a tree, not one folder. It used to be cleared here, because a folder it emptied
+        // looked empty with the reason two controls away; the list now says "No items match the
+        // current filter" where the rows would be.
 
         Index.Reset(listing.Rows);
         ApplyView();

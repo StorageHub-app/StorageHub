@@ -385,7 +385,15 @@
                     </DataTemplate>
                   </TableViewColumn.CellTemplate>
                 </TableViewColumn>
-                <TableViewColumn Binding="{Binding Size}" Width="80"/>
+                <!-- Right-aligned, as 1.x had it, so the digits of sizes line up. -->
+                <TableViewColumn Width="80">
+                  <TableViewColumn.CellTemplate>
+                    <DataTemplate DataType="core:BrowserListItem">
+                      <TextBlock Text="{Binding Size}" TextAlignment="Right" HorizontalAlignment="Stretch"
+                                 VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    </DataTemplate>
+                  </TableViewColumn.CellTemplate>
+                </TableViewColumn>
                 <TableViewColumn Binding="{Binding Type}" Width="110"/>
                 <TableViewColumn Binding="{Binding Modified}" Width="120"/>
                 <TableViewColumn Binding="{Binding Status}" Width="90"/>

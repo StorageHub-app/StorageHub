@@ -144,19 +144,19 @@ public class PaneSortFilterTests
     /// Entering a folder clears the filter.
     /// </summary>
     /// <remarks>
-    /// Otherwise somebody arrives in a folder that looks empty and is not, with the reason two
-    /// controls away from where they are looking.
+    /// As 1.x kept it. A folder the filter empties says so where the rows would be, which is what
+    /// the filter used to be cleared to avoid.
     /// </remarks>
     [AvaloniaFact]
-    public async Task EnteringAFolderClearsTheFilter()
+    public async Task EnteringAFolderKeepsTheFilter()
     {
         await using var pane = await OpenedAsync();
-        pane.Filter = "a";
+        pane.Filter = "zzz";
 
         await pane.NavigateAsync("reports", TestContext.Current.CancellationToken);
 
-        Assert.False(pane.HasFilter);
-        Assert.Equal(string.Empty, pane.Filter);
+        Assert.Equal("zzz", pane.Filter);
+        Assert.Equal(Ui.Pane.NoItemsMatchFilter, pane.EmptyNotice);
     }
 
     /// <summary>Select all takes the listing, and never the way back out of it.</summary>
