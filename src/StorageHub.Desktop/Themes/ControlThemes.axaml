@@ -570,6 +570,16 @@
     <Setter Property="Padding" Value="{StaticResource PaddingMd}"/>
   </Style>
 
+  <!-- A pane's folder tree: as dense as the list beside it, on the same surface. -->
+  <Style Selector="TreeView.pane-tree">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="Padding" Value="0,4"/>
+  </Style>
+  <Style Selector="TreeView.pane-tree TreeViewItem">
+    <Setter Property="MinHeight" Value="{StaticResource TreeRowHeight}"/>
+    <Setter Property="Padding" Value="0"/>
+  </Style>
+
   <!-- The splash: the mark and the name on the surface, framed so a borderless window has an edge. -->
   <Style Selector="Border.splash">
     <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>

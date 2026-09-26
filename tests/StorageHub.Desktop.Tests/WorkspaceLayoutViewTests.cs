@@ -113,10 +113,12 @@ public class WorkspaceLayoutViewTests
         workspace.Preset = WorkspaceModel.Presets[5];
         Lay(window);
 
-        // Counted inside the workspace, not the window: the shell has dividers of its own, and how
+        // Counted inside the workspace, not the window, and not inside the panes: the shell has
+        // dividers of its own, and each pane one between its folder tree and its list, and how
         // many of those there are is not this suite's business.
         var view = window.GetVisualDescendants().OfType<WorkspaceView>().Single();
-        var splitters = view.GetVisualDescendants().OfType<GridSplitter>().Count();
+        var splitters = view.GetVisualDescendants().OfType<GridSplitter>()
+            .Count(static splitter => splitter.FindAncestorOfType<BrowserPaneView>() is null);
 
         // Three splits hold four panes, whatever shape they are in.
         Assert.Equal(3, splitters);

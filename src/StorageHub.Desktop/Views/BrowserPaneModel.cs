@@ -186,10 +186,14 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         BackCommand = new RelayCommand(_ => _ = BackAsync(), _ => _source?.CanGoBack == true);
         ForwardCommand = new RelayCommand(_ => _ = ForwardAsync(), _ => _source?.CanGoForward == true);
         RefreshCommand = new RelayCommand(_ => _ = MoveAsync(PaneNavigationKind.Refresh));
+        Tree.NavigateRequested += (_, target) => _ = NavigateAsync(target);
         LoadMoreCommand = new RelayCommand(_ => _ = LoadMoreAsync(), _ => _hasMore && _loadingMore is null);
     }
 
     public ObservableCollection<PaneConnection> Connections { get; } = [];
+
+    /// <summary>The folder tree beside the list.</summary>
+    public PaneTreeModel Tree { get; } = new();
 
     /// <summary>
     /// The same connections as cards, for the picker: name, endpoint, group, and what it is.
@@ -961,6 +965,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             _hasMore = listing.HasMore;
             Index.Append(listing.Rows);
             MergeView();
+            FollowTree(listing.Rows, append: true);
             return true;
         }
         finally
@@ -1110,6 +1115,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             if (choice.Kind == PaneContentKind.SshClient)
             {
                 _source = null;
+                Tree.Clear();
                 Rows.Clear();
                 SelectedRows.Clear();
                 Path = choice.Name;
@@ -1133,6 +1139,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
                 // a source this pane no longer holds.
                 if (opened.Listing is null)
                 {
+                    Tree.Clear();
                     Rows.Clear();
                     SelectedRows.Clear();
                     Index.Reset([]);
@@ -1629,6 +1636,29 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         Index.Reset(listing.Rows);
         ApplyView();
         Raise(nameof(Title));
+        FollowTree(listing.Rows, append: false);
+    }
+
+    /// <summary>
+    /// Puts the listing into the tree: where the pane is, opened, with the folders it holds.
+    /// </summary>
+    private void FollowTree(IReadOnlyList<BrowserListItem> rows, bool append)
+    {
+        if (_source is null || IsTerminal ||
+            PaneTransferSnapshots.ContextFor(_source) is not { IsSuccess: true, Value: var here })
+        {
+            Tree.Clear();
+            return;
+        }
+
+        var local = _source is LocalPaneSource;
+        Tree.Follow(
+            local ? "this-pc" : here.ConnectionId?.ToString() ?? Title,
+            local ? Ui.Pane.ThisPc : Title,
+            local,
+            here.RelativePath,
+            rows,
+            append);
     }
 
     /// <summary>

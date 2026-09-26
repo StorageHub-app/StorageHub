@@ -296,51 +296,91 @@
         between two buckets - which is what the connection picker above already implies.
       -->
       <Panel>
-        <TableView x:Name="PART_Rows"
-                   ItemsSource="{Binding Rows}"
-                   IsVisible="{Binding IsListing}"
-                   SelectedItem="{Binding Selected, Mode=TwoWay}"
-                   SelectedItems="{Binding SelectedRows}"
-                   SelectionMode="Multiple">
-          <!--
-            Five columns, the same five 1.x showed. The headings carry the sort arrow and are set
-            from the view model in code-behind: a TableViewColumn is not in the visual tree, so it
-            has no DataContext for a binding to walk.
-          -->
-          <TableView.Columns>
-            <!--
-              Narrow enough that the name still has room in a quarter-width pane. A star column
-              gets what the fixed ones leave, so four columns sized for a full window leave the
-              name as an ellipsis in a four-pane workspace - which is the one column somebody is
-              actually reading.
-            -->
-            <TableViewColumn Width="*">
-              <!-- The name with its icon, as 1.x's list drew it: the system's own icon where
-                   there is one, a glyph chosen from the extension where there is not. -->
-              <TableViewColumn.CellTemplate>
-                <DataTemplate DataType="core:BrowserListItem">
-                  <StackPanel Orientation="Horizontal" Spacing="6">
-                    <Panel Width="16" Height="16" VerticalAlignment="Center">
-                      <Image Width="16" Height="16"
-                             RenderOptions.BitmapInterpolationMode="HighQuality"
-                             Source="{Binding Converter={x:Static themes:FileSystemIconConverter.Instance}}"/>
-                      <LucideIcon Size="16"
-                                  Kind="{Binding Converter={x:Static themes:FileGlyphConverter.Instance}}"
-                                  Classes.folder="{Binding Converter={x:Static themes:IsContainerRowConverter.Instance}}"
-                                  IsVisible="{Binding Converter={x:Static themes:HasNoSystemIconConverter.Instance}}"/>
-                    </Panel>
-                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center"
-                               TextTrimming="CharacterEllipsis"/>
-                  </StackPanel>
-                </DataTemplate>
-              </TableViewColumn.CellTemplate>
-            </TableViewColumn>
-            <TableViewColumn Binding="{Binding Size}" Width="80"/>
-            <TableViewColumn Binding="{Binding Type}" Width="110"/>
-            <TableViewColumn Binding="{Binding Modified}" Width="120"/>
-            <TableViewColumn Binding="{Binding Status}" Width="90"/>
-          </TableView.Columns>
-        </TableView>
+        <!--
+          The folder tree beside the list, as 1.x had it: the pane's root, the way down to where
+          the pane is, and the folders around it that have been listed. Choosing one goes there.
+        -->
+        <Grid ColumnDefinitions="185,Auto,*" IsVisible="{Binding IsListing}">
+          <!-- No sideways scrolling: a deep folder would scroll the tree left until the top of
+               the path was out of sight. Names past the edge end in an ellipsis instead. -->
+          <TreeView x:Name="PART_Tree" Grid.Column="0" Classes="pane-tree"
+                    ItemsSource="{Binding Tree.Roots}"
+                    ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                    AutomationProperties.Name="{Binding Title}">
+            <TreeView.Resources>
+              <x:Double x:Key="TreeViewItemIndent">12</x:Double>
+              <x:Double x:Key="TreeViewItemMinHeight">22</x:Double>
+              <SolidColorBrush x:Key="TreeViewItemBackgroundSelected" Color="{DynamicResource SelectionColor}"/>
+              <SolidColorBrush x:Key="TreeViewItemBackgroundSelectedPointerOver" Color="{DynamicResource SelectionColor}"/>
+              <SolidColorBrush x:Key="TreeViewItemForegroundSelected" Color="{DynamicResource TextColor}"/>
+              <SolidColorBrush x:Key="TreeViewItemForegroundSelectedPointerOver" Color="{DynamicResource TextColor}"/>
+            </TreeView.Resources>
+            <TreeView.Styles>
+              <Style Selector="TreeViewItem" x:DataType="vm:PaneTreeNode">
+                <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
+                <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
+              </Style>
+            </TreeView.Styles>
+            <TreeView.ItemTemplate>
+              <TreeDataTemplate DataType="vm:PaneTreeNode" ItemsSource="{Binding Children}">
+                <StackPanel Orientation="Horizontal" Spacing="6" ToolTip.Tip="{Binding Target}">
+                  <LucideIcon Kind="{Binding Icon}" Size="16" Classes.folder="{Binding !IsRoot}"/>
+                  <TextBlock Text="{Binding Name}" VerticalAlignment="Center"
+                             TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
+              </TreeDataTemplate>
+            </TreeView.ItemTemplate>
+          </TreeView>
+          <GridSplitter Grid.Column="1" Width="{StaticResource SplitterThickness}"
+                        ResizeDirection="Columns"/>
+          <Panel Grid.Column="2">
+            <TableView x:Name="PART_Rows"
+                       ItemsSource="{Binding Rows}"
+                       IsVisible="{Binding IsListing}"
+                       SelectedItem="{Binding Selected, Mode=TwoWay}"
+                       SelectedItems="{Binding SelectedRows}"
+                       SelectionMode="Multiple">
+              <!--
+                Five columns, the same five 1.x showed. The headings carry the sort arrow and are set
+                from the view model in code-behind: a TableViewColumn is not in the visual tree, so it
+                has no DataContext for a binding to walk.
+              -->
+              <TableView.Columns>
+                <!--
+                  Narrow enough that the name still has room in a quarter-width pane. A star column
+                  gets what the fixed ones leave, so four columns sized for a full window leave the
+                  name as an ellipsis in a four-pane workspace - which is the one column somebody is
+                  actually reading.
+                -->
+                <TableViewColumn Width="*">
+                  <!-- The name with its icon, as 1.x's list drew it: the system's own icon where
+                       there is one, a glyph chosen from the extension where there is not. -->
+                  <TableViewColumn.CellTemplate>
+                    <DataTemplate DataType="core:BrowserListItem">
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Panel Width="16" Height="16" VerticalAlignment="Center">
+                          <Image Width="16" Height="16"
+                                 RenderOptions.BitmapInterpolationMode="HighQuality"
+                                 Source="{Binding Converter={x:Static themes:FileSystemIconConverter.Instance}}"/>
+                          <LucideIcon Size="16"
+                                      Kind="{Binding Converter={x:Static themes:FileGlyphConverter.Instance}}"
+                                      Classes.folder="{Binding Converter={x:Static themes:IsContainerRowConverter.Instance}}"
+                                      IsVisible="{Binding Converter={x:Static themes:HasNoSystemIconConverter.Instance}}"/>
+                        </Panel>
+                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"/>
+                      </StackPanel>
+                    </DataTemplate>
+                  </TableViewColumn.CellTemplate>
+                </TableViewColumn>
+                <TableViewColumn Binding="{Binding Size}" Width="80"/>
+                <TableViewColumn Binding="{Binding Type}" Width="110"/>
+                <TableViewColumn Binding="{Binding Modified}" Width="120"/>
+                <TableViewColumn Binding="{Binding Status}" Width="90"/>
+              </TableView.Columns>
+            </TableView>
+          </Panel>
+        </Grid>
 
         <!--
           The SSH surface. TerminalView paints the screen buffer the emulator maintains and sends

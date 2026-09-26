@@ -51,6 +51,16 @@ public partial class BrowserPaneView : UserControl
         DataContextChanged += (_, _) => Bind(Model);
         AddHandler(ScrollViewer.ScrollChangedEvent, OnScrollChanged, RoutingStrategies.Bubble);
         AddHandler(ContextRequestedEvent, OnContextRequested, RoutingStrategies.Tunnel);
+
+        // Choosing a folder in the tree goes there. The tree's own model ignores the selection it
+        // makes when it follows a listing, so only a person's choice moves the pane.
+        if (this.FindControl<TreeView>("PART_Tree") is { } tree)
+        {
+            tree.SelectionChanged += (_, _) =>
+            {
+                if (tree.SelectedItem is PaneTreeNode node) Model?.Tree.Chosen(node);
+            };
+        }
         if (this.FindControl<TextBox>("PART_Address") is { } address)
         {
             // Enter goes there; Escape puts back where the pane is. Handled here so the list's own
