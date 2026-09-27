@@ -140,7 +140,14 @@ public class OverviewTests
         Assert.False(starting.Metrics[0].IsSuccess);
     }
 
-    /// <summary>The Welcome tab renders the overview rather than an empty pane grid.</summary>
+    /// <summary>
+    /// The Welcome tab renders the overview rather than an empty pane grid, and Enter on a
+    /// workspace in its list opens it, as 1.x's did.
+    /// </summary>
+    /// <remarks>
+    /// The list is a ListBox, which takes Enter for itself before an ordinary KeyDown handler sees
+    /// it, so Enter did nothing while a double-click opened the row.
+    /// </remarks>
     [AvaloniaFact]
     public void TheWelcomeTabShowsTheOverview()
     {
@@ -156,5 +163,26 @@ public class OverviewTests
             .ToList();
         Assert.Contains(Ui.Overview.Headline, texts);
         Assert.Contains(Ui.Overview.WorkspacesTitle, texts);
+
+        var overview = OverviewModel.Create(ShellStatusSnapshot.Initial);
+        var opened = new List<string>();
+        overview.OpenWorkspace = path =>
+        {
+            opened.Add(path);
+            return Task.CompletedTask;
+        };
+        overview.ShowWorkspaces(
+            [new WorkspaceShortcutView(new WorkspaceShortcutEntry(@"C:\Work\design.shw", "Design", DateTimeOffset.UtcNow), true, true)]);
+        var host = new Window { Content = new OverviewView { DataContext = overview }, Width = 1200, Height = 800 };
+        host.Show();
+        host.UpdateLayout();
+        var table = host.GetVisualDescendants().OfType<TableView>().First(static candidate => candidate.Name == "PART_Workspaces");
+        overview.SelectedWorkspace = overview.Workspaces[0];
+        Dispatcher.UIThread.RunJobs();
+        table.ContainerFromIndex(0)!.Focus();
+        host.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+
+        Assert.Equal([@"C:\Work\design.shw"], opened);
+        host.Close();
     }
 }

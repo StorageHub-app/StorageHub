@@ -19,7 +19,7 @@
 
     <!-- In-window rather than NativeMenu: the requirement is the same classic menu bar on both
          platforms, and NativeMenu on Linux needs a dbusmenu host GNOME does not ship. -->
-    <Menu DockPanel.Dock="Top" ItemsSource="{Binding Menus}">
+    <Menu x:Name="PART_Menu" DockPanel.Dock="Top" ItemsSource="{Binding Menus}">
       <Menu.ItemTemplate>
         <DataTemplate DataType="vm:MenuSection">
           <TextBlock Text="{Binding Header}"/>
@@ -36,16 +36,18 @@
         </Style>
 
         <!-- InputGesture only displays the shortcut; dispatch comes from ShellCommandRouter on the
-             same catalog, and the two must not drift. -->
+             same catalog, and the two must not drift. A label of "-" is a separator, which is how
+             the Workspace menu divides its pinned and recent workspaces from the rest. -->
         <Style Selector="MenuItem > MenuItem" x:DataType="vm:CommandEntry">
           <Setter Property="Header" Value="{Binding Label}"/>
           <Setter Property="InputGesture" Value="{Binding Shortcut}"/>
           <Setter Property="Command" Value="{Binding Command}"/>
-          <Setter Property="ToolTip.Tip" Value="{Binding Description}"/>
+          <Setter Property="ToolTip.Tip" Value="{Binding ToolTip}"/>
           <Setter Property="ItemsSource" Value="{x:Null}"/>
           <Setter Property="Icon">
             <Template>
               <LucideIcon Kind="{Binding Icon}"
+                          IsVisible="{Binding Icon, Converter={x:Static ObjectConverters.IsNotNull}}"
                           Size="{StaticResource IconSizeSm}"
                           Classes.primary="{Binding IsPrimary}"
                           Classes.danger="{Binding IsDanger}"/>

@@ -101,6 +101,10 @@ public partial class App : global::Avalonia.Application
             model.Router.Handle(UiCommandIds.WorkspaceRenameWorkspace, () => _ = files.RenameAsync());
         }
 
+        // Exit closes the window, as 1.x's called Close(): the same way out as the title bar's X,
+        // so it asks about each changed workspace and shuts down through the Closing handler below.
+        model.Router.Handle(UiCommandIds.WorkspaceExit, () => window.Close());
+
         // The Connection Manager, from the menu and from the panel's own New button. Both open
         // the same window: "new connection" is the manager with an empty editor, which is one
         // screen rather than a second one that would have to agree with it about every field.
@@ -310,6 +314,10 @@ public partial class App : global::Avalonia.Application
             // The import's summary says the agent restarts for new concurrency, and as in 1.4 it
             // does, by the same rule as a change made in Settings.
             if (import.Report is { ConcurrencyChanged: true }) _ = model.ApplyAgentSettingsAsync();
+
+            // An import can replace the pinned and recent workspaces too, and Welcome would go on
+            // listing the old ones until something else changed them, as 1.x's did not.
+            model.ShowWorkspaceShortcuts();
         };
 
         if (desktop.MainWindow is { } owner) _ = window.ShowDialog(owner);

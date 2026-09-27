@@ -26,12 +26,32 @@ internal sealed record CommandEntry(
     UiIconTone Tone,
     ICommand Command)
 {
+    /// <summary>What a menu entry draws in place of its label: a line between groups.</summary>
+    internal const string SeparatorLabel = "-";
+
     internal bool IsPrimary => Tone == UiIconTone.Primary;
 
     internal bool IsDanger => Tone == UiIconTone.Danger;
+
+    /// <summary>The tooltip, or none for an entry with nothing to say, rather than an empty box.</summary>
+    internal string? ToolTip => Description.Length > 0 ? Description : null;
+
+    /// <summary>A group's heading, such as the Workspace menu's "Pinned": shown bold, never run.</summary>
+    internal bool IsHeading { get; init; }
+
+    /// <summary>
+    /// A workspace whose file was not there when the menu was drawn. Dimmed, not disabled, as in
+    /// 1.x: clicking it is how it offers to leave the list.
+    /// </summary>
+    internal bool IsMissing { get; init; }
 }
 
-internal sealed record MenuSection(string Header, IReadOnlyList<CommandEntry> Items);
+/// <summary>One of the menu bar's menus.</summary>
+/// <remarks>
+/// The entries are observable because the Workspace menu's change while the shell runs: the pinned
+/// and recent workspaces are listed in it, ahead of Exit, as 1.x listed them.
+/// </remarks>
+internal sealed record MenuSection(UiMenuId Menu, string Header, IReadOnlyList<CommandEntry> Items);
 
 /// <summary>A toolbar divider. Its own type so the toolbar can template it separately.</summary>
 internal sealed record ToolbarSeparator
@@ -386,7 +406,174 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
     /// Saving, opening and renaming workspace files. Null in a preview, which has nowhere to save
     /// and nobody to ask, so closing a changed workspace there does not stop to ask either.
     /// </summary>
-    internal WorkspaceFiles? Files { get; set; }
+    /// <remarks>
+    /// Its pinned and recent lists are drawn in two places, Welcome and the Workspace menu, and
+    /// both are drawn again whenever either list changes, whichever route changed it.
+    /// </remarks>
+    internal WorkspaceFiles? Files
+    {
+        get => _files;
+        set
+        {
+            if (ReferenceEquals(_files, value)) return;
+            if (_files is { } previous) previous.Bookmarks.Changed -= OnBookmarksChanged;
+            _files = value;
+            if (value is not null) value.Bookmarks.Changed += OnBookmarksChanged;
+            ShowWorkspaceShortcuts();
+        }
+    }
+
+    private WorkspaceFiles? _files;
+
+    private void OnBookmarksChanged(object? sender, EventArgs e) => ShowWorkspaceShortcuts();
+
+    /// <summary>
+    /// Draws the pinned and recent workspaces again, on Welcome and in the Workspace menu.
+    /// </summary>
+    internal void ShowWorkspaceShortcuts()
+    {
+        var shortcuts = _files?.Bookmarks.Shortcuts ?? [];
+        Overview?.ShowWorkspaces(shortcuts);
+        ListWorkspacesInTheMenu(shortcuts);
+    }
+
+    /// <summary>
+    /// Draws the Workspace menu's own entries again as it opens, as 1.x did.
+    /// </summary>
+    /// <remarks>
+    /// Whether each file is there, and whether the workspace showing is pinned, are both answers
+    /// that can change without the lists changing: a file deleted elsewhere, another tab chosen.
+    /// </remarks>
+    internal void WorkspaceMenuOpening() => ListWorkspacesInTheMenu(_files?.Bookmarks.Shortcuts ?? []);
+
+    /// <summary>The Workspace menu's entries from the catalog, kept so each redraw starts from them.</summary>
+    private CommandEntry[]? _workspaceCatalogEntries;
+
+    /// <summary>Never enabled: a heading or a line in a menu is there to be read.</summary>
+    private static readonly RelayCommand Inert = new(static _ => { }, static _ => false);
+
+    /// <summary>
+    /// Puts Pin Workspace, then the pinned and then the recent workspaces, into the Workspace menu
+    /// ahead of Exit, as 1.x's RebuildWorkspaceSection did.
+    /// </summary>
+    /// <remarks>
+    /// A group with nothing in it leaves out its heading too. The entries are replaced only when
+    /// something about them changed, so opening the menu does not rebuild it under the keyboard.
+    /// </remarks>
+    private void ListWorkspacesInTheMenu(IReadOnlyList<WorkspaceShortcutView> shortcuts)
+    {
+        if (_files is not { } files ||
+            Menus.FirstOrDefault(static section => section.Menu == UiMenuId.Workspace)?.Items
+                is not ObservableCollection<CommandEntry> items)
+        {
+            return;
+        }
+
+        _workspaceCatalogEntries ??= [.. items];
+        var catalog = _workspaceCatalogEntries;
+        var exit = Array.FindIndex(catalog, static entry => entry.Id == UiCommandIds.WorkspaceExit);
+        if (exit < 0) exit = catalog.Length;
+
+        var showing = ActiveWorkspace()?.FilePath;
+        var pinned = showing is not null && WorkspaceShortcutSettings.Contains(
+            [.. shortcuts.Where(static shortcut => shortcut.IsPinned).Select(static shortcut => shortcut.Entry)],
+            showing);
+        _togglePin ??= new RelayCommand(
+            _ => { if (_files is { } current) _ = current.TogglePinAsync(); },
+            _ => _files is not null && ActiveWorkspace() is not null);
+
+        var next = new List<CommandEntry>(catalog[..exit])
+        {
+            Line(),
+            new(
+                "workspace.pin",
+                pinned ? Ui.Shell.UnpinWorkspace : Ui.Shell.PinWorkspace,
+                pinned ? Ui.Shell.RemoveFromPinned : Ui.Shell.PinWorkspaceHint,
+                null,
+                null,
+                UiIconTone.Text,
+                _togglePin),
+        };
+        Group(Ui.Overview.WorkspaceStatePinned, shortcuts.Where(static shortcut => shortcut.IsPinned));
+        Group(Ui.Overview.WorkspaceStateRecent, shortcuts.Where(static shortcut => !shortcut.IsPinned));
+        next.AddRange(catalog[exit..]);
+
+        if (items.Select(Key).SequenceEqual(next.Select(Key))) return;
+        items.Clear();
+        foreach (var entry in next) items.Add(entry);
+
+        void Group(string heading, IEnumerable<WorkspaceShortcutView> group)
+        {
+            var entries = group.ToArray();
+            if (entries.Length == 0) return;
+
+            next.Add(Line());
+            next.Add(new("workspace.heading", heading, string.Empty, null, null, UiIconTone.Text, Inert) { IsHeading = true });
+            foreach (var shortcut in entries)
+            {
+                var path = shortcut.Entry.Path;
+
+                // An underscore in a label marks its access key, so a name's own is doubled. And a
+                // workspace called "-" would be drawn as a line nobody can click, so its dash is
+                // marked as the access key instead, which reads the same.
+                var name = shortcut.Entry.DisplayName.Replace("_", "__", StringComparison.Ordinal);
+                if (name == CommandEntry.SeparatorLabel) name = "_" + name;
+                next.Add(new(
+                    "workspace.shortcut:" + path,
+                    shortcut.LooksPresent ? name : Ui.Format(Ui.Shell.WorkspaceMissingEntryFormat, name),
+                    path,
+                    null,
+                    null,
+                    UiIconTone.Text,
+                    new RelayCommand(_ => _ = files.OpenPathAsync(path)))
+                {
+                    IsMissing = !shortcut.LooksPresent
+                });
+            }
+        }
+
+        static CommandEntry Line() =>
+            new("workspace.separator", CommandEntry.SeparatorLabel, string.Empty, null, null, UiIconTone.Text, Inert);
+
+        static (string, string, bool) Key(CommandEntry entry) => (entry.Id, entry.Label, entry.IsMissing);
+    }
+
+    /// <summary>Workspace > Pin Workspace, which follows the tab showing as Save does.</summary>
+    private RelayCommand? _togglePin;
+
+    /// <summary>
+    /// Dims the commands that need a workspace while Welcome or Sync tasks is showing, as 1.x did.
+    /// </summary>
+    /// <remarks>
+    /// Save, Save As, Rename, Close and Pin, the same five 1.x's UpdateWorkspaceCommandState and its
+    /// Pin entry governed. The pane commands stay as they were in 1.x, lit on every tab: its
+    /// Welcome (docs/ui-reference/01) shows Back, Copy and the rest available and only Save dimmed.
+    /// </remarks>
+    internal void DimWorkspaceCommandsOnPages()
+    {
+        foreach (var id in new[]
+        {
+            UiCommandIds.WorkspaceSaveWorkspace,
+            UiCommandIds.WorkspaceSaveWorkspaceAs,
+            UiCommandIds.WorkspaceRenameWorkspace,
+            UiCommandIds.WorkspaceCloseWorkspace,
+        })
+        {
+            Router.When(id, () => ActiveWorkspace() is not null);
+        }
+
+        PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(SelectedWorkspace)) Reconsider();
+        };
+        Workspaces.CollectionChanged += (_, _) => Reconsider();
+
+        void Reconsider()
+        {
+            Router.Reconsider();
+            _togglePin?.RaiseCanExecuteChanged();
+        }
+    }
 
     private int _nextWorkspaceNumber = 1;
 
@@ -658,8 +845,21 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         }
     }
 
-    /// <summary>The Welcome page, which follows the status bar and reloads when the agent connects.</summary>
-    internal OverviewModel? Overview { get; set; }
+    /// <summary>
+    /// The Welcome page, which follows the status bar, reloads when the agent connects, and lists
+    /// the pinned and recent workspaces.
+    /// </summary>
+    internal OverviewModel? Overview
+    {
+        get => _overview;
+        set
+        {
+            _overview = value;
+            if (value is not null && _files is not null) ShowWorkspaceShortcuts();
+        }
+    }
+
+    private OverviewModel? _overview;
 
     public ICommand NewWorkspaceCommand { get; init; } = null!;
 
@@ -1004,6 +1204,13 @@ internal static class ShellPreview
             : OverviewModel.Create(ShellStatusSnapshot.Initial);
         overview.NewWorkspaceCommand = router.For(UiCommandIds.WorkspaceNewWorkspace);
         overview.ConnectionsCommand = new RelayCommand(_ => model.Sidebar.ManageCommand?.Execute(null));
+
+        // Its workspace list acts through the same files and lists as the Workspace menu, so a
+        // file opened, pinned or removed from either is the same file everywhere.
+        overview.OpenWorkspace = path => model.Files is { } files ? files.OpenPathAsync(path) : Task.CompletedTask;
+        overview.ToggleWorkspacePin = shortcut => model.Files?.Bookmarks.TogglePin(shortcut.Entry.Path, shortcut.Entry.Name);
+        overview.ForgetWorkspace = path => model.Files?.Bookmarks.Forget(path);
+        overview.CopyWorkspacePath = path => Services.ShellServices.Clipboard.SetTextAsync(path);
         model.Overview = overview;
         model.Workspaces.Add(new WorkspaceTab(Ui.Shell.TabWelcome, LucideIconKind.House, overview));
         var syncPage = new TabbedPageModel(
@@ -1048,6 +1255,7 @@ internal static class ShellPreview
 
         model.SelectedWorkspace = selectedWorkspace;
         model.RouteToActivePane();
+        model.DimWorkspaceCommandsOnPages();
         model.WatchTheStatusBar();
 
         // The panel knows nothing about panes, so the shell hands it the one thing it needs to
@@ -1219,12 +1427,11 @@ internal static class ShellPreview
     [
         .. UiCommandCatalog.Menus
             .Select(menu => new MenuSection(
+                menu,
                 UiCommandCatalog.MenuTitle(menu),
-                [
-                    .. UiCommandCatalog.ForMenu(menu)
-                        .Where(definition => UiCommandCatalog.IsAvailable(definition.Id))
-                        .Select(definition => ToEntry(definition, router)),
-                ]))
+                new ObservableCollection<CommandEntry>(UiCommandCatalog.ForMenu(menu)
+                    .Where(definition => UiCommandCatalog.IsAvailable(definition.Id))
+                    .Select(definition => ToEntry(definition, router)))))
             .Where(section => section.Items.Count > 0),
     ];
 

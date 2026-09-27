@@ -137,15 +137,21 @@ applied, and chosen on the Appearance page (P.5.1).
 ### P.3 The shell
 
       Done: in the picker beside This PC, and what a second pane opens on.
-- [ ] P.3.1 Workspaces: Save, Save As, Open (.shw), Rename, and the tab's `*` (was L.8); Welcome's
+- [x] P.3.1 Workspaces: Save, Save As, Open (.shw), Rename, and the tab's `*` (was L.8); Welcome's
       workspace list with Open, Pin, Remove and Copy path; Workspace menu Pinned/Recent and Pin/Unpin.
-      First half done: Save (Ctrl+S), Save As, Open (Ctrl+O) and Rename, reading and writing 1.4's
-      `.shw` unchanged; the `*` whenever the workspace differs from its file; saving and opening
-      record the file in `WorkspaceBookmarks`, which the list and the menu are to read. A save or a
-      close while a file is still opening waits for it, and a This PC folder saved on the other OS
-      opens with that pane on This PC. Left open: Welcome's list and the menu's Pinned/Recent and
-      Pin/Unpin; Rename is on the menu only, as in 1.4 (no rename on the tab itself).
-- [ ] P.3.2 Workspace > Exit; workspace commands dimmed on Welcome and Sync tasks.
+      Save (Ctrl+S), Save As, Open (Ctrl+O) and Rename read and write 1.4's `.shw` unchanged; the
+      `*` shows whenever the workspace differs from its file. A save or a close while a file is
+      still opening waits for it, and a This PC folder saved on the other OS opens with that pane on
+      This PC. Welcome lists the pinned workspaces, then the recent ones, with 1.4's Open, Pin/Unpin,
+      Remove from list (never the file) and Copy path, a double-click or Enter to open, the path as
+      the tooltip and a missing file dimmed. The Workspace menu has 1.4's Pin/Unpin Workspace and
+      its bold Pinned and Recent headings over the entries, ahead of Exit, drawn again as it opens;
+      pinning an unsaved workspace saves it first. A missing file, opened from either, offers to
+      leave the lists. Rename is on the menu only, as in 1.4 (no rename on the tab itself).
+- [x] P.3.2 Workspace > Exit; workspace commands dimmed on Welcome and Sync tasks.
+      Exit closes the window, so it asks about changed workspaces as the X does. Save, Save As,
+      Rename, Close and Pin dim on Welcome and Sync tasks, and their shortcuts do nothing there, as
+      in 1.4. The pane commands stay lit on every tab, which is what 1.4's Welcome shows (ref 01).
 - [ ] P.3.3 View > Connections panel (Ctrl+B), Move connections panel, and the panel's width, side and
       visibility remembered.
 - [ ] P.3.4 Rebound shortcuts are dispatched and shown; the toolbar is built from the saved layout and
@@ -166,8 +172,9 @@ applied, and chosen on the Appearance page (P.5.1).
 - [ ] P.3.8 The window opens centred.
 - [x] P.3.9 An empty table's message ("No workspaces yet", "No sync tasks configured") is not a row:
       it does not light up, take a click or the selection, so nothing opens it. Only Welcome and Sync
-      tasks have such rows; the queue and the pane show theirs outside the list, as 1.4 did. Open: a
-      table-wide context menu or double-click, when P.3.1 adds them, still cancels on no selection.
+      tasks have such rows; the queue and the pane show theirs outside the list, as 1.4 did. Welcome's
+      workspace menu and double-click, added with P.3.1, act only on a selected row, so neither
+      reaches the message.
 
 ### P.4 Transfers and sync
 
@@ -367,6 +374,7 @@ reference shot.
       glyph on an empty table's line (a green check on "Nothing needs attention", a muted "…" on
       Sync tasks'), and connection, warning, enabled or run glyphs on real rows. A cell template on
       the Name column keyed on `IsPlaceholder` covers the empty lines.
+      Welcome's three tables are done (with P.3.1). Left open: Sync tasks' two tables.
 
 ## 1. Settings that are refused today start working
 

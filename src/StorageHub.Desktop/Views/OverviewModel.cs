@@ -44,22 +44,66 @@ internal sealed record MetricCard(
     internal bool IsDanger => Tone == MetricTone.Danger;
 }
 
+/// <summary>
+/// The glyph at the start of a row, as 1.x's lists drew one on every line, the empty message's
+/// included.
+/// </summary>
+internal sealed record RowIcon(LucideIconKind Kind, MetricTone Tone)
+{
+    /// <summary>A workspace or a connection.</summary>
+    internal static RowIcon Connection { get; } = new(LucideIconKind.Network, MetricTone.Primary);
+
+    /// <summary>A missing workspace, or a transfer that needs attention.</summary>
+    internal static RowIcon Warning { get; } = new(LucideIconKind.TriangleAlert, MetricTone.Warning);
+
+    /// <summary>"Nothing needs attention".</summary>
+    internal static RowIcon Ok { get; } = new(LucideIconKind.CircleCheck, MetricTone.Success);
+
+    /// <summary>An empty table's message.</summary>
+    internal static RowIcon Empty { get; } = new(LucideIconKind.Info, MetricTone.Neutral);
+
+    internal bool IsPrimary => Tone == MetricTone.Primary;
+
+    internal bool IsSuccess => Tone == MetricTone.Success;
+
+    internal bool IsWarning => Tone == MetricTone.Warning;
+}
+
 /// <summary>A row of the workspaces table.</summary>
 internal sealed record WorkspaceRow(string Name, string Location, string State) : IPlaceholderRow
 {
     public bool IsPlaceholder { get; init; }
+
+    /// <summary>The remembered workspace the row stands for; none for the empty table's message.</summary>
+    internal WorkspaceShortcutView? Shortcut { get; init; }
+
+    /// <summary>
+    /// A file that was not there when the list was drawn. Dimmed, as 1.x drew it, but not
+    /// disabled: opening it is how it offers to leave the list.
+    /// </summary>
+    internal bool IsMissing => Shortcut is { LooksPresent: false };
+
+    /// <summary>The file's path, which 1.x's row showed as its tooltip.</summary>
+    internal string? ToolTip => Shortcut?.Entry.Path;
+
+    internal RowIcon Icon => IsPlaceholder ? RowIcon.Empty : IsMissing ? RowIcon.Warning : RowIcon.Connection;
 }
 
 /// <summary>A row of the recent-connections table.</summary>
 internal sealed record RecentConnectionRow(string Name, string Provider, string Details) : IPlaceholderRow
 {
     public bool IsPlaceholder { get; init; }
+
+    internal RowIcon Icon => IsPlaceholder ? RowIcon.Empty : RowIcon.Connection;
 }
 
 /// <summary>A row of the needs-attention table.</summary>
 internal sealed record AttentionRow(string Name, string State, string Updated) : IPlaceholderRow
 {
     public bool IsPlaceholder { get; init; }
+
+    /// <summary>The message says all is well here, so it is a tick rather than the others' "i".</summary>
+    internal RowIcon Icon => IsPlaceholder ? RowIcon.Ok : RowIcon.Warning;
 }
 
 /// <summary>
@@ -123,6 +167,21 @@ internal sealed class OverviewModel : INotifyPropertyChanged
         _storage = storage;
         _transfers = transfers;
         RefreshCommand = new RelayCommand(_ => _ = RefreshAsync());
+
+        // What 1.x's workspace list offered on a row: open it, pin or unpin it, take it off the
+        // list, copy where it is. Each acts on the selected row, which the placeholder never is.
+        _openWorkspace = new RelayCommand(
+            _ => { if (Chosen() is { } chosen && OpenWorkspace is { } open) _ = open(chosen.Entry.Path); },
+            _ => Chosen() is not null);
+        _toggleWorkspacePin = new RelayCommand(
+            _ => { if (Chosen() is { } chosen) ToggleWorkspacePin?.Invoke(chosen); },
+            _ => Chosen() is not null);
+        _forgetWorkspace = new RelayCommand(
+            _ => { if (Chosen() is { } chosen) ForgetWorkspace?.Invoke(chosen.Entry.Path); },
+            _ => Chosen() is not null);
+        _copyWorkspacePath = new RelayCommand(
+            _ => { if (Chosen() is { } chosen && CopyWorkspacePath is { } copy) _ = copy(chosen.Entry.Path); },
+            _ => Chosen() is not null);
         _active = status.ActiveJobs.ToString(CultureInfo.CurrentCulture);
         _queued = status.QueuedJobs.ToString(CultureInfo.CurrentCulture);
         var strings = Ui.Overview;
@@ -210,6 +269,100 @@ internal sealed class OverviewModel : INotifyPropertyChanged
     ];
 
     public IReadOnlyList<WorkspaceRow> Workspaces { get; private set; }
+
+    /// <summary>The row the workspace menu and a double-click act on.</summary>
+    public WorkspaceRow? SelectedWorkspace
+    {
+        get => _selectedWorkspace;
+        set
+        {
+            if (Equals(_selectedWorkspace, value)) return;
+            _selectedWorkspace = value;
+            Raise(nameof(SelectedWorkspace));
+            Raise(nameof(PinWorkspaceLabel));
+            _openWorkspace.RaiseCanExecuteChanged();
+            _toggleWorkspacePin.RaiseCanExecuteChanged();
+            _forgetWorkspace.RaiseCanExecuteChanged();
+            _copyWorkspacePath.RaiseCanExecuteChanged();
+        }
+    }
+
+    private WorkspaceRow? _selectedWorkspace;
+    private readonly RelayCommand _openWorkspace;
+    private readonly RelayCommand _toggleWorkspacePin;
+    private readonly RelayCommand _forgetWorkspace;
+    private readonly RelayCommand _copyWorkspacePath;
+
+    /// <summary>Opens the selected workspace: its menu's Open, a double-click, or Enter.</summary>
+    public ICommand OpenWorkspaceCommand => _openWorkspace;
+
+    public ICommand ToggleWorkspacePinCommand => _toggleWorkspacePin;
+
+    /// <summary>Takes the selected workspace off the lists. The file itself is left where it is.</summary>
+    public ICommand ForgetWorkspaceCommand => _forgetWorkspace;
+
+    public ICommand CopyWorkspacePathCommand => _copyWorkspacePath;
+
+    /// <summary>"Pin", or "Unpin" for a row that already is, as 1.x's menu said when it opened.</summary>
+    public string PinWorkspaceLabel => Chosen() is { IsPinned: true } ? Ui.Overview.ContextUnpin : Ui.Overview.ContextPin;
+
+#pragma warning disable CA1822
+    public string OpenWorkspaceLabel => Ui.Overview.ContextOpen;
+
+    public string ForgetWorkspaceLabel => Ui.Overview.ContextRemoveFromList;
+
+    public string CopyWorkspacePathLabel => Ui.Overview.ContextCopyPath;
+#pragma warning restore CA1822
+
+    /// <summary>Opens a workspace file. Set by the shell, which owns the files.</summary>
+    internal Func<string, Task>? OpenWorkspace { get; set; }
+
+    /// <summary>Pins or unpins a workspace. Set by the shell.</summary>
+    internal Action<WorkspaceShortcutView>? ToggleWorkspacePin { get; set; }
+
+    /// <summary>Drops a workspace from the pinned and recent lists. Set by the shell.</summary>
+    internal Action<string>? ForgetWorkspace { get; set; }
+
+    /// <summary>Puts a path on the clipboard. Set by the shell, which has the window it belongs to.</summary>
+    internal Func<string, Task>? CopyWorkspacePath { get; set; }
+
+    /// <summary>
+    /// Lists the remembered workspaces, as the shell has already ordered them: pinned first.
+    /// </summary>
+    /// <remarks>
+    /// This page does no IO of its own, as 1.x's did not: which files look present is decided by
+    /// whoever reads the lists. The State column says Pinned, Recent or Missing in words, so the
+    /// dimming is not the only thing that tells a screen reader a file is gone.
+    /// </remarks>
+    internal void ShowWorkspaces(IReadOnlyList<WorkspaceShortcutView> shortcuts)
+    {
+        ArgumentNullException.ThrowIfNull(shortcuts);
+        var strings = Ui.Overview;
+        var selected = Chosen()?.Entry.Path;
+        WorkspaceRow[] rows =
+        [
+            .. shortcuts.Select(shortcut => new WorkspaceRow(
+                shortcut.Entry.DisplayName,
+                shortcut.Entry.Path,
+                !shortcut.LooksPresent ? strings.WorkspaceStateMissing
+                    : shortcut.IsPinned ? strings.WorkspaceStatePinned
+                    : strings.WorkspaceStateRecent)
+            {
+                Shortcut = shortcut
+            }),
+        ];
+        Workspaces = rows.Length > 0
+            ? rows
+            : [new(strings.WorkspacesEmpty, strings.WorkspacesEmptyHint, string.Empty) { IsPlaceholder = true }];
+        Raise(nameof(Workspaces));
+
+        // The same file stays selected when the list is drawn again, say after pinning it from
+        // here, rather than the selection vanishing under the pointer.
+        SelectedWorkspace = rows.FirstOrDefault(row => string.Equals(
+            row.Shortcut?.Entry.Path, selected, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private WorkspaceShortcutView? Chosen() => _selectedWorkspace?.Shortcut;
 
     public IReadOnlyList<RecentConnectionRow> RecentConnections { get; private set; }
 

@@ -44,6 +44,13 @@ public partial class BrowserPaneView : UserControl
         AvaloniaXamlLoader.Load(this);
         AddHandler(DoubleTappedEvent, OnDoubleTapped, RoutingStrategies.Bubble);
         AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Bubble);
+
+        // Enter tunnels, on the list itself, because the list is a ListBox and a ListBox marks
+        // Enter handled in its own class handler, so a bubbling handler here never sees it.
+        Table?.AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (e.Key == Key.Enter) Open(e);
+        }, RoutingStrategies.Tunnel);
         AddHandler(PointerPressedEvent, OnPointerPressed, RoutingStrategies.Tunnel);
         // handledEventsToo, because a column heading handles its own tap for resizing and
         // reordering. Without it the sort click is swallowed by the control it is aimed at.
@@ -226,8 +233,7 @@ public partial class BrowserPaneView : UserControl
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Enter) Open(e);
-        else if (e.Key == Key.Back && Model?.UpCommand.CanExecute(null) == true)
+        if (e.Key == Key.Back && Model?.UpCommand.CanExecute(null) == true)
         {
             Model.UpCommand.Execute(null);
             e.Handled = true;

@@ -58,6 +58,7 @@
   "pinWorkspaceHint": "Hold dette arbejdsområde ét klik væk. Et arbejdsområde, der ikke er gemt, gemmes først.",
   "unpinWorkspace": "Frigør arbejdsområde",
   "unpinWorkspaceAccessibleName": "Frigør arbejdsområde",
+  "workspaceMissingEntryFormat": "{0} (mangler)",
   "layoutSideBySide": "Layout: Side om side",
   "layoutTopAndBottom": "Layout: Over og under",
   "namedWorkspacesHint": "Navngivne arbejdsområder indeholder én til fire ligeværdige ruder.",

@@ -1,4 +1,5 @@
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Localization;
 using StorageHub.Desktop.Shell;
@@ -469,6 +470,100 @@ public class WorkspacePaneLayoutTests
 
         static IEnumerable<string> Named(BrowserPaneModel pane) =>
             pane.Rows.Where(static row => !row.IsParentNavigation).Select(static row => row.Name);
+    }
+
+    /// <summary>
+    /// Saved and opened workspaces are listed on Welcome and in the Workspace menu, pinned first,
+    /// and the commands that need a workspace dim on Welcome, as 1.x had it.
+    /// </summary>
+    /// <remarks>
+    /// Pinning a workspace never saved saves it first. Removing one from Welcome's list leaves the
+    /// file alone. A remembered file that has gone is listed as missing, and opening it offers to
+    /// take it off the lists, which only a yes does.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task PinnedAndRecentWorkspacesAreListedOnWelcomeAndInTheWorkspaceMenu()
+    {
+        var folder = Directory.CreateTempSubdirectory("storagehub-bookmarks-");
+        try
+        {
+            var shell = ShellPreview.CreateOnWorkspace();
+            var file = Path.Combine(folder.FullName, "Render farm.shw");
+            var gone = Path.Combine(folder.FullName, "Gone.shw");
+            var preferences = new DesktopUpdatePreferences();
+            var dialogs = new KeyStoreTests.RecordingDialogs();
+            shell.Files = new WorkspaceFiles(
+                shell,
+                dialogs,
+                new StubFilePicker { SavePath = file },
+                new WorkspaceBookmarks(() => preferences, saved => preferences = saved));
+            var overview = shell.Overview!;
+            var menu = shell.Menus.Single(static section => section.Menu == UiMenuId.Workspace).Items;
+            foreach (var id in new[] { UiCommandIds.WorkspaceSaveWorkspace, UiCommandIds.WorkspaceCloseWorkspace })
+            {
+                shell.Router.Handle(id, static () => { });
+            }
+
+            shell.Files.Bookmarks.RecordOpened(gone, "Gone");
+            Assert.Equal(
+                [(Ui.Shell.PinWorkspace, false), (Ui.Overview.WorkspaceStateRecent, true), (Ui.Format(Ui.Shell.WorkspaceMissingEntryFormat, "Gone"), false)],
+                Listed());
+            Assert.True(menu.Single(static entry => entry.Label.StartsWith("Gone", StringComparison.Ordinal)).IsMissing);
+
+            // Pin, from the menu, on a workspace that has never been saved: saved, then pinned.
+            menu.Single(static entry => entry.Label == Ui.Shell.PinWorkspace).Command.Execute(null);
+            Assert.True(File.Exists(file));
+            Assert.Equal(
+                [("Render farm", Ui.Overview.WorkspaceStatePinned), ("Gone", Ui.Overview.WorkspaceStateMissing)],
+                overview.Workspaces.Select(static row => (row.Name, row.State)));
+            Assert.Equal(
+                [(Ui.Shell.UnpinWorkspace, false), (Ui.Overview.WorkspaceStatePinned, true), ("Render farm", false),
+                    (Ui.Overview.WorkspaceStateRecent, true), (Ui.Format(Ui.Shell.WorkspaceMissingEntryFormat, "Gone"), false)],
+                Listed());
+            Assert.Equal(UiCommandIds.WorkspaceExit, menu[^1].Id);
+
+            // On Welcome there is no workspace to save, close or pin, and Ctrl+S says nothing.
+            var pin = menu.Single(static entry => entry.Label == Ui.Shell.UnpinWorkspace).Command;
+            var save = shell.Router.For(UiCommandIds.WorkspaceSaveWorkspace);
+            var ctrlS = new KeyGesture(Key.S, KeyModifiers.Control);
+            shell.SelectedWorkspace = 0;
+            Assert.Equal((false, false, false), (save.CanExecute(null), pin.CanExecute(null),
+                shell.Router.TryDispatch(ctrlS, new ShellFocusContext(false, false, false, false))));
+            Assert.False(shell.Router.For(UiCommandIds.WorkspaceCloseWorkspace).CanExecute(null));
+            shell.SelectedWorkspace = 2;
+            Assert.Equal((true, true), (save.CanExecute(null), pin.CanExecute(null)));
+
+            // Remove from list, on Welcome: off both lists, and the file is still there.
+            overview.SelectedWorkspace = overview.Workspaces[0];
+            Assert.Equal(Ui.Overview.ContextUnpin, overview.PinWorkspaceLabel);
+            overview.ForgetWorkspaceCommand.Execute(null);
+            Assert.Equal(["Gone"], overview.Workspaces.Select(static row => row.Name));
+            Assert.True(File.Exists(file));
+
+            // The missing one, opened from the menu: No keeps it, Yes takes it off.
+            var missing = menu.Single(static entry => entry.IsMissing).Command;
+            missing.Execute(null);
+            Assert.Contains(gone, dialogs.LastRequest?.Message, StringComparison.Ordinal);
+            Assert.Single(shell.Files.Bookmarks.Recent);
+            dialogs.Choice = DialogChoice.Yes;
+            missing.Execute(null);
+            Assert.True(Assert.Single(overview.Workspaces).IsPlaceholder);
+            Assert.Equal([(Ui.Shell.PinWorkspace, false)], Listed());
+
+            await shell.Workspaces[2].Workspace!.DisposeAsync();
+
+            // What follows the catalog's own entries up to Exit, and whether each is a heading.
+            IEnumerable<(string, bool)> Listed() => menu
+                .SkipWhile(static entry => entry.Id != UiCommandIds.WorkspaceCloseWorkspace)
+                .Skip(1)
+                .TakeWhile(static entry => entry.Id != UiCommandIds.WorkspaceExit)
+                .Where(static entry => entry.Label != CommandEntry.SeparatorLabel)
+                .Select(static entry => (entry.Label, entry.IsHeading));
+        }
+        finally
+        {
+            folder.Delete(recursive: true);
+        }
     }
 
     /// <summary>A workspace with no agent behind it, for the tests that only need the shape.</summary>

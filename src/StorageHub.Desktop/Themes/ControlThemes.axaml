@@ -362,6 +362,21 @@
     <Setter Property="Background" Value="{DynamicResource SelectionBrush}"/>
   </Style>
 
+  <!-- The Workspace menu's "Pinned" and "Recent": disabled, and bold, as 1.x drew its headings.
+       A workspace whose file has gone is muted but still clickable, since clicking it is what
+       offers to take it off the list. MainWindow marks the entries. -->
+  <Style Selector="MenuItem > MenuItem.heading">
+    <Setter Property="FontWeight" Value="SemiBold"/>
+  </Style>
+  <Style Selector="MenuItem > MenuItem.missing">
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+  </Style>
+
+  <!-- A line between groups is an entry labelled "-". It is as tall as the line, not a row. -->
+  <Style Selector="MenuItem > MenuItem:separator">
+    <Setter Property="MinHeight" Value="0"/>
+  </Style>
+
   <!-- The shortcut column reads as reference, not as an action. -->
   <Style Selector="MenuItem /template/ TextBlock#PART_InputGestureText">
     <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>

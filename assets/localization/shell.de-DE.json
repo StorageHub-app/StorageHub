@@ -58,6 +58,7 @@
   "pinWorkspaceHint": "Diesen Arbeitsbereich einen Klick entfernt halten. Ein nicht gespeicherter Arbeitsbereich wird zuerst gespeichert.",
   "unpinWorkspace": "Arbeitsbereich lösen",
   "unpinWorkspaceAccessibleName": "Arbeitsbereich lösen",
+  "workspaceMissingEntryFormat": "{0} (fehlt)",
   "layoutSideBySide": "Layout: Nebeneinander",
   "layoutTopAndBottom": "Layout: Übereinander",
   "namedWorkspacesHint": "Benannte Arbeitsbereiche enthalten ein bis vier gleichwertige Bereiche.",

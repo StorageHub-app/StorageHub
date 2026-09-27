@@ -86,11 +86,54 @@
               <TextBlock Classes="caption" Text="{Binding WorkspacesSubtitle}"/>
             </StackPanel>
           </StackPanel>
-          <TableView ItemsSource="{Binding Workspaces}" Height="140">
+          <!--
+            Pinned first, then recent, as 1.x listed them. A double-click or Enter opens one, and
+            the right-click menu is 1.x's: Open, Pin or Unpin, Remove from list, Copy path. A file
+            that has gone is dimmed rather than disabled, since opening it is what offers to take
+            it off the list. Name and Location are 1.x's widths, and State takes what is left.
+          -->
+          <TableView x:Name="PART_Workspaces" ItemsSource="{Binding Workspaces}" Height="140"
+                     SelectedItem="{Binding SelectedWorkspace, Mode=TwoWay}">
+            <TableView.ContextMenu>
+              <ContextMenu x:Name="PART_WorkspaceMenu">
+                <MenuItem Header="{Binding OpenWorkspaceLabel}" Command="{Binding OpenWorkspaceCommand}"/>
+                <MenuItem Header="{Binding PinWorkspaceLabel}" Command="{Binding ToggleWorkspacePinCommand}"/>
+                <MenuItem Header="{Binding ForgetWorkspaceLabel}" Command="{Binding ForgetWorkspaceCommand}"/>
+                <MenuItem Header="{Binding CopyWorkspacePathLabel}" Command="{Binding CopyWorkspacePathCommand}"/>
+              </ContextMenu>
+            </TableView.ContextMenu>
             <TableView.Columns>
-              <TableViewColumn Header="{Binding ColumnName}" Binding="{Binding Name}" Width="*"/>
-              <TableViewColumn Header="{Binding ColumnLocation}" Binding="{Binding Location}" Width="*"/>
-              <TableViewColumn Header="{Binding ColumnState}" Binding="{Binding State}" Width="200"/>
+              <TableViewColumn Header="{Binding ColumnName}" Width="176">
+                <TableViewColumn.CellTemplate>
+                  <DataTemplate DataType="vm:WorkspaceRow">
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceSm}"
+                                ToolTip.Tip="{Binding ToolTip}">
+                      <LucideIcon Kind="{Binding Icon.Kind}" Size="{StaticResource IconSizeSm}"
+                                  VerticalAlignment="Center"
+                                  Classes.primary="{Binding Icon.IsPrimary}"
+                                  Classes.warning="{Binding Icon.IsWarning}"/>
+                      <TextBlock Text="{Binding Name}" VerticalAlignment="Center"
+                                 TextTrimming="CharacterEllipsis" Classes.muted="{Binding IsMissing}"/>
+                    </StackPanel>
+                  </DataTemplate>
+                </TableViewColumn.CellTemplate>
+              </TableViewColumn>
+              <TableViewColumn Header="{Binding ColumnLocation}" Width="336">
+                <TableViewColumn.CellTemplate>
+                  <DataTemplate DataType="vm:WorkspaceRow">
+                    <TextBlock Text="{Binding Location}" VerticalAlignment="Center" ToolTip.Tip="{Binding ToolTip}"
+                               TextTrimming="CharacterEllipsis" Classes.muted="{Binding IsMissing}"/>
+                  </DataTemplate>
+                </TableViewColumn.CellTemplate>
+              </TableViewColumn>
+              <TableViewColumn Header="{Binding ColumnState}" Width="*">
+                <TableViewColumn.CellTemplate>
+                  <DataTemplate DataType="vm:WorkspaceRow">
+                    <TextBlock Text="{Binding State}" VerticalAlignment="Center"
+                               Classes.muted="{Binding IsMissing}"/>
+                  </DataTemplate>
+                </TableViewColumn.CellTemplate>
+              </TableViewColumn>
             </TableView.Columns>
           </TableView>
         </DockPanel>
@@ -110,7 +153,17 @@
             </StackPanel>
             <TableView ItemsSource="{Binding RecentConnections}" Height="140">
               <TableView.Columns>
-                <TableViewColumn Header="{Binding ColumnName}" Binding="{Binding Name}" Width="*"/>
+                <TableViewColumn Header="{Binding ColumnName}" Width="*">
+                  <TableViewColumn.CellTemplate>
+                    <DataTemplate DataType="vm:RecentConnectionRow">
+                      <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceSm}">
+                        <LucideIcon Kind="{Binding Icon.Kind}" Size="{StaticResource IconSizeSm}"
+                                    VerticalAlignment="Center" Classes.primary="{Binding Icon.IsPrimary}"/>
+                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                      </StackPanel>
+                    </DataTemplate>
+                  </TableViewColumn.CellTemplate>
+                </TableViewColumn>
                 <TableViewColumn Header="{Binding ColumnProvider}" Binding="{Binding Provider}" Width="120"/>
                 <TableViewColumn Header="{Binding ColumnDetails}" Binding="{Binding Details}" Width="*"/>
               </TableView.Columns>
@@ -133,7 +186,19 @@
             </StackPanel>
             <TableView ItemsSource="{Binding Attention}" Height="140">
               <TableView.Columns>
-                <TableViewColumn Header="{Binding ColumnName}" Binding="{Binding Name}" Width="*"/>
+                <TableViewColumn Header="{Binding ColumnName}" Width="*">
+                  <TableViewColumn.CellTemplate>
+                    <DataTemplate DataType="vm:AttentionRow">
+                      <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceSm}">
+                        <LucideIcon Kind="{Binding Icon.Kind}" Size="{StaticResource IconSizeSm}"
+                                    VerticalAlignment="Center"
+                                    Classes.success="{Binding Icon.IsSuccess}"
+                                    Classes.warning="{Binding Icon.IsWarning}"/>
+                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                      </StackPanel>
+                    </DataTemplate>
+                  </TableViewColumn.CellTemplate>
+                </TableViewColumn>
                 <TableViewColumn Header="{Binding ColumnState}" Binding="{Binding State}" Width="120"/>
                 <TableViewColumn Header="{Binding ColumnUpdated}" Binding="{Binding Updated}" Width="*"/>
               </TableView.Columns>

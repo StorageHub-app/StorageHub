@@ -158,6 +158,9 @@ internal sealed class ShellStrings : LocalizationModelBase
 
     public string UnpinWorkspaceAccessibleName { get; set; } = "Unpin workspace";
 
+    /// <summary>{0} = the workspace's name, in the Workspace menu, when its file has gone.</summary>
+    public string WorkspaceMissingEntryFormat { get; set; } = "{0} (missing)";
+
     public string LayoutSideBySide { get; set; } = "Layout: Side by side";
 
     public string LayoutTopAndBottom { get; set; } = "Layout: Top and bottom";

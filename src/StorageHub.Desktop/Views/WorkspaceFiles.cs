@@ -15,7 +15,7 @@ namespace StorageHub.Desktop.Views;
 /// </para>
 /// <para>
 /// Every route that opens a workspace comes through <see cref="OpenPathAsync"/> -- the Open
-/// dialog today, Welcome's list and the Workspace menu's recent entries next -- so they agree about
+/// dialog, Welcome's list and the Workspace menu's pinned and recent entries -- so they agree about
 /// a file that is already open, one that has gone, and what is recorded as recent.
 /// </para>
 /// </remarks>
@@ -237,6 +237,20 @@ internal sealed class WorkspaceFiles
                 : null
         }).ConfigureAwait(true);
         if (!string.IsNullOrWhiteSpace(name)) workspace.Rename(name);
+    }
+
+    /// <summary>
+    /// Pins the workspace showing, or unpins it, as Workspace > Pin Workspace does.
+    /// </summary>
+    /// <remarks>
+    /// One that has never been saved is saved first, through Save As, so that a pin always names
+    /// a real file, as 1.x's did. Dismissing that picker pins nothing.
+    /// </remarks>
+    internal async Task TogglePinAsync()
+    {
+        if (_shell.Workspaces.ElementAtOrDefault(_shell.SelectedWorkspace)?.Workspace is not { } workspace) return;
+        if (workspace.FilePath is null && !await SaveAsync(saveAs: true).ConfigureAwait(true)) return;
+        if (workspace.FilePath is { } path) Bookmarks.TogglePin(path, workspace.Name);
     }
 
     /// <summary>

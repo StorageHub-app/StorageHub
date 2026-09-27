@@ -20,7 +20,7 @@ internal sealed class ShellCommand(string id, Action<string> invoke, Func<string
     internal string Id { get; } = id;
 
     /// <summary>
-    /// Whether this command has somewhere to go.
+    /// Whether this command has somewhere to go, and can go there now.
     /// </summary>
     /// <remarks>
     /// It used to return true unconditionally, and the result was a menu that could not be trusted:
@@ -33,7 +33,8 @@ internal sealed class ShellCommand(string id, Action<string> invoke, Func<string
     public void Execute(object? parameter) => invoke(Id);
 
     /// <summary>
-    /// Raised when the command gains a handler, so a menu drawn before it did catches up.
+    /// Raised when the command gains a handler or a condition, so a menu drawn before it did
+    /// catches up, and again on <see cref="ShellCommandRouter.Reconsider"/>.
     /// </summary>
     /// <remarks>
     /// Handlers are registered after the shell is built -- some of them by a window that does not
@@ -65,13 +66,14 @@ internal sealed class ShellCommandRouter
 {
     private readonly Dictionary<string, ShellCommand> _commands = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Action> _handlers = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Func<bool>> _conditions = new(StringComparer.Ordinal);
     private readonly HashSet<TopLevel> _attached = [];
 
     internal ShellCommandRouter()
     {
         foreach (var definition in UiCommandCatalog.Definitions)
         {
-            _commands[definition.Id] = new ShellCommand(definition.Id, Invoke, IsHandled);
+            _commands[definition.Id] = new ShellCommand(definition.Id, Invoke, CanRun);
         }
     }
 
@@ -118,6 +120,36 @@ internal sealed class ShellCommandRouter
     /// <summary>Whether an id has somewhere to go, for a test and for a menu that dims.</summary>
     internal bool IsHandled(string id) => _handlers.ContainsKey(id);
 
+    /// <summary>
+    /// Offers a command only while something holds, such as Save while a workspace is showing.
+    /// </summary>
+    /// <remarks>
+    /// 1.x dimmed Save, Save As, Rename and Close whenever Welcome or Sync tasks was the tab, and
+    /// its toolbar buttons and shortcuts followed the menu entry. Here the entry and the button
+    /// follow <see cref="ShellCommand.CanExecute"/>, and a shortcut declines the same way. The
+    /// condition is asked again on <see cref="Reconsider"/>, not watched.
+    /// </remarks>
+    internal void When(string id, Func<bool> condition)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(id);
+        ArgumentNullException.ThrowIfNull(condition);
+        _conditions[id] = condition;
+        if (_commands.TryGetValue(id, out var command)) command.RaiseCanExecuteChanged();
+    }
+
+    /// <summary>Tells every entry that has a condition to ask it again, after something it reads changed.</summary>
+    internal void Reconsider()
+    {
+        foreach (var id in _conditions.Keys)
+        {
+            if (_commands.TryGetValue(id, out var command)) command.RaiseCanExecuteChanged();
+        }
+    }
+
+    /// <summary>Whether a command can run now: it has a handler, and its condition, if any, holds.</summary>
+    internal bool CanRun(string id) =>
+        IsHandled(id) && (!_conditions.TryGetValue(id, out var condition) || condition());
+
     /// <summary>Attaches to a window, tunnelling so the shell sees a key before the focus does.</summary>
     internal void Attach(TopLevel topLevel)
     {
@@ -153,6 +185,10 @@ internal sealed class ShellCommandRouter
 
         if (!UiCommandCatalog.CanDispatch(command, focus.IsSshFocused, focus.IsTextFocused, focus.HasPane))
             return false;
+
+        // A dimmed entry's shortcut is declined too, as 1.x's was: Ctrl+S on Welcome saves nothing
+        // and leaves the keystroke to whatever has focus.
+        if (IsHandled(command.Id) && !CanRun(command.Id)) return false;
 
         Invoke(command.Id);
         return true;
