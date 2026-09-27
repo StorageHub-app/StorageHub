@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
@@ -260,14 +261,28 @@ public partial class BrowserPaneView : UserControl
         if (Model is not { } model) return;
         if (!model.IsActive) model.IsActive = true;
 
+        // Only a right-click on the rows' own area, which is the list's scrolled content. The
+        // headings and the scroll bars are beside it, as they were outside 1.x's list, and leave
+        // the selection as it was.
+        if (!e.GetCurrentPoint(this).Properties.IsRightButtonPressed ||
+            e.Source is not Visual source ||
+            source.FindAncestorOfType<ScrollContentPresenter>(includeSelf: true) is not { } rows ||
+            rows.FindAncestorOfType<TableView>() is null)
+        {
+            return;
+        }
+
         // A right-click on a row that is not part of the selection makes it the selection, as
         // Explorer and 1.x did, so the menu acts on what was clicked rather than on something
-        // selected elsewhere in the list.
-        if (e.GetCurrentPoint(this).Properties.IsRightButtonPressed &&
-            e.Source is Visual source &&
-            source.FindAncestorOfType<TableView>() is not null &&
-            (source as StyledElement ?? source.FindAncestorOfType<StyledElement>())?.DataContext is BrowserListItem row &&
-            !model.SelectedRows.Contains(row))
+        // selected elsewhere in the list. One on the empty space below the rows clears it, as
+        // 1.x's did, so the menu's Copy, Delete and Properties have nothing to act on rather than
+        // acting on rows nobody clicked.
+        if (source.FindAncestorOfType<TableViewRow>(includeSelf: true) is not { } container)
+        {
+            model.SelectedRows.Clear();
+            model.Selected = null;
+        }
+        else if (container.DataContext is BrowserListItem row && !model.SelectedRows.Contains(row))
         {
             model.SelectedRows.Clear();
             model.SelectedRows.Add(row);
@@ -280,13 +295,15 @@ public partial class BrowserPaneView : UserControl
     /// entries for everything else, with their shortcuts shown.
     /// </summary>
     /// <remarks>
-    /// Built when it opens, so Open says "Go up one level" on ".." and each entry's availability is
+    /// Filled when it opens, so Open says "Go up one level" on ".." and each entry's availability is
     /// the one at that moment. The shell's entries route to the active pane, which the right-click
-    /// has just made this one.
+    /// has just made this one. The menu itself is the list's from the start: one handed to the list
+    /// here, while this request is on its way, is not opened by it, so the first right-click opened
+    /// nothing.
     /// </remarks>
     private void OnContextRequested(object? sender, ContextRequestedEventArgs e)
     {
-        if (Model is not { IsListing: true } model || Table is not { } table) return;
+        if (Model is not { IsListing: true } model || Table is not { ContextMenu: { } menu } table) return;
         if (e.Source is not Visual source || source.FindAncestorOfType<TableView>() is null && source != table) return;
 
         var items = new List<Control>
@@ -323,7 +340,7 @@ public partial class BrowserPaneView : UserControl
             }
         }
 
-        table.ContextMenu = new ContextMenu { ItemsSource = items };
+        menu.ItemsSource = items;
     }
 
     /// <summary>The entries of the "..." that are shell commands, and which command each one is.</summary>

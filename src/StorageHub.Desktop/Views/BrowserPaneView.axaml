@@ -366,6 +366,12 @@
                        SelectedItem="{Binding Selected, Mode=TwoWay}"
                        SelectedItems="{Binding SelectedRows}"
                        SelectionMode="Multiple">
+              <!-- There from the start and filled as it opens. A menu first given to the list by
+                   the request that should open it is not opened by that request, so the first
+                   right-click, and the Menu key, did nothing. -->
+              <TableView.ContextMenu>
+                <ContextMenu/>
+              </TableView.ContextMenu>
               <!--
                 Five columns, the same five 1.x showed. The headings carry the sort arrow and are set
                 from the view model in code-behind: a TableViewColumn is not in the visual tree, so it

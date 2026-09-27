@@ -25,28 +25,43 @@ public partial class ConnectionsPanelView : UserControl
         AddHandler(ContextRequestedEvent, OnContextRequested, RoutingStrategies.Tunnel);
     }
 
-    /// <summary>Right-clicking a card selects it and offers what can be done with it.</summary>
+    /// <summary>
+    /// Right-clicking a card selects it and offers what can be done with it; right-clicking a
+    /// group's heading offers to change its icon, as 1.x's did.
+    /// </summary>
+    /// <remarks>
+    /// The card's own menu, filled as it opens. It is the card's from the start: one handed to it
+    /// here, while this request is on its way, is not opened by it, so the first right-click on a
+    /// card opened nothing. The card is the element carrying the menu, not the first one with the
+    /// row as its context, which is whatever text or icon was under the pointer. A heading has no
+    /// menu: 1.x went straight to the icon picker, which the heading's "..." also offers.
+    /// </remarks>
     private void OnContextRequested(object? sender, ContextRequestedEventArgs e)
     {
         if (DataContext is not ConnectionsSidebar sidebar || e.Source is not Visual source) return;
 
         for (Visual? step = source; step is not null; step = step.GetVisualParent())
         {
-            if (step is not Control { DataContext: ConnectionRowModel row } card) continue;
+            if (step is StyledElement { DataContext: ConnectionGroupModel { ChangeIconCommand: { } changeIcon } } heading &&
+                heading.Classes.Contains("group-header"))
+            {
+                if (changeIcon.CanExecute(null)) changeIcon.Execute(null);
+                e.Handled = true;
+                return;
+            }
+
+            if (step is not Control { DataContext: ConnectionRowModel row, ContextMenu: { } menu }) continue;
 
             sidebar.Select(row);
-            card.ContextMenu = new ContextMenu
-            {
-                ItemsSource = sidebar.ContextEntriesFor(row)
-                    .Select(static Control (entry) =>
-                    {
-                        if (entry.Label == CommandEntry.SeparatorLabel) return new Separator();
-                        var item = new MenuItem { Header = entry.Label, IsEnabled = entry.Enabled };
-                        item.Click += (_, _) => entry.Run();
-                        return item;
-                    })
-                    .ToList()
-            };
+            menu.ItemsSource = sidebar.ContextEntriesFor(row)
+                .Select(static Control (entry) =>
+                {
+                    if (entry.Label == CommandEntry.SeparatorLabel) return new Separator();
+                    var item = new MenuItem { Header = entry.Label, IsEnabled = entry.Enabled };
+                    item.Click += (_, _) => entry.Run();
+                    return item;
+                })
+                .ToList();
             return;
         }
     }

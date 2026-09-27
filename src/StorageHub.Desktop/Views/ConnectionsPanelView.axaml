@@ -32,7 +32,10 @@
     <DataTemplate DataType="vm:ConnectionGroupModel">
       <StackPanel AutomationProperties.Name="{Binding AccessibleName}">
 
+        <!-- Painted, if only with nothing, so a right-click anywhere along the heading reaches it
+             and opens the icon picker, as 1.x's heading did, not only one on its name. -->
         <Grid ColumnDefinitions="Auto,Auto,*,Auto" Classes="group-header"
+              Background="Transparent"
               ColumnSpacing="{StaticResource SpaceXs}">
           <ToggleButton Grid.Column="0" Classes="disclosure"
                         IsChecked="{Binding IsExpanded, Mode=TwoWay}"/>
@@ -80,6 +83,12 @@
               <Border Classes="card connection-row" Classes.disabled="{Binding !IsEnabled}"
                       Classes.selected="{Binding IsSelected}"
                       ToolTip.Tip="{Binding OpenHint}">
+                <!-- There from the start and filled as it opens, as the pane's list is. A menu
+                     first given to the card by the right-click that should open it is not opened
+                     by that right-click. -->
+                <Border.ContextMenu>
+                  <ContextMenu/>
+                </Border.ContextMenu>
                 <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource SpaceMd}">
                   <Border Grid.Column="0" Classes="icon-tile" Background="{Binding AccentBrush}"
                           VerticalAlignment="Top">

@@ -653,6 +653,15 @@ internal sealed class TerminalView : Control, ILogicalScrollable
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+
+        // A right-click pastes the clipboard, as 1.x's terminal did.
+        if (e.InitialPressMouseButton == MouseButton.Right && Session is { } session)
+        {
+            _ = PasteAsync(session);
+            e.Handled = true;
+            return;
+        }
+
         if (!_selecting) return;
         _selecting = false;
         e.Pointer.Capture(null);
