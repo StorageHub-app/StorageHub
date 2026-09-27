@@ -1522,8 +1522,10 @@ internal static class ShellPreview
                     terminals: terminals,
 
                     // What lets a terminal restart an agent left running from an older build,
-                    // once, instead of telling somebody to restart StorageHub themselves.
-                    agentLifecycle: AgentLifecycleControllers.ForThisMachine,
+                    // once, instead of reporting the mismatch in the agent's words. Only the
+                    // application's own shell has one, as only 1.4's did: a restart stops whatever
+                    // agent answers, and a preview's is a test's, which must not reach the real one.
+                    agentLifecycle: live ? AgentLifecycleControllers.ThatCanRestartTheAgent : null,
                     inspect: Services.ShellServices.InspectObjectAsync,
                     edit: Services.ShellServices.EditExternallyAsync,
                     batchRename: static (sources, occupied) => Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(

@@ -145,10 +145,10 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     /// what a pane in a test that is not about terminals wants.
     /// </param>
     /// <param name="agentLifecycle">
-    /// How a stale agent gets restarted when it turns out to be speaking an older protocol. Nothing
-    /// in the shell supplies one yet -- the screen that starts and stops the agent has not been
-    /// ported -- so the mismatch is reported and the user is told to restart StorageHub, which is
-    /// the same fallback 1.x used when it had no controller to hand.
+    /// How a stale agent gets restarted when it turns out to be speaking an older protocol. Only the
+    /// application's shell supplies one, and only where the agent can be started again. Without
+    /// one the terminal reports the mismatch in the agent's own words, which is what 1.x's did when
+    /// it had no controller to hand.
     /// </param>
     /// <param name="inspect">
     /// Opens the object inspector for a file. The shell supplies the window; a test supplies a

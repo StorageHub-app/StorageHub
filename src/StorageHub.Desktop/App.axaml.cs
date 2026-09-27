@@ -256,12 +256,14 @@ public partial class App : global::Avalonia.Application
         // it did in 1.x. Only Windows has that mode; on Linux the agent is the user's unit. A restart
         // for saved settings is finished first rather than cut off. Not on a restart of the shell:
         // it is back in a moment, and stopping the agent would interrupt the transfers and syncs it
-        // is running for nothing.
+        // is running for nothing. Nor an agent started by hand for a build run from source, which the
+        // shell used as it found it and leaves the same way.
         async Task StopAgentAsync()
         {
             await model.AgentSettingsRestart.ConfigureAwait(true);
             if (!OperatingSystem.IsWindows() || !DesktopAgentHost.DesktopStopsAgent || DesktopRestart.Requested) return;
             using var lifecycle = WindowsDesktopLifecycle.Create();
+            if (DesktopAgentStartup.RunsAnAgentStartedByHand(lifecycle)) return;
             _ = await lifecycle.TryStopAgentAsync(AgentShutdownReason.Restart).ConfigureAwait(true);
         }
 

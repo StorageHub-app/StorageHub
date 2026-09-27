@@ -27,7 +27,7 @@ internal static class DesktopAgentStartup
         if (OperatingSystem.IsWindows())
         {
             using var lifecycle = WindowsDesktopLifecycle.Create();
-            if (!lifecycle.DesktopOwnsAgent || File.Exists(lifecycle.AgentExecutablePath))
+            if (!RunsAnAgentStartedByHand(lifecycle))
             {
                 return await lifecycle.EnsureAgentAsync(cancellationToken).ConfigureAwait(false);
             }
@@ -61,6 +61,19 @@ internal static class DesktopAgentStartup
 
         return new AgentEnsureResult(AgentEnsureStatus.LaunchFailed);
     }
+
+    /// <summary>
+    /// Whether this is a build run from source, whose agent was started by hand: the desktop would
+    /// own its agent, but has no packaged copy beside it to start.
+    /// </summary>
+    /// <remarks>
+    /// That agent is used as it is and left as it is. Nothing here could start it again, so it is
+    /// not restarted, for saved settings or for a terminal, and not stopped as the window closes,
+    /// even in "only while StorageHub is open": stopping it there took the agent a developer had
+    /// started down with every close of a dev desktop.
+    /// </remarks>
+    internal static bool RunsAnAgentStartedByHand(PackagedDesktopLifecycle lifecycle) =>
+        lifecycle.DesktopOwnsAgent && !File.Exists(lifecycle.AgentExecutablePath);
 
     /// <summary>Whether the agent answers a status request within the time given.</summary>
     private static async Task<bool> AnswersAsync(TimeSpan within, CancellationToken cancellationToken)

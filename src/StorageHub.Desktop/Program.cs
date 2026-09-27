@@ -25,12 +25,16 @@ public static class Program
 
         // After the lifetime, so the replacement shell never overlaps this one. See DesktopRestart.
         // The close left the agent running for that shell, so when none could be started, "Only
-        // while StorageHub is open" still takes the agent with this one, as any other close does.
+        // while StorageHub is open" still takes the agent with this one, as any other close does,
+        // unless it is one started by hand for a build run from source, which no close stops.
         var restarting = DesktopRestart.Requested;
         if (!DesktopRestart.TryStart() && restarting && OperatingSystem.IsWindows() && DesktopAgentHost.DesktopStopsAgent)
         {
             using var lifecycle = WindowsDesktopLifecycle.Create();
-            _ = lifecycle.TryStopAgentAsync(AgentShutdownReason.Restart).AsTask().GetAwaiter().GetResult();
+            if (!DesktopAgentStartup.RunsAnAgentStartedByHand(lifecycle))
+            {
+                _ = lifecycle.TryStopAgentAsync(AgentShutdownReason.Restart).AsTask().GetAwaiter().GetResult();
+            }
         }
 
         return exitCode;

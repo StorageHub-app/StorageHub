@@ -126,8 +126,10 @@ internal static class AgentLifecycleControllers
     /// copy beside the desktop. Startup draws the same line in <see cref="DesktopAgentStartup"/>.
     /// </summary>
     /// <remarks>
-    /// Used to apply saved settings, where null means telling somebody to restart StorageHub, as
-    /// 1.4 did, rather than stopping the only agent there is.
+    /// Used to apply saved settings, and by a terminal that finds the agent speaking an older
+    /// protocol. In both, null leaves the only agent there is running, as 1.4 did: for saved
+    /// settings the status bar asks for StorageHub to be restarted, and a terminal reports the
+    /// mismatch in the agent's own words.
     /// </remarks>
     internal static IAgentLifecycleController? ThatCanRestartTheAgent()
     {
@@ -146,7 +148,7 @@ internal static class AgentLifecycleControllers
             return null;
         }
 
-        if (lifecycle.DesktopOwnsAgent && !File.Exists(lifecycle.AgentExecutablePath))
+        if (DesktopAgentStartup.RunsAnAgentStartedByHand(lifecycle))
         {
             lifecycle.Dispose();
             return null;

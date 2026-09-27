@@ -88,9 +88,23 @@ applied, and chosen on the Appearance page (P.5.1).
       (only `LogToTrace` today). A settings folder that cannot be read says so instead of opening on
       defaults.
 
-- [ ] P.1.12 A full `dotnet test StorageHub.slnx` stopped a hand-started dev agent listening on the
+- [x] P.1.12 A full `dotnet test StorageHub.slnx` stopped a hand-started dev agent listening on the
       default pipe (graceful "Stopping application" at 19:54:16 on 2026-09-26, during the run). Some
       test reaches the real endpoint rather than one of its own; find it and give it its own pipe.
+      It was not a test. The desktop and agent CodeLogic logs show every graceful stop of a dev agent
+      (19:54:16 and 21:02:50 on 2026-09-26, 17:04:29 and 22:04:30 on 2026-09-27) followed 7-12 ms
+      after the agent's "Framework stopped" by the dev desktop's own graceful stop: a dev desktop was
+      closed, and on a machine with no sign-in entry that is "only while StorageHub is open", so its
+      close (P.1.9, from 13bd18c at 19:35 that day) sent the agent the shutdown request. That close
+      and the language restart's fallback now leave an agent started by hand for a build run from
+      source alone, where startup and a settings restart already did. The one path a test had to the
+      real agent's shutdown is closed too: a preview shell's panes had `ForThisMachine`, so a terminal
+      told by the real agent that its protocol was older would have stopped it; previews now get no
+      lifecycle, as 1.4's test-hosted shell had none, and the app's own shell gets
+      `ThatCanRestartTheAgent`. Left open: a preview shell still makes its transfer queue, listing,
+      inspector and terminal clients on the default pipe. None can stop the agent, but a test that
+      changed the queue or a listing while a dev agent is up would act on that agent's data; none
+      does today.
 
 ### P.2 The file pane
 
