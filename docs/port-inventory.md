@@ -112,7 +112,7 @@ are the honest ones — each names what is missing rather than claiming the row.
 | Menu bar, nine menus, all 62 entries, shortcuts shown | **done** |
 | Toolbar from `ToolbarLayout`, customisable order and label style | **partial** — renders the default preset; the toolbar editor is a screen (below) |
 | Workspace tab strip with per-tab icons | **done** |
-| Status bar: agent state, selection, rate, queue depth | **partial** — location, selection, rate, queue depth and agent state are live; the agent cell opens Agent control and follows a failed call at once; staging, clearing, import, export and what a paste or drop came to show in the first cell. A refused paste or drop is said there rather than in 1.x's warning (P.4.13), and the update link waits for P.1.8 |
+| Status bar: agent state, selection, rate, queue depth | **partial** — location, selection, rate, queue depth and agent state are live; the agent cell opens Agent control and follows a failed call at once; staging, clearing, import, export and what a paste or drop came to show in the first cell. A refused paste or drop is said there rather than in 1.x's warning (P.4.14), and the update link waits for P.1.8 |
 | Connections panel, dockable left or right, collapsible, remembered width | **partial** — drawn on the left; the two `View` commands that move and hide it are not wired |
 | Shortcut dispatch that beats focus, and declines inside a text box or SSH | **done** — `ShellCommandRouter`, tunnelling, sharing `UiCommandCatalog.CanDispatch` |
 | Splash while the agent starts | **todo** |

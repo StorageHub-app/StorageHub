@@ -137,13 +137,13 @@ applied, and chosen on the Appearance page (P.5.1).
       it in Welcome's recent list; "Open in new pane".
       Done, with 1.x's right-click menu on a connection card (Open, Open in new pane, Edit, Delete).
 - [x] P.2.16 Connections Home (was L.9).
+      Done: in the picker beside This PC, and what a second pane opens on.
 - [ ] P.2.17 A pane opens on This PC, and a connection opened in it before that listing arrives
       loses its rows to the late This PC listing (found in P.4.6; "Open in new pane" can do it).
       `BrowserPaneModel` drops a listing for a location it has left.
 
 ### P.3 The shell
 
-      Done: in the picker beside This PC, and what a second pane opens on.
 - [x] P.3.1 Workspaces: Save, Save As, Open (.shw), Rename, and the tab's `*` (was L.8); Welcome's
       workspace list with Open, Pin, Remove and Copy path; Workspace menu Pinned/Recent and Pin/Unpin.
       Save (Ctrl+S), Save As, Open (Ctrl+O) and Rename read and write 1.4's `.shw` unchanged; the
@@ -176,9 +176,8 @@ applied, and chosen on the Appearance page (P.5.1).
       the key as bound now. The toolbar is built from the saved layout, leaving out commands 2.0
       has not wired and the dividers they leave, with 1.4's three label styles; what does not fit
       goes behind a chevron at its end, whose menu runs the same commands, as 1.4's ToolStrip
-      did. Both follow when Settings closes and after an import. Left open: rebinding in Settings
-      waits for its Shortcuts page (L.5); until then a map comes from an import or the settings
-      file.
+      did. Both follow when Settings closes and after an import. Rebinding is on Settings'
+      Shortcuts page (L.5).
 - [x] P.3.5 Go menu Favorites, and favourite connections with it.
       Done: Go ends with 1.4's section, a line and a bold Favorites over the enabled favourites a
       pane can open, by name (`FavoriteConnectionMenu`), or "No favorite connections" with 1.4's hint;
@@ -369,9 +368,10 @@ applied, and chosen on the Appearance page (P.5.1).
       `IsAvailableCommand`, and 2.0 matches). 1.1 took "Open client" off the saved-connection editor
       as a second route to the panel's Open, which opens a client connection as a terminal in a
       pane, as 2.0 does. A pop-out terminal, or Quick Connect, would be a feature after parity.
-- [ ] P.5.8 "Show favourites in their folders too" is applied: the connections panel lists a favourite
+- [x] P.5.8 "Show favourites in their folders too" is applied: the connections panel lists a favourite
       under its folder as well as under Favourites, and re-reads the setting when Settings closes, as
-      1.4's `RefreshConnectionSurfaces` did. The row is saved but nothing reads it yet.
+      1.4's `RefreshConnectionSurfaces` did. Done with P.3.5: the panel reads it at startup, and
+      again when Settings closes or an import finishes.
 
 ## L. Look parity with 1.4 (before 1.5)
 
@@ -403,8 +403,8 @@ reference shot.
 - [x] L.3 A new pane opens on This PC with the drives listed, not on an empty `/`. Every pane does:
       1.x opened the second on "Connections Home", a listing of saved connections that 2.0 does not
       have yet (L.9).
-- [ ] L.9 Connections Home: a pane pointed at no connection lists the saved ones as rows, as 1.x's
-      second pane did, and opening a row opens that connection.
+- [x] L.9 Connections Home: a pane pointed at no connection lists the saved ones as rows, as 1.x's
+      second pane did, and opening a row opens that connection. Done as P.2.16.
 - [x] L.10 The overview's Agent card still said "Starting" after the status bar had moved to
       "Agent: connected". Fixed with the live Welcome page (e174058).
 - [ ] L.11 Sync tasks' first sub-tab reads "Tasks", as in ref 03, not "Sync tasks"
@@ -432,9 +432,9 @@ reference shot.
       or `CLIENTS` caption, SSH Terminal carrying the terminal preferences, and "Create a … connection")
       and Background agent (sign-in or only while open; Windows only, as in 1.4). Performance and
       Confirmations are back in "Transfers & sync", with the total speed limits under `SPEED LIMITS`;
-      favourites-in-folders is back under Appearance (saved, but applying it is P.5.8), with Language
+      favourites-in-folders is back under Appearance (applied, P.5.8), with Language
       in a card of its own (P.5.1), and the new-workspace preset under Workspace (P.5.4). The shortcuts are
-      edited and saved; dispatching them is P.3.4.
+      edited and saved here, and dispatched and shown in the menus with P.3.4.
 - [x] L.6 Settings rows (ref 02). Done: one card per caption with hairlines between rows, units inside
       number fields with 1.4's stacked arrows and thousands separators, 1.4's text limits, rows dimmed
       rather than hidden when they do not apply, and Apply / Cancel / OK. Left open: 1.4 drew the
@@ -448,7 +448,7 @@ reference shot.
       list favorites under their own folder" is off, as 1.4 did; both copies select together. Was: coloured rounded icon tiles in place of the
       `STORAGE`/`CLIENT` text badges; tag chips under each card; a Favorites section above the
       storage groups; inline edit and delete on the selected card.
-- [ ] L.11 Row icons in the Welcome and Sync tasks tables (ref 01, 03), as 1.4 drew them: a muted info
+- [ ] L.12 Row icons in the Welcome and Sync tasks tables (ref 01, 03), as 1.4 drew them: a muted info
       glyph on an empty table's line (a green check on "Nothing needs attention", a muted "…" on
       Sync tasks'), and connection, warning, enabled or run glyphs on real rows. A cell template on
       the Name column keyed on `IsPlaceholder` covers the empty lines.
