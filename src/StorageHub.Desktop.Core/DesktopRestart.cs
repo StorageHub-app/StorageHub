@@ -24,7 +24,10 @@ internal static class DesktopRestart
 
     internal static void Request() => Requested = true;
 
-    /// <summary>Exists so a test can run without leaving the flag set for the next one.</summary>
+    /// <summary>
+    /// Withdraws the request: the close it came with was cancelled, so the next ordinary exit
+    /// must not come back up. A test uses it too, so as not to leave the flag set for the next.
+    /// </summary>
     internal static void Reset() => Requested = false;
 
     /// <summary>

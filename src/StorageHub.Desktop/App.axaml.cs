@@ -202,11 +202,17 @@ public partial class App : global::Avalonia.Application
         // Everything the shell holds, closed before the window goes, after each changed workspace
         // has asked, as 1.x did; Cancel on any of them leaves the shell exactly as it was. Avalonia
         // does not wait for an async Closing handler, so the first close is held until this is done.
-        Services.ShellShutdown.Attach(
-            window,
-            () => model.Files?.ConfirmExitAsync() ?? Task.FromResult(true),
-            Held(),
-            StopAgentAsync);
+        Services.ShellShutdown.Attach(window, ConfirmCloseAsync, Held(), StopAgentAsync);
+
+        // A restart into a new language closes the shell the same way, so Cancel on a changed
+        // workspace drops the restart with the close; left asked for, the next Exit would come
+        // back up.
+        async Task<bool> ConfirmCloseAsync()
+        {
+            var closing = await (model.Files?.ConfirmExitAsync() ?? Task.FromResult(true)).ConfigureAwait(true);
+            if (!closing) DesktopRestart.Reset();
+            return closing;
+        }
 
         IEnumerable<Func<Task>> Held()
         {
