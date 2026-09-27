@@ -43,6 +43,7 @@
         <Button Content="{Binding StartLabel}" Command="{Binding StartCommand}"/>
         <Button Content="{Binding StopLabel}" Command="{Binding StopCommand}"/>
         <Button Classes="primary" Content="{Binding RestartLabel}" Command="{Binding RestartCommand}"/>
+        <Button Content="{Binding CheckInstallationLabel}" Command="{Binding CheckInstallationCommand}"/>
         <Button Content="{Binding CloseLabel}" Command="{Binding CloseCommand}" IsCancel="True"/>
       </StackPanel>
     </StackPanel>

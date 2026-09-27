@@ -27,6 +27,7 @@ internal sealed class SplashModel : INotifyPropertyChanged
         QuitCommand = new RelayCommand(_ => QuitRequested?.Invoke(this, EventArgs.Empty));
         RetryCommand = new RelayCommand(_ => RetryRequested?.Invoke(this, EventArgs.Empty), _ => _canRetry);
         CopyDetailsCommand = new RelayCommand(_ => CopyRequested?.Invoke(this, CopyText));
+        CheckInstallationCommand = new RelayCommand(_ => CheckInstallationRequested?.Invoke(this, EventArgs.Empty));
     }
 
     public static string Title => "StorageHub";
@@ -38,6 +39,8 @@ internal sealed class SplashModel : INotifyPropertyChanged
     public static string RetryLabel => BootText.Retry;
 
     public static string CopyDetailsLabel => BootText.CopyDetails;
+
+    public static string CheckInstallationLabel => BootText.CheckInstallation;
 
     /// <summary>The step, or the failure, in one line.</summary>
     public string Status
@@ -88,9 +91,18 @@ internal sealed class SplashModel : INotifyPropertyChanged
 
     public ICommand CopyDetailsCommand { get; }
 
+    /// <summary>
+    /// Offered on the failure screen above all, as in 1.4: when the agent does not come up the main
+    /// window never opens, so this is the one screen from which the check can be reached.
+    /// </summary>
+    public ICommand CheckInstallationCommand { get; }
+
     internal event EventHandler? QuitRequested;
 
     internal event EventHandler? RetryRequested;
+
+    /// <summary>Raised to open the installation check; the window owns the dialog.</summary>
+    internal event EventHandler? CheckInstallationRequested;
 
     /// <summary>Raised with the text to put on the clipboard; the window owns the clipboard.</summary>
     internal event EventHandler<string>? CopyRequested;

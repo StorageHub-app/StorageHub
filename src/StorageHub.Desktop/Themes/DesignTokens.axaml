@@ -254,6 +254,15 @@
   <sys:Double x:Key="SettingsNavigationAccentWidth">3</sys:Double>
   <Thickness x:Key="SettingsNavigationAccentMargin">0,5</Thickness>
 
+  <!-- The line that explains a radio choice, indented under its label as 1.4 laid it out. -->
+  <Thickness x:Key="ChoiceDetailMargin">24,0,0,0</Thickness>
+  <!-- A button inside a card, a step clear of the text it acts on. -->
+  <Thickness x:Key="CardActionMargin">0,4,0,0</Thickness>
+  <!-- The installation check: its summary line across the top, and the cards below it, inset from
+       the window's edges and clear of the footer band. -->
+  <Thickness x:Key="InstallationSummaryMargin">16,10,16,4</Thickness>
+  <Thickness x:Key="InstallationFindingsMargin">12,4,12,12</Thickness>
+
   <!--
     Type scale. Sizes are in device-independent pixels; the WinForms shell wrote points, and its
     9pt and 10pt Segoe UI become 12 and 13 here (points x 96/72).

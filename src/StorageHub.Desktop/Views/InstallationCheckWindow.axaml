@@ -1,0 +1,61 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
+        x:Class="StorageHub.Desktop.Views.InstallationCheckWindow"
+        x:DataType="vm:InstallationCheckModel"
+        Title="{Binding Title}"
+        Width="680" Height="560" MinWidth="560" MinHeight="420"
+        WindowStartupLocation="CenterOwner"
+        AutomationProperties.Name="{Binding Title}">
+
+  <!--
+    1.4's installation check: one line saying how it went and how the agent is run, then a card
+    per thing checked, edged in its tone, with what was found, where, and a Repair button where
+    something can be repaired. Check again and Close sit on the band at the bottom.
+  -->
+
+  <DockPanel>
+    <Border DockPanel.Dock="Bottom" Classes="editor-footer">
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="{StaticResource SpaceMd}">
+        <Button Content="{Binding CheckAgainLabel}" Command="{Binding CheckAgainCommand}"/>
+        <Button Classes="primary" Content="{Binding CloseLabel}" Command="{Binding CloseCommand}"
+                IsDefault="True" IsCancel="True"/>
+      </StackPanel>
+    </Border>
+
+    <TextBlock DockPanel.Dock="Top" Classes="heading-sm"
+               Classes.success="{Binding Summary.IsSuccess}"
+               Classes.warning="{Binding Summary.IsWarning}"
+               Classes.danger="{Binding Summary.IsDanger}"
+               Text="{Binding Summary.Text}" TextWrapping="Wrap"
+               Margin="{StaticResource InstallationSummaryMargin}"/>
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+      <ItemsControl ItemsSource="{Binding Findings}" Margin="{StaticResource InstallationFindingsMargin}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <StackPanel Spacing="{StaticResource SpaceMd}"/>
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:InstallationFindingRow">
+            <Border Classes="metric"
+                    Classes.success="{Binding IsSuccess}"
+                    Classes.warning="{Binding IsWarning}"
+                    Classes.danger="{Binding IsDanger}">
+              <StackPanel Spacing="{StaticResource SpaceXs}">
+                <TextBlock Classes="heading-sm" Text="{Binding Title}"/>
+                <TextBlock Classes="muted" Text="{Binding Detail}" TextWrapping="Wrap"/>
+                <TextBlock Classes="muted" Text="{Binding Location}" TextWrapping="Wrap"
+                           IsVisible="{Binding HasLocation}"/>
+                <Button Content="{Binding RepairLabel}" Command="{Binding RepairCommand}"
+                        IsVisible="{Binding CanRepair}" HorizontalAlignment="Left"
+                        Margin="{StaticResource CardActionMargin}"/>
+              </StackPanel>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </ScrollViewer>
+  </DockPanel>
+</Window>

@@ -1,0 +1,50 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
+        x:Class="StorageHub.Desktop.Views.AgentHostModeWindow"
+        x:DataType="vm:AgentHostModeModel"
+        Title="{Binding Title}"
+        Width="580" SizeToContent="Height"
+        CanResize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        AutomationProperties.Name="{Binding Title}">
+
+  <!--
+    The one-time choice of how StorageHub runs, as 1.4 asked it. Not a yes or no: each way of running
+    is laid out with what it costs, and starting at sign-in, which is how StorageHub is installed to
+    run, is chosen already. Continue is the only button; closing the window keeps that choice, as
+    closing 1.4's left the sign-in entry its installer made.
+  -->
+
+  <Border Classes="surface" Padding="{StaticResource PagePadding}">
+    <StackPanel Spacing="{StaticResource SpaceLg}">
+      <TextBlock Classes="heading-sm" Text="{Binding Intro}" TextWrapping="Wrap"/>
+
+      <StackPanel>
+        <RadioButton GroupName="AgentMode" IsChecked="{Binding IsUserSession, Mode=TwoWay}"
+                     AutomationProperties.Name="{Binding UserSessionLabel}">
+          <TextBlock Text="{Binding UserSessionLabel}" TextWrapping="Wrap"/>
+        </RadioButton>
+        <TextBlock Classes="muted" Text="{Binding UserSessionDetail}" TextWrapping="Wrap"
+                   Margin="{StaticResource ChoiceDetailMargin}"/>
+      </StackPanel>
+
+      <StackPanel>
+        <RadioButton GroupName="AgentMode" IsChecked="{Binding IsAppSession, Mode=TwoWay}"
+                     AutomationProperties.Name="{Binding AppSessionLabel}">
+          <TextBlock Text="{Binding AppSessionLabel}" TextWrapping="Wrap"/>
+        </RadioButton>
+        <TextBlock Classes="muted" Text="{Binding AppSessionDetail}" TextWrapping="Wrap"
+                   Margin="{StaticResource ChoiceDetailMargin}"/>
+      </StackPanel>
+
+      <TextBlock Classes="muted" Text="{Binding ChangeLaterHint}" TextWrapping="Wrap"/>
+
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+        <Button Classes="primary" Content="{Binding ContinueLabel}" Command="{Binding ContinueCommand}"
+                IsDefault="True"/>
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</Window>

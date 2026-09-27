@@ -24,6 +24,8 @@ public partial class SplashWindow : Window
                 // which is what the one screen explaining a failure needs.
                 var clipboard = new Services.AvaloniaClipboardService(() => this);
                 model.CopyRequested += async (_, text) => await clipboard.SetTextAsync(text).ConfigureAwait(true);
+                model.CheckInstallationRequested += async (_, _) =>
+                    await InstallationCheckWindow.ShowForThisMachineAsync(this).ConfigureAwait(true);
             }
         };
     }

@@ -43,6 +43,7 @@ internal sealed class AgentControlModel : INotifyPropertyChanged, IDisposable
         StopCommand = new RelayCommand(_ => _ = RunAsync(AgentLifecycleAction.Stop), _ => CanStop);
         RestartCommand = new RelayCommand(_ => _ = RunAsync(AgentLifecycleAction.Restart), _ => CanRestart);
         CloseCommand = new RelayCommand(_ => Closed?.Invoke(this, EventArgs.Empty));
+        CheckInstallationCommand = new RelayCommand(_ => CheckInstallationRequested?.Invoke(this, EventArgs.Empty));
 
         Refresh();
     }
@@ -117,8 +118,19 @@ internal sealed class AgentControlModel : INotifyPropertyChanged, IDisposable
 
     public ICommand CloseCommand { get; }
 
+    /// <summary>
+    /// Offered beside the lifecycle buttons, as in 1.4, because it answers the question they raise:
+    /// if starting the agent does not help, something about the installation is wrong, and this
+    /// says which part.
+    /// </summary>
+    /// <remarks>Offered whether or not this build can control the agent, since looking changes nothing.</remarks>
+    public ICommand CheckInstallationCommand { get; }
+
     /// <summary>Raised when the window should close.</summary>
     internal event EventHandler? Closed;
+
+    /// <summary>Raised to open the installation check; the window owns the dialog.</summary>
+    internal event EventHandler? CheckInstallationRequested;
 
     /// <summary>Re-reads the agent's state. Called on a timer while the window is open.</summary>
     internal void Refresh()
@@ -208,6 +220,8 @@ internal sealed class AgentControlModel : INotifyPropertyChanged, IDisposable
     public static string RestartLabel => Ui.Updates.Restart;
 
     public static string CloseLabel => Ui.Dialogs.ButtonClose;
+
+    public static string CheckInstallationLabel => Ui.Updates.CheckInstallation;
 
     public static string DetailAccessibleName => Ui.Updates.AgentDetail;
 

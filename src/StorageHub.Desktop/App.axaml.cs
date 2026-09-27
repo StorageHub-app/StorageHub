@@ -172,6 +172,15 @@ public partial class App : global::Avalonia.Application
         // An edited file that was uploaded shows up in the pane it came from.
         Services.ShellServices.EditedFileUploaded += (_, _) => _ = model.EditedFileUploadedAsync();
 
+        // The first time an installed build opens, it asks how StorageHub should run, as 1.4 did:
+        // once the window is up, so the shell is usable behind the question.
+        window.Opened += OfferAgentHostMode;
+        void OfferAgentHostMode(object? sender, EventArgs e)
+        {
+            window.Opened -= OfferAgentHostMode;
+            _ = AgentHostModeWindow.OfferOnceAsync(window);
+        }
+
         // Everything the shell holds, closed before the window goes. Avalonia does not wait for an
         // async handler, so this used to be cut off at its first await when the process exited:
         // the first close is held, the cleanup runs to completion (bounded, so a stuck agent cannot

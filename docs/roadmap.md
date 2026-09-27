@@ -35,9 +35,9 @@ Rename and Delete, which in 2.0 would have deleted a volume's contents permanent
 P.1.1, P.1.2, P.1.4 and P.1.6 landed together: `Services/DesktopBoot.cs` runs 1.x's sequence behind
 `SplashWindow`, `Framework/DesktopFrameworkHost.cs` is ported to Desktop.Core, and
 `DesktopAgentStartup` ensures the agent on both platforms (the packaged lifecycle on Windows, the
-user's systemd unit on Linux; a build from source uses an agent started by hand). The Check
-installation button waits for P.5.6. The language is loaded and applied, and chosen on the
-Appearance page (P.5.1).
+user's systemd unit on Linux; a build from source uses an agent started by hand). The failure
+screen's Check installation button opens the installation check (P.5.6). The language is loaded and
+applied, and chosen on the Appearance page (P.5.1).
 
 - [x] P.1.1 Splash while starting, with 1.4's stages (preparing data, framework, environment, settings,
       language, starting the agent, opening), "this can take a few seconds the first time", and a
@@ -67,7 +67,15 @@ Appearance page (P.5.1).
 - [ ] P.1.9 (Done but the save prompt, which waits for P.3.1.) Stop the agent on exit in "only while StorageHub is open" mode (`DesktopStopsAgent`); ask to
       save each changed workspace before closing; make shutdown finish before the process exits (the
       async `ShutdownRequested` handler is not awaited).
-- [ ] P.1.10 First-run "How should StorageHub run?" prompt and `AgentHostModeController` (Windows).
+- [x] P.1.10 First-run "How should StorageHub run?" prompt and `AgentHostModeController` (Windows).
+      Asked once, over the shell, by an installed Windows build (not one run from source); only a
+      change of mode is applied, and the Settings page applies through the same controller. Closing
+      the prompt keeps the preselected sign-in, and keeping it is only reported if it fails; until
+      the MSI registers the sign-in entry (P.1.5) the prompt makes it, quietly, as 1.4's installer
+      had. The service choice went with the service. Not asked on Linux: the mode there is the user's
+      systemd unit, which the .deb leaves each user to enable and which the agent platform reads
+      from a unit file rather than from what systemd has enabled, so neither Settings nor the
+      prompt can change it yet.
 - [x] P.1.11 Unhandled exceptions are reported rather than ending the process silently; logs go to disk
       (only `LogToTrace` today). A settings folder that cannot be read says so instead of opening on
       defaults.
@@ -268,7 +276,13 @@ Appearance page (P.5.1).
 - [x] P.5.5 "Start with" concurrency, enabled only when adaptive is on (raising it raises the maximums,
       which the settings file requires); the update toggles depend on one another; the update source
       and installed version under Updates. Came with L.5 and L.6.
-- [ ] P.5.6 Installation check window, from Agent control and from the splash.
+- [x] P.5.6 Installation check window, from Agent control and from the splash. 1.4's checks less
+      the service ones; what starts the agent is checked in their place (the packaged agent on
+      Windows, the systemd user unit on Linux), and a database an earlier version left under the
+      user's own folder is pointed at. Creating the data directory is the one repair left. An agent
+      still starting counts as answering; on Linux the summary names systemd rather than a mode,
+      since mode detection there does not read what systemd has enabled. Open: 1.4's per-user
+      database is found and pointed at, but nothing migrates it into 2.0's root.
 - [ ] P.5.7 Open an SSH client in its own window from the Connection Manager.
 - [ ] P.5.8 "Show favourites in their folders too" is applied: the connections panel lists a favourite
       under its folder as well as under Favourites, and re-reads the setting when Settings closes, as

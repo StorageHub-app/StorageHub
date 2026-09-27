@@ -8,5 +8,5 @@ namespace StorageHub.Ipc.Windows;
 [System.Runtime.Versioning.SupportedOSPlatform("windows")]
 public sealed record NamedPipeEndpoint(string PipeName) : IpcEndpoint
 {
-    public override string Moniker => $@"\.\pipe\{PipeName}";
+    public override string Moniker => $@"\\.\pipe\{PipeName}";
 }

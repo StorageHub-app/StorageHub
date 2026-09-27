@@ -5,7 +5,6 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.VisualTree;
-using StorageHub.Agent;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Configuration;
 using StorageHub.Desktop.Framework;
@@ -127,7 +126,7 @@ public partial class SettingsWindow : Window
             ShellServices.FilePicker,
             () => ImportPrivateKeyAsync(() => window),
             provider => CreateConnection(window, provider, connectionsChanged),
-            new AgentModeServices(static () => DesktopAgentHost.Mode, OperatingSystem.IsWindows() ? ApplyAgentMode : null),
+            new AgentModeServices(static () => DesktopAgentHost.Mode, OperatingSystem.IsWindows() ? AgentHostModeController.Apply : null),
             new AvaloniaDialogService(() => window));
         if (pageKey is not null)
         {
@@ -230,40 +229,6 @@ public partial class SettingsWindow : Window
             {
                 CryptographicOperations.ZeroMemory(material);
             }
-        }
-    }
-
-    /// <summary>
-    /// Moves the agent between starting at sign-in and running only while StorageHub is open.
-    /// </summary>
-    /// <remarks>
-    /// The two differ only by the sign-in registration, so this adds or removes it and then asks
-    /// the machine which mode it is now in, since policy or the environment switch can refuse the
-    /// registration. Windows only, as in 1.4; on Linux the systemd unit is the Agent control
-    /// screen's business, and the page says how the agent runs without offering to change it.
-    /// </remarks>
-    private static AgentModeChange ApplyAgentMode(AgentHostMode desired)
-    {
-        if (!OperatingSystem.IsWindows())
-        {
-            return new AgentModeChange(false, Ui.Settings.AgentModeChangeFailed);
-        }
-
-        try
-        {
-            using var lifecycle = WindowsDesktopLifecycle.Create();
-            _ = desired == AgentHostMode.UserSession
-                ? lifecycle.ConfigureAutostart(force: true)
-                : lifecycle.RemoveAutostart();
-            DesktopAgentHost.Invalidate();
-            return DesktopAgentHost.Mode == desired
-                ? new AgentModeChange(true, Ui.Settings.AgentModeApplied)
-                : new AgentModeChange(false, Ui.Settings.AgentModeChangeFailed);
-        }
-        catch (Exception error) when (error is InvalidOperationException or ArgumentException or
-            IOException or UnauthorizedAccessException)
-        {
-            return new AgentModeChange(false, Ui.Settings.AgentModeChangeFailed);
         }
     }
 

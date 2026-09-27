@@ -17,6 +17,8 @@ internal static class BootText
 
     internal const string CopyDetails = "Copy details";
 
+    internal const string CheckInstallation = "Check installation";
+
     internal const string CouldNotStart = "StorageHub could not start.";
 
     internal static string Describe(BootStage stage) => stage switch

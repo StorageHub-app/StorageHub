@@ -31,7 +31,15 @@ public partial class AgentControlWindow : Window
 
         DataContextChanged += (_, _) =>
         {
-            if (DataContext is AgentControlModel model) model.Closed += (_, _) => Close();
+            if (DataContext is not AgentControlModel model) return;
+            model.Closed += (_, _) => Close();
+
+            // The state is read again afterwards: a repair can be what brings the agent back.
+            model.CheckInstallationRequested += async (_, _) =>
+            {
+                await InstallationCheckWindow.ShowForThisMachineAsync(this).ConfigureAwait(true);
+                model.Refresh();
+            };
         };
 
         AddHandler(KeyDownEvent, (_, e) =>

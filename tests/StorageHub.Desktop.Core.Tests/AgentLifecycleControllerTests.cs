@@ -1,3 +1,6 @@
+using StorageHub.Agent;
+using StorageHub.Desktop.Localization;
+
 namespace StorageHub.Desktop.Tests;
 
 /// <summary>
@@ -181,6 +184,120 @@ public sealed class AgentLifecycleControllerTests
 
         Assert.False(result.Ran);
         Assert.False(result.Succeeded);
+    }
+
+    /// <summary>
+    /// The installation check says which part is wrong, and offers only the repair it can make.
+    /// </summary>
+    /// <remarks>
+    /// Against a probe rather than the machine, one broken installation and one healthy one. A
+    /// missing data directory is repairable; a missing database is only noted, since a new
+    /// installation has none; a database an earlier version left behind is pointed at; a missing
+    /// agent or a silent endpoint is a problem. Unlike 1.4, whose service kept its files from the
+    /// signed-in user, a database this account cannot read is a problem too, because the agent
+    /// runs as this account. The repair is then made for real, in a temporary directory.
+    /// </remarks>
+    [Fact]
+    public async Task TheInstallationCheckSaysWhichPartIsWrong()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"storagehub-installation-{Guid.NewGuid():N}");
+        var layout = new InstallationLayout(
+            new AgentPaths(root, Path.Combine(root, "Runtime")),
+            "pipe:StorageHub",
+            LegacyDatabasePath: TestPaths.Rooted("legacy/Agent/storagehub.db"),
+            AgentProgramPath: TestPaths.Rooted("app/Agent/StorageHub.Agent.Host.exe"));
+        var broken = new StubInstallationProbe { Files = { [layout.LegacyDatabasePath!] = 4096 } };
+
+        var report = await AgentInstallationCheck.InspectAsync(AgentHostMode.AppSession, layout, broken);
+
+        Assert.Equal(
+            [
+                InstallationCheckStatus.Problem, // data directory
+                InstallationCheckStatus.Warning, // database
+                InstallationCheckStatus.Warning, // database from an earlier version
+                InstallationCheckStatus.Problem, // agent program
+                InstallationCheckStatus.Problem, // agent reachable
+            ],
+            report.Findings.Select(finding => finding.Status));
+        Assert.Equal(
+            [InstallationRepair.CreateAgentDirectory, InstallationRepair.None, InstallationRepair.None,
+                InstallationRepair.None, InstallationRepair.None],
+            report.Findings.Select(finding => finding.Repair));
+        Assert.Equal(layout.LegacyDatabasePath, report.Findings[2].Location);
+        Assert.Equal(
+            Ui.Format(Ui.Updates.InstallationSummaryProblemFormat, Ui.Updates.InstallationModeAppSession),
+            AgentInstallationCheck.Summarize(report));
+
+        var healthy = new StubInstallationProbe
+        {
+            State = AgentConnectionState.Connected,
+            Directories = { layout.Paths.AgentDirectory },
+            Files = { [layout.Paths.DatabasePath] = 3 * 1024 * 1024, [layout.AgentProgramPath!] = 1 },
+        };
+        report = await AgentInstallationCheck.InspectAsync(AgentHostMode.UserSession, layout, healthy);
+
+        Assert.Equal(InstallationCheckStatus.Ok, report.Worst);
+        Assert.Equal(4, report.Findings.Count);
+        Assert.Equal(Ui.Format(Ui.Updates.InstallationSizeMegabytesFormat, 3.0), report.Findings[1].Detail);
+
+        // Linux: the unit is found wherever systemd would read it, here the one the .deb installs,
+        // and systemd is named as what runs the agent. An agent still starting is answering, which
+        // is the slow start the splash offers this check for, not a silent endpoint.
+        var linux = layout with
+        {
+            AgentProgramPath = null,
+            AgentUnitPaths = [TestPaths.Rooted("home/.config/systemd/user/a.service"), TestPaths.Rooted("usr/lib/a.service")],
+        };
+        healthy.Files[linux.AgentUnitPaths[1]] = 1;
+        healthy.Denied.Add(layout.Paths.DatabasePath);
+        healthy.State = AgentConnectionState.Starting;
+        report = await AgentInstallationCheck.InspectAsync(mode: null, linux, healthy);
+
+        Assert.Equal(linux.AgentUnitPaths[1], report.Findings.Single(f => f.Title == Ui.Updates.InstallationAgentUnit).Location);
+        Assert.Equal(Ui.Updates.InstallationDatabaseDenied, report.Findings[1].Detail);
+        Assert.Equal(
+            (InstallationCheckStatus.Warning, Ui.Updates.InstallationAgentStarting),
+            (report.Findings[^1].Status, report.Findings[^1].Detail));
+        Assert.Equal(
+            Ui.Format(Ui.Updates.InstallationSummaryProblemFormat, Ui.Updates.InstallationModeSystemd),
+            AgentInstallationCheck.Summarize(report));
+
+        try
+        {
+            var repaired = AgentInstallationRepair.Apply(InstallationRepair.CreateAgentDirectory, layout);
+
+            Assert.True(repaired.Succeeded, repaired.Message);
+            Assert.True(Directory.Exists(layout.Paths.AgentDirectory));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private sealed class StubInstallationProbe : IInstallationProbe
+    {
+        internal HashSet<string> Directories { get; } = [];
+
+        internal Dictionary<string, long> Files { get; } = [];
+
+        internal HashSet<string> Denied { get; } = [];
+
+        internal AgentConnectionState State { get; set; } = AgentConnectionState.Disconnected;
+
+        public PathVisibility InspectDirectory(string path) =>
+            Denied.Contains(path) ? PathVisibility.Denied
+            : Directories.Contains(path) ? PathVisibility.Present
+            : PathVisibility.Missing;
+
+        public PathVisibility InspectFile(string path) =>
+            Denied.Contains(path) ? PathVisibility.Denied
+            : Files.ContainsKey(path) ? PathVisibility.Present
+            : PathVisibility.Missing;
+
+        public long? FileLength(string path) => Files.TryGetValue(path, out var length) ? length : null;
+
+        public Task<AgentConnectionState> AgentStateAsync(CancellationToken cancellationToken) => Task.FromResult(State);
     }
 
     private sealed class StubProcessRunner : IProcessRunner

@@ -441,9 +441,6 @@ internal sealed record AgentModeServices(
     Func<StorageHub.Agent.AgentHostMode> Current,
     Func<StorageHub.Agent.AgentHostMode, AgentModeChange>? Apply);
 
-/// <summary>What changing the agent's mode did.</summary>
-internal sealed record AgentModeChange(bool Succeeded, string Message);
-
 /// <summary>
 /// The Settings window: the pages, the pending edits, and what saving them does.
 /// </summary>
