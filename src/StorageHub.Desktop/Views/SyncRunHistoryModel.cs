@@ -72,6 +72,8 @@ internal sealed class SyncRunHistoryModel : INotifyPropertyChanged, IDisposable
 {
     private readonly SyncRunReviewController? _controller;
     private readonly IDialogService? _dialogs;
+    private readonly SemaphoreSlim _gate = new(1, 1);
+    private int _waiting;
     private SyncRunReview _review = SyncRunReview.Empty;
     private CancellationTokenSource? _watch;
     private string _runId = string.Empty;
@@ -230,12 +232,11 @@ internal sealed class SyncRunHistoryModel : INotifyPropertyChanged, IDisposable
         string? continuationToken = null,
         CancellationToken cancellationToken = default)
     {
-        if (_controller is null || IsBusy) return;
-        IsBusy = true;
-        try
+        if (_controller is not { } controller) return;
+        await ExclusiveAsync(async token =>
         {
             HistoryStatus = new StatusLine(Ui.Sync.LoadingHistory);
-            var page = await _controller.LoadHistoryAsync(continuationToken, cancellationToken)
+            var page = await controller.LoadHistoryAsync(continuationToken, token)
                 .ConfigureAwait(true);
 
             if (page.Failed)
@@ -252,15 +253,8 @@ internal sealed class SyncRunHistoryModel : INotifyPropertyChanged, IDisposable
                 ? StatusLine.Muted(Ui.Sync.NoRunsYet)
                 : new StatusLine(
                     Ui.Format(Ui.Sync.ShowingRunsFormat, page.Runs.Count), MetricTone.Success);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-        }
-        finally
-        {
-            IsBusy = false;
-            Refresh(NextPageCommand);
-        }
+        }, cancellationToken).ConfigureAwait(true);
+        Refresh(NextPageCommand);
     }
 
     /// <summary>Loads whatever run id is in the box.</summary>
@@ -278,45 +272,26 @@ internal sealed class SyncRunHistoryModel : INotifyPropertyChanged, IDisposable
     /// <summary>Loads one run, its plan and its conflicts.</summary>
     internal async Task LoadRunAsync(Guid syncRunId, CancellationToken cancellationToken = default)
     {
-        if (_controller is null || IsBusy) return;
+        if (_controller is not { } controller) return;
         RunId = syncRunId.ToString("D", CultureInfo.InvariantCulture);
-        IsBusy = true;
-        try
+        await ExclusiveAsync(async token =>
         {
             HistoryStatus = new StatusLine(Ui.Sync.LoadingPlan);
-            var review = await _controller.LoadRunAsync(syncRunId, cancellationToken)
-                .ConfigureAwait(true);
+            var review = await controller.LoadRunAsync(syncRunId, token).ConfigureAwait(true);
             Adopt(review);
             HistoryStatus = review.Failed
                 ? new StatusLine(Ui.Sync.RunLoadFailed, MetricTone.Danger)
                 : new StatusLine(Ui.Sync.RunLoaded, MetricTone.Success);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-        }
-        finally
-        {
-            IsBusy = false;
-        }
+        }, cancellationToken).ConfigureAwait(true);
     }
 
     /// <summary>Re-reads the loaded run's phase, keeping the plan where it is.</summary>
     internal async Task RefreshStatusAsync(CancellationToken cancellationToken = default)
     {
-        if (_controller is null || IsBusy || _review.Run is null) return;
-        IsBusy = true;
-        try
-        {
-            Adopt(await _controller.RefreshStatusAsync(_review, cancellationToken)
-                .ConfigureAwait(true));
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-        }
-        finally
-        {
-            IsBusy = false;
-        }
+        if (_controller is not { } controller || IsBusy || _review.Run is null) return;
+        await ExclusiveAsync(async token => Adopt(
+                await controller.RefreshStatusAsync(_review, token).ConfigureAwait(true)),
+            cancellationToken).ConfigureAwait(true);
     }
 
     /// <summary>
@@ -329,7 +304,8 @@ internal sealed class SyncRunHistoryModel : INotifyPropertyChanged, IDisposable
     /// </remarks>
     internal async Task ApproveAsync(CancellationToken cancellationToken = default)
     {
-        if (_controller is null || IsBusy || !_review.CanApprove) return;
+        if (_controller is not { } controller || IsBusy || !_review.CanApprove) return;
+        var confirmed = _review.Run!;
 
         // No dialog service means no way to ask, and dispatching unasked is not the safer default.
         if (_dialogs is null)
@@ -351,19 +327,17 @@ internal sealed class SyncRunHistoryModel : INotifyPropertyChanged, IDisposable
             cancellationToken).ConfigureAwait(true);
         if (choice != DialogChoice.Ok) return;
 
-        IsBusy = true;
-        try
+        await ExclusiveAsync(async token =>
         {
-            Adopt(await _controller.ApproveAndDispatchAsync(_review, cancellationToken)
+            // The run that was confirmed, still approvable. Something queued ahead of this may have
+            // loaded another run, or read this one dispatched, while the question was open. The
+            // idle poll may also have read a newer revision of it meanwhile, so what is approved is
+            // the revision and digest the reviewer confirmed, and the agent refuses them if the run
+            // has moved on since.
+            if (_review.Run?.SyncRunId != confirmed.SyncRunId || !_review.CanApprove) return;
+            Adopt(await controller.ApproveAndDispatchAsync(_review with { Run = confirmed }, token)
                 .ConfigureAwait(true));
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-        }
-        finally
-        {
-            IsBusy = false;
-        }
+        }, cancellationToken).ConfigureAwait(true);
     }
 
     /// <summary>Appends the next page of plan operations, or of conflicts.</summary>
@@ -371,21 +345,48 @@ internal sealed class SyncRunHistoryModel : INotifyPropertyChanged, IDisposable
         bool operations,
         CancellationToken cancellationToken = default)
     {
-        if (_controller is null || IsBusy) return;
+        if (_controller is not { } controller || IsBusy) return;
+        await ExclusiveAsync(async token => Adopt(
+                await (operations
+                    ? controller.LoadMoreOperationsAsync(_review, token)
+                    : controller.LoadMoreConflictsAsync(_review, token))
+                .ConfigureAwait(true)),
+            cancellationToken).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Runs one exchange with the agent at a time, waiting for the one in flight rather than
+    /// dropping the second.
+    /// </summary>
+    /// <remarks>
+    /// Coming from the editor asks for two things at once on the first visit: the view asks for the
+    /// history as it is attached, and the shell asks for the run the preview made. With "busy
+    /// means return", whichever came second was lost, so the screen showed the run without the
+    /// history or the history without the run, depending on which was first. 1.4 read the history
+    /// apart from the run and put the run's own reads in a queue; this queues both. Busy stays
+    /// true until the queue is empty, so the buttons do not flicker between one read and the next.
+    /// </remarks>
+    private async Task ExclusiveAsync(
+        Func<CancellationToken, Task> exchange,
+        CancellationToken cancellationToken)
+    {
+        _waiting++;
         IsBusy = true;
+        var entered = false;
         try
         {
-            Adopt(await (operations
-                    ? _controller.LoadMoreOperationsAsync(_review, cancellationToken)
-                    : _controller.LoadMoreConflictsAsync(_review, cancellationToken))
-                .ConfigureAwait(true));
+            await _gate.WaitAsync(cancellationToken).ConfigureAwait(true);
+            entered = true;
+            await exchange(cancellationToken).ConfigureAwait(true);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
         }
         finally
         {
-            IsBusy = false;
+            // Busy is settled before the next in the queue is let in, so its own ending is last.
+            IsBusy = --_waiting > 0;
+            if (entered) _gate.Release();
         }
     }
 

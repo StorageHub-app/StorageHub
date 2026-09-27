@@ -29,7 +29,8 @@ public partial class SyncRunHistoryView : UserControl
     /// <remarks>
     /// Not in the constructor: the sub-tab is built with the workspace, so loading there would put
     /// a pipe connection and a listing behind a tab nobody has opened. The model only acts on the
-    /// first of these.
+    /// first of these, and queues it behind a run the shell is already loading, rather than
+    /// dropping it.
     /// </remarks>
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {

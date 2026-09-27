@@ -214,6 +214,13 @@ internal sealed class SyncStrings : LocalizationModelBase
     public string PreviewedWhileDisabled { get; set; } =
         "Plan ready, but this profile is disabled and cannot run. Tick Enabled to run or schedule it.";
 
+    /// <summary>
+    /// {0} = a warning after a preview. The editor stays open so it is read, with the run already
+    /// on the tab behind it, so it says where the run went.
+    /// </summary>
+    public string PreviewWarningFormat { get; set; } =
+        "{0} Close to see the run under Run history and review.";
+
     public string ApprovalBlockedByDisabledProfile { get; set; } =
         "This profile is disabled, so its plan cannot be dispatched. Tick Enabled, then preview again.";
 

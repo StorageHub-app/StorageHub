@@ -300,7 +300,8 @@ public partial class App : global::Avalonia.Application
     /// which already exists, and is where approving is guarded. 1.x solved this by embedding a
     /// second copy of the review control inside the editor, so a run could be approved from two
     /// places with two sets of buttons to keep in agreement. Here the editor hands the run over and
-    /// the shell switches to the one screen that reviews runs.
+    /// the shell switches to the one screen that reviews runs. The editor closes itself after a
+    /// plain preview, and stays open over the run after one that warns, until the warning is read.
     /// </para>
     /// <para>
     /// The tasks screen is refreshed on close for the same reason the connections panel is: the
@@ -316,11 +317,7 @@ public partial class App : global::Avalonia.Application
         if (window.DataContext is Views.SyncProfileEditorModel editor)
         {
             if (startNew) editor.BeginNewProfile();
-            editor.PreviewReady += (_, run) =>
-            {
-                window.Close();
-                model.ReviewRun(run.SyncRunId);
-            };
+            editor.PreviewReady += (_, run) => model.ReviewRun(run.SyncRunId);
         }
 
         window.Closed += (_, _) => _ = model.SyncTasks?.RefreshAsync();

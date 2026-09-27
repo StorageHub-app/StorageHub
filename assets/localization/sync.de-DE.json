@@ -273,6 +273,7 @@
   "locationMissing": "Ein für dieses Profil gewählter Ordner existiert auf seiner Verbindung nicht mehr. Wählen Sie ihn erneut über Durchsuchen.",
   "agentFailureWithCodeFormat": "{0} ({1})",
   "previewedWhileDisabled": "Plan bereit, aber dieses Profil ist deaktiviert und kann nicht laufen. Aktivieren Sie es, um es auszuführen oder zu planen.",
+  "previewWarningFormat": "{0} Schließen, um den Lauf unter Ausführungsverlauf und Prüfung zu sehen.",
   "approvalBlockedByDisabledProfile": "Dieses Profil ist deaktiviert, sein Plan kann daher nicht gesendet werden. Aktivieren Sie es und prüfen Sie erneut.",
   "dispatchNotDispatched": "Nicht gesendet",
   "dispatchDurablyDispatched": "Gesendet",

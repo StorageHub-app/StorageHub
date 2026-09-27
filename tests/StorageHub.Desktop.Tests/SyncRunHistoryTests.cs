@@ -258,6 +258,48 @@ public class SyncRunHistoryTests
         Assert.Single(model.Runs);
     }
 
+    /// <summary>
+    /// Coming from the editor, the run and the history both load on the first visit.
+    /// </summary>
+    /// <remarks>
+    /// The view asks for the history as it is attached and the shell asks for the run the preview
+    /// made, in whichever order layout gives them. Each used to drop the other: a run asked for
+    /// while the history was being read was never loaded, and a history asked for while the run
+    /// was being read was marked loaded without being read. Both orders, then.
+    /// </remarks>
+    [Fact]
+    public async Task TheRunAndTheHistoryAskedForTogetherBothLoad()
+    {
+        foreach (var historyFirst in new[] { true, false })
+        {
+            var run = Run(SyncIpcRunPhase.AwaitingApproval);
+            var agent = new StubReviewAgent { Status = run, Hold = new TaskCompletionSource() };
+            agent.HistoryPage([run], null);
+            agent.PlanPage(run, [Operation(1)], null);
+            using var model = SyncRunHistoryModel.Create(() => agent);
+
+            var both = historyFirst
+                ? new[]
+                {
+                    model.EnsureHistoryAsync(TestContext.Current.CancellationToken),
+                    model.LoadRunAsync(run.SyncRunId, TestContext.Current.CancellationToken)
+                }
+                : new[]
+                {
+                    model.LoadRunAsync(run.SyncRunId, TestContext.Current.CancellationToken),
+                    model.EnsureHistoryAsync(TestContext.Current.CancellationToken)
+                };
+            Assert.True(model.IsBusy);
+            agent.Hold.SetResult();
+            await Task.WhenAll(both);
+
+            Assert.Single(model.Runs);
+            Assert.Single(model.Plan);
+            Assert.True(model.CanApprove);
+            Assert.False(model.IsBusy);
+        }
+    }
+
     /// <summary>A failure says why and leaves the table alone.</summary>
     [Fact]
     public async Task AFailedHistoryReadKeepsTheRowsItHad()
@@ -388,6 +430,9 @@ public class SyncRunHistoryTests
 
         internal Exception? Throws { get; set; }
 
+        /// <summary>Holds the history and the run's status unanswered until it is set.</summary>
+        internal TaskCompletionSource? Hold { get; set; }
+
         internal int StatusRequests { get; private set; }
 
         internal int HistoryRequests { get; private set; }
@@ -401,13 +446,14 @@ public class SyncRunHistoryTests
         internal void HistoryPage(SyncRunSummary[] runs, string? token) =>
             _history.Enqueue((runs, token));
 
-        public Task<SyncRunStatusResponse> GetRunStatusAsync(
+        public async Task<SyncRunStatusResponse> GetRunStatusAsync(
             SyncRunStatusRequest request, CancellationToken cancellationToken = default)
         {
             StatusRequests++;
+            if (Hold is { } hold) await hold.Task;
             if (Throws is { } error) throw error;
-            return Task.FromResult(new SyncRunStatusResponse(
-                SyncManagementIpcContract.CurrentVersion, request.SyncRunId, Status));
+            return new SyncRunStatusResponse(
+                SyncManagementIpcContract.CurrentVersion, request.SyncRunId, Status);
         }
 
         public Task<SyncPlanPageResponse> GetPlanPageAsync(
@@ -442,14 +488,15 @@ public class SyncRunHistoryTests
                 IsTruncatedAtSource: false));
         }
 
-        public Task<SyncRunListResponse> ListRunsAsync(
+        public async Task<SyncRunListResponse> ListRunsAsync(
             SyncRunListRequest request, CancellationToken cancellationToken = default)
         {
             HistoryRequests++;
+            if (Hold is { } hold) await hold.Task;
             if (Throws is { } error) throw error;
             var page = _history.Count > 0 ? _history.Dequeue() : ([], null);
-            return Task.FromResult(new SyncRunListResponse(
-                SyncManagementIpcContract.CurrentVersion, page.Runs, page.Token));
+            return new SyncRunListResponse(
+                SyncManagementIpcContract.CurrentVersion, page.Runs, page.Token);
         }
 
         public Task<SyncApproveDispatchResponse> ApproveAndDispatchAsync(
@@ -457,6 +504,12 @@ public class SyncRunHistoryTests
         {
             if (Throws is { } error) throw error;
             ApprovalSent = request;
+
+            // From here on the run reads back as dispatched, as it does from the agent. Left as it
+            // was, the half-second poll that follows a dispatch read the run as still waiting for
+            // approval, and a full-suite run slow enough to let it land before the assertions
+            // failed ApprovingDispatchesTheRunThatWasReviewed.
+            Status = Dispatched ?? Status;
             return Task.FromResult(new SyncApproveDispatchResponse(
                 SyncManagementIpcContract.CurrentVersion, request.SyncRunId, true, Dispatched));
         }

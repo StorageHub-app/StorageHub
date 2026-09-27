@@ -1,8 +1,10 @@
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Media.Imaging;
+using Avalonia.VisualTree;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Localization;
 using StorageHub.Desktop.Themes;
@@ -230,11 +232,13 @@ public class SyncProfileEditorTests
     }
 
     /// <summary>
-    /// A preview hands the run on rather than showing it here.
+    /// A preview hands the run on rather than showing it here, but not once the editor has closed.
     /// </summary>
     /// <remarks>
     /// Runs are reviewed and approved on one screen, which is where that is guarded. 1.x embedded a
     /// second copy of the review control in the editor and had two sets of buttons to keep in step.
+    /// A plan that arrives after the editor closed would move the main window to Run history on
+    /// its own, wherever the user had gone since; 1.4 cancelled everything on close.
     /// </remarks>
     [Fact]
     public async Task APreviewHandsTheRunOver()
@@ -251,19 +255,33 @@ public class SyncProfileEditorTests
         model.Enabled = true;
 
         SyncRunSummary? handed = null;
+        var closed = false;
         model.PreviewReady += (_, run) => handed = run;
+        model.Closed += (_, _) => closed = true;
         await model.PreviewAsync(TestContext.Current.CancellationToken);
 
         Assert.NotNull(handed);
         Assert.True(model.Status.IsSuccess);
+        Assert.True(closed);
+
+        handed = null;
+        agent.Hold = new TaskCompletionSource();
+        var late = model.PreviewAsync(TestContext.Current.CancellationToken);
+        model.Dispose();
+        agent.Hold.SetResult();
+        await late;
+
+        Assert.Null(handed);
     }
 
     /// <summary>
-    /// And a preview of a disabled profile says so.
+    /// And a preview of a disabled profile says so, with the editor still open to be read.
     /// </summary>
     /// <remarks>
     /// A disabled profile previews perfectly and then never runs by itself, which is invisible once
-    /// the plan is on screen and is discovered when the schedule does nothing.
+    /// the plan is on screen and is discovered when the schedule does nothing. Closing the editor
+    /// took the warning with it, and it asks for Enabled to be ticked here, so the editor stays, as
+    /// 1.4's did. The run is still handed over, so Close leads to it.
     /// </remarks>
     [Fact]
     public async Task PreviewingADisabledProfileWarns()
@@ -276,10 +294,16 @@ public class SyncProfileEditorTests
         model.LocationBRoot = "right";
         model.Enabled = false;
 
+        SyncRunSummary? handed = null;
+        var closed = false;
+        model.PreviewReady += (_, run) => handed = run;
+        model.Closed += (_, _) => closed = true;
         await model.PreviewAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(Ui.Sync.PreviewedWhileDisabled, model.Status.Text);
+        Assert.Equal(Ui.Format(Ui.Sync.PreviewWarningFormat, Ui.Sync.PreviewedWhileDisabled), model.Status.Text);
         Assert.True(model.Status.IsWarning);
+        Assert.NotNull(handed);
+        Assert.False(closed);
     }
 
     /// <summary>A screen with nothing behind it never reaches and offers nothing.</summary>
@@ -325,6 +349,10 @@ public class SyncProfileEditorTests
         model.LocationBRoot = "archive/photos";
         model.IncludeGlobs = "**/*.jpg\n**/*.raw";
 
+        // A fraction of a percent, stepped in quarters, as 1.4 allowed. The field's floor used to
+        // be 1, so a saved 0.5 could be neither typed nor stepped down from.
+        model.MaximumDeletionPercentage = 0.5m;
+
         var window = new SyncProfileEditorWindow { DataContext = model };
         window.Show();
         window.Measure(new Size(1040, 900));
@@ -334,13 +362,31 @@ public class SyncProfileEditorTests
         var frame = window.CaptureRenderedFrame();
         Assert.NotNull(frame);
 
+        // And the limits at the foot of the form, the percentage among them.
+        window.GetVisualDescendants().OfType<ScrollViewer>().First(viewer => viewer.Parent is DockPanel)
+            .ScrollToEnd();
+        window.UpdateLayout();
+        var limits = window.CaptureRenderedFrame();
+        Assert.NotNull(limits);
+
+        var percentage = window.GetVisualDescendants().OfType<NumericUpDown>().Single(
+            field => AutomationProperties.GetName(field) == SyncProfileEditorModel.MaximumPercentLabel);
+        percentage.GetVisualDescendants().OfType<ButtonSpinner>().Single()
+            .RaiseEvent(new SpinEventArgs(Spinner.SpinEvent, SpinDirection.Decrease));
+        Assert.Equal(0.25m, model.MaximumDeletionPercentage);
+
         var directory = Environment.GetEnvironmentVariable("STORAGEHUB_SHOT_DIR");
         if (string.IsNullOrWhiteSpace(directory)) return;
 
         Directory.CreateDirectory(directory);
-        using var stream = File.Create(
-            Path.Combine(directory, $"sync-profile-editor-{(dark ? "dark" : "light")}.png"));
-        frame!.Save(stream, new PngBitmapEncoderOptions());
+        var theme = dark ? "dark" : "light";
+        using (var stream = File.Create(Path.Combine(directory, $"sync-profile-editor-{theme}.png")))
+        {
+            frame!.Save(stream, new PngBitmapEncoderOptions());
+        }
+
+        using var scrolled = File.Create(Path.Combine(directory, $"sync-profile-editor-limits-{theme}.png"));
+        limits!.Save(scrolled, new PngBitmapEncoderOptions());
     }
 
     private static SyncProfileDraftDocument Draft(string name) => new(
@@ -371,6 +417,9 @@ public class SyncProfileEditorTests
         internal SyncProfileCreateRequest? Created { get; private set; }
 
         internal SyncProfileUpdateRequest? Updated { get; private set; }
+
+        /// <summary>Holds the preview unanswered until it is set.</summary>
+        internal TaskCompletionSource? Hold { get; set; }
 
         public Task<SyncProfileListResponse> ListProfilesAsync(
             SyncProfileListRequest request, CancellationToken cancellationToken = default) =>
@@ -422,21 +471,24 @@ public class SyncProfileEditorTests
                     DateTimeOffset.UtcNow)));
         }
 
-        public Task<SyncPreviewGenerateResponse> GeneratePreviewAsync(
+        public async Task<SyncPreviewGenerateResponse> GeneratePreviewAsync(
             SyncPreviewGenerateRequest request, CancellationToken cancellationToken = default)
         {
+            // Deaf to the token, as a reply already on its way is.
+            if (Hold is { } hold) await hold.Task;
+
             var run = new SyncRunSummary(
                 Guid.NewGuid(), request.ProfileId, 1, SyncIpcRunPhase.AwaitingApproval,
                 SyncIpcStatusCode.None, 1, DateTimeOffset.UtcNow, Guid.NewGuid(),
                 new string('a', 64), new string('b', 64), 0, SyncIpcDispatchState.NotDispatched,
                 null, DateTimeOffset.UtcNow, 0, 0, 0, true, true);
 
-            return Task.FromResult(new SyncPreviewGenerateResponse(
+            return new SyncPreviewGenerateResponse(
                 SyncManagementIpcContract.CurrentVersion,
                 request.ProfileId,
                 run,
                 new SyncPlanOverview(
-                    run.SyncRunId, run.PlanId, run.PlanSha256, 1, 3, 3, 0, 0, DateTimeOffset.UtcNow)));
+                    run.SyncRunId, run.PlanId, run.PlanSha256, 1, 3, 3, 0, 0, DateTimeOffset.UtcNow));
         }
 
         public Task<SyncRunStatusResponse> GetRunStatusAsync(

@@ -37,10 +37,12 @@
       </Grid>
 
       <!--
-        The foot carries the status and both actions. Review and run is the primary one: saving is
-        what you do on the way to previewing, not the point of the screen.
+        The foot carries the status and the actions. Review and run is the primary one: saving is
+        what you do on the way to previewing, not the point of the screen. Close is 1.4's, first
+        of them as it was there: a preview that warns leaves the editor open so the warning is
+        read, and Close is then the way on to the run.
       -->
-      <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto,Auto,Auto"
+      <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto,Auto,Auto,Auto"
             Margin="{StaticResource PaddingLg}">
         <TextBlock Grid.Column="0" Classes="status"
                    Classes.primary="{Binding Status.IsPrimary}"
@@ -50,11 +52,14 @@
                    Text="{Binding Status.Text}" TextWrapping="Wrap"
                    VerticalAlignment="Center"
                    AutomationProperties.Name="{Binding ProfileStatusAccessibleName}"/>
-        <Button Grid.Column="1" Content="{Binding RefreshLabel}"
+        <Button Grid.Column="1" Content="{Binding CloseLabel}"
+                Command="{Binding CloseCommand}" IsCancel="True"
+                Margin="{StaticResource PaddingSm}"/>
+        <Button Grid.Column="2" Content="{Binding RefreshLabel}"
                 Command="{Binding RefreshCommand}" Margin="{StaticResource PaddingSm}"/>
-        <Button Grid.Column="2" Content="{Binding SaveLabel}"
+        <Button Grid.Column="3" Content="{Binding SaveLabel}"
                 Command="{Binding SaveCommand}" Margin="{StaticResource PaddingSm}"/>
-        <Button Grid.Column="3" Classes="primary" Content="{Binding PreviewLabel}"
+        <Button Grid.Column="4" Classes="primary" Content="{Binding PreviewLabel}"
                 Command="{Binding PreviewCommand}" Margin="{StaticResource PaddingSm}"/>
       </Grid>
 
@@ -194,12 +199,14 @@
                       IsChecked="{Binding IncludeHiddenFiles, Mode=TwoWay}" Margin="0,8,0,0"/>
             <TextBlock Classes="muted" Text="{Binding HiddenFilesHint}" TextWrapping="Wrap"/>
 
+            <!-- The three limits step by 1.4's increments: one at a time for the counts, a
+                 quarter for the percentage. -->
             <Grid ColumnDefinitions="*,*,*" Margin="0,8,0,0">
               <StackPanel Grid.Column="0" Spacing="{StaticResource SpaceXs}"
                           Margin="{StaticResource PaddingSm}">
                 <TextBlock Classes="caption" Text="{Binding MaximumDeletesLabel}"/>
                 <NumericUpDown Value="{Binding MaximumDeletionCount, Mode=TwoWay}"
-                               Minimum="1" Maximum="1000000" Increment="10"
+                               Minimum="1" Maximum="1000000" Increment="1"
                                FormatString="N0"
                                AutomationProperties.Name="{Binding MaximumDeletesLabel}"/>
                 <TextBlock Classes="status danger" Text="{Binding DeletionCountProblem}"
@@ -209,8 +216,11 @@
               <StackPanel Grid.Column="1" Spacing="{StaticResource SpaceXs}"
                           Margin="{StaticResource PaddingSm}">
                 <TextBlock Classes="caption" Text="{Binding MaximumPercentLabel}"/>
+                <!-- 1.4's range and step, to two places. With a floor of 1, a saved 0.5 % could be
+                     neither typed nor stepped down from. -->
                 <NumericUpDown Value="{Binding MaximumDeletionPercentage, Mode=TwoWay}"
-                               Minimum="1" Maximum="100" Increment="1"
+                               Minimum="0.01" Maximum="100" Increment="0.25"
+                               FormatString="N2"
                                AutomationProperties.Name="{Binding MaximumPercentLabel}"/>
                 <TextBlock Classes="status danger" Text="{Binding DeletionPercentageProblem}"
                            IsVisible="{Binding HasDeletionPercentageProblem}" TextWrapping="Wrap"/>
@@ -220,7 +230,7 @@
                           Margin="{StaticResource PaddingSm}">
                 <TextBlock Classes="caption" Text="{Binding TransferBufferLabel}"/>
                 <NumericUpDown Value="{Binding TransferBufferSize, Mode=TwoWay}"
-                               Minimum="1" Maximum="1048576" Increment="1024"
+                               Minimum="1" Maximum="1048576" Increment="1"
                                FormatString="N0"
                                AutomationProperties.Name="{Binding TransferBufferLabel}"/>
                 <TextBlock Classes="status danger" Text="{Binding TransferBufferProblem}"

@@ -52,9 +52,10 @@ internal sealed record ConflictPolicyChoice(SyncIpcConflictPolicy Policy, string
 /// The picker is supplied by the window, so a test answers it instead.
 /// </para>
 /// </remarks>
-internal sealed class SyncProfileEditorModel : INotifyPropertyChanged
+internal sealed class SyncProfileEditorModel : INotifyPropertyChanged, IDisposable
 {
     private readonly SyncProfileEditorController? _controller;
+    private readonly CancellationTokenSource _lifetime = new();
     private readonly Func<ConnectionChoice, string, string, Task<string?>>? _pickLocation;
     private SyncProfileDocument? _current;
     private ProfileChoice _selectedProfile = ProfileChoice.New;
@@ -120,6 +121,7 @@ internal sealed class SyncProfileEditorModel : INotifyPropertyChanged
             _ => _ = BrowseAsync(isA: true), _ => !IsBusy && _pickLocation is not null);
         BrowseLocationBCommand = new RelayCommand(
             _ => _ = BrowseAsync(isA: false), _ => !IsBusy && _pickLocation is not null);
+        CloseCommand = new RelayCommand(_ => Closed?.Invoke(this, EventArgs.Empty));
 
         Profiles.Add(ProfileChoice.New);
     }
@@ -136,6 +138,9 @@ internal sealed class SyncProfileEditorModel : INotifyPropertyChanged
 
     /// <summary>Raised with the run a preview produced, so the shell can show it for review.</summary>
     internal event EventHandler<SyncRunSummary>? PreviewReady;
+
+    /// <summary>Raised when the window should close.</summary>
+    internal event EventHandler? Closed;
 
     public ObservableCollection<ProfileChoice> Profiles { get; } = [];
 
@@ -379,39 +384,26 @@ internal sealed class SyncProfileEditorModel : INotifyPropertyChanged
 
     public ICommand BrowseLocationBCommand { get; }
 
+    public ICommand CloseCommand { get; }
+
     /// <summary>Reads the saved profiles and the connections they can point at.</summary>
-    internal async Task LoadAsync(CancellationToken cancellationToken = default)
-    {
-        if (_controller is null || IsBusy) return;
-        IsBusy = true;
-        try
+    internal Task LoadAsync(CancellationToken cancellationToken = default) =>
+        BusyAsync(async (controller, token) =>
         {
             Status = new StatusLine(Ui.Sync.LoadingProfiles);
-            var workspace = await _controller.LoadAsync(cancellationToken).ConfigureAwait(true);
+            var workspace = await controller.LoadAsync(token).ConfigureAwait(true);
 
             Show(workspace);
             Status = new StatusLine(
                 workspace.Describe(),
                 workspace.Failed ? MetricTone.Danger : MetricTone.Success);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-        }
-        finally
-        {
-            IsBusy = false;
-        }
-    }
+        }, cancellationToken);
 
     /// <summary>Reads one profile in full and puts it in the fields.</summary>
-    internal async Task OpenAsync(Guid profileId, CancellationToken cancellationToken = default)
-    {
-        if (_controller is null || IsBusy) return;
-        IsBusy = true;
-        try
+    internal Task OpenAsync(Guid profileId, CancellationToken cancellationToken = default) =>
+        BusyAsync(async (controller, token) =>
         {
-            var (profile, error) = await _controller.OpenAsync(profileId, cancellationToken)
-                .ConfigureAwait(true);
+            var (profile, error) = await controller.OpenAsync(profileId, token).ConfigureAwait(true);
             if (profile is null)
             {
                 Status = new StatusLine(error ?? Ui.Sync.ProfileNotFound, MetricTone.Danger);
@@ -419,26 +411,14 @@ internal sealed class SyncProfileEditorModel : INotifyPropertyChanged
             }
 
             Apply(profile);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-        }
-        finally
-        {
-            IsBusy = false;
-        }
-    }
+        }, cancellationToken);
 
     /// <summary>Saves the fields as they stand.</summary>
-    internal async Task SaveAsync(CancellationToken cancellationToken = default)
-    {
-        if (_controller is null || IsBusy) return;
-        IsBusy = true;
-        try
+    internal Task SaveAsync(CancellationToken cancellationToken = default) =>
+        BusyAsync(async (controller, token) =>
         {
             Status = new StatusLine(Ui.Sync.SavingProfile);
-            var result = await _controller.SaveAsync(_current, BuildDraft(), cancellationToken)
-                .ConfigureAwait(true);
+            var result = await controller.SaveAsync(_current, BuildDraft(), token).ConfigureAwait(true);
             Report(result.Problems, result.ErrorMessage);
             if (result.Profile is not { } saved) return;
 
@@ -448,8 +428,83 @@ internal sealed class SyncProfileEditorModel : INotifyPropertyChanged
                     Ui.Format(Ui.Sync.ProfileSavedNonAtomicFormat, saved.Revision), MetricTone.Warning)
                 : new StatusLine(
                     Ui.Format(Ui.Sync.ProfileSavedFormat, saved.Revision), MetricTone.Success);
+        }, cancellationToken);
+
+    /// <summary>
+    /// Saves, then asks the agent to scan both locations and plan the work.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A disabled profile previews perfectly well and then never runs by itself, which is invisible
+    /// once the plan is on screen. So it is said here, rather than left to be discovered when the
+    /// schedule does nothing.
+    /// </para>
+    /// <para>
+    /// The run goes to Run history either way, and a plain preview closes the editor so that is
+    /// what is showing. A preview that warns leaves the editor open with the warning in its status,
+    /// as 1.4's did, because closing would take the warning with it before anybody read it, and the
+    /// disabled one asks for something done here: tick Enabled and preview again. The status says
+    /// that Close leads to the run.
+    /// </para>
+    /// </remarks>
+    internal Task PreviewAsync(CancellationToken cancellationToken = default) =>
+        BusyAsync(async (controller, token) =>
+        {
+            Status = new StatusLine(Ui.Sync.ScanningLocations);
+            var result = await controller.PreviewAsync(_current, BuildDraft(), token).ConfigureAwait(true);
+            Report(result.Problems, result.ErrorMessage);
+            if (result.Profile is { } profile) Adopt(profile);
+            if (result.Run is not { } run) return;
+
+            // A plan that arrived as the window closed is not handed over: the shell would switch
+            // to Run history behind the user's back, wherever they had gone since.
+            token.ThrowIfCancellationRequested();
+
+            Status = (result.Profile?.Draft.Enabled, result.Profile?.Draft.AllowNonAtomicDestinationWrites) switch
+            {
+                (false, _) => Warn(Ui.Sync.PreviewedWhileDisabled),
+                (_, true) => Warn(Ui.Sync.PlanReadyNonAtomic),
+                _ => new StatusLine(Ui.Sync.PlanReady, MetricTone.Success)
+            };
+            PreviewReady?.Invoke(this, run);
+            if (!Status.IsWarning) Closed?.Invoke(this, EventArgs.Empty);
+        }, cancellationToken);
+
+    /// <summary>
+    /// Stops whatever the editor has in flight, as its window closes.
+    /// </summary>
+    /// <remarks>
+    /// As 1.4's did. A preview left running behind a closed editor would still hand its run over
+    /// when it finished, and the main window would move to Run history on its own seconds later.
+    /// </remarks>
+    public void Dispose()
+    {
+        if (_lifetime.IsCancellationRequested) return;
+        _lifetime.Cancel();
+        _lifetime.Dispose();
+    }
+
+    /// <summary>
+    /// Runs one exchange with the agent, with the buttons off while it is in flight.
+    /// </summary>
+    /// <remarks>
+    /// Bound to the editor's lifetime as well as to the caller's token, so closing the window stops
+    /// it; nothing new starts once it has closed.
+    /// </remarks>
+    private async Task BusyAsync(
+        Func<SyncProfileEditorController, CancellationToken, Task> exchange,
+        CancellationToken cancellationToken)
+    {
+        if (_controller is not { } controller || IsBusy || _lifetime.IsCancellationRequested) return;
+        IsBusy = true;
+        try
+        {
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken, _lifetime.Token);
+            await exchange(controller, linked.Token).ConfigureAwait(true);
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (
+            cancellationToken.IsCancellationRequested || _lifetime.IsCancellationRequested)
         {
         }
         finally
@@ -459,42 +514,15 @@ internal sealed class SyncProfileEditorModel : INotifyPropertyChanged
     }
 
     /// <summary>
-    /// Saves, then asks the agent to scan both locations and plan the work.
+    /// A warning after a preview, and where the run went.
     /// </summary>
     /// <remarks>
-    /// A disabled profile previews perfectly well and then never runs by itself, which is invisible
-    /// once the plan is on screen. So it is said here, rather than left to be discovered when the
-    /// schedule does nothing.
+    /// In 1.4 the warning sat beside the plan on the editor's own tab. Here the plan is on Run
+    /// history behind the editor, and without saying so the obvious next click is Review and run
+    /// again, which saves and plans a second run.
     /// </remarks>
-    internal async Task PreviewAsync(CancellationToken cancellationToken = default)
-    {
-        if (_controller is null || IsBusy) return;
-        IsBusy = true;
-        try
-        {
-            Status = new StatusLine(Ui.Sync.ScanningLocations);
-            var result = await _controller.PreviewAsync(_current, BuildDraft(), cancellationToken)
-                .ConfigureAwait(true);
-            Report(result.Problems, result.ErrorMessage);
-            if (result.Profile is { } profile) Adopt(profile);
-            if (result.Run is not { } run) return;
-
-            Status = (result.Profile?.Draft.Enabled, result.Profile?.Draft.AllowNonAtomicDestinationWrites) switch
-            {
-                (false, _) => new StatusLine(Ui.Sync.PreviewedWhileDisabled, MetricTone.Warning),
-                (_, true) => new StatusLine(Ui.Sync.PlanReadyNonAtomic, MetricTone.Warning),
-                _ => new StatusLine(Ui.Sync.PlanReady, MetricTone.Success)
-            };
-            PreviewReady?.Invoke(this, run);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-        }
-        finally
-        {
-            IsBusy = false;
-        }
-    }
+    private static StatusLine Warn(string warning) =>
+        new(Ui.Format(Ui.Sync.PreviewWarningFormat, warning), MetricTone.Warning);
 
     /// <summary>Clears the fields back to what a new profile starts as.</summary>
     internal void BeginNewProfile()
@@ -842,6 +870,8 @@ internal sealed class SyncProfileEditorModel : INotifyPropertyChanged
     public static string PreviewLabel => Ui.Sync.ReviewAndRun;
 
     public static string RefreshLabel => Ui.Sync.TasksRefresh;
+
+    public static string CloseLabel => Ui.Dialogs.ButtonClose;
 
     public static string ProfileStatusAccessibleName => Ui.Sync.ProfileStatusAccessibleName;
 

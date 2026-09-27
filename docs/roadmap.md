@@ -207,11 +207,25 @@ setting to choose it (P.5.1).
       exists, reads "Name (disabled)" in the schedule's profile picker. Open: the question opens over
       the main window rather than over the schedule manager, as every dialog asked from inside a
       modal window does.
-- [ ] P.4.9 Previewing from the editor loads the run and the history reliably on the first visit.
-      `SyncRunHistoryTests.ApprovingDispatchesTheRunThatWasReviewed` failed once under a full-suite
-      run on 2026-09-26 and passed alone three times; likely the same race.
-- [ ] P.4.10 The "previewed while disabled" and "non-atomic" warnings are seen before the editor closes.
-- [ ] P.4.11 Maximum deletion accepts 0.01-100 in steps of 0.25, so a saved 0.5 % is not clamped to 1.
+- [x] P.4.9 Previewing from the editor loads the run and the history reliably on the first visit.
+      On the first visit the view asks for the history as it is attached and the shell asks for
+      the run, and Run history dropped whichever came second ("busy means return"): the run was
+      never loaded, or the history was marked loaded without being read. Its reads now queue
+      behind one another, as 1.4's review did behind its gate. The failing test was a different
+      race: its stub still read the run as waiting for approval after dispatching it, and the
+      half-second poll that follows a dispatch picked that up when a full-suite run was slow
+      enough; the stub now answers as the agent does. Approving sends the revision and digest
+      that were confirmed, even if the idle poll read a newer one while the question was open.
+- [x] P.4.10 The "previewed while disabled" and "non-atomic" warnings are seen before the editor closes.
+      A preview that warns leaves the editor open with the warning in its status, as 1.4's did
+      (the disabled one asks for Enabled to be ticked there); a plain one still closes it. The run
+      goes to Run history either way, so the warning adds that Close, 1.4's button back in the
+      foot, leads to it. Closing the editor stops a preview still running, as 1.4's did, so a plan
+      finishing behind a closed editor no longer moves the main window to Run history.
+- [x] P.4.11 Maximum deletion accepts 0.01-100 in steps of 0.25, so a saved 0.5 % is not clamped to 1.
+      Shown to two places, as 1.4 did. The floor of 1 did not clamp a saved 0.5 on sight, but it
+      could be neither typed nor stepped down from, and the complaint said "1 to 100". Maximum
+      deletes and the transfer buffer beside it step by one again, as 1.4's did, not by 10 and 1024.
 - [x] P.4.12 A completed transfer of unknown size draws a full bar, in the success colour, as 1.4's
       did; its text still says the bytes it moved, "0 B" too, rather than "100%" of a size nobody
       knew. A transfer of nothing says "100%", as 1.4's did.

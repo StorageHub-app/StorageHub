@@ -6,7 +6,17 @@ namespace StorageHub.Desktop.Views;
 
 public partial class SyncProfileEditorWindow : Window
 {
-    public SyncProfileEditorWindow() => AvaloniaXamlLoader.Load(this);
+    public SyncProfileEditorWindow()
+    {
+        AvaloniaXamlLoader.Load(this);
+        DataContextChanged += (_, _) =>
+        {
+            if (DataContext is SyncProfileEditorModel model) model.Closed += (_, _) => Close();
+        };
+
+        // Whatever the editor still has in flight stops with it, a preview included.
+        Closed += (_, _) => (DataContext as SyncProfileEditorModel)?.Dispose();
+    }
 
     /// <summary>
     /// The editor, pointed at the running agent.

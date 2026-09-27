@@ -85,7 +85,7 @@ internal static class SyncProfileDraftRules
         if (draft.MaximumDeletionPercentage is <= 0 or > 100)
         {
             problems.Add(new SyncDraftProblem(
-                SyncProfileFields.DeletionPercentage, Ui.Format(Ui.Sync.RangeFormat, 1, 100)));
+                SyncProfileFields.DeletionPercentage, Ui.Format(Ui.Sync.RangeFormat, 0.01m, 100)));
         }
 
         if (draft.TransferBufferSize is < 1 or > SyncManagementIpcLimits.MaximumTransferBufferSize)
