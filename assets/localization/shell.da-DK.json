@@ -39,6 +39,7 @@
   "statusApplyingConcurrency": "Anvender samtidighedsindstillinger på baggrundsagenten…",
   "renameWorkspaceTitle": "Omdøb arbejdsområde",
   "renameWorkspaceAccept": "Omdøb",
+  "workspaceFileType": "StorageHub-arbejdsområde",
   "shellAccessibleDescription": "En sikker filhåndtering med flere ruder til lokalt lager og fjernlager.",
   "workspaceCommands": "Kommandoer til arbejdsområde og forbindelser.",
   "clipboardLabel": "UDKLIPSHOLDER",

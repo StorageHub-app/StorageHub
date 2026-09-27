@@ -91,6 +91,16 @@ public partial class App : global::Avalonia.Application
         model.Router.Handle(UiCommandIds.WorkspaceNewWorkspace, () => _ = AddWorkspaceAsync(model));
         model.Router.Handle(UiCommandIds.WorkspaceCloseWorkspace, () => _ = model.CloseWorkspaceAsync());
 
+        // Workspace files, as 1.x kept them: the same .shw, so either version opens the other's.
+        // Saving and opening both put the file at the front of the recent list.
+        if (model.Files is { } files)
+        {
+            model.Router.Handle(UiCommandIds.WorkspaceOpenWorkspace, () => _ = files.OpenAsync());
+            model.Router.Handle(UiCommandIds.WorkspaceSaveWorkspace, () => _ = files.SaveAsync(saveAs: false));
+            model.Router.Handle(UiCommandIds.WorkspaceSaveWorkspaceAs, () => _ = files.SaveAsync(saveAs: true));
+            model.Router.Handle(UiCommandIds.WorkspaceRenameWorkspace, () => _ = files.RenameAsync());
+        }
+
         // The Connection Manager, from the menu and from the panel's own New button. Both open
         // the same window: "new connection" is the manager with an empty editor, which is one
         // screen rather than a second one that would have to agree with it about every field.
@@ -193,6 +203,11 @@ public partial class App : global::Avalonia.Application
         {
             if (cleanedUp) return;
             e.Cancel = true;
+
+            // Each workspace with unsaved changes asks first, as 1.x did; Cancel on any of them
+            // leaves the shell exactly as it was.
+            if (model.Files is { } files && !await files.ConfirmExitAsync().ConfigureAwait(true)) return;
+
             try
             {
                 await CloseEverythingAsync().WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(true);

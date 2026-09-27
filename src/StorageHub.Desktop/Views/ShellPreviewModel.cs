@@ -40,21 +40,66 @@ internal sealed record ToolbarSeparator
 }
 
 /// <summary>
-/// One workspace tab: either a page, or the two panes a workspace is.
+/// One workspace tab: either a page, or the panes a workspace is.
 /// </summary>
 /// <remarks>
 /// The panes are real browsers now, each with its own connection to the agent. They were two lists
 /// of invented rows and a pair of titles, which was enough to photograph the shell and nothing
 /// else.
 /// </remarks>
-internal sealed record WorkspaceTab(
-    string Title,
-    LucideIconKind Icon,
-    object? Page,
-    WorkspaceModel? Workspace = null)
+internal sealed class WorkspaceTab : INotifyPropertyChanged
 {
+    private readonly string _title = string.Empty;
+
+    /// <summary>A page of the shell: Welcome, Sync tasks.</summary>
+    internal WorkspaceTab(string title, LucideIconKind icon, object page)
+    {
+        _title = title;
+        Icon = icon;
+        Page = page;
+    }
+
+    /// <summary>A workspace, whose tab is named after it and follows it when it is renamed or saved.</summary>
+    internal WorkspaceTab(WorkspaceModel workspace)
+    {
+        Workspace = workspace ?? throw new ArgumentNullException(nameof(workspace));
+        Icon = LucideIconKind.Folder;
+        workspace.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(WorkspaceModel.Name)
+                or nameof(WorkspaceModel.IsDirty)
+                or nameof(WorkspaceModel.FilePath))
+            {
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Title)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ToolTip)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(AccessibleName)));
+            }
+        };
+    }
+
+    /// <summary>The name, and " *" while a workspace differs from its file, as 1.x's tab said.</summary>
+    public string Title => Workspace is { } workspace
+        ? workspace.Name + (workspace.IsDirty ? " *" : string.Empty)
+        : _title;
+
+    /// <summary>Where a workspace is saved, or its name until it is; nothing for a page.</summary>
+    public string? ToolTip => Workspace is { } workspace ? workspace.FilePath ?? workspace.Name : null;
+
+    /// <summary>"Render farm workspace" for a screen reader, set with the title as 1.x's tab was.</summary>
+    public string AccessibleName => Workspace is { } workspace
+        ? Ui.Format(Ui.Shell.WorkspaceAccessibleNameFormat, workspace.Name)
+        : _title;
+
+    public LucideIconKind Icon { get; }
+
+    public object? Page { get; }
+
+    public WorkspaceModel? Workspace { get; }
+
     /// <summary>Whether the tab has a close button: a workspace does, a page of the shell does not.</summary>
     public bool IsClosable => Workspace is not null;
+
+    public event PropertyChangedEventHandler? PropertyChanged;
 }
 
 internal sealed record QueueTab(string Title, LucideIconKind Icon);
@@ -328,14 +373,22 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
     public ObservableCollection<WorkspaceTab> Workspaces { get; } = [];
 
     /// <summary>
-    /// How a new workspace tab is built, given the arrangement that was chosen for it.
+    /// How a new workspace is built, given the arrangement that was chosen for it and its name.
     /// </summary>
     /// <remarks>
     /// Held rather than called once, because every workspace needs its own agent clients and this
     /// is the only place that knows how to make them. Null in a preview that has no agent behind
     /// it, in which case the "+" has nothing to add and says so by being unavailable.
     /// </remarks>
-    internal Func<WorkspacePreset, WorkspaceTab>? WorkspaceFactory { get; init; }
+    internal Func<WorkspacePreset, string, WorkspaceModel>? WorkspaceFactory { get; init; }
+
+    /// <summary>
+    /// Saving, opening and renaming workspace files. Null in a preview, which has nowhere to save
+    /// and nobody to ask, so closing a changed workspace there does not stop to ask either.
+    /// </summary>
+    internal WorkspaceFiles? Files { get; set; }
+
+    private int _nextWorkspaceNumber = 1;
 
     /// <summary>
     /// Adds a workspace with the arrangement chosen, and shows it.
@@ -345,13 +398,32 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
     /// and because a new tab that appeared behind the current one would look like nothing
     /// happened.
     /// </remarks>
-    internal void AddWorkspace(WorkspacePreset preset)
+    /// <param name="name">The name to give it; null numbers it, as "+" does.</param>
+    internal WorkspaceTab? AddWorkspace(WorkspacePreset preset, string? name = null)
     {
         ArgumentNullException.ThrowIfNull(preset);
-        if (WorkspaceFactory is not { } factory) return;
+        if (WorkspaceFactory is not { } factory) return null;
 
-        Workspaces.Add(factory(preset));
+        var tab = new WorkspaceTab(factory(preset, name ?? NextWorkspaceName()));
+        Workspaces.Add(tab);
         SelectedWorkspace = Workspaces.Count - 1;
+        return tab;
+    }
+
+    /// <summary>
+    /// "Workspace 3", skipping a number an open workspace is already called, as 1.x did: one
+    /// opened from a file named "Workspace 2" would otherwise sit beside a new one of that name.
+    /// </summary>
+    private string NextWorkspaceName()
+    {
+        string name;
+        do
+        {
+            name = Ui.Format(Ui.Shell.WorkspaceTabFormat, _nextWorkspaceNumber++);
+        }
+        while (Workspaces.Any(tab => string.Equals(tab.Workspace?.Name, name, StringComparison.OrdinalIgnoreCase)));
+
+        return name;
     }
 
     public ConnectionsSidebar Sidebar { get; init; } = null!;
@@ -606,12 +678,18 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
     /// <remarks>
     /// Its panes are disposed with it, which closes their connections and any shell they held: a
     /// closed tab that kept a socket open would be one nobody could reach to close it. The tab to
-    /// its left is shown next, as 1.x did, so closing is never a jump to somewhere unrelated.
+    /// its left is shown next, as 1.x did, so closing is never a jump to somewhere unrelated. A
+    /// workspace with unsaved changes asks first, and Cancel keeps it open.
     /// </remarks>
     internal async Task CloseWorkspaceAsync(WorkspaceTab? tab = null)
     {
         tab ??= Workspaces.ElementAtOrDefault(SelectedWorkspace);
-        if (tab is not { Workspace: { } workspace }) return;
+        if (tab is not { Workspace: { } workspace } || !Workspaces.Contains(tab)) return;
+        if (Files is { } files &&
+            !await files.ConfirmDiscardAsync(tab, Ui.Dialogs.CloseWorkspaceCaption).ConfigureAwait(true))
+        {
+            return;
+        }
 
         var index = Workspaces.IndexOf(tab);
         if (index < 0) return;
@@ -860,7 +938,6 @@ internal static class ShellPreview
                 preferences with { ConfirmBeforeClearingTransferHistory = false });
         }
 
-        var workspaces = 0;
         var model = new ShellPreviewModel(router)
         {
             Menus = BuildMenus(router),
@@ -876,41 +953,38 @@ internal static class ShellPreview
             // one shared: the browser controller holds a listing position, and two panes sharing
             // one would have the second navigation cancel the first. A factory rather than a fixed
             // set, because a workspace can hold one to four and somebody can make another.
-            WorkspaceFactory = preset => new WorkspaceTab(
-                Ui.Format(Ui.Shell.WorkspaceTabFormat, ++workspaces),
-                LucideIconKind.Folder,
-                null,
-                new WorkspaceModel(
-                    // A pane makes its own inspector client per operation, for the same reason a
-                    // transfer does: one held open is one that broke when the agent restarted.
-                    () => Loaded(live, new BrowserPaneModel(
-                        mutations: static () => new PaneMutationController(
-                            static () => new NamedPipeObjectInspectorAgentClient()),
-                        dialogs: Services.ShellServices.Dialogs,
+            WorkspaceFactory = (preset, name) => new WorkspaceModel(
+                // A pane makes its own inspector client per operation, for the same reason a
+                // transfer does: one held open is one that broke when the agent restarted.
+                () => Loaded(live, new BrowserPaneModel(
+                    mutations: static () => new PaneMutationController(
+                        static () => new NamedPipeObjectInspectorAgentClient()),
+                    dialogs: Services.ShellServices.Dialogs,
 
-                        // One terminal client per session, not per pane: the protocol keeps two
-                        // pipe connections open for as long as a shell is running, and the pane
-                        // disposes them with the session.
-                        terminals: terminals,
+                    // One terminal client per session, not per pane: the protocol keeps two
+                    // pipe connections open for as long as a shell is running, and the pane
+                    // disposes them with the session.
+                    terminals: terminals,
 
-                        // What lets a terminal restart an agent left running from an older build,
-                        // once, instead of telling somebody to restart StorageHub themselves.
-                        agentLifecycle: AgentLifecycleControllers.ForThisMachine,
-                        inspect: Services.ShellServices.InspectObjectAsync,
-                        edit: Services.ShellServices.EditExternallyAsync,
-                        batchRename: static (sources, occupied) => Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(
-                            () => BatchRenameWindow.AskAsync(Services.ShellServices.MainWindow(), sources, occupied)))),
-                    static () => new NamedPipeTransferQueueAgentClient(),
-                    static () => new NamedPipeRemoteStorageAgentClient(),
-                    static () => new NamedPipeObjectInspectorAgentClient(),
-                    // From the newest, as 1.x's was, so a transfer just queued is on the page
-                    // shown even when Next had moved on from it.
-                    () => queue.RefreshFromStartAsync(),
-                    preset,
-                    Services.ShellServices.Dialogs)
-                {
-                    PendingDrops = drops
-                }),
+                    // What lets a terminal restart an agent left running from an older build,
+                    // once, instead of telling somebody to restart StorageHub themselves.
+                    agentLifecycle: AgentLifecycleControllers.ForThisMachine,
+                    inspect: Services.ShellServices.InspectObjectAsync,
+                    edit: Services.ShellServices.EditExternallyAsync,
+                    batchRename: static (sources, occupied) => Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(
+                        () => BatchRenameWindow.AskAsync(Services.ShellServices.MainWindow(), sources, occupied)))),
+                static () => new NamedPipeTransferQueueAgentClient(),
+                static () => new NamedPipeRemoteStorageAgentClient(),
+                static () => new NamedPipeObjectInspectorAgentClient(),
+                // From the newest, as 1.x's was, so a transfer just queued is on the page
+                // shown even when Next had moved on from it.
+                () => queue.RefreshFromStartAsync(),
+                preset,
+                Services.ShellServices.Dialogs,
+                name)
+            {
+                PendingDrops = drops
+            },
         };
 
         // The queue names a transfer's connections from the list the sidebar has read, rather than
@@ -959,6 +1033,19 @@ internal static class ShellPreview
         }
 
         if (!live) model.AddWorkspace(WorkspacePreset.All[1]);
+
+        // Workspace files, live only: the samples have no settings file to record a recent
+        // workspace in, and nobody to ask whether to save one before it closes.
+        if (live)
+        {
+            model.Files = new WorkspaceFiles(
+                model,
+                Services.ShellServices.Dialogs,
+                Services.ShellServices.FilePicker,
+                WorkspaceBookmarks.ForCurrentUser(),
+                static () => ReadPreferences()?.ReconnectRemotePanesAutomatically ?? true);
+        }
+
         model.SelectedWorkspace = selectedWorkspace;
         model.RouteToActivePane();
         model.WatchTheStatusBar();

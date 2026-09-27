@@ -290,13 +290,14 @@
       <!--
         What the pane has to say, above the list as 1.x's banner was: a failure in the warning
         colour, clickable to try again, and a note (landing on the nearest folder that exists)
-        quietly. It sits over nothing: a failed navigation keeps the listing somebody was looking
-        at, so a typo in a path costs nothing to recover from.
+        quietly. A restored pane waiting to be connected is a note that can be clicked. It sits
+        over nothing: a failed navigation keeps the listing somebody was looking at, so a typo in
+        a path costs nothing to recover from.
       -->
       <Button DockPanel.Dock="Top" Classes="pane-banner"
               Classes.warning="{Binding StatusIsWarning}"
               IsVisible="{Binding HasStatus}"
-              IsHitTestVisible="{Binding StatusIsWarning}"
+              IsHitTestVisible="{Binding BannerIsClickable}"
               Command="{Binding RetryCommand}"
               ToolTip.Tip="{Binding RetryHint}"
               HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">

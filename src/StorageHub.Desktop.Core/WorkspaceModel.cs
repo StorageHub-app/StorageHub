@@ -279,6 +279,18 @@ internal static class WorkspaceFileStore
         IReadOnlyDictionary<Guid, BrowserPaneState> panes) =>
         new(SchemaVersion, name, activePaneId, ToFileNode(root), panes.ToDictionary());
 
+    /// <summary>
+    /// The document exactly as <see cref="Save"/> would write it, for telling whether a workspace
+    /// still matches its file.
+    /// </summary>
+    /// <remarks>
+    /// Compared as text rather than as records, because the pane states sit in a dictionary and
+    /// two dictionaries with the same entries are not equal. Same options as the file, so any
+    /// difference that would change what is written is a difference here, and nothing else is.
+    /// </remarks>
+    internal static string Fingerprint(WorkspaceFileDocument document) =>
+        JsonSerializer.Serialize(document, Options);
+
     internal static WorkspaceLayoutNode ToLayout(WorkspaceFileNode node) => node.Kind switch
     {
         "leaf" when node.PaneId is { } id => new WorkspacePaneLeaf(id),
@@ -310,13 +322,26 @@ internal static class WorkspaceFileStore
             if (id == Guid.Empty || !Enum.IsDefined(pane.ContentKind) || !Enum.IsDefined(pane.SortColumn) ||
                 !IsOptionalText(pane.DisplayNameHint, 256) || !IsOptionalText(pane.FolderPath, 4096) || !IsOptionalText(pane.Filter, 512) ||
                 pane.ContentKind is PaneContentKind.SavedStorage or PaneContentKind.SshClient && pane.ProfileId is null ||
-                pane.ContentKind == PaneContentKind.ThisPc && pane.FolderPath is not null && !Path.IsPathFullyQualified(pane.FolderPath) ||
+                pane.ContentKind == PaneContentKind.ThisPc && pane.FolderPath is not null && !IsFullPathOnAnySystem(pane.FolderPath) ||
                 pane.ContentKind == PaneContentKind.SavedStorage && pane.FolderPath is not null && Path.IsPathFullyQualified(pane.FolderPath) ||
                 pane.ContentKind == PaneContentKind.ConnectionsHome && (pane.ProfileId is not null || pane.FolderPath is not null) ||
                 pane.ContentKind == PaneContentKind.SshClient && pane.FolderPath is not null)
                 throw new InvalidDataException("A workspace pane contains invalid or out-of-bounds state.");
         }
     }
+
+    /// <summary>
+    /// Whether a This PC folder is a full path on Windows or on Linux, whichever this is.
+    /// </summary>
+    /// <remarks>
+    /// Not only this computer's kind: a workspace saved on the other one still opens, with that
+    /// pane on This PC, rather than being refused whole over a folder that cannot exist here.
+    /// </remarks>
+    private static bool IsFullPathOnAnySystem(string path) =>
+        Path.IsPathFullyQualified(path) ||
+        path.StartsWith('/') ||
+        path.StartsWith(@"\\", StringComparison.Ordinal) ||
+        path.Length >= 3 && char.IsAsciiLetter(path[0]) && path[1] == ':' && path[2] is '\\' or '/';
 
     private static bool IsText(string? value, int maximum) => !string.IsNullOrWhiteSpace(value) && IsOptionalText(value, maximum);
     private static bool IsOptionalText(string? value, int maximum) => value is null || value.Length <= maximum && !value.Any(char.IsControl);

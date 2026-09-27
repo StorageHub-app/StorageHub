@@ -113,6 +113,9 @@ internal sealed class ShellStrings : LocalizationModelBase
 
     public string RenameWorkspaceAccept { get; set; } = "Rename";
 
+    /// <summary>The Open and Save dialogs' name for a <c>.shw</c> file.</summary>
+    public string WorkspaceFileType { get; set; } = "StorageHub workspace";
+
     // ------------------------------------------------------------- shell chrome
     public string ShellAccessibleDescription { get; set; } =
         "A secure multi-pane file manager for local and remote storage.";

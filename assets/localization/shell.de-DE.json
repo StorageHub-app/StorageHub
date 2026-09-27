@@ -39,6 +39,7 @@
   "statusApplyingConcurrency": "Die Parallelitätseinstellungen werden auf den Hintergrundagenten angewendet…",
   "renameWorkspaceTitle": "Arbeitsbereich umbenennen",
   "renameWorkspaceAccept": "Umbenennen",
+  "workspaceFileType": "StorageHub-Arbeitsbereich",
   "shellAccessibleDescription": "Ein sicherer Dateimanager mit mehreren Bereichen für lokale und entfernte Speicher.",
   "workspaceCommands": "Befehle für Arbeitsbereich und Verbindungen.",
   "clipboardLabel": "ZWISCHENABLAGE",

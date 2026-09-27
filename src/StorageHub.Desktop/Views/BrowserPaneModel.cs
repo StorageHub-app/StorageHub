@@ -101,6 +101,21 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     private bool _failed;
     private Task<bool>? _loadingMore;
 
+    /// <summary>The last read of the connection list, so a restore can wait for one in flight.</summary>
+    private Task? _connectionsLoad;
+
+    /// <summary>
+    /// Set while a saved workspace is putting this pane back, so the list arriving does not first
+    /// point it at This PC.
+    /// </summary>
+    private bool _restoring;
+
+    /// <summary>
+    /// Set while a restored connection waits for a click to connect, because "reconnect remote
+    /// panes" is off. Not a failure: the banner is a notice somebody can click.
+    /// </summary>
+    private bool _standingBy;
+
     /// <param name="mutations">
     /// How the pane creates, renames and deletes. Null leaves those commands unavailable, which is
     /// what a pane in a test that is not about file operations wants.
@@ -316,7 +331,8 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     /// 1.x showed it, rather than in a strip at the bottom of an otherwise blank table.
     /// </summary>
     public string EmptyNotice =>
-        !IsListing || _source is null || _failed || _busy || Rows.Any(static row => !row.IsParentNavigation)
+        _standingBy ? Ui.Pane.Disconnected + ". " + Ui.Pane.SelectProfileToConnect + "."
+        : !IsListing || _source is null || _failed || _busy || Rows.Any(static row => !row.IsParentNavigation)
             ? string.Empty
             : HasFilter ? Ui.Pane.NoItemsMatchFilter
             : _source is ConnectionsHomeSource ? Ui.Pane.NoEnabledConnections + ". " + Ui.Pane.UseManageToAddOne + "."
@@ -336,6 +352,12 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     /// </summary>
     public bool StatusIsWarning => _failed;
 
+    /// <summary>
+    /// Whether a click on the banner does something: tries again after a failure, or connects a
+    /// pane restored with "reconnect remote panes" off, which 1.x marked with a hand cursor.
+    /// </summary>
+    public bool BannerIsClickable => _failed || _standingBy;
+
     /// <summary>Tries again: the connection if it never opened, the folder if it did.</summary>
     public ICommand RetryCommand => _retry ??= new RelayCommand(_ =>
     {
@@ -353,6 +375,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         Raise(nameof(HasEmptyNotice));
         Raise(nameof(ShowsLoading));
         Raise(nameof(StatusIsWarning));
+        Raise(nameof(BannerIsClickable));
     }
 
     public bool IsBusy
@@ -1136,7 +1159,10 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     /// connection picker use: the others cannot be browsed, and listing them produces a pane that
     /// fails the moment somebody chooses one.
     /// </remarks>
-    internal async Task LoadConnectionsAsync(CancellationToken cancellationToken = default)
+    internal Task LoadConnectionsAsync(CancellationToken cancellationToken = default) =>
+        _connectionsLoad = ReadConnectionsAsync(cancellationToken);
+
+    private async Task ReadConnectionsAsync(CancellationToken cancellationToken)
     {
         IsBusy = true;
         Status = Ui.Pane.LoadingConnections;
@@ -1183,8 +1209,9 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
 
             // A pane that has not been pointed anywhere opens on This PC, as 1.x's did, rather
             // than on an empty "/" waiting to be told. Whether or not the agent answered: this
-            // computer can be browsed either way.
-            if (_connection is null && Connections.Count > 0)
+            // computer can be browsed either way. Not while a saved workspace is restoring it,
+            // which knows better where it goes.
+            if (_connection is null && !_restoring && Connections.Count > 0)
             {
                 // The first pane on this computer and the rest on the saved connections, as 1.x
                 // opened a workspace.
@@ -1216,6 +1243,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     internal async Task OpenAsync(PaneConnection choice, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(choice);
+        _standingBy = false;
         IsBusy = true;
         try
         {
@@ -1341,9 +1369,19 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     {
         var choice = Connections.FirstOrDefault(candidate => candidate.Id == connectionId)
             ?? new PaneConnection(connectionId, string.Empty, LucideIconKind.Cloud);
+        return PointAtAsync(choice, cancellationToken);
+    }
 
-        // Recorded as the pane's choice, not only opened: the chip names what is showing, and a
-        // pane with no choice recorded is one that falls back to This PC once its list arrives.
+    /// <summary>
+    /// Records a choice as the pane's and opens it, for a caller that has to wait for the listing.
+    /// </summary>
+    /// <remarks>
+    /// Recorded as the pane's choice, not only opened: the chip names what is showing, and a pane
+    /// with no choice recorded is one that falls back to This PC once its list arrives. Setting
+    /// <see cref="Connection"/> would open it too, but without anything to await.
+    /// </remarks>
+    private Task PointAtAsync(PaneConnection choice, CancellationToken cancellationToken)
+    {
         _connection = choice;
         _failed = false;
         Raise(nameof(Connection));
@@ -1351,6 +1389,161 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         Raise(nameof(ConnectionIcon));
         RaiseConnectionState();
         return OpenAsync(choice, cancellationToken);
+    }
+
+    /// <summary>
+    /// What a saved workspace stores about this pane: what it shows, where, and how it is ordered
+    /// and filtered.
+    /// </summary>
+    /// <remarks>
+    /// The same record, member for member, 1.x wrote into a <c>.shw</c>, so a workspace saved by
+    /// either opens in the other. The folder is the one a transfer would use -- a full path on this
+    /// computer, a relative one on a connection -- and nothing at the top, where there is none.
+    /// </remarks>
+    internal BrowserPaneState CaptureState()
+    {
+        var kind = _connection?.Kind ?? PaneContentKind.Unresolved;
+        var inFolder = kind == PaneContentKind.ThisPc
+            ? _source is LocalPaneSource
+            : kind == PaneContentKind.SavedStorage && _source is RemotePaneSource;
+        var folder = inFolder && PaneTransferSnapshots.ContextFor(_source) is { IsSuccess: true } here &&
+            here.Value.RelativePath.Length > 0
+                ? here.Value.RelativePath
+                : null;
+        return new BrowserPaneState(
+            kind,
+            _connection?.Id,
+            string.IsNullOrEmpty(_connection?.Name) ? null : _connection.Name,
+            folder,
+            _filter,
+            _sortColumn,
+            _sortAscending,
+            HeaderHidden: !_showConnectionBar);
+    }
+
+    /// <summary>
+    /// Puts the pane back the way a saved workspace describes it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// As 1.x's <c>RestoreStateAsync</c> did: the order, the filter and the bar first, then what the
+    /// pane was pointed at and the folder it was in. A connection that no longer exists leaves the
+    /// pane on Connections Home saying so, rather than failing the whole workspace over one pane.
+    /// </para>
+    /// <para>
+    /// With "reconnect remote panes" off, a connection is chosen but not opened: the banner says so
+    /// and a click on it connects, which is where 1.x put that choice.
+    /// </para>
+    /// </remarks>
+    internal async Task RestoreAsync(
+        BrowserPaneState state,
+        bool reconnectRemote,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        _sortColumn = Enum.IsDefined(state.SortColumn) ? state.SortColumn : BrowserSortColumn.Name;
+        _sortAscending = state.SortAscending;
+        _filter = state.Filter ?? string.Empty;
+        Raise(nameof(SortColumn));
+        Raise(nameof(SortAscending));
+        Raise(nameof(Filter));
+        Raise(nameof(HasFilter));
+
+        // The arrows too, which a pane left standing by would otherwise show on Name until it
+        // connected and listed.
+        RaiseHeaders();
+        ShowConnectionBar = !state.HeaderHidden;
+
+        _restoring = true;
+        try
+        {
+            await (_connectionsLoad ?? LoadConnectionsAsync(cancellationToken)).ConfigureAwait(true);
+        }
+        finally
+        {
+            _restoring = false;
+        }
+
+        // Closed while the list was read: nothing is opened for a pane that is going away.
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var home = Connections.FirstOrDefault(static candidate => candidate.Kind == PaneContentKind.ConnectionsHome)
+            ?? new PaneConnection(null, Ui.Pane.ConnectionsHome, LucideIconKind.House, PaneContentKind.ConnectionsHome);
+        if (state.ContentKind == PaneContentKind.ThisPc)
+        {
+            await PointAtAsync(
+                Connections.FirstOrDefault(static candidate => candidate.Kind == PaneContentKind.ThisPc)
+                    ?? new PaneConnection(null, Ui.Pane.ThisPc, LucideIconKind.HardDrive, PaneContentKind.ThisPc),
+                cancellationToken).ConfigureAwait(true);
+
+            // A folder saved on another kind of computer -- C:\ on Linux, /home on Windows -- is not
+            // one here, and the pane stays on This PC, as 1.x's did for a folder it could not read.
+            if (!string.IsNullOrWhiteSpace(state.FolderPath) && System.IO.Path.IsPathFullyQualified(state.FolderPath))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await NavigateAsync(state.FolderPath, cancellationToken).ConfigureAwait(true);
+            }
+
+            return;
+        }
+
+        if (state.ContentKind == PaneContentKind.ConnectionsHome || state.ProfileId is not { } id)
+        {
+            await PointAtAsync(home, cancellationToken).ConfigureAwait(true);
+            return;
+        }
+
+        if (Connections.FirstOrDefault(candidate => candidate.Id == id) is not { } choice)
+        {
+            await PointAtAsync(home, cancellationToken).ConfigureAwait(true);
+            Status = Ui.Format(Ui.Pane.SavedProfileUnavailableFormat, state.DisplayNameHint ?? id.ToString("D"));
+            _failed = true;
+            RaiseConnectionState();
+            RaiseListingState();
+            return;
+        }
+
+        if (!reconnectRemote)
+        {
+            await StandByAsync(choice).ConfigureAwait(true);
+            return;
+        }
+
+        await PointAtAsync(choice, cancellationToken).ConfigureAwait(true);
+        if (choice.Kind == PaneContentKind.SavedStorage && _source is RemotePaneSource &&
+            !string.IsNullOrEmpty(state.FolderPath))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await NavigateAsync(state.FolderPath, cancellationToken).ConfigureAwait(true);
+        }
+    }
+
+    /// <summary>
+    /// Chooses a connection without opening it, and says that a click on the banner will.
+    /// </summary>
+    /// <remarks>
+    /// Whatever the pane showed before is let go, so the banner's retry -- which opens the choice
+    /// when there is no source -- is what connects.
+    /// </remarks>
+    private async Task StandByAsync(PaneConnection choice)
+    {
+        await CloseTerminalAsync().ConfigureAwait(true);
+        if (_source is LocalPaneSource local) await local.DisposeAsync().ConfigureAwait(true);
+        _source = null;
+        Tree.Clear();
+        Rows.Clear();
+        SelectedRows.Clear();
+        Path = "/";
+        _connection = choice;
+        Raise(nameof(Connection));
+        Raise(nameof(Title));
+        Raise(nameof(ConnectionIcon));
+        Status = Ui.Pane.AutoReconnectDisabled;
+        _failed = false;
+        _standingBy = true;
+        RaiseConnectionState();
+        RaiseListingState();
+        RaiseCommands();
     }
 
     /// <summary>
@@ -1887,14 +2080,19 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         // thing that explains why the listing is not the one that was asked for.
         Status = _note ?? string.Empty;
         RaiseListingState();
+        RaiseHeaders();
+        Raise(nameof(ItemCount));
+        RaiseCommands();
+    }
 
+    /// <summary>The column headings, whose arrow shows the order.</summary>
+    private void RaiseHeaders()
+    {
         Raise(nameof(NameHeader));
         Raise(nameof(SizeHeader));
         Raise(nameof(TypeHeader));
         Raise(nameof(ModifiedHeader));
         Raise(nameof(StatusHeader));
-        Raise(nameof(ItemCount));
-        RaiseCommands();
     }
 
     /// <summary>

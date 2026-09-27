@@ -137,7 +137,9 @@
             <DataTemplate DataType="vm:WorkspaceTab">
               <!-- A workspace carries its own close button, as 1.x's tabs did; Welcome and Sync
                    tasks are the shell's own pages and stay. -->
-              <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceSm}">
+              <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceSm}"
+                          ToolTip.Tip="{Binding ToolTip}"
+                          AutomationProperties.Name="{Binding AccessibleName}">
                 <LucideIcon Kind="{Binding Icon}" Size="{StaticResource IconSizeSm}"/>
                 <TextBlock Text="{Binding Title}" VerticalAlignment="Center"/>
                 <Button Classes="tool tab-close" IsVisible="{Binding IsClosable}"

@@ -1,5 +1,7 @@
 using Avalonia.Headless.XUnit;
 using StorageHub.Contracts.Ipc;
+using StorageHub.Desktop.Localization;
+using StorageHub.Desktop.Shell;
 using StorageHub.Desktop.Views;
 using Xunit;
 using static StorageHub.Desktop.Tests.WorkspaceFakes;
@@ -324,6 +326,149 @@ public class WorkspacePaneLayoutTests
 
         Assert.True(pane.IsListing);
         Assert.Equal(["render.exr"], pane.Rows.Select(static row => row.Name));
+    }
+
+    /// <summary>
+    /// A workspace file written by 1.x opens as it was saved, and saving, renaming and closing
+    /// follow the "*" the way 1.x's tab did.
+    /// </summary>
+    /// <remarks>
+    /// The file is written by hand in 1.x's shape -- camel-case names and enums, an older file's
+    /// missing <c>headerHidden</c> -- because reading what 1.4 wrote is the whole promise of the
+    /// format. Each pane's order and filter come back applied to its listing, not only stored.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task AWorkspaceFileOpensAsSavedAndTheTabSaysWhenItDiffers()
+    {
+        var cancellation = TestContext.Current.CancellationToken;
+        var storage = Summary("Studio Assets");
+        var agent = new FakeBrowsingAgent([storage]);
+        agent.Listings[(storage.ConnectionId, "")] = new Page([Entry("reports", container: true)]);
+        agent.Listings[(storage.ConnectionId, "reports")] = new Page([Entry("q1.pdf", 2048, parent: "reports")]);
+
+        var folder = Directory.CreateTempSubdirectory("storagehub-workspace-");
+        try
+        {
+            File.WriteAllText(Path.Combine(folder.FullName, "small.txt"), "1");
+            File.WriteAllText(Path.Combine(folder.FullName, "large.txt"), "12345");
+            File.WriteAllText(Path.Combine(folder.FullName, "notes.log"), "123");
+            var (local, remote) = (Guid.NewGuid(), Guid.NewGuid());
+            var file = Path.Combine(folder.FullName, "Render farm.shw");
+            File.WriteAllText(file, $$"""
+                {
+                  "schemaVersion": 1,
+                  "name": "Render farm",
+                  "activePaneId": "{{remote}}",
+                  "layout": {
+                    "kind": "split", "orientation": "horizontal", "ratio": 0.4,
+                    "first": { "kind": "leaf", "paneId": "{{local}}" },
+                    "second": { "kind": "leaf", "paneId": "{{remote}}" }
+                  },
+                  "panes": {
+                    "{{local}}": {
+                      "contentKind": "thisPc", "folderPath": {{System.Text.Json.JsonSerializer.Serialize(folder.FullName)}},
+                      "filter": "*.txt", "sortColumn": "size", "sortAscending": false, "headerHidden": true
+                    },
+                    "{{remote}}": {
+                      "contentKind": "savedStorage", "profileId": "{{storage.ConnectionId}}",
+                      "displayNameHint": "Studio Assets", "folderPath": "reports",
+                      "filter": "", "sortColumn": "name", "sortAscending": true
+                    }
+                  }
+                }
+                """);
+
+            var preferences = new DesktopUpdatePreferences();
+            var dialogs = new KeyStoreTests.RecordingDialogs();
+            var shell = new ShellPreviewModel(new ShellCommandRouter())
+            {
+                WorkspaceFactory = (preset, name) => new WorkspaceModel(
+                    () => new BrowserPaneModel(agent),
+                    static () => new FakeTransferQueue(),
+                    () => agent,
+                    static () => new FakeInspector(),
+                    preset: preset,
+                    name: name)
+            };
+            var files = new WorkspaceFiles(
+                shell,
+                dialogs,
+                new StubFilePicker(),
+                new WorkspaceBookmarks(() => preferences, saved => preferences = saved));
+            shell.Files = files;
+
+            Assert.True(await files.OpenPathAsync(file));
+            var tab = Assert.Single(shell.Workspaces);
+            var workspace = tab.Workspace!;
+            var (left, right) = (workspace.Panes[0], workspace.Panes[1]);
+
+            // As it was saved: arrangement, active pane, and each pane's place, order and filter.
+            Assert.Equal("Render farm", tab.Title);
+            Assert.Equal(file, tab.ToolTip);
+            Assert.Equal(
+                (WorkspaceSplitOrientation.Horizontal, 0.4),
+                workspace.Layout.Root is WorkspaceSplitNode split ? (split.Orientation, split.Ratio) : default);
+            Assert.Equal(["large.txt", "small.txt"], Named(left));
+            Assert.Equal((BrowserSortColumn.Size, false, false), (left.SortColumn, left.SortAscending, left.ShowConnectionBar));
+            Assert.Equal(storage.ConnectionId, right.Connection?.Id);
+            Assert.Equal(["q1.pdf"], Named(right));
+            Assert.True(right.IsActive);
+            Assert.Equal(file, Assert.Single(files.Bookmarks.Recent).Path);
+
+            // A change puts the "*" up, undoing it takes it down, and saving takes it down too.
+            right.Filter = "*.pdf";
+            Assert.Equal("Render farm *", tab.Title);
+            right.Filter = string.Empty;
+            Assert.Equal("Render farm", tab.Title);
+            right.SortBy(BrowserSortColumn.Modified);
+            Assert.True(await files.SaveAsync(saveAs: false));
+            Assert.False(workspace.IsDirty);
+            var written = WorkspaceFileStore.Load(file);
+            Assert.Equal(BrowserSortColumn.Modified, written.Panes[remote].SortColumn);
+            Assert.Equal(("*.txt", folder.FullName), (written.Panes[local].Filter, written.Panes[local].FolderPath));
+
+            // The same file again shows the tab it is already in, rather than a second one.
+            Assert.True(await files.OpenPathAsync(file));
+            Assert.Single(shell.Workspaces);
+
+            // Renaming is a change; closing a changed workspace asks, and Cancel keeps it.
+            dialogs.PromptAnswer = "Nightly renders";
+            await files.RenameAsync();
+            Assert.Equal("Nightly renders *", tab.Title);
+            dialogs.Choice = DialogChoice.Cancel;
+            await shell.CloseWorkspaceAsync(tab);
+            Assert.Equal(DialogButtons.YesNoCancel, dialogs.LastRequest?.Buttons);
+            Assert.Single(shell.Workspaces);
+
+            // A folder saved on the other kind of computer still opens, with that pane on This PC.
+            var foreign = Guid.NewGuid();
+            var elsewhere = Path.Combine(folder.FullName, "Elsewhere.shw");
+            File.WriteAllText(elsewhere, $$"""
+                {
+                  "schemaVersion": 1, "name": "Elsewhere", "activePaneId": "{{foreign}}",
+                  "layout": { "kind": "leaf", "paneId": "{{foreign}}" },
+                  "panes": {
+                    "{{foreign}}": {
+                      "contentKind": "thisPc",
+                      "folderPath": {{System.Text.Json.JsonSerializer.Serialize(OperatingSystem.IsWindows() ? "/home/render/assets" : @"C:\Render\Assets")}}
+                    }
+                  }
+                }
+                """);
+            Assert.True(await files.OpenPathAsync(elsewhere));
+            var there = shell.Workspaces[^1].Workspace!;
+            Assert.Equal((Ui.Pane.ThisPc, false), (Assert.Single(there.Panes).Path, there.IsDirty));
+
+            await workspace.DisposeAsync();
+            await there.DisposeAsync();
+        }
+        finally
+        {
+            folder.Delete(recursive: true);
+        }
+
+        static IEnumerable<string> Named(BrowserPaneModel pane) =>
+            pane.Rows.Where(static row => !row.IsParentNavigation).Select(static row => row.Name);
     }
 
     /// <summary>A workspace with no agent behind it, for the tests that only need the shape.</summary>

@@ -64,9 +64,10 @@ applied, and chosen on the Appearance page (P.5.1).
 - [x] P.1.7 Register the Explorer drop broker on launch (`ExplorerDropBrokerInstaller.EnsureRegistered`).
 - [ ] P.1.8 Update check on start, close the shell when an update is installing, and the update link in
       the status bar -- on the MSI updater from P.1.5. `MainForm.cs:246-250, 3604-3693`.
-- [ ] P.1.9 (Done but the save prompt, which waits for P.3.1.) Stop the agent on exit in "only while StorageHub is open" mode (`DesktopStopsAgent`); ask to
+- [x] P.1.9 Stop the agent on exit in "only while StorageHub is open" mode (`DesktopStopsAgent`); ask to
       save each changed workspace before closing; make shutdown finish before the process exits (the
-      async `ShutdownRequested` handler is not awaited).
+      async `ShutdownRequested` handler is not awaited). The save prompt came with P.3.1: Cancel on
+      any workspace keeps the shell open, and closing one changed tab asks the same.
 - [x] P.1.10 First-run "How should StorageHub run?" prompt and `AgentHostModeController` (Windows).
       Asked once, over the shell, by an installed Windows build (not one run from source); only a
       change of mode is applied, and the Settings page applies through the same controller. Closing
@@ -119,7 +120,8 @@ applied, and chosen on the Appearance page (P.5.1).
       rather than asked about; a desktop folder is refused, and leaves a Failed row on the Active
       tab for a minute.
 - [x] P.2.12 Panes re-read while transfers run and once they settle (1.4's 5 s timer). Quietly: no cover, the filter, selection and scroll kept. A folder over a page re-reads its first page and brings the rest back on scroll.
-- [ ] P.2.13 Filter survives navigation (done); Size right-aligned (done); sort and filter saved with the pane, which comes with workspace saving (P.3.1).
+- [x] P.2.13 Filter survives navigation (done); Size right-aligned (done); sort and filter saved with the pane, which comes with workspace saving (P.3.1).
+      Done: each pane's sort column, direction and filter go in the `.shw` and come back applied.
 - [x] P.2.14 The staging bar always shows ("Clipboard: empty"), with "Paste to active pane"; the drag-hint
       row above the panes.
       Dragging a pane by its header, which the hint promises and 2.0 could not do, is back too:
@@ -137,6 +139,12 @@ applied, and chosen on the Appearance page (P.5.1).
       Done: in the picker beside This PC, and what a second pane opens on.
 - [ ] P.3.1 Workspaces: Save, Save As, Open (.shw), Rename, and the tab's `*` (was L.8); Welcome's
       workspace list with Open, Pin, Remove and Copy path; Workspace menu Pinned/Recent and Pin/Unpin.
+      First half done: Save (Ctrl+S), Save As, Open (Ctrl+O) and Rename, reading and writing 1.4's
+      `.shw` unchanged; the `*` whenever the workspace differs from its file; saving and opening
+      record the file in `WorkspaceBookmarks`, which the list and the menu are to read. A save or a
+      close while a file is still opening waits for it, and a This PC folder saved on the other OS
+      opens with that pane on This PC. Left open: Welcome's list and the menu's Pinned/Recent and
+      Pin/Unpin; Rename is on the menu only, as in 1.4 (no rename on the tab itself).
 - [ ] P.3.2 Workspace > Exit; workspace commands dimmed on Welcome and Sync tasks.
 - [ ] P.3.3 View > Connections panel (Ctrl+B), Move connections panel, and the panel's width, side and
       visibility remembered.
@@ -309,9 +317,10 @@ reference shot.
       along the top. Text size was a false alarm: body text is 12 px like 1.4's 9 pt Segoe UI, and the
       "1.25x" shell shots lay out a larger window at 1.0 rather than scaling, which makes text look
       small beside a 125% reference.
-- [ ] L.8 Workspace tabs: Save, Save As and Open workspace have no handlers in 2.0, and the tab's `*`
-      for unsaved changes comes with them. Close is done: the X on a workspace tab and
-      Workspace > Close Workspace both close it and release its panes' connections.
+- [x] L.8 Workspace tabs: Save, Save As and Open workspace have no handlers in 2.0, and the tab's `*`
+      for unsaved changes comes with them. Done with P.3.1: the tab's tooltip is the file's path and
+      its accessible name "{name} workspace", as 1.4 set them. Close is done: the X on a workspace tab
+      and Workspace > Close Workspace both close it and release its panes' connections.
 - [ ] L.2 The file pane (ref 05). Done apart from the drag-hint row: the chip, the badges, the state
       line, the `FILES` row with its overflow, "Filter:" and the item count. Was: the connection chip with its `STORAGE`/`LOCAL` badges and the
       "● Ready" status line in place of the "Select the profile to connect" drop-down; the labelled

@@ -44,6 +44,18 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
     private WorkspacePreset _preset;
     private PaneClipboard? _clipboard;
     private string _message = string.Empty;
+    private string _name;
+    private string? _filePath;
+    private bool _isDirty = true;
+
+    /// <summary>What the file said when it was last saved or opened, or null if it never was.</summary>
+    private string? _saved;
+
+    /// <summary>Set while a file is being put back, so the panes arriving do not count as changes.</summary>
+    private bool _restoring;
+
+    /// <summary>Cancelled when the workspace closes, so a file still being opened stops with it.</summary>
+    private readonly CancellationTokenSource _lifetime = new();
 
     /// <param name="paneFactory">
     /// How a new pane is built. The workspace makes and drops panes as the arrangement changes, so
@@ -53,6 +65,7 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
     /// Where the paste confirmation goes. Null runs transfers unconfirmed, which is what a headless
     /// test wants; the shell always passes one.
     /// </param>
+    /// <param name="name">What the tab says. The shell numbers new workspaces; a file names its own.</param>
     /// <remarks>
     /// Three client factories because a transfer touches three agent surfaces: the queue it is
     /// enqueued on, the storage it walks to expand a folder, and the inspector it asks to create
@@ -67,7 +80,8 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
         Func<IObjectInspectorAgentClient> mutations,
         Func<Task>? queueChanged = null,
         WorkspacePreset? preset = null,
-        IDialogService? dialogs = null)
+        IDialogService? dialogs = null,
+        string? name = null)
     {
         _paneFactory = paneFactory ?? throw new ArgumentNullException(nameof(paneFactory));
         _queue = queue ?? throw new ArgumentNullException(nameof(queue));
@@ -75,6 +89,7 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
         _mutations = mutations ?? throw new ArgumentNullException(nameof(mutations));
         _queueChanged = queueChanged;
         _dialogs = dialogs;
+        _name = string.IsNullOrWhiteSpace(name) ? Ui.Format(Ui.Shell.WorkspaceTabFormat, 1) : name.Trim();
 
         _preset = preset ?? WorkspacePreset.All[1];
         _layout = WorkspaceLayoutModel.CreatePreset(_preset.PaneCount, _preset.Layout);
@@ -205,6 +220,205 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
     public ICommand ClearClipboardCommand { get; }
 
     public ICommand ClosePaneCommand { get; }
+
+    /// <summary>What the tab says, and what a saved file is called inside.</summary>
+    public string Name => _name;
+
+    /// <summary>
+    /// Whether somebody chose the name: by renaming, or by opening a file that carried one. A
+    /// workspace still on its generated "Workspace 1" has not, and saving names it after the file.
+    /// </summary>
+    internal bool HasExplicitName { get; private set; }
+
+    /// <summary>The file this workspace was saved to or opened from, or null if neither.</summary>
+    public string? FilePath
+    {
+        get => _filePath;
+        private set
+        {
+            if (string.Equals(_filePath, value, StringComparison.Ordinal)) return;
+            _filePath = value;
+            Raise(nameof(FilePath));
+        }
+    }
+
+    /// <summary>
+    /// Whether the workspace differs from its file: the "*" on the tab, and what is asked about on
+    /// close. Always true for one that was never saved, as it was in 1.x.
+    /// </summary>
+    public bool IsDirty
+    {
+        get => _isDirty;
+        private set
+        {
+            if (_isDirty == value) return;
+            _isDirty = value;
+            Raise(nameof(IsDirty));
+        }
+    }
+
+    /// <summary>Gives the workspace a name somebody chose, as Workspace > Rename does.</summary>
+    internal void Rename(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        name = name.Trim();
+        HasExplicitName = true;
+        if (string.Equals(name, _name, StringComparison.Ordinal)) return;
+        _name = name;
+        Raise(nameof(Name));
+        Recheck();
+    }
+
+    /// <summary>
+    /// The workspace as a <c>.shw</c> file holds it: the name, the arrangement, the active pane and
+    /// each pane's state, keyed by the pane's leaf.
+    /// </summary>
+    internal WorkspaceFileDocument CaptureDocument() => WorkspaceFileStore.Capture(
+        _name,
+        _byId.FirstOrDefault(pair => ReferenceEquals(pair.Value, Active)).Key,
+        _layout.Root,
+        _layout.PaneIds.ToDictionary(static id => id, id => _byId[id].CaptureState()));
+
+    /// <summary>
+    /// Writes the workspace to a file, and makes that file the one it is compared against.
+    /// </summary>
+    /// <remarks>
+    /// Choosing a file name names the workspace, unless somebody already named it -- done before
+    /// the capture, so the new name is what lands in the file. The path is the file's own after
+    /// the store forces the <c>.shw</c> extension, which is the one to remember.
+    /// </remarks>
+    internal void Save(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+
+        // Halfway through opening, a pane still connecting has no folder yet, and the file would
+        // lose it and then look saved. The caller waits for Opening instead.
+        if (_restoring) throw new InvalidOperationException("The workspace is still being opened.");
+
+        var candidate = System.IO.Path.GetFileNameWithoutExtension(path).Trim();
+        if (!HasExplicitName && candidate.Length > 0)
+        {
+            _name = candidate.Length > MaximumNameLength ? candidate[..MaximumNameLength] : candidate;
+            HasExplicitName = true;
+            Raise(nameof(Name));
+        }
+
+        var document = CaptureDocument();
+        WorkspaceFileStore.Save(path, document);
+        FilePath = System.IO.Path.GetFullPath(System.IO.Path.ChangeExtension(path, ".shw"));
+        _saved = WorkspaceFileStore.Fingerprint(document);
+        Recheck();
+    }
+
+    /// <summary>
+    /// Takes up a workspace read from a file: its arrangement, its name, and every pane where it
+    /// was.
+    /// </summary>
+    /// <remarks>
+    /// The restore is kept in <see cref="Opening"/>, so a save or a close that comes while a pane
+    /// is still connecting can wait for it rather than capture it halfway.
+    /// </remarks>
+    internal Task OpenAsync(
+        WorkspaceFileDocument document,
+        string path,
+        bool reconnectRemote,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+        return Opening = TakeUpAsync(document, path, reconnectRemote, cancellationToken);
+    }
+
+    /// <summary>
+    /// The file being opened, until every pane is back where it was; complete when there is none.
+    /// </summary>
+    internal Task Opening { get; private set; } = Task.CompletedTask;
+
+    /// <summary>The restore itself, which <see cref="OpenAsync"/> keeps hold of.</summary>
+    /// <remarks>
+    /// <para>
+    /// The panes this workspace already made are reused for the file's leaves, as switching
+    /// arrangement does, so only a shortfall is built. They are restored together rather than one
+    /// after another, since each waits on its own connection. The tab shows no "*" meanwhile:
+    /// what it shows is the file.
+    /// </para>
+    /// <para>
+    /// The baseline for the "*" is the file as each pane took it up, captured the moment that
+    /// pane was back, rather than the whole workspace once the slowest one is. A connection
+    /// renamed since the file was written is not a change anybody made; a filter typed into a
+    /// pane that was back early, or a rename while another pane connected, is.
+    /// </para>
+    /// </remarks>
+    private async Task TakeUpAsync(
+        WorkspaceFileDocument document,
+        string path,
+        bool reconnectRemote,
+        CancellationToken cancellationToken)
+    {
+        var layout = new WorkspaceLayoutModel(WorkspaceFileStore.ToLayout(document.Layout));
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
+        var name = document.Name.Trim();
+        BrowserPaneModel active;
+        (Guid Id, BrowserPaneState State)[] restored;
+        _restoring = true;
+        try
+        {
+            _name = name;
+            HasExplicitName = true;
+
+            // Set before anything is awaited, so opening the same file again meanwhile finds
+            // this tab rather than making a second one.
+            FilePath = System.IO.Path.GetFullPath(path);
+            IsDirty = false;
+            Raise(nameof(Name));
+
+            _layout = layout;
+            var orientation = layout.Root is WorkspaceSplitNode { Orientation: WorkspaceSplitOrientation.Horizontal }
+                ? WorkspaceLayout.TopAndBottom
+                : WorkspaceLayout.SideBySide;
+            _preset = WorkspacePreset.Find(layout.PaneCount, orientation) ?? _preset;
+            Rebuild();
+            Raise(nameof(Preset));
+
+            restored = await Task.WhenAll(layout.PaneIds.Select(async id =>
+            {
+                var pane = _byId[id];
+                await pane.RestoreAsync(document.Panes[id], reconnectRemote, linked.Token).ConfigureAwait(true);
+                return (id, pane.CaptureState());
+            })).ConfigureAwait(true);
+            linked.Token.ThrowIfCancellationRequested();
+
+            active = _byId.GetValueOrDefault(document.ActivePaneId) ?? Panes[0];
+            active.IsActive = true;
+        }
+        finally
+        {
+            _restoring = false;
+        }
+
+        _saved = WorkspaceFileStore.Fingerprint(WorkspaceFileStore.Capture(
+            name,
+            _byId.FirstOrDefault(pair => ReferenceEquals(pair.Value, active)).Key,
+            layout.Root,
+            restored.ToDictionary(static pane => pane.Id, static pane => pane.State)));
+        Recheck();
+    }
+
+    /// <summary>The longest name a file can carry, which is what 1.x's rename box allowed.</summary>
+    internal const int MaximumNameLength = 128;
+
+    /// <summary>
+    /// Compares the workspace with what was last saved, and moves the "*" to match.
+    /// </summary>
+    /// <remarks>
+    /// Compared rather than flagged on every change, so changing a filter and changing it back
+    /// leaves nothing to save, and a listing that reloads without moving is not a change either.
+    /// </remarks>
+    private void Recheck()
+    {
+        if (_restoring) return;
+        IsDirty = _saved is null ||
+            !string.Equals(_saved, WorkspaceFileStore.Fingerprint(CaptureDocument()), StringComparison.Ordinal);
+    }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -390,10 +604,19 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
     /// showing the new ratio, and rebuilding it under their pointer would reset every pane's
     /// scroll position at the end of every drag.
     /// </remarks>
-    internal void SetRatio(WorkspaceSplitNode node, double ratio) => _layout.SetRatio(node, ratio);
+    internal void SetRatio(WorkspaceSplitNode node, double ratio)
+    {
+        _layout.SetRatio(node, ratio);
+        Recheck();
+    }
 
     public async ValueTask DisposeAsync()
     {
+        // First, so a file still being opened stops putting panes back into a workspace that is
+        // letting them go.
+        if (!_lifetime.IsCancellationRequested) _lifetime.Cancel();
+        _lifetime.Dispose();
+
         foreach (var pane in Panes)
         {
             pane.PropertyChanged -= OnPaneChanged;
@@ -460,6 +683,7 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
         DescribePanes();
         LayoutChanged?.Invoke(this, EventArgs.Empty);
         RaiseCommands();
+        Recheck();
     }
 
     /// <summary>
@@ -653,6 +877,19 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
             {
                 if (!ReferenceEquals(other, activated)) other.IsActive = false;
             }
+        }
+
+        // What a saved workspace holds about a pane, and so what can make it differ from its file.
+        if (e.PropertyName is nameof(BrowserPaneModel.Connection)
+            or nameof(BrowserPaneModel.Path)
+            or nameof(BrowserPaneModel.ContentKind)
+            or nameof(BrowserPaneModel.Filter)
+            or nameof(BrowserPaneModel.SortColumn)
+            or nameof(BrowserPaneModel.SortAscending)
+            or nameof(BrowserPaneModel.ShowConnectionBar)
+            or nameof(BrowserPaneModel.IsActive))
+        {
+            Recheck();
         }
 
         RaiseCommands();
