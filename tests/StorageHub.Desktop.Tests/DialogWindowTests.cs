@@ -64,6 +64,15 @@ public class DialogWindowTests
         Assert.Equal(
             [Ui.Dialogs.ButtonYes, Ui.Dialogs.ButtonNo, Ui.Dialogs.ButtonCancel],
             Actions(window).Children.OfType<Button>().Select(button => button.Content as string));
+
+        // And one that says what it does says it in place of OK, drawn as the dialog's own.
+        var named = DialogWindow.For(Request(DialogButtons.OkCancel) with { Accept = Ui.Transfer.ClearHistory });
+        named.Show();
+
+        Assert.Equal(
+            [Ui.Transfer.ClearHistory, Ui.Dialogs.ButtonCancel],
+            Actions(named).Children.OfType<Button>().Select(button => button.Content as string));
+        Assert.Contains("primary", Button(named, Ui.Transfer.ClearHistory).Classes);
     }
 
     [AvaloniaFact]

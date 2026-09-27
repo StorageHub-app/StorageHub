@@ -19,19 +19,20 @@
       <Grid ColumnDefinitions="Auto,*">
         <StackPanel Grid.Column="0" Orientation="Horizontal"
                     Spacing="{StaticResource SpaceSm}" VerticalAlignment="Center">
-          <Button Classes="tool" Command="{Binding RefreshCommand}">
+          <!-- Each says in its tip what it acts on, as 1.x's did. -->
+          <Button Classes="tool" Command="{Binding RefreshCommand}" ToolTip.Tip="{Binding RefreshHint}">
             <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
               <LucideIcon Kind="RefreshCw" Size="{StaticResource IconSizeSm}"/>
               <TextBlock Text="{Binding RefreshLabel}"/>
             </StackPanel>
           </Button>
-          <Button Classes="tool" Command="{Binding CancelCommand}">
+          <Button Classes="tool" Command="{Binding CancelCommand}" ToolTip.Tip="{Binding CancelHint}">
             <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
               <LucideIcon Kind="Trash" Size="{StaticResource IconSizeSm}"/>
               <TextBlock Text="{Binding CancelLabel}"/>
             </StackPanel>
           </Button>
-          <Button Classes="tool" Command="{Binding RetryCommand}">
+          <Button Classes="tool" Command="{Binding RetryCommand}" ToolTip.Tip="{Binding RetryHint}">
             <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
               <LucideIcon Kind="Play" Size="{StaticResource IconSizeSm}"/>
               <TextBlock Text="{Binding RetryLabel}"/>
@@ -44,13 +45,14 @@
                     ItemsSource="{Binding ReconcileActions}"
                     SelectedIndex="{Binding SelectedReconcileAction, Mode=TwoWay}"
                     MinWidth="150"/>
-          <Button Classes="tool" Command="{Binding ApplyReconcileCommand}">
+          <Button Classes="tool" Command="{Binding ApplyReconcileCommand}" ToolTip.Tip="{Binding ApplyHint}">
             <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
               <LucideIcon Kind="CircleCheck" Size="{StaticResource IconSizeSm}"/>
               <TextBlock Text="{Binding ApplyLabel}"/>
             </StackPanel>
           </Button>
-          <Button Classes="tool" Command="{Binding NextConflictCommand}">
+          <!-- The rows after these, as 1.x's Next was; Refresh comes back to the newest. -->
+          <Button Classes="tool" Command="{Binding NextPageCommand}" ToolTip.Tip="{Binding NextHint}">
             <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
               <LucideIcon Kind="ArrowRight" Size="{StaticResource IconSizeSm}"/>
               <TextBlock Text="{Binding NextLabel}"/>
@@ -79,10 +81,26 @@
       <TabControl.ContentTemplate>
         <DataTemplate DataType="vm:TransferQueueTab">
           <Panel>
-            <!-- Every state tab shows the same six columns over a different filter. -->
+            <!-- Every state tab shows the same six columns over a different filter. Several rows
+                 can be chosen, as in 1.x's grid, and the toolbar and the right-click menu act on
+                 all of them. Only SelectedItems is bound: setting a SelectedItem back would
+                 collapse a selection of several to one.
+
+                 It does not scroll to the selection by itself. Each poll moves the transfer that
+                 changed last to the top, which shifts the chosen rows, and the table scrolled
+                 back to them twice a second while somebody was scrolling down to pick another.
+                 The arrow keys still bring the row they move to into view. -->
             <TableView IsVisible="{Binding IsStateFilter}"
                        ItemsSource="{Binding $parent[vm:TransferQueueView].((vm:TransferQueueModel)DataContext).Rows}"
-                       SelectedItem="{Binding $parent[vm:TransferQueueView].((vm:TransferQueueModel)DataContext).Selected, Mode=TwoWay}">
+                       SelectedItems="{Binding $parent[vm:TransferQueueView].((vm:TransferQueueModel)DataContext).SelectedRows}"
+                       SelectionMode="Multiple"
+                       AutoScrollToSelectedItem="False">
+              <!-- There from the start and filled as it opens. A menu first given to the table by
+                   the request that should open it is not opened by that request, so the first
+                   right-click, and the Menu key, did nothing. -->
+              <TableView.ContextMenu>
+                <ContextMenu/>
+              </TableView.ContextMenu>
               <TableView.Columns>
                 <TableViewColumn Header="{Binding $parent[vm:TransferQueueView].((vm:TransferQueueModel)DataContext).ColumnOperation}"
                                  Binding="{Binding Operation}" Width="140"/>

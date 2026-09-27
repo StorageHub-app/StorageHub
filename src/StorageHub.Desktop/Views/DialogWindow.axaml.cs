@@ -58,18 +58,23 @@ public partial class DialogWindow : Window
         var actions = this.GetControl<StackPanel>("PART_Actions");
         foreach (var choice in DialogDefaults.Choices(request.Buttons))
         {
+            var primary = choice == PrimaryFor(request.Buttons);
+            var named = primary && !string.IsNullOrWhiteSpace(request.Accept);
             var button = new Button
             {
-                Content = LabelFor(choice),
+                Content = named ? request.Accept : LabelFor(choice),
                 MinWidth = 88,
-                IsDefault = choice == PrimaryFor(request.Buttons),
+                IsDefault = primary,
                 IsCancel = choice == fallback && choice is DialogChoice.Cancel or DialogChoice.No
             };
 
             // Captured rather than read from the sender, so a caller that restyles the button
             // cannot change what it answers.
             button.Click += (_, _) => Close(choice);
-            if (choice == PrimaryFor(request.Buttons) && request.Severity == DialogSeverity.Question)
+
+            // A button that says what it does is the one the dialog is for, and 1.x drew those
+            // primary whatever the severity: Delete, Clear history.
+            if (primary && (named || request.Severity == DialogSeverity.Question))
             {
                 button.Classes.Add("primary");
             }

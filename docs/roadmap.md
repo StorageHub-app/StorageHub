@@ -133,17 +133,25 @@ setting to choose it (P.5.1).
 
 ### P.4 Transfers and sync
 
-- [ ] P.4.1 Queue selection survives each poll (rows are rebuilt and the selection lost every 0.5-2 s);
-      Cancel/Retry/Apply follow the selection at once; several rows can be acted on.
-- [ ] P.4.2 Queue context menu: Clear selected, Cancel and clear, Clear all history, with the "warn before
-      clearing" confirmation (the setting is saved and unread).
+- [x] P.4.1 Queue selection survives each poll (rows are rebuilt and the selection lost every 0.5-2 s);
+      Cancel/Retry/Apply follow the selection at once; several rows can be acted on. Rows are now
+      updated in place by transfer id, a selected row the agent moves up is selected again, the
+      table no longer scrolls back to the selection on each poll, and each tab keeps its own
+      selection (by id, where 1.4 kept it by row). Requests carry the revisions shown at the click.
+- [x] P.4.2 Queue context menu: Clear selected, Cancel and clear, Clear all history, with the "warn before
+      clearing" confirmation (the setting is saved and unread). The menu opens on the first
+      right-click and on the Menu key; the warning's button reads "Clear history", drawn primary
+      as 1.4's was.
 - [ ] P.4.3 Cancel, retry and reconcile say what happened ("Updated 3", "2 conflicts") and refusals are
-      shown; Reconcile defaults to Restart for a conflict; MarkFailed and Cancel are offered.
+      shown; Reconcile defaults to Restart for a conflict; MarkFailed and Cancel are offered. The
+      counts are said since P.4.1 (for a few seconds, then the toolbar's "N transfer(s)." comes
+      back, as 1.4 wrote it after every read); the rest is open.
 - [x] P.4.4 Queue paging. Worse than the sweep thought: the queue asked for 100 rows per page against
       a contract limit of 50, the client refused every request, and the refusal was lost in a
       fire-and-forget -- so the 2.0 queue never listed anything. Found by the new error log; it now
       reads 50 at a time up to 200, and the test fake enforces the contract as the real client does.
-      "Next" paging again is still open, with P.4.1.
+      "Next" pages on by 200 as 1.4's did by 25; Refresh, and a transfer just queued, come back to
+      the newest (with P.4.1).
 - [ ] P.4.5 Source and Destination name the connection; Status reads "State: error".
 - [ ] P.4.6 Explorer drops waiting to be queued show in Active and Logs and can be cancelled
       (`PendingDropRegistry` is in Core, unused).

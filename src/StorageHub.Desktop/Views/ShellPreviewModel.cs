@@ -660,7 +660,19 @@ internal static class ShellPreview
             // until its tab is opened.
             new ActivityLogModel(new ActivityLogReader(
                 static () => new NamedPipeTransferQueueAgentClient(),
-                static () => new NamedPipeSyncManagementAgentClient()).ReadAsync));
+                static () => new NamedPipeSyncManagementAgentClient()).ReadAsync),
+            // Clear all history asks first, as 1.x's did.
+            Services.ShellServices.Dialogs);
+        if (live)
+        {
+            // Only while "Warn before clearing all transfer history" is on, which was saved and
+            // never read; and its "Don't show this warning again" turns it off.
+            queue.ClearAllConfirmation = static () =>
+                ReadPreferences()?.ConfirmBeforeClearingTransferHistory ?? true;
+            queue.StopClearAllConfirmation = static () => UpdatePreferences(static preferences =>
+                preferences with { ConfirmBeforeClearingTransferHistory = false });
+        }
+
         var workspaces = 0;
         var model = new ShellPreviewModel(router)
         {
@@ -704,7 +716,9 @@ internal static class ShellPreview
                     static () => new NamedPipeTransferQueueAgentClient(),
                     static () => new NamedPipeRemoteStorageAgentClient(),
                     static () => new NamedPipeObjectInspectorAgentClient(),
-                    () => queue.RefreshAsync(),
+                    // From the newest, as 1.x's was, so a transfer just queued is on the page
+                    // shown even when Next had moved on from it.
+                    () => queue.RefreshFromStartAsync(),
                     preset,
                     Services.ShellServices.Dialogs)),
         };

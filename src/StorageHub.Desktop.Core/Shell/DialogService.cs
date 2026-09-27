@@ -78,6 +78,17 @@ internal sealed record DialogRequest
     public DialogChoice? Default { get; init; }
 
     /// <summary>
+    /// What the affirmative button says, when it should name what it does -- "Clear history" --
+    /// rather than read OK or Yes. Null keeps the button set's own words.
+    /// </summary>
+    /// <remarks>
+    /// For the few confirmations 1.x drew as forms of their own, whose button said what it would
+    /// do and was drawn as the dialog's primary one. An irreversible action labelled OK is easy to
+    /// agree to without reading what it was.
+    /// </remarks>
+    public string? Accept { get; init; }
+
+    /// <summary>
     /// A checkbox under the message, such as "Don't show this warning again". Null draws none.
     /// </summary>
     public string? CheckBoxLabel { get; init; }
