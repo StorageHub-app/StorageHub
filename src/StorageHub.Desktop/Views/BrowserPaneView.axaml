@@ -391,10 +391,10 @@
                   </TableViewColumn.CellTemplate>
                 </TableViewColumn>
                 <!-- Right-aligned, as 1.x had it, so the digits of sizes line up. -->
-                <TableViewColumn Width="80">
+                <TableViewColumn Width="80" HorizontalContentAlignment="Right">
                   <TableViewColumn.CellTemplate>
                     <DataTemplate DataType="core:BrowserListItem">
-                      <TextBlock Text="{Binding Size}" TextAlignment="Right" HorizontalAlignment="Stretch"
+                      <TextBlock Text="{Binding Size}" TextAlignment="Right" HorizontalAlignment="Right"
                                  VerticalAlignment="Center" Margin="0,0,6,0"/>
                     </DataTemplate>
                   </TableViewColumn.CellTemplate>

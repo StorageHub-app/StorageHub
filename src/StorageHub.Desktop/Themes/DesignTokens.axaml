@@ -184,6 +184,11 @@
   <!-- Fluent's own key: the padding of every TableView row and of its heading band. Fluent's
        6,9,6,12 made a row 37 tall; 1.4's lists were about 20, as dense as Explorer's. -->
   <Thickness x:Key="TableViewRowPadding">6,3</Thickness>
+  <!-- The column dividers in a heading band are its resize grips, stretched to the band's height
+       by a negative margin that has to match the padding above. Fluent's is for its own 9/12, so
+       once the band was made 3/3 the dividers stuck out above it and down into the first row of
+       every table in the app. Keep the two in step. -->
+  <Thickness x:Key="TableViewColumnResizerMargin">0,-3,-6,-3</Thickness>
   <sys:Double x:Key="TreeRowHeight">22</sys:Double>
   <sys:Double x:Key="SidebarMinWidth">180</sys:Double>
   <sys:Double x:Key="SidebarMaxWidth">480</sys:Double>
