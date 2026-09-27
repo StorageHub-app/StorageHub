@@ -34,9 +34,11 @@ internal static class DesktopRestart
     /// Relaunched without arguments on purpose. The only arguments this executable accepts are
     /// <c>--agent-only</c> and the framework's own, and both are handled before a window exists and
     /// exit the process — so carrying them through would restart into something that is not a
-    /// shell. Environment variables are inherited, which is what keeps a development launch under
-    /// STORAGEHUB_DATA_ROOT pointing at the same data root.
+    /// shell. The one exception is a launch through the dotnet host, which needs the application
+    /// named to start anything at all. Environment variables are inherited, which is what keeps a
+    /// development launch under STORAGEHUB_DATA_ROOT pointing at the same data root.
     /// </remarks>
+    /// <returns>Whether a replacement shell was started.</returns>
     internal static bool TryStart()
     {
         if (!Requested)
@@ -53,11 +55,18 @@ internal static class DesktopRestart
 
         try
         {
-            using var started = Process.Start(new ProcessStartInfo(executable)
+            var start = new ProcessStartInfo(executable)
             {
                 UseShellExecute = false,
                 WorkingDirectory = AppContext.BaseDirectory
-            });
+            };
+            if (string.Equals(Path.GetFileNameWithoutExtension(executable), "dotnet", StringComparison.OrdinalIgnoreCase) &&
+                System.Reflection.Assembly.GetEntryAssembly()?.Location is { Length: > 0 } application)
+            {
+                start.ArgumentList.Add(application);
+            }
+
+            using var started = Process.Start(start);
             return started is not null;
         }
         catch (Exception error) when (error is System.ComponentModel.Win32Exception or

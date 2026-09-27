@@ -281,6 +281,7 @@ public sealed class SettingsWindowTests : IDisposable
         foreach (var page in new[]
                  {
                      SettingsPageCatalog.PerformancePageKey,
+                     "appearance",
                      SettingsPageCatalog.ConnectionsPageKey,
                      SettingsPageCatalog.ProviderPageKey(StorageProviderKind.Sftp),
                      SettingsPageCatalog.ProviderPageKey(StorageProviderKind.Ssh),
@@ -302,6 +303,74 @@ public sealed class SettingsWindowTests : IDisposable
             using var stream = File.Create(Path.Combine(directory, $"settings-{name}-{(dark ? "dark" : "light")}.png"));
             frame!.Save(stream, new PngBitmapEncoderOptions());
         }
+    }
+
+    /// <summary>
+    /// The language is chosen on the Appearance page, and a restart is offered as 1.4 offered it.
+    /// </summary>
+    /// <remarks>
+    /// The list names each language in itself, so somebody who has landed in one they cannot read
+    /// still finds their own. A save asks only when the words on screen would change: declined,
+    /// the choice is saved all the same and Apply leaves the window open; going back to the
+    /// language already showing asks nothing; a save that fails says so, asks nothing and stays
+    /// open, as 1.4's did; accepted, OK closes the window with the restart left for the shell.
+    /// </remarks>
+    [AvaloniaFact]
+    public void ChoosingALanguageOffersARestartOnlyWhenTheWordsWouldChange()
+    {
+        Assert.SkipWhen(
+            !string.IsNullOrEmpty(Environment.GetEnvironmentVariable(DesktopCulture.LanguageEnvironmentVariable)),
+            "STORAGEHUB_LANGUAGE pins the language, so no save changes it and nothing is offered.");
+        var showing = Ui.Culture.Name;
+        _stored = _stored with { Language = showing };
+        var failing = false;
+        var dialogs = new KeyStoreTests.RecordingDialogs();
+        var model = new SettingsModel(
+            () => _stored,
+            p =>
+            {
+                if (failing) throw new IOException("The disk is full.");
+                _stored = p;
+                _saves++;
+            },
+            dialogs: dialogs);
+        var closed = 0;
+        model.Closed += (_, _) => closed++;
+        var language = Row(model, "language");
+        static string Prompt(string culture) =>
+            Ui.Format(Ui.Dialogs.LanguageRestartPromptFormat, CultureInfo.GetCultureInfo(culture).NativeName);
+
+        Assert.Contains(language, model.Pages.Single(page => page.Key == "appearance").Rows);
+        Assert.Equal(
+            [Ui.Settings.LanguageAutomatic, .. DesktopCulture.SupportedCultures.Select(culture => CultureInfo.GetCultureInfo(culture).NativeName)],
+            language.Choices);
+        var others = DesktopCulture.SupportedCultures.Where(culture => culture != showing).ToList();
+
+        language.SelectedChoice = IndexOf(model, "language", others[0]);
+        model.ApplyCommand.Execute(null);
+        Assert.Equal(Prompt(others[0]), dialogs.LastRequest?.Message);
+        Assert.Equal(others[0], _stored.Language);
+        Assert.False(model.LanguageRestartRequested);
+        Assert.Equal(0, closed);
+
+        var asked = dialogs.LastRequest;
+        language.SelectedChoice = IndexOf(model, "language", showing);
+        model.ApplyCommand.Execute(null);
+        Assert.Same(asked, dialogs.LastRequest);
+
+        dialogs.Choice = Desktop.Shell.DialogChoice.Yes;
+        language.SelectedChoice = IndexOf(model, "language", others[1]);
+        failing = true;
+        model.SaveCommand.Execute(null);
+        Assert.Equal(Ui.Dialogs.SettingsSaveFailed, dialogs.LastRequest?.Message);
+        Assert.Equal(showing, _stored.Language);
+        Assert.Equal(0, closed);
+
+        failing = false;
+        model.SaveCommand.Execute(null);
+        Assert.Equal(Prompt(others[1]), dialogs.LastRequest?.Message);
+        Assert.True(model.LanguageRestartRequested);
+        Assert.Equal(1, closed);
     }
 
     /// <summary>Speed Limits opens Settings on the page that holds them.</summary>

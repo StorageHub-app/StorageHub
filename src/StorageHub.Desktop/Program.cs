@@ -21,7 +21,19 @@ public static class Program
             return RunAgentOnly();
         }
 
-        return BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+        var exitCode = BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+
+        // After the lifetime, so the replacement shell never overlaps this one. See DesktopRestart.
+        // The close left the agent running for that shell, so when none could be started, "Only
+        // while StorageHub is open" still takes the agent with this one, as any other close does.
+        var restarting = DesktopRestart.Requested;
+        if (!DesktopRestart.TryStart() && restarting && OperatingSystem.IsWindows() && DesktopAgentHost.DesktopStopsAgent)
+        {
+            using var lifecycle = WindowsDesktopLifecycle.Create();
+            _ = lifecycle.TryStopAgentAsync(AgentShutdownReason.Restart).AsTask().GetAwaiter().GetResult();
+        }
+
+        return exitCode;
     }
 
     /// <summary>

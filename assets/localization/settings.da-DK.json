@@ -161,7 +161,7 @@
   "language": "Sprog",
   "languageAccessibleName": "Programmets sprog",
   "languageHint": "StorageHub tilbyder at genstarte, når du anvender dette, fordi hvert vindue læser sin tekst, mens det bygges.",
-  "languageAutomatic": "Samme som Windows",
+  "languageAutomatic": "Samme som systemet",
   "shortcutsAccessibleName": "Tildeling af tastaturgenveje",
   "shortcutsGridAccessibleName": "Kommandoer og genveje",
   "shortcutColumnCommand": "Kommando",

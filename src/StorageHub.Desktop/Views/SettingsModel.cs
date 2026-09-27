@@ -463,6 +463,7 @@ internal sealed class SettingsModel : INotifyPropertyChanged
     private readonly Func<DesktopUpdatePreferences> _load;
     private readonly Action<DesktopUpdatePreferences> _save;
     private readonly Action<DesktopUpdatePreferences> _preview;
+    private readonly Shell.IDialogService? _dialogs;
     private DesktopUpdatePreferences _working;
     private DesktopUpdatePreferences _saved;
     private int _selectedPage;
@@ -478,6 +479,11 @@ internal sealed class SettingsModel : INotifyPropertyChanged
     /// Opens a new connection of a provider, from that provider's page. Null hides the button.
     /// </param>
     /// <param name="agent">What the Background agent page reads and changes.</param>
+    /// <param name="dialogs">
+    /// What says a save failed and asks whether to restart for a new language. A seam so a test can
+    /// answer it: the rule worth testing is which saves are worth interrupting someone for, not the
+    /// dialog. Null never asks, and a save that fails is left to the shell's own error handling.
+    /// </param>
     internal SettingsModel(
         Func<DesktopUpdatePreferences> load,
         Action<DesktopUpdatePreferences> save,
@@ -485,7 +491,8 @@ internal sealed class SettingsModel : INotifyPropertyChanged
         Shell.IFilePickerService? files = null,
         Func<Task<string?>>? importKey = null,
         Action<StorageProviderKind>? createConnection = null,
-        AgentModeServices? agent = null)
+        AgentModeServices? agent = null,
+        Shell.IDialogService? dialogs = null)
     {
         Func<string, Task<string?>>? browse = files is null
             ? null
@@ -493,6 +500,7 @@ internal sealed class SettingsModel : INotifyPropertyChanged
         _load = load ?? throw new ArgumentNullException(nameof(load));
         _save = save ?? throw new ArgumentNullException(nameof(save));
         _preview = preview ?? (_ => { });
+        _dialogs = dialogs;
         _saved = _load();
         _working = _saved;
 
@@ -524,8 +532,10 @@ internal sealed class SettingsModel : INotifyPropertyChanged
 
         RebuildNavigation();
 
-        ApplyCommand = new RelayCommand(_ => Apply(), _ => IsDirty);
-        SaveCommand = new RelayCommand(_ => { Apply(); Closed?.Invoke(this, true); });
+        // Awaited rather than discarded, so a failure nothing here expects still reaches the
+        // shell's error handling instead of vanishing with the task.
+        ApplyCommand = new RelayCommand(async _ => await CommitAsync(close: false).ConfigureAwait(true), _ => IsDirty);
+        SaveCommand = new RelayCommand(async _ => await CommitAsync(close: true).ConfigureAwait(true));
         CancelCommand = new RelayCommand(_ =>
         {
             Discard();
@@ -607,6 +617,12 @@ internal sealed class SettingsModel : INotifyPropertyChanged
 
     public ICommand CancelCommand { get; }
 
+    /// <summary>
+    /// Whether a restart was accepted for a new language. The shell acts on it once this window
+    /// has closed; restarting from inside a modal window would tear down the one running the code.
+    /// </summary>
+    internal bool LanguageRestartRequested { get; private set; }
+
     /// <summary>Raised with true when the edits were kept.</summary>
     internal event EventHandler<bool>? Closed;
 
@@ -643,6 +659,89 @@ internal sealed class SettingsModel : INotifyPropertyChanged
         Raise(nameof(IsDirty));
         Raise(nameof(DirtyLabel));
         (ApplyCommand as RelayCommand)?.RaiseCanExecuteChanged();
+    }
+
+    /// <summary>
+    /// Saves, offers the restart a new language needs, and closes after OK or an accepted restart.
+    /// </summary>
+    /// <remarks>
+    /// A save that fails says so and goes no further, as 1.4's did: the window stays open with the
+    /// edits in it, nothing is offered, and the file still holds what it held.
+    /// </remarks>
+    private async Task CommitAsync(bool close)
+    {
+        var before = _saved.Language;
+        try
+        {
+            Apply();
+        }
+        catch (Exception error) when (_dialogs is not null &&
+            error is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            await _dialogs.ShowAsync(new Shell.DialogRequest
+            {
+                Title = Ui.Dialogs.SettingsCaption,
+                Message = Ui.Dialogs.SettingsSaveFailed,
+                Severity = Shell.DialogSeverity.Error,
+                Buttons = Shell.DialogButtons.Ok
+            }).ConfigureAwait(true);
+            return;
+        }
+
+        if (await OfferLanguageRestartAsync(before).ConfigureAwait(true) || close)
+        {
+            Closed?.Invoke(this, true);
+        }
+    }
+
+    /// <summary>
+    /// Asks about restarting, but only when the save changed the language the shell would speak
+    /// and that is not the one it already speaks.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The comparison is between resolved cultures, not stored values, as 1.4 made it: on a Danish
+    /// system, moving from "Same as the system" to Danish writes a different setting and changes
+    /// nothing visible. Resolving both sides through <see cref="DesktopCulture.ResolveCurrent"/>
+    /// also honours STORAGEHUB_LANGUAGE, so a launch pinned by the environment is never offered a
+    /// restart that would change nothing.
+    /// </para>
+    /// <para>
+    /// The language on screen is checked as well, which 1.4 did not: choosing Danish, declining,
+    /// and later going back to English would otherwise offer a restart into the English already
+    /// showing.
+    /// </para>
+    /// <para>
+    /// Declining is not a failure. The setting is saved either way and takes effect at the next
+    /// launch, which is what happened before there was a prompt at all.
+    /// </para>
+    /// </remarks>
+    /// <returns>Whether the restart was accepted.</returns>
+    private async Task<bool> OfferLanguageRestartAsync(string before)
+    {
+        var next = DesktopCulture.ResolveCurrent(_saved.Language);
+        if (_dialogs is null ||
+            string.Equals(DesktopCulture.ResolveCurrent(before), next, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(Ui.Culture.Name, next, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        // Named in itself, so it is recognised whatever language is on screen.
+        var answer = await _dialogs.ConfirmAsync(new Shell.DialogRequest
+        {
+            Title = Ui.Dialogs.LanguageRestartCaption,
+            Message = Ui.Format(Ui.Dialogs.LanguageRestartPromptFormat, DesktopCulture.Describe(next)),
+            Severity = Shell.DialogSeverity.Question,
+            Buttons = Shell.DialogButtons.YesNo
+        }).ConfigureAwait(true);
+        if (answer != Shell.DialogChoice.Yes)
+        {
+            return false;
+        }
+
+        LanguageRestartRequested = true;
+        return true;
     }
 
     /// <summary>

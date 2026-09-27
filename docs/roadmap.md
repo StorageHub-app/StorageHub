@@ -36,8 +36,8 @@ P.1.1, P.1.2, P.1.4 and P.1.6 landed together: `Services/DesktopBoot.cs` runs 1.
 `SplashWindow`, `Framework/DesktopFrameworkHost.cs` is ported to Desktop.Core, and
 `DesktopAgentStartup` ensures the agent on both platforms (the packaged lifecycle on Windows, the
 user's systemd unit on Linux; a build from source uses an agent started by hand). The Check
-installation button waits for P.5.6. The language is loaded and applied, but there is still no
-setting to choose it (P.5.1).
+installation button waits for P.5.6. The language is loaded and applied, and chosen on the
+Appearance page (P.5.1).
 
 - [x] P.1.1 Splash while starting, with 1.4's stages (preparing data, framework, environment, settings,
       language, starting the agent, opening), "this can take a few seconds the first time", and a
@@ -236,7 +236,11 @@ setting to choose it (P.5.1).
 
 ### P.5 Settings and dialogs
 
-- [ ] P.5.1 Language on the Appearance page, applied at startup and by restarting the shell.
+- [x] P.5.1 Language on the Appearance page, applied at startup and by restarting the shell. Each
+      language is named in itself; saving one that changes the words on screen asks to restart, and
+      the restart leaves the agent running. A save that fails says so and keeps the window open, as
+      1.4's did. "Same as Windows" became "Same as the system". Left open: the restart itself has
+      not been tried in the real app.
 - [ ] P.5.2 SSH terminal settings reach the session (type, keep-alive, font, scrollback, bold); today the
       session gets `preferences: null` and a fixed font.
 - [ ] P.5.3 Per-provider connection defaults prefill a new connection (the editor passes `stored: null`).
@@ -298,9 +302,9 @@ reference shot.
       or `CLIENTS` caption, SSH Terminal carrying the terminal preferences, and "Create a … connection")
       and Background agent (sign-in or only while open; Windows only, as in 1.4). Performance and
       Confirmations are back in "Transfers & sync", with the total speed limits under `SPEED LIMITS`;
-      favourites-in-folders is back under Appearance (saved, but applying it is P.5.8). Not here:
-      Language (P.5.1) and the new-workspace preset (P.5.4). The shortcuts are edited and saved;
-      dispatching them is P.3.4.
+      favourites-in-folders is back under Appearance (saved, but applying it is P.5.8), with Language
+      in a card of its own (P.5.1). Not here: the new-workspace preset (P.5.4). The shortcuts are
+      edited and saved; dispatching them is P.3.4.
 - [x] L.6 Settings rows (ref 02). Done: one card per caption with hairlines between rows, units inside
       number fields with 1.4's stacked arrows and thousands separators, 1.4's text limits, rows dimmed
       rather than hidden when they do not apply, and Apply / Cancel / OK. Left open: 1.4 drew the

@@ -10,7 +10,7 @@ internal static class DesktopCulture
     /// <summary>The language the strings are authored in, and the fallback for every other one.</summary>
     internal const string DefaultCulture = "en-US";
 
-    /// <summary>The setting value meaning "follow Windows".</summary>
+    /// <summary>The setting value meaning "follow the system".</summary>
     internal const string AutomaticLanguage = "auto";
 
     /// <summary>
@@ -45,7 +45,7 @@ internal static class DesktopCulture
     /// </summary>
     /// <param name="configured">
     /// A specific culture name, or <see cref="AutomaticLanguage"/>/<see langword="null"/> to follow
-    /// Windows. A configured language that is not shipped is ignored rather than honoured, so a
+    /// the system. A configured language that is not shipped is ignored rather than honoured, so a
     /// stale setting cannot leave the shell without words.
     /// </param>
     /// <param name="uiCulture">The operating system's UI culture.</param>
@@ -74,6 +74,32 @@ internal static class DesktopCulture
     internal static bool IsSupportedSetting(string? value) =>
         string.Equals(value, AutomaticLanguage, StringComparison.OrdinalIgnoreCase) ||
         SupportedCultures.Any(culture => string.Equals(culture, value, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// How one language is named: in itself, never in the language now on screen.
+    /// </summary>
+    /// <remarks>
+    /// This is what lets someone who has ended up in a language they cannot read find their own
+    /// again, and it is what every other application does for the same reason. Only the automatic
+    /// entry is in the language on screen, because it names no language of its own.
+    /// </remarks>
+    internal static string Describe(string culture)
+    {
+        if (string.Equals(culture, AutomaticLanguage, StringComparison.OrdinalIgnoreCase))
+        {
+            return Ui.Settings.LanguageAutomatic;
+        }
+
+        try
+        {
+            return CultureInfo.GetCultureInfo(culture).NativeName;
+        }
+        catch (CultureNotFoundException)
+        {
+            // A runtime without the culture's data still has to show something to choose.
+            return culture;
+        }
+    }
 
     /// <summary>
     /// Finds the shipped culture for a name, accepting a bare language so that a Danish user on

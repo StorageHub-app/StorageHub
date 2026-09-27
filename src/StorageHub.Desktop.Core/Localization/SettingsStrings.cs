@@ -558,8 +558,11 @@ internal sealed class SettingsStrings : LocalizationModelBase
     public string LanguageHint { get; set; } =
         "StorageHub offers to restart when you apply this, because every window reads its text as it is built.";
 
-    /// <summary>The "follow Windows" entry in the language list.</summary>
-    public string LanguageAutomatic { get; set; } = "Same as Windows";
+    /// <summary>
+    /// The entry in the language list that follows the operating system, which on Linux is not
+    /// Windows, as the theme's own "Follow the system" already says.
+    /// </summary>
+    public string LanguageAutomatic { get; set; } = "Same as the system";
 
     // ------------------------------------------------------- shortcuts editor
     public string ShortcutsAccessibleName { get; set; } = "Keyboard shortcut assignments";

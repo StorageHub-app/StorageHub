@@ -122,7 +122,8 @@ public partial class SettingsWindow : Window
             ShellServices.FilePicker,
             () => ImportPrivateKeyAsync(() => window),
             provider => CreateConnection(window, provider, connectionsChanged),
-            new AgentModeServices(static () => DesktopAgentHost.Mode, OperatingSystem.IsWindows() ? ApplyAgentMode : null));
+            new AgentModeServices(static () => DesktopAgentHost.Mode, OperatingSystem.IsWindows() ? ApplyAgentMode : null),
+            new AvaloniaDialogService(() => window));
         if (pageKey is not null)
         {
             model.SelectPage(pageKey);

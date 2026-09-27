@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Threading;
 using StorageHub.Desktop.Settings;
 using StorageHub.Desktop.Themes;
 using StorageHub.Desktop.Views;
@@ -48,24 +49,31 @@ public partial class App : global::Avalonia.Application
 
         // The first command with somewhere to go. Settings opens over the shell, edits a
         // working copy, and writes through DesktopConfigStore on Apply.
-        model.Router.Handle(UiCommandIds.ToolsSettings, () =>
-        {
-            // A provider's page can open the Connection Manager, so the panel is re-read after
-            // it the way it is after the manager opened from the panel.
-            var settings = Views.SettingsWindow.ForCurrentUser(
-                connectionsChanged: () => _ = model.Sidebar.RefreshAsync());
-            _ = settings.ShowDialog(window);
-        });
+        model.Router.Handle(UiCommandIds.ToolsSettings, () => ShowSettings(pageKey: null));
 
         // Speed limits live on Transfers & sync beside concurrency, since both are how the
         // agent's transfers run; a connection's own limit is in the Connection Manager.
-        model.Router.Handle(UiCommandIds.TransferSpeedLimits, () =>
+        model.Router.Handle(
+            UiCommandIds.TransferSpeedLimits, () => ShowSettings(SettingsPageCatalog.PerformancePageKey));
+
+        void ShowSettings(string? pageKey)
         {
-            var settings = Views.SettingsWindow.ForCurrentUser(
-                SettingsPageCatalog.PerformancePageKey,
-                () => _ = model.Sidebar.RefreshAsync());
+            // A provider's page can open the Connection Manager, so the panel is re-read after
+            // it the way it is after the manager opened from the panel.
+            var settings = Views.SettingsWindow.ForCurrentUser(pageKey, () => _ = model.Sidebar.RefreshAsync());
+
+            // A new language is read only as windows are built, so the shell closes and starts
+            // again, as 1.4 did. Closing the ordinary way means the cleanup below still runs, and
+            // Program.Main starts the new shell only once this process has let go of everything.
+            // The shell's close is posted, so Settings has finished closing and handed it back first.
+            settings.Closed += (_, _) =>
+            {
+                if (settings.DataContext is not SettingsModel { LanguageRestartRequested: true }) return;
+                DesktopRestart.Request();
+                Dispatcher.UIThread.Post(() => window.Close());
+            };
             _ = settings.ShowDialog(window);
-        });
+        }
 
         // The "+" beside the tabs. It asks which arrangement, unless the answer was saved --
         // which is what the chooser's "stop asking" box does, and what makes the dialog worth
@@ -194,7 +202,9 @@ public partial class App : global::Avalonia.Application
 
             // "Only while StorageHub is open" means exactly that, so the agent goes with the window,
             // as it did in 1.x. Only Windows has that mode; on Linux the agent is the user's unit.
-            if (OperatingSystem.IsWindows() && DesktopAgentHost.DesktopStopsAgent)
+            // Not on a restart: the shell is back in a moment, and stopping the agent would
+            // interrupt the transfers and syncs it is running for nothing.
+            if (OperatingSystem.IsWindows() && DesktopAgentHost.DesktopStopsAgent && !DesktopRestart.Requested)
             {
                 using var lifecycle = WindowsDesktopLifecycle.Create();
                 _ = await lifecycle.TryStopAgentAsync(AgentShutdownReason.Restart).ConfigureAwait(true);

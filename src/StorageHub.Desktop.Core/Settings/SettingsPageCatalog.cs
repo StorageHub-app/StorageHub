@@ -517,9 +517,36 @@ internal static class SettingsPageCatalog
                             : p.ConnectionsPanelSide
                     }
                 }
+            ]),
+            // A card of its own, as in 1.4. Saving it does not change the words on screen: the
+            // window offers to restart the shell, which is what reads them again.
+            new(Ui.Settings.Language,
+            [
+                new()
+                {
+                    Key = "language",
+                    Label = Ui.Settings.Language,
+                    Hint = Ui.Settings.LanguageHint,
+                    Kind = SettingsControlKind.Choice,
+                    Choices = [.. LanguageSettings().Select(value => new SettingsChoice(value, DesktopCulture.Describe(value)))],
+                    Read = p => LanguageSetting(p.Language) ?? DesktopCulture.AutomaticLanguage,
+                    // Only a language this build ships, or automatic, which is also all the
+                    // settings file keeps when it is read back.
+                    Write = (p, v) => p with { Language = LanguageSetting(v) ?? p.Language }
+                }
             ])
         ]
     };
+
+    /// <summary>Following the system first, then each shipped language.</summary>
+    private static IEnumerable<string> LanguageSettings() =>
+        [DesktopCulture.AutomaticLanguage, .. DesktopCulture.SupportedCultures];
+
+    /// <summary>
+    /// The language setting a value names, spelt as this build spells it, or null when it names none.
+    /// </summary>
+    private static string? LanguageSetting(string? value) =>
+        LanguageSettings().FirstOrDefault(setting => string.Equals(setting, value, StringComparison.OrdinalIgnoreCase));
 
     private static SettingsPageDefinition WorkspacePage() => new()
     {

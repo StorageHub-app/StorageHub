@@ -161,7 +161,7 @@
   "language": "Sprache",
   "languageAccessibleName": "Sprache der Anwendung",
   "languageHint": "StorageHub bietet beim Übernehmen einen Neustart an, weil jedes Fenster seinen Text beim Aufbau liest.",
-  "languageAutomatic": "Wie in Windows",
+  "languageAutomatic": "Wie im System",
   "shortcutsAccessibleName": "Zuweisung von Tastenkombinationen",
   "shortcutsGridAccessibleName": "Befehle und Tastenkombinationen",
   "shortcutColumnCommand": "Befehl",
