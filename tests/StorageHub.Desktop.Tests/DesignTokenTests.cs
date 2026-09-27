@@ -125,7 +125,7 @@ public class DesignTokenTests
                  {
                      "SpaceXs", "SpaceSm", "SpaceMd", "SpaceLg", "SpaceXl", "Space2Xl",
                      "ToolbarHeight", "StatusBarHeight", "ListRowHeight", "TreeRowHeight",
-                     "SidebarMinWidth", "SidebarMaxWidth", "SplitterThickness",
+                     "SidebarMinWidth", "SplitterThickness",
                      "TrailingZoneWidth", "DenseTrailingZoneWidth",
                      "FontSizeCaption", "FontSizeBody", "FontSizeSubtitle", "FontSizeTitle",
                      "FontSizeHeading",

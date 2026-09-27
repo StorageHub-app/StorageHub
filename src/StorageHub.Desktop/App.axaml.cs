@@ -72,6 +72,9 @@ public partial class App : global::Avalonia.Application
                 () => _ = model.Sidebar.RefreshAsync(),
                 () => _ = model.ApplyAgentSettingsAsync());
 
+            // The connections panel's side is a setting there too, and moves the panel as it closes.
+            settings.Closed += (_, _) => FollowSettings(model);
+
             // A new language is read only as windows are built, so the shell closes and starts
             // again, as 1.4 did. Closing the ordinary way means the cleanup below still runs, and
             // Program.Main starts the new shell only once this process has let go of everything.
@@ -259,6 +262,18 @@ public partial class App : global::Avalonia.Application
         }
 
         return window;
+    }
+
+    /// <summary>
+    /// Brings the shell into line with what Settings saved.
+    /// </summary>
+    /// <remarks>
+    /// The connections panel's side is a setting as well as a View command, so a side chosen there
+    /// moves the panel when the window closes, rather than at the next start.
+    /// </remarks>
+    private static void FollowSettings(ShellPreviewModel model)
+    {
+        if (ShellPreview.ReadPreferences() is { } saved) model.ConnectionsPanel.FollowSettings(saved);
     }
 
     /// <summary>

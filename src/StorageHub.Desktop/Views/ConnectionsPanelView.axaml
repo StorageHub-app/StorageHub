@@ -18,7 +18,8 @@
   <DockPanel>
       <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto"
             Margin="{StaticResource PaddingLg}">
-        <TextBlock Classes="title" Text="{Binding Title}" VerticalAlignment="Center"/>
+        <TextBlock Classes="title" Text="{Binding Title}" VerticalAlignment="Center"
+                   TextTrimming="CharacterEllipsis"/>
         <Button Grid.Column="1" Classes="primary" Command="{Binding NewCommand}">
           <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
             <LucideIcon Kind="Plus" Size="{StaticResource IconSizeSm}"/>
@@ -40,6 +41,28 @@
               <MenuItem Header="{Binding ManageLabel}" Command="{Binding ManageCommand}">
                 <MenuItem.Icon>
                   <LucideIcon Kind="Settings" Size="{StaticResource IconSizeSm}"/>
+                </MenuItem.Icon>
+              </MenuItem>
+              <!-- 1.x's own three, in its order: move, refresh, and hide below a line. Move and
+                   hide are the View menu's commands, so either route leaves the same layout. A
+                   panel shown without the shell has no layout to change, and leaves them out. -->
+              <Separator/>
+              <MenuItem Header="{Binding MoveToOtherSideLabel}" Command="{Binding MoveToOtherSideCommand}"
+                        IsVisible="{Binding MoveToOtherSideCommand, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <MenuItem.Icon>
+                  <LucideIcon Kind="Layers" Size="{StaticResource IconSizeSm}"/>
+                </MenuItem.Icon>
+              </MenuItem>
+              <MenuItem Header="{Binding RefreshLabel}" Command="{Binding RefreshCommand}">
+                <MenuItem.Icon>
+                  <LucideIcon Kind="RefreshCw" Size="{StaticResource IconSizeSm}"/>
+                </MenuItem.Icon>
+              </MenuItem>
+              <Separator IsVisible="{Binding HidePanelCommand, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+              <MenuItem Header="{Binding HidePanelLabel}" Command="{Binding HidePanelCommand}"
+                        IsVisible="{Binding HidePanelCommand, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <MenuItem.Icon>
+                  <LucideIcon Kind="EyeOff" Size="{StaticResource IconSizeSm}"/>
                 </MenuItem.Icon>
               </MenuItem>
             </MenuFlyout>

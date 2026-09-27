@@ -262,6 +262,21 @@
   <Style Selector="Button.tool:disabled">
     <Setter Property="Opacity" Value="0.45"/>
   </Style>
+  <!--
+    A tool that is on, such as the connections panel's while the panel shows: a square frame in the
+    accent with no fill, the toolbar showing through, as 1.4 drew a checked toolbar button
+    (ui-reference 01). The frame comes out of the padding, so a checked tool is the same size as
+    the others and the bar does not shift when it is toggled.
+  -->
+  <Style Selector="Button.tool.checked">
+    <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
+    <Setter Property="BorderThickness" Value="{StaticResource CheckedToolBorder}"/>
+    <Setter Property="Padding" Value="{StaticResource CheckedToolPadding}"/>
+    <Setter Property="CornerRadius" Value="{StaticResource CheckedToolRadius}"/>
+  </Style>
+  <Style Selector="Button.tool.checked:pointerover /template/ ContentPresenter">
+    <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
+  </Style>
 
   <Style Selector="TextBox">
     <Setter Property="Background" Value="{DynamicResource InputBrush}"/>
@@ -375,6 +390,33 @@
   <!-- A line between groups is an entry labelled "-". It is as tall as the line, not a row. -->
   <Style Selector="MenuItem > MenuItem:separator">
     <Setter Property="MinHeight" Value="0"/>
+  </Style>
+
+  <!--
+    A ticked entry in the menu bar, View > Connections Panel while the panel shows: framed around
+    its own icon, as 1.4's menus drew a check, with the toolbar button's frame. Fluent puts its tick
+    in a column that exists only while something is ticked, so the whole menu widened and every
+    entry moved sideways each time the panel was shown or hidden. The icon's slot clips what it
+    holds, which is let go here so the frame can draw outside it.
+  -->
+  <Style Selector="Menu MenuItem:toggle /template/ ContentControl#PART_ToggleIconPresenter">
+    <Setter Property="IsVisible" Value="False"/>
+  </Style>
+  <Style Selector="Menu MenuItem:toggle /template/ ContentControl#PART_IconPresenter">
+    <Setter Property="ClipToBounds" Value="False"/>
+  </Style>
+  <Style Selector="Menu MenuItem:toggle /template/ ContentControl#PART_IconPresenter /template/ Viewbox">
+    <Setter Property="ClipToBounds" Value="False"/>
+  </Style>
+  <Style Selector="Border.menu-check">
+    <Setter Property="Margin" Value="{StaticResource MenuCheckOutset}"/>
+    <Setter Property="Padding" Value="{StaticResource MenuCheckPadding}"/>
+    <Setter Property="BorderThickness" Value="{StaticResource CheckedToolBorder}"/>
+    <Setter Property="CornerRadius" Value="{StaticResource CheckedToolRadius}"/>
+    <Setter Property="BorderBrush" Value="Transparent"/>
+  </Style>
+  <Style Selector="Border.menu-check.checked">
+    <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
   </Style>
 
   <!-- The shortcut column reads as reference, not as an action. -->

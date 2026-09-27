@@ -44,13 +44,22 @@
           <Setter Property="Command" Value="{Binding Command}"/>
           <Setter Property="ToolTip.Tip" Value="{Binding ToolTip}"/>
           <Setter Property="ItemsSource" Value="{x:Null}"/>
+          <!-- A tick on an entry that shows or hides something, View > Connections Panel's while
+               the panel is showing. One way: a click ticks the item and runs its command, and
+               the tick then follows whatever the panel did, however it was toggled. The tick is
+               drawn as a frame around the entry's icon, as 1.x drew it, rather than in a column
+               of its own that would widen the menu while something is ticked. -->
+          <Setter Property="ToggleType" Value="{Binding ToggleType}"/>
+          <Setter Property="IsChecked" Value="{Binding Check.IsChecked}"/>
           <Setter Property="Icon">
             <Template>
-              <LucideIcon Kind="{Binding Icon}"
-                          IsVisible="{Binding Icon, Converter={x:Static ObjectConverters.IsNotNull}}"
-                          Size="{StaticResource IconSizeSm}"
-                          Classes.primary="{Binding IsPrimary}"
-                          Classes.danger="{Binding IsDanger}"/>
+              <Border Classes="menu-check" Classes.checked="{Binding Check.IsChecked}">
+                <LucideIcon Kind="{Binding Icon}"
+                            IsVisible="{Binding Icon, Converter={x:Static ObjectConverters.IsNotNull}}"
+                            Size="{StaticResource IconSizeSm}"
+                            Classes.primary="{Binding IsPrimary}"
+                            Classes.danger="{Binding IsDanger}"/>
+              </Border>
             </Template>
           </Setter>
         </Style>
@@ -70,7 +79,10 @@
              converter: the layout is a list of ids with "|" in it, exactly as it is persisted. -->
         <ItemsControl.DataTemplates>
           <DataTemplate DataType="vm:CommandEntry">
-            <Button Classes="tool" Command="{Binding Command}" ToolTip.Tip="{Binding Description}">
+            <!-- "checked" frames a button while what it shows is showing, as 1.x drew the
+                 connections panel's (ui-reference 01). -->
+            <Button Classes="tool" Command="{Binding Command}" ToolTip.Tip="{Binding Description}"
+                    Classes.checked="{Binding Check.IsChecked}">
               <LucideIcon Kind="{Binding Icon}"
                           Size="{StaticResource IconSizeMd}"
                           Classes.primary="{Binding IsPrimary}"
@@ -109,19 +121,19 @@
     </Border>
 
     <!-- What the two nested SplitContainers become. ApplyConnectionsPanelSide, which was 130 lines
-         of width arithmetic, is a swap of two Grid.Column values here. -->
-    <Grid ColumnDefinitions="Auto,Auto,*">
-      <Border Grid.Column="0" Classes="surface"
-              BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0"
-              MinWidth="{StaticResource SidebarMinWidth}"
-              MaxWidth="{StaticResource SidebarMaxWidth}"
-              Width="260">
+         of width arithmetic, is a swap of two Grid.Column values here: MainWindow.axaml.cs puts
+         the panel in the first or the last column, at its saved width, or hides it with its
+         splitter. The splitter stays in the middle column, between whichever two they are. -->
+    <Grid x:Name="PART_Body" ColumnDefinitions="Auto,Auto,*">
+      <Border x:Name="PART_ConnectionsPanel" Grid.Column="0" Classes="surface"
+              BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0">
         <vm:ConnectionsPanelView DataContext="{Binding Sidebar}"/>
       </Border>
 
-      <GridSplitter Grid.Column="1" Width="{StaticResource SplitterThickness}"/>
+      <GridSplitter x:Name="PART_ConnectionsSplitter" Grid.Column="1"
+                    Width="{StaticResource SplitterThickness}"/>
 
-      <Grid Grid.Column="2" RowDefinitions="*,Auto,Auto">
+      <Grid x:Name="PART_WorkArea" Grid.Column="2" RowDefinitions="*,Auto,Auto">
         <TabControl Grid.Row="0" ItemsSource="{Binding Workspaces}"
                     SelectedIndex="{Binding SelectedWorkspace}"
                     Theme="{StaticResource WorkspaceTabControl}">

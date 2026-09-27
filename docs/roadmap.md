@@ -159,8 +159,16 @@ applied, and chosen on the Appearance page (P.5.1).
       Exit closes the window, so it asks about changed workspaces as the X does. Save, Save As,
       Rename, Close and Pin dim on Welcome and Sync tasks, and their shortcuts do nothing there, as
       in 1.4. The pane commands stay lit on every tab, which is what 1.4's Welcome shows (ref 01).
-- [ ] P.3.3 View > Connections panel (Ctrl+B), Move connections panel, and the panel's width, side and
+- [x] P.3.3 View > Connections panel (Ctrl+B), Move connections panel, and the panel's width, side and
       visibility remembered.
+      Done: Ctrl+B and the View entry show and hide the panel, the entry's icon framed in the menu
+      and the toolbar button framed while it shows, as 1.4 drew a check; Move docks it to the other
+      side at the same width; the panel's "..." has 1.4's Move to the other side, Refresh and Hide
+      panel. Side, width and visibility are saved as they change (a drag or the arrow keys) and
+      restored at startup, and a side chosen in Settings moves the panel when Settings closes. The
+      width is in device pixels within 1.4's 220 to 640, with 1.4's 560 kept for the workspace;
+      the panel is never under 220 on screen, where its header stops fitting, so above 100% scaling
+      its narrowest, and above about 136% its default, is wider than 1.4's.
 - [ ] P.3.4 Rebound shortcuts are dispatched and shown; the toolbar is built from the saved layout and
       rebuilt when Settings changes it.
 - [ ] P.3.5 Go menu Favorites (`FavoriteConnectionMenu` is in Core, unused).

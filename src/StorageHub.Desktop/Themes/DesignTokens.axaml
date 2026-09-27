@@ -164,6 +164,16 @@
   -->
   <Thickness x:Key="FieldPadding">10,8</Thickness>
   <Thickness x:Key="DenseFieldPadding">8,3</Thickness>
+  <!-- A checked toolbar button's frame, and DenseFieldPadding less that frame, so the button is
+       the size it is unchecked. Change the three together. Square, as 1.4 drew it. -->
+  <Thickness x:Key="CheckedToolBorder">1</Thickness>
+  <Thickness x:Key="CheckedToolPadding">7,2</Thickness>
+  <CornerRadius x:Key="CheckedToolRadius">0</CornerRadius>
+  <!-- A ticked menu entry's frame around its icon: the same frame, with room around the icon.
+       The outset is the padding and the frame, negated, so the frame draws outside the icon's
+       slot and the entry keeps its size. Change the two together. -->
+  <Thickness x:Key="MenuCheckPadding">2</Thickness>
+  <Thickness x:Key="MenuCheckOutset">-3</Thickness>
   <CornerRadius x:Key="FieldRadius">5</CornerRadius>
   <CornerRadius x:Key="DenseFieldRadius">4</CornerRadius>
   <CornerRadius x:Key="CardRadius">7</CornerRadius>
@@ -203,8 +213,10 @@
        every table in the app. Keep the two in step. -->
   <Thickness x:Key="TableViewColumnResizerMargin">0,-3,-6,-3</Thickness>
   <sys:Double x:Key="TreeRowHeight">22</sys:Double>
-  <sys:Double x:Key="SidebarMinWidth">180</sys:Double>
-  <sys:Double x:Key="SidebarMaxWidth">480</sys:Double>
+  <!-- The connections panel's narrowest. Its width is saved in device pixels, within 1.4's own
+       220 to 640 (DesktopUpdatePreferences), which at high scaling is narrower than the panel's
+       header: its title, New and its menu fit from about this width, which is the floor. -->
+  <sys:Double x:Key="SidebarMinWidth">220</sys:Double>
   <sys:Double x:Key="SplitterThickness">4</sys:Double>
 
   <!--

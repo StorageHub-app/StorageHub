@@ -44,6 +44,50 @@ internal sealed record CommandEntry(
     /// 1.x: clicking it is how it offers to leave the list.
     /// </summary>
     internal bool IsMissing { get; init; }
+
+    /// <summary>
+    /// The check mark of an entry that shows or hides something, such as View > Connections Panel,
+    /// which 1.x ticked in the menu and drew pressed on the toolbar. <see cref="CommandCheck.None"/>
+    /// for one that just runs, so the menu's and the toolbar's bindings always find a value.
+    /// </summary>
+    internal CommandCheck Check { get; init; } = CommandCheck.None;
+
+    /// <summary>
+    /// A check box for an entry that has a check of its own, which is what tells a screen reader it
+    /// is on or off. The tick itself is drawn around the entry's icon, as 1.x drew it.
+    /// </summary>
+    internal Avalonia.Controls.MenuItemToggleType ToggleType => ReferenceEquals(Check, CommandCheck.None)
+        ? Avalonia.Controls.MenuItemToggleType.None
+        : Avalonia.Controls.MenuItemToggleType.CheckBox;
+}
+
+/// <summary>
+/// Whether an entry that turns something on and off is on, which can change while its menu is open.
+/// </summary>
+/// <remarks>
+/// A class of its own rather than a property of <see cref="CommandEntry"/>: an entry is a record,
+/// and a record that changed while a menu held it would stop being equal to itself.
+/// </remarks>
+internal sealed class CommandCheck : INotifyPropertyChanged
+{
+    /// <summary>
+    /// The check of every entry that just runs: never set, so it is never on. One shared instance
+    /// rather than null, which a binding would report as an error for each entry.
+    /// </summary>
+    internal static CommandCheck None { get; } = new();
+
+    public bool IsChecked
+    {
+        get;
+        set
+        {
+            if (field == value) return;
+            field = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsChecked)));
+        }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
 }
 
 /// <summary>One of the menu bar's menus.</summary>
@@ -615,6 +659,9 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
 
     public ConnectionsSidebar Sidebar { get; init; } = null!;
 
+    /// <summary>Where the connections panel is docked, how wide, and whether it is showing.</summary>
+    internal ConnectionsPanelLayout ConnectionsPanel { get; init; } = new();
+
     /// <summary>What a pane's right-click menu offers after its own Open and Edit.</summary>
     internal IReadOnlyList<object> PaneContextEntries { get; init; } = [];
 
@@ -1138,13 +1185,21 @@ internal static class ShellPreview
                 preferences with { ConfirmBeforeClearingTransferHistory = false });
         }
 
+        // Built before the menus, which tick View > Connections Panel while it shows, and the
+        // toolbar, which draws that button pressed.
+        var panel = new ConnectionsPanelLayout();
+        var checks = new Dictionary<string, CommandCheck>(StringComparer.Ordinal)
+        {
+            [UiCommandIds.ViewConnectionsPanel] = panel.Check,
+        };
         var model = new ShellPreviewModel(router)
         {
-            Menus = BuildMenus(router),
+            Menus = BuildMenus(router, checks),
             PaneContextEntries = BuildPaneContextMenu(router),
-            Toolbar = BuildToolbar(router),
+            Toolbar = BuildToolbar(router, checks),
             SelectedWorkspace = selectedWorkspace,
             Sidebar = BuildSidebar(router),
+            ConnectionsPanel = panel,
             NewWorkspaceCommand = router.For(UiCommandIds.WorkspaceNewWorkspace),
             NewWorkspaceLabel = Ui.Commands.WorkspaceNewWorkspace,
             Queue = queue,
@@ -1258,6 +1313,23 @@ internal static class ShellPreview
         model.DimWorkspaceCommandsOnPages();
         model.WatchTheStatusBar();
 
+        // View > Connections Panel (Ctrl+B) and Move Connections Panel, and the panel's own Move
+        // and Hide, which 1.x offered under its "..." as well.
+        router.Handle(UiCommandIds.ViewConnectionsPanel, panel.Toggle);
+        router.Handle(UiCommandIds.ViewMoveConnectionsPanel, panel.MoveToOtherSide);
+        model.Sidebar.MoveToOtherSideCommand = router.For(UiCommandIds.ViewMoveConnectionsPanel);
+        model.Sidebar.HidePanelCommand = new RelayCommand(_ => panel.SetVisible(false));
+
+        // Live, the panel opens the way it was left and every change is saved as it happens. It
+        // reads the connections again when it comes back, as 1.x did: they may have changed while
+        // it was hidden.
+        if (live)
+        {
+            panel.Restore(ReadPreferences() ?? DesktopUpdatePreferences.Defaults);
+            panel.Persist = UpdatePreferences;
+            panel.Shown += (_, _) => _ = model.Sidebar.RefreshAsync();
+        }
+
         // The panel knows nothing about panes, so the shell hands it the one thing it needs to
         // act on a row: what to do with a connection id.
         model.Sidebar.OpenConnection = id =>
@@ -1313,7 +1385,8 @@ internal static class ShellPreview
         return pane;
     }
 
-    private static DesktopUpdatePreferences? ReadPreferences()
+    /// <summary>The saved settings, or null when the file cannot be read.</summary>
+    internal static DesktopUpdatePreferences? ReadPreferences()
     {
         try
         {
@@ -1332,9 +1405,12 @@ internal static class ShellPreview
             var store = new DesktopConfigStore(DesktopFrameworkPaths.Resolve().ApplicationRoot);
             store.Save(change(store.Load()));
         }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException)
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException
+            or ArgumentException)
         {
-            // The warning comes back next time rather than failing the delete over it.
+            // Save refuses a file it would not read back, as well as one it cannot write. Either
+            // way the change stands for this session and is only not remembered: the delete warning
+            // comes back next time, and the panel opens as it was last saved.
         }
     }
 
@@ -1423,7 +1499,8 @@ internal static class ShellPreview
         }
     }
 
-    private static IReadOnlyList<MenuSection> BuildMenus(ShellCommandRouter router) =>
+    private static IReadOnlyList<MenuSection> BuildMenus(
+        ShellCommandRouter router, IReadOnlyDictionary<string, CommandCheck> checks) =>
     [
         .. UiCommandCatalog.Menus
             .Select(menu => new MenuSection(
@@ -1431,7 +1508,7 @@ internal static class ShellPreview
                 UiCommandCatalog.MenuTitle(menu),
                 new ObservableCollection<CommandEntry>(UiCommandCatalog.ForMenu(menu)
                     .Where(definition => UiCommandCatalog.IsAvailable(definition.Id))
-                    .Select(definition => ToEntry(definition, router)))))
+                    .Select(definition => ToEntry(definition, router, checks)))))
             .Where(section => section.Items.Count > 0),
     ];
 
@@ -1443,13 +1520,14 @@ internal static class ShellPreview
     /// toolbar never did, so it drew buttons for commands 1.x itself never wired -- Search and
     /// Compare panes among them. Same rule, both places.
     /// </remarks>
-    private static IReadOnlyList<object> BuildToolbar(ShellCommandRouter router) =>
+    private static IReadOnlyList<object> BuildToolbar(
+        ShellCommandRouter router, IReadOnlyDictionary<string, CommandCheck> checks) =>
     [
         .. ToolbarLayout.Resolve(null)
             .Where(id => id == ToolbarLayout.Separator || UiCommandCatalog.IsAvailable(id))
             .Select(object (id) => id == ToolbarLayout.Separator
                 ? ToolbarSeparator.Instance
-                : ToEntry(UiCommandCatalog.GetDefinition(id), router)),
+                : ToEntry(UiCommandCatalog.GetDefinition(id), router, checks)),
     ];
 
     /// <summary>
@@ -1475,12 +1553,18 @@ internal static class ShellPreview
             : ToEntry(UiCommandCatalog.GetDefinition(id), router)),
     ];
 
-    private static CommandEntry ToEntry(UiCommandDefinition definition, ShellCommandRouter router) => new(
+    private static CommandEntry ToEntry(
+        UiCommandDefinition definition,
+        ShellCommandRouter router,
+        IReadOnlyDictionary<string, CommandCheck>? checks = null) => new(
         definition.Id,
         definition.Label,
         definition.Description,
         definition.Shortcut,
         IconCatalog.Resolve(definition.Glyph),
         definition.Tone,
-        router.For(definition.Id));
+        router.For(definition.Id))
+    {
+        Check = checks?.GetValueOrDefault(definition.Id) ?? CommandCheck.None,
+    };
 }

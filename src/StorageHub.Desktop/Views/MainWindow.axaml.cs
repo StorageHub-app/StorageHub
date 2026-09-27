@@ -1,10 +1,24 @@
+using System.ComponentModel;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Markup.Xaml;
+using StorageHub.Desktop.Themes;
 
 namespace StorageHub.Desktop.Views;
 
 public partial class MainWindow : Window
 {
+    /// <summary>
+    /// The narrowest 1.x let the workspace beside the connections panel become, in device pixels
+    /// (MainForm's WorkspaceMinimum). The splitter stops there, and a narrow window takes the room
+    /// from the panel rather than push the workspace out of it.
+    /// </summary>
+    private const int WorkspaceMinimumWidth = 560;
+
+    private ConnectionsPanelLayout? _panelLayout;
+    private bool _opened;
+
     public MainWindow()
     {
         AvaloniaXamlLoader.Load(this);
@@ -32,6 +46,69 @@ public partial class MainWindow : Window
                 model.WorkspaceMenuOpening();
             }
         });
+
+        // The panel's width is saved when the splitter is let go, as 1.x saved it when its
+        // splitter had moved: once per drag, not for every pixel on the way. A focused splitter
+        // also moves on the arrow keys, which 1.x's SplitterMoved saved as well.
+        var splitter = this.GetControl<GridSplitter>("PART_ConnectionsSplitter");
+        splitter.DragCompleted += (_, _) => SaveConnectionsPanelWidth();
+        splitter.AddHandler(KeyUpEvent, (_, e) =>
+        {
+            if (e.Key is Key.Left or Key.Right) SaveConnectionsPanelWidth();
+        }, handledEventsToo: true);
+
+        // And laid out again once the window is on its screen, whose scaling the saved pixels are
+        // divided by, as 1.x restored its panel when the window was shown; whenever the window's
+        // width changes, since the panel gives way to the workspace in a narrow one; and when the
+        // window moves to a screen with another scaling.
+        Opened += (_, _) =>
+        {
+            _opened = true;
+            ArrangeConnectionsPanel();
+        };
+        this.GetControl<Grid>("PART_Body").SizeChanged += (_, e) =>
+        {
+            if (e.WidthChanged) ArrangeConnectionsPanel();
+        };
+        ScalingChanged += (_, _) => OnScalingChanged();
+    }
+
+    /// <summary>The render scaling, which 1.x's saved pixels are divided by.</summary>
+    private double Scaling => RenderScaling > 0 ? RenderScaling : 1;
+
+    private ColumnDefinition PanelColumn(ConnectionsPanelLayout layout) =>
+        this.GetControl<Grid>("PART_Body").ColumnDefinitions[layout.Side == ConnectionsPanelSide.Left ? 0 : 2];
+
+    /// <summary>
+    /// The panel's width in 1.x's device pixels, read from the column the splitter sized rather
+    /// than from the panel, which is not laid out again until later.
+    /// </summary>
+    private int ConnectionsPanelPixels(ConnectionsPanelLayout layout)
+    {
+        var column = PanelColumn(layout);
+        var width = column.Width.IsAbsolute ? column.Width.Value : column.ActualWidth;
+        return (int)Math.Round(width * Scaling);
+    }
+
+    private void SaveConnectionsPanelWidth()
+    {
+        if (_panelLayout is { } layout) layout.Resized(ConnectionsPanelPixels(layout));
+    }
+
+    /// <summary>
+    /// The window has moved to a screen with another scaling and kept its size on it, panel and
+    /// all, so the panel is now another number of pixels. Taken as its width, or the next toggle
+    /// or move would lay it out from the old pixels and change its size; and laid out again, since
+    /// 1.x's limits are pixels too.
+    /// </summary>
+    /// <remarks>
+    /// Only once the window is open: the scaling a window is created with can arrive after the
+    /// panel was first laid out, and that is not a move the panel should follow.
+    /// </remarks>
+    private void OnScalingChanged()
+    {
+        if (_opened && _panelLayout is { } layout) layout.Rescaled(ConnectionsPanelPixels(layout));
+        ArrangeConnectionsPanel();
     }
 
     protected override void OnDataContextChanged(EventArgs e)
@@ -41,6 +118,69 @@ public partial class MainWindow : Window
         // Tunnelling, so the shell sees a shortcut before the focused control does - which is what
         // ProcessCmdKey did. ShellCommandRouter explains why that ordering is worth restoring.
         if (DataContext is ShellPreviewModel model) model.Router.Attach(this);
+
+        if (_panelLayout is { } previous) previous.PropertyChanged -= OnPanelLayoutChanged;
+        _panelLayout = (DataContext as ShellPreviewModel)?.ConnectionsPanel;
+        if (_panelLayout is { } layout) layout.PropertyChanged += OnPanelLayoutChanged;
+        ArrangeConnectionsPanel();
+    }
+
+    private void OnPanelLayoutChanged(object? sender, PropertyChangedEventArgs e) => ArrangeConnectionsPanel();
+
+    /// <summary>
+    /// Puts the connections panel on its side at its width, or hides it with its splitter.
+    /// </summary>
+    /// <remarks>
+    /// What 1.x's ApplyConnectionsPanelSide did to a SplitContainer, done to three columns: the
+    /// panel and the work area trade places, the panel's column takes the width and the limits, and
+    /// the other one takes what is left. Hidden, the panel's column is sized to nothing rather than
+    /// removed, so showing it again is the same arrangement with the width put back.
+    /// </remarks>
+    private void ArrangeConnectionsPanel()
+    {
+        if (_panelLayout is not { } layout) return;
+
+        var body = this.GetControl<Grid>("PART_Body");
+        var panel = this.GetControl<Border>("PART_ConnectionsPanel");
+        var left = layout.Side == ConnectionsPanelSide.Left;
+        Grid.SetColumn(panel, left ? 0 : 2);
+        Grid.SetColumn(this.GetControl<Grid>("PART_WorkArea"), left ? 2 : 0);
+        panel.BorderThickness = left ? new Thickness(0, 0, 1, 0) : new Thickness(1, 0, 0, 0);
+        panel.IsVisible = layout.IsVisible;
+        this.GetControl<GridSplitter>("PART_ConnectionsSplitter").IsVisible = layout.IsVisible;
+
+        // The saved width is 1.x's device pixels, and so are its limits: the panel between 220 and
+        // 640, and the workspace beside it never under 560, so the splitter stops where 1.x's did
+        // and every width it can be dragged to is one that saves. The token is a floor under the
+        // panel at high scaling, where 220 pixels no longer fits the panel's own header.
+        var scaling = Scaling;
+        var minimum = Math.Max(
+            DesignTokens.Get<double>("SidebarMinWidth"),
+            DesktopUpdatePreferences.MinimumConnectionsPanelWidth / scaling);
+        var workMinimum = layout.IsVisible ? WorkspaceMinimumWidth / scaling : 0;
+        var maximum = DesktopUpdatePreferences.MaximumConnectionsPanelWidth / scaling;
+
+        // In a window too narrow for both, the panel gives way down to its narrowest, as 1.x's
+        // SetConnectionsPanelWidth clamped it, and takes its width back when the window widens.
+        if (body.Bounds.Width > 0)
+        {
+            var splitter = DesignTokens.Get<double>("SplitterThickness");
+            maximum = Math.Min(maximum, body.Bounds.Width - splitter - workMinimum);
+        }
+
+        maximum = Math.Max(minimum, maximum);
+
+        var work = body.ColumnDefinitions[left ? 2 : 0];
+        work.Width = GridLength.Star;
+        work.MinWidth = workMinimum;
+        work.MaxWidth = double.PositiveInfinity;
+
+        var column = PanelColumn(layout);
+        column.MinWidth = layout.IsVisible ? minimum : 0;
+        column.MaxWidth = layout.IsVisible ? maximum : double.PositiveInfinity;
+        column.Width = layout.IsVisible
+            ? new GridLength(Math.Clamp(layout.Width / scaling, minimum, maximum))
+            : GridLength.Auto;
     }
 
     private static void MarkEntry(object? sender, ContainerPreparedEventArgs e)

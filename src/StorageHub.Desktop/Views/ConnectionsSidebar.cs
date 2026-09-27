@@ -87,6 +87,7 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         Status = Ui.Connections.SidebarEmpty;
         NewGroupCommand = new RelayCommand(_ => _ = AddGroupAsync(), _ => _dialogs is not null);
         ClearSearchCommand = new RelayCommand(_ => Search = string.Empty);
+        RefreshCommand = new RelayCommand(_ => _ = RefreshAsync());
 
         OpenSelectedCommand = new RelayCommand(
             _ => { if (_selected is { } row) OpenConnection?.Invoke(row.Id); },
@@ -274,6 +275,19 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
 
     public ICommand ClearSearchCommand { get; }
 
+    /// <summary>Reads the connections again, from the panel's own menu as 1.x offered it.</summary>
+    public ICommand RefreshCommand { get; }
+
+    /// <summary>
+    /// Docks the panel to the other side of the window, and hides it: the panel's own menu offers
+    /// both, as 1.x's did. Assigned by the shell, which owns the layout; while they are null the
+    /// menu leaves them out.
+    /// </summary>
+    public ICommand? MoveToOtherSideCommand { get; internal set; }
+
+    /// <inheritdoc cref="MoveToOtherSideCommand"/>
+    public ICommand? HidePanelCommand { get; internal set; }
+
     /// <summary>
     /// What is typed in the search box, narrowing the panel as it is typed.
     /// </summary>
@@ -364,6 +378,12 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     public string NewGroupLabel => Ui.Connections.NewGroup;
 
     public string ManageLabel => Ui.Connections.ManagerTitle;
+
+    public string MoveToOtherSideLabel => Ui.Connections.MoveToOtherSide;
+
+    public string RefreshLabel => Ui.Connections.Refresh;
+
+    public string HidePanelLabel => Ui.Connections.HidePanel;
 
     public string ClearSearchLabel => Ui.Connections.ClearSearch;
 

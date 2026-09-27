@@ -73,9 +73,10 @@ public class ShellScalingTests
             return sidebar.Bounds.Width;
         }
 
-        // The sidebar is a fixed width in device-independent pixels, so it stays the same number at
-        // every scaling and the compositor makes it physically larger. That is exactly the
-        // arithmetic the old shell had to do by hand at 761 call sites.
+        // The sidebar's width is 1.x's saved device pixels divided by the render scaling, which the
+        // headless platform keeps at 1 however large the window is measured. So here it stays the
+        // same number, and what is checked is that nothing else in the shell sizes itself by the
+        // window: the arithmetic the old shell had to do by hand at 761 call sites.
         Assert.Equal(SidebarShare(1.0), SidebarShare(1.25));
         Assert.Equal(SidebarShare(1.0), SidebarShare(2.0));
     }
