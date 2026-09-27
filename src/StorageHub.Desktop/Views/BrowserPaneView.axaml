@@ -24,7 +24,8 @@
         Everything that changes the arrangement is behind its menu rather than along the toolbar:
         an arrangement is settled once and then wants the width back.
       -->
-      <Border DockPanel.Dock="Top" Classes="pane-header">
+      <Border x:Name="PART_Header" DockPanel.Dock="Top" Classes="pane-header"
+              Cursor="SizeAll">
         <Grid ColumnDefinitions="*,Auto">
           <TextBlock Grid.Column="0" VerticalAlignment="Center"
                      FontWeight="SemiBold" Text="{Binding PaneHeading}"/>

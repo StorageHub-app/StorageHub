@@ -105,8 +105,10 @@ setting to choose it (P.5.1).
       Replace/Skip/Cancel on conflicts, as 1.4 did, rather than queueing at once.
 - [x] P.2.12 Panes re-read while transfers run and once they settle (1.4's 5 s timer). Quietly: no cover, the filter, selection and scroll kept. A folder over a page re-reads its first page and brings the rest back on scroll.
 - [ ] P.2.13 Filter survives navigation (done); Size right-aligned (done); sort and filter saved with the pane, which comes with workspace saving (P.3.1).
-- [ ] P.2.14 The staging bar always shows ("Clipboard: empty"), with "Paste to active pane"; the drag-hint
+- [x] P.2.14 The staging bar always shows ("Clipboard: empty"), with "Paste to active pane"; the drag-hint
       row above the panes.
+      Dragging a pane by its header, which the hint promises and 2.0 could not do, is back too:
+      the middle of another pane swaps the two, an edge docks the dragged one there.
 - [ ] P.2.15 A thin accent strip across each pane in the connection's colour; opening a connection records
       it in Welcome's recent list; "Open in new pane".
 - [ ] P.2.16 Connections Home (was L.9).

@@ -87,6 +87,10 @@ public partial class BrowserPaneView : UserControl
             };
         }
         PaneDragHandler.Attach(this, () => Model);
+        if (this.FindControl<Border>("PART_Header") is { } header)
+        {
+            PaneHeaderDragHandler.Attach(this, header, () => Model);
+        }
         RefreshHeadings();
         AttachConnectionPicker();
     }

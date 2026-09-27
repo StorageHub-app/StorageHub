@@ -110,6 +110,15 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
 
     public static string ClearStagedLabel => Ui.Pane.ClearStaged;
 
+    /// <summary>What is staged, or "Empty", as the strip above 1.x's panes always said.</summary>
+    public string ClipboardText => _clipboard?.Describe() ?? Ui.Shell.ClipboardEmpty;
+
+    public static string DragPaneHeadersHint => Ui.Shell.DragPaneHeadersHint;
+
+    public static string PasteToActivePaneLabel => Ui.Shell.PasteToActivePane;
+
+    public static string ClearLabel => Ui.Shell.ClipboardClear;
+
     /// <summary>
     /// Which arrangement is showing. Setting it grows or shrinks the set of panes.
     /// </summary>
@@ -155,6 +164,7 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
             Raise(nameof(Clipboard));
             Raise(nameof(HasClipboard));
             Raise(nameof(ClipboardSummary));
+            Raise(nameof(ClipboardText));
             RaiseCommands();
         }
     }
@@ -481,6 +491,23 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
             AdoptLayout();
         },
         _ => _layout.PaneCount < WorkspaceLayoutModel.MaximumPanes);
+
+    /// <summary>
+    /// Swaps two panes, or docks one on an edge of another: what dragging a pane's header does.
+    /// </summary>
+    /// <returns>Whether the arrangement changed.</returns>
+    internal bool Rearrange(BrowserPaneModel moving, BrowserPaneModel target, WorkspaceDockEdge? edge)
+    {
+        var movingId = _byId.FirstOrDefault(pair => ReferenceEquals(pair.Value, moving)).Key;
+        var targetId = _byId.FirstOrDefault(pair => ReferenceEquals(pair.Value, target)).Key;
+        if (movingId == Guid.Empty || targetId == Guid.Empty || movingId == targetId) return false;
+
+        var changed = edge is { } side
+            ? _layout.MoveBeside(movingId, targetId, side)
+            : _layout.Swap(movingId, targetId);
+        if (changed) AdoptLayout();
+        return changed;
+    }
 
     private RelayCommand SwapCommand(Guid moving, Guid target) => new(_ =>
     {

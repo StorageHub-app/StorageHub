@@ -210,23 +210,31 @@
                               Spacing="{StaticResource SpaceXs}"
                               Margin="0,0,0,4">
                     <!--
-                      What is staged, and nothing else. The arrangement is chosen once in the New
-                      Workspace dialog and changed from a pane's own actions menu, so a permanent
-                      strip of six layout buttons here would compete with the panes for width to
-                      answer a question that is already settled.
+                      The strip above the panes, as 1.x had it (ui-reference 05): how panes are
+                      rearranged, what is staged ("Empty" when nothing is), and pasting it into the
+                      active pane or clearing it. Always there, so the paste has a place to be found
+                      rather than appearing only once something is staged.
                     -->
-                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}"
-                                IsVisible="{Binding HasClipboard}">
-                      <LucideIcon Kind="Clipboard" Size="{StaticResource IconSizeSm}"
-                                  VerticalAlignment="Center"
-                                  Foreground="{DynamicResource TextMutedBrush}"/>
-                      <TextBlock Classes="caption" VerticalAlignment="Center"
-                                 Text="{Binding ClipboardSummary}"/>
-                      <Button Classes="tool" Command="{Binding ClearClipboardCommand}"
-                              ToolTip.Tip="{Binding ClearStagedLabel}">
+                    <LucideIcon Kind="Layers" Size="{StaticResource IconSizeSm}" VerticalAlignment="Center"/>
+                    <TextBlock Classes="caption" VerticalAlignment="Center" Text="{Binding DragPaneHeadersHint}"/>
+                    <Border Classes="toolbar-separator"/>
+                    <LucideIcon Kind="Clipboard" Size="{StaticResource IconSizeSm}" VerticalAlignment="Center"/>
+                    <TextBlock Classes="caption" VerticalAlignment="Center" Text="{Binding ClipboardText}"
+                               FontWeight="SemiBold"/>
+                    <Button Classes="tool" Command="{Binding PasteCommand}"
+                            ToolTip.Tip="{Binding PasteToActivePaneLabel}">
+                      <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+                        <LucideIcon Kind="ClipboardPaste" Size="{StaticResource IconSizeSm}"/>
+                        <TextBlock Classes="caption" Text="{Binding PasteToActivePaneLabel}"/>
+                      </StackPanel>
+                    </Button>
+                    <Button Classes="tool" Command="{Binding ClearClipboardCommand}"
+                            ToolTip.Tip="{Binding ClearStagedLabel}">
+                      <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
                         <LucideIcon Kind="X" Size="{StaticResource IconSizeSm}"/>
-                      </Button>
-                    </StackPanel>
+                        <TextBlock Classes="caption" Text="{Binding ClearLabel}"/>
+                      </StackPanel>
+                    </Button>
                   </StackPanel>
 
                   <vm:WorkspaceView DataContext="{Binding Workspace}"/>
