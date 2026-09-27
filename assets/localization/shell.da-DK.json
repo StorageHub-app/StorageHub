@@ -100,6 +100,7 @@
   "settingsExportedFormat": "Indstillinger eksporteret til {0}.",
   "shellAccessibleName": "StorageHub-filhåndtering",
   "mainToolbar": "Hovedværktøjslinje",
+  "moreToolbarCommands": "Flere værktøjslinjekommandoer",
   "applicationStatus": "Programstatus",
   "agentStatus": "Agentstatus",
   "updateStatus": "Opdateringsstatus",

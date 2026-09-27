@@ -272,6 +272,8 @@ internal sealed class ShellStrings : LocalizationModelBase
 
     public string MainToolbar { get; set; } = "Main toolbar";
 
+    public string MoreToolbarCommands { get; set; } = "More toolbar commands";
+
     public string ApplicationStatus { get; set; } = "Application status";
 
     public string AgentStatus { get; set; } = "Agent status";

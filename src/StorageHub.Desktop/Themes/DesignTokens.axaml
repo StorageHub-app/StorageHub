@@ -202,6 +202,10 @@
   <!-- A drop-down in a toolbar, 1.4's 170: one width whichever entry is chosen, so choosing a
        long one does not push the buttons after it along. What does not fit is trimmed. -->
   <sys:Double x:Key="ToolbarChoiceWidth">170</sys:Double>
+  <!-- The toolbar's chevron, which the row leaves room for once a button does not fit: as wide as
+       a tool button with only an icon, DenseFieldPadding either side of IconSizeMd. Change the
+       three together. -->
+  <sys:Double x:Key="ToolbarOverflowWidth">34</sys:Double>
   <sys:Double x:Key="StatusBarHeight">26</sys:Double>
   <sys:Double x:Key="ListRowHeight">24</sys:Double>
   <!-- Fluent's own key: the padding of every TableView row and of its heading band. Fluent's

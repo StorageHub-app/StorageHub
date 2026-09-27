@@ -277,6 +277,28 @@
   <Style Selector="Button.tool.checked:pointerover /template/ ContentPresenter">
     <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
   </Style>
+  <!--
+    A main toolbar button's label, as Settings asks for it: hidden (icons only, how the toolbar has
+    always looked), beside the icon, or under it, as 1.4's three label styles drew them. The toolbar
+    sets "labels" and "under" from the saved style. Hidden here rather than on the TextBlock, since
+    a local value would win over the styles that show it.
+  -->
+  <Style Selector="StackPanel.tool-content">
+    <Setter Property="Orientation" Value="Horizontal"/>
+    <Setter Property="Spacing" Value="{StaticResource SpaceSm}"/>
+  </Style>
+  <Style Selector="ItemsControl.under StackPanel.tool-content">
+    <Setter Property="Orientation" Value="Vertical"/>
+    <Setter Property="Spacing" Value="{StaticResource SpaceXs}"/>
+  </Style>
+  <Style Selector="TextBlock.tool-label">
+    <Setter Property="IsVisible" Value="False"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+    <Setter Property="HorizontalAlignment" Value="Center"/>
+  </Style>
+  <Style Selector="ItemsControl.labels TextBlock.tool-label">
+    <Setter Property="IsVisible" Value="True"/>
+  </Style>
 
   <Style Selector="TextBox">
     <Setter Property="Background" Value="{DynamicResource InputBrush}"/>
@@ -397,15 +419,19 @@
     its own icon, as 1.4's menus drew a check, with the toolbar button's frame. Fluent puts its tick
     in a column that exists only while something is ticked, so the whole menu widened and every
     entry moved sideways each time the panel was shown or hidden. The icon's slot clips what it
-    holds, which is let go here so the frame can draw outside it.
+    holds, which is let go here so the frame can draw outside it. "framed-check" is the same entry
+    in the toolbar chevron's menu, which is a flyout rather than part of the menu bar.
   -->
-  <Style Selector="Menu MenuItem:toggle /template/ ContentControl#PART_ToggleIconPresenter">
+  <Style Selector="Menu MenuItem:toggle /template/ ContentControl#PART_ToggleIconPresenter,
+                   MenuItem.framed-check:toggle /template/ ContentControl#PART_ToggleIconPresenter">
     <Setter Property="IsVisible" Value="False"/>
   </Style>
-  <Style Selector="Menu MenuItem:toggle /template/ ContentControl#PART_IconPresenter">
+  <Style Selector="Menu MenuItem:toggle /template/ ContentControl#PART_IconPresenter,
+                   MenuItem.framed-check:toggle /template/ ContentControl#PART_IconPresenter">
     <Setter Property="ClipToBounds" Value="False"/>
   </Style>
-  <Style Selector="Menu MenuItem:toggle /template/ ContentControl#PART_IconPresenter /template/ Viewbox">
+  <Style Selector="Menu MenuItem:toggle /template/ ContentControl#PART_IconPresenter /template/ Viewbox,
+                   MenuItem.framed-check:toggle /template/ ContentControl#PART_IconPresenter /template/ Viewbox">
     <Setter Property="ClipToBounds" Value="False"/>
   </Style>
   <Style Selector="Border.menu-check">

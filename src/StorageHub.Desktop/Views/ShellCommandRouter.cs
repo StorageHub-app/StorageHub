@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Windows.Input;
 using Avalonia;
 using Avalonia.Controls;
@@ -48,6 +49,37 @@ internal sealed class ShellCommand(string id, Action<string> invoke, Func<string
 }
 
 /// <summary>
+/// The key a command answers to, shared by every entry that shows it.
+/// </summary>
+/// <remarks>
+/// A class of its own, as <see cref="CommandCheck"/> is: an entry is a record, and a record that
+/// changed while a menu held it would stop being equal to itself. One per command, owned by the
+/// router, so a shortcut rebound in Settings changes what the menu bar and a pane's right-click
+/// menu say without either being built again, as 1.x's RefreshShortcutPresentation did.
+/// </remarks>
+internal sealed class CommandShortcut : INotifyPropertyChanged
+{
+    /// <summary>
+    /// The shortcut of an entry that is no command, such as a workspace in the Workspace menu:
+    /// never set, so it never shows a key.
+    /// </summary>
+    internal static CommandShortcut None { get; } = new();
+
+    public KeyGesture? Gesture
+    {
+        get;
+        set
+        {
+            if (Equals(field, value)) return;
+            field = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Gesture)));
+        }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+}
+
+/// <summary>
 /// Turns a keystroke into a command, under the rules the WinForms shell already established.
 /// </summary>
 /// <remarks>
@@ -67,14 +99,21 @@ internal sealed class ShellCommandRouter
     private readonly Dictionary<string, ShellCommand> _commands = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Action> _handlers = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Func<bool>> _conditions = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, CommandShortcut> _shortcuts = new(StringComparer.Ordinal);
     private readonly HashSet<TopLevel> _attached = [];
+
+    /// <summary>Which command each bound key runs, rebuilt whenever the bindings change.</summary>
+    private Dictionary<KeyGesture, UiCommandDefinition> _bound = [];
 
     internal ShellCommandRouter()
     {
         foreach (var definition in UiCommandCatalog.Definitions)
         {
             _commands[definition.Id] = new ShellCommand(definition.Id, Invoke, CanRun);
+            _shortcuts[definition.Id] = new CommandShortcut();
         }
+
+        UseShortcuts(null);
     }
 
     /// <summary>Raised when a command fires, however it was invoked.</summary>
@@ -84,6 +123,33 @@ internal sealed class ShellCommandRouter
     internal string? LastInvoked { get; private set; }
 
     internal ShellCommand For(string id) => _commands[id];
+
+    /// <summary>The key a command answers to now, which follows <see cref="UseShortcuts"/>.</summary>
+    internal CommandShortcut ShortcutOf(string id) =>
+        _shortcuts.TryGetValue(id, out var shortcut) ? shortcut : CommandShortcut.None;
+
+    /// <summary>
+    /// Binds the keys Settings saved: the catalog's, with the user's changes on top.
+    /// </summary>
+    /// <remarks>
+    /// Resolved as config repair and the settings import resolve them, so a set that cannot be
+    /// used (two commands on one key, a chord that would fire while typing) falls back to the
+    /// catalog's whole, as 1.x's ShortcutSettings.Resolve did. A command this shell has not wired
+    /// is bound to nothing, which is why the menu leaves it out and a key never reaches it.
+    /// </remarks>
+    internal void UseShortcuts(IReadOnlyDictionary<string, KeyGesture?>? overrides)
+    {
+        var table = ShortcutBindings.Resolve(overrides);
+        var bound = new Dictionary<KeyGesture, UiCommandDefinition>();
+        foreach (var definition in UiCommandCatalog.Definitions)
+        {
+            var gesture = table.GetValueOrDefault(definition.Id);
+            _shortcuts[definition.Id].Gesture = gesture;
+            if (gesture is not null) bound[gesture] = definition;
+        }
+
+        _bound = bound;
+    }
 
     /// <summary>
     /// Says what a command actually does.
@@ -172,12 +238,9 @@ internal sealed class ShellCommandRouter
     {
         ArgumentNullException.ThrowIfNull(gesture);
 
-        var command = UiCommandCatalog.Definitions.FirstOrDefault(definition =>
-            definition.Shortcut is { } shortcut &&
-            shortcut.Equals(gesture) &&
-            UiCommandCatalog.IsAvailable(definition.Id));
-
-        if (command is null) return false;
+        // The keys as bound now, rebound or not, rather than the catalog's: 1.x resolved the saved
+        // shortcuts on every keystroke, and a key the menu shows is the key that runs the entry.
+        if (!_bound.TryGetValue(gesture, out var command)) return false;
 
         // A pane command with the active pane on an SSH connection is the one case the old shell
         // refused outright rather than routing, because the keystroke belongs to the remote shell.

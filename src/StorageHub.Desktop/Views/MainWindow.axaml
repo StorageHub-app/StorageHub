@@ -35,12 +35,13 @@
           <Setter Property="ItemsSource" Value="{Binding Items}"/>
         </Style>
 
-        <!-- InputGesture only displays the shortcut; dispatch comes from ShellCommandRouter on the
-             same catalog, and the two must not drift. A label of "-" is a separator, which is how
-             the Workspace menu divides its pinned and recent workspaces from the rest. -->
+        <!-- InputGesture only displays the shortcut; dispatch comes from ShellCommandRouter, which
+             owns the key each entry shows, so a shortcut rebound in Settings changes both at once.
+             A label of "-" is a separator, which is how the Workspace menu divides its pinned and
+             recent workspaces from the rest. -->
         <Style Selector="MenuItem > MenuItem" x:DataType="vm:CommandEntry">
           <Setter Property="Header" Value="{Binding Label}"/>
-          <Setter Property="InputGesture" Value="{Binding Shortcut}"/>
+          <Setter Property="InputGesture" Value="{Binding Shortcut.Gesture}"/>
           <Setter Property="Command" Value="{Binding Command}"/>
           <Setter Property="ToolTip.Tip" Value="{Binding ToolTip}"/>
           <Setter Property="ItemsSource" Value="{x:Null}"/>
@@ -67,33 +68,57 @@
     </Menu>
 
     <!-- Avalonia has no ToolBar; an ItemsControl over the resolved command ids is the shape, and it
-         keeps the toolbar data-driven the way UiCommandCatalog already made it. -->
+         keeps the toolbar data-driven the way UiCommandCatalog already made it. The ids are the
+         saved layout's, and Settings' label style shows each button's label beside or under its
+         icon, which the "labels" and "under" classes turn on in ControlThemes. -->
     <Border DockPanel.Dock="Top" Classes="toolbar">
-      <ItemsControl ItemsSource="{Binding Toolbar}">
-        <ItemsControl.ItemsPanel>
-          <ItemsPanelTemplate>
-            <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}"/>
-          </ItemsPanelTemplate>
-        </ItemsControl.ItemsPanel>
-        <!-- Two templates matched by type, so ToolbarLayout's separator entries need no flag and no
-             converter: the layout is a list of ids with "|" in it, exactly as it is persisted. -->
-        <ItemsControl.DataTemplates>
-          <DataTemplate DataType="vm:CommandEntry">
-            <!-- "checked" frames a button while what it shows is showing, as 1.x drew the
-                 connections panel's (ui-reference 01). -->
-            <Button Classes="tool" Command="{Binding Command}" ToolTip.Tip="{Binding Description}"
-                    Classes.checked="{Binding Check.IsChecked}">
-              <LucideIcon Kind="{Binding Icon}"
-                          Size="{StaticResource IconSizeMd}"
-                          Classes.primary="{Binding IsPrimary}"
-                          Classes.danger="{Binding IsDanger}"/>
-            </Button>
-          </DataTemplate>
-          <DataTemplate DataType="vm:ToolbarSeparator">
-            <Border Classes="toolbar-separator"/>
-          </DataTemplate>
-        </ItemsControl.DataTemplates>
-      </ItemsControl>
+      <!-- What does not fit goes behind a chevron at the right end, as 1.x's ToolStrip put it:
+           the row leaves the chevron room once something has to go, and MainWindow shows it and
+           fills its menu with what went. -->
+      <Panel>
+        <ItemsControl x:Name="PART_Toolbar" ItemsSource="{Binding Toolbar}"
+                      Classes.labels="{Binding ToolbarShowsLabels}"
+                      Classes.under="{Binding ToolbarLabelsUnderIcons}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <vm:ToolbarOverflowPanel Spacing="{StaticResource SpaceXs}"
+                                       OverflowReserve="{StaticResource ToolbarOverflowWidth}"/>
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <!-- Two templates matched by type, so ToolbarLayout's separator entries need no flag and no
+               converter: the layout is a list of ids with "|" in it, exactly as it is persisted. -->
+          <ItemsControl.DataTemplates>
+            <DataTemplate DataType="vm:CommandEntry">
+              <!-- "checked" frames a button while what it shows is showing, as 1.x drew the
+                   connections panel's (ui-reference 01). -->
+              <Button Classes="tool" Command="{Binding Command}" ToolTip.Tip="{Binding Description}"
+                      AutomationProperties.Name="{Binding Label}"
+                      Classes.checked="{Binding Check.IsChecked}">
+                <StackPanel Classes="tool-content">
+                  <LucideIcon Kind="{Binding Icon}"
+                              Size="{StaticResource IconSizeMd}"
+                              Classes.primary="{Binding IsPrimary}"
+                              Classes.danger="{Binding IsDanger}"/>
+                  <TextBlock Classes="tool-label" Text="{Binding Label}"/>
+                </StackPanel>
+              </Button>
+            </DataTemplate>
+            <DataTemplate DataType="vm:ToolbarSeparator">
+              <Border Classes="toolbar-separator"/>
+            </DataTemplate>
+          </ItemsControl.DataTemplates>
+        </ItemsControl>
+        <Button x:Name="PART_ToolbarOverflow" Classes="tool" IsVisible="False"
+                HorizontalAlignment="Right" VerticalAlignment="Stretch"
+                Width="{StaticResource ToolbarOverflowWidth}"
+                ToolTip.Tip="{x:Static vm:ShellPreviewModel.MoreToolbarCommandsLabel}"
+                AutomationProperties.Name="{x:Static vm:ShellPreviewModel.MoreToolbarCommandsLabel}">
+          <LucideIcon Kind="ChevronsRight" Size="{StaticResource IconSizeMd}"/>
+          <Button.Flyout>
+            <MenuFlyout Placement="BottomEdgeAlignedRight"/>
+          </Button.Flyout>
+        </Button>
+      </Panel>
     </Border>
 
     <Border DockPanel.Dock="Bottom" Classes="statusbar">

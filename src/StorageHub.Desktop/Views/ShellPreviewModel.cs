@@ -21,7 +21,6 @@ internal sealed record CommandEntry(
     string Id,
     string Label,
     string Description,
-    KeyGesture? Shortcut,
     LucideIconKind? Icon,
     UiIconTone Tone,
     ICommand Command)
@@ -51,6 +50,13 @@ internal sealed record CommandEntry(
     /// for one that just runs, so the menu's and the toolbar's bindings always find a value.
     /// </summary>
     internal CommandCheck Check { get; init; } = CommandCheck.None;
+
+    /// <summary>
+    /// The key the command answers to, which Settings can rebind while a menu holds the entry.
+    /// <see cref="CommandShortcut.None"/> for an entry that is no command, such as a workspace in
+    /// the Workspace menu.
+    /// </summary>
+    internal CommandShortcut Shortcut { get; init; } = CommandShortcut.None;
 
     /// <summary>
     /// A check box for an entry that has a check of its own, which is what tells a screen reader it
@@ -425,7 +431,100 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
 
     public IReadOnlyList<MenuSection> Menus { get; init; } = [];
 
-    public IReadOnlyList<object> Toolbar { get; init; } = [];
+    /// <summary>
+    /// The toolbar's buttons and dividers, in the order Settings saved them.
+    /// </summary>
+    /// <remarks>
+    /// Observable, because <see cref="ArrangeToolbar"/> fills it again when Settings changes it.
+    /// </remarks>
+    public ObservableCollection<object> Toolbar { get; } = [];
+
+    /// <summary>Whether the toolbar's buttons show their labels, beside or under their icons.</summary>
+    public bool ToolbarShowsLabels => _toolbarLabels != ToolbarLabelStyle.IconsOnly;
+
+    /// <summary>Whether those labels sit under the icons rather than beside them.</summary>
+    public bool ToolbarLabelsUnderIcons => _toolbarLabels == ToolbarLabelStyle.TextUnderIcon;
+
+    /// <summary>The chevron at the toolbar's end, which holds the buttons that did not fit.</summary>
+    public static string MoreToolbarCommandsLabel => Ui.Shell.MoreToolbarCommands;
+
+    private ToolbarLabelStyle _toolbarLabels = ToolbarLabelStyle.IconsOnly;
+
+    /// <summary>
+    /// The checks of the entries that show or hide something, which a toolbar button built again
+    /// has to share with the menu entry for the same command.
+    /// </summary>
+    internal IReadOnlyDictionary<string, CommandCheck> Checks { get; init; } =
+        new Dictionary<string, CommandCheck>(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Builds the toolbar from a saved layout, and labels its buttons the saved way.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// What 1.x's PopulateToolbar did. A command this shell has not wired is left out rather than
+    /// drawn as a button that does nothing, as the menu leaves it out, and the dividers that leaves
+    /// leading, trailing or doubled go with it, so a missing command cannot show as a gap between
+    /// two lines.
+    /// </para>
+    /// <para>
+    /// Each button is the menu entry's command, so it dims and runs exactly as the entry does. The
+    /// list is replaced only when it changed, so closing Settings without touching the toolbar
+    /// does not rebuild it under the pointer.
+    /// </para>
+    /// </remarks>
+    internal void ArrangeToolbar(IReadOnlyList<string>? items, ToolbarLabelStyle labels)
+    {
+        var next = new List<object>();
+        foreach (var id in ToolbarLayout.Resolve(items))
+        {
+            if (id == ToolbarLayout.Separator)
+            {
+                next.Add(ToolbarSeparator.Instance);
+            }
+            else if (UiCommandCatalog.IsAvailable(id))
+            {
+                next.Add(ShellPreview.ToEntry(UiCommandCatalog.GetDefinition(id), Router, Checks));
+            }
+        }
+
+        for (var index = next.Count - 1; index >= 0; index--)
+        {
+            if (next[index] is ToolbarSeparator &&
+                (index == 0 || index == next.Count - 1 || next[index - 1] is ToolbarSeparator))
+            {
+                next.RemoveAt(index);
+            }
+        }
+
+        if (!Toolbar.SequenceEqual(next))
+        {
+            Toolbar.Clear();
+            foreach (var item in next) Toolbar.Add(item);
+        }
+
+        if (_toolbarLabels == labels || !Enum.IsDefined(labels)) return;
+        _toolbarLabels = labels;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ToolbarShowsLabels)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ToolbarLabelsUnderIcons)));
+    }
+
+    /// <summary>
+    /// Brings the shell into line with what Settings saved: the keys each command answers to and
+    /// the menus show, the toolbar, and the side the connections panel is on.
+    /// </summary>
+    /// <remarks>
+    /// What 1.x did once its Settings dialog had saved (RefreshShortcutPresentation and
+    /// ApplyToolbarPreferences), so a change shows at once rather than at the next start. An
+    /// import can change the same settings, so it comes here too.
+    /// </remarks>
+    internal void FollowSettings(DesktopUpdatePreferences saved)
+    {
+        ArgumentNullException.ThrowIfNull(saved);
+        Router.UseShortcuts(saved.Shortcuts);
+        ArrangeToolbar(saved.ToolbarItems, saved.ToolbarLabels);
+        ConnectionsPanel.FollowSettings(saved);
+    }
 
     /// <summary>
     /// The tabs across the top, which New Workspace adds to.
@@ -534,7 +633,6 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
                 pinned ? Ui.Shell.UnpinWorkspace : Ui.Shell.PinWorkspace,
                 pinned ? Ui.Shell.RemoveFromPinned : Ui.Shell.PinWorkspaceHint,
                 null,
-                null,
                 UiIconTone.Text,
                 _togglePin),
         };
@@ -552,7 +650,7 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
             if (entries.Length == 0) return;
 
             next.Add(Line());
-            next.Add(new("workspace.heading", heading, string.Empty, null, null, UiIconTone.Text, Inert) { IsHeading = true });
+            next.Add(new("workspace.heading", heading, string.Empty, null, UiIconTone.Text, Inert) { IsHeading = true });
             foreach (var shortcut in entries)
             {
                 var path = shortcut.Entry.Path;
@@ -567,7 +665,6 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
                     shortcut.LooksPresent ? name : Ui.Format(Ui.Shell.WorkspaceMissingEntryFormat, name),
                     path,
                     null,
-                    null,
                     UiIconTone.Text,
                     new RelayCommand(_ => _ = files.OpenPathAsync(path)))
                 {
@@ -577,7 +674,7 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         }
 
         static CommandEntry Line() =>
-            new("workspace.separator", CommandEntry.SeparatorLabel, string.Empty, null, null, UiIconTone.Text, Inert);
+            new("workspace.separator", CommandEntry.SeparatorLabel, string.Empty, null, UiIconTone.Text, Inert);
 
         static (string, string, bool) Key(CommandEntry entry) => (entry.Id, entry.Label, entry.IsMissing);
     }
@@ -1196,7 +1293,7 @@ internal static class ShellPreview
         {
             Menus = BuildMenus(router, checks),
             PaneContextEntries = BuildPaneContextMenu(router),
-            Toolbar = BuildToolbar(router, checks),
+            Checks = checks,
             SelectedWorkspace = selectedWorkspace,
             Sidebar = BuildSidebar(router),
             ConnectionsPanel = panel,
@@ -1313,6 +1410,12 @@ internal static class ShellPreview
         model.DimWorkspaceCommandsOnPages();
         model.WatchTheStatusBar();
 
+        // The keys and the toolbar as Settings saved them, as 1.x built its menus and toolbar from
+        // the saved preferences. The samples have no settings file, and keep the catalog's.
+        var saved = (live ? ReadPreferences() : null) ?? DesktopUpdatePreferences.Defaults;
+        router.UseShortcuts(saved.Shortcuts);
+        model.ArrangeToolbar(saved.ToolbarItems, saved.ToolbarLabels);
+
         // View > Connections Panel (Ctrl+B) and Move Connections Panel, and the panel's own Move
         // and Hide, which 1.x offered under its "..." as well.
         router.Handle(UiCommandIds.ViewConnectionsPanel, panel.Toggle);
@@ -1325,7 +1428,7 @@ internal static class ShellPreview
         // it was hidden.
         if (live)
         {
-            panel.Restore(ReadPreferences() ?? DesktopUpdatePreferences.Defaults);
+            panel.Restore(saved);
             panel.Persist = UpdatePreferences;
             panel.Shown += (_, _) => _ = model.Sidebar.RefreshAsync();
         }
@@ -1513,24 +1616,6 @@ internal static class ShellPreview
     ];
 
     /// <summary>
-    /// The toolbar, filtered the way the menu already was.
-    /// </summary>
-    /// <remarks>
-    /// The menu has always dropped what <see cref="UiCommandCatalog.IsAvailable"/> refuses and the
-    /// toolbar never did, so it drew buttons for commands 1.x itself never wired -- Search and
-    /// Compare panes among them. Same rule, both places.
-    /// </remarks>
-    private static IReadOnlyList<object> BuildToolbar(
-        ShellCommandRouter router, IReadOnlyDictionary<string, CommandCheck> checks) =>
-    [
-        .. ToolbarLayout.Resolve(null)
-            .Where(id => id == ToolbarLayout.Separator || UiCommandCatalog.IsAvailable(id))
-            .Select(object (id) => id == ToolbarLayout.Separator
-                ? ToolbarSeparator.Instance
-                : ToEntry(UiCommandCatalog.GetDefinition(id), router, checks)),
-    ];
-
-    /// <summary>
     /// A pane's right-click menu, as 1.x had it: making things, then changing the selection, then
     /// moving it between panes, then the pane itself. Built from the catalog, so each entry is the
     /// menu bar's own -- the same label, icon, shortcut and routing to the pane it was opened on.
@@ -1553,18 +1638,18 @@ internal static class ShellPreview
             : ToEntry(UiCommandCatalog.GetDefinition(id), router)),
     ];
 
-    private static CommandEntry ToEntry(
+    internal static CommandEntry ToEntry(
         UiCommandDefinition definition,
         ShellCommandRouter router,
         IReadOnlyDictionary<string, CommandCheck>? checks = null) => new(
         definition.Id,
         definition.Label,
         definition.Description,
-        definition.Shortcut,
         IconCatalog.Resolve(definition.Glyph),
         definition.Tone,
         router.For(definition.Id))
     {
         Check = checks?.GetValueOrDefault(definition.Id) ?? CommandCheck.None,
+        Shortcut = router.ShortcutOf(definition.Id),
     };
 }

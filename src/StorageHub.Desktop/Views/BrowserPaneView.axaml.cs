@@ -59,6 +59,13 @@ public partial class BrowserPaneView : UserControl
         AddHandler(ScrollViewer.ScrollChangedEvent, OnScrollChanged, RoutingStrategies.Bubble);
         AddHandler(ContextRequestedEvent, OnContextRequested, RoutingStrategies.Tunnel);
 
+        // The "..." shows each entry's shortcut, as 1.x's did, read as it opens so that a key
+        // rebound in Settings shows there too.
+        if (this.FindControl<Button>("PART_MoreCommands")?.Flyout is MenuFlyout more)
+        {
+            more.Opening += (_, _) => ShowShortcuts();
+        }
+
         // Choosing a folder in the tree goes there. The tree's own model ignores the selection it
         // makes when it follows a listing, so only a person's choice moves the pane.
         if (this.FindControl<TreeView>("PART_Tree") is { } tree)
@@ -309,7 +316,7 @@ public partial class BrowserPaneView : UserControl
                     {
                         Header = command.Label,
                         Command = command.Command,
-                        InputGesture = command.Shortcut,
+                        InputGesture = command.Shortcut.Gesture,
                         Icon = command.Icon is { } icon ? new LucideIcon { Kind = icon, Size = 16 } : null,
                     }
                     : new Separator());
@@ -317,6 +324,33 @@ public partial class BrowserPaneView : UserControl
         }
 
         table.ContextMenu = new ContextMenu { ItemsSource = items };
+    }
+
+    /// <summary>The entries of the "..." that are shell commands, and which command each one is.</summary>
+    private static readonly (string Name, string Id)[] MoreCommands =
+    [
+        ("PART_MoreNewFile", UiCommandIds.EditNewEmptyFile),
+        ("PART_MoreRename", UiCommandIds.EditRename),
+        ("PART_MoreBatchRename", UiCommandIds.EditBatchRename),
+        ("PART_MoreSelectAll", UiCommandIds.EditSelectAll),
+        ("PART_MoreInvertSelection", UiCommandIds.EditInvertSelection),
+        ("PART_MoreProperties", UiCommandIds.EditProperties),
+    ];
+
+    /// <summary>
+    /// Puts the shell's key for each of those entries beside it. A pane with no shell around it
+    /// has no keys to show, since nothing would dispatch them.
+    /// </summary>
+    private void ShowShortcuts()
+    {
+        var shell = TopLevel.GetTopLevel(this)?.DataContext as ShellPreviewModel;
+        foreach (var (name, id) in MoreCommands)
+        {
+            if (this.FindControl<MenuItem>(name) is { } item)
+            {
+                item.InputGesture = shell?.Router.ShortcutOf(id).Gesture;
+            }
+        }
     }
 
     private void Open(RoutedEventArgs e)

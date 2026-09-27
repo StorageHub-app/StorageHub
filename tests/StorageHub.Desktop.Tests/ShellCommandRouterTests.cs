@@ -3,6 +3,8 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using Avalonia.Layout;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using StorageHub.Desktop.Views;
 using Xunit;
@@ -150,5 +152,97 @@ public class ShellCommandRouterTests
         // proved the path worked while nothing was wired. It says something now only when a
         // command has nowhere to go, and view.refresh has somewhere.
         Assert.DoesNotContain(UiCommandIds.ViewRefresh, model.Status, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// What Settings saved takes over when it closes, as in 1.x: a rebound key runs its command
+    /// and the old one no longer does, the menus show the new key, and the toolbar holds the saved
+    /// buttons in the saved order, labelled the saved way, with what does not fit behind a chevron.
+    /// </summary>
+    [AvaloniaFact]
+    public void TheShellFollowsTheShortcutsAndToolbarThatWereSaved()
+    {
+        var model = ShellPreview.CreateOnWorkspace();
+        var window = new MainWindow { DataContext = model };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+        var fired = new List<string>();
+        model.Router.Invoked += (_, id) => fired.Add(id);
+        var hidden = ToolbarLabels(window);
+        Assert.NotEmpty(hidden);
+        Assert.All(hidden, label => Assert.False(label.IsEffectivelyVisible));
+
+        var rebound = new KeyGesture(Key.J, KeyModifiers.Control);
+        var rename = new KeyGesture(Key.R, KeyModifiers.Control);
+        model.FollowSettings(DesktopUpdatePreferences.Defaults with
+        {
+            Shortcuts = new Dictionary<string, KeyGesture?>
+            {
+                [UiCommandIds.WorkspaceNewWorkspace] = rebound,
+                [UiCommandIds.EditRename] = rename,
+            },
+
+            // Search is not wired, so it goes, and so does one of the two dividers it leaves.
+            ToolbarItems =
+            [
+                UiCommandIds.ToolsSettings, ToolbarLayout.Separator, UiCommandIds.ToolsSearch,
+                ToolbarLayout.Separator, UiCommandIds.WorkspaceNewWorkspace,
+            ],
+            ToolbarLabels = ToolbarLabelStyle.TextUnderIcon,
+        });
+
+        window.KeyPressQwerty(PhysicalKey.T, RawInputModifiers.Control);
+        window.KeyPressQwerty(PhysicalKey.J, RawInputModifiers.Control);
+        Assert.Equal([UiCommandIds.WorkspaceNewWorkspace], fired);
+
+        var entry = model.Menus.SelectMany(static section => section.Items)
+            .Single(static item => item.Id == UiCommandIds.WorkspaceNewWorkspace);
+        Assert.Equal(rebound, entry.Shortcut.Gesture);
+
+        // A pane's right-click menu and its "..." show the rebound key too, as 1.x's did.
+        Assert.Equal(rename, model.PaneContextEntries.OfType<CommandEntry>()
+            .Single(static item => item.Id == UiCommandIds.EditRename).Shortcut.Gesture);
+        var pane = window.GetVisualDescendants().OfType<BrowserPaneView>().First();
+        var more = pane.GetControl<Button>("PART_MoreCommands");
+        ((MenuFlyout)more.Flyout!).ShowAt(more);
+        Assert.Equal(rename, pane.GetControl<MenuItem>("PART_MoreRename").InputGesture);
+
+        Assert.Equal(
+            [UiCommandIds.ToolsSettings, ToolbarLayout.Separator, UiCommandIds.WorkspaceNewWorkspace],
+            model.Toolbar.Select(static item => (item as CommandEntry)?.Id ?? ToolbarLayout.Separator));
+        Dispatcher.UIThread.RunJobs();
+        var labels = ToolbarLabels(window);
+        Assert.Equal(2, labels.Length);
+        Assert.All(labels, label =>
+        {
+            Assert.True(label.IsEffectivelyVisible);
+            Assert.Equal(Orientation.Vertical, ((StackPanel)label.GetVisualParent()!).Orientation);
+        });
+        var chevron = window.GetControl<Button>("PART_ToolbarOverflow");
+        Assert.False(chevron.IsVisible);
+
+        // The whole toolbar labelled under its icons does not fit the narrowest window. What does
+        // not goes behind the chevron at its end, as 1.x's ToolStrip put it, and its menu runs the
+        // same commands.
+        model.FollowSettings(DesktopUpdatePreferences.Defaults with { ToolbarLabels = ToolbarLabelStyle.TextUnderIcon });
+        window.Width = window.MinWidth;
+        Dispatcher.UIThread.RunJobs();
+        window.UpdateLayout();
+        Assert.True(chevron.IsVisible);
+        var row = window.GetVisualDescendants().OfType<ToolbarOverflowPanel>().Single();
+        var settings = row.Children.Single(static child =>
+            child.DataContext is CommandEntry { Id: UiCommandIds.ToolsSettings });
+        Assert.Contains(settings, row.Overflow);
+        Assert.True(settings.Bounds.X >= row.Bounds.Width);
+        var overflow = (MenuFlyout)chevron.Flyout!;
+        overflow.ShowAt(chevron);
+        Assert.Contains(overflow.Items.OfType<MenuItem>(), item =>
+            ReferenceEquals(item.Command, ((CommandEntry)settings.DataContext!).Command));
+
+        static TextBlock[] ToolbarLabels(MainWindow window) =>
+        [
+            .. window.GetVisualDescendants().OfType<TextBlock>()
+                .Where(static text => text.Classes.Contains("tool-label")),
+        ];
     }
 }

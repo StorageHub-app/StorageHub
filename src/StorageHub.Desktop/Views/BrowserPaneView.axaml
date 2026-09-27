@@ -159,33 +159,41 @@
       -->
       <Border DockPanel.Dock="Top" Classes="pane-commands" IsVisible="{Binding IsListing}">
         <DockPanel>
-          <Button DockPanel.Dock="Right" Classes="tool"
+          <!-- The named entries are shell commands, and show their shortcuts as 1.x's "..." did;
+               the view reads the key as bound now each time the menu opens. -->
+          <Button x:Name="PART_MoreCommands" DockPanel.Dock="Right" Classes="tool"
                   ToolTip.Tip="{Binding MoreFileCommandsLabel}"
                   AutomationProperties.Name="{Binding MoreFileCommandsLabel}">
             <LucideIcon Kind="Ellipsis" Size="{StaticResource IconSizeSm}"/>
             <Button.Flyout>
               <MenuFlyout>
-                <MenuItem Header="{Binding NewFileLabel}" Command="{Binding NewFileCommand}">
+                <MenuItem Header="{Binding NewFileLabel}" Command="{Binding NewFileCommand}"
+                          x:Name="PART_MoreNewFile">
                   <MenuItem.Icon><LucideIcon Kind="FilePlus" Size="{StaticResource IconSizeSm}"/></MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="{Binding RenameLabel}" Command="{Binding RenameCommand}">
+                <MenuItem Header="{Binding RenameLabel}" Command="{Binding RenameCommand}"
+                          x:Name="PART_MoreRename">
                   <MenuItem.Icon><LucideIcon Kind="PencilLine" Size="{StaticResource IconSizeSm}"/></MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="{Binding BatchRenameLabel}" Command="{Binding BatchRenameCommand}">
+                <MenuItem Header="{Binding BatchRenameLabel}" Command="{Binding BatchRenameCommand}"
+                          x:Name="PART_MoreBatchRename">
                   <MenuItem.Icon><LucideIcon Kind="ReplaceAll" Size="{StaticResource IconSizeSm}"/></MenuItem.Icon>
                 </MenuItem>
                 <MenuItem Header="{Binding EditLabel}" Command="{Binding EditCommand}">
                   <MenuItem.Icon><LucideIcon Kind="FilePen" Size="{StaticResource IconSizeSm}"/></MenuItem.Icon>
                 </MenuItem>
                 <Separator/>
-                <MenuItem Header="{Binding SelectAllLabel}" Command="{Binding SelectAllCommand}">
+                <MenuItem Header="{Binding SelectAllLabel}" Command="{Binding SelectAllCommand}"
+                          x:Name="PART_MoreSelectAll">
                   <MenuItem.Icon><LucideIcon Kind="ListChecks" Size="{StaticResource IconSizeSm}"/></MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="{Binding InvertSelectionLabel}" Command="{Binding InvertSelectionCommand}">
+                <MenuItem Header="{Binding InvertSelectionLabel}" Command="{Binding InvertSelectionCommand}"
+                          x:Name="PART_MoreInvertSelection">
                   <MenuItem.Icon><LucideIcon Kind="Replace" Size="{StaticResource IconSizeSm}"/></MenuItem.Icon>
                 </MenuItem>
                 <Separator/>
-                <MenuItem Header="{Binding PropertiesLabel}" Command="{Binding PropertiesCommand}">
+                <MenuItem Header="{Binding PropertiesLabel}" Command="{Binding PropertiesCommand}"
+                          x:Name="PART_MoreProperties">
                   <MenuItem.Icon><LucideIcon Kind="Info" Size="{StaticResource IconSizeSm}"/></MenuItem.Icon>
                 </MenuItem>
               </MenuFlyout>

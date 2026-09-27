@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Markup.Xaml;
+using Lucide.Avalonia;
 using StorageHub.Desktop.Themes;
 
 namespace StorageHub.Desktop.Views;
@@ -17,6 +18,7 @@ public partial class MainWindow : Window
     private const int WorkspaceMinimumWidth = 560;
 
     private ConnectionsPanelLayout? _panelLayout;
+    private ToolbarOverflowPanel? _toolbarRow;
     private bool _opened;
 
     public MainWindow()
@@ -34,6 +36,21 @@ public partial class MainWindow : Window
                 root.ContainerPrepared -= MarkEntry;
                 root.ContainerPrepared += MarkEntry;
             };
+        }
+
+        // The chevron shows while a toolbar button does not fit, and its menu is made as it opens
+        // from whichever ones those are then, as 1.x's ToolStrip filled its overflow drop-down.
+        var chevron = this.GetControl<Button>("PART_ToolbarOverflow");
+        var toolbar = this.GetControl<ItemsControl>("PART_Toolbar");
+        toolbar.AddHandler(ToolbarOverflowPanel.OverflowChangedEvent, (_, e) =>
+        {
+            if (e.Source is not ToolbarOverflowPanel row) return;
+            _toolbarRow = row;
+            chevron.IsVisible = row.Overflow.Count > 0;
+        });
+        if (chevron.Flyout is MenuFlyout overflow)
+        {
+            overflow.Opening += (_, _) => overflow.ItemsSource = ToolbarOverflowEntries();
         }
 
         // And the menu is drawn again as it opens, which is when 1.x read the lists: a file can go
@@ -181,6 +198,53 @@ public partial class MainWindow : Window
         column.Width = layout.IsVisible
             ? new GridLength(Math.Clamp(layout.Width / scaling, minimum, maximum))
             : GridLength.Auto;
+    }
+
+    /// <summary>
+    /// The chevron's menu: the toolbar buttons that did not fit, as menu entries that run the same
+    /// commands and show the same keys, with the dividers between them kept.
+    /// </summary>
+    /// <remarks>
+    /// A divider at the head of the list is left out; it was the one that would have ended the row.
+    /// An entry that shows or hides something is ticked the way the menu bar ticks it, around its
+    /// icon.
+    /// </remarks>
+    private List<Control> ToolbarOverflowEntries()
+    {
+        var entries = new List<Control>();
+        foreach (var hidden in _toolbarRow?.Overflow ?? [])
+        {
+            switch (hidden.DataContext)
+            {
+                case ToolbarSeparator when entries.Count > 0 && entries[^1] is not Separator:
+                    entries.Add(new Separator());
+                    break;
+                case CommandEntry entry:
+                    var icon = new Border
+                    {
+                        Child = entry.Icon is { } kind
+                            ? new LucideIcon { Kind = kind, Size = DesignTokens.Get<double>("IconSizeSm") }
+                            : null,
+                    };
+                    icon.Classes.Add("menu-check");
+                    icon.Classes.Set("checked", entry.Check.IsChecked);
+                    var item = new MenuItem
+                    {
+                        Header = entry.Label,
+                        Command = entry.Command,
+                        InputGesture = entry.Shortcut.Gesture,
+                        ToggleType = entry.ToggleType,
+                        IsChecked = entry.Check.IsChecked,
+                        Icon = icon,
+                    };
+                    item.Classes.Add("framed-check");
+                    ToolTip.SetTip(item, entry.ToolTip);
+                    entries.Add(item);
+                    break;
+            }
+        }
+
+        return entries;
     }
 
     private static void MarkEntry(object? sender, ContainerPreparedEventArgs e)

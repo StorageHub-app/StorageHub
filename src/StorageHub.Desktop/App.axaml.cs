@@ -268,12 +268,13 @@ public partial class App : global::Avalonia.Application
     /// Brings the shell into line with what Settings saved.
     /// </summary>
     /// <remarks>
-    /// The connections panel's side is a setting as well as a View command, so a side chosen there
-    /// moves the panel when the window closes, rather than at the next start.
+    /// Rebound shortcuts, the toolbar's layout and labels, and the connections panel's side, which
+    /// is a setting as well as a View command, all follow when the window closes rather than at the
+    /// next start. Settings is modal, so nothing can be pressed in the shell before then.
     /// </remarks>
     private static void FollowSettings(ShellPreviewModel model)
     {
-        if (ShellPreview.ReadPreferences() is { } saved) model.ConnectionsPanel.FollowSettings(saved);
+        if (ShellPreview.ReadPreferences() is { } saved) model.FollowSettings(saved);
     }
 
     /// <summary>
@@ -336,6 +337,10 @@ public partial class App : global::Avalonia.Application
             // An import can replace the pinned and recent workspaces too, and Welcome would go on
             // listing the old ones until something else changed them, as 1.x's did not.
             model.ShowWorkspaceShortcuts();
+
+            // And the shortcuts, which 1.x's import refreshed as well, with the toolbar, which a
+            // General section can bring and 1.x left until the next start.
+            FollowSettings(model);
         };
 
         if (desktop.MainWindow is { } owner) _ = window.ShowDialog(owner);

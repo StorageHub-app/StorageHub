@@ -169,8 +169,16 @@ applied, and chosen on the Appearance page (P.5.1).
       width is in device pixels within 1.4's 220 to 640, with 1.4's 560 kept for the workspace;
       the panel is never under 220 on screen, where its header stops fitting, so above 100% scaling
       its narrowest, and above about 136% its default, is wider than 1.4's.
-- [ ] P.3.4 Rebound shortcuts are dispatched and shown; the toolbar is built from the saved layout and
+- [x] P.3.4 Rebound shortcuts are dispatched and shown; the toolbar is built from the saved layout and
       rebuilt when Settings changes it.
+      Done: the keys come from the saved shortcut map, resolved as 1.4 did (an unusable set falls
+      back to the defaults whole), and the menu bar, a pane's right-click menu and its "..." show
+      the key as bound now. The toolbar is built from the saved layout, leaving out commands 2.0
+      has not wired and the dividers they leave, with 1.4's three label styles; what does not fit
+      goes behind a chevron at its end, whose menu runs the same commands, as 1.4's ToolStrip
+      did. Both follow when Settings closes and after an import. Left open: rebinding in Settings
+      waits for its Shortcuts page (L.5); until then a map comes from an import or the settings
+      file.
 - [ ] P.3.5 Go menu Favorites (`FavoriteConnectionMenu` is in Core, unused).
 - [ ] P.3.6 Status bar: the agent cell opens Agent control and carries its detail as a tooltip; the
       transfer speed cell (the queue already has `BytesPerSecond`); short messages for copied, staged,
