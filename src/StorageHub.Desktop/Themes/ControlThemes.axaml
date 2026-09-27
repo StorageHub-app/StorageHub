@@ -756,6 +756,13 @@
     <Setter Property="Margin" Value="2,0,4,0"/>
   </Style>
 
+  <!-- A drop-down in a toolbar: as tall as the buttons beside it. -->
+  <Style Selector="ComboBox.dense">
+    <Setter Property="MinHeight" Value="26"/>
+    <Setter Property="Padding" Value="8,2"/>
+    <Setter Property="CornerRadius" Value="{StaticResource DenseFieldRadius}"/>
+  </Style>
+
   <!-- A field in a pane's navigation row: as tall as the buttons beside it, not a dialog's. -->
   <Style Selector="TextBox.dense">
     <Setter Property="Padding" Value="{StaticResource DenseFieldPadding}"/>

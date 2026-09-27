@@ -16,7 +16,7 @@
   <DockPanel>
     <!-- The queue's own toolbar, above its tabs, exactly where TransferQueueControl put it. -->
     <Border DockPanel.Dock="Top" Classes="toolbar">
-      <Grid ColumnDefinitions="Auto,*,Auto">
+      <Grid ColumnDefinitions="Auto,*">
         <StackPanel Grid.Column="0" Orientation="Horizontal"
                     Spacing="{StaticResource SpaceSm}" VerticalAlignment="Center">
           <Button Classes="tool" Command="{Binding RefreshCommand}">
@@ -39,7 +39,9 @@
           </Button>
           <TextBlock Classes="muted" Text="{Binding ReconcileLabel}"
                      VerticalAlignment="Center" Margin="{StaticResource PaddingLg}"/>
-          <ComboBox ItemsSource="{Binding ReconcileActions}"
+          <!-- As tall as the buttons beside it, as 1.x's was; Fluent's own field is a dialog's. -->
+          <ComboBox Classes="dense" VerticalAlignment="Center"
+                    ItemsSource="{Binding ReconcileActions}"
                     SelectedIndex="{Binding SelectedReconcileAction, Mode=TwoWay}"
                     MinWidth="150"/>
           <Button Classes="tool" Command="{Binding ApplyReconcileCommand}">
@@ -55,8 +57,12 @@
             </StackPanel>
           </Button>
         </StackPanel>
-        <TextBlock Grid.Column="2" Classes="muted" Text="{Binding Message}"
-                   VerticalAlignment="Center"/>
+        <!-- In the column that stretches, so a narrow window trims it rather than pushing it
+             off the edge; and clear of the edge, where the last word used to be cut. -->
+        <TextBlock Grid.Column="1" Classes="muted" Text="{Binding Message}"
+                   HorizontalAlignment="Right" VerticalAlignment="Center"
+                   TextTrimming="CharacterEllipsis" Margin="12,0,8,0"
+                   ToolTip.Tip="{Binding Message}"/>
       </Grid>
     </Border>
 
