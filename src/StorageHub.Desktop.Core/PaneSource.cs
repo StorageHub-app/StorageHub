@@ -278,3 +278,64 @@ internal sealed class LocalPaneSource(LocalBrowserController controller) : IPane
         _ => LocalBrowserNavigationKind.Navigate
     };
 }
+
+/// <summary>
+/// "Connections Home": the saved connections as rows, each opening that connection in the pane.
+/// </summary>
+/// <remarks>
+/// What 1.x's second pane opened on. A row's location is <c>connection:</c> and the connection's
+/// id, which no provider path can be, so the pane can tell one of these from a folder. It is not a
+/// place files live, so it is not a transfer endpoint either: paste and drop are refused here.
+/// </remarks>
+internal sealed class ConnectionsHomeSource(Func<IReadOnlyList<ConnectionCardModel>> connections) : IPaneSource
+{
+    internal const string RowPrefix = "connection:";
+
+    public string Title => Ui.Pane.ConnectionsHome;
+
+    public bool CanGoBack => false;
+
+    public bool CanGoForward => false;
+
+    public bool CanGoUp => false;
+
+    /// <summary>The connection a Connections Home row stands for, or null for any other row.</summary>
+    internal static Guid? ConnectionOf(BrowserListItem row) =>
+        row.Location is { } location &&
+        location.StartsWith(RowPrefix, StringComparison.Ordinal) &&
+        Guid.TryParse(location.AsSpan(RowPrefix.Length), out var id)
+            ? id
+            : null;
+
+    public StorageResult<PaneTransferContext> TransferContext() =>
+        StorageResult<PaneTransferContext>.Fail(new StorageFailure(
+            "manual_transfer.pane.connections_home",
+            StorageFailureKind.Validation,
+            Ui.Pane.SelectProfileToConnect));
+
+    public Task<PaneNavigationResult> MoveAsync(
+        PaneNavigationKind kind,
+        string? target = null,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(PaneNavigationResult.Ok(new PaneListing(
+            Ui.Pane.ConnectionsHome,
+            [
+                .. connections()
+                    .Where(static card => card.ConnectionId is not null && card.IsEnabled)
+                    .Select(static card => new BrowserListItem(
+                        card.Name,
+                        string.Empty,
+                        card.Descriptor.DisplayName,
+                        string.Empty,
+                        card.State,
+                        RowPrefix + card.ConnectionId!.Value.ToString("D"),
+                        IsContainer: true))
+            ],
+            IsAtRoot: true,
+            HasMore: false)));
+
+    public Task<PaneNavigationResult> LoadMoreAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(PaneNavigationResult.Failed(null));
+
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+}

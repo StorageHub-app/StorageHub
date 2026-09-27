@@ -309,7 +309,9 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     public string EmptyNotice =>
         !IsListing || _source is null || _failed || _busy || Rows.Any(static row => !row.IsParentNavigation)
             ? string.Empty
-            : HasFilter ? Ui.Pane.NoItemsMatchFilter : Ui.Pane.FolderIsEmpty;
+            : HasFilter ? Ui.Pane.NoItemsMatchFilter
+            : _source is ConnectionsHomeSource ? Ui.Pane.NoEnabledConnections + ". " + Ui.Pane.UseManageToAddOne + "."
+            : Ui.Pane.FolderIsEmpty;
 
     public bool HasEmptyNotice => EmptyNotice.Length > 0;
 
@@ -451,6 +453,10 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     }
 
     private IReadOnlyList<ConnectionCardModel> _cards = [ConnectionPickerFilter.ThisComputer()];
+
+    /// <summary>Connections Home in the picker, beside This PC, as 1.x offered it.</summary>
+    private readonly ConnectionCardModel _homeCard = new(
+        Ui.Pane.ConnectionsHome, StorageProviderKind.Local, Ui.Pane.SavedConnections, Ui.Pane.Ready);
 
     public PaneConnection? Connection
     {
@@ -1137,6 +1143,9 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             // which is also the state somebody is in while they work out why the agent is down.
             Connections.Add(new PaneConnection(
                 null, Ui.Pane.ThisPc, LucideIconKind.HardDrive, PaneContentKind.ThisPc));
+            cards.Add(_homeCard);
+            Connections.Add(new PaneConnection(
+                null, Ui.Pane.ConnectionsHome, LucideIconKind.House, PaneContentKind.ConnectionsHome));
 
             if (result.Status != RemoteBrowserOperationStatus.Succeeded)
             {
@@ -1168,7 +1177,12 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             // computer can be browsed either way.
             if (_connection is null && Connections.Count > 0)
             {
-                Connection = Connections[0];
+                // The first pane on this computer and the rest on the saved connections, as 1.x
+                // opened a workspace.
+                Connection = _paneNumber > 1 &&
+                    Connections.FirstOrDefault(static candidate => candidate.Kind == PaneContentKind.ConnectionsHome) is { } home
+                        ? home
+                        : Connections[0];
             }
             else if (_connection is { Name.Length: 0, Id: { } opened } &&
                      Connections.FirstOrDefault(candidate => candidate.Id == opened) is { } named)
@@ -1227,6 +1241,14 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
                 return;
             }
 
+            if (choice.Kind == PaneContentKind.ConnectionsHome)
+            {
+                _source = new ConnectionsHomeSource(() => _cards);
+                Report(await _source.MoveAsync(PaneNavigationKind.Navigate, cancellationToken: cancellationToken)
+                    .ConfigureAwait(true));
+                return;
+            }
+
             if (choice.Id is { } connectionId)
             {
                 var remote = new RemotePaneSource(_controller, choice.Name);
@@ -1282,6 +1304,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     internal ConnectionCardModel? ActiveCard => _connection switch
     {
         null => null,
+        { Kind: PaneContentKind.ConnectionsHome } => _homeCard,
         { Id: { } id } => _cards.FirstOrDefault(card => card.ConnectionId == id),
         _ => _cards.FirstOrDefault(card => card.ConnectionId is null)
     };
@@ -1298,7 +1321,9 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         ArgumentNullException.ThrowIfNull(card);
         var choice = card.ConnectionId is { } id
             ? Connections.FirstOrDefault(candidate => candidate.Id == id)
-            : Connections.FirstOrDefault(candidate => candidate.Id is null);
+            : ReferenceEquals(card, _homeCard)
+                ? Connections.FirstOrDefault(static candidate => candidate.Kind == PaneContentKind.ConnectionsHome)
+                : Connections.FirstOrDefault(static candidate => candidate.Kind == PaneContentKind.ThisPc);
         if (choice is not null) Connection = choice;
     }
 
@@ -1593,6 +1618,9 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         }
 
         if (Selected is not { IsContainer: true } row) return Task.CompletedTask;
+
+        // A row of Connections Home is a connection, not a folder: it opens in this pane.
+        if (ConnectionsHomeSource.ConnectionOf(row) is { } connection) return OpenConnectionAsync(connection, cancellationToken);
 
         return row.IsParentNavigation
             ? UpAsync(cancellationToken)

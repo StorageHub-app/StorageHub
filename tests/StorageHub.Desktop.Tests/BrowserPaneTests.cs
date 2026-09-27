@@ -32,7 +32,7 @@ public class BrowserPaneTests
         // The SSH client can be browsed; the disabled one cannot, and offering it would produce a
         // pane that fails the moment somebody chose it. This PC is always there.
         Assert.Equal(
-            ["Build Box", "Studio Assets", Ui.Pane.ThisPc],
+            ["Build Box", Ui.Pane.ConnectionsHome, "Studio Assets", Ui.Pane.ThisPc],
             pane.Connections.Select(c => c.Name).Order(StringComparer.Ordinal));
 
         // Null is what marks the local entry, so nothing downstream needs a second concept for it.
@@ -203,7 +203,7 @@ public class BrowserPaneTests
         await using var pane = new BrowserPaneModel(agent);
         await pane.LoadConnectionsAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(Ui.Pane.ThisPc, Assert.Single(pane.Connections).Name);
+        Assert.Equal([Ui.Pane.ThisPc, Ui.Pane.ConnectionsHome], pane.Connections.Select(static c => c.Name));
         Assert.True(pane.HasStatus);
     }
 

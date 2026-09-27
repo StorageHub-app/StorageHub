@@ -78,7 +78,7 @@ public class AddressBarTests
         var connection = WorkspaceFakes.Summary("Offline bucket");
         await using var pane = new BrowserPaneModel(new Refusing(connection));
         await pane.LoadConnectionsAsync(TestContext.Current.CancellationToken);
-        await pane.OpenAsync(pane.Connections.Single(c => c.Id is null), TestContext.Current.CancellationToken);
+        await pane.OpenAsync(pane.Connections.Single(static c => c.Kind == PaneContentKind.ThisPc), TestContext.Current.CancellationToken);
         Assert.NotEmpty(pane.Rows);
 
         await pane.OpenConnectionAsync(connection.ConnectionId, TestContext.Current.CancellationToken);
@@ -207,7 +207,7 @@ public class AddressBarTests
     {
         var pane = new BrowserPaneModel(new Refusing(WorkspaceFakes.Summary("unused")));
         await pane.LoadConnectionsAsync(TestContext.Current.CancellationToken);
-        await pane.OpenAsync(pane.Connections.Single(c => c.Id is null), TestContext.Current.CancellationToken);
+        await pane.OpenAsync(pane.Connections.Single(static c => c.Kind == PaneContentKind.ThisPc), TestContext.Current.CancellationToken);
         return pane;
     }
 

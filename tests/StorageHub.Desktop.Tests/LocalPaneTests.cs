@@ -127,7 +127,7 @@ public class LocalPaneTests
         await pane.LoadConnectionsAsync(TestContext.Current.CancellationToken);
 
         await pane.OpenAsync(
-            pane.Connections.Single(c => c.Id is null), TestContext.Current.CancellationToken);
+            pane.Connections.Single(static c => c.Kind == PaneContentKind.ThisPc), TestContext.Current.CancellationToken);
         Assert.Equal(Ui.Pane.ThisPc, pane.Path);
 
         await pane.OpenAsync(
@@ -137,7 +137,7 @@ public class LocalPaneTests
         Assert.Equal(["bucket-file.bin"], pane.Rows.Select(row => row.Name));
 
         await pane.OpenAsync(
-            pane.Connections.Single(c => c.Id is null), TestContext.Current.CancellationToken);
+            pane.Connections.Single(static c => c.Kind == PaneContentKind.ThisPc), TestContext.Current.CancellationToken);
         Assert.Equal(Ui.Pane.ThisPc, pane.Path);
         Assert.Equal(FakeDisks.RootNames, pane.Rows.Select(row => row.Name));
     }
@@ -159,7 +159,7 @@ public class LocalPaneTests
                 static () => throw new InvalidOperationException("Not reached at the drive list.")),
             dialogs: new KeyStoreTests.RecordingDialogs());
         await pane.LoadConnectionsAsync(TestContext.Current.CancellationToken);
-        await pane.OpenAsync(pane.Connections.Single(c => c.Id is null), TestContext.Current.CancellationToken);
+        await pane.OpenAsync(pane.Connections.Single(static c => c.Kind == PaneContentKind.ThisPc), TestContext.Current.CancellationToken);
         pane.SelectedRows.Add(pane.Rows[0]);
 
         Assert.False(pane.NewFolderCommand.CanExecute(null));
@@ -178,7 +178,7 @@ public class LocalPaneTests
         var pane = new BrowserPaneModel(new FakeAgent([]), () => new FakeDisks());
         await pane.LoadConnectionsAsync(TestContext.Current.CancellationToken);
         await pane.OpenAsync(
-            pane.Connections.Single(c => c.Id is null), TestContext.Current.CancellationToken);
+            pane.Connections.Single(static c => c.Kind == PaneContentKind.ThisPc), TestContext.Current.CancellationToken);
         return pane;
     }
 

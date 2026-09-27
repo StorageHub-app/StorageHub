@@ -112,10 +112,11 @@ setting to choose it (P.5.1).
 - [x] P.2.15 A thin accent strip across each pane in the connection's colour; opening a connection records
       it in Welcome's recent list; "Open in new pane".
       Done, with 1.x's right-click menu on a connection card (Open, Open in new pane, Edit, Delete).
-- [ ] P.2.16 Connections Home (was L.9).
+- [x] P.2.16 Connections Home (was L.9).
 
 ### P.3 The shell
 
+      Done: in the picker beside This PC, and what a second pane opens on.
 - [ ] P.3.1 Workspaces: Save, Save As, Open (.shw), Rename, and the tab's `*` (was L.8); Welcome's
       workspace list with Open, Pin, Remove and Copy path; Workspace menu Pinned/Recent and Pin/Unpin.
 - [ ] P.3.2 Workspace > Exit; workspace commands dimmed on Welcome and Sync tasks.

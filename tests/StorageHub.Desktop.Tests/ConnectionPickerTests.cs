@@ -76,7 +76,7 @@ public sealed class ConnectionPickerTests
     {
         await using var pane = await Pane(Summary("Studio Assets", StorageConnectionProvider.S3));
 
-        pane.Choose(pane.Cards.Single(card => card.ConnectionId is null));
+        pane.Choose(pane.Cards.Single(card => card.ConnectionId is null && card.Name == Ui.Pane.ThisPc));
 
         Assert.Null(pane.Connection?.Id);
         Assert.Equal(Ui.Pane.ThisPc, pane.Title);

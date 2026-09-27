@@ -81,7 +81,7 @@ public class FileIconTests
 
             await using var pane = new BrowserPaneModel(new NoConnections());
             await pane.LoadConnectionsAsync(TestContext.Current.CancellationToken);
-            await pane.OpenAsync(pane.Connections.Single(c => c.Id is null), TestContext.Current.CancellationToken);
+            await pane.OpenAsync(pane.Connections.Single(static c => c.Kind == PaneContentKind.ThisPc), TestContext.Current.CancellationToken);
             await pane.NavigateAsync(folder.FullName, TestContext.Current.CancellationToken);
 
             var window = new Window { Content = new BrowserPaneView { DataContext = pane }, Width = 700, Height = 420 };

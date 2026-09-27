@@ -166,7 +166,7 @@ public class PaneFileOperationTests
                 mutations: () => new PaneMutationController(static () => throw new InvalidOperationException(), local),
                 dialogs: dialogs);
             await pane.LoadConnectionsAsync(TestContext.Current.CancellationToken);
-            await pane.OpenAsync(pane.Connections.Single(c => c.Id is null), TestContext.Current.CancellationToken);
+            await pane.OpenAsync(pane.Connections.Single(static c => c.Kind == PaneContentKind.ThisPc), TestContext.Current.CancellationToken);
             await pane.NavigateAsync(folder.FullName, TestContext.Current.CancellationToken);
             pane.SelectedRows.Add(pane.Rows.Single(static row => row.Name == "old.txt"));
 

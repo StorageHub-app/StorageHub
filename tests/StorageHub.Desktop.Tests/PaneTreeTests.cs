@@ -100,7 +100,7 @@ public class PaneTreeTests
             Directory.CreateDirectory(Path.Combine(folder.FullName, "inside"));
             await using var pane = new BrowserPaneModel(new NoConnections());
             await pane.LoadConnectionsAsync(TestContext.Current.CancellationToken);
-            await pane.OpenAsync(pane.Connections.Single(c => c.Id is null), TestContext.Current.CancellationToken);
+            await pane.OpenAsync(pane.Connections.Single(static c => c.Kind == PaneContentKind.ThisPc), TestContext.Current.CancellationToken);
 
             var root = Assert.Single(pane.Tree.Roots);
             Assert.Equal(Ui.Pane.ThisPc, root.Name);

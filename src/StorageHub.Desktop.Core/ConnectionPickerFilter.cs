@@ -131,7 +131,9 @@ internal static class ConnectionPickerFilter
             .. cards
                 .OrderBy(Rank)
                 .ThenBy(GroupLabel, comparer)
-                .ThenBy(static card => card.Name, comparer)
+                // What is on this device keeps the order it was given in -- This PC, then
+                // Connections Home, as 1.x listed them -- rather than being alphabetised.
+                .ThenBy(static card => card.ConnectionId is null ? string.Empty : card.Name, comparer)
         ];
 
         static int Rank(ConnectionCardModel card) => card switch

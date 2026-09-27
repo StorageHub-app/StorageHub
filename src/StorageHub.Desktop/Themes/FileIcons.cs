@@ -85,6 +85,7 @@ internal static class FileIcons
     /// <summary>The glyph for a row, when the system has no icon to give.</summary>
     internal static LucideIconKind Glyph(BrowserListItem item) =>
         item.IsParentNavigation ? LucideIconKind.FolderUp
+        : ConnectionsHomeSource.ConnectionOf(item) is not null ? LucideIconKind.Server
         : IsDrive(item) ? LucideIconKind.HardDrive
         : item.IsContainer ? LucideIconKind.Folder
         : ByExtension.TryGetValue(Path.GetExtension(item.Name), out var kind) ? kind
@@ -92,7 +93,9 @@ internal static class FileIcons
 
     /// <summary>The system's icon for a row, or null to fall back to the glyph.</summary>
     internal static IImage? SystemIcon(BrowserListItem item) =>
-        OperatingSystem.IsWindows() && !item.IsParentNavigation ? WindowsShellIcons.For(item) : null;
+        OperatingSystem.IsWindows() && !item.IsParentNavigation && ConnectionsHomeSource.ConnectionOf(item) is null
+            ? WindowsShellIcons.For(item)
+            : null;
 }
 
 /// <summary>A row's system icon, for an Image in the Name column. Null when there is none.</summary>
