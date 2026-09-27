@@ -1,4 +1,5 @@
 using Avalonia.Headless.XUnit;
+using Avalonia.Threading;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Localization;
 using StorageHub.Desktop.Views;
@@ -115,26 +116,39 @@ public class LocalPaneTests
     /// Choosing This PC and then a connection, and back, leaves a working pane each time.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The source is swapped rather than the pane rebuilt, so this is where a stale history or a
     /// disposed client would show up.
+    /// </para>
+    /// <para>
+    /// The first switch is made before This PC's drive list has been shown. The pane opens on This
+    /// PC as its connection list arrives, and the drives are read, their answer queued for the UI
+    /// thread, before a connection is opened in the same pane; the connection answers first, and
+    /// the drive list is still in the queue. It belongs to a source the pane has left, and the
+    /// connection's rows stay.
+    /// </para>
     /// </remarks>
     [AvaloniaFact]
     public async Task SwitchingBetweenThisPcAndAConnectionWorksBothWays()
     {
         var connection = Summary("Studio Assets");
         var agent = new FakeAgent([connection]);
-        await using var pane = new BrowserPaneModel(agent, () => new FakeDisks());
+        var drives = new TaskCompletionSource();
+        var disks = new FakeDisks { Held = drives.Task };
+        await using var pane = new BrowserPaneModel(agent, () => disks);
         await pane.LoadConnectionsAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(PaneContentKind.ThisPc, pane.Connection?.Kind);
 
-        await pane.OpenAsync(
-            pane.Connections.Single(static c => c.Kind == PaneContentKind.ThisPc), TestContext.Current.CancellationToken);
-        Assert.Equal(Ui.Pane.ThisPc, pane.Path);
+        var reader = new Thread(() => drives.SetResult());
+        reader.Start();
+        reader.Join();
+        await pane.OpenConnectionAsync(connection.ConnectionId, TestContext.Current.CancellationToken);
+        Dispatcher.UIThread.RunJobs();
 
-        await pane.OpenAsync(
-            pane.Connections.Single(c => c.Id == connection.ConnectionId),
-            TestContext.Current.CancellationToken);
         Assert.Equal("/", pane.Path);
         Assert.Equal(["bucket-file.bin"], pane.Rows.Select(row => row.Name));
+        Assert.False(pane.StatusIsWarning);
+        Assert.False(pane.ShowsLoading);
 
         await pane.OpenAsync(
             pane.Connections.Single(static c => c.Kind == PaneContentKind.ThisPc), TestContext.Current.CancellationToken);
@@ -229,13 +243,22 @@ public class LocalPaneTests
 
         internal static string LockedPath { get; } = Path.Combine(FirstDrive.DirectoryPath!, "locked");
 
+        /// <summary>
+        /// Holds the drive list back until this completes, as a slow drive does; null lists at once.
+        /// </summary>
+        /// <remarks>
+        /// Not cancelled when the pane leaves, as a drive that has stopped answering is not: the
+        /// list arrives when it arrives, and what happens to it then is the pane's business.
+        /// </remarks>
+        internal Task? Held { get; init; }
+
         public Task<LocalBrowserSnapshot> BrowseAsync(
             LocalBrowserLocation location,
             CancellationToken cancellationToken)
         {
             if (location.IsThisPc)
             {
-                return Task.FromResult(new LocalBrowserSnapshot(location,
+                var drives = new LocalBrowserSnapshot(location,
                 [.. Roots.Select(root => new LocalBrowserEntry(
                     NameOf(root),
                     root.DirectoryPath!,
@@ -243,7 +266,8 @@ public class LocalPaneTests
                     null,
                     null,
                     "Local disk drive",
-                    "460 GB free"))]));
+                    "460 GB free"))]);
+                return Held is { } held ? LateAsync(held, drives) : Task.FromResult(drives);
             }
 
             if (string.Equals(location.DirectoryPath, LockedPath, StringComparison.Ordinal))
@@ -261,6 +285,16 @@ public class LocalPaneTests
             }
 
             return Task.FromResult(new LocalBrowserSnapshot(location, []));
+        }
+
+        /// <summary>
+        /// The drive list once it is let go, finished on whichever thread lets it go rather than
+        /// the UI thread, as a real read finishes on the thread pool.
+        /// </summary>
+        private static async Task<LocalBrowserSnapshot> LateAsync(Task held, LocalBrowserSnapshot drives)
+        {
+            await held.ConfigureAwait(false);
+            return drives;
         }
 
         /// <summary>A drive root has no file name, so it is shown by its path.</summary>

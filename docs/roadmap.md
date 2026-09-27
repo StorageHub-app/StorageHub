@@ -138,9 +138,17 @@ applied, and chosen on the Appearance page (P.5.1).
       Done, with 1.x's right-click menu on a connection card (Open, Open in new pane, Edit, Delete).
 - [x] P.2.16 Connections Home (was L.9).
       Done: in the picker beside This PC, and what a second pane opens on.
-- [ ] P.2.17 A pane opens on This PC, and a connection opened in it before that listing arrives
+- [x] P.2.17 A pane opens on This PC, and a connection opened in it before that listing arrives
       loses its rows to the late This PC listing (found in P.4.6; "Open in new pane" can do it).
       `BrowserPaneModel` drops a listing for a location it has left.
+      Done, as 1.4's `_uiNavigationSequence` did it: every navigation moves the pane's count on, and
+      a listing, a page or a quiet re-read lands only if it has not moved since it was asked for.
+      Only the latest navigation takes the loading cover off, a superseded one no longer says
+      "Disconnected" over its replacement, and no page is asked for while the pane is navigating.
+      "Open in new pane" (and opening from Welcome into a new workspace) had its own way to fail:
+      the connection was opened before the new pane's connection list arrived, and failed as no
+      longer saved. It now waits for the list, as 1.4's `RestoreStateAsync` did, and the list no
+      longer takes the cover off, clears the status or opens This PC once the pane has moved on.
 
 ### P.3 The shell
 

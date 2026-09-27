@@ -101,6 +101,18 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     private bool _failed;
     private Task<bool>? _loadingMore;
 
+    /// <summary>
+    /// Which navigation the pane is on: moved on by everything that points it somewhere -- another
+    /// source, another folder, back, up, a refresh -- and when it is closed.
+    /// </summary>
+    /// <remarks>
+    /// A listing, a page or a quiet re-read lands only if this has not moved since it was asked
+    /// for, as 1.x checked its <c>_uiNavigationSequence</c>. Checking the source alone was not
+    /// enough: a drive list still on its way when a connection was opened landed on top of the
+    /// connection's rows, and a page asked for in one folder is the same source as the next folder.
+    /// </remarks>
+    private long _navigation;
+
     /// <summary>The last read of the connection list, so a restore can wait for one in flight.</summary>
     private Task? _connectionsLoad;
 
@@ -1006,7 +1018,11 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     internal Task<bool> LoadMoreAsync(CancellationToken cancellationToken = default)
     {
         if (_loadingMore is { } running) return running;
-        if (!_hasMore || _source is not { } source) return Task.FromResult(false);
+
+        // Not while the pane is on its way somewhere else: the page would be the folder it is
+        // leaving, and a connection's browser gives up whatever it was doing for the newer request,
+        // so asking would cancel the navigation rather than the page.
+        if (!_hasMore || _busy || _source is not { } source) return Task.FromResult(false);
 
         // Recorded only if it is still running: a page that came back at once has already cleared
         // the marker on its way out, and storing the finished task after that would leave every
@@ -1036,9 +1052,12 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     {
         if (_source is not { } source || IsTerminal || _busy || _loadingMore is not null) return;
 
+        // Not a navigation of its own: the same folder read again, which anything that moves the
+        // pane meanwhile makes stale.
+        var navigation = _navigation;
         var result = await source.MoveAsync(PaneNavigationKind.Refresh, cancellationToken: cancellationToken)
             .ConfigureAwait(true);
-        if (!ReferenceEquals(source, _source) || _busy || result.Listing is not { } listing) return;
+        if (navigation != _navigation || _busy || result.Listing is not { } listing) return;
 
         _hasMore = listing.HasMore;
         Index.Reset(listing.Rows);
@@ -1069,13 +1088,14 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
 
     private async Task<bool> LoadNextPageAsync(IPaneSource source, CancellationToken cancellationToken)
     {
+        var navigation = _navigation;
         try
         {
             var result = await source.LoadMoreAsync(cancellationToken).ConfigureAwait(true);
 
             // The pane moved on while the page was in flight; the page belongs to a folder that is
-            // no longer showing.
-            if (!ReferenceEquals(source, _source)) return false;
+            // no longer showing, even when it is the same connection's.
+            if (navigation != _navigation) return false;
 
             if (result.Listing is not { } listing)
             {
@@ -1164,6 +1184,11 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
 
     private async Task ReadConnectionsAsync(CancellationToken cancellationToken)
     {
+        // Not a navigation of its own, but the pane can be pointed somewhere, or closed, while the
+        // list is read, and 1.x's list checked _uiNavigationSequence too. The list still fills the
+        // picker then, but the loading cover and the status line are the newer navigation's, and
+        // nothing is opened: not This PC over a connection, and not anything in a closed pane.
+        var navigation = _navigation;
         IsBusy = true;
         Status = Ui.Pane.LoadingConnections;
         try
@@ -1184,7 +1209,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
 
             if (result.Status != RemoteBrowserOperationStatus.Succeeded)
             {
-                Status = result.ErrorMessage ?? Ui.Pane.Disconnected;
+                if (navigation == _navigation) Status = result.ErrorMessage ?? Ui.Pane.Disconnected;
                 return;
             }
 
@@ -1201,17 +1226,18 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
                     KindOf(connection)));
             }
 
-            Status = string.Empty;
+            if (navigation == _navigation) Status = string.Empty;
         }
         finally
         {
-            IsBusy = false;
+            var current = navigation == _navigation;
+            if (current) IsBusy = false;
 
             // A pane that has not been pointed anywhere opens on This PC, as 1.x's did, rather
             // than on an empty "/" waiting to be told. Whether or not the agent answered: this
             // computer can be browsed either way. Not while a saved workspace is restoring it,
             // which knows better where it goes.
-            if (_connection is null && !_restoring && Connections.Count > 0)
+            if (current && _connection is null && !_restoring && Connections.Count > 0)
             {
                 // The first pane on this computer and the rest on the saved connections, as 1.x
                 // opened a workspace.
@@ -1243,6 +1269,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     internal async Task OpenAsync(PaneConnection choice, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(choice);
+        var navigation = ++_navigation;
         _standingBy = false;
         IsBusy = true;
         try
@@ -1256,6 +1283,9 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             // a terminal pane at a bucket would otherwise leave the session open and unreachable,
             // holding two pipes and a keep-alive for a window nobody can see.
             await CloseTerminalAsync().ConfigureAwait(true);
+
+            // Chosen again while the shell closed: the later choice has the pane.
+            if (navigation != _navigation) return;
 
             ContentKind = choice.Kind;
 
@@ -1281,7 +1311,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             if (choice.Kind == PaneContentKind.ConnectionsHome)
             {
                 _source = new ConnectionsHomeSource(() => _cards);
-                Report(await _source.MoveAsync(PaneNavigationKind.Navigate, cancellationToken: cancellationToken)
+                Report(navigation, await _source.MoveAsync(PaneNavigationKind.Navigate, cancellationToken: cancellationToken)
                     .ConfigureAwait(true));
                 return;
             }
@@ -1291,6 +1321,10 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
                 var remote = new RemotePaneSource(_controller, choice.Name);
                 _source = remote;
                 var opened = await remote.OpenAsync(connectionId, cancellationToken).ConfigureAwait(true);
+
+                // Left for something else before it answered: whatever the pane shows now is not
+                // this connection's to clear.
+                if (navigation != _navigation) return;
 
                 // A connection that would not open shows nothing, not the previous connection's
                 // files under this one's name -- rows nothing could act on, since they belong to
@@ -1308,18 +1342,18 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
                     Raise(nameof(HasMorePages));
                 }
 
-                Report(opened);
+                Report(navigation, opened);
                 return;
             }
 
             _source = new LocalPaneSource(new LocalBrowserController(_localSource()));
-            Report(await _source
+            Report(navigation, await _source
                 .MoveAsync(PaneNavigationKind.Navigate, null, cancellationToken)
                 .ConfigureAwait(true));
         }
         finally
         {
-            IsBusy = false;
+            EndNavigation(navigation);
         }
     }
 
@@ -1376,11 +1410,19 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     /// Records a choice as the pane's and opens it, for a caller that has to wait for the listing.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Recorded as the pane's choice, not only opened: the chip names what is showing, and a pane
     /// with no choice recorded is one that falls back to This PC once its list arrives. Setting
     /// <see cref="Connection"/> would open it too, but without anything to await.
+    /// </para>
+    /// <para>
+    /// A saved connection is opened from the list the pane reads, so one chosen while that list
+    /// is still on its way -- "Open in new pane", or a connection opened from Welcome into a new
+    /// workspace -- waits for it, as 1.x's <c>RestoreStateAsync</c> did. Opened at once, it failed
+    /// as no longer saved.
+    /// </para>
     /// </remarks>
-    private Task PointAtAsync(PaneConnection choice, CancellationToken cancellationToken)
+    private async Task PointAtAsync(PaneConnection choice, CancellationToken cancellationToken)
     {
         _connection = choice;
         _failed = false;
@@ -1388,7 +1430,20 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         Raise(nameof(Title));
         Raise(nameof(ConnectionIcon));
         RaiseConnectionState();
-        return OpenAsync(choice, cancellationToken);
+
+        if (choice.Id is { } id && _connectionsLoad is { IsCompleted: false } load)
+        {
+            var navigation = _navigation;
+            await load.ConfigureAwait(true);
+
+            // Pointed somewhere else, or closed, while the list was read: that has the pane.
+            if (navigation != _navigation || _connection?.Id != id) return;
+
+            // The list has named it by now, if it holds it.
+            choice = _connection;
+        }
+
+        await OpenAsync(choice, cancellationToken).ConfigureAwait(true);
     }
 
     /// <summary>
@@ -1527,6 +1582,10 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     /// </remarks>
     private async Task StandByAsync(PaneConnection choice)
     {
+        // Whatever was on its way -- This PC, opened when the list arrived -- is for a pane that
+        // is not being shown, and nothing is loading now.
+        _navigation++;
+        IsBusy = false;
         await CloseTerminalAsync().ConfigureAwait(true);
         if (_source is LocalPaneSource local) await local.DisposeAsync().ConfigureAwait(true);
         _source = null;
@@ -1791,16 +1850,17 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     {
         if (_source is null) return;
 
+        var navigation = ++_navigation;
         IsBusy = true;
         try
         {
-            Report(await _source
+            Report(navigation, await _source
                 .MoveAsync(PaneNavigationKind.Navigate, relativePath, cancellationToken)
                 .ConfigureAwait(true));
         }
         finally
         {
-            IsBusy = false;
+            EndNavigation(navigation);
         }
     }
 
@@ -1856,16 +1916,17 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     {
         if (_source is null) return;
 
+        var navigation = ++_navigation;
         IsBusy = true;
         try
         {
-            Report(await _source
+            Report(navigation, await _source
                 .MoveAsync(kind, cancellationToken: cancellationToken)
                 .ConfigureAwait(true));
         }
         finally
         {
-            IsBusy = false;
+            EndNavigation(navigation);
         }
     }
 
@@ -1952,6 +2013,10 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
 
     public async ValueTask DisposeAsync()
     {
+        // A listing still on its way lands nowhere, and a connection list still being read opens
+        // nothing: either would otherwise build a new index, and its SQLite file, for a pane that
+        // is gone.
+        _navigation++;
         await CloseTerminalAsync().ConfigureAwait(false);
         if (_source is LocalPaneSource local)
         {
@@ -1967,15 +2032,25 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     }
 
     /// <summary>
-    /// Shows a navigation result, whatever it turned out to be.
+    /// Shows a navigation result, whatever it turned out to be, if the pane is still on the
+    /// navigation that asked for it.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// A failed navigation leaves the rows alone. The old pane cleared them, which meant a typo in
     /// the address bar lost the listing somebody was looking at and cost another round trip to get
     /// back to it.
+    /// </para>
+    /// <para>
+    /// A result for a navigation the pane has left says nothing, not even that it failed: a
+    /// browser answers a navigation it gave up on as superseded, which reads here as a failure and
+    /// would put "Disconnected" over the listing that replaced it.
+    /// </para>
     /// </remarks>
-    private void Report(PaneNavigationResult result)
+    private void Report(long navigation, PaneNavigationResult result)
     {
+        if (navigation != _navigation) return;
+
         if (result.Listing is not { } listing)
         {
             Status = result.Error ?? Ui.Pane.Disconnected;
@@ -2005,6 +2080,18 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         ApplyView();
         Raise(nameof(Title));
         FollowTree(listing.Rows, append: false);
+    }
+
+    /// <summary>
+    /// Takes "Fetching folder" off the list, if this is still the navigation the pane is on.
+    /// </summary>
+    /// <remarks>
+    /// Only that one: an earlier navigation finishing late would uncover a list that is still on
+    /// its way, as 1.x's pane only let the latest navigation clear its busy state.
+    /// </remarks>
+    private void EndNavigation(long navigation)
+    {
+        if (navigation == _navigation) IsBusy = false;
     }
 
     /// <summary>

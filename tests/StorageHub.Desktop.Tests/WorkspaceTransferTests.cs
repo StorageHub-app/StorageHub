@@ -261,8 +261,7 @@ public class WorkspaceTransferTests
         await using var fixture = await Fixture.CreateAsync(drops: drops);
         await using var queue = new TransferQueueModel(() => fixture.Queue) { PendingDrops = drops };
 
-        // A folder and a file, taken before anything else is awaited: the left pane's first
-        // listing of This PC can still land on top of its connection's after that (P.2.17).
+        // A folder and a file from the left pane, dropped on the right once the desktop file is in.
         fixture.Left.SelectedRows.Add(fixture.Left.Rows.Single(row => row.Name == "reports"));
         fixture.Left.SelectedRows.Add(fixture.Left.Rows.Single(row => row.Name == "render.exr"));
         var payload = PaneDragHandler.Payload(fixture.Left)!;

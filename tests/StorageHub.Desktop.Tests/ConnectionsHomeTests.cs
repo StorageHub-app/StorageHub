@@ -50,6 +50,12 @@ public class ConnectionsHomeTests
     }
 
     /// <summary>The first pane opens on This PC, and the others on Connections Home, as in 1.x.</summary>
+    /// <remarks>
+    /// Unless it has been given a connection by then, which is what "Open in new pane" does: the
+    /// split starts the new pane reading its list, and the connection is opened in it straight
+    /// away. The connection waits for the list, as 1.x's did, where it used to fail at once as no
+    /// longer saved and leave an empty warning once the list arrived.
+    /// </remarks>
     [AvaloniaFact]
     public async Task ASecondPaneOpensOnConnectionsHome()
     {
@@ -57,5 +63,20 @@ public class ConnectionsHomeTests
         await pane.LoadConnectionsAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(PaneContentKind.ConnectionsHome, pane.Connection?.Kind);
+
+        var studio = WorkspaceFakes.Summary("Studio Assets");
+        var list = new TaskCompletionSource();
+        var agent = new WorkspaceFakes.FakeBrowsingAgent([studio]) { HeldList = list.Task };
+        agent.Listings[(studio.ConnectionId, "")] = new WorkspaceFakes.Page([WorkspaceFakes.Entry("render.exr", 1024)]);
+        await using var split = new BrowserPaneModel(agent) { PaneNumber = 2 };
+        var reading = split.LoadConnectionsAsync(TestContext.Current.CancellationToken);
+        var opening = split.OpenConnectionAsync(studio.ConnectionId, TestContext.Current.CancellationToken);
+        list.SetResult();
+        await Task.WhenAll(reading, opening);
+
+        Assert.Equal("Studio Assets", split.Title);
+        Assert.Equal(["render.exr"], split.Rows.Select(row => row.Name));
+        Assert.False(split.StatusIsWarning);
+        Assert.False(split.ShowsLoading);
     }
 }

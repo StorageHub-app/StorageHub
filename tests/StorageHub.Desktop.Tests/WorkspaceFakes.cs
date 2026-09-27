@@ -183,10 +183,16 @@ internal static class WorkspaceFakes
         /// <summary>Awaited before a listing is answered, so a test can catch a folder part way read.</summary>
         internal Func<StorageListPageRequest, CancellationToken, Task>? BeforeListing { get; set; }
 
-        public Task<ConnectionListResponse> ListConnectionsAsync(
+        /// <summary>Holds the connection list back until this completes, as a slow agent does.</summary>
+        internal Task? HeldList { get; init; }
+
+        public async Task<ConnectionListResponse> ListConnectionsAsync(
             ConnectionListRequest request,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ConnectionListResponse(StorageIpcContract.CurrentVersion, connections));
+            CancellationToken cancellationToken = default)
+        {
+            if (HeldList is { } held) await held.ConfigureAwait(false);
+            return new ConnectionListResponse(StorageIpcContract.CurrentVersion, connections);
+        }
 
         public Task<ConnectionTestResponse> TestConnectionAsync(
             ConnectionTestRequest request,
