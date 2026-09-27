@@ -195,7 +195,8 @@ internal sealed record ConnectionTypeChoice(ConnectionProfileType Type, string L
 /// </para>
 /// <para>
 /// Changing the provider rebuilds the fields and keeps whatever the two providers have in common,
-/// so trying S3 and then MinIO does not mean typing the name and folder again.
+/// so trying S3 and then MinIO does not mean typing the name and folder again. What was only ever
+/// the old provider's default, such as its port, gives way to the new provider's.
 /// </para>
 /// </remarks>
 internal sealed class ConnectionEditorModel : INotifyPropertyChanged
@@ -207,7 +208,16 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     private readonly Func<IKeyStoreAgentClient>? _keyStore;
     private readonly Func<IReadOnlyList<KeyStoreEntryDocument>, Task<KeyStoreEntryDocument?>>? _pickKey;
     private readonly Func<string?, string, Task<IconChoice>>? _pickIcon;
+
+    /// <summary>The new-connection defaults from Settings, as saved; null is the built-in ones.</summary>
+    private readonly IReadOnlyDictionary<string, string>? _connectionDefaults;
     private readonly List<RelayCommand> _fieldCommands = [];
+
+    /// <summary>
+    /// What each field that belongs to the provider started at, by key: one that had nothing held,
+    /// or a saved connection's own value for a field Settings has a default for.
+    /// </summary>
+    private readonly Dictionary<string, string> _startedAt = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _values = new(StringComparer.Ordinal);
     private ConnectionProfileDocument? _current;
     private ConnectionProviderDescriptor _provider;
@@ -225,6 +235,11 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     /// <param name="pickKey">
     /// Chooses one of those entries. The window supplies a dialog; a test supplies the answer.
     /// </param>
+    /// <param name="connectionDefaults">
+    /// Each provider's new-connection defaults from Settings, which a new connection starts from
+    /// and every save takes its timeouts and retries from, as 1.4's editor did. Read once, when
+    /// the editor opens, as 1.4 read them. Null is the built-in defaults.
+    /// </param>
     internal ConnectionEditorModel(
         Func<ConnectionManagerController> controller,
         Func<IRemoteStorageAgentClient>? storage = null,
@@ -232,9 +247,11 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         IFilePickerService? files = null,
         Func<IKeyStoreAgentClient>? keyStore = null,
         Func<IReadOnlyList<KeyStoreEntryDocument>, Task<KeyStoreEntryDocument?>>? pickKey = null,
-        Func<string?, string, Task<IconChoice>>? pickIcon = null)
+        Func<string?, string, Task<IconChoice>>? pickIcon = null,
+        IReadOnlyDictionary<string, string>? connectionDefaults = null)
     {
         _controller = controller ?? throw new ArgumentNullException(nameof(controller));
+        _connectionDefaults = connectionDefaults;
         _pickIcon = pickIcon;
         _storage = storage;
         _dialogs = dialogs;
@@ -261,6 +278,7 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         {
             if (value is null || _provider.Kind == value.Kind) return;
             Capture();
+            ForgetUntouchedDefaults();
             _provider = value;
             Rebuild();
             IsDirty = true;
@@ -525,7 +543,12 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         ConnectionProfileDraft draft;
         try
         {
-            draft = ConnectionEditorDraftFactory.Build(_provider.Kind, _values);
+            // The timeouts and retries a provider has no field for come from Settings, as they
+            // did in 1.4, rather than from the built-in defaults Settings exists to override.
+            draft = ConnectionEditorDraftFactory.Build(
+                _provider.Kind,
+                _values,
+                ConnectionDefaultSettings.Get(_provider.Kind, _connectionDefaults));
         }
         catch (ArgumentException error)
         {
@@ -681,7 +704,7 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     /// </summary>
     private IReadOnlyList<ConnectionFieldDescriptor> FtpAdvancedFields()
     {
-        var defaults = ConnectionDefaultSettings.Get(_provider.Kind, stored: null);
+        var defaults = ConnectionDefaultSettings.Get(_provider.Kind, _connectionDefaults);
         return
         [
             new(ConnectionEditorDraftFactory.EncodingKey, Ui.Connections.FieldEncoding, ConnectionFieldKind.Text,
@@ -709,11 +732,75 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         ];
     }
 
+    /// <summary>
+    /// The saved connection's own values, when the provider chosen is the one it was saved with.
+    /// </summary>
+    /// <remarks>
+    /// A field with nothing held starts at these rather than at the provider's defaults from
+    /// Settings, so going to another provider and back finds the connection as it was. A field
+    /// the connection left empty stays empty: filling it from Settings would change the connection
+    /// at its next save without anybody having touched it. Anywhere else, for a new connection or
+    /// a saved one being moved, the provider's defaults apply, as 1.4 applied them on every change.
+    /// </remarks>
+    private IReadOnlyDictionary<string, string>? SavedOnThisProvider() =>
+        _current is { } current && MapProvider(current.Draft.Endpoint.Provider) == _provider.Kind
+            ? ConnectionEditorDraftFactory.ToEditorValues(current)
+            : null;
+
+    /// <summary>
+    /// Whether a field's starting value comes from the provider's defaults in Settings, and so is
+    /// let go of on a provider change when nobody has changed it.
+    /// </summary>
+    private static bool FollowsProvider(string key) =>
+        ConnectionDefaultSettings.HasDefault(key) ||
+        key is ConnectionEditorDraftFactory.ConnectTimeoutKey or ConnectionEditorDraftFactory.ReadTimeoutKey;
+
+    /// <summary>
+    /// Lets go of every field still at the value it started at, so the next provider's own apply.
+    /// </summary>
+    /// <remarks>
+    /// FTP's port 21 is nobody's choice once the connection is SFTP. What was typed is carried
+    /// across, which is the point of keeping values by key; what was only ever a default belongs
+    /// to the provider it came from, and 1.4, which rebuilt its fields on every change, never
+    /// carried it.
+    /// </remarks>
+    private void ForgetUntouchedDefaults()
+    {
+        foreach (var (key, start) in _startedAt)
+        {
+            if (_values.TryGetValue(key, out var held) && string.Equals(held, start, StringComparison.Ordinal))
+            {
+                _values.Remove(key);
+            }
+        }
+    }
+
     /// <summary>Lays out the connection's own fields, then the provider's three sections.</summary>
     private void Rebuild()
     {
         Sections.Clear();
         _fieldCommands.Clear();
+        _startedAt.Clear();
+        var saved = SavedOnThisProvider();
+        var prefill = saved ?? ConnectionDefaultSettings.Get(_provider.Kind, _connectionDefaults).FieldValues;
+
+        // A saved connection's port, TLS mode and the rest of what Settings has a default for
+        // count as untouched until somebody changes them, so moving it to another provider lets
+        // that provider's defaults apply, as 1.4's did. That includes values held but not on
+        // screen here: every saved connection carries a TLS mode, and FTPS should not inherit
+        // an SFTP connection's.
+        if (saved is not null)
+        {
+            foreach (var (key, value) in saved)
+            {
+                if (FollowsProvider(key) &&
+                    _values.TryGetValue(key, out var held) &&
+                    string.Equals(held, value, StringComparison.Ordinal))
+                {
+                    _startedAt[key] = value;
+                }
+            }
+        }
 
         // The General tab opens on the endpoint, as 1.x's did: the connection's own fields first,
         // then where it points. What 2.0 added -- proxy, speed limits, FTP's advanced options --
@@ -754,9 +841,13 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
             var fields = new List<ConnectionFieldModel>(descriptors.Count);
             foreach (var descriptor in descriptors)
             {
-                var field = new ConnectionFieldModel(
-                    descriptor,
-                    _values.TryGetValue(descriptor.Key, out var held) ? held : descriptor.DefaultValue);
+                if (!_values.TryGetValue(descriptor.Key, out var value))
+                {
+                    value = prefill.GetValueOrDefault(descriptor.Key) ?? descriptor.DefaultValue;
+                    _startedAt[descriptor.Key] = value;
+                }
+
+                var field = new ConnectionFieldModel(descriptor, value);
                 field.Changed += (_, _) =>
                 {
                     IsDirty = true;

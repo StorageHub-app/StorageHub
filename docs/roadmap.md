@@ -241,9 +241,18 @@ Appearance page (P.5.1).
       the restart leaves the agent running. A save that fails says so and keeps the window open, as
       1.4's did. "Same as Windows" became "Same as the system". Left open: the restart itself has
       not been tried in the real app.
-- [ ] P.5.2 SSH terminal settings reach the session (type, keep-alive, font, scrollback, bold); today the
-      session gets `preferences: null` and a fixed font.
-- [ ] P.5.3 Per-provider connection defaults prefill a new connection (the editor passes `stored: null`).
+- [x] P.5.2 SSH terminal settings reach the session (type, keep-alive, font, scrollback, bold). Read
+      from the settings file as each session opens, as 1.4 read them per terminal window; the size
+      is in points, as 1.4's was, and a family this computer lacks falls back to a monospace one.
+      The remote program is now told the pane's size once the session opens, rather than keeping
+      80x24 until the pane is resized. Left open: not yet tried against a real SSH server in the
+      running app.
+- [x] P.5.3 Per-provider connection defaults prefill a new connection, and every save takes the
+      timeouts and retries a provider has no field for from them, as 1.4's editor did. Moving a
+      connection, saved or not, to another provider lets go of the old provider's port, TLS mode and
+      other defaults nobody changed, so the new provider's apply, as in 1.4; what was typed, such as
+      the host, comes along, where 1.4 threw away every field. A saved connection is not refilled
+      from the defaults when opened (1.4 did, which could change an empty field on the next save).
 - [ ] P.5.4 "New workspace layout" (a preset or "Ask every time"); ticking "stop asking" can be undone.
 - [x] P.5.5 "Start with" concurrency, enabled only when adaptive is on (raising it raises the maximums,
       which the settings file requires); the update toggles depend on one another; the update source

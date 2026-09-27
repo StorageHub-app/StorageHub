@@ -196,6 +196,58 @@ public class ConnectionManagerTests
         Assert.Equal("Studio Assets", Field(editor, "profileName").Value);
     }
 
+    /// <summary>
+    /// A new connection starts from each provider's defaults in Settings, as 1.4's editor did.
+    /// </summary>
+    /// <remarks>
+    /// A default belongs to its provider, so moving from FTP to FTPS lets FTP's port go while what
+    /// was typed comes along. Once saved, the connection is its own: a path left empty stays empty
+    /// rather than being refilled from Settings and changed by the next save. Moving the saved
+    /// connection lets its FTPS port go too, so FTP's default applies, as it did in 1.4.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task ANewConnectionStartsFromTheDefaultsInSettings()
+    {
+        var profiles = new FakeProfiles();
+        var defaults = new Dictionary<string, string>
+        {
+            [ConnectionDefaultSettings.Key(StorageProviderKind.Ftp, "port")] = "2121",
+            [ConnectionDefaultSettings.Key(StorageProviderKind.Ftps, "port")] = "990",
+            [ConnectionDefaultSettings.Key(StorageProviderKind.Ftps, "tlsMode")] = "Implicit TLS",
+            [ConnectionDefaultSettings.Key(StorageProviderKind.Ftps, "initialPath")] = "/incoming",
+            [ConnectionDefaultSettings.Key(StorageProviderKind.Ftps, ConnectionDefaultSettings.ConnectTimeoutKey)] = "45"
+        };
+        var editor = new ConnectionEditorModel(() => Controller(profiles), connectionDefaults: defaults);
+
+        editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Ftp);
+        Assert.Equal("2121", Field(editor, "port").Value);
+        Field(editor, "host").Value = "files.example.com";
+
+        editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Ftps);
+        Assert.Equal("990", Field(editor, "port").Value);
+        Assert.Equal("Implicit TLS", Field(editor, "tlsMode").Value);
+        Assert.Equal("/incoming", Field(editor, "initialPath").Value);
+        Assert.Equal("45", Field(editor, ConnectionEditorDraftFactory.ConnectTimeoutKey).Value);
+        Assert.Equal("files.example.com", Field(editor, "host").Value);
+
+        Field(editor, "initialPath").Value = string.Empty;
+        Field(editor, "passwordReference").Value = "shs_" + new string('a', 43);
+        Fill(editor);
+        await editor.SaveAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(Ui.Connections.ConnectionSaved, editor.Status);
+        var saved = profiles.LastDraft!;
+        Assert.Equal(990, saved.Endpoint.Port);
+        Assert.Equal(ConnectionFtpsTlsMode.Implicit, saved.Endpoint.FtpsTlsMode);
+        Assert.Equal(45, saved.OperationalOptions.ConnectTimeoutSeconds);
+        Assert.Null(saved.Endpoint.RootPath);
+        Assert.NotEqual("/incoming", Field(editor, "initialPath").Value);
+
+        editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Ftp);
+        Assert.Equal("2121", Field(editor, "port").Value);
+        Assert.Equal("files.example.com", Field(editor, "host").Value);
+    }
+
     /// <summary>Nothing typed is nothing to save, and a required field left empty is not enough.</summary>
     [AvaloniaFact]
     public void SavingNeedsAChangeAndEveryRequiredField()

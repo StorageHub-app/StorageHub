@@ -443,6 +443,9 @@
             <ScrollViewer HorizontalScrollBarVisibility="Disabled"
                           VerticalScrollBarVisibility="Auto">
               <vm:TerminalView Session="{Binding Terminal}"
+                               FontFamilyName="{Binding TerminalFontFamily}"
+                               FontSize="{Binding TerminalFontSize}"
+                               RenderBoldText="{Binding TerminalRenderBoldText}"
                                AutomationProperties.Name="{Binding TerminalOutputAccessibleName}"/>
             </ScrollViewer>
           </Border>

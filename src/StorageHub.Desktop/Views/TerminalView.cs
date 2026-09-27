@@ -52,11 +52,33 @@ internal sealed class TerminalView : Control, ILogicalScrollable
     /// </remarks>
     private const string WidthSample = "MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM";
 
+    /// <summary>What is drawn with when the chosen family is missing, or nothing was chosen.</summary>
+    private const string FallbackFamilies = "Cascadia Mono, Consolas, DejaVu Sans Mono, monospace";
+
     public static readonly StyledProperty<VtTerminalDocument?> DocumentProperty =
         AvaloniaProperty.Register<TerminalView, VtTerminalDocument?>(nameof(Document));
 
     public static readonly StyledProperty<double> FontSizeProperty =
         AvaloniaProperty.Register<TerminalView, double>(nameof(FontSize), defaultValue: 13);
+
+    /// <summary>
+    /// The font family chosen under Settings, by name.
+    /// </summary>
+    /// <remarks>
+    /// A name rather than a FontFamily, so the monospace fallbacks can go behind it here: a family
+    /// this computer does not have, such as a settings file carried from Windows to Linux, still
+    /// draws a grid instead of the proportional face the system would substitute, which shears
+    /// every column after the first wide glyph.
+    /// </remarks>
+    public static readonly StyledProperty<string?> FontFamilyNameProperty =
+        AvaloniaProperty.Register<TerminalView, string?>(nameof(FontFamilyName));
+
+    /// <summary>
+    /// Whether bold text is drawn in a bold face as well as a brighter colour, which is 1.4's
+    /// "Render ANSI bold text". Off, bold text is only brighter.
+    /// </summary>
+    public static readonly StyledProperty<bool> RenderBoldTextProperty =
+        AvaloniaProperty.Register<TerminalView, bool>(nameof(RenderBoldText), defaultValue: true);
 
     public static readonly StyledProperty<bool> CursorVisibleProperty =
         AvaloniaProperty.Register<TerminalView, bool>(nameof(CursorVisible), defaultValue: true);
@@ -98,8 +120,9 @@ internal sealed class TerminalView : Control, ILogicalScrollable
 
     static TerminalView()
     {
-        AffectsRender<TerminalView>(DocumentProperty, CursorVisibleProperty, PaddingProperty);
-        AffectsMeasure<TerminalView>(FontSizeProperty);
+        AffectsRender<TerminalView>(
+            DocumentProperty, CursorVisibleProperty, PaddingProperty, RenderBoldTextProperty);
+        AffectsMeasure<TerminalView>(FontSizeProperty, FontFamilyNameProperty);
     }
 
     public TerminalView()
@@ -135,6 +158,18 @@ internal sealed class TerminalView : Control, ILogicalScrollable
     {
         get => GetValue(FontSizeProperty);
         set => SetValue(FontSizeProperty, value);
+    }
+
+    public string? FontFamilyName
+    {
+        get => GetValue(FontFamilyNameProperty);
+        set => SetValue(FontFamilyNameProperty, value);
+    }
+
+    public bool RenderBoldText
+    {
+        get => GetValue(RenderBoldTextProperty);
+        set => SetValue(RenderBoldTextProperty, value);
     }
 
     /// <summary>Whether the cursor block is drawn, which a remote program can turn off.</summary>
@@ -180,6 +215,14 @@ internal sealed class TerminalView : Control, ILogicalScrollable
     {
         base.OnPropertyChanged(change);
         if (change.Property == SessionProperty) Attach(change.GetNewValue<ITerminalSession?>());
+        if (change.Property == FontSizeProperty || change.Property == FontFamilyNameProperty)
+        {
+            // A new font is a new cell, and so a new grid: measured again on next use, and the
+            // layout pass that follows tells the session how many columns it now has.
+            _cell = default;
+            _typeface = default;
+        }
+
         if (change.Property == DocumentProperty)
         {
             // A new screen starts at its live end, with nothing selected in a buffer that no
@@ -861,18 +904,18 @@ internal sealed class TerminalView : Control, ILogicalScrollable
     }
 
     /// <summary>
-    /// Measures a cell, once per font size.
+    /// Measures a cell, once per font.
     /// </summary>
     /// <remarks>
     /// Across a run of characters rather than one, for the rounding reason above. The typeface is
-    /// whatever the theme's monospace family resolves to; a proportional fallback would shear
-    /// every column after the first wide glyph, which is why the family is asked for by name.
+    /// the chosen family with monospace families behind it; a proportional fallback would shear
+    /// every column after the first wide glyph, which is why the fallbacks are asked for by name.
     /// </remarks>
     private void Measure()
     {
         if (_cell.Width > 0 && _typeface != default) return;
 
-        _typeface = new Typeface(FontFamily.Parse("Cascadia Mono, Consolas, DejaVu Sans Mono, monospace"));
+        _typeface = new Typeface(Family(FontFamilyName));
         var sample = new FormattedText(
             WidthSample,
             System.Globalization.CultureInfo.InvariantCulture,
@@ -886,11 +929,34 @@ internal sealed class TerminalView : Control, ILogicalScrollable
             Math.Max(1, sample.Height));
     }
 
-    /// <summary>Bold and italic are the font's business; the rest are drawn.</summary>
+    /// <summary>
+    /// The chosen family, then the fallbacks.
+    /// </summary>
+    /// <remarks>
+    /// A name the parser cannot read is treated as no name, as 1.4 fell back to its default font
+    /// when the chosen one could not be made: a terminal in the wrong font is still a terminal.
+    /// </remarks>
+    private static FontFamily Family(string? chosen)
+    {
+        if (string.IsNullOrWhiteSpace(chosen)) return FontFamily.Parse(FallbackFamilies);
+        try
+        {
+            return FontFamily.Parse($"{chosen.Trim()}, {FallbackFamilies}");
+        }
+        catch (Exception error) when (error is ArgumentException or FormatException)
+        {
+            return FontFamily.Parse(FallbackFamilies);
+        }
+    }
+
+    /// <summary>
+    /// Bold and italic are the font's business; the rest are drawn. Bold is also the palette's,
+    /// which brightens it, so turning the bold face off still leaves bold text standing out.
+    /// </summary>
     private Typeface TypefaceFor(VtCellFlags flags) => new(
         _typeface.FontFamily,
         flags.HasFlag(VtCellFlags.Italic) ? FontStyle.Italic : FontStyle.Normal,
-        flags.HasFlag(VtCellFlags.Bold) ? FontWeight.Bold : FontWeight.Normal);
+        RenderBoldText && flags.HasFlag(VtCellFlags.Bold) ? FontWeight.Bold : FontWeight.Normal);
 
     private Color Resolve(string key, Color fallback) =>
         this.TryFindResource(key, out var value) && value is Color colour ? colour : fallback;

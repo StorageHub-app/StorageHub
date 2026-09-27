@@ -47,6 +47,9 @@ internal static class ConnectionDefaultSettings
             .Where(field => EditableFieldKeys.Contains(field.Key))
             .ToArray();
 
+    /// <summary>Whether Settings keeps a per-provider default for the connection field with this key.</summary>
+    internal static bool HasDefault(string fieldKey) => EditableFieldKeys.Contains(fieldKey);
+
     internal static ConnectionProviderDefaults Get(
         StorageProviderKind providerKind,
         IReadOnlyDictionary<string, string>? stored)

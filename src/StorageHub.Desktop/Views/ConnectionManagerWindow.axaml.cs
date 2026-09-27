@@ -1,5 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
+using StorageHub.Desktop.Configuration;
+using StorageHub.Desktop.Framework;
 using StorageHub.Desktop.Services;
 
 namespace StorageHub.Desktop.Views;
@@ -58,7 +60,27 @@ public partial class ConnectionManagerWindow : Window
             ShellServices.FilePicker,
             static () => new NamedPipeKeyStoreAgentClient(),
             entries => KeyStorePickerWindow.ChooseAsync(window, entries),
-            (current, title) => IconPickerWindow.AskAsync(window, current, title));
+            (current, title) => IconPickerWindow.AskAsync(window, current, title),
+            LoadConnectionDefaults());
         return window;
+    }
+
+    /// <summary>
+    /// Each provider's new-connection defaults, as Settings saved them.
+    /// </summary>
+    /// <remarks>
+    /// A settings file that cannot be read leaves the built-in defaults, as it does everywhere
+    /// else: a new connection is still worth starting without them.
+    /// </remarks>
+    private static IReadOnlyDictionary<string, string>? LoadConnectionDefaults()
+    {
+        try
+        {
+            return new DesktopConfigStore(DesktopFrameworkPaths.Resolve().ApplicationRoot).Load().ConnectionDefaults;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            return null;
+        }
     }
 }

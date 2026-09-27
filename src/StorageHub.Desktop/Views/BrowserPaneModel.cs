@@ -200,6 +200,15 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     /// <summary>Turns that setting off, for the review's "Don't show this warning again".</summary>
     internal Action? StopDeleteConfirmation { get; set; }
 
+    /// <summary>
+    /// The SSH terminal settings, read when a session opens. Null opens it on the defaults.
+    /// </summary>
+    /// <remarks>
+    /// Read per session rather than once per pane, as 1.4 read them per terminal window, so a
+    /// change made in Settings reaches the next session without the pane being replaced.
+    /// </remarks>
+    internal Func<SshTerminalPreferences?>? TerminalPreferences { get; set; }
+
     /// <summary>The folder tree beside the list.</summary>
     public PaneTreeModel Tree { get; } = new();
 
@@ -1683,11 +1692,28 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             _terminal = value as SshTerminalSession;
             Raise(nameof(Terminal));
             Raise(nameof(HasTerminal));
+            Raise(nameof(TerminalFontFamily));
+            Raise(nameof(TerminalFontSize));
+            Raise(nameof(TerminalRenderBoldText));
         }
     }
 
     /// <summary>Whether there is a live session, as opposed to a pane waiting to be given one.</summary>
     public bool HasTerminal => _terminal is not null;
+
+    private SshTerminalPreferences TerminalLook => _terminal?.Preferences ?? SshTerminalPreferences.Defaults;
+
+    /// <summary>The family chosen under Settings, by name; the painter puts the fallbacks behind it.</summary>
+    public string TerminalFontFamily => TerminalLook.FontFamily;
+
+    /// <summary>
+    /// The size chosen under Settings, which counts in points as 1.4's did, in the pixels
+    /// Avalonia draws with: a 10-point terminal is a 13.3-pixel one.
+    /// </summary>
+    public double TerminalFontSize => TerminalLook.FontSize * 96.0 / 72.0;
+
+    /// <summary>Whether bold text is drawn in a bold face, or only brighter.</summary>
+    public bool TerminalRenderBoldText => TerminalLook.RenderBoldText;
 
     /// <summary>
     /// Opens a shell on the connection this pane was just pointed at.
@@ -1705,7 +1731,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         var session = new SshTerminalSession(
             connectionId,
             _terminals(),
-            preferences: null,
+            TerminalPreferences?.Invoke(),
             _agentLifecycle?.Invoke(),
             ownsClient: true);
         session.StatusChanged += OnTerminalStatusChanged;

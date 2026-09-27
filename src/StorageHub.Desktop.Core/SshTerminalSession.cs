@@ -146,6 +146,16 @@ internal sealed class SshTerminalSession : ITerminalSession, IAsyncDisposable
 
     public bool CursorVisible => _emulator.CursorVisible;
 
+    /// <summary>
+    /// The terminal settings this session was opened with, after resolution.
+    /// </summary>
+    /// <remarks>
+    /// The font and bold rendering are here for whoever draws the session, not for the session
+    /// itself; they travel with it so a pane shows each session in the font it was opened with,
+    /// as 1.4's terminal window did, rather than one read from Settings at some later moment.
+    /// </remarks>
+    internal SshTerminalPreferences Preferences => _preferences;
+
     /// <summary>Whether there is a session on the other end taking input.</summary>
     internal bool IsConnected => _sessionId != Guid.Empty;
 
@@ -219,7 +229,8 @@ internal sealed class SshTerminalSession : ITerminalSession, IAsyncDisposable
                     .ConfigureAwait(true);
                 if (restarted.Succeeded)
                 {
-                    await OpenOnceAsync(columns, rows, cancellationToken).ConfigureAwait(true);
+                    // At the screen's size now, which the pane may have changed during the restart.
+                    await OpenOnceAsync(_emulator.Columns, _emulator.Rows, cancellationToken).ConfigureAwait(true);
                     return;
                 }
 
@@ -240,6 +251,14 @@ internal sealed class SshTerminalSession : ITerminalSession, IAsyncDisposable
             Status = Ui.Format(
                 Ui.Connections.TerminalConnectedFormat, response.DisplayName, columns, rows);
             _pump = PumpAsync(_lifetime.Token);
+
+            // The pane is usually laid out while the agent is still answering, and that resize
+            // could only reach the screen. Unless the agent is told now, the remote program keeps
+            // drawing to the size the session was opened at until the pane next changes size.
+            if (_emulator.Columns != columns || _emulator.Rows != rows)
+            {
+                await TellRemoteSizeAsync(cancellationToken).ConfigureAwait(true);
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -416,8 +435,15 @@ internal sealed class SshTerminalSession : ITerminalSession, IAsyncDisposable
 
         _emulator.Resize(columns, rows);
         OutputReceived?.Invoke(this, EventArgs.Empty);
+        await TellRemoteSizeAsync(cancellationToken).ConfigureAwait(true);
+    }
+
+    /// <summary>Tells the remote program the size the screen is now, and says so in the status line.</summary>
+    private async Task TellRemoteSizeAsync(CancellationToken cancellationToken)
+    {
         if (!IsConnected || _lifetime.IsCancellationRequested) return;
 
+        var (columns, rows) = (_emulator.Columns, _emulator.Rows);
         try
         {
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(

@@ -847,8 +847,9 @@ internal static class ShellPreview
 
 
     /// <summary>
-    /// A pane that, in the running application, starts reading its connections at once and asks
-    /// before deleting according to the saved setting.
+    /// A pane that, in the running application, starts reading its connections at once, asks
+    /// before deleting according to the saved setting, and opens a shell on the saved terminal
+    /// settings.
     /// </summary>
     private static BrowserPaneModel Loaded(bool live, BrowserPaneModel pane)
     {
@@ -856,6 +857,7 @@ internal static class ShellPreview
         pane.DeleteConfirmation = static () => ReadPreferences()?.ConfirmBeforeDeletingItems ?? true;
         pane.StopDeleteConfirmation = static () => UpdatePreferences(static preferences =>
             preferences with { ConfirmBeforeDeletingItems = false });
+        pane.TerminalPreferences = static () => ReadPreferences()?.SshTerminal;
         _ = pane.LoadConnectionsAsync();
         return pane;
     }

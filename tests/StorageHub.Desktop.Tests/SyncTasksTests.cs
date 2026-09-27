@@ -94,6 +94,9 @@ public class SyncTasksTests
         var subTabs = window.GetVisualDescendants().OfType<TabControl>()
             .First(control => control.Classes.Contains("subtabs"));
         subTabs.SelectedIndex = 1;
+
+        // The selection is bound both ways into the shared sample shell, so it is put back after,
+        // or the test that runs next opens on this sub-tab instead of the first.
         try
         {
             // A manual Measure/Arrange is not enough: selecting a tab queues the new content's
