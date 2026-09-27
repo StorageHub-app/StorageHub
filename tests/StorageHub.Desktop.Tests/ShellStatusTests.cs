@@ -63,6 +63,10 @@ public class ShellStatusTests
     /// says so until the agent says more, and a short message such as "clipboard cleared" stands in
     /// the first cell for a while and then gives the location back.
     /// </summary>
+    /// <remarks>
+    /// Another pane picked does not write over it, as it did not redraw 1.4's bar. It used to, so
+    /// the "Choose a destination and paste" that staging says went as the destination was chosen.
+    /// </remarks>
     [AvaloniaFact]
     public async Task TheAgentCellOpensAgentControlAndAMessageComesAndGoes()
     {
@@ -85,17 +89,17 @@ public class ShellStatusTests
 
         var location = model.ShellStatus.Location;
         model.MessageLifetime = TimeSpan.FromMilliseconds(50);
-        model.Workspaces[model.SelectedWorkspace].Workspace!.ClearClipboardCommand.Execute(null);
+        var workspace = model.Workspaces[model.SelectedWorkspace].Workspace!;
+        workspace.ClearClipboardCommand.Execute(null);
         Dispatcher.UIThread.RunJobs();
         Assert.Contains(Ui.Shell.StatusClipboardCleared, bar.GetVisualDescendants().OfType<TextBlock>().Select(block => block.Text));
 
-        var deadline = DateTime.UtcNow.AddSeconds(5);
-        while (model.ShellStatus.Location != location && DateTime.UtcNow < deadline)
-        {
-            await Task.Delay(20, TestContext.Current.CancellationToken);
-            Dispatcher.UIThread.RunJobs();
-        }
+        var first = workspace.Active;
+        workspace.Panes.First(pane => !ReferenceEquals(pane, first)).IsActive = true;
+        Assert.Equal(Ui.Shell.StatusClipboardCleared, model.ShellStatus.Location);
+        first.IsActive = true;
 
+        await RunJobsUntil(() => model.ShellStatus.Location == location);
         Assert.Equal(location, model.ShellStatus.Location);
     }
 
@@ -162,6 +166,14 @@ public class ShellStatusTests
         Assert.Equal(0, agent.Restarts);
         Assert.Equal(Ui.Shell.StatusConcurrencyPendingIdle, model.ShellStatus.Location);
 
+        // The wait is a state rather than news: it does not time out, and a message said over it
+        // gives the cell back to it, since the settings are still waiting.
+        model.MessageLifetime = TimeSpan.FromMilliseconds(50);
+        model.Say(Ui.Shell.StatusClipboardCleared);
+        Assert.Equal(Ui.Shell.StatusClipboardCleared, model.ShellStatus.Location);
+        await RunJobsUntil(() => model.ShellStatus.Location != Ui.Shell.StatusClipboardCleared);
+        Assert.Equal(Ui.Shell.StatusConcurrencyPendingIdle, model.ShellStatus.Location);
+
         model.Observe(Running(transfers: 0, syncRuns: 1));
         Assert.Equal(0, agent.Restarts);
 
@@ -209,6 +221,17 @@ public class ShellStatusTests
 
     private static AgentMonitorStatus Running(int transfers, int syncRuns) =>
         new(AgentConnectionState.Connected, transfers, syncRuns, string.Empty, DateTimeOffset.UnixEpoch);
+
+    /// <summary>Runs the dispatcher until the condition holds, or five seconds have gone.</summary>
+    private static async Task RunJobsUntil(Func<bool> condition)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (!condition() && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(20, TestContext.Current.CancellationToken);
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
 
     private sealed class CountingLifecycle : IAgentLifecycleController
     {

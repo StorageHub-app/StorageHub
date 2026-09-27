@@ -192,6 +192,12 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
     /// <summary>Puts the location back once the last message has been up long enough.</summary>
     private IDisposable? _unsay;
 
+    /// <summary>What <see cref="Say"/> said, until <see cref="MessageLifetime"/> has passed.</summary>
+    private string? _said;
+
+    /// <summary>What <see cref="SayUntilResolved"/> said, until it is resolved or replaced.</summary>
+    private string? _standing;
+
     internal ShellPreviewModel(ShellCommandRouter router)
     {
         Router = router;
@@ -374,14 +380,17 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
     /// <remarks>
     /// The byte total counts files only. A folder contributes nothing because nobody has counted
     /// what is inside it, which is what the pane's own summary does and what 1.x did.
+    /// A message being said keeps the first cell: 1.x's bar was not redrawn by a click in a pane,
+    /// so "Choose a destination and paste" was still there when the destination was chosen.
     /// </remarks>
     private void ReportThePane()
     {
+        var message = _said ?? _standing;
         if (ActivePane() is not { } pane)
         {
             ShellStatus = ShellStatus with
             {
-                Location = Ui.Shell.StatusNoConnection,
+                Location = message ?? Ui.Shell.StatusNoConnection,
                 SelectedItems = 0,
                 SelectedBytes = 0
             };
@@ -392,9 +401,9 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         ShellStatus = ShellStatus with
         {
             // A pane with nothing chosen still has a path, "/", which is nowhere.
-            Location = pane.Source is null || string.IsNullOrWhiteSpace(pane.Path)
+            Location = message ?? (pane.Source is null || string.IsNullOrWhiteSpace(pane.Path)
                 ? Ui.Shell.StatusNoConnection
-                : pane.Path,
+                : pane.Path),
             SelectedItems = chosen.Length,
             SelectedBytes = chosen.Sum(static row => row.Length ?? 0)
         };
@@ -438,16 +447,51 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
     /// nowhere to go yet.
     /// </summary>
     /// <remarks>
-    /// It stands in for the location until <see cref="MessageLifetime"/> has passed, or until the
-    /// location or the selection changes and writes over it: another pane picked, a folder opened,
-    /// a row selected. 1.x's went at the next redraw of the bar, much the same.
+    /// It stands in for the location until <see cref="MessageLifetime"/> has passed or something
+    /// else is said, and then gives the cell back to the location, or to a state still standing
+    /// (<see cref="SayUntilResolved"/>). Another pane picked, a folder opened or a row selected
+    /// does not write over it, as none of them redrew 1.x's bar.
     /// </remarks>
     internal void Say(string message)
     {
         ArgumentNullException.ThrowIfNull(message);
-        ShellStatus = ShellStatus with { Location = message };
+        _said = message;
         _unsay?.Dispose();
-        _unsay = DispatcherTimer.RunOnce(ReportThePane, MessageLifetime);
+        _unsay = DispatcherTimer.RunOnce(() =>
+        {
+            _said = null;
+            ReportThePane();
+        }, MessageLifetime);
+        ReportThePane();
+    }
+
+    /// <summary>
+    /// A sentence for a state rather than an event, which stays in the first cell until it is
+    /// over: saved settings waiting for transfers to finish, or being applied.
+    /// </summary>
+    /// <remarks>
+    /// It replaces whatever was said before it. A short message said meanwhile goes over it for
+    /// its usual while and then gives the cell back to it, since the state is still true: a paste
+    /// made while settings wait for the transfers does not make them any less pending.
+    /// <see cref="Resolve"/> or another state ends it.
+    /// </remarks>
+    internal void SayUntilResolved(string state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        _standing = state;
+        _said = null;
+        _unsay?.Dispose();
+        ReportThePane();
+    }
+
+    /// <summary>
+    /// Ends the state <see cref="SayUntilResolved"/> put up, and says what it came to for the
+    /// usual while.
+    /// </summary>
+    internal void Resolve(string outcome)
+    {
+        _standing = null;
+        Say(outcome);
     }
 
     /// <summary>What Tools > Background agent runs, which the status bar's agent cell runs too.</summary>
@@ -981,7 +1025,7 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
     /// As 1.4 did it: nothing running, and the agent restarts now; transfers or synchronizations
     /// running, and it waits until the agent reports none, rather than cutting them off to apply a
     /// setting. Either way the status bar says which, since a saved number that has not taken
-    /// effect yet looks exactly like one that has.
+    /// effect yet looks exactly like one that has, and goes on saying it until the restart is done.
     /// </remarks>
     internal Task ApplyAgentSettingsAsync()
     {
@@ -1004,7 +1048,7 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         if (RunningWork > 0)
         {
             _agentRestartPending = true;
-            Say(Ui.Shell.StatusConcurrencyPendingIdle);
+            SayUntilResolved(Ui.Shell.StatusConcurrencyPendingIdle);
             return Task.CompletedTask;
         }
 
@@ -1028,19 +1072,31 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         if (_closing) return;
 
         // An agent being brought back after it dropped is left to come up first; the poll that
-        // finds it answering and idle runs this again.
+        // finds it answering and idle runs this again. The status bar says the settings are
+        // waiting unless it says so already: each such poll comes through here, and saying it
+        // again would cut short whatever was said over it.
         if (RunningWork > 0 || _recovering)
         {
             _agentRestartPending = true;
+            if (_standing != Ui.Shell.StatusConcurrencyPendingIdle)
+            {
+                SayUntilResolved(Ui.Shell.StatusConcurrencyPendingIdle);
+            }
+
             return;
         }
 
         _agentRestartPending = false;
         agent ??= AgentLifecycle?.Invoke();
-        if (agent is null) return;
+        if (agent is null)
+        {
+            // Nothing will restart it now, so the wait said in the status bar is over too.
+            Resolve(Ui.Shell.StatusConcurrencyRestartRequired);
+            return;
+        }
 
-        Say(Ui.Shell.StatusApplyingConcurrency);
-        AgentLifecycleResult result;
+        SayUntilResolved(Ui.Shell.StatusApplyingConcurrency);
+        AgentLifecycleResult? result = null;
         _restartingAgent = true;
         try
         {
@@ -1054,9 +1110,13 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         finally
         {
             _restartingAgent = false;
-        }
 
-        Say(result.Succeeded ? Ui.Shell.AdaptiveConcurrencyActive : Ui.Shell.ConcurrencyAgentRestartFailed);
+            // Here rather than after, so an error the catch does not expect still ends "Applying",
+            // which would otherwise stay up for good, as no caller looks at this task's error.
+            Resolve(result is { Succeeded: true }
+                ? Ui.Shell.AdaptiveConcurrencyActive
+                : Ui.Shell.ConcurrencyAgentRestartFailed);
+        }
 
         // A save made while the agent was restarting is applied now, or once the work is done.
         if (_agentRestartPending) await RestartAgentForSettingsAsync().ConfigureAwait(true);

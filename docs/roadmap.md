@@ -214,13 +214,21 @@ applied, and chosen on the Appearance page (P.5.1).
       Staging says "Copied 3 item(s). Choose a destination and paste." (or Cut), Clear says the
       clipboard was cleared, an import or an export says so, and a paste or drop says what it came
       to ("Queued 3 transfer(s).", or why it was refused), in the first cell, where 1.4 put them;
-      `ShellPreviewModel.Say` holds a message there for eight seconds, 1.4's longest, or until the
-      location or selection changes. The "not built yet" stand-in goes the same way. A pane with
-      nothing chosen reads "No connection" rather than "/". The bar is 1.4's 22 px, one row with a
-      thin line after each cell from the rate on, and each cell has 1.4's accessible name.
+      `ShellPreviewModel.Say` holds a message there for eight seconds, 1.4's longest; another pane
+      picked or a row selected does not write over it, as neither redrew 1.4's bar. The "not built
+      yet" stand-in goes the same way. A state rather than news, saved concurrency waiting for the
+      transfers or being applied, stays until the restart is done (`SayUntilResolved`), coming back
+      after a message said over it. That goes past 1.4 on purpose: its poll wrote over the wait
+      within eight seconds, and a setting not yet in force has to stay readable. An import says
+      "Settings imported" before it, as 1.4 did. A pane with nothing chosen reads "No connection"
+      rather than "/". The bar is 1.4's 22 px, one row with a thin line after each cell from the
+      rate on, and each cell has 1.4's accessible name.
       Left open: a refused paste or drop is said in the status bar, where 1.4 showed a warning
       (P.4.14); on Logs the queue count holds its last reading, as the queue is not read there; the
-      update cell after the last line, and the room it took, come with P.1.8.
+      update cell after the last line, and the room it took, come with P.1.8. 1.4 also wrote over a
+      message when the queue counts changed, which 2.0 leaves to the eight seconds. A created file
+      or folder, a rename, a send to the Recycle Bin, a delete and "Edited file uploaded" are said
+      on the pane's own status line, where 1.4 said them in the bar's first cell.
 - [x] P.3.7 A concurrency change waits for running transfers before restarting the agent, as 1.4 did.
       The shell restarts it once Settings has closed, or once the agent reports no transfers or
       synchronizations running, and says which in the status bar; an import that changes the

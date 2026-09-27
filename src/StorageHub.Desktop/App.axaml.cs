@@ -347,10 +347,6 @@ public partial class App : global::Avalonia.Application
             _ = model.Sidebar.RefreshAsync();
             _ = model.SyncTasks?.RefreshAsync();
 
-            // The import's summary says the agent restarts for new concurrency, and as in 1.4 it
-            // does, by the same rule as a change made in Settings.
-            if (import.Report is { ConcurrencyChanged: true }) _ = model.ApplyAgentSettingsAsync();
-
             // An import can replace the pinned and recent workspaces too, and Welcome would go on
             // listing the old ones until something else changed them, as 1.x's did not.
             model.ShowWorkspaceShortcuts();
@@ -359,6 +355,11 @@ public partial class App : global::Avalonia.Application
             // General section can bring and 1.x left until the next start.
             FollowSettings(model);
             model.Say(Ui.Shell.StatusSettingsImported);
+
+            // The import's summary says the agent restarts for new concurrency, and as in 1.4 it
+            // does, by the same rule as a change made in Settings. After "Settings imported", as
+            // 1.4 said them, so the status bar goes straight to the wait or the restart.
+            if (import.Report is { ConcurrencyChanged: true }) _ = model.ApplyAgentSettingsAsync();
         };
 
         if (desktop.MainWindow is { } owner) _ = window.ShowDialog(owner);
