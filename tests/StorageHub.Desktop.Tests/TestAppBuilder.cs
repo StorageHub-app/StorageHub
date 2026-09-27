@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Avalonia;
 using Avalonia.Headless;
 
@@ -20,4 +21,14 @@ public static class TestAppBuilder
             .UseSkia()
             .WithInterFont()
             .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false });
+
+    /// <summary>
+    /// Sends what the tests make the desktop log to a file of their own. A test that has the agent
+    /// refuse a request on purpose wrote its entry into the user's desktop.log, the file they read
+    /// to find out what went wrong with the real app.
+    /// </summary>
+    [ModuleInitializer]
+    internal static void KeepTheErrorLogOutOfTheUsersData() =>
+        Framework.DesktopErrorLog.FilePath =
+            Path.Combine(Path.GetTempPath(), "StorageHub.Desktop.Tests", "logs", "desktop.log");
 }

@@ -131,6 +131,16 @@
     puts the band back in the palette.
   -->
   <SolidColorBrush x:Key="SystemControlBackgroundChromeMediumBrush" Color="{DynamicResource SurfaceColor}"/>
+  <!--
+    A drop-down that is unavailable, as 1.4's choice field drew one: a quiet field with its edge,
+    and its words and chevron dimmed. Fluent fills it with its own solid grey and no edge, and the
+    queue's Reconcile drop-down is unavailable most of the time, so it was the heaviest thing on
+    the bar.
+  -->
+  <SolidColorBrush x:Key="ComboBoxBackgroundDisabled" Color="{DynamicResource SurfaceMutedColor}"/>
+  <SolidColorBrush x:Key="ComboBoxBorderBrushDisabled" Color="{DynamicResource BorderColor}"/>
+  <SolidColorBrush x:Key="ComboBoxForegroundDisabled" Color="{DynamicResource DisabledTextColor}"/>
+  <SolidColorBrush x:Key="ComboBoxDropDownGlyphForegroundDisabled" Color="{DynamicResource DisabledTextColor}"/>
 
   <!--
     Spacing, on a four-unit scale. A view picks a step rather than a number, which is what keeps
@@ -179,6 +189,9 @@
   <sys:Double x:Key="MenuBarHeight">30</sys:Double>
   <Thickness x:Key="MenuItemPadding">10,0</Thickness>
   <sys:Double x:Key="ToolbarHeight">36</sys:Double>
+  <!-- A drop-down in a toolbar, 1.4's 170: one width whichever entry is chosen, so choosing a
+       long one does not push the buttons after it along. What does not fit is trimmed. -->
+  <sys:Double x:Key="ToolbarChoiceWidth">170</sys:Double>
   <sys:Double x:Key="StatusBarHeight">26</sys:Double>
   <sys:Double x:Key="ListRowHeight">24</sys:Double>
   <!-- Fluent's own key: the padding of every TableView row and of its heading band. Fluent's

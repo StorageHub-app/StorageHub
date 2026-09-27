@@ -281,22 +281,75 @@ public class TransferQueueModelTests
         Assert.Equal(77, agent.CancelledRevision);
     }
 
-    /// <summary>Reconciling sends the action the drop-down is on, for the selected transfer.</summary>
+    /// <summary>
+    /// Reconciling offers the contract's five actions, moves to Restart when a conflict is chosen
+    /// but leaves a Review chosen on purpose through the polls, sends the action the drop-down is
+    /// on, and says what came of it: a transfer the agent would not change is counted in 1.x's
+    /// words, and a request it refused outright is said too.
+    /// </summary>
+    /// <remarks>
+    /// Mark failed and Cancel were left out, the drop-down stayed on Review, whose only effect on
+    /// an interrupted transfer is to leave it a conflict, and a refused request went unheard. The
+    /// poll here moves the chosen row to the top, which the table lets go of and has chosen again;
+    /// that looked like a conflict newly chosen, and put the drop-down back on Restart.
+    /// </remarks>
     [AvaloniaFact]
-    public async Task ReconcilingSendsTheChosenAction()
+    public async Task ReconcilingSendsTheChosenActionAndSaysWhatCameOfIt()
     {
         var agent = new FakeQueueAgent();
-        agent.Transfers.Add(Summary(TransferQueueState.NeedsReconciliation, needsReconciliation: true));
+        var chosen = Summary(TransferQueueState.NeedsReconciliation, needsReconciliation: true);
+        agent.Transfers.AddRange([Summary(TransferQueueState.NeedsReconciliation, needsReconciliation: true), chosen]);
         await using var queue = new TransferQueueModel(() => agent);
+        var window = new Window
+        {
+            Width = 1000,
+            Height = 320,
+            Content = new TransferQueueView { DataContext = queue }
+        };
+        window.Show();
         queue.SelectedTab = IndexOf(queue, TransferQueueTabs.ConflictsKey);
         await queue.RefreshAsync();
+        Settle(window);
+        var table = window.GetVisualDescendants().OfType<TableView>().First(each => each.IsVisible);
 
-        queue.Selected = queue.Rows[0];
-        queue.SelectedReconcileAction = 2;
+        Assert.Equal(
+            [
+                Ui.Transfer.ReconcileReview,
+                Ui.Transfer.ReconcileRestart,
+                Ui.Transfer.ReconcileMarkCompleted,
+                Ui.Transfer.ReconcileMarkFailed,
+                Ui.Transfer.ReconcileCancel
+            ],
+            queue.ReconcileActions);
+        Assert.False(queue.CanReconcile);
+
+        table.Selection.Select(1);
+
+        Assert.True(queue.CanReconcile);
+        Assert.Equal(Ui.Transfer.ReconcileRestart, queue.ReconcileActions[queue.SelectedReconcileAction]);
+
+        queue.SelectedReconcileAction = queue.ReconcileActions.ToList().IndexOf(Ui.Transfer.ReconcileReview);
+        agent.Transfers.Remove(chosen);
+        agent.Transfers.Insert(0, chosen with { Revision = 2 });
+        await queue.RefreshAsync();
+        Settle(window);
+
+        Assert.Equal(chosen.TransferId, Assert.Single(queue.SelectedRows).Id);
+        Assert.Equal(Ui.Transfer.ReconcileReview, queue.ReconcileActions[queue.SelectedReconcileAction]);
+
+        agent.ReconcileOutcome = TransferQueueMutationOutcome.RevisionConflict;
+        queue.SelectedReconcileAction = queue.ReconcileActions.ToList().IndexOf(Ui.Transfer.ReconcileMarkFailed);
         queue.ApplyReconcileCommand.Execute(null);
         await queue.RefreshAsync();
 
-        Assert.Equal(TransferReconciliationAction.MarkCompleted, agent.ReconciledAs);
+        Assert.Equal(TransferReconciliationAction.MarkFailed, agent.ReconciledAs);
+        Assert.Equal(Ui.Format(Ui.Transfer.UpdatedWithConflictsFormat, 0, 1), queue.Message);
+
+        agent.ReconcileRefusal = new InvalidDataException(Ui.Validation.TheLocalAgentRejectedTheTransferRequest);
+        queue.ApplyReconcileCommand.Execute(null);
+        await queue.RefreshAsync();
+
+        Assert.Equal(Ui.Shell.AgentRequestFailed, queue.Message);
     }
 
     [AvaloniaFact]
@@ -465,15 +518,29 @@ public class TransferQueueModelTests
 
         internal TransferReconciliationAction? ReconciledAs { get; private set; }
 
+        /// <summary>What reconciling comes to; anything but applied carries a failure, as the client insists.</summary>
+        internal TransferQueueMutationOutcome ReconcileOutcome { get; set; } = TransferQueueMutationOutcome.Applied;
+
+        /// <summary>Thrown by the next reconcile, as the client throws for a request the agent refused.</summary>
+        internal Exception? ReconcileRefusal { get; set; }
+
         public Task<TransferMutationResponse> ReconcileAsync(
             TransferReconcileRequest request,
             CancellationToken cancellationToken = default)
         {
+            if (ReconcileRefusal is { } refusal) throw refusal;
             ReconciledAs = request.Action;
             return Task.FromResult(new TransferMutationResponse(
                 TransferQueueIpcContract.CurrentVersion,
                 request.TransferId,
-                TransferQueueMutationOutcome.Applied));
+                ReconcileOutcome,
+                Failure: ReconcileOutcome is TransferQueueMutationOutcome.Applied
+                    ? null
+                    : new StorageIpcFailure(
+                        "transfer.revision.conflict",
+                        StorageIpcFailureCategory.Conflict,
+                        "The transfer changed before the requested action was applied.",
+                        IsTransient: true)));
         }
 
         public Task<TransferHistoryClearResponse> ClearHistoryAsync(

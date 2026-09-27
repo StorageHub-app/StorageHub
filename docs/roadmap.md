@@ -142,10 +142,20 @@ setting to choose it (P.5.1).
       clearing" confirmation (the setting is saved and unread). The menu opens on the first
       right-click and on the Menu key; the warning's button reads "Clear history", drawn primary
       as 1.4's was.
-- [ ] P.4.3 Cancel, retry and reconcile say what happened ("Updated 3", "2 conflicts") and refusals are
+- [x] P.4.3 Cancel, retry and reconcile say what happened ("Updated 3", "2 conflicts") and refusals are
       shown; Reconcile defaults to Restart for a conflict; MarkFailed and Cancel are offered. The
       counts are said since P.4.1 (for a few seconds, then the toolbar's "N transfer(s)." comes
-      back, as 1.4 wrote it after every read); the rest is open.
+      back, as 1.4 wrote it after every read). A request the agent refused outright, or answered
+      unreadably, was thrown into a fire-and-forget and left "Applying queue action…" up; it now
+      says "StorageHub could not complete that request." and goes to the error log, for clearing
+      history and for the queue's reads as well (a read the agent keeps refusing is logged once per
+      run of failures, not every poll). The drop-down offers all five actions, moves to Restart
+      when a conflict comes to be chosen (1.4 moved it back on every poll, so a Review chosen on
+      purpose did not last; here it stays, through the polls that move its row too), and is
+      dimmed with Apply while nothing chosen waits on a decision, as 1.4's was: a quiet field in
+      the scheme's colours, not Fluent's grey block, and 1.4's 170 wide, trimming the long German
+      entries. Open: the agent's own reason for a refusal is not shown, since it is English and
+      the client drops it; the translated general message is.
 - [x] P.4.4 Queue paging. Worse than the sweep thought: the queue asked for 100 rows per page against
       a contract limit of 50, the client refused every request, and the refusal was lost in a
       fire-and-forget -- so the 2.0 queue never listed anything. Found by the new error log; it now

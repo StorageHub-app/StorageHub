@@ -208,6 +208,10 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
     /// </summary>
     private static readonly TimeSpan NoticeLasts = TimeSpan.FromSeconds(5);
 
+    /// <summary>The contract's reconciliation actions, in its order, which is the drop-down's.</summary>
+    private static readonly TransferReconciliationAction[] ReconcileChoices =
+        Enum.GetValues<TransferReconciliationAction>();
+
     private readonly Func<ITransferQueueAgentClient> _connect;
     private readonly IDialogService? _dialogs;
     private readonly CancellationTokenSource _lifetime = new();
@@ -215,7 +219,24 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
     private DispatcherTimer? _timer;
     private string _message = string.Empty;
     private int _selectedTab;
+    private int _reconcileAction;
     private bool _busy;
+
+    /// <summary>Whether a row waiting on a decision was among the chosen ones when last looked.</summary>
+    private bool _couldReconcile;
+
+    /// <summary>
+    /// Whether a poll is putting the rows in line, which lets go of chosen rows and chooses them
+    /// again on its own; the commands are told once it is done rather than at every step.
+    /// </summary>
+    private bool _updating;
+
+    /// <summary>
+    /// Whether a failed read of the queue has been written to the error log since the last one
+    /// that worked. An agent that keeps refusing is refused every poll, and a log entry per poll
+    /// would push out the ones the log is there to keep.
+    /// </summary>
+    private bool _readFailureLogged;
 
     /// <summary>A refresh asked for while another was in flight, to be run when it is done.</summary>
     private bool _again;
@@ -270,7 +291,13 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
 
         // The buttons follow the selection the moment it changes. They were only told on the next
         // poll, so a Cancel lit up a second or two after its row was picked, when it did at all.
-        SelectedRows.CollectionChanged += (_, _) => RaiseCommands();
+        // Not while a poll moves the rows, though: the table lets go of a chosen row that moves
+        // and it is chosen again straight after, which looked like a conflict newly chosen and put
+        // the drop-down back on Restart. The poll tells them once, when it is done.
+        SelectedRows.CollectionChanged += (_, _) =>
+        {
+            if (!_updating) RaiseCommands();
+        };
 
         RefreshCommand = new RelayCommand(_ => _ = RefreshFromStartAsync());
         CancelCommand = new RelayCommand(
@@ -281,7 +308,7 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
             _ => SelectedRows.Any(static row => row.CanRetry));
         ApplyReconcileCommand = new RelayCommand(
             _ => _ = MutateAsync(Mutation.Reconcile),
-            _ => SelectedRows.Any(static row => row.NeedsReconciliation));
+            _ => CanReconcile);
         NextPageCommand = new RelayCommand(_ => ShowNextPage(), _ => _nextPage is not null);
         ClearSelectedCommand = new RelayCommand(
             _ => _ = ClearAsync([.. SelectedRows.Where(static row => row.IsHistory).Select(static row => row.Id)]),
@@ -364,21 +391,43 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
 
     public static string HistoryCommandsLabel => Ui.Transfer.HistoryCommands;
 
+    public static string ReconcileActionName => Ui.Transfer.ReconciliationAction;
+
     /// <summary>
-    /// What to do with a transfer the agent cannot decide about on its own.
+    /// What to do with a transfer the agent cannot decide about on its own: all five of the
+    /// contract's, in its order, as 1.x offered them.
     /// </summary>
     /// <remarks>
-    /// Three of the contract's five. MarkFailed and Cancel are reachable from the row's own
-    /// commands, and a drop-down whose every entry is destructive invites the wrong one.
+    /// This offered three, leaving out Mark failed and Cancel as too destructive to sit in a
+    /// drop-down. Nothing else marks a transfer failed, though, and 1.x offered both.
     /// </remarks>
     public IReadOnlyList<string> ReconcileActions { get; } =
-    [
-        Ui.Transfer.ReconcileReview,
-        Ui.Transfer.ReconcileRestart,
-        Ui.Transfer.ReconcileMarkCompleted
-    ];
+        [.. ReconcileChoices.Select(static action => UiEnumNames.Describe(action))];
 
-    public int SelectedReconcileAction { get; set; }
+    /// <summary>Which of <see cref="ReconcileActions"/> Apply sends.</summary>
+    public int SelectedReconcileAction
+    {
+        get => _reconcileAction;
+        set
+        {
+            if (_reconcileAction == value) return;
+            _reconcileAction = value;
+            Raise(nameof(SelectedReconcileAction));
+        }
+    }
+
+    /// <summary>
+    /// Whether a chosen row waits on a decision, which is when the drop-down and Apply mean
+    /// anything; both are dimmed otherwise, as 1.x's were.
+    /// </summary>
+    public bool CanReconcile => SelectedRows.Any(static row => row.NeedsReconciliation);
+
+    /// <summary>The action the drop-down is on.</summary>
+    private TransferReconciliationAction ReconcileAction
+    {
+        get => ReconcileChoices[Math.Clamp(SelectedReconcileAction, 0, ReconcileChoices.Length - 1)];
+        set => SelectedReconcileAction = Array.IndexOf(ReconcileChoices, value);
+    }
 
     public ICommand ApplyReconcileCommand { get; }
 
@@ -607,13 +656,16 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
                 rows.AddRange(response.Transfers);
             }
 
+            _readFailureLogged = false;
             return response with { Transfers = [.. rows] };
         }
-        catch (ArgumentException error)
+        catch (Exception error) when (IsRefusal(error))
         {
             // A request the client would not send is a defect here rather than a state of the
-            // agent. Said, logged, and survived -- not thrown out of a timer callback.
-            Framework.DesktopErrorLog.Write("queue", error);
+            // agent, and so is one the agent refused or answered with something unreadable.
+            // Said, logged once, and survived -- not thrown out of a timer callback.
+            if (!_readFailureLogged) Framework.DesktopErrorLog.Write("queue", error);
+            _readFailureLogged = true;
             Unavailable();
             return null;
         }
@@ -638,6 +690,34 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
         error is IOException or TimeoutException or InvalidOperationException or
             UnauthorizedAccessException or ObjectDisposedException;
 
+    /// <summary>
+    /// The agent answered, but with a refusal rather than an outcome: a request it would not take,
+    /// or a reply that could not be read. Or the client would not send the request at all.
+    /// </summary>
+    private static bool IsRefusal(Exception error) =>
+        error is InvalidDataException or System.Text.Json.JsonException or ArgumentException;
+
+    /// <summary>Says why an action came to nothing, rather than letting it go unheard.</summary>
+    /// <remarks>
+    /// Only an agent that could not be reached used to be caught. A refusal went out of the
+    /// fire-and-forget that ran the action, and the toolbar said "Applying queue action..." for a
+    /// few seconds and then the count, as if the action had worked. 1.x said something for every
+    /// failure. The agent's own words are not shown: they are English, and written for the log.
+    /// </remarks>
+    private async Task FailedAsync(Exception error)
+    {
+        if (IsUnavailable(error))
+        {
+            // Drop the client so the next request reconnects rather than reusing a broken one.
+            await DropClientAsync().ConfigureAwait(true);
+            Unavailable();
+            return;
+        }
+
+        Framework.DesktopErrorLog.Write("queue", error);
+        Say(Ui.Shell.AgentRequestFailed);
+    }
+
     private async Task DropClientAsync()
     {
         if (_client is null) return;
@@ -655,7 +735,15 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
 
     private void Apply(TransferListResponse response, TransferQueueTab tab)
     {
-        Update(response.Transfers);
+        _updating = true;
+        try
+        {
+            Update(response.Transfers);
+        }
+        finally
+        {
+            _updating = false;
+        }
 
         if (response.StateCounts is { } counts)
         {
@@ -750,6 +838,20 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
 
     private void RaiseCommands()
     {
+        // Restart, when a transfer waiting on a decision comes to be chosen and the drop-down is
+        // still on Review, as 1.x moved it. Review on an interrupted transfer only moves it on to
+        // needing reconciliation, which leaves it on the same tab, still a conflict: applying the
+        // default reported success and changed nothing anybody could see. 1.x moved it back on
+        // every poll as well, so a Review chosen on purpose lasted two seconds; here it stays.
+        var canReconcile = CanReconcile;
+        if (canReconcile && !_couldReconcile && ReconcileAction == TransferReconciliationAction.Review)
+        {
+            ReconcileAction = TransferReconciliationAction.Restart;
+        }
+
+        _couldReconcile = canReconcile;
+        Raise(nameof(CanReconcile));
+
         (RefreshCommand as RelayCommand)?.RaiseCanExecuteChanged();
         (CancelCommand as RelayCommand)?.RaiseCanExecuteChanged();
         (RetryCommand as RelayCommand)?.RaiseCanExecuteChanged();
@@ -841,12 +943,7 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
             .ToArray();
         if (targets.Length == 0) return;
 
-        var action = SelectedReconcileAction switch
-        {
-            1 => TransferReconciliationAction.Restart,
-            2 => TransferReconciliationAction.MarkCompleted,
-            _ => TransferReconciliationAction.Review
-        };
+        var action = ReconcileAction;
 
         Say(Ui.Transfer.ApplyingAction);
         var applied = 0;
@@ -877,10 +974,9 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
         {
             return;
         }
-        catch (Exception error) when (IsUnavailable(error))
+        catch (Exception error) when (IsUnavailable(error) || IsRefusal(error))
         {
-            await DropClientAsync().ConfigureAwait(true);
-            Unavailable();
+            await FailedAsync(error).ConfigureAwait(true);
             return;
         }
 
@@ -932,10 +1028,9 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
         {
             return;
         }
-        catch (Exception error) when (IsUnavailable(error))
+        catch (Exception error) when (IsUnavailable(error) || IsRefusal(error))
         {
-            await DropClientAsync().ConfigureAwait(true);
-            Unavailable();
+            await FailedAsync(error).ConfigureAwait(true);
             return;
         }
 
@@ -1029,10 +1124,9 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
         {
             return;
         }
-        catch (Exception error) when (IsUnavailable(error))
+        catch (Exception error) when (IsUnavailable(error) || IsRefusal(error))
         {
-            await DropClientAsync().ConfigureAwait(true);
-            Unavailable();
+            await FailedAsync(error).ConfigureAwait(true);
             return;
         }
 

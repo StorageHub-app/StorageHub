@@ -17,7 +17,11 @@ internal static class DesktopErrorLog
     private const long MaximumBytes = 1024 * 1024;
     private static readonly Lock Gate = new();
 
-    internal static string FilePath { get; } = Resolve();
+    /// <summary>
+    /// The file written to. Settable so a test run can send its entries somewhere of its own
+    /// rather than into the log somebody reads about their real app.
+    /// </summary>
+    internal static string FilePath { get; set; } = Resolve();
 
     internal static void Write(string source, Exception error)
     {

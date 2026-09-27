@@ -40,11 +40,21 @@
           </Button>
           <TextBlock Classes="muted" Text="{Binding ReconcileLabel}"
                      VerticalAlignment="Center" Margin="{StaticResource PaddingLg}"/>
-          <!-- As tall as the buttons beside it, as 1.x's was; Fluent's own field is a dialog's. -->
+          <!-- As tall as the buttons beside it, as 1.x's was; Fluent's own field is a dialog's.
+               Dimmed with Apply while no chosen row waits on a decision, as 1.x's was too. As
+               wide whichever action is chosen, trimming the long German ones, as 1.x's was. -->
           <ComboBox Classes="dense" VerticalAlignment="Center"
                     ItemsSource="{Binding ReconcileActions}"
                     SelectedIndex="{Binding SelectedReconcileAction, Mode=TwoWay}"
-                    MinWidth="150"/>
+                    IsEnabled="{Binding CanReconcile}"
+                    AutomationProperties.Name="{Binding ReconcileActionName}"
+                    Width="{StaticResource ToolbarChoiceWidth}">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="x:String">
+                <TextBlock Text="{Binding}" TextTrimming="CharacterEllipsis"/>
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
           <Button Classes="tool" Command="{Binding ApplyReconcileCommand}" ToolTip.Tip="{Binding ApplyHint}">
             <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
               <LucideIcon Kind="CircleCheck" Size="{StaticResource IconSizeSm}"/>
