@@ -206,7 +206,14 @@
        a tool button with only an icon, DenseFieldPadding either side of IconSizeMd. Change the
        three together. -->
   <sys:Double x:Key="ToolbarOverflowWidth">34</sys:Double>
-  <sys:Double x:Key="StatusBarHeight">26</sys:Double>
+  <!-- 1.4's StatusStrip, top line included: one line of text with a little room above and below. -->
+  <sys:Double x:Key="StatusBarHeight">22</sys:Double>
+  <!-- The status bar's cells, a little apart on either side of the thin line between them, which
+       stops short of the bar's top and bottom as 1.4's did. The bar's padding is horizontal only:
+       vertical padding, or a cell's, made it nearly twice 1.4's height. -->
+  <Thickness x:Key="StatusBarPadding">4,0</Thickness>
+  <Thickness x:Key="StatusCellMargin">5,0</Thickness>
+  <Thickness x:Key="StatusSeparatorMargin">0,4</Thickness>
   <sys:Double x:Key="ListRowHeight">24</sys:Double>
   <!-- Fluent's own key: the padding of every TableView row and of its heading band. Fluent's
        6,9,6,12 made a row 37 tall; 1.4's lists were about 20, as dense as Explorer's. -->

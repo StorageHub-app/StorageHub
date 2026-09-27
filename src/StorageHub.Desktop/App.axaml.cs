@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
+using StorageHub.Desktop.Localization;
 using StorageHub.Desktop.Settings;
 using StorageHub.Desktop.Themes;
 using StorageHub.Desktop.Views;
@@ -46,6 +47,9 @@ public partial class App : global::Avalonia.Application
     {
         var model = ShellPreview.CreateLive();
         var window = new MainWindow { DataContext = model };
+
+        // Centred on the screen, as 1.x opened, and made smaller where the screen is.
+        window.FitToScreen();
 
         // When the agent drops, the shell brings it back the way startup did.
         model.RecoverAgent = DesktopAgentStartup.EnsureAsync;
@@ -141,7 +145,7 @@ public partial class App : global::Avalonia.Application
 
         // Settings out to a file and back in again. Import is the one that can change what
         // the agent holds, so the shell refreshes itself when it reports that it did.
-        model.Router.Handle(UiCommandIds.ToolsExportSettings, () => ShowExportSettings(desktop));
+        model.Router.Handle(UiCommandIds.ToolsExportSettings, () => ShowExportSettings(desktop, model));
         model.Router.Handle(UiCommandIds.ToolsImportSettings, () => ShowImportSettings(desktop, model));
 
         // The background agent's own screen. It is the only place the agent can be started or
@@ -303,10 +307,20 @@ public partial class App : global::Avalonia.Application
         else window.Show();
     }
 
-    /// <summary>Opens the export dialog.</summary>
-    private static void ShowExportSettings(IClassicDesktopStyleApplicationLifetime desktop)
+    /// <summary>Opens the export dialog, and says in the status bar where the file went, as 1.x did.</summary>
+    private static void ShowExportSettings(
+        IClassicDesktopStyleApplicationLifetime desktop,
+        ShellPreviewModel model)
     {
         var window = Views.SettingsExportWindow.ForCurrentUser();
+        window.Closed += (_, _) =>
+        {
+            if (window.DataContext is Views.SettingsExportModel { ExportedPath: { } path })
+            {
+                model.Say(Ui.Format(Ui.Shell.SettingsExportedFormat, Path.GetFileName(path)));
+            }
+        };
+
         if (desktop.MainWindow is { } owner) _ = window.ShowDialog(owner);
         else window.Show();
     }
@@ -341,6 +355,7 @@ public partial class App : global::Avalonia.Application
             // And the shortcuts, which 1.x's import refreshed as well, with the toolbar, which a
             // General section can bring and 1.x left until the next start.
             FollowSettings(model);
+            model.Say(Ui.Shell.StatusSettingsImported);
         };
 
         if (desktop.MainWindow is { } owner) _ = window.ShowDialog(owner);

@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Markup.Xaml;
+using Avalonia.Platform;
 using Lucide.Avalonia;
 using StorageHub.Desktop.Themes;
 
@@ -88,6 +89,68 @@ public partial class MainWindow : Window
             if (e.WidthChanged) ArrangeConnectionsPanel();
         };
         ScalingChanged += (_, _) => OnScalingChanged();
+    }
+
+    /// <summary>
+    /// Keeps the window within the screen it opens in the middle of, as 1.x's did.
+    /// </summary>
+    /// <remarks>
+    /// 1.x opened at 1500 by 920 in the middle of the screen and made that smaller where the
+    /// screen's working area was (LogicalWindowSize), its minimum too. Centred at full size on a
+    /// smaller screen, which a 1080p laptop at 125% already is, the title bar would sit above the
+    /// top of the screen where it cannot be dragged. Fitted twice: before it is shown, on the screen
+    /// CenterScreen will pick, so it opens at the size it keeps rather than jumping to it; and once
+    /// it is open, because only then is its frame's size known rather than allowed for. Called by
+    /// the application only: a headless test lays the window out at the size it asks for.
+    /// </remarks>
+    internal void FitToScreen()
+    {
+        if (Screens is { } screens && (screens.ScreenFromPoint(Position) ?? screens.Primary) is { } first)
+        {
+            var client = new Size(Width, Height);
+            Fit(first, client + FrameAllowance, client, centre: false);
+        }
+
+        Opened += Refit;
+
+        void Refit(object? sender, EventArgs e)
+        {
+            Opened -= Refit;
+            if (Screens?.ScreenFromWindow(this) is { } screen) Fit(screen, FrameSize ?? ClientSize, ClientSize, centre: true);
+        }
+    }
+
+    /// <summary>
+    /// A title bar and borders, which a window has not got until it is shown: enough that the first
+    /// fit leaves little or nothing for the second.
+    /// </summary>
+    private static readonly Thickness FrameAllowance = new(8, 32, 8, 8);
+
+    /// <summary>
+    /// Makes the window, frame and all, no bigger than the screen's working area, its minimum too.
+    /// </summary>
+    private void Fit(Screen screen, Size frame, Size client, bool centre)
+    {
+        // Some X11 window managers report no working area at all, which would make a window of
+        // negative size, and setting one throws.
+        var area = screen.WorkingArea;
+        if (area.Width <= 0 || area.Height <= 0) return;
+
+        var over = new Size(
+            Math.Max(0, frame.Width - area.Width / screen.Scaling),
+            Math.Max(0, frame.Height - area.Height / screen.Scaling));
+        if (over.Width <= 0 && over.Height <= 0) return;
+
+        var fitted = new Size(client.Width - over.Width, client.Height - over.Height);
+        MinWidth = Math.Min(MinWidth, fitted.Width);
+        MinHeight = Math.Min(MinHeight, fitted.Height);
+        Width = fitted.Width;
+        Height = fitted.Height;
+
+        // Before it is shown, CenterScreen does this with the new size.
+        if (!centre) return;
+        var outside = PixelSize.FromSize(new Size(frame.Width - over.Width, frame.Height - over.Height), screen.Scaling);
+        Position = area.CenterRect(new PixelRect(outside)).Position;
     }
 
     /// <summary>The render scaling, which 1.x's saved pixels are divided by.</summary>

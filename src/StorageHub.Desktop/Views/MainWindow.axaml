@@ -6,7 +6,8 @@
         x:DataType="vm:ShellPreviewModel"
         Title="StorageHub"
         Width="1500" Height="920"
-        MinWidth="1120" MinHeight="720">
+        MinWidth="1120" MinHeight="720"
+        WindowStartupLocation="CenterScreen">
 
   <!--
     The shell's structure, and nothing else: no colour, no pixel, no font. Every number below is a
@@ -124,27 +125,38 @@
       </Panel>
     </Border>
 
-    <Border DockPanel.Dock="Bottom" Classes="statusbar">
-      <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto">
-        <!-- Where the active pane is, or the last thing the shell had to say about a command it
-             could not run. It used to print the id of every command invoked, which was the
-             stand-in that proved the path worked while nothing was wired. -->
-        <TextBlock Grid.Column="0" Classes="muted"
-                   Text="{Binding Status, FallbackValue={x:Null}, TargetNullValue={x:Null}}"
-                   IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
-        <TextBlock Grid.Column="0" Classes="muted" Text="{Binding ShellStatus.Location}"
-                   IsVisible="{Binding Status, Converter={x:Static StringConverters.IsNullOrEmpty}}"/>
-        <TextBlock Grid.Column="1" Classes="muted" Text="{Binding ShellStatus.SelectionText}"
-                   Margin="{StaticResource PaddingLg}"/>
-        <!-- Not shown: the transfer contract carries no throughput, so this could only ever say
-             "0 B/s". It comes back when the agent reports a rate, rather than standing there
-             being wrong. -->
-        <TextBlock Grid.Column="3" Classes="muted" Text="{Binding ShellStatus.QueueText}"
-                   Margin="{StaticResource PaddingLg}"/>
-        <TextBlock Grid.Column="4" Classes="agent" Text="{Binding ShellStatus.AgentText}"
-                   Classes.healthy="{Binding ShellStatus.AgentIsHealthy}"
-                   Classes.down="{Binding ShellStatus.AgentIsDown}"
-                   Margin="{StaticResource PaddingLg}"/>
+    <!-- 1.4's StatusStrip: where the active pane is, what is selected, how fast the transfers
+         move, the queue and the agent, one row tall with a line after each cell from the rate
+         on. The first cell also carries 1.4's short messages for a while, such as what was just
+         staged; the rate is 0 B/s while nothing moves, as 1.4's said. -->
+    <Border DockPanel.Dock="Bottom" Classes="statusbar"
+            AutomationProperties.Name="{x:Static vm:ShellPreviewModel.ApplicationStatusLabel}">
+      <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+        <TextBlock Grid.Column="0" Classes="muted status-cell" Text="{Binding ShellStatus.Location}"
+                   TextTrimming="CharacterEllipsis"
+                   AutomationProperties.Name="{x:Static vm:ShellPreviewModel.CurrentLocationLabel}"/>
+        <TextBlock Grid.Column="1" Classes="muted status-cell" Text="{Binding ShellStatus.SelectionText}"
+                   AutomationProperties.Name="{x:Static vm:ShellPreviewModel.SelectionSummaryLabel}"/>
+        <Border Grid.Column="2" Classes="statusbar-separator"/>
+        <TextBlock Grid.Column="3" Classes="muted status-cell" Text="{Binding ShellStatus.TransferRateText}"
+                   AutomationProperties.Name="{x:Static vm:ShellPreviewModel.TransferSpeedLabel}"/>
+        <Border Grid.Column="4" Classes="statusbar-separator"/>
+        <TextBlock Grid.Column="5" Classes="muted status-cell" Text="{Binding ShellStatus.QueueText}"
+                   AutomationProperties.Name="{x:Static vm:ShellPreviewModel.QueueSummaryLabel}"/>
+        <Border Grid.Column="6" Classes="statusbar-separator"/>
+        <!-- Where somebody looks when something has stopped working, so a click on it opens the
+             controls that fix it, as 1.4's did. Its tooltip is what the agent last said. Not a tab
+             stop and it takes no focus, as a status cell did not; the Tools menu has the keys. -->
+        <Button Grid.Column="7" Classes="status-cell" Focusable="False"
+                Command="{Binding AgentControlCommand}"
+                ToolTip.Tip="{Binding AgentToolTip}"
+                AutomationProperties.Name="{x:Static vm:ShellPreviewModel.AgentStatusLabel}">
+          <TextBlock Classes="agent" Text="{Binding ShellStatus.AgentText}"
+                     Classes.healthy="{Binding ShellStatus.AgentIsHealthy}"
+                     Classes.degraded="{Binding ShellStatus.AgentIsDegraded}"
+                     Classes.down="{Binding ShellStatus.AgentIsDown}"/>
+        </Button>
+        <Border Grid.Column="8" Classes="statusbar-separator"/>
       </Grid>
     </Border>
 

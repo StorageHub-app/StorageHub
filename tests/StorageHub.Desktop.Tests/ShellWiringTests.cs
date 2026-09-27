@@ -6,6 +6,8 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Lucide.Avalonia;
+using StorageHub.Desktop.Localization;
 using StorageHub.Desktop.Views;
 using Xunit;
 
@@ -97,14 +99,22 @@ public class ShellWiringTests
         Assert.Empty(pane.SelectedRows);
     }
 
-    /// <summary>The status bar reports the pane, rather than its startup values.</summary>
+    /// <summary>
+    /// The status bar reports the pane, rather than its startup values, and a pane with nothing
+    /// chosen as "No connection" rather than the "/" its address bar holds.
+    /// </summary>
     [AvaloniaFact]
-    public void TheStatusBarFollowsTheActivePane()
+    public async Task TheStatusBarFollowsTheActivePane()
     {
         var model = ShellPreview.CreateOnWorkspace();
         var workspace = model.Workspaces.Select(static tab => tab.Workspace).First(static w => w is not null)!;
         var pane = workspace.Panes[0];
         pane.IsActive = true;
+        Assert.Equal(Ui.Shell.StatusNoConnection, model.ShellStatus.Location);
+
+        await pane.OpenAsync(
+            new PaneConnection(null, Ui.Pane.ConnectionsHome, LucideIconKind.House, PaneContentKind.ConnectionsHome),
+            TestContext.Current.CancellationToken);
 
         Assert.Equal(pane.Path, model.ShellStatus.Location);
     }

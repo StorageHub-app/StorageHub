@@ -99,7 +99,7 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
         StageMoveCommand = new RelayCommand(
             _ => Stage(TransferQueueOperation.Move), _ => CanStage(TransferQueueOperation.Move));
         PasteCommand = new RelayCommand(_ => _ = PasteAsync(), _ => CanPaste);
-        ClearClipboardCommand = new RelayCommand(_ => Clipboard = null, _ => _clipboard is not null);
+        ClearClipboardCommand = new RelayCommand(_ => ClearClipboard(), _ => _clipboard is not null);
         ClosePaneCommand = new RelayCommand(
             pane => ClosePane(pane as BrowserPaneModel),
             pane => _layout.PaneCount > 1 && pane is BrowserPaneModel);
@@ -116,6 +116,15 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
 
     /// <summary>Raised when the tree changed shape and the view has to rebuild its grids.</summary>
     internal event EventHandler? LayoutChanged;
+
+    /// <summary>
+    /// Raised with a sentence for the status bar: what was just staged, that it was cleared, or
+    /// what a paste or drop came to (<see cref="Message"/>).
+    /// </summary>
+    /// <remarks>
+    /// An event rather than a property, so staging three items twice says so twice.
+    /// </remarks>
+    internal event EventHandler<string>? Announced;
 
     /// <summary>The six arrangements offered: one, two either way, three either way, and a grid.</summary>
     /// <remarks>
@@ -197,11 +206,16 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
     public string ClipboardSummary => _clipboard?.Describe() ?? string.Empty;
 
     /// <summary>What the last transfer attempt said, or nothing.</summary>
+    /// <remarks>
+    /// Said in the status bar as well, each time, even when it is what was said last: pasting twice
+    /// queues twice. Nothing else shows it, and a paste that was refused did nothing visible.
+    /// </remarks>
     public string Message
     {
         get => _message;
         private set
         {
+            if (!string.IsNullOrEmpty(value)) Announced?.Invoke(this, value);
             if (string.Equals(_message, value, StringComparison.Ordinal)) return;
             _message = value;
             Raise(nameof(Message));
@@ -460,7 +474,19 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
         }
 
         Message = string.Empty;
-        Clipboard = new PaneClipboard(selection.Value, operation, pane.Title);
+        var staged = new PaneClipboard(selection.Value, operation, pane.Title);
+        Clipboard = staged;
+        Announced?.Invoke(this, Ui.Format(
+            Ui.Shell.StagedSelectionFormat,
+            staged.IsMove ? Ui.Shell.StagedCut : Ui.Shell.StagedCopied,
+            staged.Count));
+    }
+
+    /// <summary>Drops what is staged, and says so, as 1.x's Clear did.</summary>
+    private void ClearClipboard()
+    {
+        Clipboard = null;
+        Announced?.Invoke(this, Ui.Shell.StatusClipboardCleared);
     }
 
     /// <summary>

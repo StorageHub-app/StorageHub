@@ -194,9 +194,26 @@ applied, and chosen on the Appearance page (P.5.1).
       field for. Left open: a collapsed group, Favorites included, opens again on each listing or
       search (1.4 remembered it), and the Go entries and the starred name have no accessible
       description yet.
-- [ ] P.3.6 Status bar: the agent cell opens Agent control and carries its detail as a tooltip; the
+- [x] P.3.6 Status bar: the agent cell opens Agent control and carries its detail as a tooltip; the
       transfer speed cell (the queue already has `BytesPerSecond`); short messages for copied, staged,
       imported, exported.
+      Done: a click on the agent cell runs Tools > Background agent; its tooltip is "Open background
+      agent controls" until the agent reports, then the agent's own detail, and while it is brought
+      back 1.4's reconnecting, restarted or reconnected sentence. The cell follows a failed call at
+      once (reconnecting, then not connected), as 1.4's did, rather than waiting for the next poll;
+      recovery mode is in the warning colour, as 1.4 drew it, and the queue count includes running
+      syncs. The rate cell is the queue's total, "0 B/s" while nothing moves, as 1.4's always said,
+      and while the agent is not answering or the queue is on Logs, where nothing reads the rate.
+      Staging says "Copied 3 item(s). Choose a destination and paste." (or Cut), Clear says the
+      clipboard was cleared, an import or an export says so, and a paste or drop says what it came
+      to ("Queued 3 transfer(s).", or why it was refused), in the first cell, where 1.4 put them;
+      `ShellPreviewModel.Say` holds a message there for eight seconds, 1.4's longest, or until the
+      location or selection changes. The "not built yet" stand-in goes the same way. A pane with
+      nothing chosen reads "No connection" rather than "/". The bar is 1.4's 22 px, one row with a
+      thin line after each cell from the rate on, and each cell has 1.4's accessible name.
+      Left open: a refused paste or drop is said in the status bar, where 1.4 showed a warning
+      (P.4.14); on Logs the queue count holds its last reading, as the queue is not read there; the
+      update cell after the last line, and the room it took, come with P.1.8.
 - [x] P.3.7 A concurrency change waits for running transfers before restarting the agent, as 1.4 did.
       The shell restarts it once Settings has closed, or once the agent reports no transfers or
       synchronizations running, and says which in the status bar; an import that changes the
@@ -206,7 +223,11 @@ applied, and chosen on the Appearance page (P.5.1).
       told to restart StorageHub rather than losing its agent. Open: a change to the total speed
       limits alone still says "Concurrency settings…" (needs new strings), and a restart still
       waiting when StorageHub closes is dropped, as in 1.4.
-- [ ] P.3.8 The window opens centred.
+- [x] P.3.8 The window opens centred.
+      Done: on the screen, as 1.4's CenterScreen, and 2.0 restores no position. As 1.4's
+      LogicalWindowSize did, a screen smaller than 1500 by 920 gets a smaller window, minimum
+      included, so the title bar is never above the top of the screen. It is fitted before it is
+      shown, so it does not open large and then jump, and again once its frame is known.
 - [x] P.3.9 An empty table's message ("No workspaces yet", "No sync tasks configured") is not a row:
       it does not light up, take a click or the selection, so nothing opens it. Only Welcome and Sync
       tasks have such rows; the queue and the pane show theirs outside the list, as 1.4 did. Welcome's
@@ -305,6 +326,9 @@ applied, and chosen on the Appearance page (P.5.1).
       (`OrderByDescending(UpdatedUtc)`), not by name. 1.4 also read up to 1,000 runs and listed and
       counted them all under Last syncs and "Runs this session"; 2.0 reads 200
       (`SyncTasksController.MaximumLoadedRuns`) and lists 20. Decide the cap against 1.4's.
+- [ ] P.4.14 A paste or drop that fails is shown in a warning ("Transfer queue"), as 1.4's
+      `ShowManualTransferFailure` did; a folder read stopped from the queue is not a failure and is
+      only said. Until then the refusal is said in the status bar's first cell (P.3.6).
 
 ### P.5 Settings and dialogs
 

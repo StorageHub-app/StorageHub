@@ -126,6 +126,9 @@ public sealed class PresentationModelTests
         Assert.Contains("3", status.SelectionText, StringComparison.Ordinal);
         Assert.Contains("KiB", status.SelectionText, StringComparison.Ordinal);
         Assert.Equal("10 MiB/s", status.TransferRateText);
+
+        // The last rate read is not one anything moves at once the agent has stopped answering.
+        Assert.Equal("0 B/s", (status with { AgentState = AgentConnectionState.Disconnected }).TransferRateText);
         Assert.Contains("Active: 2", status.QueueText, StringComparison.Ordinal);
         Assert.Equal("Agent: connected", status.AgentText);
     }

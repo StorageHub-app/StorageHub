@@ -323,8 +323,17 @@ public sealed record ShellStatusSnapshot(
         ? Ui.Shell.StatusNoSelection
         : Ui.Format(Ui.Shell.StatusSelectionFormat, SelectedItems, UiFormatting.FormatBytes(SelectedBytes));
 
+    /// <summary>How fast the transfers move, or 0 B/s, as 1.x's always said.</summary>
+    /// <remarks>
+    /// Only while the agent answers: the queue keeps the last rate it read when the agent goes away,
+    /// and a rate from before that is not one anything is moving at.
+    /// </remarks>
     public string TransferRateText =>
-        Ui.Format(Ui.Shell.StatusTransferRateFormat, UiFormatting.FormatBytes(TransferBytesPerSecond));
+        Ui.Format(
+            Ui.Shell.StatusTransferRateFormat,
+            UiFormatting.FormatBytes(AgentState is AgentConnectionState.Connected or AgentConnectionState.RecoveryOnly
+                ? TransferBytesPerSecond
+                : 0));
 
     public string QueueText => ActiveJobs == 0
         ? Ui.Format(Ui.Shell.StatusQueueFormat, QueuedJobs)
@@ -335,6 +344,9 @@ public sealed record ShellStatusSnapshot(
 
     /// <summary>Nothing answered. Distinct from starting or reconnecting, which are not yet failures.</summary>
     public bool AgentIsDown => AgentState == AgentConnectionState.Disconnected;
+
+    /// <summary>Answering, but in recovery mode, which 1.x drew in the warning colour.</summary>
+    public bool AgentIsDegraded => AgentState == AgentConnectionState.RecoveryOnly;
 
     public string AgentText => AgentState switch
     {

@@ -186,15 +186,18 @@ internal sealed record QueueTab(string Title, LucideIconKind Icon);
 /// </remarks>
 internal sealed class ShellPreviewModel : INotifyPropertyChanged
 {
-    private string _status = string.Empty;
     private ShellStatusSnapshot _shellStatus = ShellStatusSnapshot.Initial;
+    private string _agentToolTip = Ui.Shell.AgentControlsTooltip;
+
+    /// <summary>Puts the location back once the last message has been up long enough.</summary>
+    private IDisposable? _unsay;
 
     internal ShellPreviewModel(ShellCommandRouter router)
     {
         Router = router;
         // A command with nowhere to go is reachable by shortcut, which does not consult
         // CanExecute the way a menu does. Saying so beats appearing to ignore the keystroke.
-        Router.Unhandled += (_, id) => Status = Ui.Format(Ui.Shell.CommandNotBuiltFormat, id);
+        Router.Unhandled += (_, id) => Say(Ui.Format(Ui.Shell.CommandNotBuiltFormat, id));
     }
 
     /// <summary>Dispatch for every command, whether it arrives by menu, toolbar or keystroke.</summary>
@@ -290,15 +293,22 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         {
             if (e.PropertyName is nameof(TransferQueueModel.ActiveCount)
                 or nameof(TransferQueueModel.QueuedCount)
-                or nameof(TransferQueueModel.BytesPerSecond))
+                or nameof(TransferQueueModel.BytesPerSecond)
+                or nameof(TransferQueueModel.SelectedTab))
             {
                 ShellStatus = ShellStatus with
                 {
-                    // Synchronizations are counted as the monitor counts them, so the two
-                    // writers agree rather than the count flickering between them.
+                    // Running syncs count, as 1.x's agent report counted them, so the queue's
+                    // count and the agent's agree rather than taking turns in the cell.
                     ActiveJobs = Queue.ActiveCount + (AgentStatus?.ActiveSyncRuns ?? 0),
                     QueuedJobs = Queue.QueuedCount,
-                    TransferBytesPerSecond = Queue.BytesPerSecond
+
+                    // The Logs tab reads the log rather than the queue, so the last rate read
+                    // would stay up after the transfer had finished. 0 B/s claims nothing, as
+                    // 1.x's always did, until the queue is read again.
+                    TransferBytesPerSecond = Queue.Tabs.ElementAtOrDefault(Queue.SelectedTab) is { IsLog: true }
+                        ? 0
+                        : Queue.BytesPerSecond
                 };
                 FollowTransfers();
             }
@@ -326,6 +336,9 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
 
         void Watch(WorkspaceModel workspace)
         {
+            // "Copied 3 item(s). Choose a destination and paste.", as 1.x said on staging, and what
+            // a paste or drop came to, which nothing else in the window shows.
+            workspace.Announced += (_, message) => Say(message);
             foreach (var pane in workspace.Panes) WatchPane(pane);
             workspace.Panes.CollectionChanged += (_, e) =>
             {
@@ -378,7 +391,10 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         var chosen = pane.SelectedRows.Where(static row => !row.IsParentNavigation).ToArray();
         ShellStatus = ShellStatus with
         {
-            Location = string.IsNullOrWhiteSpace(pane.Path) ? Ui.Shell.StatusNoConnection : pane.Path,
+            // A pane with nothing chosen still has a path, "/", which is nowhere.
+            Location = pane.Source is null || string.IsNullOrWhiteSpace(pane.Path)
+                ? Ui.Shell.StatusNoConnection
+                : pane.Path,
             SelectedItems = chosen.Length,
             SelectedBytes = chosen.Sum(static row => row.Length ?? 0)
         };
@@ -408,24 +424,66 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         ActiveWorkspace() is { Panes.Count: > 0 } workspace ? workspace.Active : null;
 
     /// <summary>
-    /// The id of the last command invoked.
+    /// How long a message stays in the status bar's first cell before the location comes back.
     /// </summary>
     /// <remarks>
-    /// Stand-in feedback, and deliberately visible: until the handlers move out of MainForm there is
-    /// nothing for a command to do, and a menu that silently does nothing is indistinguishable from
-    /// one that is not wired at all. The status bar showing the id proves the whole path - menu or
-    /// toolbar or shortcut, through the focus rules, to a command.
+    /// 1.x's lasted until the agent's next report redrew the bar, which came every eight seconds;
+    /// this is that at its longest, without the chance of a message gone as soon as it came.
     /// </remarks>
-    public string Status
+    internal TimeSpan MessageLifetime { get; set; } = TimeSpan.FromSeconds(8);
+
+    /// <summary>
+    /// A short sentence in the status bar's first cell, where 1.x put its messages: what was staged,
+    /// what a paste or drop came to, that settings were imported or exported, a command that has
+    /// nowhere to go yet.
+    /// </summary>
+    /// <remarks>
+    /// It stands in for the location until <see cref="MessageLifetime"/> has passed, or until the
+    /// location or the selection changes and writes over it: another pane picked, a folder opened,
+    /// a row selected. 1.x's went at the next redraw of the bar, much the same.
+    /// </remarks>
+    internal void Say(string message)
     {
-        get => _status;
+        ArgumentNullException.ThrowIfNull(message);
+        ShellStatus = ShellStatus with { Location = message };
+        _unsay?.Dispose();
+        _unsay = DispatcherTimer.RunOnce(ReportThePane, MessageLifetime);
+    }
+
+    /// <summary>What Tools > Background agent runs, which the status bar's agent cell runs too.</summary>
+    public ICommand AgentControlCommand => Router.For(UiCommandIds.ToolsBackgroundAgent);
+
+    /// <summary>
+    /// The agent cell's tooltip: what the agent last said about itself, as 1.x's carried.
+    /// </summary>
+    /// <remarks>
+    /// "Open background agent controls" until the agent has said anything, then its own detail,
+    /// and while it is brought back, what that came to. The one word in the cell cannot say why the
+    /// agent is in recovery; this can.
+    /// </remarks>
+    public string AgentToolTip
+    {
+        get => _agentToolTip;
         private set
         {
-            if (_status == value) return;
-            _status = value;
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Status)));
+            if (_agentToolTip == value) return;
+            _agentToolTip = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(AgentToolTip)));
         }
     }
+
+    /// <summary>What a screen reader calls the bar and each of its cells, as 1.x named them.</summary>
+    public static string ApplicationStatusLabel => Ui.Shell.ApplicationStatus;
+
+    public static string CurrentLocationLabel => Ui.Shell.CurrentLocation;
+
+    public static string SelectionSummaryLabel => Ui.Shell.SelectionSummary;
+
+    public static string TransferSpeedLabel => Ui.Shell.TransferSpeed;
+
+    public static string QueueSummaryLabel => Ui.Shell.QueueSummary;
+
+    public static string AgentStatusLabel => Ui.Shell.AgentStatus;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -854,12 +912,16 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
 
         _recovering = true;
         ShellStatus = ShellStatus with { AgentState = AgentConnectionState.Starting };
+        AgentToolTip = Ui.Shell.AgentReconnectingTooltip;
         try
         {
             var result = await recover(CancellationToken.None).ConfigureAwait(true);
             if (result.IsReady)
             {
                 ShellStatus = ShellStatus with { AgentState = AgentConnectionState.Connected };
+                AgentToolTip = result.Status == AgentEnsureStatus.Started
+                    ? Ui.Shell.AgentRestarted
+                    : Ui.Shell.AgentReconnected;
                 ReloadEverything();
             }
             else
@@ -999,12 +1061,6 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         // A save made while the agent was restarting is applied now, or once the work is done.
         if (_agentRestartPending) await RestartAgentForSettingsAsync().ConfigureAwait(true);
     }
-
-    /// <summary>
-    /// A sentence in the status bar's first cell, where 1.x put its messages. The next pane that
-    /// is opened or picked writes over it, as it did there.
-    /// </summary>
-    private void Say(string message) => ShellStatus = ShellStatus with { Location = message };
 
     /// <summary>How often the open workspace's panes are re-read while transfers run, as in 1.x.</summary>
     private static readonly TimeSpan TransferRefreshInterval = TimeSpan.FromSeconds(5);
@@ -1217,12 +1273,24 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
 
         monitor.StatusChanged += (_, e) => Dispatcher.UIThread.Post(() => Observe(e.Status));
 
+        // The cell follows what the last call found, as 1.x's did, so it stops saying "connected"
+        // the moment a call fails rather than at the next poll, eight seconds later. A poll's own
+        // report is posted after this one, so recovery mode from a poll still has the last word.
         // Every surface reloads when the agent comes back, and so do the panes: a pane that failed
         // while the agent was away kept its error until somebody refreshed it by hand.
-        DesktopAgentAvailability.Changed += (_, e) =>
+        DesktopAgentAvailability.Changed += (_, e) => Dispatcher.UIThread.Post(() =>
         {
-            if (e.Recovered) Dispatcher.UIThread.Post(ReloadEverything);
-        };
+            var state = e.Availability switch
+            {
+                AgentAvailability.Online => AgentConnectionState.Connected,
+                AgentAvailability.Reconnecting => AgentConnectionState.Reconnecting,
+                AgentAvailability.Offline => AgentConnectionState.Disconnected,
+                _ => ShellStatus.AgentState,
+            };
+            if (ShellStatus.AgentState != state) ShellStatus = ShellStatus with { AgentState = state };
+
+            if (e.Recovered) ReloadEverything();
+        });
 
         monitor.Start();
     }
@@ -1245,6 +1313,11 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
             AgentState = status.State,
             ActiveJobs = status.ActiveTransfers + status.ActiveSyncRuns,
         };
+
+        // Every report, as 1.x set it: an agent that says nothing leaves no old sentence up.
+        AgentToolTip = string.IsNullOrWhiteSpace(status.Detail)
+            ? Ui.Shell.AgentControlsTooltip
+            : status.Detail;
 
         // An agent restarted for settings is down on purpose and the restart brings it back, and
         // one left behind by a closing shell is not relaunched beside the shutdown.
