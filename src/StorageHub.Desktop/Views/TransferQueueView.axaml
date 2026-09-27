@@ -119,7 +119,8 @@
                 <TableViewColumn Header="{Binding $parent[vm:TransferQueueView].((vm:TransferQueueModel)DataContext).ColumnDestination}"
                                  Binding="{Binding Destination}" Width="*"/>
                 <!-- A bar behind the text, as 1.x's TransferProgressColumn drew it. The text stays
-                     the value a screen reader reads; a transfer of unknown size has no bar. -->
+                     the value a screen reader reads. A transfer of unknown size has no bar until
+                     it finishes, and then a full one. -->
                 <TableViewColumn Header="{Binding $parent[vm:TransferQueueView].((vm:TransferQueueModel)DataContext).ColumnProgress}"
                                  Width="160">
                   <TableViewColumn.CellTemplate>
@@ -139,8 +140,18 @@
                 </TableViewColumn>
                 <TableViewColumn Header="{Binding $parent[vm:TransferQueueView].((vm:TransferQueueModel)DataContext).ColumnAttempt}"
                                  Binding="{Binding Attempt}" Width="90"/>
+                <!-- As wide as Source and Destination, as 1.x's was: it reads "Failed: " and then
+                     the error, which a fixed width cut off after a few words. What still does not
+                     fit is on the tip, as 1.x's grid showed a cut-off cell. -->
                 <TableViewColumn Header="{Binding $parent[vm:TransferQueueView].((vm:TransferQueueModel)DataContext).ColumnStatus}"
-                                 Binding="{Binding Status}" Width="160"/>
+                                 Width="*">
+                  <TableViewColumn.CellTemplate>
+                    <DataTemplate DataType="vm:TransferRow">
+                      <TextBlock Text="{Binding Status}" ToolTip.Tip="{Binding Status}"
+                                 TextTrimming="CharacterEllipsis"/>
+                    </DataTemplate>
+                  </TableViewColumn.CellTemplate>
+                </TableViewColumn>
               </TableView.Columns>
             </TableView>
 

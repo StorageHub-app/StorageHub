@@ -11,7 +11,8 @@ using Xunit;
 namespace StorageHub.Desktop.Tests;
 
 /// <summary>
-/// The queue's progress column: a bar behind the percentage, and none when the size is unknown.
+/// The queue's progress column: a bar behind the percentage, and none when the size is unknown
+/// until the transfer finishes, when it is full.
 /// </summary>
 public sealed class TransferProgressTests
 {

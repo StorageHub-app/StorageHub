@@ -723,6 +723,13 @@ internal static class ShellPreview
                     Services.ShellServices.Dialogs)),
         };
 
+        // The queue names a transfer's connections from the list the sidebar has read, rather than
+        // listing them again on every poll. At startup the queue's first read can come back before
+        // the sidebar's, so the rows are read again as the list comes in, rather than showing
+        // short ids until the next poll. A rename shows as the Connection Manager closes, too.
+        queue.ConnectionName = model.Sidebar.NameOf;
+        model.Sidebar.Listed = () => _ = queue.RefreshAsync(background: true);
+
         // The Welcome page. Live, it asks the agent itself, as 1.x's did; its buttons go where the
         // same commands go from the menu and the toolbar.
         var overview = live

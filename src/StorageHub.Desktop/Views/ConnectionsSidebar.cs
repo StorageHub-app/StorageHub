@@ -32,6 +32,15 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     private readonly Func<string?, string, Task<IconChoice>>? _pickIcon;
     private Dictionary<string, string> _icons = new(StringComparer.OrdinalIgnoreCase);
     private IReadOnlyList<ConnectionCardModel> _cards = [];
+
+    /// <summary>
+    /// The saved connections' names by id, from the last listing the agent answered.
+    /// </summary>
+    /// <remarks>
+    /// Kept apart from the cards, which a failed listing empties. A name does not stop being true
+    /// because the agent could not be reached, and the queue went back to short ids until it was.
+    /// </remarks>
+    private IReadOnlyDictionary<Guid, string> _names = new Dictionary<Guid, string>();
     private string _search = string.Empty;
 
     /// <summary>
@@ -120,6 +129,22 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
 
     /// <summary>Selects a card, as a single click does.</summary>
     internal void Select(ConnectionRowModel? row) => Selected = row;
+
+    /// <summary>
+    /// A saved connection's name, from the list the agent last gave, or null when it is not on it.
+    /// </summary>
+    /// <remarks>
+    /// The transfer queue names a transfer's two sides with it. Asking here, rather than the
+    /// queue listing the connections again on every poll, keeps the two agreeing about a name.
+    /// </remarks>
+    internal string? NameOf(Guid connectionId) => _names.GetValueOrDefault(connectionId);
+
+    /// <summary>
+    /// Called on the UI thread once a listing the agent answered is in, so what shows a
+    /// connection's name elsewhere can pick up a new or changed one then rather than later.
+    /// Assigned by the shell.
+    /// </summary>
+    internal Action? Listed { get; set; }
 
     /// <summary>
     /// The details panel's rows for the selected connection, as 1.x listed them under it.
@@ -406,7 +431,8 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
 
             Apply(
                 [.. response.Connections.Select(ConnectionCardFactory.Create)],
-                Ui.Connections.SidebarEmpty);
+                Ui.Connections.SidebarEmpty,
+                listed: true);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -522,14 +548,30 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         return clashes ? Ui.Shell.NameAlreadyExists : null;
     }
 
-    private void Apply(IReadOnlyList<ConnectionCardModel> cards, string status)
+    /// <param name="listed">
+    /// The agent answered with this list, rather than a failure leaving it empty; only then are
+    /// the names replaced.
+    /// </param>
+    private void Apply(IReadOnlyList<ConnectionCardModel> cards, string status, bool listed = false)
     {
         void Update()
         {
             _cards = cards;
             _arrangement = ConnectionGrouping.Arrange(_arrangement.Count > 0 ? _arrangement : _load?.Invoke(), cards);
             _listingStatus = status;
+            if (listed)
+            {
+                var names = new Dictionary<Guid, string>();
+                foreach (var card in cards)
+                {
+                    if (card.ConnectionId is { } id) names[id] = card.Name;
+                }
+
+                _names = names;
+            }
+
             Rebuild();
+            if (listed) Listed?.Invoke();
         }
 
         if (Dispatcher.UIThread.CheckAccess()) Update();

@@ -162,7 +162,15 @@ setting to choose it (P.5.1).
       reads 50 at a time up to 200, and the test fake enforces the contract as the real client does.
       "Next" pages on by 200 as 1.4's did by 25; Refresh, and a transfer just queued, come back to
       the newest (with P.4.1).
-- [ ] P.4.5 Source and Destination name the connection; Status reads "State: error".
+- [x] P.4.5 Source and Destination name the connection; Status reads "State: error". 1.4 wrote the
+      first eight characters of the connection's id before the path ("3fa2b1c4 · /photos/a.jpg");
+      2.0 wrote the path alone, and the error in place of the state. Both sides now read
+      "Studio SFTP · /photos/a.jpg", named from the last list of connections the agent answered, and
+      read again as a new list comes in, so a rename shows as the Connection Manager closes; a
+      connection not on it keeps 1.4's short id. Status reads "Failed: The server refused the
+      login.", in a column as wide as Source and Destination, as 1.4's was, with the whole of it on
+      the tip. Open: a This PC folder is no saved connection and the summary carries only an id made
+      from the folder, so it still shows the short id, as in 1.4.
 - [ ] P.4.6 Explorer drops waiting to be queued show in Active and Logs and can be cancelled
       (`PendingDropRegistry` is in Core, unused).
 - [ ] P.4.7 Sync tasks loads when it is first shown, not only on Refresh.
@@ -173,7 +181,9 @@ setting to choose it (P.5.1).
       run on 2026-09-26 and passed alone three times; likely the same race.
 - [ ] P.4.10 The "previewed while disabled" and "non-atomic" warnings are seen before the editor closes.
 - [ ] P.4.11 Maximum deletion accepts 0.01-100 in steps of 0.25, so a saved 0.5 % is not clamped to 1.
-- [ ] P.4.12 A completed transfer of unknown size draws a full bar.
+- [x] P.4.12 A completed transfer of unknown size draws a full bar, in the success colour, as 1.4's
+      did; its text still says the bytes it moved, "0 B" too, rather than "100%" of a size nobody
+      knew. A transfer of nothing says "100%", as 1.4's did.
 
 ### P.5 Settings and dialogs
 

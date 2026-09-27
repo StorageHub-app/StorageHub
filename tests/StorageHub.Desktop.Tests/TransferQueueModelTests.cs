@@ -222,20 +222,56 @@ public class TransferQueueModelTests
         Assert.Equal(0, queue.BytesPerSecond);
     }
 
+    /// <summary>
+    /// A row names the connection on either side of the path, says the state with what went
+    /// wrong, and draws a full bar for a transfer that finished without its size being known, as
+    /// 1.x's rows did.
+    /// </summary>
+    /// <remarks>
+    /// A connection the list does not have, such as one deleted since, keeps 1.x's short id.
+    /// </remarks>
     [AvaloniaFact]
     public async Task ARowCarriesWhatTheColumnsShow()
     {
+        var studio = Guid.NewGuid();
+        var gone = Guid.Parse("3fa2b1c4-0000-4000-8000-000000000000");
         var agent = new FakeQueueAgent();
-        agent.Transfers.Add(Summary(state: TransferQueueState.Transferring, expected: 1000, progress: 250));
-        await using var queue = new TransferQueueModel(() => agent);
+        agent.Transfers.Add(Summary(state: TransferQueueState.Transferring, expected: 1000, progress: 250) with
+        {
+            SourceConnectionId = studio,
+            DestinationConnectionId = gone,
+        });
+        agent.Transfers.Add(Summary(TransferQueueState.Failed) with { ErrorSummary = "The server refused the login." });
+        agent.Transfers.Add(Summary(TransferQueueState.Completed, expected: null, progress: 2048));
+        agent.Transfers.Add(Summary(TransferQueueState.Completed, expected: null, progress: 0));
+        await using var queue = new TransferQueueModel(() => agent)
+        {
+            ConnectionName = id => id == studio ? "Studio SFTP" : null,
+        };
 
         await queue.RefreshAsync();
 
         var row = Assert.Single(queue.Rows);
         Assert.Equal("25%", row.Progress);
-        Assert.Equal("/from/file.bin", row.Source);
-        Assert.Equal("/to/file.bin", row.Destination);
+        Assert.Equal("Studio SFTP · /from/file.bin", row.Source);
+        Assert.Equal("3fa2b1c4 · /to/file.bin", row.Destination);
+        Assert.Equal("Transferring", row.Status);
         Assert.True(row.CanCancel);
+
+        queue.SelectedTab = IndexOf(queue, TransferQueueTabs.FailedKey);
+        await queue.RefreshAsync();
+        Assert.Equal("Failed: The server refused the login.", Assert.Single(queue.Rows).Status);
+
+        // Moving nothing still says so, rather than leaving a full bar with no text on it.
+        queue.SelectedTab = IndexOf(queue, TransferQueueTabs.CompletedKey);
+        await queue.RefreshAsync();
+        Assert.Equal(2, queue.Rows.Count);
+        Assert.All(queue.Rows, finished =>
+        {
+            Assert.Equal(1, finished.ProgressFraction);
+            Assert.True(finished.IsComplete);
+        });
+        Assert.Equal(["0 B", "2 KiB"], queue.Rows.Select(static finished => finished.Progress).Order());
     }
 
     /// <summary>

@@ -32,10 +32,14 @@ internal sealed class TransferRow : INotifyPropertyChanged
     private bool _needsReconciliation;
     private double? _progressFraction;
 
-    internal TransferRow(TransferQueueSummary transfer)
+    /// <param name="connectionName">
+    /// A saved connection's name by its id, for Source and Destination; see
+    /// <see cref="TransferQueueModel.ConnectionName"/>.
+    /// </param>
+    internal TransferRow(TransferQueueSummary transfer, Func<Guid, string?>? connectionName = null)
     {
         Id = transfer.TransferId;
-        Update(transfer);
+        Update(transfer, connectionName);
     }
 
     public Guid Id { get; }
@@ -71,8 +75,9 @@ internal sealed class TransferRow : INotifyPropertyChanged
     public bool NeedsReconciliation => _needsReconciliation;
 
     /// <summary>
-    /// How much of the transfer is done, from 0 to 1, or null when its size is not known -- which is
-    /// when the column shows bytes moved and no bar, rather than a bar stuck at nothing.
+    /// How much of the transfer is done, from 0 to 1, or null when its size is not known and it has
+    /// not finished -- which is when the column shows bytes moved and no bar, rather than a bar
+    /// stuck at nothing.
     /// </summary>
     public double? ProgressFraction => _progressFraction;
 
@@ -97,22 +102,26 @@ internal sealed class TransferRow : INotifyPropertyChanged
     /// <remarks>
     /// The paths are shown whole rather than shortened. The old shell elided the middle to fit a
     /// fixed column; the columns here are resizable, so eliding would throw away what the person
-    /// widened the column to read.
+    /// widened the column to read. The connection's name is asked for on every poll, so a
+    /// connection renamed, or one the sidebar had not read yet, is named on the next one.
     /// </remarks>
-    internal void Update(TransferQueueSummary transfer)
+    internal void Update(TransferQueueSummary transfer, Func<Guid, string?>? connectionName = null)
     {
         Set(ref _revision, transfer.Revision, nameof(Revision));
         Set(ref _state, transfer.State, nameof(State));
         Set(ref _updated, transfer.UpdatedUtc, nameof(Updated));
         Set(ref _operation, UiEnumNames.Describe(transfer.Operation), nameof(Operation));
-        Set(ref _source, transfer.SourcePath, nameof(Source));
-        Set(ref _destination, transfer.DestinationPath, nameof(Destination));
+        Set(
+            ref _source,
+            TransferQueueModel.DescribeEndpoint(transfer.SourceConnectionId, transfer.SourcePath, connectionName),
+            nameof(Source));
+        Set(
+            ref _destination,
+            TransferQueueModel.DescribeEndpoint(transfer.DestinationConnectionId, transfer.DestinationPath, connectionName),
+            nameof(Destination));
         Set(ref _progress, TransferQueueModel.DescribeProgress(transfer), nameof(Progress));
         Set(ref _attempt, transfer.Attempt.ToString(CultureInfo.CurrentCulture), nameof(Attempt));
-        Set(
-            ref _status,
-            transfer.ErrorSummary is { Length: > 0 } summary ? summary : UiEnumNames.Describe(transfer.State),
-            nameof(Status));
+        Set(ref _status, TransferQueueModel.DescribeStatus(transfer), nameof(Status));
         Set(ref _canCancel, transfer.CanCancel, nameof(CanCancel));
         Set(ref _canRetry, transfer.CanRetry, nameof(CanRetry));
         Set(ref _needsReconciliation, transfer.NeedsReconciliation, nameof(NeedsReconciliation));
@@ -348,6 +357,12 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
 
     /// <summary>Turns that setting off, for the warning's "Don't show this warning again".</summary>
     internal Action? StopClearAllConfirmation { get; set; }
+
+    /// <summary>
+    /// A saved connection's name by its id, which Source and Destination are written with. Null,
+    /// or an id it does not know, leaves the id's first eight characters there, as 1.x wrote it.
+    /// </summary>
+    internal Func<Guid, string?>? ConnectionName { get; set; }
 
     public static string ColumnOperation => Ui.Transfer.ColumnOperation;
 
@@ -816,11 +831,11 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
             {
                 var at = Rows.IndexOf(row);
                 if (at != index) Rows.Move(at, index);
-                row.Update(transfer);
+                row.Update(transfer, ConnectionName);
             }
             else
             {
-                Rows.Insert(index, new TransferRow(transfer));
+                Rows.Insert(index, new TransferRow(transfer, ConnectionName));
             }
         }
 
@@ -1140,11 +1155,48 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
     }
 
     /// <summary>A summary as the queue's table shows it.</summary>
-    internal static TransferRow ToRow(TransferQueueSummary transfer) => new(transfer);
+    internal static TransferRow ToRow(TransferQueueSummary transfer, Func<Guid, string?>? connectionName = null) =>
+        new(transfer, connectionName);
+
+    /// <summary>
+    /// One side of a transfer, as Source and Destination show it: "Studio SFTP · /photos/a.jpg".
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 1.x wrote the connection and then the path, with a dot between them. The column had lost
+    /// the connection, so two transfers of the same file to two servers read the same.
+    /// </para>
+    /// <para>
+    /// 1.x wrote the first eight characters of the connection's id rather than its name. That
+    /// is still what is written when the name is not known: for a connection deleted since, before
+    /// the connections have been read, and for a This PC folder, which is no saved connection and
+    /// whose id is made from the folder.
+    /// </para>
+    /// </remarks>
+    internal static string DescribeEndpoint(Guid connectionId, string path, Func<Guid, string?>? connectionName)
+    {
+        var connection = connectionName?.Invoke(connectionId) is { Length: > 0 } name
+            ? name
+            : connectionId.ToString("N", CultureInfo.InvariantCulture)[..8];
+        return $"{connection} · {(path.Length == 0 ? "/" : path)}";
+    }
+
+    /// <summary>
+    /// The state, and what went wrong when something did: "Failed: The server refused the login.",
+    /// as 1.x wrote it.
+    /// </summary>
+    /// <remarks>
+    /// This showed the error in place of the state, so a transfer that had failed and one waiting
+    /// to retry after the same error read the same.
+    /// </remarks>
+    internal static string DescribeStatus(TransferQueueSummary transfer) =>
+        transfer.ErrorSummary is { Length: > 0 } summary
+            ? Ui.Format(Ui.Transfer.StateWithErrorFormat, UiEnumNames.Describe(transfer.State), summary)
+            : UiEnumNames.Describe(transfer.State);
 
     /// <summary>
     /// A percentage when the size is known, bytes moved when it is not; while it runs, also the
-    /// speed, and the time left when the size is known.
+    /// speed, and the time left when the size is known. A transfer of nothing is 100%, as 1.x wrote it.
     /// </summary>
     /// <remarks>
     /// ExpectedBytes is null for a provider that does not report a length before the transfer runs,
@@ -1153,12 +1205,19 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
     /// </remarks>
     internal static string DescribeProgress(TransferQueueSummary transfer)
     {
-        var fraction = ProgressFractionOf(transfer);
-        var done = fraction is { } known
-            ? string.Create(CultureInfo.CurrentCulture, $"{known * 100:0}%")
-            : transfer.ProgressBytes > 0
-                ? UiFormatting.FormatBytes(transfer.ProgressBytes)
-                : string.Empty;
+        var done = transfer.ExpectedBytes switch
+        {
+            // Nothing to move is all of it, as 1.x said.
+            0 => "100%",
+            > 0 => string.Create(CultureInfo.CurrentCulture, $"{(ProgressFractionOf(transfer) ?? 0) * 100:0}%"),
+
+            // A finished transfer of unknown size has a full bar but still says what it moved, as
+            // 1.x's did, even when that was nothing: "100%" of a size nobody knew would say less,
+            // and a bar with no text reads as a bar that lost its label.
+            _ when transfer.ProgressBytes > 0 || transfer.State is TransferQueueState.Completed =>
+                UiFormatting.FormatBytes(transfer.ProgressBytes),
+            _ => string.Empty,
+        };
 
         if (transfer.BytesPerSecond is not { } rate)
         {
@@ -1181,14 +1240,17 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
     }
 
     /// <summary>
-    /// The done fraction, or null when the size is not known.
+    /// The done fraction, or null when the size is not known and the transfer has not finished.
     /// </summary>
     /// <remarks>
     /// One function for both the text and the bar, so the two cannot disagree about a transfer
-    /// that has, say, reported more bytes than it expected: both say 100%.
+    /// that has, say, reported more bytes than it expected: both say 100%. A completed transfer is
+    /// a full bar whatever its size said, as 1.x drew it; one whose provider never said how big it
+    /// was had no bar at all, and read as though it had not run.
     /// </remarks>
     internal static double? ProgressFractionOf(TransferQueueSummary transfer) =>
-        transfer.ExpectedBytes is { } expected && expected > 0
+        transfer.State is TransferQueueState.Completed ? 1
+        : transfer.ExpectedBytes is { } expected && expected > 0
             ? Math.Clamp((double)transfer.ProgressBytes / expected, 0, 1)
             : null;
 
