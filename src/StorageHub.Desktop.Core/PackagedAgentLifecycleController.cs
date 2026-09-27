@@ -119,4 +119,39 @@ internal static class AgentLifecycleControllers
             return null;
         }
     }
+
+    /// <summary>
+    /// The same, or null where a restart would stop the agent and find nothing to start in its
+    /// place: a Windows build run from source, whose agent was started by hand and has no packaged
+    /// copy beside the desktop. Startup draws the same line in <see cref="DesktopAgentStartup"/>.
+    /// </summary>
+    /// <remarks>
+    /// Used to apply saved settings, where null means telling somebody to restart StorageHub, as
+    /// 1.4 did, rather than stopping the only agent there is.
+    /// </remarks>
+    internal static IAgentLifecycleController? ThatCanRestartTheAgent()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return ForThisMachine();
+        }
+
+        PackagedDesktopLifecycle lifecycle;
+        try
+        {
+            lifecycle = WindowsDesktopLifecycle.Create();
+        }
+        catch (Exception error) when (error is InvalidOperationException or ArgumentException)
+        {
+            return null;
+        }
+
+        if (lifecycle.DesktopOwnsAgent && !File.Exists(lifecycle.AgentExecutablePath))
+        {
+            lifecycle.Dispose();
+            return null;
+        }
+
+        return new PackagedAgentLifecycleController(lifecycle);
+    }
 }

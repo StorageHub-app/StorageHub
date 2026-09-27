@@ -55,12 +55,15 @@ public partial class NewWorkspaceWindow : Window
         var window = new NewWorkspaceWindow { DataContext = model };
         await window.ShowDialog(owner).ConfigureAwait(true);
 
+        // A single pane or the grid has no orientation to speak of, so remembering one leaves the
+        // saved orientation alone, as 1.4's did: two-pane workspaces opened from a connection
+        // still follow it.
         if (model is { Chosen: { } chosen, Remember: true } && saved is not null)
         {
             Save(store, saved with
             {
                 DefaultWorkspacePaneCount = chosen.PaneCount,
-                DefaultWorkspaceLayout = chosen.Layout
+                DefaultWorkspaceLayout = chosen.OrientationMatters ? chosen.Layout : saved.DefaultWorkspaceLayout
             });
         }
 

@@ -96,27 +96,32 @@ public partial class SettingsWindow : Window
     /// Told when a Connection Manager opened from a provider's page closes, so the shell can
     /// re-read its connections the way it does after its own manager.
     /// </param>
+    /// <param name="agentSettingsChanged">
+    /// Told once the window has closed, if what was saved changed anything the agent reads.
+    /// </param>
     /// <remarks>
-    /// Saving a change the agent reads -- concurrency, total speed limits -- restarts the agent,
-    /// because it reads them only when it starts. Before this, such a change was written and then
-    /// did nothing until the agent happened to restart.
+    /// The agent reads concurrency and the total speed limits only when it starts, so a change to
+    /// them needs a restart. The shell does it, as 1.4's did, once the window has closed and only
+    /// when the work running then has finished: comparing what the window opened on with the last
+    /// save means Apply and then OK restart it once, and a change undone before closing not at all.
     /// </remarks>
-    internal static SettingsWindow ForCurrentUser(string? pageKey = null, Action? connectionsChanged = null)
+    internal static SettingsWindow ForCurrentUser(
+        string? pageKey = null,
+        Action? connectionsChanged = null,
+        Action? agentSettingsChanged = null)
     {
         var store = new DesktopConfigStore(DesktopFrameworkPaths.Resolve().ApplicationRoot);
         store.Preflight();
         SettingsWindow? window = null;
+        var opened = store.Load();
+        DesktopUpdatePreferences? saved = null;
 
         var model = new SettingsModel(
-            store.Load,
+            () => opened,
             preferences =>
             {
-                var before = store.Load();
                 store.Save(preferences);
-                if (before.ChangesWhatTheAgentReads(preferences))
-                {
-                    _ = RestartAgentAsync(() => window);
-                }
+                saved = preferences;
             },
             ApplyScheme,
             ShellServices.FilePicker,
@@ -131,6 +136,10 @@ public partial class SettingsWindow : Window
 
         window = new SettingsWindow { DataContext = model };
         model.Closed += (_, _) => window.Close();
+        window.Closed += (_, _) =>
+        {
+            if (saved is not null && opened.ChangesWhatTheAgentReads(saved)) agentSettingsChanged?.Invoke();
+        };
         return window;
     }
 
@@ -256,48 +265,6 @@ public partial class SettingsWindow : Window
         {
             return new AgentModeChange(false, Ui.Settings.AgentModeChangeFailed);
         }
-    }
-
-    /// <summary>
-    /// Restarts the agent so it picks up what was saved, and says so if it could not.
-    /// </summary>
-    /// <remarks>
-    /// Nothing is said when it works: the status bar already shows the agent going and coming back.
-    /// A failure is said over whichever window is still open, which after OK is the shell.
-    /// </remarks>
-    private static async Task RestartAgentAsync(Func<Window?> settingsWindow)
-    {
-        if (AgentLifecycleControllers.ForThisMachine() is not { } controller)
-        {
-            return;
-        }
-
-        AgentLifecycleResult result;
-        try
-        {
-            result = await controller.ExecuteAsync(AgentLifecycleAction.Restart).ConfigureAwait(true);
-        }
-        catch (Exception error) when (error is InvalidOperationException or IOException or UnauthorizedAccessException or TimeoutException)
-        {
-            result = new AgentLifecycleResult(false, error.Message);
-        }
-
-        if (result.Succeeded)
-        {
-            return;
-        }
-
-        var owner = settingsWindow() is { IsVisible: true } open
-            ? open
-            : (global::Avalonia.Application.Current?.ApplicationLifetime as
-                global::Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime)?.MainWindow;
-        await new Services.AvaloniaDialogService(() => owner).ShowAsync(new Shell.DialogRequest
-        {
-            Title = Ui.Settings.WindowTitle,
-            Message = Ui.Shell.ConcurrencyAgentRestartFailed,
-            Detail = result.Message,
-            Severity = Shell.DialogSeverity.Warning
-        }).ConfigureAwait(true);
     }
 
     /// <summary>

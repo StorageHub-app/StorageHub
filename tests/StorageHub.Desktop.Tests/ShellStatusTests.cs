@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.VisualTree;
 using StorageHub.Desktop;
+using StorageHub.Desktop.Localization;
 using StorageHub.Desktop.Views;
 using Xunit;
 
@@ -89,5 +90,90 @@ public class ShellStatusTests
 
         Assert.False(string.IsNullOrWhiteSpace(text));
         Assert.StartsWith("Agent:", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A saved change to concurrency restarts the agent only once nothing is running, as 1.4 did,
+    /// and the status bar says what it is waiting for.
+    /// </summary>
+    /// <remarks>
+    /// A synchronization is running work as much as a transfer is. Before this, saving restarted
+    /// the agent at once and cut off whatever was copying in order to apply a number.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task AConcurrencyChangeWaitsForRunningWorkBeforeRestartingTheAgent()
+    {
+        var model = ShellPreview.CreateOnWorkspace();
+        var agent = new CountingLifecycle();
+        model.AgentLifecycle = () => agent;
+
+        model.Observe(Running(transfers: 1, syncRuns: 0));
+        await model.ApplyAgentSettingsAsync();
+        Assert.Equal(0, agent.Restarts);
+        Assert.Equal(Ui.Shell.StatusConcurrencyPendingIdle, model.ShellStatus.Location);
+
+        model.Observe(Running(transfers: 0, syncRuns: 1));
+        Assert.Equal(0, agent.Restarts);
+
+        model.Observe(Running(transfers: 0, syncRuns: 0));
+        Assert.Equal(1, agent.Restarts);
+        Assert.Equal(Ui.Shell.AdaptiveConcurrencyActive, model.ShellStatus.Location);
+
+        // Once done it is done: a quiet agent is not restarted again on every poll.
+        model.Observe(Running(transfers: 0, syncRuns: 0));
+        Assert.Equal(1, agent.Restarts);
+
+        // Nothing running restarts at once.
+        await model.ApplyAgentSettingsAsync();
+        Assert.Equal(2, agent.Restarts);
+
+        // A save while the agent is restarting follows that restart rather than overlapping it,
+        // and the agent being down meanwhile is not brought back by a second launch beside it.
+        var recoveries = 0;
+        model.RecoverAgent = _ =>
+        {
+            recoveries++;
+            return Task.FromResult(new AgentEnsureResult(AgentEnsureStatus.Started));
+        };
+        var held = new TaskCompletionSource();
+        agent.Hold = held.Task;
+        var restarting = model.ApplyAgentSettingsAsync();
+        _ = model.ApplyAgentSettingsAsync();
+        model.Observe(Running(transfers: 0, syncRuns: 0) with { State = AgentConnectionState.Disconnected });
+        Assert.Equal(3, agent.Restarts);
+        Assert.Equal(0, recoveries);
+        held.SetResult();
+        await restarting;
+        Assert.Equal(4, agent.Restarts);
+
+        // A machine that cannot restart its agent is told to restart StorageHub instead, and once
+        // the shell is closing nothing is restarted at all.
+        model.AgentLifecycle = static () => null;
+        await model.ApplyAgentSettingsAsync();
+        Assert.Equal(Ui.Shell.StatusConcurrencyRestartRequired, model.ShellStatus.Location);
+        model.AgentLifecycle = () => agent;
+        model.StopRestartingAgent();
+        await model.ApplyAgentSettingsAsync();
+        Assert.Equal(4, agent.Restarts);
+    }
+
+    private static AgentMonitorStatus Running(int transfers, int syncRuns) =>
+        new(AgentConnectionState.Connected, transfers, syncRuns, string.Empty, DateTimeOffset.UnixEpoch);
+
+    private sealed class CountingLifecycle : IAgentLifecycleController
+    {
+        internal int Restarts { get; private set; }
+
+        /// <summary>What a restart waits on before it finishes, to catch the agent mid-restart.</summary>
+        internal Task Hold { get; set; } = Task.CompletedTask;
+
+        public async Task<AgentLifecycleResult> ExecuteAsync(
+            AgentLifecycleAction action,
+            CancellationToken cancellationToken = default)
+        {
+            if (action == AgentLifecycleAction.Restart) Restarts++;
+            await Hold;
+            return new AgentLifecycleResult(true, string.Empty);
+        }
     }
 }

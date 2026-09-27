@@ -577,6 +577,33 @@ internal static class SettingsPageCatalog
                             : p.DefaultWorkspaceLayout
                     }
                 },
+                // "Ask every time" or one of the chooser's six arrangements. Picking one here is
+                // how the chooser's "stop asking" is changed or undone, as in 1.4. A two- or
+                // three-pane arrangement carries its orientation, so this row and the one above
+                // move together and cannot describe two different workspaces.
+                new()
+                {
+                    Key = "new-workspace-layout",
+                    Label = Ui.Settings.NewWorkspaceLayout,
+                    Hint = Ui.Settings.WorkspacePresetHint,
+                    Kind = SettingsControlKind.Choice,
+                    Choices =
+                    [
+                        new(AskEveryTime, Ui.Settings.LayoutAskEveryTime),
+                        .. WorkspacePreset.All.Select(preset => new SettingsChoice(PresetValue(preset), preset.Label))
+                    ],
+                    Read = p => p.DefaultWorkspacePaneCount is { } panes &&
+                        WorkspacePreset.Find(panes, p.DefaultWorkspaceLayout) is { } preset
+                            ? PresetValue(preset)
+                            : AskEveryTime,
+                    Write = (p, v) => WorkspacePreset.All.FirstOrDefault(preset => PresetValue(preset) == v) is { } chosen
+                        ? p with
+                        {
+                            DefaultWorkspacePaneCount = chosen.PaneCount,
+                            DefaultWorkspaceLayout = chosen.OrientationMatters ? chosen.Layout : p.DefaultWorkspaceLayout
+                        }
+                        : p with { DefaultWorkspacePaneCount = null }
+                },
                 new()
                 {
                     Key = "reconnect-remote-panes",
@@ -589,6 +616,16 @@ internal static class SettingsPageCatalog
             ])
         ]
     };
+
+    /// <summary>The new-workspace row's value for showing the chooser each time.</summary>
+    private const string AskEveryTime = "ask";
+
+    /// <summary>
+    /// The new-workspace row's value for an arrangement: its pane count and orientation, which is
+    /// what the settings file stores for it.
+    /// </summary>
+    private static string PresetValue(WorkspacePreset preset) =>
+        Text(preset.PaneCount) + "-" + preset.Layout;
 
     /// <summary>
     /// Connections &amp; trust: how SSH host keys are found, and the standing caveat about them.

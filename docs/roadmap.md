@@ -138,7 +138,15 @@ Appearance page (P.5.1).
 - [ ] P.3.6 Status bar: the agent cell opens Agent control and carries its detail as a tooltip; the
       transfer speed cell (the queue already has `BytesPerSecond`); short messages for copied, staged,
       imported, exported.
-- [ ] P.3.7 A concurrency change waits for running transfers before restarting the agent, as 1.4 did.
+- [x] P.3.7 A concurrency change waits for running transfers before restarting the agent, as 1.4 did.
+      The shell restarts it once Settings has closed, or once the agent reports no transfers or
+      synchronizations running, and says which in the status bar; an import that changes the
+      concurrency does the same, where 2.0 had said it restarted the agent and never did. Saving
+      used to restart it at once, on every Apply, whatever was running. A save during a restart
+      follows it, closing waits for one under way, and a source build with a hand-started agent is
+      told to restart StorageHub rather than losing its agent. Open: a change to the total speed
+      limits alone still says "Concurrency settings…" (needs new strings), and a restart still
+      waiting when StorageHub closes is dropped, as in 1.4.
 - [ ] P.3.8 The window opens centred.
 
 ### P.4 Transfers and sync
@@ -253,7 +261,10 @@ Appearance page (P.5.1).
       other defaults nobody changed, so the new provider's apply, as in 1.4; what was typed, such as
       the host, comes along, where 1.4 threw away every field. A saved connection is not refilled
       from the defaults when opened (1.4 did, which could change an empty field on the next save).
-- [ ] P.5.4 "New workspace layout" (a preset or "Ask every time"); ticking "stop asking" can be undone.
+- [x] P.5.4 "New workspace layout" (a preset or "Ask every time"); ticking "stop asking" can be undone.
+      Under Workspace, kept in step with "Default pane layout" as 1.4 kept them. Two fixes beside
+      it: remembering one pane or the grid no longer overwrites the saved orientation, and a
+      workspace made to open a connection into follows that orientation, as 1.4's did.
 - [x] P.5.5 "Start with" concurrency, enabled only when adaptive is on (raising it raises the maximums,
       which the settings file requires); the update toggles depend on one another; the update source
       and installed version under Updates. Came with L.5 and L.6.
@@ -312,7 +323,7 @@ reference shot.
       and Background agent (sign-in or only while open; Windows only, as in 1.4). Performance and
       Confirmations are back in "Transfers & sync", with the total speed limits under `SPEED LIMITS`;
       favourites-in-folders is back under Appearance (saved, but applying it is P.5.8), with Language
-      in a card of its own (P.5.1). Not here: the new-workspace preset (P.5.4). The shortcuts are
+      in a card of its own (P.5.1), and the new-workspace preset under Workspace (P.5.4). The shortcuts are
       edited and saved; dispatching them is P.3.4.
 - [x] L.6 Settings rows (ref 02). Done: one card per caption with hairlines between rows, units inside
       number fields with 1.4's stacked arrows and thousands separators, 1.4's text limits, rows dimmed

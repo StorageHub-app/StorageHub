@@ -282,6 +282,7 @@ public sealed class SettingsWindowTests : IDisposable
                  {
                      SettingsPageCatalog.PerformancePageKey,
                      "appearance",
+                     "workspace",
                      SettingsPageCatalog.ConnectionsPageKey,
                      SettingsPageCatalog.ProviderPageKey(StorageProviderKind.Sftp),
                      SettingsPageCatalog.ProviderPageKey(StorageProviderKind.Ssh),

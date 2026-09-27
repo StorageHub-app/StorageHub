@@ -179,7 +179,9 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
             {
                 ShellStatus = ShellStatus with
                 {
-                    ActiveJobs = Queue.ActiveCount,
+                    // Synchronizations are counted as the monitor counts them, so the two
+                    // writers agree rather than the count flickering between them.
+                    ActiveJobs = Queue.ActiveCount + (AgentStatus?.ActiveSyncRuns ?? 0),
                     QueuedJobs = Queue.QueuedCount,
                     TransferBytesPerSecond = Queue.BytesPerSecond
                 };
@@ -403,6 +405,134 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         }
     }
 
+    /// <summary>
+    /// How this machine restarts its agent, asked each time it is needed. Set by the application;
+    /// null in a preview, and a null answer is a machine where a restart would stop the agent with
+    /// nothing to start in its place, such as a build run from source with its agent started by hand.
+    /// </summary>
+    internal Func<IAgentLifecycleController?>? AgentLifecycle { get; set; }
+
+    /// <summary>Whether a restart for saved settings is waiting for the running work to finish.</summary>
+    private bool _agentRestartPending;
+
+    /// <summary>
+    /// Whether the agent is being restarted for saved settings right now. It is down on purpose
+    /// meanwhile, so recovery leaves it to the restart rather than launching a second one beside it.
+    /// </summary>
+    private bool _restartingAgent;
+
+    /// <summary>Whether the shell is closing, after which the agent is not restarted or recovered.</summary>
+    private bool _closing;
+
+    /// <summary>
+    /// The restart for saved settings under way, or a finished task. The shell's close waits for it,
+    /// so the process neither exits nor stops the agent halfway through one.
+    /// </summary>
+    internal Task AgentSettingsRestart { get; private set; } = Task.CompletedTask;
+
+    /// <summary>
+    /// Transfers and synchronizations running. The queue and the monitor each write the status
+    /// bar's count at their own moments, so the monitor's own figure is read beside it and the
+    /// larger taken: a synchronization with no transfer yet is still work to wait for.
+    /// </summary>
+    private int RunningWork => Math.Max(
+        ShellStatus.ActiveJobs,
+        AgentStatus is { } status ? status.ActiveTransfers + status.ActiveSyncRuns : 0);
+
+    /// <summary>
+    /// Gets the agent to read saved concurrency and speed limits, which it reads only as it starts.
+    /// </summary>
+    /// <remarks>
+    /// As 1.4 did it: nothing running, and the agent restarts now; transfers or synchronizations
+    /// running, and it waits until the agent reports none, rather than cutting them off to apply a
+    /// setting. Either way the status bar says which, since a saved number that has not taken
+    /// effect yet looks exactly like one that has.
+    /// </remarks>
+    internal Task ApplyAgentSettingsAsync()
+    {
+        if (_closing) return Task.CompletedTask;
+
+        // A restart already under way may have read the settings before this save, so this one
+        // follows it rather than overlapping it.
+        if (_restartingAgent)
+        {
+            _agentRestartPending = true;
+            return AgentSettingsRestart;
+        }
+
+        if (AgentLifecycle?.Invoke() is not { } agent)
+        {
+            Say(Ui.Shell.StatusConcurrencyRestartRequired);
+            return Task.CompletedTask;
+        }
+
+        if (RunningWork > 0)
+        {
+            _agentRestartPending = true;
+            Say(Ui.Shell.StatusConcurrencyPendingIdle);
+            return Task.CompletedTask;
+        }
+
+        return AgentSettingsRestart = RestartAgentForSettingsAsync(agent);
+    }
+
+    /// <summary>
+    /// Stops applying saved settings to the agent, as the shell closes: nothing pending is started,
+    /// and a status that arrives late does not start one. <see cref="AgentSettingsRestart"/> is
+    /// what to wait for if one is already running.
+    /// </summary>
+    internal void StopRestartingAgent()
+    {
+        _closing = true;
+        _agentRestartPending = false;
+    }
+
+    /// <param name="agent">The controller already asked for, or null to ask again.</param>
+    private async Task RestartAgentForSettingsAsync(IAgentLifecycleController? agent = null)
+    {
+        if (_closing) return;
+
+        // An agent being brought back after it dropped is left to come up first; the poll that
+        // finds it answering and idle runs this again.
+        if (RunningWork > 0 || _recovering)
+        {
+            _agentRestartPending = true;
+            return;
+        }
+
+        _agentRestartPending = false;
+        agent ??= AgentLifecycle?.Invoke();
+        if (agent is null) return;
+
+        Say(Ui.Shell.StatusApplyingConcurrency);
+        AgentLifecycleResult result;
+        _restartingAgent = true;
+        try
+        {
+            result = await agent.ExecuteAsync(AgentLifecycleAction.Restart).ConfigureAwait(true);
+        }
+        catch (Exception error) when (error is InvalidOperationException or IOException or
+            UnauthorizedAccessException or TimeoutException)
+        {
+            result = new AgentLifecycleResult(false, error.Message);
+        }
+        finally
+        {
+            _restartingAgent = false;
+        }
+
+        Say(result.Succeeded ? Ui.Shell.AdaptiveConcurrencyActive : Ui.Shell.ConcurrencyAgentRestartFailed);
+
+        // A save made while the agent was restarting is applied now, or once the work is done.
+        if (_agentRestartPending) await RestartAgentForSettingsAsync().ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// A sentence in the status bar's first cell, where 1.x put its messages. The next pane that
+    /// is opened or picked writes over it, as it did there.
+    /// </summary>
+    private void Say(string message) => ShellStatus = ShellStatus with { Location = message };
+
     /// <summary>How often the open workspace's panes are re-read while transfers run, as in 1.x.</summary>
     private static readonly TimeSpan TransferRefreshInterval = TimeSpan.FromSeconds(5);
 
@@ -593,20 +723,7 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
     {
         ArgumentNullException.ThrowIfNull(monitor);
 
-        monitor.StatusChanged += (_, e) => Dispatcher.UIThread.Post(() =>
-        {
-            // Kept whole as well as summarised. The status bar needs two of these five fields; the
-            // agent control window needs all of them, including the detail that says *why* the
-            // agent is in recovery, which is the one thing a single word cannot carry.
-            AgentStatus = e.Status;
-            ShellStatus = ShellStatus with
-            {
-                AgentState = e.Status.State,
-                ActiveJobs = e.Status.ActiveTransfers,
-            };
-
-            if (e.Status.State == AgentConnectionState.Disconnected) _ = RecoverAgentAsync();
-        });
+        monitor.StatusChanged += (_, e) => Dispatcher.UIThread.Post(() => Observe(e.Status));
 
         // Every surface reloads when the agent comes back, and so do the panes: a pane that failed
         // while the agent was away kept its error until somebody refreshed it by hand.
@@ -616,6 +733,36 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         };
 
         monitor.Start();
+    }
+
+    /// <summary>
+    /// Takes in what the agent said about itself: the status bar, recovery when it has gone, and a
+    /// restart for saved settings once the work it was waiting on is done.
+    /// </summary>
+    internal void Observe(AgentMonitorStatus status)
+    {
+        ArgumentNullException.ThrowIfNull(status);
+
+        // Kept whole as well as summarised. The status bar needs two of these five fields; the
+        // agent control window needs all of them, including the detail that says *why* the
+        // agent is in recovery, which is the one thing a single word cannot carry. A running
+        // synchronization is work in progress as much as a transfer is, as 1.4 counted it.
+        AgentStatus = status;
+        ShellStatus = ShellStatus with
+        {
+            AgentState = status.State,
+            ActiveJobs = status.ActiveTransfers + status.ActiveSyncRuns,
+        };
+
+        // An agent restarted for settings is down on purpose and the restart brings it back, and
+        // one left behind by a closing shell is not relaunched beside the shutdown.
+        if (_restartingAgent || _closing) return;
+
+        if (status.State == AgentConnectionState.Disconnected) _ = RecoverAgentAsync();
+        if (_agentRestartPending && status.ActiveTransfers + status.ActiveSyncRuns == 0)
+        {
+            AgentSettingsRestart = RestartAgentForSettingsAsync();
+        }
     }
 }
 
@@ -822,7 +969,7 @@ internal static class ShellPreview
         {
             // From Welcome or Sync tasks there is no pane to open into, so a workspace is made
             // for it, as 1.x did, rather than the double-click doing nothing.
-            if (model.ActivePane() is null) model.AddWorkspace(WorkspacePreset.All[1]);
+            if (model.ActivePane() is null) model.AddWorkspace(TwoPanes());
             if (model.ActivePane() is { } pane) _ = pane.OpenConnectionAsync(id);
         };
 
@@ -832,7 +979,7 @@ internal static class ShellPreview
         {
             if (model.ActivePane() is null)
             {
-                model.AddWorkspace(WorkspacePreset.All[1]);
+                model.AddWorkspace(TwoPanes());
             }
             else if (model.Workspaces.ElementAtOrDefault(model.SelectedWorkspace)?.Workspace is { } workspace &&
                      workspace.SplitActive(WorkspaceDockEdge.Right) is { } added)
@@ -843,6 +990,15 @@ internal static class ShellPreview
             if (model.ActivePane() is { } pane) _ = pane.OpenConnectionAsync(id);
         };
         return model;
+
+        // Two panes in the orientation Settings names under "Default pane layout", as 1.x made a
+        // workspace to open a connection into. Not the new-workspace choice: that answers the "+",
+        // and a double-click on a connection is not a request for a single pane or four.
+        WorkspacePreset TwoPanes()
+        {
+            var layout = live ? ReadPreferences()?.DefaultWorkspaceLayout : null;
+            return WorkspacePreset.Find(2, layout ?? WorkspaceLayout.SideBySide) ?? WorkspacePreset.All[1];
+        }
     }
 
 

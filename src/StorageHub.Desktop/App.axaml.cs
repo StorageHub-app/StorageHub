@@ -47,6 +47,10 @@ public partial class App : global::Avalonia.Application
         // When the agent drops, the shell brings it back the way startup did.
         model.RecoverAgent = DesktopAgentStartup.EnsureAsync;
 
+        // And restarts it for a saved change to what it reads only as it starts, the concurrency
+        // and total speed limits, once the transfers running then have finished.
+        model.AgentLifecycle = AgentLifecycleControllers.ThatCanRestartTheAgent;
+
         // The first command with somewhere to go. Settings opens over the shell, edits a
         // working copy, and writes through DesktopConfigStore on Apply.
         model.Router.Handle(UiCommandIds.ToolsSettings, () => ShowSettings(pageKey: null));
@@ -60,7 +64,10 @@ public partial class App : global::Avalonia.Application
         {
             // A provider's page can open the Connection Manager, so the panel is re-read after
             // it the way it is after the manager opened from the panel.
-            var settings = Views.SettingsWindow.ForCurrentUser(pageKey, () => _ = model.Sidebar.RefreshAsync());
+            var settings = Views.SettingsWindow.ForCurrentUser(
+                pageKey,
+                () => _ = model.Sidebar.RefreshAsync(),
+                () => _ = model.ApplyAgentSettingsAsync());
 
             // A new language is read only as windows are built, so the shell closes and starts
             // again, as 1.4 did. Closing the ordinary way means the cleanup below still runs, and
@@ -189,6 +196,12 @@ public partial class App : global::Avalonia.Application
 
         async Task CloseEverythingAsync()
         {
+            // A restart for saved settings is finished rather than cut off, and none starts after
+            // this: one left running could relaunch the agent beside the shutdown's stop below, or
+            // race the next shell's startup on a language restart.
+            model.StopRestartingAgent();
+            await model.AgentSettingsRestart.ConfigureAwait(true);
+
             updater.Dispose();
             await Services.ShellServices.CloseEditingAsync().ConfigureAwait(true);
             await monitor.DisposeAsync().ConfigureAwait(true);
@@ -266,6 +279,10 @@ public partial class App : global::Avalonia.Application
             if (window.DataContext is not Views.SettingsImportModel import || !import.Changed) return;
             _ = model.Sidebar.RefreshAsync();
             _ = model.SyncTasks?.RefreshAsync();
+
+            // The import's summary says the agent restarts for new concurrency, and as in 1.4 it
+            // does, by the same rule as a change made in Settings.
+            if (import.Report is { ConcurrencyChanged: true }) _ = model.ApplyAgentSettingsAsync();
         };
 
         if (desktop.MainWindow is { } owner) _ = window.ShowDialog(owner);
