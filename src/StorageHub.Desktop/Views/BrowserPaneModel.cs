@@ -389,6 +389,13 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     public bool HasBadges => _connection is not null;
 
     /// <summary>
+    /// The connection's colour, for the thin strip across the top of the pane 1.x drew: with
+    /// four panes on four servers, colour is what tells them apart before any text is read.
+    /// </summary>
+    public Avalonia.Media.IBrush AccentBrush =>
+        AccentSwatch.BrushFor(ConnectionCard()?.AccentHex ?? ConnectionProviderCatalog.Get(StorageProviderKind.Local).AccentHex);
+
+    /// <summary>
     /// "12 items", "3 of 12 items" while a filter narrows it, and "| more available" or
     /// "| indexing next page…" while the folder has more than has been read, as 1.x's footer said.
     /// </summary>
@@ -427,6 +434,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         Raise(nameof(TypeBadge));
         Raise(nameof(ProviderBadge));
         Raise(nameof(HasBadges));
+        Raise(nameof(AccentBrush));
     }
 
     /// <summary>Whether this is the pane a pane command would act on.</summary>

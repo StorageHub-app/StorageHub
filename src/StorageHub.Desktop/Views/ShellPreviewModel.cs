@@ -227,6 +227,11 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
                 {
                     ReportThePane();
                 }
+
+                if (e.PropertyName == nameof(BrowserPaneModel.Connection) && pane.Connection?.Id is { } opened)
+                {
+                    Overview?.RecordRecent(opened);
+                }
             };
 
             pane.SelectedRows.CollectionChanged += (_, _) => ReportThePane();
@@ -758,6 +763,23 @@ internal static class ShellPreview
             // From Welcome or Sync tasks there is no pane to open into, so a workspace is made
             // for it, as 1.x did, rather than the double-click doing nothing.
             if (model.ActivePane() is null) model.AddWorkspace(WorkspacePreset.All[1]);
+            if (model.ActivePane() is { } pane) _ = pane.OpenConnectionAsync(id);
+        };
+
+        // And beside what is open, as 1.x's "Open in new pane" did: the active pane is split and
+        // the connection opens in the new half, which becomes the active one.
+        model.Sidebar.OpenConnectionInNewPane = id =>
+        {
+            if (model.ActivePane() is null)
+            {
+                model.AddWorkspace(WorkspacePreset.All[1]);
+            }
+            else if (model.Workspaces.ElementAtOrDefault(model.SelectedWorkspace)?.Workspace is { } workspace &&
+                     workspace.SplitActive(WorkspaceDockEdge.Right) is { } added)
+            {
+                added.IsActive = true;
+            }
+
             if (model.ActivePane() is { } pane) _ = pane.OpenConnectionAsync(id);
         };
         return model;

@@ -22,6 +22,32 @@ public partial class ConnectionsPanelView : UserControl
         ConnectionDragHandler.Attach(this, () => DataContext as ConnectionsSidebar);
         AddHandler(DoubleTappedEvent, OnDoubleTapped, RoutingStrategies.Bubble);
         AddHandler(TappedEvent, OnTapped, RoutingStrategies.Bubble);
+        AddHandler(ContextRequestedEvent, OnContextRequested, RoutingStrategies.Tunnel);
+    }
+
+    /// <summary>Right-clicking a card selects it and offers what can be done with it.</summary>
+    private void OnContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        if (DataContext is not ConnectionsSidebar sidebar || e.Source is not Visual source) return;
+
+        for (Visual? step = source; step is not null; step = step.GetVisualParent())
+        {
+            if (step is not Control { DataContext: ConnectionRowModel row } card) continue;
+
+            sidebar.Select(row);
+            card.ContextMenu = new ContextMenu
+            {
+                ItemsSource = sidebar.ContextEntriesFor(row)
+                    .Select(static entry =>
+                    {
+                        var item = new MenuItem { Header = entry.Label, IsEnabled = entry.Enabled };
+                        item.Click += (_, _) => entry.Run();
+                        return item;
+                    })
+                    .ToList()
+            };
+            return;
+        }
     }
 
     /// <summary>A single click selects a card and fills the details panel; a double click opens it.</summary>

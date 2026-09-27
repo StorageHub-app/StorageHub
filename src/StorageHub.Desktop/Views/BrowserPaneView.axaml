@@ -24,6 +24,10 @@
         Everything that changes the arrangement is behind its menu rather than along the toolbar:
         an arrangement is settled once and then wants the width back.
       -->
+      <!-- The connection's colour across the top of the pane, as 1.x drew it. -->
+      <Border DockPanel.Dock="Top" Height="3" Background="{Binding AccentBrush}"
+              IsVisible="{Binding HasBadges}"/>
+
       <Border x:Name="PART_Header" DockPanel.Dock="Top" Classes="pane-header"
               Cursor="SizeAll">
         <Grid ColumnDefinitions="*,Auto">

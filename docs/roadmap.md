@@ -109,8 +109,9 @@ setting to choose it (P.5.1).
       row above the panes.
       Dragging a pane by its header, which the hint promises and 2.0 could not do, is back too:
       the middle of another pane swaps the two, an edge docks the dragged one there.
-- [ ] P.2.15 A thin accent strip across each pane in the connection's colour; opening a connection records
+- [x] P.2.15 A thin accent strip across each pane in the connection's colour; opening a connection records
       it in Welcome's recent list; "Open in new pane".
+      Done, with 1.x's right-click menu on a connection card (Open, Open in new pane, Edit, Delete).
 - [ ] P.2.16 Connections Home (was L.9).
 
 ### P.3 The shell

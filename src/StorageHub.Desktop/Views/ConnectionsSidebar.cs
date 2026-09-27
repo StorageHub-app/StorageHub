@@ -280,6 +280,21 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     /// Assigned by the shell, because the panel does not know there are panes. Null leaves a row
     /// inert, which is what it was before: the rows had no click behaviour at all.
     /// </remarks>
+    /// <summary>Opens a connection in a new pane beside the active one. Assigned by the shell.</summary>
+    public Action<Guid>? OpenConnectionInNewPane { get; internal set; }
+
+    /// <summary>
+    /// A card's right-click menu, as 1.x had it: Open, Open in new pane, Edit, Delete. Built when
+    /// it opens, on the card it opened on, which the right-click has just selected.
+    /// </summary>
+    internal IReadOnlyList<(string Label, Action Run, bool Enabled)> ContextEntriesFor(ConnectionRowModel row) =>
+    [
+        (Ui.Connections.ContextOpen, () => OpenConnection?.Invoke(row.Id), OpenConnection is not null),
+        (Ui.Connections.ContextOpenInNewPane, () => OpenConnectionInNewPane?.Invoke(row.Id), OpenConnectionInNewPane is not null),
+        (Ui.Connections.ContextEdit, () => EditConnection?.Invoke(row.Id), EditConnection is not null),
+        (Ui.Connections.ContextDelete, () => { if (DeleteConnection is { } delete) _ = DeleteAndRefreshAsync(delete, row.Id); }, DeleteConnection is not null),
+    ];
+
     public Action<Guid>? OpenConnection
     {
         get;

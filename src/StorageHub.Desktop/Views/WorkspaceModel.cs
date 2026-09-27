@@ -493,6 +493,22 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
         _ => _layout.PaneCount < WorkspaceLayoutModel.MaximumPanes);
 
     /// <summary>
+    /// Splits the active pane, putting a new one on the given edge, and returns the new one; null
+    /// when the workspace already holds as many panes as it can.
+    /// </summary>
+    internal BrowserPaneModel? SplitActive(WorkspaceDockEdge edge)
+    {
+        var active = Panes.FirstOrDefault(static pane => pane.IsActive) ?? Panes.FirstOrDefault();
+        var activeId = _byId.FirstOrDefault(pair => ReferenceEquals(pair.Value, active)).Key;
+        if (activeId == Guid.Empty || _layout.PaneCount >= WorkspaceLayoutModel.MaximumPanes) return null;
+
+        var newId = Guid.NewGuid();
+        if (!_layout.Split(activeId, edge, newId)) return null;
+        AdoptLayout();
+        return _byId.GetValueOrDefault(newId);
+    }
+
+    /// <summary>
     /// Swaps two panes, or docks one on an edge of another: what dragging a pane's header does.
     /// </summary>
     /// <returns>Whether the arrangement changed.</returns>

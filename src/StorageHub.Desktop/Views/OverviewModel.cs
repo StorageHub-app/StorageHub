@@ -294,17 +294,8 @@ internal sealed class OverviewModel : INotifyPropertyChanged
             _attentionCount = Count(attention);
             Raise(nameof(Metrics));
 
-            var rows = connections.Connections
-                .OrderByDescending(static value => value.IsFavorite)
-                .ThenBy(static value => value.DisplayName, StringComparer.CurrentCultureIgnoreCase)
-                .Take(MaximumListRows)
-                .Select(static value => new RecentConnectionRow(
-                    value.DisplayName,
-                    value.Provider.ToString(),
-                    value.IsFavorite ? Ui.Overview.ConnectionFavorite : value.FolderPath ?? string.Empty))
-                .ToArray();
-            RecentConnections = rows.Length > 0 ? rows : [new(Ui.Overview.ConnectionsEmpty, string.Empty, string.Empty)];
-            Raise(nameof(RecentConnections));
+            _saved = connections.Connections;
+            ComposeRecentConnections();
 
             var problems = attention.Transfers
                 .OrderByDescending(static value => value.UpdatedUtc)
@@ -330,6 +321,41 @@ internal sealed class OverviewModel : INotifyPropertyChanged
         {
             Volatile.Write(ref _refreshing, 0);
         }
+    }
+
+    private IReadOnlyList<ConnectionSummary> _saved = [];
+    private readonly List<Guid> _recent = [];
+
+    /// <summary>
+    /// Puts a connection a pane just opened at the top of Recent connections, as 1.x did:
+    /// "Opened this session, followed by saved favorites" is what the table's subtitle says.
+    /// </summary>
+    internal void RecordRecent(Guid connectionId)
+    {
+        _recent.Remove(connectionId);
+        _recent.Insert(0, connectionId);
+        if (_recent.Count > MaximumListRows) _recent.RemoveRange(MaximumListRows, _recent.Count - MaximumListRows);
+        ComposeRecentConnections();
+    }
+
+    private void ComposeRecentConnections()
+    {
+        var byId = _saved.ToDictionary(static value => value.ConnectionId);
+        var rows = _recent
+            .Where(byId.ContainsKey)
+            .Select(id => byId[id])
+            .Concat(_saved
+                .OrderByDescending(static value => value.IsFavorite)
+                .ThenBy(static value => value.DisplayName, StringComparer.CurrentCultureIgnoreCase))
+            .DistinctBy(static value => value.ConnectionId)
+            .Take(MaximumListRows)
+            .Select(static value => new RecentConnectionRow(
+                value.DisplayName,
+                value.Provider.ToString(),
+                value.IsFavorite ? Ui.Overview.ConnectionFavorite : value.FolderPath ?? string.Empty))
+            .ToArray();
+        RecentConnections = rows.Length > 0 ? rows : [new(Ui.Overview.ConnectionsEmpty, string.Empty, string.Empty)];
+        Raise(nameof(RecentConnections));
     }
 
     private static async Task<TransferListResponse> ListAsync(
