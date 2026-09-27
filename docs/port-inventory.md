@@ -102,7 +102,7 @@ COM registration, the named-pipe lifecycle client -- sit in `Desktop.Core/Window
 Legend: **done** · **partial** — works, with named gaps · **todo** · **dropped** — deliberately not
 reproduced.
 
-Where it stands across the 59 rows below: **11 done, 13 partial, 31 todo, 4 dropped.** The partials
+Where it stands across the 56 rows below: **34 done, 8 partial, 11 todo, 3 dropped.** The partials
 are the honest ones — each names what is missing rather than claiming the row.
 
 ### Shell chrome
@@ -110,10 +110,10 @@ are the honest ones — each names what is missing rather than claiming the row.
 | What 1.x does | Status |
 |---|---|
 | Menu bar, nine menus, all 62 entries, shortcuts shown | **done** |
-| Toolbar from `ToolbarLayout`, customisable order and label style | **partial** — renders the default preset; the toolbar editor is a screen (below) |
+| Toolbar from `ToolbarLayout`, customisable order and label style | **done** — built from the saved layout with 1.x's three label styles, rebuilt when Settings or an import changes it, and what does not fit goes behind a chevron whose menu runs the same commands, as 1.x's ToolStrip did (P.3.4). Settings has the toolbar editor |
 | Workspace tab strip with per-tab icons | **done** |
 | Status bar: agent state, selection, rate, queue depth | **partial** — location, selection, rate, queue depth and agent state are live; the agent cell opens Agent control and follows a failed call at once; staging, clearing, import, export and what a paste or drop came to show in the first cell. A refused paste or drop is said there rather than in 1.x's warning (P.4.14), and the update link waits for P.1.8 |
-| Connections panel, dockable left or right, collapsible, remembered width | **partial** — drawn on the left; the two `View` commands that move and hide it are not wired |
+| Connections panel, dockable left or right, collapsible, remembered width | **done** — left or right, shown and hidden from the View menu, the toolbar and Ctrl+B, and its side, width and visibility remembered, within 1.x's limits (P.3.3) |
 | Shortcut dispatch that beats focus, and declines inside a text box or SSH | **done** — `ShellCommandRouter`, tunnelling, sharing `UiCommandCatalog.CanDispatch` |
 | Splash while the agent starts | **todo** |
 | Light and dark, following the system | **done**, and now 22 schemes |
@@ -183,8 +183,8 @@ are the honest ones — each names what is missing rather than claiming the row.
 |---|---|
 | Two panes, split, swap, move, close, layout presets | **done** — one to four panes, all six presets in a New Workspace chooser, and split / close / swap / move behind each pane's own actions menu. Dragging a pane header to dock is the one gesture still missing |
 | Stage a selection, then paste it into another pane | **done** — the rule that survives four panes, and what 1.x did with two |
-| Save and open a `.shw` workspace file | **todo** — `WorkspaceModel` and the file store are in Core, tested |
-| Pinned and recent workspaces on the Welcome screen | **partial** — the card is drawn, the data is not wired |
+| Save and open a `.shw` workspace file | **done** — Save, Save As, Open and Rename read and write 1.x's `.shw` unchanged, with each pane's sort and filter, and a `*` on the tab while it differs from its file; closing asks about each changed one (P.3.1, P.1.9) |
+| Pinned and recent workspaces on the Welcome screen | **done** — Welcome lists the pinned and then the recent workspaces with Open, Pin/Unpin, Remove and Copy path, and the Workspace menu has them too (P.3.1) |
 | Reconnect remote panes on open | **todo** |
 
 ### Settings and lifecycle
@@ -192,10 +192,10 @@ are the honest ones — each names what is missing rather than claiming the row.
 | What 1.x does | Status |
 |---|---|
 | Settings: appearance, workspace, performance, confirmations, updates | **done** |
-| Settings: shortcuts editor | **todo** |
-| Settings: toolbar editor | **todo** |
-| Settings: connection defaults | **todo** |
-| Settings: external editing, trust, agent mode | **todo** |
+| Settings: shortcuts editor | **done** — the Shortcuts page, and the shell dispatches and shows what it saves (L.5, P.3.4) |
+| Settings: toolbar editor | **done** |
+| Settings: connection defaults | **done** — each provider's new-connection defaults under a STORAGE or CLIENTS caption, and a new connection starts from them (L.5, P.5.3) |
+| Settings: external editing, trust, agent mode | **done** — agent mode is Windows only, as in 1.x (L.5) |
 | Export and import settings, section by section | **todo** — the model and the mapper are in Core, tested |
 | Background agent control: start, stop, status | **todo** |
 | Check for updates, download, install | **partial** — the engine and the presentation are in Core; the window is not ported |
