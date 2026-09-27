@@ -1,3 +1,6 @@
+using Avalonia;
+using Avalonia.Headless.XUnit;
+using Avalonia.VisualTree;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Localization;
 using StorageHub.Desktop.Views;
@@ -118,7 +121,8 @@ public class SyncTasksLoadingTests
 
         await model.RefreshAsync(TestContext.Current.CancellationToken);
 
-        Assert.NotEqual(Ui.Sync.NoTasksConfigured, model.Status);
+        Assert.NotEqual(Ui.Sync.TasksDeferred, model.Status);
+        Assert.NotEqual(Ui.Sync.TasksRefreshing, model.Status);
         Assert.False(string.IsNullOrWhiteSpace(model.Status));
     }
 
@@ -136,6 +140,48 @@ public class SyncTasksLoadingTests
         Assert.Equal(1, agent.Loads);
     }
 
+    /// <summary>
+    /// Coming to the tab reads the agent, every time it does. Going to Run history and back does not.
+    /// </summary>
+    /// <remarks>
+    /// It used to wait for Refresh, so the tab opened on "No sync tasks configured" beside profiles
+    /// that existed. 1.x's control read whenever it became visible, and its sub-tabs were inside it,
+    /// so changing between them was not coming to it. Through the window, because the sub-tab
+    /// rebuilds the view, and a load tied to the view would reload there.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task ComingToTheTabLoadsItEachTimeButItsSubTabsDoNot()
+    {
+        var agent = new StubSyncAgent { Profiles = [Profile("Nightly photos", enabled: true)] };
+        var shell = ShellPreview.CreateOnWorkspace(syncAgent: () => agent);
+        var tasks = shell.SyncTasks!;
+        var window = new MainWindow { DataContext = shell };
+        window.Show();
+        window.Measure(new Size(1500, 920));
+        window.Arrange(new Rect(0, 0, 1500, 920));
+        Assert.Equal(Ui.Sync.TasksDeferred, tasks.Status);
+        Assert.Equal(0, agent.Loads);
+
+        shell.SelectedWorkspace = 1;
+        window.UpdateLayout();
+        await WaitUntilIdle(tasks);
+        Assert.Equal(1, agent.Loads);
+        Assert.Equal("Nightly photos", tasks.Tasks.Single().Name);
+
+        shell.SyncPage!.SelectedIndex = 1;
+        window.UpdateLayout();
+        shell.SyncPage.SelectedIndex = 0;
+        window.UpdateLayout();
+        await WaitUntilIdle(tasks);
+        Assert.Single(window.GetVisualDescendants().OfType<SyncTasksView>());
+        Assert.Equal(1, agent.Loads);
+
+        shell.SelectedWorkspace = 0;
+        shell.SelectedWorkspace = 1;
+        await WaitUntilIdle(tasks);
+        Assert.Equal(2, agent.Loads);
+    }
+
     /// <summary>A screen with no agent behind it shows its empty state and offers no refresh.</summary>
     [Fact]
     public void AModelWithNoAgentCannotBeRefreshed()
@@ -144,6 +190,12 @@ public class SyncTasksLoadingTests
 
         Assert.False(model.RefreshCommand.CanExecute(null));
         Assert.Equal(Ui.Sync.NoTasksConfigured, model.Tasks.Single().Name);
+    }
+
+    /// <summary>The shell starts its load without waiting; this waits for it to finish.</summary>
+    private static async Task WaitUntilIdle(SyncTasksModel model)
+    {
+        for (var attempt = 0; model.IsBusy && attempt < 100; attempt++) await Task.Delay(10);
     }
 
     private static SyncProfileSummary Profile(string name, bool enabled) => new(

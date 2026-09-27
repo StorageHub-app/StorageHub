@@ -94,18 +94,25 @@ public class SyncTasksTests
         var subTabs = window.GetVisualDescendants().OfType<TabControl>()
             .First(control => control.Classes.Contains("subtabs"));
         subTabs.SelectedIndex = 1;
+        try
+        {
+            // A manual Measure/Arrange is not enough: selecting a tab queues the new content's
+            // template to be built, so nothing inside it exists until layout actually runs.
+            window.UpdateLayout();
 
-        // A manual Measure/Arrange is not enough: selecting a tab queues the new content's template
-        // to be built, so nothing inside it exists until layout actually runs.
-        window.UpdateLayout();
+            Assert.Single(window.GetVisualDescendants().OfType<SyncRunHistoryView>());
 
-        Assert.Single(window.GetVisualDescendants().OfType<SyncRunHistoryView>());
-
-        // The button that must stay unavailable really is. IsEffectivelyEnabled rather than
-        // IsEnabled: the button is disabled by its command declining, which is how every other
-        // guard on this screen works now, and that leaves IsEnabled itself true.
-        var approve = window.GetVisualDescendants().OfType<Button>()
-            .Single(button => (button.Content as string) == Ui.Sync.ApproveAndDispatch);
-        Assert.False(approve.IsEffectivelyEnabled);
+            // The button that must stay unavailable really is. IsEffectivelyEnabled rather than
+            // IsEnabled: the button is disabled by its command declining, which is how every other
+            // guard on this screen works now, and that leaves IsEnabled itself true.
+            var approve = window.GetVisualDescendants().OfType<Button>()
+                .Single(button => (button.Content as string) == Ui.Sync.ApproveAndDispatch);
+            Assert.False(approve.IsEffectivelyEnabled);
+        }
+        finally
+        {
+            // The sample is shared, and the tests that photograph it expect the Tasks sub-tab.
+            subTabs.SelectedIndex = 0;
+        }
     }
 }

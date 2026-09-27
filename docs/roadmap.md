@@ -193,9 +193,20 @@ setting to choose it (P.5.1).
       panes"; they go straight to the queue again, as in 1.4, and so do files from the desktop
       until P.2.11 sends them through the agent's plan. Open, with P.2.11: the drag out has no
       broker yet, so nothing makes a "Waiting for destination" row.
-- [ ] P.4.7 Sync tasks loads when it is first shown, not only on Refresh.
-- [ ] P.4.8 Schedule delete asks "Delete schedule …?" (`DeleteSchedulePrompt`), not the disabled-profile
-      text followed by "Schedule deleted".
+- [x] P.4.7 Sync tasks loads when it is first shown, not only on Refresh. 1.4's control read the
+      agent in OnVisibleChanged, so every time the tab came forward, not only the first; the shell
+      now does the same when Sync tasks is selected, and going to Run history and back does not
+      reload, as it did not in 1.4. Its footer reads 1.4's "Sync tasks will load when this tab is
+      opened." (`TasksDeferred`, unused until now) before then, rather than "No sync tasks
+      configured". The shells the tests photograph now read an agent with nothing saved rather
+      than the pipe, on both sub-tabs, so a dev agent's profiles no longer reach the shots.
+- [x] P.4.8 Schedule delete asks "Delete schedule …?" (`DeleteSchedulePrompt`), not the disabled-profile
+      text followed by "Schedule deleted". As in 1.4: "Delete schedule" as the title, OK and Cancel
+      with Cancel the default, and "Schedule deleted" only in the status once it has been. The
+      disabled-profile text went back where 1.4 had it: a disabled profile, or one that no longer
+      exists, reads "Name (disabled)" in the schedule's profile picker. Open: the question opens over
+      the main window rather than over the schedule manager, as every dialog asked from inside a
+      modal window does.
 - [ ] P.4.9 Previewing from the editor loads the run and the history reliably on the first visit.
       `SyncRunHistoryTests.ApprovingDispatchesTheRunThatWasReviewed` failed once under a full-suite
       run on 2026-09-26 and passed alone three times; likely the same race.
@@ -204,6 +215,10 @@ setting to choose it (P.5.1).
 - [x] P.4.12 A completed transfer of unknown size draws a full bar, in the success colour, as 1.4's
       did; its text still says the bytes it moved, "0 B" too, rather than "100%" of a size nobody
       knew. A transfer of nothing says "100%", as 1.4's did.
+- [ ] P.4.13 Sync tasks lists saved tasks most recently updated first, as 1.4 did
+      (`OrderByDescending(UpdatedUtc)`), not by name. 1.4 also read up to 1,000 runs and listed and
+      counted them all under Last syncs and "Runs this session"; 2.0 reads 200
+      (`SyncTasksController.MaximumLoadedRuns`) and lists 20. Decide the cap against 1.4's.
 
 ### P.5 Settings and dialogs
 
@@ -250,6 +265,9 @@ reference shot.
       second pane did, and opening a row opens that connection.
 - [x] L.10 The overview's Agent card still said "Starting" after the status bar had moved to
       "Agent: connected". Fixed with the live Welcome page (e174058).
+- [ ] L.11 Sync tasks' first sub-tab reads "Tasks", as in ref 03, not "Sync tasks"
+      (`Ui.Sync.TasksTitle`, which is the page's headline); it needs a caption of its own, with its
+      translations.
 - [x] L.4 The connection editor (ref 08). Done, with the Connection Manager's list still beside it:
       the sidebar has no Edit or Delete of its own yet, so the list stays until L.7 gives it them,
       and then the editor becomes 1.x's plain "Edit Connection" dialog. Was: back to the dialog shape. Type and Provider / protocol

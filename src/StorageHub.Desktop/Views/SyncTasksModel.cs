@@ -74,7 +74,10 @@ internal sealed record LastSyncRow(string Name, string State, string Updated);
 internal sealed class SyncTasksModel : INotifyPropertyChanged
 {
     private readonly SyncTasksController? _controller;
-    private string _status = Ui.Sync.NoTasksConfigured;
+
+    // What 1.x's footer said until the tab was first opened. "No tasks configured" here repeated the
+    // table's own empty row and claimed an answer before the agent had been asked.
+    private string _status = Ui.Sync.TasksDeferred;
     private bool _isBusy;
     private ICommand? _newProfileCommand;
     private ICommand? _schedulesCommand;
@@ -94,7 +97,7 @@ internal sealed class SyncTasksModel : INotifyPropertyChanged
     /// <summary>A screen with nothing behind it, for a preview or a layout test.</summary>
     internal static SyncTasksModel Create() => new();
 
-    /// <summary>And one that will ask the agent when it is refreshed.</summary>
+    /// <summary>And one that will ask the agent when it is shown and when it is refreshed.</summary>
     internal static SyncTasksModel Create(Func<ISyncManagementAgentClient> clients) =>
         new(new SyncTasksController(clients));
 

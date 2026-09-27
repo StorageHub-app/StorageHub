@@ -29,7 +29,7 @@ public class ScheduleManagerTests
         var agent = new StubScheduleAgent
         {
             Schedules = [Schedule("Nightly photos", "0 2 * * *"), Schedule("Archive", "0 3 1 * *")],
-            Profiles = [Profile("Nightly photos"), Profile("Archive")]
+            Profiles = [Profile("Nightly photos"), Profile("Archive", enabled: false)]
         };
         var model = ScheduleManagerModel.Create(() => agent, () => agent);
 
@@ -39,6 +39,11 @@ public class ScheduleManagerTests
 
         // The table says what the schedule does, not the cron it is stored as.
         Assert.Contains(model.Schedules, row => row.Recurrence.Contains("day 1", StringComparison.Ordinal));
+
+        // A disabled profile can still be picked, and the picker says it is off, as 1.x's did.
+        Assert.Equal(
+            [Ui.Format(Ui.Schedules.DisabledProfileFormat, "Archive"), "Nightly photos"],
+            model.Profiles.Select(static choice => choice.DisplayName));
     }
 
     /// <summary>The builder shows the fields the chosen frequency actually needs.</summary>
@@ -131,12 +136,13 @@ public class ScheduleManagerTests
     }
 
     /// <summary>
-    /// Deleting asks first. Disabling does not.
+    /// Deleting asks first, and asks 1.x's question. Disabling does not ask.
     /// </summary>
     /// <remarks>
     /// Disabling is reversible from the same screen and a confirmation on it would be noise, which
     /// is what teaches people to click through the one that matters. Deleting cannot be undone and
-    /// the run history is then the only record the schedule ever existed.
+    /// the run history is then the only record the schedule ever existed. The question used to be
+    /// the disabled-profile warning with "Schedule deleted" under it, before anything was deleted.
     /// </remarks>
     [Fact]
     public async Task DeletingAsksAndDisablingDoesNot()
@@ -146,7 +152,7 @@ public class ScheduleManagerTests
             Schedules = [Schedule("Nightly photos", "0 2 * * *")],
             Profiles = [Profile("Nightly photos")]
         };
-        var dialogs = new RecordingDialogs { Choice = DialogChoice.No };
+        var dialogs = new RecordingDialogs { Choice = DialogChoice.Cancel };
         var model = ScheduleManagerModel.Create(() => agent, () => agent, dialogs);
         await model.LoadAsync(TestContext.Current.CancellationToken);
         model.SelectedRow = model.Schedules[0];
@@ -156,8 +162,12 @@ public class ScheduleManagerTests
         Assert.Null(dialogs.LastRequest);
 
         await model.DeleteAsync(TestContext.Current.CancellationToken);
-        Assert.NotNull(dialogs.LastRequest);
-        Assert.Equal(DialogChoice.No, dialogs.LastRequest!.Default);
+        var asked = Assert.IsType<DialogRequest>(dialogs.LastRequest);
+        Assert.Equal(Ui.Dialogs.DeleteScheduleCaption, asked.Title);
+        Assert.Equal(Ui.Dialogs.DeleteSchedulePrompt, asked.Message);
+        Assert.Null(asked.Detail);
+        Assert.Equal(DialogButtons.OkCancel, asked.Buttons);
+        Assert.Equal(DialogChoice.Cancel, asked.Default);
         Assert.Null(agent.Deleted);
     }
 
@@ -170,7 +180,7 @@ public class ScheduleManagerTests
             Schedules = [Schedule("Nightly photos", "0 2 * * *")],
             Profiles = [Profile("Nightly photos")]
         };
-        var dialogs = new RecordingDialogs { Choice = DialogChoice.Yes };
+        var dialogs = new RecordingDialogs { Choice = DialogChoice.Ok };
         var model = ScheduleManagerModel.Create(() => agent, () => agent, dialogs);
         await model.LoadAsync(TestContext.Current.CancellationToken);
         model.SelectedRow = model.Schedules[0];
@@ -180,6 +190,7 @@ public class ScheduleManagerTests
         Assert.NotNull(agent.Deleted);
         Assert.Empty(model.Schedules);
         Assert.False(model.DeleteCommand.CanExecute(null));
+        Assert.Equal(Ui.Schedules.ScheduleDeleted, model.Status.Text);
     }
 
     /// <summary>A schedule with no profile chosen is refused before it reaches the agent.</summary>
@@ -293,9 +304,9 @@ public class ScheduleManagerTests
         QueuedOccurrenceUtc: null, IsBusy: false, LastRunOutcome: "Completed",
         LastErrorCode: null, Revision: 2);
 
-    private static SyncProfileSummary Profile(string name) => new(
+    private static SyncProfileSummary Profile(string name, bool enabled = true) => new(
         Guid.NewGuid(), name, Guid.NewGuid(), Guid.NewGuid(),
-        SyncIpcDirection.LeftToRight, SyncIpcDeletionMode.Disabled, true, 1, DateTimeOffset.UtcNow);
+        SyncIpcDirection.LeftToRight, SyncIpcDeletionMode.Disabled, enabled, 1, DateTimeOffset.UtcNow);
 
     /// <summary>Both agent surfaces, scripted by the test.</summary>
     private sealed class StubScheduleAgent

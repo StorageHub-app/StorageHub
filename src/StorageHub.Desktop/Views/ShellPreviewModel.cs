@@ -526,7 +526,16 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         _ = history.LoadRunAsync(syncRunId);
     }
 
-    /// <summary>Which tab is showing. Settable, because adding a workspace moves to it.</summary>
+    /// <summary>
+    /// Which tab is showing. Settable, because adding a workspace moves to it.
+    /// </summary>
+    /// <remarks>
+    /// Coming to Sync tasks reads the agent again, as 1.x's control did each time it became
+    /// visible: so the tab is never a table of nothing waiting for Refresh, and a run the scheduler
+    /// finished while somebody was in a workspace is listed when they come back. Here rather than
+    /// in the view, because the view is rebuilt whenever its sub-tab is, and 1.x did not reload for
+    /// going to Run history and back.
+    /// </remarks>
     public int SelectedWorkspace
     {
         get;
@@ -535,6 +544,10 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
             if (field == value) return;
             field = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(SelectedWorkspace)));
+            if (SyncPage is { } page && ReferenceEquals(Workspaces.ElementAtOrDefault(value)?.Page, page))
+            {
+                _ = SyncTasks?.RefreshAsync();
+            }
         }
     }
 
@@ -631,9 +644,14 @@ internal static class ShellPreview
     /// How its panes open a shell. The default reaches the agent over a pipe, which a test without
     /// one would spend both connect timeouts discovering.
     /// </param>
+    /// <param name="syncAgent">
+    /// What its Sync tasks screens read. The default is an agent with nothing saved, as the samples
+    /// have.
+    /// </param>
     internal static ShellPreviewModel CreateOnWorkspace(
-        Func<ISshTerminalAgentClient>? terminals = null) =>
-        Build(selectedWorkspace: 2, terminals);
+        Func<ISshTerminalAgentClient>? terminals = null,
+        Func<ISyncManagementAgentClient>? syncAgent = null) =>
+        Build(selectedWorkspace: 2, terminals, syncAgent: syncAgent);
 
     /// <summary>
     /// The shell the application runs: Welcome and Sync tasks, and no workspace until somebody
@@ -646,9 +664,22 @@ internal static class ShellPreview
     internal static ShellPreviewModel CreateLive() => Build(live: true);
 
     private static ShellPreviewModel Build(
-        int selectedWorkspace = 0, Func<ISshTerminalAgentClient>? terminals = null, bool live = false)
+        int selectedWorkspace = 0,
+        Func<ISshTerminalAgentClient>? terminals = null,
+        bool live = false,
+        Func<ISyncManagementAgentClient>? syncAgent = null)
     {
         terminals ??= static () => new NamedPipeSshTerminalAgentClient();
+
+        // Only the application's own shell reads the real agent's sync profiles. The others are
+        // photographed, and a picture of whatever a dev agent held that day compares with nothing.
+        if (syncAgent is null)
+        {
+            syncAgent = live
+                ? static () => new NamedPipeSyncManagementAgentClient()
+                : EmptySyncAgent.Factory;
+        }
+
         var router = new ShellCommandRouter();
 
         // Folders being read for a transfer, before their files are all queued. The workspaces
@@ -760,17 +791,13 @@ internal static class ShellPreview
                 // A client per load rather than one held open, for the reason the panes and the
                 // queue already hold: a connection kept across an agent restart is one that has to
                 // be found broken before it can be replaced.
-                new PageTab(
-                    Ui.Sync.TasksTitle,
-                    SyncTasksModel.Create(static () => new NamedPipeSyncManagementAgentClient())),
+                new PageTab(Ui.Sync.TasksTitle, SyncTasksModel.Create(syncAgent)),
                 // And the review screen reads one run at a time, by id. It takes the dialog service
                 // because Approve & dispatch is the only button in the shell that authorises the
                 // agent to delete files without naming them, and it confirms before it does.
                 new PageTab(
                     Ui.Sync.RunHistoryAndReview,
-                    SyncRunHistoryModel.Create(
-                        static () => new NamedPipeSyncManagementAgentClient(),
-                        Services.ShellServices.Dialogs)),
+                    SyncRunHistoryModel.Create(syncAgent, Services.ShellServices.Dialogs)),
             ]);
         model.SyncPage = syncPage;
         var syncTab = new WorkspaceTab(Ui.Shell.TabSyncTasks, LucideIconKind.ArrowLeftRight, syncPage);

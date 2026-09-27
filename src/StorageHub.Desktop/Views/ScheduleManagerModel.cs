@@ -408,8 +408,10 @@ internal sealed class ScheduleManagerModel : INotifyPropertyChanged
     /// Confirms, then deletes the loaded schedule.
     /// </summary>
     /// <remarks>
-    /// Disabling is the reversible version of this and is one button away, so the confirmation says
-    /// so. The run history survives: it is the only record that the schedule ever ran.
+    /// The question is 1.x's, asked the way 1.x asked it: "Delete this schedule?" with OK and
+    /// Cancel, with Cancel the default. It used to be the disabled-profile warning with "Schedule
+    /// deleted" under it, which read as though the schedule had already gone before anybody had
+    /// answered. The run history survives: it is the only record that the schedule ever ran.
     /// </remarks>
     internal async Task DeleteAsync(CancellationToken cancellationToken = default)
     {
@@ -424,15 +426,14 @@ internal sealed class ScheduleManagerModel : INotifyPropertyChanged
         var choice = await _dialogs.ConfirmAsync(
             new DialogRequest
             {
-                Title = Ui.Schedules.Delete,
-                Message = Ui.Format(Ui.Schedules.DisabledProfileFormat, current.ProfileDisplayName),
-                Detail = Ui.Schedules.ScheduleDeleted,
+                Title = Ui.Dialogs.DeleteScheduleCaption,
+                Message = Ui.Dialogs.DeleteSchedulePrompt,
                 Severity = DialogSeverity.Warning,
-                Buttons = DialogButtons.YesNo,
-                Default = DialogChoice.No
+                Buttons = DialogButtons.OkCancel,
+                Default = DialogChoice.Cancel
             },
             cancellationToken).ConfigureAwait(true);
-        if (choice != DialogChoice.Yes) return;
+        if (choice != DialogChoice.Ok) return;
 
         IsBusy = true;
         try
@@ -500,7 +501,14 @@ internal sealed class ScheduleManagerModel : INotifyPropertyChanged
         foreach (var profile in workspace.Profiles.OrderBy(
             static profile => profile.DisplayName, StringComparer.CurrentCultureIgnoreCase))
         {
-            Profiles.Add(new ProfileChoice(profile.ProfileId, profile.DisplayName));
+            // A disabled profile can still be scheduled, as in 1.x, and the picker says it is off,
+            // as 1.x's did: otherwise a schedule could be pointed at a profile that will never run
+            // with nothing on screen to say so.
+            Profiles.Add(new ProfileChoice(
+                profile.ProfileId,
+                profile.Enabled
+                    ? profile.DisplayName
+                    : Ui.Format(Ui.Schedules.DisabledProfileFormat, profile.DisplayName)));
         }
 
         Schedules.Clear();
@@ -663,7 +671,11 @@ internal sealed class ScheduleManagerModel : INotifyPropertyChanged
             if (choice.ProfileId == schedule.ProfileId) return choice;
         }
 
-        var missing = new ProfileChoice(schedule.ProfileId, schedule.ProfileDisplayName);
+        // Labelled as disabled, as 1.x labelled it: a profile that is not in the list is not one
+        // that will run.
+        var missing = new ProfileChoice(
+            schedule.ProfileId,
+            Ui.Format(Ui.Schedules.DisabledProfileFormat, schedule.ProfileDisplayName));
         Profiles.Add(missing);
         return missing;
     }
