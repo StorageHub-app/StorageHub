@@ -1,6 +1,9 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using StorageHub.Desktop;
 using StorageHub.Desktop.Localization;
@@ -48,6 +51,60 @@ public class OverviewTests
         Assert.Equal(Ui.Overview.WorkspacesEmptyHint, model.Workspaces.Single().Location);
         Assert.Equal(Ui.Overview.ConnectionsEmpty, model.RecentConnections.Single().Name);
         Assert.Equal(Ui.Overview.AttentionEmpty, model.Attention.Single().Name);
+    }
+
+    /// <summary>
+    /// An empty table's message is read, not used: it does not light up, take a click, or stay
+    /// selected, while a real row beside it still can.
+    /// </summary>
+    /// <remarks>
+    /// "No workspaces yet" highlighted under the pointer and was selected when clicked, which is
+    /// the first step to opening it. 1.4's lists just showed the message. Every placeholder in the
+    /// real shell is checked, then an empty Sync tasks, then a list holding both kinds, for Select all.
+    /// </remarks>
+    [AvaloniaFact]
+    public void AnEmptyTablesMessageCannotBeSelected()
+    {
+        var window = new MainWindow { DataContext = ShellPreview.Sample };
+        window.Show();
+        window.Measure(new Size(1500, 920));
+        window.Arrange(new Rect(0, 0, 1500, 920));
+        window.UpdateLayout();
+
+        var rows = window.GetVisualDescendants().OfType<TableViewRow>()
+            .Where(row => PlaceholderRows.IsPlaceholder(row.DataContext))
+            .ToArray();
+        Assert.Equal(3, rows.Length);
+        foreach (var row in rows)
+        {
+            var table = row.FindAncestorOfType<TableView>()!;
+            var centre = row.TranslatePoint(new Point(row.Bounds.Width / 2, row.Bounds.Height / 2), window)!.Value;
+            window.MouseMove(centre, RawInputModifiers.None);
+            window.MouseDown(centre, MouseButton.Left);
+            window.MouseUp(centre, MouseButton.Left);
+
+            Assert.False(row.IsPointerOver);
+            Assert.Null(table.SelectedItem);
+
+            table.SelectedIndex = 0;
+            Dispatcher.UIThread.RunJobs();
+            Assert.Null(table.SelectedItem);
+        }
+
+        // Sync tasks says the same kind of thing, through the same flag.
+        var sync = SyncTasksModel.Create();
+        Assert.All(sync.Tasks.Concat<object>(sync.LastSyncs), item => Assert.True(PlaceholderRows.IsPlaceholder(item)));
+
+        var real = new WorkspaceRow("Design", @"C:\Work\design.shw", "Pinned");
+        var list = new ListBox { SelectionMode = SelectionMode.Multiple, ItemsSource = new[] { real, rows[0].DataContext } };
+        var host = new Window { Content = list };
+        host.Show();
+        list.SelectAll();
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Same(real, Assert.Single(list.SelectedItems!));
+        host.Close();
+        window.Close();
     }
 
     /// <summary>

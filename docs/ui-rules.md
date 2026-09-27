@@ -33,6 +33,14 @@ a wish; each one below names the test that fails when it is broken. The target i
   to every TableView in the application by itself; a new table needs nothing to get it.
   _Test:_ `TableColumnRulesTests`, which drags every column of every table on Welcome, Sync tasks and
   a workspace, and shrinks the window.
+- **An empty table says so, and the message is not a row anybody can use.** "No workspaces yet" is a
+  row of its own, as 1.4's was, so the table keeps its columns and height. Its model says
+  `IsPlaceholder` (`IPlaceholderRow`), and `PlaceholderRows` does the rest for every TableView and
+  ListBox: no hover, no focus, a click falls through, and Select all or a selection from code is
+  undone. A command that acts on the selected row never gets the message. One that can run with
+  nothing selected, such as a context menu on the whole table or a double-click handler, still has
+  to cancel when `SelectedItem` is null, as 1.4's workspace menu did in its `Opening`.
+  _Test:_ `OverviewTests.AnEmptyTablesMessageCannotBeSelected`.
 - **Column widths are `*` or a number**, never `Auto`. An auto column follows its content, so an
   empty table has columns of nothing.
 - **Alignment is the column's.** A number column is right-aligned with the column's own

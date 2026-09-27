@@ -50,10 +50,16 @@ internal sealed class TabbedPageModel(IReadOnlyList<PageTab> tabs) : INotifyProp
 }
 
 /// <summary>A row of the saved sync tasks table.</summary>
-internal sealed record SyncTaskRow(string Name, string Behavior, string State, string Updated);
+internal sealed record SyncTaskRow(string Name, string Behavior, string State, string Updated) : IPlaceholderRow
+{
+    public bool IsPlaceholder { get; init; }
+}
 
 /// <summary>A row of the last-syncs table.</summary>
-internal sealed record LastSyncRow(string Name, string State, string Updated);
+internal sealed record LastSyncRow(string Name, string State, string Updated) : IPlaceholderRow
+{
+    public bool IsPlaceholder { get; init; }
+}
 
 /// <summary>
 /// The Tasks sub-tab, against docs/ui-reference/03-sync-tasks.png.
@@ -213,8 +219,7 @@ internal sealed class SyncTasksModel : INotifyPropertyChanged
 
         if (Tasks.Count == 0)
         {
-            Tasks.Add(new SyncTaskRow(
-                Ui.Sync.NoTasksConfigured, string.Empty, string.Empty, string.Empty));
+            Tasks.Add(EmptyTasks());
         }
 
         // A run names a profile by id. Resolving it here rather than showing the id is the whole
@@ -233,7 +238,7 @@ internal sealed class SyncTasksModel : INotifyPropertyChanged
 
         if (LastSyncs.Count == 0)
         {
-            LastSyncs.Add(new LastSyncRow(Ui.Sync.NoRunOpened, Ui.Sync.UseReviewAndRun, string.Empty));
+            LastSyncs.Add(EmptyLastSyncs());
         }
     }
 
@@ -246,9 +251,16 @@ internal sealed class SyncTasksModel : INotifyPropertyChanged
         Metrics.Add(new MetricCard(
             "0", Ui.Sync.RunsThisSession, LucideIconKind.ArrowLeftRight, MetricTone.Primary));
 
-        Tasks.Add(new SyncTaskRow(Ui.Sync.NoTasksConfigured, string.Empty, string.Empty, string.Empty));
-        LastSyncs.Add(new LastSyncRow(Ui.Sync.NoRunOpened, Ui.Sync.UseReviewAndRun, string.Empty));
+        Tasks.Add(EmptyTasks());
+        LastSyncs.Add(EmptyLastSyncs());
     }
+
+    /// <summary>What each table says with nothing in it, as a line that cannot be selected.</summary>
+    private static SyncTaskRow EmptyTasks() =>
+        new(Ui.Sync.NoTasksConfigured, string.Empty, string.Empty, string.Empty) { IsPlaceholder = true };
+
+    private static LastSyncRow EmptyLastSyncs() =>
+        new(Ui.Sync.NoRunOpened, Ui.Sync.UseReviewAndRun, string.Empty) { IsPlaceholder = true };
 
     private static string Count(int value) => value.ToString(CultureInfo.CurrentCulture);
 

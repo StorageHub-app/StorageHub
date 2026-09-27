@@ -22,6 +22,9 @@ public partial class App : global::Avalonia.Application
         // desktop branch below so the headless tests run under the same rules.
         TableColumnRules.Install();
 
+        // And an empty table's "No workspaces yet" is a message, not a row anybody can select.
+        PlaceholderRows.Install();
+
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             // The splash first, as 1.x opened: settings, the framework and the language, then the

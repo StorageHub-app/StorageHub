@@ -45,13 +45,22 @@ internal sealed record MetricCard(
 }
 
 /// <summary>A row of the workspaces table.</summary>
-internal sealed record WorkspaceRow(string Name, string Location, string State);
+internal sealed record WorkspaceRow(string Name, string Location, string State) : IPlaceholderRow
+{
+    public bool IsPlaceholder { get; init; }
+}
 
 /// <summary>A row of the recent-connections table.</summary>
-internal sealed record RecentConnectionRow(string Name, string Provider, string Details);
+internal sealed record RecentConnectionRow(string Name, string Provider, string Details) : IPlaceholderRow
+{
+    public bool IsPlaceholder { get; init; }
+}
 
 /// <summary>A row of the needs-attention table.</summary>
-internal sealed record AttentionRow(string Name, string State, string Updated);
+internal sealed record AttentionRow(string Name, string State, string Updated) : IPlaceholderRow
+{
+    public bool IsPlaceholder { get; init; }
+}
 
 /// <summary>
 /// The overview, which is what the Welcome tab shows.
@@ -117,9 +126,9 @@ internal sealed class OverviewModel : INotifyPropertyChanged
         _active = status.ActiveJobs.ToString(CultureInfo.CurrentCulture);
         _queued = status.QueuedJobs.ToString(CultureInfo.CurrentCulture);
         var strings = Ui.Overview;
-        Workspaces = [new(strings.WorkspacesEmpty, strings.WorkspacesEmptyHint, string.Empty)];
-        RecentConnections = [new(strings.ConnectionsEmpty, string.Empty, string.Empty)];
-        Attention = [new(strings.AttentionEmpty, string.Empty, string.Empty)];
+        Workspaces = [new(strings.WorkspacesEmpty, strings.WorkspacesEmptyHint, string.Empty) { IsPlaceholder = true }];
+        RecentConnections = [new(strings.ConnectionsEmpty, string.Empty, string.Empty) { IsPlaceholder = true }];
+        Attention = [new(strings.AttentionEmpty, string.Empty, string.Empty) { IsPlaceholder = true }];
     }
 
     /// <summary>
@@ -128,7 +137,8 @@ internal sealed class OverviewModel : INotifyPropertyChanged
     /// <remarks>
     /// The empty rows are rows, not an absence of them: the WinForms screen fills each table with a
     /// single line saying what would be there ("No workspaces yet" / "Save a workspace to pin it
-    /// here"), which reads better than an empty grid and keeps the column widths honest.
+    /// here"), which reads better than an empty grid and keeps the column widths honest. Each is
+    /// marked a placeholder, so it cannot be selected or opened (<see cref="PlaceholderRows"/>).
     /// </remarks>
     internal static OverviewModel Create(ShellStatusSnapshot status)
     {
@@ -305,7 +315,9 @@ internal sealed class OverviewModel : INotifyPropertyChanged
                     UiEnumNames.Describe(value.State),
                     value.UpdatedUtc.LocalDateTime.ToString("g", CultureInfo.CurrentCulture)))
                 .ToArray();
-            Attention = problems.Length > 0 ? problems : [new(Ui.Overview.AttentionEmpty, string.Empty, string.Empty)];
+            Attention = problems.Length > 0
+                ? problems
+                : [new(Ui.Overview.AttentionEmpty, string.Empty, string.Empty) { IsPlaceholder = true }];
             Raise(nameof(Attention));
 
             StatusText = Ui.Format(Ui.Overview.StatusUpdatedFormat, DateTime.Now);
@@ -354,7 +366,9 @@ internal sealed class OverviewModel : INotifyPropertyChanged
                 value.Provider.ToString(),
                 value.IsFavorite ? Ui.Overview.ConnectionFavorite : value.FolderPath ?? string.Empty))
             .ToArray();
-        RecentConnections = rows.Length > 0 ? rows : [new(Ui.Overview.ConnectionsEmpty, string.Empty, string.Empty)];
+        RecentConnections = rows.Length > 0
+            ? rows
+            : [new(Ui.Overview.ConnectionsEmpty, string.Empty, string.Empty) { IsPlaceholder = true }];
         Raise(nameof(RecentConnections));
     }
 

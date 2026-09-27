@@ -156,6 +156,10 @@ applied, and chosen on the Appearance page (P.5.1).
       limits alone still says "Concurrency settings…" (needs new strings), and a restart still
       waiting when StorageHub closes is dropped, as in 1.4.
 - [ ] P.3.8 The window opens centred.
+- [x] P.3.9 An empty table's message ("No workspaces yet", "No sync tasks configured") is not a row:
+      it does not light up, take a click or the selection, so nothing opens it. Only Welcome and Sync
+      tasks have such rows; the queue and the pane show theirs outside the list, as 1.4 did. Open: a
+      table-wide context menu or double-click, when P.3.1 adds them, still cancels on no selection.
 
 ### P.4 Transfers and sync
 
@@ -350,6 +354,10 @@ reference shot.
       section, which the hand-made groups replaced; say if it should come back. Was: coloured rounded icon tiles in place of the
       `STORAGE`/`CLIENT` text badges; tag chips under each card; a Favorites section above the
       storage groups; inline edit and delete on the selected card.
+- [ ] L.11 Row icons in the Welcome and Sync tasks tables (ref 01, 03), as 1.4 drew them: a muted info
+      glyph on an empty table's line (a green check on "Nothing needs attention", a muted "…" on
+      Sync tasks'), and connection, warning, enabled or run glyphs on real rows. A cell template on
+      the Name column keyed on `IsPlaceholder` covers the empty lines.
 
 ## 1. Settings that are refused today start working
 

@@ -917,4 +917,14 @@
     <Setter Property="Background" Value="Transparent"/>
   </Style>
 
+  <!--
+    An empty table's message ("No workspaces yet"), in a TableView or a ListBox. It is read, not
+    used: the pointer passes through it, so it never lights up or takes a click, and the arrow keys
+    step over it. PlaceholderRows sets the class and undoes any other way of selecting it.
+  -->
+  <Style Selector=":is(ListBoxItem).placeholder">
+    <Setter Property="IsHitTestVisible" Value="False"/>
+    <Setter Property="Focusable" Value="False"/>
+  </Style>
+
 </Styles>
