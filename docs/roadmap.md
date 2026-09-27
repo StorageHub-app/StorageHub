@@ -68,6 +68,13 @@ applied, and chosen on the Appearance page (P.5.1).
       save each changed workspace before closing; make shutdown finish before the process exits (the
       async `ShutdownRequested` handler is not awaited). The save prompt came with P.3.1: Cancel on
       any workspace keeps the shell open, and closing one changed tab asks the same.
+      `ShellShutdown` holds the first close: a second close meanwhile asks nothing and starts nothing,
+      the window takes no input once answered (as 1.x's froze), everything is let go at once and
+      each on its own so one that fails or hangs cannot keep the rest or the agent stop, and both
+      halves are bounded (5 s, then 10 s for the agent) before the window closes for real. Windows
+      signing out is not held when nothing is unsaved. The buttons stay Yes/No/Cancel, as 1.x's were.
+      The restart after a language change (P.5.1) closes the same way, but leaves the agent running,
+      and a restart of the agent for saved settings is finished before the agent is stopped.
 - [x] P.1.10 First-run "How should StorageHub run?" prompt and `AgentHostModeController` (Windows).
       Asked once, over the shell, by an installed Windows build (not one run from source); only a
       change of mode is applied, and the Settings page applies through the same controller. Closing

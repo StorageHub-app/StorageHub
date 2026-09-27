@@ -470,6 +470,9 @@ public class KeyStoreTests
 
         internal DialogPromptRequest? LastPrompt { get; private set; }
 
+        /// <summary>How many questions were answered with <see cref="Choice"/>.</summary>
+        internal int Asked { get; private set; }
+
         public Task ShowAsync(DialogRequest request, CancellationToken cancellationToken = default)
         {
             LastRequest = request;
@@ -479,6 +482,7 @@ public class KeyStoreTests
         public Task<DialogChoice> ConfirmAsync(DialogRequest request, CancellationToken cancellationToken = default)
         {
             LastRequest = request;
+            Asked++;
             return Task.FromResult(Choice);
         }
 

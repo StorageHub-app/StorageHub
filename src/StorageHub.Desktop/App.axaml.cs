@@ -198,61 +198,64 @@ public partial class App : global::Avalonia.Application
             _ = AgentHostModeWindow.OfferOnceAsync(window);
         }
 
-        // Everything the shell holds, closed before the window goes. Avalonia does not wait for an
-        // async handler, so this used to be cut off at its first await when the process exited:
-        // the first close is held, the cleanup runs to completion (bounded, so a stuck agent cannot
-        // hold the window open), and the window closes again.
-        var cleanedUp = false;
-        window.Closing += async (_, e) =>
+        // Everything the shell holds, closed before the window goes, after each changed workspace
+        // has asked, as 1.x did; Cancel on any of them leaves the shell exactly as it was. Avalonia
+        // does not wait for an async Closing handler, so the first close is held until this is done.
+        Services.ShellShutdown.Attach(
+            window,
+            () => model.Files?.ConfirmExitAsync() ?? Task.FromResult(true),
+            Held(),
+            StopAgentAsync);
+
+        IEnumerable<Func<Task>> Held()
         {
-            if (cleanedUp) return;
-            e.Cancel = true;
-
-            // Each workspace with unsaved changes asks first, as 1.x did; Cancel on any of them
-            // leaves the shell exactly as it was.
-            if (model.Files is { } files && !await files.ConfirmExitAsync().ConfigureAwait(true)) return;
-
-            try
+            // No restart for saved settings starts after this, not even from a status that arrives
+            // late: one could relaunch the agent beside the stop below, or race the next shell's
+            // startup on a language restart. One already running is waited for before that stop.
+            yield return () =>
             {
-                await CloseEverythingAsync().WaitAsync(TimeSpan.FromSeconds(10)).ConfigureAwait(true);
-            }
-            catch (Exception error) when (error is TimeoutException or IOException or InvalidOperationException or ObjectDisposedException)
+                model.StopRestartingAgent();
+                return Task.CompletedTask;
+            };
+
+            yield return () =>
             {
-                Framework.DesktopErrorLog.Write("shutdown", error);
-            }
+                updater.Dispose();
+                return Task.CompletedTask;
+            };
 
-            cleanedUp = true;
-            window.Close();
-        };
+            // A sync run under review is watched by polling the agent, which must not go on
+            // through the agent's own stop.
+            yield return () =>
+            {
+                model.SyncRunHistory?.Dispose();
+                return Task.CompletedTask;
+            };
+            yield return () => Services.ShellServices.CloseEditingAsync().AsTask();
+            yield return () => monitor.DisposeAsync().AsTask();
+            yield return () => model.Queue.DisposeAsync().AsTask();
 
-        async Task CloseEverythingAsync()
-        {
-            // A restart for saved settings is finished rather than cut off, and none starts after
-            // this: one left running could relaunch the agent beside the shutdown's stop below, or
-            // race the next shell's startup on a language restart.
-            model.StopRestartingAgent();
-            await model.AgentSettingsRestart.ConfigureAwait(true);
-
-            updater.Dispose();
-            await Services.ShellServices.CloseEditingAsync().ConfigureAwait(true);
-            await monitor.DisposeAsync().ConfigureAwait(true);
-            await model.Queue.DisposeAsync().ConfigureAwait(true);
+            // Each workspace closes its panes' connections and shells as it goes.
             foreach (var workspace in model.Workspaces
                 .Select(static tab => tab.Workspace)
-                .OfType<WorkspaceModel>())
+                .OfType<WorkspaceModel>()
+                .ToArray())
             {
-                await workspace.DisposeAsync().ConfigureAwait(true);
+                yield return () => workspace.DisposeAsync().AsTask();
             }
+        }
 
-            // "Only while StorageHub is open" means exactly that, so the agent goes with the window,
-            // as it did in 1.x. Only Windows has that mode; on Linux the agent is the user's unit.
-            // Not on a restart: the shell is back in a moment, and stopping the agent would
-            // interrupt the transfers and syncs it is running for nothing.
-            if (OperatingSystem.IsWindows() && DesktopAgentHost.DesktopStopsAgent && !DesktopRestart.Requested)
-            {
-                using var lifecycle = WindowsDesktopLifecycle.Create();
-                _ = await lifecycle.TryStopAgentAsync(AgentShutdownReason.Restart).ConfigureAwait(true);
-            }
+        // "Only while StorageHub is open" means exactly that, so the agent goes with the window, as
+        // it did in 1.x. Only Windows has that mode; on Linux the agent is the user's unit. A restart
+        // for saved settings is finished first rather than cut off. Not on a restart of the shell:
+        // it is back in a moment, and stopping the agent would interrupt the transfers and syncs it
+        // is running for nothing.
+        async Task StopAgentAsync()
+        {
+            await model.AgentSettingsRestart.ConfigureAwait(true);
+            if (!OperatingSystem.IsWindows() || !DesktopAgentHost.DesktopStopsAgent || DesktopRestart.Requested) return;
+            using var lifecycle = WindowsDesktopLifecycle.Create();
+            _ = await lifecycle.TryStopAgentAsync(AgentShutdownReason.Restart).ConfigureAwait(true);
         }
 
         return window;
