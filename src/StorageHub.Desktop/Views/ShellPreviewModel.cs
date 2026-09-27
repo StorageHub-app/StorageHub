@@ -1498,7 +1498,10 @@ internal static class ShellPreview
                 static () => new NamedPipeTransferQueueAgentClient())
             : OverviewModel.Create(ShellStatusSnapshot.Initial);
         overview.NewWorkspaceCommand = router.For(UiCommandIds.WorkspaceNewWorkspace);
-        overview.ConnectionsCommand = new RelayCommand(_ => model.Sidebar.ManageCommand?.Execute(null));
+
+        // Connections opens the Edit Connection dialog on a new connection, as 1.x's button did:
+        // the saved ones are already listed in the panel beside it.
+        overview.ConnectionsCommand = router.For(UiCommandIds.ConnectionsNewConnection);
 
         // Its workspace list acts through the same files and lists as the Workspace menu, so a
         // file opened, pinned or removed from either is the same file everywhere.
@@ -1694,7 +1697,8 @@ internal static class ShellPreview
         static (current, title) => Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(
             () => IconPickerWindow.AskAsync(Services.ShellServices.MainWindow(), current, title)),
 
-        // Toggle favorite reads and writes the whole profile, as the Connection Manager does.
+        // Toggle favorite reads and writes the whole profile, as the Edit Connection dialog does,
+        // and Delete removes one at the version the panel listed it at.
         static () => new NamedPipeRemoteConnectionProfileClient());
 
     /// <summary>The icons chosen for groups in the connections panel, from the settings file.</summary>

@@ -63,6 +63,17 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     private string _detailStatus = string.Empty;
     private bool _testing;
 
+    /// <summary>
+    /// The listed version the details' last test result was about, or null when what they say is
+    /// not a test result but why something the panel was asked to do was refused.
+    /// </summary>
+    /// <remarks>
+    /// A test describes the connection as it was when tested, so once it has been saved at another
+    /// version the result goes. A refusal answers what somebody just did, and stays until the
+    /// selection moves, even through the listing that follows it.
+    /// </remarks>
+    private long? _testedVersion;
+
     /// <param name="load">Where the saved arrangement comes from. Null means nothing is remembered.</param>
     /// <param name="save">
     /// Where a rearrangement goes. Called on every drag, which is cheap: the file is small and the
@@ -107,11 +118,20 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         TestSelectedCommand = new RelayCommand(
             _ => _ = TestSelectedAsync(), _ => _selected is not null && _client is not null && !_testing);
         EditSelectedCommand = new RelayCommand(
-            row => { if ((row as ConnectionRowModel ?? _selected) is { } chosen) EditConnection?.Invoke(chosen.Id); },
+            row => { if ((row as ConnectionRowModel ?? _selected) is { } chosen) EditConnection?.Invoke(chosen.Id, ConnectionEditorTab.General); },
+            _ => EditConnection is not null);
+        AttentionCommand = new RelayCommand(
+            _ => { if (_selected is { } row && Attention is { } attention) EditConnection?.Invoke(row.Id, attention.Tab); },
             _ => EditConnection is not null);
         DeleteSelectedCommand = new RelayCommand(
             row => { if ((row as ConnectionRowModel ?? _selected) is { } chosen && DeleteConnection is { } delete) _ = DeleteAndRefreshAsync(delete, chosen.Id); },
             _ => DeleteConnection is not null);
+
+        // The panel deletes on its own, as 1.x's did; it needs somewhere to ask and a profile store.
+        if (profiles is not null && dialogs is not null)
+        {
+            DeleteConnection = id => DeleteListedAsync(id);
+        }
     }
 
     /// <summary>
@@ -134,9 +154,12 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
             // group does not look unselected while its twin under Favorites is lit.
             foreach (var row in Rows()) row.IsSelected = value is not null && row.Id == value.Id;
             DetailStatus = string.Empty;
+            _testedVersion = null;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Selected)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasSelection)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Details)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasAttention)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(AttentionLabel)));
             RaiseDetailCommands();
         }
     }
@@ -193,6 +216,34 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
 
     public bool HasDetailStatus => _detailStatus.Length > 0;
 
+    /// <summary>
+    /// What the selected connection needs somebody to fix, and the editor's tab that fixes it, or
+    /// nothing, as 1.x's details panel worked it out from the connection's last health check.
+    /// </summary>
+    /// <remarks>
+    /// Only the two states somebody can resolve in the editor get a route there: credentials that
+    /// were refused, and a server identity waiting for a decision. A disabled connection gets none,
+    /// as it could not be opened to check anyway.
+    /// </remarks>
+    private (string Label, ConnectionEditorTab Tab)? Attention =>
+        _selected is { } row &&
+        Connections.FirstOrDefault(listed => listed.ConnectionId == row.Id) is { IsEnabled: true, Health: { } health }
+            ? health.RequiresCredentialAction
+                ? (Ui.Connections.DetailFixCredentials, ConnectionEditorTab.Authentication)
+                : health.RequiresTrustAction
+                    ? (Ui.Connections.DetailReviewTrust, ConnectionEditorTab.Trust)
+                    : null
+            : null;
+
+    /// <summary>Whether the details panel offers "Fix credentials…" or "Review trust…".</summary>
+    public bool HasAttention => Attention is not null;
+
+    /// <summary>"Fix credentials…" or "Review trust…", whichever the connection needs.</summary>
+    public string AttentionLabel => Attention?.Label ?? string.Empty;
+
+    /// <summary>Opens the Edit Connection dialog on the tab that fixes what the connection needs.</summary>
+    public ICommand AttentionCommand { get; }
+
     public ICommand OpenSelectedCommand { get; }
 
     public ICommand TestSelectedCommand { get; }
@@ -200,11 +251,14 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     /// <summary>Edit, on the selected card and in the details panel. Its parameter is the row, if any.</summary>
     public ICommand EditSelectedCommand { get; }
 
-    /// <summary>Delete, likewise. The shell asks first; the panel refreshes after.</summary>
+    /// <summary>Delete, likewise. The panel asks first, and lists again after.</summary>
     public ICommand DeleteSelectedCommand { get; }
 
-    /// <summary>Opens the editor on a connection. Assigned by the shell, which owns the windows.</summary>
-    public Action<Guid>? EditConnection
+    /// <summary>
+    /// Opens the Edit Connection dialog on a connection, on one of its tabs. Assigned by the shell,
+    /// which owns the windows.
+    /// </summary>
+    public Action<Guid, ConnectionEditorTab>? EditConnection
     {
         get;
         internal set
@@ -215,10 +269,11 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     }
 
     /// <summary>
-    /// Deletes a connection, confirming first. Assigned by the shell, so the check against the
-    /// listed version is the Connection Manager's and not a second copy of it.
+    /// Deletes a connection, confirming first, and answers whether it went:
+    /// <see cref="DeleteListedAsync"/> whenever the panel has a profile store and somewhere to ask.
+    /// Settable, so a test can see which connection a command names without an agent behind it.
     /// </summary>
-    public Func<Guid, Task>? DeleteConnection
+    public Func<Guid, Task<bool>>? DeleteConnection
     {
         get;
         internal set
@@ -228,11 +283,73 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         }
     }
 
-    private async Task DeleteAndRefreshAsync(Func<Guid, Task> delete, Guid id)
+    /// <summary>
+    /// Deletes, and once the connection has gone lists again and tells the shell, as 1.x's panel
+    /// did. A "no" or a refusal changes nothing saved, so Welcome is left alone.
+    /// </summary>
+    private async Task DeleteAndRefreshAsync(Func<Guid, Task<bool>> delete, Guid id)
     {
-        await delete(id).ConfigureAwait(true);
+        if (!await delete(id).ConfigureAwait(true)) return;
         await RefreshAsync().ConfigureAwait(true);
         ConnectionsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Asks, then deletes a connection at the version the panel listed it at, as 1.x's panel did.
+    /// </summary>
+    /// <returns>Whether the connection was deleted.</returns>
+    /// <remarks>
+    /// The version is the listing's rather than a fresh read, so a connection edited since it was
+    /// listed fails as a conflict instead of being deleted at a revision nobody saw. Why a delete
+    /// failed is said under the details, where a refused favourite is, and the panel lists again,
+    /// as 1.x's did, so a second try is made at whatever the connection is now. What was said stays
+    /// through that listing, because the connection is still there to describe.
+    /// </remarks>
+    internal async Task<bool> DeleteListedAsync(Guid connectionId, CancellationToken cancellationToken = default)
+    {
+        if (_profiles is null || _dialogs is null) return false;
+        if (Connections.FirstOrDefault(listed => listed.ConnectionId == connectionId) is not { } connection) return false;
+
+        var choice = await _dialogs.ConfirmAsync(
+            new DialogRequest
+            {
+                Title = Ui.Dialogs.DeleteConnectionCaption,
+                Message = Ui.Format(Ui.Dialogs.DeleteConnectionPromptFormat, connection.DisplayName),
+                Severity = DialogSeverity.Warning,
+                Buttons = DialogButtons.YesNo
+            },
+            cancellationToken).ConfigureAwait(true);
+        if (choice != DialogChoice.Yes) return false;
+
+        ConnectionProfileWriteResponse response;
+        try
+        {
+            await using var profiles = _profiles();
+            response = await profiles
+                .DeleteAsync(
+                    new ConnectionProfileDeleteRequest(
+                        ConnectionProfileIpcContract.CurrentVersion, connectionId, connection.Version),
+                    cancellationToken)
+                .ConfigureAwait(true);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            Refused(Ui.Connections.DeleteFailedThroughAgent);
+            return false;
+        }
+
+        if (response.Status == ConnectionProfileWriteStatus.Succeeded) return true;
+
+        Refused(response.Failure?.Message ?? Ui.Connections.DeleteFailed);
+        await RefreshAsync(cancellationToken).ConfigureAwait(true);
+        return false;
+    }
+
+    /// <summary>Says under the details why something the panel was asked to do did not happen.</summary>
+    private void Refused(string reason)
+    {
+        DetailStatus = reason;
+        _testedVersion = null;
     }
 
     /// <summary>
@@ -253,6 +370,7 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
 
         _testing = true;
         DetailStatus = Ui.Connections.DetailTesting;
+        _testedVersion = Connections.FirstOrDefault(listed => listed.ConnectionId == row.Id)?.Version;
         RaiseDetailCommands();
         try
         {
@@ -305,7 +423,7 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
                     .ConfigureAwait(true);
                 if (current.Profile is not { } profile)
                 {
-                    DetailStatus = current.Failure?.Message ?? Ui.Connections.LoadFailed;
+                    Refused(current.Failure?.Message ?? Ui.Connections.LoadFailed);
                     return;
                 }
 
@@ -321,7 +439,7 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
                     .ConfigureAwait(true);
                 if (response.Status != ConnectionProfileWriteStatus.Succeeded)
                 {
-                    DetailStatus = response.Failure?.Message ?? Ui.Connections.UpdateFailed;
+                    Refused(response.Failure?.Message ?? Ui.Connections.UpdateFailed);
                     return;
                 }
             }
@@ -331,7 +449,7 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            DetailStatus = Ui.Connections.UpdateFailedThroughAgent;
+            Refused(Ui.Connections.UpdateFailedThroughAgent);
         }
     }
 
@@ -341,6 +459,7 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         (TestSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
         (EditSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
         (DeleteSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        (AttentionCommand as RelayCommand)?.RaiseCanExecuteChanged();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -467,7 +586,7 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         (Ui.Connections.ContextOpenInNewPane, () => OpenConnectionInNewPane?.Invoke(row.Id), OpenConnectionInNewPane is not null),
         (CommandEntry.SeparatorLabel, static () => { }, false),
         (Ui.Connections.ContextToggleFavorite, () => _ = ToggleFavoriteAsync(row.Id), _profiles is not null),
-        (Ui.Connections.ContextEdit, () => EditConnection?.Invoke(row.Id), EditConnection is not null),
+        (Ui.Connections.ContextEdit, () => EditConnection?.Invoke(row.Id, ConnectionEditorTab.General), EditConnection is not null),
         (CommandEntry.SeparatorLabel, static () => { }, false),
         (Ui.Connections.ContextDelete, () => { if (DeleteConnection is { } delete) _ = DeleteAndRefreshAsync(delete, row.Id); }, DeleteConnection is not null),
     ];
@@ -479,24 +598,6 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         {
             field = value;
             RaiseDetailCommands();
-        }
-    }
-
-    /// <summary>
-    /// Opens the Connection Manager, where a saved connection is edited.
-    /// </summary>
-    /// <remarks>
-    /// Assigned by the shell rather than built here, because opening a window needs one to be the
-    /// owner and a panel does not know which. Null until it is, which leaves the menu entry dim
-    /// rather than failing when it is pressed.
-    /// </remarks>
-    public ICommand? ManageCommand
-    {
-        get;
-        internal set
-        {
-            field = value;
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ManageCommand)));
         }
     }
 
@@ -514,8 +615,6 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     public string DetailPlaceholder => Ui.Connections.DetailEmpty;
 
     public string NewGroupLabel => Ui.Connections.NewGroup;
-
-    public string ManageLabel => Ui.Connections.ManagerTitle;
 
     public string MoveToOtherSideLabel => Ui.Connections.MoveToOtherSide;
 
@@ -778,13 +877,25 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
                 _icons.GetValueOrDefault(name)));
         }
 
+        // The same connection stays selected on its new row, and one that has gone, deleted or
+        // hidden by a search, takes the details with it rather than leaving them describing
+        // something off screen. The rows are new, so the setter always runs and says so. What the
+        // details last said stays with a connection still there: a refusal until the selection
+        // moves, a test result until the connection is saved at another version.
+        var said = _detailStatus;
+        var testedAt = _testedVersion;
+        Selected = Rows().FirstOrDefault(row => row.Id == chosen);
+        if (_selected is { } kept &&
+            (testedAt is null || testedAt == Connections.FirstOrDefault(listed => listed.ConnectionId == kept.Id)?.Version))
+        {
+            DetailStatus = said;
+            _testedVersion = testedAt;
+        }
+
         // A search that matches nothing reads as an empty panel otherwise, which is the same
         // picture as having no connections at all and a very different situation. Anything the
         // listing itself had to say outranks it: an agent that did not answer is the more useful
         // thing to be told, and is still true whatever is typed in the box.
-        _selected = null;
-        Selected = Rows().FirstOrDefault(row => row.Id == chosen);
-
         var searchFoundNothing = HasSearch && matched == 0 && _cards.Count > 0;
         IsEmpty = _cards.Count == 0 || searchFoundNothing;
         Status = searchFoundNothing ? Ui.Connections.NoMatches : _listingStatus;

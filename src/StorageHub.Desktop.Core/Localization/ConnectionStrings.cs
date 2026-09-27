@@ -85,8 +85,6 @@ internal sealed class ConnectionStrings : LocalizationModelBase
     // ------------------------------------------------------------------ the editor
     public string SaveConnection { get; set; } = "Save";
 
-    public string TestConnection { get; set; } = "Test";
-
     public string Provider { get; set; } = "Provider";
 
     public string SectionGeneral { get; set; } = "General";
@@ -109,10 +107,6 @@ internal sealed class ConnectionStrings : LocalizationModelBase
 
     public string ConnectionUnreachable { get; set; } =
         "The agent could not reach this connection with these settings.";
-
-    public string ManagerTitle { get; set; } = "Connections";
-
-    public string EditorEmpty { get; set; } = "Choose a connection to edit, or add one.";
 
     // ------------------------------------------------------------------- groups
     /// <summary>

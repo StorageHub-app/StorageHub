@@ -7,11 +7,11 @@ using StorageHub.Desktop.Services;
 namespace StorageHub.Desktop.Views;
 
 /// <summary>
-/// The Connection Manager window.
+/// The Edit Connection dialog: the connection editor for one connection, as 1.x's was.
 /// </summary>
 /// <remarks>
-/// Every saved connection and the editor for whichever is chosen. The list is loaded when the
-/// window opens rather than when it is built, so a window that never opens never asks the agent.
+/// The connection is loaded when the window opens rather than when it is built, so a window that
+/// never opens never asks the agent.
 /// </remarks>
 public partial class ConnectionManagerWindow : Window
 {
@@ -23,45 +23,57 @@ public partial class ConnectionManagerWindow : Window
             if (DataContext is ConnectionManagerModel model) model.Closed += (_, _) => Close();
         };
 
+        // On the tab it was asked for, once shown, as 1.x's OnShown chose it. The tabs are always
+        // the same three in the same order, so the tab is its index.
         Opened += (_, _) =>
         {
-            if (DataContext is ConnectionManagerModel model) _ = model.RefreshAsync();
+            if (DataContext is ConnectionManagerModel model && this.FindControl<TabControl>("PART_Tabs") is { } tabs)
+            {
+                tabs.SelectedIndex = (int)model.Tab;
+            }
         };
     }
 
     /// <summary>
-    /// The manager over the real agent.
+    /// The dialog over the real agent, on a saved connection or, given none, on a new one.
     /// </summary>
     /// <remarks>
-    /// The key store picker is opened over this window rather than over the shell, because this
-    /// window is modal to the shell and a dialog owned by something behind a modal ends up behind
-    /// it too.
+    /// The key store and icon pickers are opened over this window rather than over the shell,
+    /// because this window is modal to the shell and a dialog owned by something behind a modal
+    /// ends up behind it too. Closing the window stops a connection still loading, as closing
+    /// 1.x's cancelled its form's lifetime.
     /// </remarks>
-    /// <summary>
-    /// The manager without a window, for the sidebar's Delete: it lists, selects and deletes with
-    /// the same confirmation and version check the window uses.
-    /// </summary>
-    internal static ConnectionManagerModel HeadlessForCurrentAgent() => new(
-        static () => new NamedPipeRemoteStorageAgentClient(),
-        static () => new ConnectionManagerController(
-            new NamedPipeRemoteConnectionProfileClient(),
-            new NamedPipeRemoteSecretVaultClient()),
-        ShellServices.Dialogs);
-
-    internal static ConnectionManagerWindow ForCurrentAgent()
+    /// <param name="initialProvider">
+    /// The provider a new connection starts on: S3, as 1.x's did, unless a caller names one.
+    /// </param>
+    internal static ConnectionManagerWindow ForCurrentAgent(
+        Guid? connectionId = null,
+        ConnectionEditorTab tab = ConnectionEditorTab.General,
+        StorageProviderKind initialProvider = StorageProviderKind.S3)
     {
         var window = new ConnectionManagerWindow();
-        window.DataContext = new ConnectionManagerModel(
-            static () => new NamedPipeRemoteStorageAgentClient(),
+        var model = new ConnectionManagerModel(
             static () => new ConnectionManagerController(
                 new NamedPipeRemoteConnectionProfileClient(),
                 new NamedPipeRemoteSecretVaultClient()),
+            static () => new NamedPipeRemoteStorageAgentClient(),
             ShellServices.Dialogs,
             ShellServices.FilePicker,
             static () => new NamedPipeKeyStoreAgentClient(),
             entries => KeyStorePickerWindow.ChooseAsync(window, entries),
             (current, title) => IconPickerWindow.AskAsync(window, current, title),
-            LoadConnectionDefaults());
+            LoadConnectionDefaults())
+        {
+            Tab = tab
+        };
+        var lifetime = new CancellationTokenSource();
+        window.DataContext = model;
+        window.Opened += (_, _) => _ = model.OpenAsync(connectionId, initialProvider, lifetime.Token);
+        window.Closed += (_, _) =>
+        {
+            lifetime.Cancel();
+            lifetime.Dispose();
+        };
         return window;
     }
 

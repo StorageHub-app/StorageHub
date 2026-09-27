@@ -63,17 +63,21 @@ public partial class App : global::Avalonia.Application
         model.Router.Handle(UiCommandIds.ToolsSettings, () => ShowSettings(pageKey: null));
 
         // Speed limits live on Transfers & sync beside concurrency, since both are how the
-        // agent's transfers run; a connection's own limit is in the Connection Manager.
+        // agent's transfers run; a connection's own limit is in its Edit Connection dialog.
         model.Router.Handle(
             UiCommandIds.TransferSpeedLimits, () => ShowSettings(SettingsPageCatalog.PerformancePageKey));
 
         void ShowSettings(string? pageKey)
         {
-            // A provider's page can open the Connection Manager, so the panel is re-read after
-            // it the way it is after the manager opened from the panel.
+            // A provider's page can open the Edit Connection dialog, so the panel and Welcome are
+            // re-read after a save there the way they are after one from the panel.
             var settings = Views.SettingsWindow.ForCurrentUser(
                 pageKey,
-                () => _ = model.Sidebar.RefreshAsync(),
+                () =>
+                {
+                    _ = model.Sidebar.RefreshAsync();
+                    _ = model.Overview?.RefreshAsync();
+                },
                 () => _ = model.ApplyAgentSettingsAsync());
 
             // The connections panel's side is a setting there too, and moves the panel as it closes.
@@ -112,26 +116,16 @@ public partial class App : global::Avalonia.Application
         // so it asks about each changed workspace and shuts down through the Closing handler below.
         model.Router.Handle(UiCommandIds.WorkspaceExit, () => window.Close());
 
-        // The Connection Manager, from the menu and from the panel's own New button. Both open
-        // the same window: "new connection" is the manager with an empty editor, which is one
-        // screen rather than a second one that would have to agree with it about every field.
-        model.Router.Handle(UiCommandIds.ConnectionsNewConnection, () =>
-            ShowConnections(desktop, model, startNew: true));
-        model.Sidebar.ManageCommand = new RelayCommand(
-            _ => ShowConnections(desktop, model, startNew: false));
-
-        // The details panel's Edit and Delete, and the same two on a selected card. Both go
-        // through the Connection Manager: Edit opens it on that connection, and Delete uses its
-        // confirmation and its check against the listed version rather than a second copy.
-        model.Sidebar.EditConnection = id => ShowConnections(desktop, model, startNew: false, select: id);
-        model.Sidebar.DeleteConnection = async id =>
-        {
-            var manager = Views.ConnectionManagerWindow.HeadlessForCurrentAgent();
-            if (await manager.SelectAsync(id).ConfigureAwait(true)) await manager.DeleteAsync().ConfigureAwait(true);
-        };
+        // 1.x's plain Edit Connection dialog. New Connection opens it on a new connection, from
+        // the menu, the toolbar, the panel's New button and Welcome's Connections; Edit opens it on
+        // the connection it was pressed on, from a card, its menu or the details panel, and the
+        // details panel's "Fix credentials…" and "Review trust…" open it on the tab that fixes it.
+        // Listing, testing and deleting are the panel's own, as they were in 1.x.
+        model.Router.Handle(UiCommandIds.ConnectionsNewConnection, () => ShowConnectionEditor(desktop, model));
+        model.Sidebar.EditConnection = (id, tab) => ShowConnectionEditor(desktop, model, id, tab);
 
         // The key store: import a key or a certificate once, and reference it from any number
-        // of connections. It is what the Connection Manager's "Key Store…" buttons pick from.
+        // of connections. It is what the connection editor's "Key Store…" buttons pick from.
         model.Router.Handle(UiCommandIds.ConnectionsKeyStore, () => ShowKeyStore(desktop));
 
         // The sync profile editor, from the menu and from the tasks screen's New button.
@@ -282,27 +276,30 @@ public partial class App : global::Avalonia.Application
     }
 
     /// <summary>
-    /// Opens the Connection Manager, and refreshes the panel once it closes.
+    /// Opens the Edit Connection dialog on a connection, or on a new one, and brings the panel and
+    /// Welcome's recent connections up to date whenever it writes one, as 1.x did.
     /// </summary>
     /// <remarks>
-    /// Refreshed on close rather than on every write, because the manager is modal to the shell:
-    /// nothing can look at the panel while it is open, so one refresh at the end is both cheaper
-    /// and the only moment it matters.
+    /// Refreshed on every write rather than once the dialog closes, as 1.x's ProfilesChanged did: a
+    /// save still in flight when Cancel is pressed lands after the close, and one whose pin was
+    /// refused has written the profile although the dialog stays open.
     /// </remarks>
-    private static void ShowConnections(
+    private static void ShowConnectionEditor(
         IClassicDesktopStyleApplicationLifetime desktop,
         ShellPreviewModel model,
-        bool startNew,
-        Guid? select = null)
+        Guid? connectionId = null,
+        Views.ConnectionEditorTab tab = Views.ConnectionEditorTab.General)
     {
-        var window = Views.ConnectionManagerWindow.ForCurrentAgent();
-        if (window.DataContext is Views.ConnectionManagerModel manager)
+        var window = Views.ConnectionManagerWindow.ForCurrentAgent(connectionId, tab);
+        if (window.DataContext is Views.ConnectionManagerModel editor)
         {
-            if (startNew) manager.StartNew();
-            if (select is { } id) window.Opened += (_, _) => _ = manager.SelectAsync(id);
+            editor.ProfilesChanged += (_, _) =>
+            {
+                _ = model.Sidebar.RefreshAsync();
+                _ = model.Overview?.RefreshAsync();
+            };
         }
 
-        window.Closed += (_, _) => _ = model.Sidebar.RefreshAsync();
         if (desktop.MainWindow is { } owner) _ = window.ShowDialog(owner);
         else window.Show();
     }

@@ -13,7 +13,7 @@ using Xunit;
 namespace StorageHub.Desktop.Tests;
 
 /// <summary>
-/// The Connection Manager: every saved connection, and the editor for whichever is chosen.
+/// The Edit Connection dialog, the editor in it, and the panel's own delete.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -358,45 +358,97 @@ public class ConnectionManagerTests
     }
 
     /// <summary>
-    /// A delete is checked against the version the row was listed at.
+    /// 1.x's plain Edit Connection dialog: New starts on S3 and says it is new; a save pins the host
+    /// key it was given and closes the dialog; Edit opens it on the tab asked for, at the version
+    /// saved and with the pinned key back in its field, so a rename alone can be saved; and Cancel
+    /// writes nothing.
     /// </summary>
-    /// <remarks>
-    /// That is what turns "somebody else edited this while the manager was open" into a refusal
-    /// rather than a deletion at a revision nobody reviewed.
-    /// </remarks>
     [AvaloniaFact]
-    public async Task DeletingPinsTheVersionThatWasListed()
+    public async Task TheDialogOpensOnANewOrASavedConnectionAndASaveClosesIt()
     {
+        var cancellation = TestContext.Current.CancellationToken;
         var profiles = new FakeProfiles();
-        var dialogs = new YesDialogs();
-        var manager = new ConnectionManagerModel(
-            () => new ListingAgent([Summary("Studio Assets", version: 7)]),
-            () => Controller(profiles),
-            dialogs);
-        await manager.RefreshAsync(TestContext.Current.CancellationToken);
+        var created = new ConnectionManagerModel(() => Controller(profiles));
+        var closed = 0;
+        var written = 0;
+        created.Closed += (_, _) => closed++;
+        created.ProfilesChanged += (_, _) => written++;
 
-        manager.Selected = manager.Connections[0];
-        await manager.DeleteAsync(TestContext.Current.CancellationToken);
+        await created.OpenAsync(null, cancellationToken: cancellation);
+        Assert.Equal(StorageProviderKind.S3, created.Editor.Provider.Kind);
+        Assert.True(created.Editor.IsNew);
+        Assert.Equal(Ui.ConnectionEditor.NewUnsavedProfile, created.Editor.Status);
 
-        Assert.Equal(7, profiles.DeletedVersion);
+        created.Editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Sftp);
+        Field(created.Editor, "privateKeyReference").Value = KeyStoreTests.Reference('k');
+        Field(created.Editor, "privateKeyPassphraseReference").Value = KeyStoreTests.Reference('p');
+        Field(created.Editor, "hostKeyFingerprint").Value = HostKey;
+        Fill(created.Editor);
+        await created.Editor.SaveAsync(cancellation);
+        Assert.Equal(HostKey, Assert.Single(profiles.Pins.Values));
+        Assert.Equal((1, 1), (closed, written));
+
+        // As "Review trust…" opens it: on TLS / SSH Trust, which is there for every provider.
+        var edited = new ConnectionManagerModel(() => Controller(profiles)) { Tab = ConnectionEditorTab.Trust };
+        await edited.OpenAsync(created.Editor.Current!.ConnectionId, cancellationToken: cancellation);
+        Assert.Equal(Ui.Format(Ui.ConnectionEditor.LoadedVersionFormat, 1), edited.Editor.LoadedVersion);
+        Assert.Equal(HostKey, Field(edited.Editor, "hostKeyFingerprint").Value);
+        Name(edited.Editor, "Studio Assets 2");
+        Assert.True(edited.Editor.SaveCommand.CanExecute(null));
+
+        var window = new ConnectionManagerWindow { DataContext = edited };
+        window.Show();
+        Assert.Equal((int)ConnectionEditorTab.Trust, window.FindControl<TabControl>("PART_Tabs")!.SelectedIndex);
+
+        edited.CloseCommand.Execute(null);
+        Assert.False(window.IsVisible);
+        Assert.Equal((1, 0), (profiles.Creates, profiles.Updates));
     }
 
-    /// <summary>Deleting asks first, and a "no" leaves the connection alone.</summary>
+    /// <summary>
+    /// The panel deletes a connection itself, as 1.x's did: it asks first, and a yes deletes at the
+    /// version the panel listed, takes the details with it and tells the shell. A connection whose
+    /// credentials were refused offers "Fix credentials…", which opens the editor on its tab.
+    /// </summary>
     [AvaloniaFact]
-    public async Task DecliningTheDeleteKeepsTheConnection()
+    public async Task DeletingFromThePanelAsksFirstAndPinsTheListedVersion()
     {
+        var cancellation = TestContext.Current.CancellationToken;
         var profiles = new FakeProfiles();
         var dialogs = new YesDialogs { Choice = Desktop.Shell.DialogChoice.No };
-        var manager = new ConnectionManagerModel(
-            () => new ListingAgent([Summary("Studio Assets")]),
-            () => Controller(profiles),
-            dialogs);
-        await manager.RefreshAsync(TestContext.Current.CancellationToken);
-        manager.Selected = manager.Connections[0];
+        var refused = new ConnectionHealthSnapshot(
+            ConnectionHealthState.NeedsAttention, DateTimeOffset.UtcNow, 5, "Refused",
+            RequiresCredentialAction: true);
+        ConnectionSummary[] listing = [Summary("Studio Assets", version: 7) with { Health = refused }];
+        var sidebar = new ConnectionsSidebar(
+            new RelayCommand(static _ => { }),
+            () => new ListingAgent(profiles.DeletedVersion is null ? listing : []),
+            dialogs,
+            profiles: () => profiles);
+        var changed = 0;
+        sidebar.ConnectionsChanged += (_, _) => changed++;
+        (Guid Id, ConnectionEditorTab Tab)? edited = null;
+        sidebar.EditConnection = (id, tab) => edited = (id, tab);
+        await sidebar.RefreshAsync(cancellation);
+        var row = sidebar.Groups[0].Connections[0];
+        sidebar.Select(row);
 
-        await manager.DeleteAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(Ui.Connections.DetailFixCredentials, sidebar.AttentionLabel);
+        sidebar.AttentionCommand.Execute(null);
+        Assert.Equal((row.Id, ConnectionEditorTab.Authentication), edited);
 
+        Assert.False(await sidebar.DeleteListedAsync(row.Id, cancellation));
         Assert.Null(profiles.DeletedVersion);
+
+        // Delete on the card and in the details panel is that, with nothing assigned by the shell.
+        dialogs.Choice = Desktop.Shell.DialogChoice.Yes;
+        var described = new List<string?>();
+        sidebar.PropertyChanged += (_, e) => described.Add(e.PropertyName);
+        sidebar.DeleteSelectedCommand.Execute(null);
+        Assert.Equal(7, profiles.DeletedVersion);
+        Assert.False(sidebar.HasSelection);
+        Assert.Contains(nameof(ConnectionsSidebar.Details), described);
+        Assert.Equal(1, changed);
     }
 
     /// <summary>
@@ -466,24 +518,6 @@ public class ConnectionManagerTests
         Name(editor, "Studio Assets 2");
         await editor.SaveAsync(cancellation);
         Assert.True(profiles.LastDraft!.Metadata.IsFavorite);
-    }
-
-    /// <summary>The list says what each connection is, the same way the panel does.</summary>
-    [AvaloniaFact]
-    public async Task TheListBadgesClientsAndStorage()
-    {
-        var manager = new ConnectionManagerModel(
-            () => new ListingAgent(
-            [
-                Summary("Studio Assets"),
-                Summary("build-box", provider: StorageConnectionProvider.Ssh, client: true)
-            ]),
-            () => Controller(new FakeProfiles()));
-
-        await manager.RefreshAsync(TestContext.Current.CancellationToken);
-
-        Assert.Equal(Ui.Connections.BadgeStorage, manager.Connections[0].Badge);
-        Assert.Equal(Ui.Connections.BadgeClient, manager.Connections[1].Badge);
     }
 
     /// <summary>
@@ -647,7 +681,7 @@ public class ConnectionManagerTests
     }
 
     /// <summary>
-    /// Photographs the manager in both appearances, for a human to look at.
+    /// Photographs the Edit Connection dialog in both appearances, for a human to look at.
     /// </summary>
     /// <remarks>
     /// Two hundred descriptor-driven rows is exactly the sort of screen that lays out wrong without
@@ -656,27 +690,21 @@ public class ConnectionManagerTests
     [AvaloniaTheory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task TheManagerCanBePhotographed(bool dark)
+    public async Task TheDialogCanBePhotographed(bool dark)
     {
         ColorSchemeApplier.Apply(
             global::Avalonia.Application.Current!,
             ColorSchemeCatalog.Resolve(id: null, preferDark: dark));
 
-        var manager = new ConnectionManagerModel(
-            () => new ListingAgent(
-            [
-                Summary("Studio Assets"),
-                Summary("Site Backups"),
-                Summary("build-box", provider: StorageConnectionProvider.Ssh, client: true)
-            ]),
-            () => Controller(new FakeProfiles()));
-        await manager.RefreshAsync(TestContext.Current.CancellationToken);
+        var manager = new ConnectionManagerModel(() => Controller(new FakeProfiles()));
+        await manager.OpenAsync(null, cancellationToken: TestContext.Current.CancellationToken);
 
+        // At the size it opens at, and with the editor alone in it: the connections are the
+        // panel's to list, as they were in 1.x.
         var window = new ConnectionManagerWindow { DataContext = manager };
         window.Show();
-        window.Measure(new Size(920, 620));
-        window.Arrange(new Rect(0, 0, 920, 620));
         window.UpdateLayout();
+        Assert.Empty(window.GetVisualDescendants().OfType<ListBox>());
 
         var frame = window.CaptureRenderedFrame();
         Assert.NotNull(frame);
@@ -686,7 +714,7 @@ public class ConnectionManagerTests
 
         Directory.CreateDirectory(directory);
         using (var stream = File.Create(
-            Path.Combine(directory, $"connection-manager-{(dark ? "dark" : "light")}.png")))
+            Path.Combine(directory, $"connection-editor-{(dark ? "dark" : "light")}.png")))
         {
             frame!.Save(stream, new PngBitmapEncoderOptions());
         }
@@ -696,30 +724,33 @@ public class ConnectionManagerTests
         manager.Editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Sftp);
         // Taller than the window opens, so every row down to the speed limits is in the frame
         // rather than under the scroll.
-        window.Measure(new Size(920, 1600));
-        window.Arrange(new Rect(0, 0, 920, 1600));
+        window.Measure(new Size(880, 1600));
+        window.Arrange(new Rect(0, 0, 880, 1600));
         window.UpdateLayout();
         var sftp = window.CaptureRenderedFrame();
         Assert.NotNull(sftp);
         using (var stream = File.Create(
-            Path.Combine(directory, $"connection-manager-sftp-{(dark ? "dark" : "light")}.png")))
+            Path.Combine(directory, $"connection-editor-sftp-{(dark ? "dark" : "light")}.png")))
         {
             sftp!.Save(stream, new PngBitmapEncoderOptions());
         }
 
         // And FTPS, the longest editor: its certificate rows, then Proxy, Speed limits and Advanced.
         manager.Editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Ftps);
-        window.Measure(new Size(920, 2100));
-        window.Arrange(new Rect(0, 0, 920, 2100));
+        window.Measure(new Size(880, 2100));
+        window.Arrange(new Rect(0, 0, 880, 2100));
         window.UpdateLayout();
         var ftps = window.CaptureRenderedFrame();
         Assert.NotNull(ftps);
         using (var stream = File.Create(
-            Path.Combine(directory, $"connection-manager-ftps-{(dark ? "dark" : "light")}.png")))
+            Path.Combine(directory, $"connection-editor-ftps-{(dark ? "dark" : "light")}.png")))
         {
             ftps!.Save(stream, new PngBitmapEncoderOptions());
         }
     }
+
+    /// <summary>A host key as the agent reports one, which is what a pin is checked against.</summary>
+    private static readonly string HostKey = "SHA256:" + Convert.ToBase64String(new byte[32]).TrimEnd('=');
 
     private static ConnectionManagerController Controller(FakeProfiles profiles) =>
         new(profiles, new FakeVault());
@@ -782,6 +813,9 @@ public class ConnectionManagerTests
 
         internal StorageIpcFailure? Failure { get; init; }
 
+        /// <summary>The fingerprint each connection is pinned to, one trusted record apiece.</summary>
+        internal Dictionary<Guid, string> Pins { get; } = [];
+
         public Task<ConnectionProfileGetResponse> GetAsync(
             ConnectionProfileGetRequest request,
             CancellationToken cancellationToken = default) =>
@@ -814,16 +848,34 @@ public class ConnectionManagerTests
             DeletedVersion = request.ExpectedVersion;
             _ = _stored.Remove(request.ConnectionId);
             return Task.FromResult(new ConnectionProfileWriteResponse(
-                ConnectionProfileIpcContract.CurrentVersion, ConnectionProfileWriteStatus.Deleted));
+                ConnectionProfileIpcContract.CurrentVersion, ConnectionProfileWriteStatus.Succeeded));
         }
 
         public Task<ConnectionTrustGetResponse> GetTrustAsync(
             ConnectionTrustGetRequest request,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+            CancellationToken cancellationToken = default)
+        {
+            var now = DateTimeOffset.UtcNow;
+            ConnectionTrustRecordDocument[] records = Pins.TryGetValue(request.ConnectionId, out var pin)
+                ? [new("trust-1", pin, ConnectionTrustDecision.Trusted, now, now, null, null, 1)]
+                : [];
+            return Task.FromResult(new ConnectionTrustGetResponse(
+                ConnectionTrustIpcContract.CurrentVersion,
+                new ConnectionTrustSnapshot(
+                    request.ConnectionId,
+                    request.ExpectedProfileVersion,
+                    new ConnectionTrustTargetDocument(ConnectionTrustArtifactKind.SshHostKey, "sample", 22),
+                    records)));
+        }
 
         public Task<ConnectionTrustMutationResponse> DecideTrustAsync(
             ConnectionTrustDecisionRequest request,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+            CancellationToken cancellationToken = default)
+        {
+            Pins[request.ConnectionId] = request.Sha256Fingerprint;
+            return Task.FromResult(new ConnectionTrustMutationResponse(
+                ConnectionTrustIpcContract.CurrentVersion, ConnectionTrustMutationStatus.Succeeded));
+        }
 
         public Task<ConnectionTrustMutationResponse> RolloverTrustAsync(
             ConnectionTrustRolloverRequest request,
@@ -923,7 +975,7 @@ public class ConnectionManagerTests
 
     private sealed class YesDialogs : Desktop.Shell.IDialogService
     {
-        internal Desktop.Shell.DialogChoice Choice { get; init; } = Desktop.Shell.DialogChoice.Yes;
+        internal Desktop.Shell.DialogChoice Choice { get; set; } = Desktop.Shell.DialogChoice.Yes;
 
         public Task ShowAsync(
             Desktop.Shell.DialogRequest request,

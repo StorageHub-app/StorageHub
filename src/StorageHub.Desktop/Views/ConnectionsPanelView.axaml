@@ -152,15 +152,11 @@
                   <LucideIcon Kind="FolderPlus" Size="{StaticResource IconSizeSm}"/>
                 </MenuItem.Icon>
               </MenuItem>
-              <Separator/>
-              <MenuItem Header="{Binding ManageLabel}" Command="{Binding ManageCommand}">
-                <MenuItem.Icon>
-                  <LucideIcon Kind="Settings" Size="{StaticResource IconSizeSm}"/>
-                </MenuItem.Icon>
-              </MenuItem>
               <!-- 1.x's own three, in its order: move, refresh, and hide below a line. Move and
                    hide are the View menu's commands, so either route leaves the same layout. A
-                   panel shown without the shell has no layout to change, and leaves them out. -->
+                   panel shown without the shell has no layout to change, and leaves them out.
+                   There is no way into a list of connections from here, as there was none in 1.x:
+                   this panel is that list, and New connection and Edit open the dialog for one. -->
               <Separator/>
               <MenuItem Header="{Binding MoveToOtherSideLabel}" Command="{Binding MoveToOtherSideCommand}"
                         IsVisible="{Binding MoveToOtherSideCommand, Converter={x:Static ObjectConverters.IsNotNull}}">
@@ -259,6 +255,17 @@
                 </StackPanel>
               </Button>
             </WrapPanel>
+
+            <!-- Above the actions, in the warning colour, as 1.x's was: "Fix credentials…" or
+                 "Review trust…" when the last check found one, opening the editor on the tab
+                 that fixes it. -->
+            <Button DockPanel.Dock="Bottom" HorizontalAlignment="Stretch" Margin="0,8,0,0"
+                    IsVisible="{Binding HasAttention}" Command="{Binding AttentionCommand}">
+              <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+                <LucideIcon Kind="TriangleAlert" Size="{StaticResource IconSizeSm}" Classes="warning"/>
+                <TextBlock Classes="warning" Text="{Binding AttentionLabel}"/>
+              </StackPanel>
+            </Button>
 
             <TextBlock DockPanel.Dock="Bottom" Classes="caption" TextWrapping="Wrap"
                        IsVisible="{Binding HasDetailStatus}" Text="{Binding DetailStatus}"/>

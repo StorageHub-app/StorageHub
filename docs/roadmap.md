@@ -363,7 +363,12 @@ applied, and chosen on the Appearance page (P.5.1).
       still starting counts as answering; on Linux the summary names systemd rather than a mode,
       since mode detection there does not read what systemd has enabled. Open: 1.4's per-user
       database is found and pointed at, but nothing migrates it into 2.0's root.
-- [ ] P.5.7 Open an SSH client in its own window from the Connection Manager.
+- [x] P.5.7 Open an SSH client in its own window from the Connection Manager. Nothing to port, found
+      with L.4: 1.4 had no route to it. Its only own-window terminal was "Open client" on Quick
+      Connect's toolbar, and Quick Connect was never enabled in 1.4 (it is not in
+      `IsAvailableCommand`, and 2.0 matches). 1.1 took "Open client" off the saved-connection editor
+      as a second route to the panel's Open, which opens a client connection as a terminal in a
+      pane, as 2.0 does. A pop-out terminal, or Quick Connect, would be a feature after parity.
 - [ ] P.5.8 "Show favourites in their folders too" is applied: the connections panel lists a favourite
       under its folder as well as under Favourites, and re-reads the setting when Settings closes, as
       1.4's `RefreshConnectionSurfaces` did. The row is saved but nothing reads it yet.
@@ -405,9 +410,19 @@ reference shot.
 - [ ] L.11 Sync tasks' first sub-tab reads "Tasks", as in ref 03, not "Sync tasks"
       (`Ui.Sync.TasksTitle`, which is the page's headline); it needs a caption of its own, with its
       translations.
-- [x] L.4 The connection editor (ref 08). Done, with the Connection Manager's list still beside it:
-      the sidebar has no Edit or Delete of its own yet, so the list stays until L.7 gives it them,
-      and then the editor becomes 1.x's plain "Edit Connection" dialog. Was: back to the dialog shape. Type and Provider / protocol
+- [x] L.4 The connection editor (ref 08). Done: 1.x's plain "Edit Connection" dialog, the editor with
+      no list beside it, opened on a new connection by New Connection (menu, toolbar, the panel's
+      New button, Welcome's Connections) and on a connection by Edit (a card, its menu, the details
+      panel); the provider's colour along the top, "New unsaved profile" or "Loaded version N" in
+      the footer, Escape to cancel, Enter to save, and a save closes it. New starts on S3, as 1.x's
+      did. The details panel's "Fix credentials…" and "Review trust…" open it on Authentication or
+      TLS / SSH Trust, and all three tabs are always there. A saved SFTP, SSH or pinned FTPS
+      connection opens with its pinned fingerprint in its field, and a save pins what is typed
+      there (`TrustOrRolloverAsync`), keeping the dialog open if the pin is refused. Listing, Test
+      and Delete are the panel's, as in 1.x: the panel's "Connections" entry and the footer's Test
+      are gone, and the panel deletes at the version it listed. Settings' "Create a … connection",
+      under a provider's defaults, opens it on that provider. Left open: fetching a host key from
+      the server or rejecting one is 2.2. Was: back to the dialog shape. Type and Provider / protocol
       drop-downs in a fixed header with the provider's description under them; General,
       Authentication and TLS / SSH Trust tabs; each description under its control rather than under
       its label; a red asterisk on required fields; icon and colour swatches; the badge preview; the
@@ -462,8 +477,8 @@ The profile already stores these; `CodeLogicConnectionProfileConnector.BuildAsyn
 
 - [ ] 2.1 The Test button runs `TestConnectionAsync` on the unsaved draft and shows each step.
 - [ ] 2.2 A refused host key or certificate is shown with Trust / Reject (`TrustOrRolloverAsync`,
-      `RejectAsync`); trust-on-first-use for SFTP and FTPS stops being refused; the editor keeps the
-      host-key fingerprint in the draft.
+      `RejectAsync`); trust-on-first-use for SFTP and FTPS stops being refused. The editor already
+      loads the pinned fingerprint and pins it on save (L.4).
 - [ ] 2.3 A "Connection details" panel from `GetConnectionDiagnosticsAsync`.
 
 ## 3. Directory tree (was port item 11)

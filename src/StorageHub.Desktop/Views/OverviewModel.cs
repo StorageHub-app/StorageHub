@@ -397,7 +397,7 @@ internal sealed class OverviewModel : INotifyPropertyChanged
     /// <summary>New workspace: the arrangement chooser. Set by the shell.</summary>
     public ICommand? NewWorkspaceCommand { get; internal set; }
 
-    /// <summary>Connections: the Connection Manager. Set by the shell, which owns the windows.</summary>
+    /// <summary>Connections: a new connection, as 1.x's opened. Set by the shell, which owns the windows.</summary>
     public ICommand? ConnectionsCommand { get; internal set; }
 
     /// <summary>Sync tasks: the tab beside this one. Set by the shell.</summary>

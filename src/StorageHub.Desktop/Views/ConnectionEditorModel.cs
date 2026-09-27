@@ -261,8 +261,6 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         _provider = ConnectionProviderCatalog.All[0];
 
         SaveCommand = new RelayCommand(_ => _ = SaveAsync(), _ => CanSave);
-        TestCommand = new RelayCommand(
-            _ => _ = TestAsync(), _ => !_isBusy && _current is not null && _storage is not null);
         Rebuild();
     }
 
@@ -288,9 +286,9 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
             Raise(nameof(HasTrustNotice));
             Raise(nameof(AccentColor));
             Raise(nameof(AccentBrush));
+            Raise(nameof(ProviderAccentBrush));
             Raise(nameof(BadgeText));
             Raise(nameof(EncryptedByDefault));
-            Raise(nameof(HasAuthentication));
         }
     }
 
@@ -304,8 +302,6 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
 
     public IEnumerable<ConnectionSectionModel> TrustSections =>
         Sections.Where(static section => section.Tab == ConnectionEditorTab.Trust);
-
-    public bool HasAuthentication => AuthenticationSections.Any();
 
     public static IReadOnlyList<ConnectionTypeChoice> Types { get; } =
     [
@@ -344,6 +340,13 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
 
     /// <summary>The chosen colour as something a view can paint with.</summary>
     public Avalonia.Media.IBrush AccentBrush => AccentSwatch.BrushFor(AccentColor);
+
+    /// <summary>
+    /// The provider's own colour, for the strip along the top of the dialog. The provider's rather
+    /// than the connection's, as 1.x drew it: the strip says what kind of connection this is, and
+    /// the badge preview below shows the colour chosen for this one.
+    /// </summary>
+    public Avalonia.Media.IBrush ProviderAccentBrush => AccentSwatch.BrushFor(_provider.AccentHex);
 
     /// <summary>
     /// The connection's colour, or the provider's own when none was chosen -- which is what the
@@ -450,24 +453,27 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
 
     public ICommand SaveCommand { get; }
 
-    public ICommand TestCommand { get; }
-
     public static string SaveLabel => Ui.Connections.SaveConnection;
-
-    public static string TestLabel => Ui.Connections.TestConnection;
 
     public static string ProviderLabel => Ui.Connections.Provider;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    /// <summary>Starts a new connection, on whichever provider is sensible to offer first.</summary>
-    internal void StartNew()
+    /// <summary>
+    /// Starts a new connection, on S3 unless a provider is named, and says in the footer that it
+    /// is one, as 1.x's did.
+    /// </summary>
+    /// <remarks>
+    /// S3 because 1.x's dialog opened on it from every New: most connections are object storage,
+    /// and a caller that knows better, such as Settings' "Create a … connection", names its own.
+    /// </remarks>
+    internal void StartNew(StorageProviderKind initialProvider = StorageProviderKind.S3)
     {
         _current = null;
         _values.Clear();
-        _provider = ConnectionProviderCatalog.All[0];
+        _provider = ConnectionProviderCatalog.Get(initialProvider);
         Rebuild();
-        Status = string.Empty;
+        Status = Ui.ConnectionEditor.NewUnsavedProfile;
         IsDirty = false;
         RaiseAll();
     }
@@ -478,14 +484,19 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     /// <remarks>
     /// The profile is fetched rather than projected from the listing, because a listing carries a
     /// name and a provider and an editor needs every field -- and because the version it comes
-    /// back with is what a later save is checked against.
+    /// back with is what a later save is checked against. A pinned fingerprint is not in the
+    /// profile but in its trust record, so it is read from there, as 1.x's LoadTrustIntoEditorAsync
+    /// did: without it a saved SFTP connection could not be saved again, not even renamed, until
+    /// its host key was typed a second time.
     /// </remarks>
     internal async Task OpenAsync(Guid connectionId, CancellationToken cancellationToken = default)
     {
         IsBusy = true;
+        Status = Ui.ConnectionEditor.LoadingProfile;
         try
         {
-            var response = await _controller()
+            var controller = _controller();
+            var response = await controller
                 .GetAsync(connectionId, cancellationToken)
                 .ConfigureAwait(true);
 
@@ -501,18 +512,26 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
                 return;
             }
 
+            var values = new Dictionary<string, string>(
+                ConnectionEditorDraftFactory.ToEditorValues(profile), StringComparer.Ordinal);
+            var trustProblem = await ReadPinAsync(controller, profile, values, cancellationToken)
+                .ConfigureAwait(true);
+
             _current = profile;
             _values.Clear();
-            foreach (var (key, value) in ConnectionEditorDraftFactory.ToEditorValues(profile))
+            foreach (var (key, value) in values)
             {
                 _values[key] = value;
             }
 
             _provider = ConnectionProviderCatalog.Get(MapProvider(profile.Draft.Endpoint.Provider));
             Rebuild();
-            Status = string.Empty;
+            Status = trustProblem ?? string.Empty;
             IsDirty = false;
             RaiseAll();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
         }
         catch (Exception error) when (IsAgentFailure(error))
         {
@@ -524,6 +543,51 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         }
     }
 
+    /// <summary>
+    /// Puts the fingerprint a connection is pinned to into its field, as 1.x did on loading one.
+    /// </summary>
+    /// <returns>Why it could not be read, or nothing when it was, or there is none to read.</returns>
+    /// <remarks>
+    /// The active trusted record is the pin: one that expired or was rejected is history. More than
+    /// one active record needs reconciling by hand before a rollover can choose between them, which
+    /// is said rather than guessed at, and the field is left empty so a save cannot pick one.
+    /// </remarks>
+    private static async Task<string?> ReadPinAsync(
+        ConnectionManagerController controller,
+        ConnectionProfileDocument profile,
+        Dictionary<string, string> values,
+        CancellationToken cancellationToken)
+    {
+        if (PinField(profile) is not { } key) return null;
+
+        var response = await controller.GetTrustAsync(profile, cancellationToken).ConfigureAwait(true);
+        if (response.Snapshot is not { } snapshot)
+        {
+            return response.Failure?.Message ?? Ui.ConnectionEditor.TrustStateUnreadable;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var active = snapshot.Records
+            .Where(record => record.Decision == ConnectionTrustDecision.Trusted &&
+                (record.ExpiresUtc is null || record.ExpiresUtc > now))
+            .ToArray();
+        values[key] = active.Length == 1 ? active[0].Sha256Fingerprint : string.Empty;
+        return active.Length > 1 ? Ui.ConnectionEditor.MultipleTrustRecords : null;
+    }
+
+    /// <summary>
+    /// The field holding what a saved connection is pinned to, or none when it pins nothing: an
+    /// FTPS certificate pin, or an SFTP or SSH host key, as 1.x's TrustFingerprintField chose.
+    /// </summary>
+    private static string? PinField(ConnectionProfileDocument profile) => profile.Draft.Endpoint switch
+    {
+        { Provider: StorageConnectionProvider.Ftps, TlsPolicy: ConnectionTlsCertificatePolicy.Pinned } =>
+            "certificatePin",
+        { Provider: StorageConnectionProvider.Sftp or StorageConnectionProvider.Ssh, SshHostKeyPolicy: ConnectionSshHostKeyPolicy.Pinned } =>
+            "hostKeyFingerprint",
+        _ => null
+    };
+
     /// <summary>Whether the editor holds something that could be saved.</summary>
     internal bool CanSave => !_isBusy && _isDirty && Sections
         .SelectMany(static section => section.Fields)
@@ -533,9 +597,17 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     /// Builds a draft from the fields and writes it.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The factory refuses a draft outside the contract's bounds by throwing, which is right for a
     /// programming error and wrong to show somebody, so it is caught and reported as the sentence
     /// it carries.
+    /// </para>
+    /// <para>
+    /// A fingerprint is checked by the factory but is not part of the profile: it is the
+    /// connection's trust, so it is pinned once the profile it belongs to is written, as 1.x's save
+    /// did. A pin that is refused leaves the editor open with the reason and the edit still dirty,
+    /// the profile already written; saving again writes it at its new version and tries once more.
+    /// </para>
     /// </remarks>
     internal async Task SaveAsync(CancellationToken cancellationToken = default)
     {
@@ -577,7 +649,8 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         IsBusy = true;
         try
         {
-            var response = await _controller()
+            var controller = _controller();
+            var response = await controller
                 .SaveAsync(draft, _current, cancellationToken)
                 .ConfigureAwait(true);
 
@@ -587,26 +660,49 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
                 return;
             }
 
-            IsDirty = false;
+            if (response.Profile is not { } written)
+            {
+                IsDirty = false;
+                Status = Ui.Connections.ConnectionSaved;
+                return;
+            }
 
             // Taken from the written profile rather than reported separately, so what the editor
             // holds afterwards is exactly what the agent stored -- including the new version,
-            // which is what a second save is checked against.
-            if (response.Profile is { } written)
+            // which is what a second save is checked against. The pin is not in it, so it is kept.
+            var pinField = PinField(written);
+            var pin = pinField is not null && _values.TryGetValue(pinField, out var typed) &&
+                !string.IsNullOrWhiteSpace(typed)
+                    ? typed.Trim()
+                    : null;
+            _current = written;
+            _values.Clear();
+            foreach (var (key, value) in ConnectionEditorDraftFactory.ToEditorValues(written))
             {
-                _current = written;
-                _values.Clear();
-                foreach (var (key, value) in ConnectionEditorDraftFactory.ToEditorValues(written))
-                {
-                    _values[key] = value;
-                }
-
-                Rebuild();
-                RaiseAll();
-                Saved?.Invoke(this, written.ConnectionId);
+                _values[key] = value;
             }
 
+            if (pinField is not null && pin is not null) _values[pinField] = pin;
+            Rebuild();
+            RaiseAll();
+            Written?.Invoke(this, written.ConnectionId);
+
+            if (pin is not null)
+            {
+                Status = Ui.ConnectionEditor.SavingVerifiedTrust;
+                var trusted = await controller
+                    .TrustOrRolloverAsync(written, pin, cancellationToken)
+                    .ConfigureAwait(true);
+                if (trusted.Status != ConnectionTrustMutationStatus.Succeeded)
+                {
+                    Status = trusted.Failure?.Message ?? Ui.ConnectionEditor.PinNotEnrolled;
+                    return;
+                }
+            }
+
+            IsDirty = false;
             Status = Ui.Connections.ConnectionSaved;
+            Saved?.Invoke(this, written.ConnectionId);
         }
         catch (Exception error) when (IsAgentFailure(error))
         {
@@ -652,8 +748,16 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     /// <summary>The connection being edited, for a caller that wants to delete it.</summary>
     internal ConnectionProfileDocument? Current => _current;
 
-    /// <summary>Raised once a save has been accepted, with the id it was written under.</summary>
+    /// <summary>
+    /// Raised once a save has been accepted, pin and all, with the id it was written under.
+    /// </summary>
     internal event EventHandler<Guid>? Saved;
+
+    /// <summary>
+    /// Raised as soon as the agent has written the profile, before its pin: a refused pin keeps
+    /// the editor open, but what lists connections has something new to list either way.
+    /// </summary>
+    internal event EventHandler<Guid>? Written;
 
     /// <summary>Takes what is in the fields, so it survives a provider change or a save.</summary>
     private void Capture()
@@ -840,8 +944,10 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
             Add(Ui.Connections.SectionAdvanced, FtpAdvancedFields(), ConnectionEditorTab.General);
         }
 
+        // Drawn even for a provider with nothing to authenticate, as 1.x's page was: its heading and
+        // the vault hint on a tab that is always there, rather than a tab that comes and goes.
         Add(Ui.ConnectionEditor.TabAuthentication, _provider.AuthenticationFields,
-            ConnectionEditorTab.Authentication, Ui.ConnectionEditor.SecretsLiveInVault);
+            ConnectionEditorTab.Authentication, Ui.ConnectionEditor.SecretsLiveInVault, always: true);
         Add(Ui.ConnectionEditor.TabTrust, _provider.SecurityFields, ConnectionEditorTab.Trust);
 
         Raise(nameof(GeneralSections));
@@ -853,9 +959,10 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
             string title,
             IReadOnlyList<ConnectionFieldDescriptor> descriptors,
             ConnectionEditorTab tab,
-            string hint = "")
+            string hint = "",
+            bool always = false)
         {
-            if (descriptors.Count == 0) return;
+            if (descriptors.Count == 0 && !always) return;
             var fields = new List<ConnectionFieldModel>(descriptors.Count);
             foreach (var descriptor in descriptors)
             {
@@ -1202,11 +1309,11 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         Raise(nameof(ProvidersForType));
         Raise(nameof(AccentColor));
         Raise(nameof(AccentBrush));
+        Raise(nameof(ProviderAccentBrush));
         Raise(nameof(BadgeText));
         Raise(nameof(EncryptedByDefault));
         Raise(nameof(LoadedVersion));
         Raise(nameof(HasLoadedVersion));
-        Raise(nameof(HasAuthentication));
         Raise(nameof(Summary));
         Raise(nameof(TrustNotice));
         Raise(nameof(HasTrustNotice));
@@ -1216,7 +1323,6 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     private void RaiseCommands()
     {
         (SaveCommand as RelayCommand)?.RaiseCanExecuteChanged();
-        (TestCommand as RelayCommand)?.RaiseCanExecuteChanged();
         foreach (var command in _fieldCommands) command.RaiseCanExecuteChanged();
     }
 

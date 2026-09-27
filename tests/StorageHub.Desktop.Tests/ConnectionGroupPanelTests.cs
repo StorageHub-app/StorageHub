@@ -216,8 +216,8 @@ public class ConnectionGroupPanelTests
         // With one card selected, so the photograph shows its border, its edit and delete, and a
         // details panel with something in it.
         var sidebar = (ConnectionsSidebar)((ConnectionsPanelView)window.Content!).DataContext!;
-        sidebar.EditConnection = static _ => { };
-        sidebar.DeleteConnection = static _ => Task.CompletedTask;
+        sidebar.EditConnection = static (_, _) => { };
+        sidebar.DeleteConnection = static _ => Task.FromResult(false);
         sidebar.Select(sidebar.Groups[0].Connections[0]);
         window.UpdateLayout();
 
@@ -319,11 +319,11 @@ public class ConnectionGroupPanelTests
         var row = sidebar.Groups[0].Connections[0];
         Guid? edited = null;
         Guid? deleted = null;
-        sidebar.EditConnection = id => edited = id;
+        sidebar.EditConnection = (id, _) => edited = id;
         sidebar.DeleteConnection = id =>
         {
             deleted = id;
-            return Task.CompletedTask;
+            return Task.FromResult(false);
         };
 
         sidebar.EditSelectedCommand.Execute(row);

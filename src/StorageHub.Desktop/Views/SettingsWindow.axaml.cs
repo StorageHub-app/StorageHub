@@ -148,14 +148,15 @@ public partial class SettingsWindow : Window
     /// </summary>
     private static void CreateConnection(Window? owner, StorageProviderKind provider, Action? connectionsChanged)
     {
-        var manager = ConnectionManagerWindow.ForCurrentAgent();
+        var manager = ConnectionManagerWindow.ForCurrentAgent(initialProvider: provider);
+
+        // On every write the agent accepts rather than on close, as the shell's own New does: a
+        // save still in flight when Cancel is pressed lands after the dialog has gone.
         if (manager.DataContext is ConnectionManagerModel model)
         {
-            model.StartNew();
-            model.Editor.Provider = ConnectionProviderCatalog.Get(provider);
+            model.ProfilesChanged += (_, _) => connectionsChanged?.Invoke();
         }
 
-        manager.Closed += (_, _) => connectionsChanged?.Invoke();
         if (owner is not null) _ = manager.ShowDialog(owner);
         else manager.Show();
     }

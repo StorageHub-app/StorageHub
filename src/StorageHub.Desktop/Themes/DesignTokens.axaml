@@ -190,6 +190,8 @@
        slot and the labels clip at both ends rather than the row growing. -->
   <!-- The bar under a selected tab. Selection's alone: hover does not draw it. -->
   <sys:Double x:Key="TabAccentThickness">2</sys:Double>
+  <!-- The provider's colour along the top of the Edit Connection dialog, as thick as 1.4's. -->
+  <sys:Double x:Key="ProviderAccentThickness">4</sys:Double>
   <!-- A boxed tab, from 1.4's strip: about 120 wide at minimum, one list row tall, 2 apart. -->
   <sys:Double x:Key="TabMinWidth">120</sys:Double>
   <sys:Double x:Key="TabHeight">26</sys:Double>
