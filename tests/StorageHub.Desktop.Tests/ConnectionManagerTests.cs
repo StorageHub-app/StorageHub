@@ -399,6 +399,75 @@ public class ConnectionManagerTests
         Assert.Null(profiles.DeletedVersion);
     }
 
+    /// <summary>
+    /// A favourite, as 1.4 kept one: marked from a card's menu and saved in the profile, listed
+    /// under Favorites above the groups and under Go, and still a favourite after an edit.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task AFavouriteIsSavedListedAboveTheGroupsAndUnderGoAndKeptByAnEdit()
+    {
+        var cancellation = TestContext.Current.CancellationToken;
+        var profiles = new FakeProfiles();
+        var editor = new ConnectionEditorModel(() => Controller(profiles));
+        var saved = Guid.Empty;
+        editor.Saved += (_, id) => saved = id;
+        Fill(editor);
+        await editor.SaveAsync(cancellation);
+
+        // The listing is what the agent says once the flag is written.
+        ConnectionSummary[] listing =
+        [
+            Summary("Studio Assets") with { ConnectionId = saved, IsFavorite = true, FolderPath = "Team" },
+            Summary("Backups"),
+            Summary("Retired") with { IsFavorite = true, IsEnabled = false },
+        ];
+        var sidebar = new ConnectionsSidebar(
+            new RelayCommand(static _ => { }),
+            () => new ListingAgent(listing),
+            profiles: () => profiles);
+        var changed = 0;
+        sidebar.ConnectionsChanged += (_, _) => changed++;
+
+        // Toggle favorite writes the profile back at the version it read, with the flag flipped,
+        // and tells the shell, so Welcome's favourites-first list follows.
+        await sidebar.ToggleFavoriteAsync(saved, cancellation);
+        Assert.Equal(1, profiles.Updates);
+        Assert.True(profiles.LastDraft!.Metadata.IsFavorite);
+        Assert.Equal(1, changed);
+
+        // Favorites lists the enabled favourite, which is in its own group too; both copies select
+        // together, the details say so, and its menu offers the toggle.
+        var favourite = Assert.Single(sidebar.Favorites!.Connections);
+        Assert.Equal(saved, favourite.Id);
+        Assert.Contains(sidebar.Groups.Single(static g => g.Name == "Team").Connections, row => row.Id == saved);
+        sidebar.Select(favourite);
+        Assert.All(
+            sidebar.Groups.SelectMany(static g => g.Connections).Where(row => row.Id == saved),
+            static row => Assert.True(row.IsSelected));
+        Assert.Contains(new ConnectionDetailRow(Ui.Connections.FieldFavorite, Ui.Connections.DetailYes), sidebar.Details);
+        Assert.Contains(
+            sidebar.ContextEntriesFor(favourite),
+            static entry => entry.Label == Ui.Connections.ContextToggleFavorite && entry.Enabled);
+
+        // Settings can list it under Favorites only.
+        sidebar.ShowFavoritesInTheirFolders = false;
+        Assert.DoesNotContain(sidebar.Groups.SelectMany(static g => g.Connections), row => row.Id == saved);
+
+        // Go lists it under a heading, and says so when there is none.
+        var shell = ShellPreview.CreateOnWorkspace();
+        var go = shell.Menus.Single(static section => section.Menu == UiMenuId.Go).Items;
+        shell.ListFavoritesInTheMenu(listing);
+        Assert.Equal([Ui.Shell.Favorites, "Studio Assets"], go.SkipWhile(static e => !e.IsHeading).Select(static e => e.Label));
+        shell.ListFavoritesInTheMenu([]);
+        Assert.Equal(Ui.Shell.NoFavoriteConnections, go[^1].Label);
+
+        // An edit keeps it a favourite, which the editor has no field for.
+        await editor.OpenAsync(saved, cancellation);
+        Name(editor, "Studio Assets 2");
+        await editor.SaveAsync(cancellation);
+        Assert.True(profiles.LastDraft!.Metadata.IsFavorite);
+    }
+
     /// <summary>The list says what each connection is, the same way the panel does.</summary>
     [AvaloniaFact]
     public async Task TheListBadgesClientsAndStorage()

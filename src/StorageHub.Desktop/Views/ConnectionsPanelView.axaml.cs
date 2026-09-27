@@ -38,8 +38,9 @@ public partial class ConnectionsPanelView : UserControl
             card.ContextMenu = new ContextMenu
             {
                 ItemsSource = sidebar.ContextEntriesFor(row)
-                    .Select(static entry =>
+                    .Select(static Control (entry) =>
                     {
+                        if (entry.Label == CommandEntry.SeparatorLabel) return new Separator();
                         var item = new MenuItem { Header = entry.Label, IsEnabled = entry.Enabled };
                         item.Click += (_, _) => entry.Run();
                         return item;

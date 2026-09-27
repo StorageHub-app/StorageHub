@@ -179,7 +179,21 @@ applied, and chosen on the Appearance page (P.5.1).
       did. Both follow when Settings closes and after an import. Left open: rebinding in Settings
       waits for its Shortcuts page (L.5); until then a map comes from an import or the settings
       file.
-- [ ] P.3.5 Go menu Favorites (`FavoriteConnectionMenu` is in Core, unused).
+- [x] P.3.5 Go menu Favorites, and favourite connections with it.
+      Done: Go ends with 1.4's section, a line and a bold Favorites over the enabled favourites a
+      pane can open, by name (`FavoriteConnectionMenu`), or "No favorite connections" with 1.4's hint;
+      choosing one opens it in the active pane, making a workspace from Welcome, as double-clicking
+      its card does. It follows each listing of the connections panel. A card's right-click menu has
+      1.4's Toggle favorite between Open in new pane and Edit, with 1.4's two lines; it writes the
+      flag into the profile at the version read, so the agent keeps it across a restart, and
+      Welcome's recent connections follow a toggle or a delete, as 1.4's ConnectionsChanged did.
+      The details panel marks a favourite with 1.4's filled star before its name and a Favorite yes
+      or no, rather than a button: 1.4 kept the toggle on the menu. Go's "No favorite connections"
+      shows its hint although dimmed. Fixed on the way: saving from the editor no longer drops the
+      favourite flag (1.4 did), nor the enabled state and default paths, which the editor has no
+      field for. Left open: a collapsed group, Favorites included, opens again on each listing or
+      search (1.4 remembered it), and the Go entries and the starred name have no accessible
+      description yet.
 - [ ] P.3.6 Status bar: the agent cell opens Agent control and carries its detail as a tooltip; the
       transfer speed cell (the queue already has `BytesPerSecond`); short messages for copied, staged,
       imported, exported.
@@ -389,8 +403,10 @@ reference shot.
 - [x] L.7 The connections sidebar (ref 09). Done for the cards and the details panel: coloured
       icon tiles, the provider / folder / health line, tag chips, a selected card with inline edit
       and delete, and a details panel with Open, Test, Edit and Delete. Kept from 2.0: groups made
-      by hand rather than 1.x's fixed Storage and Clients sections (c4886f7). Not done: a Favorites
-      section, which the hand-made groups replaced; say if it should come back. Was: coloured rounded icon tiles in place of the
+      by hand rather than 1.x's fixed Storage and Clients sections (c4886f7). Favorites is back
+      above them (with P.3.5): the enabled favourites by name, drawn as a group with a star and no
+      menu, nothing dropped into it, and a favourite still in its own group unless Settings' "Also
+      list favorites under their own folder" is off, as 1.4 did; both copies select together. Was: coloured rounded icon tiles in place of the
       `STORAGE`/`CLIENT` text badges; tag chips under each card; a Favorites section above the
       storage groups; inline edit and delete on the selected card.
 - [ ] L.11 Row icons in the Welcome and Sync tasks tables (ref 01, 03), as 1.4 drew them: a muted info

@@ -30,6 +30,9 @@ internal sealed class ConnectionRowModel(ConnectionCardModel card) : INotifyProp
 
     public bool IsEnabled => Card.IsEnabled;
 
+    /// <summary>Whether it is a favourite, which the details panel marks with a star before its name.</summary>
+    public bool IsFavorite => Card.IsFavorite;
+
     public string Badge => ConnectionGrouping.BadgeFor(Card);
 
     public bool IsClient => Card.Type == Contracts.Ipc.ConnectionProfileType.Client;
@@ -85,18 +88,29 @@ internal sealed class ConnectionGroupModel(
     ICommand renameCommand,
     ICommand removeCommand,
     ICommand? changeIconCommand = null,
-    string? iconKey = null) : INotifyPropertyChanged
+    string? iconKey = null,
+    bool isFavorites = false) : INotifyPropertyChanged
 {
     /// <summary>
     /// The group's icon: the one chosen for it, or a folder.
     /// </summary>
     /// <remarks>
     /// 1.x let a folder of connections have an icon of its own and kept the choices in the settings
-    /// file, which 2.0 went on saving and never showed. They are shown again.
+    /// file, which 2.0 went on saving and never showed. They are shown again. Favorites draws 1.x's
+    /// filled star in its place, which is the panel's to draw rather than a Lucide glyph.
     /// </remarks>
     public Lucide.Avalonia.LucideIconKind Icon =>
         (ConnectionIconCatalog.Resolve(iconKey) is { } glyph ? Themes.IconCatalog.Resolve(glyph) : null)
         ?? Lucide.Avalonia.LucideIconKind.Folder;
+
+    /// <summary>
+    /// The Favorites group at the top of the panel, rather than one somebody made.
+    /// </summary>
+    /// <remarks>
+    /// Its members are the connections marked as favourites, so it has nothing to rename, remove
+    /// or drop a connection into: the panel leaves its menu out and a drag lands elsewhere.
+    /// </remarks>
+    public bool IsFavorites { get; } = isFavorites;
 
     public ICommand? ChangeIconCommand { get; } = changeIconCommand;
 

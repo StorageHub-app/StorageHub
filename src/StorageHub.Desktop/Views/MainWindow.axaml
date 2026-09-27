@@ -44,6 +44,9 @@
           <Setter Property="InputGesture" Value="{Binding Shortcut.Gesture}"/>
           <Setter Property="Command" Value="{Binding Command}"/>
           <Setter Property="ToolTip.Tip" Value="{Binding ToolTip}"/>
+          <!-- Shown on a dimmed entry too, as 1.x's menus showed it: Go's "No favorite
+               connections" says how to make one only there. -->
+          <Setter Property="ToolTip.ShowOnDisabled" Value="True"/>
           <Setter Property="ItemsSource" Value="{x:Null}"/>
           <!-- A tick on an entry that shows or hides something, View > Connections Panel's while
                the panel is showing. One way: a click ticks the item and runs its command, and

@@ -46,7 +46,7 @@ public class RecentAndNewPaneTests
     }
 
     [AvaloniaFact]
-    public void AConnectionCardOffersOpenOpenInNewPaneEditAndDelete()
+    public void AConnectionCardOffersOpenOpenInNewPaneToggleFavoriteEditAndDelete()
     {
         var sidebar = ShellPreview.CreateOnWorkspace().Sidebar;
         var row = new ConnectionRowModel(ConnectionCardFactory.Create(WorkspaceFakes.Summary("Studio")));
@@ -55,7 +55,10 @@ public class RecentAndNewPaneTests
 
         Assert.Equal(
             [Localization.Ui.Connections.ContextOpen, Localization.Ui.Connections.ContextOpenInNewPane,
-             Localization.Ui.Connections.ContextEdit, Localization.Ui.Connections.ContextDelete],
+             CommandEntry.SeparatorLabel,
+             Localization.Ui.Connections.ContextToggleFavorite, Localization.Ui.Connections.ContextEdit,
+             CommandEntry.SeparatorLabel,
+             Localization.Ui.Connections.ContextDelete],
             labels);
     }
 }

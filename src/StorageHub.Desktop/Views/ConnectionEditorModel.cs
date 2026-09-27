@@ -556,6 +556,24 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
             return;
         }
 
+        // The editor has no field for these, and the draft is built from its fields, so a save
+        // would reset them: a favourite stopped being one every time it was edited, as it did in
+        // 1.x, and a disabled connection came back enabled. An edit keeps what the profile had.
+        if (_current?.Draft is { } kept)
+        {
+            draft = draft with
+            {
+                IsEnabled = kept.IsEnabled,
+                Metadata = draft.Metadata with
+                {
+                    IsFavorite = kept.Metadata.IsFavorite,
+                    HomePath = kept.Metadata.HomePath,
+                    UploadPath = kept.Metadata.UploadPath,
+                    DownloadPath = kept.Metadata.DownloadPath
+                }
+            };
+        }
+
         IsBusy = true;
         try
         {

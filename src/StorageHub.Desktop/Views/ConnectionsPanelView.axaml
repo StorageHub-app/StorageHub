@@ -15,6 +15,121 @@
     connections in it.
   -->
 
+  <!--
+    The favourite mark: a filled star, as 1.x drew it before Favorites and before a favourite's
+    name in the details (ui-reference 09). Lucide's star is an outline that cannot be filled, so
+    both marks draw this one shape and cannot drift apart.
+  -->
+  <UserControl.Resources>
+    <StreamGeometry x:Key="FavoriteMark">M12 2 L15.09 8.26 L22 9.27 L17 14.14 L18.18 21.02 L12 17.77 L5.82 21.02 L7 14.14 L2 9.27 L8.91 8.26 Z</StreamGeometry>
+  </UserControl.Resources>
+
+  <!--
+    One group and its cards. A template of the panel's own rather than the list's, because
+    Favorites above the list is drawn by it too; Favorites has no menu, being nobody's group.
+  -->
+  <UserControl.DataTemplates>
+    <DataTemplate DataType="vm:ConnectionGroupModel">
+      <StackPanel AutomationProperties.Name="{Binding AccessibleName}">
+
+        <Grid ColumnDefinitions="Auto,Auto,*,Auto" Classes="group-header"
+              ColumnSpacing="{StaticResource SpaceXs}">
+          <ToggleButton Grid.Column="0" Classes="disclosure"
+                        IsChecked="{Binding IsExpanded, Mode=TwoWay}"/>
+          <LucideIcon Grid.Column="1" Kind="{Binding Icon}" Size="{StaticResource IconSizeSm}"
+                      VerticalAlignment="Center" IsVisible="{Binding !IsFavorites}"/>
+          <PathIcon Grid.Column="1" Data="{StaticResource FavoriteMark}"
+                    Width="{StaticResource IconSizeSm}" Height="{StaticResource IconSizeSm}"
+                    Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center"
+                    IsVisible="{Binding IsFavorites}"/>
+          <TextBlock Grid.Column="2" Classes="group-title" VerticalAlignment="Center"
+                     Text="{Binding Name}"/>
+          <Button Grid.Column="3" Classes="tool" IsVisible="{Binding !IsFavorites}"
+                  ToolTip.Tip="{Binding RenameLabel}">
+            <LucideIcon Kind="Ellipsis" Size="{StaticResource IconSizeSm}"/>
+            <Button.Flyout>
+              <MenuFlyout>
+                <MenuItem Header="{Binding RenameLabel}" Command="{Binding RenameCommand}"/>
+                <MenuItem Header="{Binding ChangeIconLabel}" Command="{Binding ChangeIconCommand}"/>
+                <MenuItem Header="{Binding RemoveLabel}" Command="{Binding RemoveCommand}"/>
+              </MenuFlyout>
+            </Button.Flyout>
+          </Button>
+        </Grid>
+
+        <!--
+          The drop target is the whole group, including an empty one: a group you
+          cannot drag the first connection into is a group you cannot start using.
+        -->
+        <ItemsControl ItemsSource="{Binding Connections}"
+                      IsVisible="{Binding IsExpanded}"
+                      MinHeight="24">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Spacing="{StaticResource SpaceXs}"/>
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate DataType="vm:ConnectionRowModel">
+              <!--
+                A card as 1.x drew it (ui-reference 09): a rounded tile in the
+                connection's colour with its icon, the name, a muted line of provider,
+                folder and health, and its tags as chips. The selected card takes the
+                accent border and shows edit and delete beside it.
+              -->
+              <Border Classes="card connection-row" Classes.disabled="{Binding !IsEnabled}"
+                      Classes.selected="{Binding IsSelected}"
+                      ToolTip.Tip="{Binding OpenHint}">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource SpaceMd}">
+                  <Border Grid.Column="0" Classes="icon-tile" Background="{Binding AccentBrush}"
+                          VerticalAlignment="Top">
+                    <LucideIcon Kind="{Binding Icon}" Size="{StaticResource IconSizeMd}"/>
+                  </Border>
+                  <StackPanel Grid.Column="1" Spacing="2">
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Classes="caption" Text="{Binding Subtitle}"
+                               TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Endpoint}"/>
+                    <ItemsControl ItemsSource="{Binding Tags}" IsVisible="{Binding HasTags}"
+                                  Margin="0,2,0,0">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                          <WrapPanel ItemSpacing="4" LineSpacing="4"/>
+                        </ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="x:String">
+                          <Border Classes="tag">
+                            <TextBlock Text="{Binding}"/>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                  <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"
+                              IsVisible="{Binding IsSelected}">
+                    <Button Classes="tool"
+                            Command="{Binding $parent[UserControl].((vm:ConnectionsSidebar)DataContext).EditSelectedCommand}"
+                            CommandParameter="{Binding}"
+                            ToolTip.Tip="{Binding $parent[UserControl].((vm:ConnectionsSidebar)DataContext).EditLabel}">
+                      <LucideIcon Kind="Pencil" Size="{StaticResource IconSizeSm}"/>
+                    </Button>
+                    <Button Classes="tool"
+                            Command="{Binding $parent[UserControl].((vm:ConnectionsSidebar)DataContext).DeleteSelectedCommand}"
+                            CommandParameter="{Binding}"
+                            ToolTip.Tip="{Binding $parent[UserControl].((vm:ConnectionsSidebar)DataContext).DeleteLabel}">
+                      <LucideIcon Kind="Trash" Size="{StaticResource IconSizeSm}" Classes="danger"/>
+                    </Button>
+                  </StackPanel>
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </DataTemplate>
+  </UserControl.DataTemplates>
+
   <DockPanel>
       <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto"
             Margin="{StaticResource PaddingLg}">
@@ -108,6 +223,12 @@
               <Border Classes="detail-badge" Background="{Binding Selected.AccentBrush}">
                 <TextBlock Text="{Binding Selected.Card.Descriptor.ShortName}"/>
               </Border>
+              <!-- A star before a favourite's name, in the name's colour, as 1.x marked it: a
+                   mark, not a button. Toggling is on the card's right-click menu. -->
+              <PathIcon Data="{StaticResource FavoriteMark}"
+                        Width="{StaticResource IconSizeSm}" Height="{StaticResource IconSizeSm}"
+                        Foreground="{DynamicResource TextBrush}" VerticalAlignment="Center"
+                        IsVisible="{Binding Selected.IsFavorite, FallbackValue=False}"/>
               <TextBlock Classes="heading-sm" Text="{Binding Selected.Name}"
                          TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
             </StackPanel>
@@ -173,110 +294,19 @@
           which is where it is actually useful.
         -->
         <ScrollViewer x:Name="PART_Connections" IsVisible="{Binding !IsEmpty}">
-          <ItemsControl ItemsSource="{Binding Groups}">
-            <ItemsControl.ItemsPanel>
-              <ItemsPanelTemplate>
-                <StackPanel Spacing="{StaticResource SpaceMd}"/>
-              </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-              <DataTemplate DataType="vm:ConnectionGroupModel">
-                <StackPanel AutomationProperties.Name="{Binding AccessibleName}">
-  
-                  <Grid ColumnDefinitions="Auto,Auto,*,Auto" Classes="group-header"
-                        ColumnSpacing="{StaticResource SpaceXs}">
-                    <ToggleButton Grid.Column="0" Classes="disclosure"
-                                  IsChecked="{Binding IsExpanded, Mode=TwoWay}"/>
-                    <LucideIcon Grid.Column="1" Kind="{Binding Icon}" Size="{StaticResource IconSizeSm}"
-                                VerticalAlignment="Center"/>
-                    <TextBlock Grid.Column="2" Classes="group-title" VerticalAlignment="Center"
-                               Text="{Binding Name}"/>
-                    <Button Grid.Column="3" Classes="tool"
-                            ToolTip.Tip="{Binding RenameLabel}">
-                      <LucideIcon Kind="Ellipsis" Size="{StaticResource IconSizeSm}"/>
-                      <Button.Flyout>
-                        <MenuFlyout>
-                          <MenuItem Header="{Binding RenameLabel}" Command="{Binding RenameCommand}"/>
-                          <MenuItem Header="{Binding ChangeIconLabel}" Command="{Binding ChangeIconCommand}"/>
-                          <MenuItem Header="{Binding RemoveLabel}" Command="{Binding RemoveCommand}"/>
-                        </MenuFlyout>
-                      </Button.Flyout>
-                    </Button>
-                  </Grid>
-  
-                  <!--
-                    The drop target is the whole group, including an empty one: a group you
-                    cannot drag the first connection into is a group you cannot start using.
-                  -->
-                  <ItemsControl ItemsSource="{Binding Connections}"
-                                IsVisible="{Binding IsExpanded}"
-                                MinHeight="24">
-                    <ItemsControl.ItemsPanel>
-                      <ItemsPanelTemplate>
-                        <StackPanel Spacing="{StaticResource SpaceXs}"/>
-                      </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                      <DataTemplate DataType="vm:ConnectionRowModel">
-                        <!--
-                          A card as 1.x drew it (ui-reference 09): a rounded tile in the
-                          connection's colour with its icon, the name, a muted line of provider,
-                          folder and health, and its tags as chips. The selected card takes the
-                          accent border and shows edit and delete beside it.
-                        -->
-                        <Border Classes="card connection-row" Classes.disabled="{Binding !IsEnabled}"
-                                Classes.selected="{Binding IsSelected}"
-                                ToolTip.Tip="{Binding OpenHint}">
-                          <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource SpaceMd}">
-                            <Border Grid.Column="0" Classes="icon-tile" Background="{Binding AccentBrush}"
-                                    VerticalAlignment="Top">
-                              <LucideIcon Kind="{Binding Icon}" Size="{StaticResource IconSizeMd}"/>
-                            </Border>
-                            <StackPanel Grid.Column="1" Spacing="2">
-                              <TextBlock Text="{Binding Name}" FontWeight="SemiBold"
-                                         TextTrimming="CharacterEllipsis"/>
-                              <TextBlock Classes="caption" Text="{Binding Subtitle}"
-                                         TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Endpoint}"/>
-                              <ItemsControl ItemsSource="{Binding Tags}" IsVisible="{Binding HasTags}"
-                                            Margin="0,2,0,0">
-                                <ItemsControl.ItemsPanel>
-                                  <ItemsPanelTemplate>
-                                    <WrapPanel ItemSpacing="4" LineSpacing="4"/>
-                                  </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemTemplate>
-                                  <DataTemplate x:DataType="x:String">
-                                    <Border Classes="tag">
-                                      <TextBlock Text="{Binding}"/>
-                                    </Border>
-                                  </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                              </ItemsControl>
-                            </StackPanel>
-                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"
-                                        IsVisible="{Binding IsSelected}">
-                              <Button Classes="tool"
-                                      Command="{Binding $parent[UserControl].((vm:ConnectionsSidebar)DataContext).EditSelectedCommand}"
-                                      CommandParameter="{Binding}"
-                                      ToolTip.Tip="{Binding $parent[UserControl].((vm:ConnectionsSidebar)DataContext).EditLabel}">
-                                <LucideIcon Kind="Pencil" Size="{StaticResource IconSizeSm}"/>
-                              </Button>
-                              <Button Classes="tool"
-                                      Command="{Binding $parent[UserControl].((vm:ConnectionsSidebar)DataContext).DeleteSelectedCommand}"
-                                      CommandParameter="{Binding}"
-                                      ToolTip.Tip="{Binding $parent[UserControl].((vm:ConnectionsSidebar)DataContext).DeleteLabel}">
-                                <LucideIcon Kind="Trash" Size="{StaticResource IconSizeSm}" Classes="danger"/>
-                              </Button>
-                            </StackPanel>
-                          </Grid>
-                        </Border>
-                      </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                  </ItemsControl>
-                </StackPanel>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
+          <!-- Favorites above the groups, as 1.x listed them above its sections (ui-reference 09),
+               drawn by the same template as a group and shown only while it has a card. -->
+          <StackPanel Spacing="{StaticResource SpaceMd}">
+            <ContentControl Content="{Binding Favorites}"
+                            IsVisible="{Binding Favorites, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+            <ItemsControl ItemsSource="{Binding Groups}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <StackPanel Spacing="{StaticResource SpaceMd}"/>
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+            </ItemsControl>
+          </StackPanel>
         </ScrollViewer>
       </Panel>
     </DockPanel>

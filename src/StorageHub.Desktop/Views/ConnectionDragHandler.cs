@@ -88,6 +88,10 @@ internal static class ConnectionDragHandler
             return null;
         }
 
+        // Favorites is made by marking a connection, not by filing it. A drop there would file the
+        // connection into a new group of that name, so a drag lands nowhere over it.
+        if (group.IsFavorites) return null;
+
         if (RowAt(e.Source) is { } row &&
             group.Connections.IndexOf(row) is var index and >= 0 &&
             RowControl(source) is { } control)

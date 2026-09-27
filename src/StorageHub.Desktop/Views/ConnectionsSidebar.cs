@@ -30,6 +30,7 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     private readonly Action<IReadOnlyList<ConnectionGroupEntry>>? _save;
     private readonly Action<IReadOnlyDictionary<string, string>>? _saveIcons;
     private readonly Func<string?, string, Task<IconChoice>>? _pickIcon;
+    private readonly Func<IRemoteConnectionProfileClient>? _profiles;
     private Dictionary<string, string> _icons = new(StringComparer.OrdinalIgnoreCase);
     private IReadOnlyList<ConnectionCardModel> _cards = [];
 
@@ -42,6 +43,10 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     /// </remarks>
     private IReadOnlyDictionary<Guid, string> _names = new Dictionary<Guid, string>();
     private string _search = string.Empty;
+    private bool _showFavoritesInTheirFolders = true;
+
+    /// <summary>What the Favorites group offers in place of rename and remove, which is nothing.</summary>
+    private static readonly RelayCommand Inert = new(static _ => { }, static _ => false);
 
     /// <summary>
     /// What the last listing had to say, kept so a search cannot overwrite it.
@@ -63,6 +68,11 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     /// Where a rearrangement goes. Called on every drag, which is cheap: the file is small and the
     /// alternative is losing an arrangement to a shell that did not close cleanly.
     /// </param>
+    /// <param name="profiles">
+    /// Reads and writes a whole profile, which is what marking a favourite takes. A factory for the
+    /// same reason <paramref name="client"/> is one: each toggle opens a connection and closes it.
+    /// Null leaves Toggle favorite dim.
+    /// </param>
     internal ConnectionsSidebar(
         ICommand newCommand,
         Func<IRemoteStorageAgentClient>? client = null,
@@ -71,7 +81,8 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         Action<IReadOnlyList<ConnectionGroupEntry>>? save = null,
         Func<IReadOnlyDictionary<string, string>?>? loadIcons = null,
         Action<IReadOnlyDictionary<string, string>>? saveIcons = null,
-        Func<string?, string, Task<IconChoice>>? pickIcon = null)
+        Func<string?, string, Task<IconChoice>>? pickIcon = null,
+        Func<IRemoteConnectionProfileClient>? profiles = null)
     {
         NewCommand = newCommand;
         _client = client;
@@ -80,6 +91,7 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         _save = save;
         _saveIcons = saveIcons;
         _pickIcon = pickIcon;
+        _profiles = profiles;
         if (loadIcons?.Invoke() is { } icons)
         {
             _icons = new Dictionary<string, string>(icons, StringComparer.OrdinalIgnoreCase);
@@ -117,7 +129,10 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
             if (ReferenceEquals(_selected, value)) return;
             if (_selected is not null) _selected.IsSelected = false;
             _selected = value;
-            if (value is not null) value.IsSelected = true;
+
+            // Both copies of a favourite light up together, as 1.x drew them, so the card in its
+            // group does not look unselected while its twin under Favorites is lit.
+            foreach (var row in Rows()) row.IsSelected = value is not null && row.Id == value.Id;
             DetailStatus = string.Empty;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Selected)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasSelection)));
@@ -145,11 +160,15 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     /// connection's name elsewhere can pick up a new or changed one then rather than later.
     /// Assigned by the shell.
     /// </summary>
-    internal Action? Listed { get; set; }
+    internal Action? Answered { get; set; }
 
     /// <summary>
     /// The details panel's rows for the selected connection, as 1.x listed them under it.
     /// </summary>
+    /// <remarks>
+    /// Favorite is always there, yes or no, as it was in 1.x. Toggling it is not a button here but
+    /// the card's own right-click menu, where 1.x put it beside every other action on a connection.
+    /// </remarks>
     public IReadOnlyList<ConnectionDetailRow> Details => _selected is not { Card: var card }
         ? []
         : [.. new ConnectionDetailRow[]
@@ -157,6 +176,7 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
                 new(Ui.Connections.Provider, card.Descriptor.DisplayName),
                 new(Ui.Connections.FieldFolder, card.FolderPath ?? string.Empty),
                 new(Ui.Connections.FieldTags, string.Join(", ", card.DisplayTags)),
+                new(Ui.Connections.FieldFavorite, card.IsFavorite ? Ui.Connections.DetailYes : Ui.Connections.DetailNo),
                 new(Ui.Connections.FieldState, card.State)
             }.Where(static row => !string.IsNullOrWhiteSpace(row.Value))];
 
@@ -212,7 +232,19 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     {
         await delete(id).ConfigureAwait(true);
         await RefreshAsync().ConfigureAwait(true);
+        ConnectionsChanged?.Invoke(this, EventArgs.Empty);
     }
+
+    /// <summary>
+    /// Raised after the panel has changed what is saved, a favourite toggled or a connection
+    /// deleted, so the rest of the shell can catch up, as 1.x's panel raised it.
+    /// </summary>
+    /// <remarks>
+    /// Welcome's recent connections list favourites first and say so, and read the connections
+    /// for themselves, so without this they would go on showing the old order until refreshed.
+    /// Not raised for a listing: that changes nothing, and would reload Welcome on every one.
+    /// </remarks>
+    internal event EventHandler? ConnectionsChanged;
 
     /// <summary>Asks the agent whether the selected connection answers, and says so under it.</summary>
     internal async Task TestSelectedAsync(CancellationToken cancellationToken = default)
@@ -248,6 +280,61 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         }
     }
 
+    /// <summary>
+    /// Makes a connection a favourite, or stops it being one, as 1.x's Toggle favorite did.
+    /// </summary>
+    /// <remarks>
+    /// The flag is part of the profile, so the agent keeps it with the rest of the connection and
+    /// it survives a restart. A write takes a whole draft, so the profile is read first and written
+    /// back at the version read with only the flag changed: one edited in the meantime is refused
+    /// as a conflict rather than overwritten. Why it failed is said under the details. The
+    /// connection to the agent is closed before the panel lists again, so a toggle holds none open.
+    /// </remarks>
+    internal async Task ToggleFavoriteAsync(Guid connectionId, CancellationToken cancellationToken = default)
+    {
+        if (_profiles is null) return;
+
+        try
+        {
+            await using (var profiles = _profiles())
+            {
+                var current = await profiles
+                    .GetAsync(
+                        new ConnectionProfileGetRequest(ConnectionProfileIpcContract.CurrentVersion, connectionId),
+                        cancellationToken)
+                    .ConfigureAwait(true);
+                if (current.Profile is not { } profile)
+                {
+                    DetailStatus = current.Failure?.Message ?? Ui.Connections.LoadFailed;
+                    return;
+                }
+
+                var draft = profile.Draft with
+                {
+                    Metadata = profile.Draft.Metadata with { IsFavorite = !profile.Draft.Metadata.IsFavorite }
+                };
+                var response = await profiles
+                    .UpdateAsync(
+                        new ConnectionProfileUpdateRequest(
+                            ConnectionProfileIpcContract.CurrentVersion, profile.ConnectionId, profile.Version, draft),
+                        cancellationToken)
+                    .ConfigureAwait(true);
+                if (response.Status != ConnectionProfileWriteStatus.Succeeded)
+                {
+                    DetailStatus = response.Failure?.Message ?? Ui.Connections.UpdateFailed;
+                    return;
+                }
+            }
+
+            await RefreshAsync(cancellationToken).ConfigureAwait(true);
+            ConnectionsChanged?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            DetailStatus = Ui.Connections.UpdateFailedThroughAgent;
+        }
+    }
+
     private void RaiseDetailCommands()
     {
         (OpenSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
@@ -268,6 +355,53 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     /// six things together, and no amount of sorting inside two fixed lists gives them that.
     /// </remarks>
     public ObservableCollection<ConnectionGroupModel> Groups { get; } = [];
+
+    /// <summary>
+    /// The Favorites group above the others, or null when no favourite is showing.
+    /// </summary>
+    /// <remarks>
+    /// 1.x's Favorites section: the enabled favourites, by name, flat, whatever group each is in.
+    /// A state rather than a place, so it sits apart from the groups somebody made and is not one
+    /// of them: nothing is filed into it, and it cannot be renamed, removed or reordered.
+    /// </remarks>
+    public ConnectionGroupModel? Favorites
+    {
+        get;
+        private set
+        {
+            if (ReferenceEquals(field, value)) return;
+            field = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Favorites)));
+        }
+    }
+
+    /// <summary>
+    /// Whether a favourite is listed in its own group as well as under Favorites, as Settings says.
+    /// </summary>
+    /// <remarks>
+    /// On by default, as in 1.x: a favourite that vanishes from its group is confusing when the
+    /// group is how somebody thinks of it. With many connections the repetition can be more noise
+    /// than help, which is what turning it off is for.
+    /// </remarks>
+    internal bool ShowFavoritesInTheirFolders
+    {
+        get => _showFavoritesInTheirFolders;
+        set
+        {
+            if (_showFavoritesInTheirFolders == value) return;
+            _showFavoritesInTheirFolders = value;
+            Rebuild();
+        }
+    }
+
+    /// <summary>
+    /// The connections the agent listed last, whole, for what else offers them: the Go menu's
+    /// favourites. Empty until the first listing, and after one that failed.
+    /// </summary>
+    internal IReadOnlyList<ConnectionSummary> Connections { get; private set; } = [];
+
+    /// <summary>Raised on the UI thread once a listing has been drawn.</summary>
+    internal event EventHandler? Listed;
 
     public ICommand NewCommand { get; }
 
@@ -323,14 +457,18 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     public Action<Guid>? OpenConnectionInNewPane { get; internal set; }
 
     /// <summary>
-    /// A card's right-click menu, as 1.x had it: Open, Open in new pane, Edit, Delete. Built when
-    /// it opens, on the card it opened on, which the right-click has just selected.
+    /// A card's right-click menu, as 1.x had it: Open and Open in new pane, then Toggle favorite
+    /// and Edit, then Delete, with a line between each pair. Built when it opens, on the card it
+    /// opened on, which the right-click has just selected. A label of "-" is one of the lines.
     /// </summary>
     internal IReadOnlyList<(string Label, Action Run, bool Enabled)> ContextEntriesFor(ConnectionRowModel row) =>
     [
         (Ui.Connections.ContextOpen, () => OpenConnection?.Invoke(row.Id), OpenConnection is not null),
         (Ui.Connections.ContextOpenInNewPane, () => OpenConnectionInNewPane?.Invoke(row.Id), OpenConnectionInNewPane is not null),
+        (CommandEntry.SeparatorLabel, static () => { }, false),
+        (Ui.Connections.ContextToggleFavorite, () => _ = ToggleFavoriteAsync(row.Id), _profiles is not null),
         (Ui.Connections.ContextEdit, () => EditConnection?.Invoke(row.Id), EditConnection is not null),
+        (CommandEntry.SeparatorLabel, static () => { }, false),
         (Ui.Connections.ContextDelete, () => { if (DeleteConnection is { } delete) _ = DeleteAndRefreshAsync(delete, row.Id); }, DeleteConnection is not null),
     ];
 
@@ -449,10 +587,7 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
                 return;
             }
 
-            Apply(
-                [.. response.Connections.Select(ConnectionCardFactory.Create)],
-                Ui.Connections.SidebarEmpty,
-                listed: true);
+            Apply(response.Connections, Ui.Connections.SidebarEmpty, listed: true);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -572,10 +707,12 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     /// The agent answered with this list, rather than a failure leaving it empty; only then are
     /// the names replaced.
     /// </param>
-    private void Apply(IReadOnlyList<ConnectionCardModel> cards, string status, bool listed = false)
+    private void Apply(IReadOnlyList<ConnectionSummary> connections, string status, bool listed = false)
     {
         void Update()
         {
+            IReadOnlyList<ConnectionCardModel> cards = [.. connections.Select(ConnectionCardFactory.Create)];
+            Connections = connections;
             _cards = cards;
             _arrangement = ConnectionGrouping.Arrange(_arrangement.Count > 0 ? _arrangement : _load?.Invoke(), cards);
             _listingStatus = status;
@@ -591,7 +728,8 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
             }
 
             Rebuild();
-            if (listed) Listed?.Invoke();
+            if (listed) Answered?.Invoke();
+            Listed?.Invoke(this, EventArgs.Empty);
         }
 
         if (Dispatcher.UIThread.CheckAccess()) Update();
@@ -606,14 +744,27 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
             .Where(static card => card.ConnectionId is not null)
             .ToDictionary(static card => card.ConnectionId!.Value);
 
+        // Favourites first, as 1.x listed them: the enabled ones, by name. A disabled favourite
+        // stays only in its group, where a connection that cannot be opened is shown dimmed.
+        var favorites = _cards
+            .Where(static card => card is { IsEnabled: true, IsFavorite: true, ConnectionId: not null })
+            .Where(card => ConnectionPickerFilter.Matches(card, _search))
+            .OrderBy(static card => card.Name, StringComparer.CurrentCultureIgnoreCase)
+            .Select(static card => new ConnectionRowModel(card))
+            .ToArray();
+        Favorites = favorites.Length == 0
+            ? null
+            : new ConnectionGroupModel(Ui.Connections.GroupFavorites, favorites, Inert, Inert, isFavorites: true);
+
         Groups.Clear();
-        var matched = 0;
+        var matched = favorites.Length;
         foreach (var group in _arrangement)
         {
             var name = group.Name;
             var rows = group.Members
                 .Where(byId.ContainsKey)
                 .Select(id => byId[id])
+                .Where(card => _showFavoritesInTheirFolders || card is not { IsEnabled: true, IsFavorite: true })
                 .Where(card => ConnectionPickerFilter.Matches(card, _search))
                 .Select(card => new ConnectionRowModel(card))
                 .ToArray();
@@ -632,13 +783,17 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         // listing itself had to say outranks it: an agent that did not answer is the more useful
         // thing to be told, and is still true whatever is typed in the box.
         _selected = null;
-        Selected = Groups.SelectMany(static group => group.Connections)
-            .FirstOrDefault(row => row.Id == chosen);
+        Selected = Rows().FirstOrDefault(row => row.Id == chosen);
 
         var searchFoundNothing = HasSearch && matched == 0 && _cards.Count > 0;
         IsEmpty = _cards.Count == 0 || searchFoundNothing;
         Status = searchFoundNothing ? Ui.Connections.NoMatches : _listingStatus;
     }
+
+    /// <summary>Every card on the panel, Favorites' first, a favourite's two copies both included.</summary>
+    private IEnumerable<ConnectionRowModel> Rows() =>
+        (Favorites?.Connections ?? Enumerable.Empty<ConnectionRowModel>())
+            .Concat(Groups.SelectMany(static group => group.Connections));
 
     private void Persist() => _save?.Invoke(_arrangement);
 

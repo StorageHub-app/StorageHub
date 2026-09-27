@@ -511,12 +511,14 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
 
     /// <summary>
     /// Brings the shell into line with what Settings saved: the keys each command answers to and
-    /// the menus show, the toolbar, and the side the connections panel is on.
+    /// the menus show, the toolbar, the side the connections panel is on, and whether a favourite
+    /// is listed in its own group too.
     /// </summary>
     /// <remarks>
-    /// What 1.x did once its Settings dialog had saved (RefreshShortcutPresentation and
-    /// ApplyToolbarPreferences), so a change shows at once rather than at the next start. An
-    /// import can change the same settings, so it comes here too.
+    /// What 1.x did once its Settings dialog had saved (RefreshShortcutPresentation,
+    /// ApplyToolbarPreferences and the panel's ShowFavoritesInTheirFolders), so a change shows at
+    /// once rather than at the next start. An import can change the same settings, so it comes
+    /// here too.
     /// </remarks>
     internal void FollowSettings(DesktopUpdatePreferences saved)
     {
@@ -524,6 +526,7 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         Router.UseShortcuts(saved.Shortcuts);
         ArrangeToolbar(saved.ToolbarItems, saved.ToolbarLabels);
         ConnectionsPanel.FollowSettings(saved);
+        Sidebar.ShowFavoritesInTheirFolders = saved.ShowFavoritesInTheirFolders;
     }
 
     /// <summary>
@@ -681,6 +684,73 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
 
     /// <summary>Workspace > Pin Workspace, which follows the tab showing as Save does.</summary>
     private RelayCommand? _togglePin;
+
+    /// <summary>The Go menu's entries from the catalog, kept so each redraw starts from them.</summary>
+    private CommandEntry[]? _goCatalogEntries;
+
+    /// <summary>
+    /// Lists the favourite connections at the foot of the Go menu, under a bold Favorites, as 1.x's
+    /// RebuildFavoritesSection did.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Which connections, and in what order, is <see cref="FavoriteConnectionMenu"/>'s rule: the
+    /// enabled favourites a pane can open, by name. Choosing one opens it in the active pane, as
+    /// double-clicking its card does, since Go is the menu that moves the pane somebody is looking
+    /// at. With none, the menu says so and how to make one, rather than a heading over nothing.
+    /// </para>
+    /// <para>
+    /// Drawn again whenever the connections panel has listed the connections, so a favourite
+    /// toggled on a card is there the next time the menu opens. Replaced only when something in it
+    /// changed, so a listing does not rebuild a menu that is open.
+    /// </para>
+    /// </remarks>
+    internal void ListFavoritesInTheMenu(IReadOnlyList<Contracts.Ipc.ConnectionSummary> connections)
+    {
+        if (Menus.FirstOrDefault(static section => section.Menu == UiMenuId.Go)?.Items
+            is not ObservableCollection<CommandEntry> items)
+        {
+            return;
+        }
+
+        _goCatalogEntries ??= [.. items];
+        var next = new List<CommandEntry>(_goCatalogEntries)
+        {
+            new("go.favorites.separator", CommandEntry.SeparatorLabel, string.Empty, null, UiIconTone.Text, Inert),
+            new("go.favorites.heading", Ui.Shell.Favorites, string.Empty, null, UiIconTone.Text, Inert) { IsHeading = true },
+        };
+
+        var favorites = FavoriteConnectionMenu.Select(connections);
+        if (favorites.Count == 0)
+        {
+            next.Add(new(
+                "go.favorites.none", Ui.Shell.NoFavoriteConnections, Ui.Shell.FavoritesEmptyHint, null, UiIconTone.Text, Inert));
+        }
+
+        foreach (var connection in favorites)
+        {
+            var id = connection.ConnectionId;
+
+            // Doubled and marked as the Workspace menu's names are, so a name is shown as typed.
+            var name = connection.DisplayName.Replace("_", "__", StringComparison.Ordinal);
+            if (name == CommandEntry.SeparatorLabel) name = "_" + name;
+            next.Add(new(
+                "go.favorite:" + id.ToString("D"),
+                name,
+                string.IsNullOrWhiteSpace(connection.FolderPath)
+                    ? ConnectionProviderCatalog.Get(ConnectionCardFactory.MapProvider(connection.Provider)).DisplayName
+                    : connection.FolderPath,
+                null,
+                UiIconTone.Text,
+                new RelayCommand(_ => Sidebar.OpenConnection?.Invoke(id))));
+        }
+
+        if (items.Select(Key).SequenceEqual(next.Select(Key))) return;
+        items.Clear();
+        foreach (var entry in next) items.Add(entry);
+
+        static (string, string, string) Key(CommandEntry entry) => (entry.Id, entry.Label, entry.Description);
+    }
 
     /// <summary>
     /// Dims the commands that need a workspace while Welcome or Sync tasks is showing, as 1.x did.
@@ -1344,7 +1414,7 @@ internal static class ShellPreview
         // the sidebar's, so the rows are read again as the list comes in, rather than showing
         // short ids until the next poll. A rename shows as the Connection Manager closes, too.
         queue.ConnectionName = model.Sidebar.NameOf;
-        model.Sidebar.Listed = () => _ = queue.RefreshAsync(background: true);
+        model.Sidebar.Answered = () => _ = queue.RefreshAsync(background: true);
 
         // The Welcome page. Live, it asks the agent itself, as 1.x's did; its buttons go where the
         // same commands go from the menu and the toolbar.
@@ -1432,6 +1502,21 @@ internal static class ShellPreview
             panel.Persist = UpdatePreferences;
             panel.Shown += (_, _) => _ = model.Sidebar.RefreshAsync();
         }
+
+        // Favourites in their own group as well as under Favorites, or only there, as Settings says.
+        model.Sidebar.ShowFavoritesInTheirFolders = saved.ShowFavoritesInTheirFolders;
+
+        // Go > Favorites follows what the panel lists. Live only, as the Workspace menu's own
+        // entries are: the samples list no connections and keep the catalog's menu.
+        if (live)
+        {
+            model.ListFavoritesInTheMenu([]);
+            model.Sidebar.Listed += (_, _) => model.ListFavoritesInTheMenu(model.Sidebar.Connections);
+        }
+
+        // Welcome's recent connections put favourites first and say so, so a favourite toggled or
+        // a connection deleted on the panel reads them again, as 1.x's ConnectionsChanged did.
+        model.Sidebar.ConnectionsChanged += (_, _) => _ = model.Overview?.RefreshAsync();
 
         // The panel knows nothing about panes, so the shell hands it the one thing it needs to
         // act on a row: what to do with a connection id.
@@ -1534,7 +1619,10 @@ internal static class ShellPreview
         LoadGroupIcons,
         SaveGroupIcons,
         static (current, title) => Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(
-            () => IconPickerWindow.AskAsync(Services.ShellServices.MainWindow(), current, title)));
+            () => IconPickerWindow.AskAsync(Services.ShellServices.MainWindow(), current, title)),
+
+        // Toggle favorite reads and writes the whole profile, as the Connection Manager does.
+        static () => new NamedPipeRemoteConnectionProfileClient());
 
     /// <summary>The icons chosen for groups in the connections panel, from the settings file.</summary>
     private static IReadOnlyDictionary<string, string>? LoadGroupIcons()

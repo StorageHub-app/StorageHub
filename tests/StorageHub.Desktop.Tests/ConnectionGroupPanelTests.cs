@@ -205,8 +205,9 @@ public class ConnectionGroupPanelTests
             global::Avalonia.Application.Current!,
             ColorSchemeCatalog.Resolve(id: null, preferDark: dark));
 
+        // Studio Assets is a favourite, as in ui-reference 09, so Favorites is over the groups.
         var window = await PanelAsync(
-            Summary("Studio Assets", "Team"),
+            Summary("Studio Assets", "Team") with { IsFavorite = true },
             Summary("Renders", "Team"),
             Summary("build-box", "Team", StorageConnectionProvider.Ssh, client: true),
             Summary("Site Backups"),
