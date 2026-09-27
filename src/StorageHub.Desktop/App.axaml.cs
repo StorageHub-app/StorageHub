@@ -17,6 +17,10 @@ public partial class App : global::Avalonia.Application
         // rest of the tokens here before anything is measured with them.
         DesignTokens.Apply(this);
 
+        // Every table's columns keep a minimum width, whatever is dragged. Here rather than in the
+        // desktop branch below so the headless tests run under the same rules.
+        TableColumnRules.Install();
+
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             // The splash first, as 1.x opened: settings, the framework and the language, then the
