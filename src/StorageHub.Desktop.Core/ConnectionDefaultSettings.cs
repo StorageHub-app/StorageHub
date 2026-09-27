@@ -22,6 +22,9 @@ internal static class ConnectionDefaultSettings
     /// </summary>
     internal const string PrivateKeyReferenceKey = "privateKeyReference";
 
+    /// <summary>The longest text default that is kept, which is also what Settings lets be typed.</summary>
+    internal const int MaximumFieldValueLength = 2_048;
+
     private static readonly HashSet<string> EditableFieldKeys = new(StringComparer.Ordinal)
     {
         "port",
@@ -145,7 +148,7 @@ internal static class ConnectionDefaultSettings
 
     private static bool IsValidFieldValue(ConnectionFieldDescriptor field, string value)
     {
-        if (value.Length > 2_048 || value.Any(char.IsControl))
+        if (value.Length > MaximumFieldValueLength || value.Any(char.IsControl))
         {
             return false;
         }

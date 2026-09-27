@@ -241,10 +241,14 @@ setting to choose it (P.5.1).
       session gets `preferences: null` and a fixed font.
 - [ ] P.5.3 Per-provider connection defaults prefill a new connection (the editor passes `stored: null`).
 - [ ] P.5.4 "New workspace layout" (a preset or "Ask every time"); ticking "stop asking" can be undone.
-- [ ] P.5.5 "Start with" concurrency, enabled only when adaptive is on; the update toggles depend on one
-      another; the update source and installed version under Updates.
+- [x] P.5.5 "Start with" concurrency, enabled only when adaptive is on (raising it raises the maximums,
+      which the settings file requires); the update toggles depend on one another; the update source
+      and installed version under Updates. Came with L.5 and L.6.
 - [ ] P.5.6 Installation check window, from Agent control and from the splash.
 - [ ] P.5.7 Open an SSH client in its own window from the Connection Manager.
+- [ ] P.5.8 "Show favourites in their folders too" is applied: the connections panel lists a favourite
+      under its folder as well as under Favourites, and re-reads the setting when Settings closes, as
+      1.4's `RefreshConnectionSurfaces` did. The row is saved but nothing reads it yet.
 
 ## L. Look parity with 1.4 (before 1.5)
 
@@ -289,12 +293,18 @@ reference shot.
       Authentication and TLS / SSH Trust tabs; each description under its control rather than under
       its label; a red asterisk on required fields; icon and colour swatches; the badge preview; the
       "Loaded version N" status in the footer. Proxy, speed limits and FTP Advanced go into the tabs.
-- [ ] L.5 Settings pages (ref 02): Shortcuts, Connections & trust (per-provider defaults under a
-      `STORAGE` caption, SSH Terminal under `CLIENTS`) and Background agent come back. Performance and
-      Confirmations fold back into "Transfers & sync".
-- [ ] L.6 Settings rows (ref 02): rows grouped in one card under capitalised captions (`CONCURRENCY`,
-      `CONFIRMATIONS`) instead of a card each; units inside number fields ("4 jobs"); buttons ordered
-      Apply / Cancel / OK.
+- [x] L.5 Settings pages (ref 02). Done: 1.4's rail and order, with Shortcuts, Connections & trust
+      (host-key discovery and its caveat; each provider's new-connection defaults under a `STORAGE`
+      or `CLIENTS` caption, SSH Terminal carrying the terminal preferences, and "Create a … connection")
+      and Background agent (sign-in or only while open; Windows only, as in 1.4). Performance and
+      Confirmations are back in "Transfers & sync", with the total speed limits under `SPEED LIMITS`;
+      favourites-in-folders is back under Appearance (saved, but applying it is P.5.8). Not here:
+      Language (P.5.1) and the new-workspace preset (P.5.4). The shortcuts are edited and saved;
+      dispatching them is P.3.4.
+- [x] L.6 Settings rows (ref 02). Done: one card per caption with hairlines between rows, units inside
+      number fields with 1.4's stacked arrows and thousands separators, 1.4's text limits, rows dimmed
+      rather than hidden when they do not apply, and Apply / Cancel / OK. Left open: 1.4 drew the
+      arrows in a column outside the field's border, and 2.0 draws them inside.
 - [x] L.7 The connections sidebar (ref 09). Done for the cards and the details panel: coloured
       icon tiles, the provider / folder / health line, tag chips, a selected card with inline edit
       and delete, and a details panel with Open, Test, Edit and Delete. Kept from 2.0: groups made

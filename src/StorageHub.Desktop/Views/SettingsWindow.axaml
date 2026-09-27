@@ -4,52 +4,195 @@
         x:Class="StorageHub.Desktop.Views.SettingsWindow"
         x:DataType="vm:SettingsModel"
         Title="{Binding Title}"
-        Width="880" Height="620"
-        MinWidth="720" MinHeight="480"
+        Width="1160" Height="780"
+        MinWidth="1080" MinHeight="720"
         WindowStartupLocation="CenterOwner">
 
   <!--
-    The old dialog's shape: a navigation list on the left, one page on the right, and Apply beside
-    OK and Cancel. What is different is that the rows are data - SettingsPageCatalog names them and
-    one template below draws all three kinds. SettingsForm was 1,827 lines, most of them a widget
-    per setting, and FitSettingsPageContent and MeasureNavigationWidth existed to compensate for
-    laying them out by hand. Neither is ported: a Grid does it.
+    1.4's dialog (ui-reference 02): a rail on the left, one page on the right, and Apply, Cancel
+    and OK along the bottom. The rail mixes flat entries with Connections & trust, whose providers
+    sit under Storage and Clients captions. A page is a heading, a sentence, then capitalised
+    captions over cards whose rows share edges, each row a label and a sentence on the left and its
+    control hard right.
+
+    What is different is that the rows are data: SettingsPageCatalog names them and one template
+    below draws every kind. SettingsForm was 1,982 lines, most of them a widget per setting, and
+    FitSettingsPageContent and MeasureNavigationWidth existed to compensate for laying them out by
+    hand. Neither is ported: a Grid does it.
   -->
+
+  <Window.Styles>
+    <!-- The rail's rows: no box of Fluent's own, a pill in the selection colour when chosen. -->
+    <Style Selector="ListBox.settings-nav">
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="Padding" Value="0"/>
+    </Style>
+    <Style Selector="ListBox.settings-nav > ListBoxItem" x:DataType="vm:SettingsNavigationEntry">
+      <Setter Property="Padding" Value="0"/>
+      <Setter Property="MinHeight" Value="0"/>
+      <Setter Property="Margin" Value="{StaticResource SettingsNavigationItemMargin}"/>
+      <Setter Property="CornerRadius" Value="{StaticResource ButtonRadius}"/>
+      <!-- A caption names a group; it is not somewhere to go. -->
+      <Setter Property="IsEnabled" Value="{Binding IsSelectable}"/>
+    </Style>
+    <Style Selector="ListBox.settings-nav > ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent"/>
+    </Style>
+    <Style Selector="ListBox.settings-nav > ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource ElevatedBrush}"/>
+    </Style>
+    <Style Selector="ListBox.settings-nav > ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource SelectionBrush}"/>
+    </Style>
+    <Style Selector="ListBox.settings-nav > ListBoxItem:disabled /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent"/>
+    </Style>
+
+    <Style Selector="TextBlock.settings-nav-title">
+      <Setter Property="FontSize" Value="{StaticResource FontSizeSubtitle}"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Margin" Value="{StaticResource SettingsNavigationTitleMargin}"/>
+    </Style>
+    <!-- Names are muted until chosen, and the pages at the top are bold, as 1.4 painted them. -->
+    <Style Selector="TextBlock.settings-nav-text">
+      <Setter Property="FontSize" Value="{StaticResource FontSizeSubtitle}"/>
+      <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+      <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+      <Setter Property="Margin" Value="{StaticResource SettingsNavigationTextMargin}"/>
+    </Style>
+    <Style Selector="TextBlock.settings-nav-text.top">
+      <Setter Property="FontWeight" Value="Bold"/>
+    </Style>
+    <Style Selector="TextBlock.settings-nav-text.selected">
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+    </Style>
+    <Style Selector="Border.settings-nav-accent">
+      <Setter Property="Width" Value="{StaticResource SettingsNavigationAccentWidth}"/>
+      <Setter Property="Margin" Value="{StaticResource SettingsNavigationAccentMargin}"/>
+      <Setter Property="HorizontalAlignment" Value="Left"/>
+      <Setter Property="Background" Value="{DynamicResource PrimaryBrush}"/>
+      <Setter Property="CornerRadius" Value="{StaticResource DenseFieldRadius}"/>
+    </Style>
+    <!-- A guide line instead of an icon beside a provider: the rows under a group are all of one
+         kind, so an icon each would say nothing the caption had not. -->
+    <Style Selector="Border.settings-nav-guide">
+      <Setter Property="Width" Value="1"/>
+      <Setter Property="HorizontalAlignment" Value="Left"/>
+      <Setter Property="Background" Value="{DynamicResource BorderBrush}"/>
+      <Setter Property="Margin" Value="{StaticResource SettingsNavigationGuideMargin}"/>
+    </Style>
+    <Style Selector="Button.settings-nav-chevron">
+      <Setter Property="Padding" Value="0"/>
+      <Setter Property="MinWidth" Value="0"/>
+      <Setter Property="MinHeight" Value="0"/>
+      <Setter Property="Margin" Value="{StaticResource SettingsNavigationChevronMargin}"/>
+      <Setter Property="HorizontalAlignment" Value="Left"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <!-- The page. -->
+    <Style Selector="TextBlock.settings-caption">
+      <Setter Property="FontSize" Value="{StaticResource FontSizeCaption}"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+      <Setter Property="LetterSpacing" Value="{StaticResource SettingsCaptionLetterSpacing}"/>
+    </Style>
+    <Style Selector="TextBlock.settings-label">
+      <Setter Property="FontSize" Value="{StaticResource FontSizeSubtitle}"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+    <Style Selector="Border.settings-card">
+      <Setter Property="Padding" Value="0"/>
+    </Style>
+    <Style Selector="Border.settings-divider">
+      <Setter Property="Height" Value="1"/>
+      <Setter Property="Background" Value="{DynamicResource BorderBrush}"/>
+      <Setter Property="Margin" Value="{StaticResource SettingsDividerMargin}"/>
+    </Style>
+    <!-- 1.4's number field: the value and its unit, with the up and down arrows stacked in a
+         narrow column at its end rather than Fluent's two wide buttons side by side. -->
+    <Style Selector="NumericUpDown.settings /template/ ButtonSpinner /template/ StackPanel#PART_SpinnerPanel">
+      <Setter Property="Orientation" Value="Vertical"/>
+    </Style>
+    <Style Selector="NumericUpDown.settings /template/ ButtonSpinner /template/ RepeatButton">
+      <Setter Property="Width" Value="{StaticResource SettingsSpinnerButtonWidth}"/>
+      <Setter Property="Height" Value="{StaticResource SettingsSpinnerButtonHeight}"/>
+      <Setter Property="MinHeight" Value="0"/>
+      <Setter Property="MinWidth" Value="0"/>
+      <Setter Property="Padding" Value="0"/>
+    </Style>
+    <Style Selector="NumericUpDown.settings /template/ ButtonSpinner /template/ RepeatButton PathIcon">
+      <Setter Property="Width" Value="{StaticResource SettingsSpinnerGlyphSize}"/>
+      <Setter Property="Height" Value="{StaticResource SettingsSpinnerGlyphSize}"/>
+    </Style>
+    <Style Selector="NumericUpDown.settings">
+      <Setter Property="Padding" Value="{StaticResource SettingsNumberPadding}"/>
+    </Style>
+    <Style Selector="Button.dialog">
+      <Setter Property="MinWidth" Value="{StaticResource DialogButtonMinWidth}"/>
+      <Setter Property="HorizontalContentAlignment" Value="Center"/>
+    </Style>
+  </Window.Styles>
 
   <DockPanel>
 
-    <Border DockPanel.Dock="Bottom" Classes="toolbar"
-            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0"
-            Padding="{StaticResource PagePadding}">
+    <!-- Apply, Cancel, OK, in 1.4's order. Apply dims until something has changed. -->
+    <Border DockPanel.Dock="Bottom" Classes="surface" Padding="{StaticResource PagePadding}">
       <Grid ColumnDefinitions="*,Auto">
         <TextBlock Grid.Column="0" Classes="muted" VerticalAlignment="Center"
                    Text="{Binding DirtyLabel}"/>
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource SpaceMd}">
-          <Button Classes="primary" MinWidth="88"
+          <Button Classes="dialog" Content="{Binding ApplyLabel}" Command="{Binding ApplyCommand}"/>
+          <Button Classes="dialog" IsCancel="True"
+                  Content="{Binding CancelLabel}" Command="{Binding CancelCommand}"/>
+          <Button Classes="dialog primary" IsDefault="True"
                   Content="{Binding SaveLabel}" Command="{Binding SaveCommand}"/>
-          <Button MinWidth="88" Content="{Binding ApplyLabel}" Command="{Binding ApplyCommand}"/>
-          <Button MinWidth="88" Content="{Binding CancelLabel}" Command="{Binding CancelCommand}"/>
         </StackPanel>
       </Grid>
     </Border>
 
-    <Border DockPanel.Dock="Left" Classes="surface" Width="220"
+    <Border DockPanel.Dock="Left" Width="{StaticResource SettingsNavigationWidth}"
+            Background="{DynamicResource SurfaceMutedBrush}"
             BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0">
-      <DockPanel>
-        <TextBlock DockPanel.Dock="Top" Classes="title"
-                   Margin="{StaticResource PagePadding}"
-                   Text="{Binding NavigationTitle}"/>
-        <ListBox ItemsSource="{Binding Pages}"
-                 SelectedIndex="{Binding SelectedPage}"
-                 Background="Transparent"
-                 BorderThickness="0">
+      <DockPanel Margin="{StaticResource SettingsNavigationPadding}">
+        <TextBlock DockPanel.Dock="Top" Classes="settings-nav-title" Text="{Binding NavigationTitle}"/>
+        <ListBox Classes="settings-nav"
+                 ItemsSource="{Binding Navigation}"
+                 SelectedItem="{Binding SelectedEntry, Mode=TwoWay}"
+                 AutomationProperties.Name="{Binding NavigationAccessibleName}">
           <ListBox.ItemTemplate>
-            <DataTemplate DataType="vm:SettingsPageModel">
-              <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceMd}">
-                <LucideIcon Kind="{Binding Icon}" Size="{StaticResource IconSizeSm}"
-                            VerticalAlignment="Center"/>
-                <TextBlock Text="{Binding Title}" VerticalAlignment="Center"/>
-              </StackPanel>
+            <DataTemplate DataType="vm:SettingsNavigationEntry">
+              <Panel Height="{StaticResource SettingsNavigationRowHeight}">
+                <Border Classes="settings-nav-accent"
+                        IsVisible="{Binding $parent[ListBoxItem].IsSelected}"/>
+
+                <TextBlock Classes="settings-caption" IsVisible="{Binding IsCaption}"
+                           Margin="{StaticResource SettingsNavigationCaptionMargin}"
+                           VerticalAlignment="Bottom" Text="{Binding Text}"/>
+
+                <Panel IsVisible="{Binding IsTopLevel}">
+                  <Button Classes="tool settings-nav-chevron" IsVisible="{Binding HasChildren}"
+                          Command="{Binding ToggleCommand}"
+                          AutomationProperties.Name="{Binding ToggleAccessibleName}">
+                    <LucideIcon Kind="{Binding ChevronIcon}" Size="{StaticResource IconSizeSm}"/>
+                  </Button>
+                  <LucideIcon Kind="{Binding Icon}" Size="{StaticResource IconSizeMd}"
+                              Margin="{StaticResource SettingsNavigationIconMargin}"
+                              HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                  <TextBlock Classes="settings-nav-text top"
+                             Classes.selected="{Binding $parent[ListBoxItem].IsSelected}"
+                             Text="{Binding Text}"/>
+                </Panel>
+
+                <Panel IsVisible="{Binding IsChild}">
+                  <Border Classes="settings-nav-guide"/>
+                  <TextBlock Classes="settings-nav-text"
+                             Classes.selected="{Binding $parent[ListBoxItem].IsSelected}"
+                             Text="{Binding Text}"/>
+                </Panel>
+              </Panel>
             </DataTemplate>
           </ListBox.ItemTemplate>
         </ListBox>
@@ -58,130 +201,323 @@
 
     <!--
       The page is chosen by type rather than by one template: most pages are a list of rows, and
-      the toolbar is two lists and five buttons. Avalonia takes the first template whose DataType
-      matches, and ToolbarPageModel derives from SettingsPageModel, so it comes first.
+      the toolbar, the shortcuts and the agent are screens of their own. Avalonia takes the first
+      template whose DataType matches, and those three derive from SettingsPageModel, so they come
+      first.
 
-      The scrolling moved inside the rows template. A ScrollViewer around both would give the
-      toolbar lists an unbounded height, which is how a list ends up as tall as its contents.
+      Each page sits in a column capped at the content width, so a control stays near the words
+      it belongs to however wide the window is.
     -->
-    <ContentControl Content="{Binding SelectedPageModel}" Name="PART_Page">
+    <ContentControl Content="{Binding SelectedPageModel}" Name="PART_Page"
+                    Background="{DynamicResource SurfaceBrush}">
       <ContentControl.DataTemplates>
 
         <DataTemplate DataType="vm:ToolbarPageModel">
-          <DockPanel Margin="{StaticResource PagePadding}">
+          <Grid Margin="{StaticResource SettingsPagePadding}">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" MaxWidth="{StaticResource SettingsContentWidth}"/>
+            </Grid.ColumnDefinitions>
+            <DockPanel>
 
-            <StackPanel DockPanel.Dock="Top" Spacing="{StaticResource SpaceXs}" Margin="0,0,0,14">
-              <TextBlock Classes="title" Text="{Binding Title}"/>
-              <TextBlock Classes="muted" Text="{Binding Description}" TextWrapping="Wrap"/>
-            </StackPanel>
-
-            <!-- Two rows rather than one that wraps: wrapping put the label style and a reset
-                 button on the same line in English and on different lines in Danish, which read
-                 as an accident rather than a layout. -->
-            <StackPanel DockPanel.Dock="Bottom" Spacing="{StaticResource SpaceMd}" Margin="0,14,0,0">
-              <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceMd}">
-                <TextBlock Text="{Binding LabelsCaption}" VerticalAlignment="Center"/>
-                <ComboBox Width="220"
-                          ItemsSource="{Binding LabelStyles}"
-                          SelectedIndex="{Binding SelectedLabelStyle, Mode=TwoWay}"
-                          AutomationProperties.Name="{Binding LabelsAccessibleName}"/>
-              </StackPanel>
-              <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceMd}">
-                <Button Content="{Binding ResetEssentialLabel}" Command="{Binding ResetEssentialCommand}"/>
-                <Button Content="{Binding ResetExpandedLabel}" Command="{Binding ResetExpandedCommand}"/>
-              </StackPanel>
-            </StackPanel>
-
-            <Grid ColumnDefinitions="*,Auto,*" RowDefinitions="Auto,*"
-                  ColumnSpacing="{StaticResource SpaceMd}" RowSpacing="{StaticResource SpaceXs}">
-              <TextBlock Grid.Row="0" Grid.Column="0" Classes="caption"
-                         Text="{Binding AvailableCaption}"/>
-              <TextBlock Grid.Row="0" Grid.Column="2" Classes="caption"
-                         Text="{Binding CurrentCaption}"/>
-
-              <ListBox Grid.Row="1" Grid.Column="0"
-                       ItemsSource="{Binding Available}"
-                       SelectedIndex="{Binding SelectedAvailable, Mode=TwoWay}"
-                       AutomationProperties.Name="{Binding AvailableAccessibleName}"/>
-
-              <StackPanel Grid.Row="1" Grid.Column="1" Width="150"
-                          VerticalAlignment="Center" Spacing="{StaticResource SpaceSm}">
-                <Button Classes="primary" HorizontalAlignment="Stretch"
-                        Content="{Binding AddLabel}" Command="{Binding AddCommand}"/>
-                <Button HorizontalAlignment="Stretch"
-                        Content="{Binding RemoveLabel}" Command="{Binding RemoveCommand}"/>
-                <Button HorizontalAlignment="Stretch"
-                        Content="{Binding AddSeparatorLabel}" Command="{Binding AddSeparatorCommand}"/>
-                <Button HorizontalAlignment="Stretch"
-                        Content="{Binding MoveUpLabel}" Command="{Binding MoveUpCommand}"/>
-                <Button HorizontalAlignment="Stretch"
-                        Content="{Binding MoveDownLabel}" Command="{Binding MoveDownCommand}"/>
+              <StackPanel DockPanel.Dock="Top" Spacing="{StaticResource SpaceXs}"
+                          Margin="{StaticResource SettingsHeadingMargin}">
+                <TextBlock Classes="heading" Text="{Binding Heading}"/>
+                <TextBlock Classes="muted" Text="{Binding Description}" TextWrapping="Wrap"/>
               </StackPanel>
 
-              <ListBox Grid.Row="1" Grid.Column="2"
-                       ItemsSource="{Binding Current}"
-                       SelectedIndex="{Binding SelectedCurrent, Mode=TwoWay}"
-                       AutomationProperties.Name="{Binding CurrentAccessibleName}"/>
+              <!-- Two rows rather than one that wraps: wrapping put the label style and a reset
+                   button on the same line in English and on different lines in Danish, which read
+                   as an accident rather than a layout. -->
+              <StackPanel DockPanel.Dock="Bottom" Spacing="{StaticResource SpaceMd}"
+                          Margin="{StaticResource SettingsAfterCardMargin}">
+                <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceMd}">
+                  <TextBlock Text="{Binding LabelsCaption}" VerticalAlignment="Center"/>
+                  <ComboBox Width="{StaticResource SettingsChoiceWidth}"
+                            ItemsSource="{Binding LabelStyles}"
+                            SelectedIndex="{Binding SelectedLabelStyle, Mode=TwoWay}"
+                            AutomationProperties.Name="{Binding LabelsAccessibleName}"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceMd}">
+                  <Button Content="{Binding ResetEssentialLabel}" Command="{Binding ResetEssentialCommand}"/>
+                  <Button Content="{Binding ResetExpandedLabel}" Command="{Binding ResetExpandedCommand}"/>
+                </StackPanel>
+              </StackPanel>
+
+              <Grid ColumnDefinitions="*,Auto,*" RowDefinitions="Auto,*"
+                    ColumnSpacing="{StaticResource SpaceMd}" RowSpacing="{StaticResource SpaceXs}">
+                <TextBlock Grid.Row="0" Grid.Column="0" Classes="caption"
+                           Text="{Binding AvailableCaption}"/>
+                <TextBlock Grid.Row="0" Grid.Column="2" Classes="caption"
+                           Text="{Binding CurrentCaption}"/>
+
+                <ListBox Grid.Row="1" Grid.Column="0"
+                         ItemsSource="{Binding Available}"
+                         SelectedIndex="{Binding SelectedAvailable, Mode=TwoWay}"
+                         AutomationProperties.Name="{Binding AvailableAccessibleName}"/>
+
+                <StackPanel Grid.Row="1" Grid.Column="1" Width="150"
+                            VerticalAlignment="Center" Spacing="{StaticResource SpaceSm}">
+                  <Button Classes="primary" HorizontalAlignment="Stretch"
+                          Content="{Binding AddLabel}" Command="{Binding AddCommand}"/>
+                  <Button HorizontalAlignment="Stretch"
+                          Content="{Binding RemoveLabel}" Command="{Binding RemoveCommand}"/>
+                  <Button HorizontalAlignment="Stretch"
+                          Content="{Binding AddSeparatorLabel}" Command="{Binding AddSeparatorCommand}"/>
+                  <Button HorizontalAlignment="Stretch"
+                          Content="{Binding MoveUpLabel}" Command="{Binding MoveUpCommand}"/>
+                  <Button HorizontalAlignment="Stretch"
+                          Content="{Binding MoveDownLabel}" Command="{Binding MoveDownCommand}"/>
+                </StackPanel>
+
+                <ListBox Grid.Row="1" Grid.Column="2"
+                         ItemsSource="{Binding Current}"
+                         SelectedIndex="{Binding SelectedCurrent, Mode=TwoWay}"
+                         AutomationProperties.Name="{Binding CurrentAccessibleName}"/>
+              </Grid>
+            </DockPanel>
+          </Grid>
+        </DataTemplate>
+
+        <!-- 1.4's shortcut editor: the table, then the box a chord is pressed into and the three
+             buttons that act on the selected command, then what the last one did. -->
+        <DataTemplate DataType="vm:ShortcutsPageModel">
+          <Grid Margin="{StaticResource SettingsPagePadding}">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" MaxWidth="{StaticResource SettingsContentWidth}"/>
+            </Grid.ColumnDefinitions>
+            <DockPanel>
+              <StackPanel DockPanel.Dock="Top" Spacing="{StaticResource SpaceXs}"
+                          Margin="{StaticResource SettingsHeadingMargin}">
+                <TextBlock Classes="heading" Text="{Binding Heading}"/>
+                <TextBlock Classes="muted" Text="{Binding Description}" TextWrapping="Wrap"/>
+              </StackPanel>
+
+              <TextBlock DockPanel.Dock="Bottom" Classes="muted" TextWrapping="Wrap"
+                         Margin="{StaticResource SettingsAfterCardMargin}"
+                         Text="{Binding Message}"
+                         AutomationProperties.Name="{Binding MessageAccessibleName}"/>
+
+              <WrapPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
+                         ItemSpacing="{StaticResource SpaceMd}" LineSpacing="{StaticResource SpaceMd}"
+                         Margin="{StaticResource SettingsAfterCardMargin}">
+                <TextBox Name="ShortcutCapture" IsReadOnly="True"
+                         Width="{StaticResource SettingsShortcutCaptureWidth}"
+                         Text="{Binding CapturedText}"
+                         PlaceholderText="{Binding CapturePlaceholder}"
+                         AutomationProperties.Name="{Binding CaptureAccessibleName}"/>
+                <Button Content="{Binding AssignLabel}" Command="{Binding AssignCommand}"/>
+                <Button Content="{Binding ClearLabel}" Command="{Binding ClearCommand}"/>
+                <Button Content="{Binding RestoreDefaultsLabel}" Command="{Binding RestoreDefaultsCommand}"/>
+              </WrapPanel>
+
+              <TableView ItemsSource="{Binding Commands}"
+                         SelectedItem="{Binding SelectedCommand, Mode=TwoWay}"
+                         AutomationProperties.Name="{Binding AccessibleName}">
+                <TableView.Columns>
+                  <TableViewColumn Header="{Binding CommandColumn}" Binding="{Binding Command}" Width="320*"/>
+                  <TableViewColumn Header="{Binding ShortcutColumn}" Binding="{Binding Shortcut}" Width="160*"/>
+                  <TableViewColumn Header="{Binding DefaultColumn}" Binding="{Binding Default}" Width="160*"/>
+                </TableView.Columns>
+              </TableView>
+            </DockPanel>
+          </Grid>
+        </DataTemplate>
+
+        <!-- Background agent: one row, and a button of its own, because changing how the agent
+             runs is an action on the machine rather than a preference Apply writes. -->
+        <DataTemplate DataType="vm:AgentPageModel">
+          <ScrollViewer>
+            <Grid Margin="{StaticResource SettingsPagePadding}">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MaxWidth="{StaticResource SettingsContentWidth}"/>
+              </Grid.ColumnDefinitions>
+              <StackPanel>
+                <StackPanel Spacing="{StaticResource SpaceXs}">
+                  <TextBlock Classes="heading" Text="{Binding Heading}"/>
+                  <TextBlock Classes="muted" Text="{Binding Description}" TextWrapping="Wrap"/>
+                </StackPanel>
+                <TextBlock Classes="settings-caption" Margin="{StaticResource SettingsCaptionMargin}"
+                           Text="{Binding Caption}"/>
+                <Border Classes="card settings-card">
+                  <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Space2Xl}"
+                        Margin="{StaticResource SettingsRowPadding}">
+                    <StackPanel Grid.Column="0" Spacing="{StaticResource SpaceXs}" VerticalAlignment="Center">
+                      <TextBlock Classes="settings-label" Text="{Binding ModeLabel}" TextWrapping="Wrap"/>
+                      <TextBlock Classes="muted" Text="{Binding ModeHint}" TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <ComboBox Grid.Column="1" VerticalAlignment="Center"
+                              Width="{StaticResource SettingsChoiceWidth}"
+                              ItemsSource="{Binding Modes}"
+                              SelectedIndex="{Binding SelectedMode, Mode=TwoWay}"
+                              AutomationProperties.Name="{Binding ModeLabel}"/>
+                  </Grid>
+                </Border>
+                <Button HorizontalAlignment="Left" Margin="{StaticResource SettingsAfterCardMargin}"
+                        Content="{Binding ApplyLabel}" Command="{Binding ApplyCommand}"/>
+                <TextBlock Classes="status" TextWrapping="Wrap"
+                           Classes.success="{Binding Status.IsSuccess}"
+                           Classes.danger="{Binding Status.IsDanger}"
+                           Margin="{StaticResource SettingsAfterCardMargin}"
+                           Text="{Binding Status.Text}"/>
+              </StackPanel>
             </Grid>
-          </DockPanel>
+          </ScrollViewer>
         </DataTemplate>
 
         <DataTemplate DataType="vm:SettingsPageModel">
           <ScrollViewer>
-            <StackPanel Spacing="{StaticResource SpaceLg}" Margin="{StaticResource PagePadding}">
-              <StackPanel Spacing="{StaticResource SpaceXs}">
-                <TextBlock Classes="title" Text="{Binding Title}"/>
-                <TextBlock Classes="muted" Text="{Binding Description}" TextWrapping="Wrap"/>
+            <Grid Margin="{StaticResource SettingsPagePadding}">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MaxWidth="{StaticResource SettingsContentWidth}"/>
+              </Grid.ColumnDefinitions>
+              <StackPanel>
+                <StackPanel Spacing="{StaticResource SpaceXs}">
+                  <TextBlock Classes="heading" Text="{Binding Heading}"/>
+                  <TextBlock Classes="muted" Text="{Binding Description}" TextWrapping="Wrap"/>
+                </StackPanel>
+
+                <ItemsControl ItemsSource="{Binding Groups}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="vm:SettingsGroupModel">
+                      <!-- A card with no caption is a notice under the one above it. -->
+                      <StackPanel Classes.notice="{Binding !HasCaption}">
+                        <StackPanel.Styles>
+                          <Style Selector="StackPanel.notice">
+                            <Setter Property="Margin" Value="{StaticResource SettingsAfterCardMargin}"/>
+                          </Style>
+                        </StackPanel.Styles>
+                        <TextBlock Classes="settings-caption" Margin="{StaticResource SettingsCaptionMargin}"
+                                   Text="{Binding Caption}" IsVisible="{Binding HasCaption}"/>
+                        <Border Classes="card settings-card">
+                          <StackPanel>
+                            <ItemsControl ItemsSource="{Binding Rows}">
+                              <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="vm:SettingsRowModel">
+
+                                  <!-- One template, every kind. The row owns the label and the
+                                       hint; only the control on the right changes, and exactly
+                                       one of them is visible. -->
+                                  <StackPanel>
+                                    <Border Classes="settings-divider" IsVisible="{Binding !IsFirst}"/>
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Space2Xl}"
+                                          Margin="{StaticResource SettingsRowPadding}">
+                                      <StackPanel Grid.Column="0" Spacing="{StaticResource SpaceXs}"
+                                                  VerticalAlignment="Center">
+                                        <TextBlock Classes="settings-label" Text="{Binding Label}" TextWrapping="Wrap"/>
+                                        <TextBlock Classes="muted" Classes.warning="{Binding HintIsWarning}"
+                                                   Text="{Binding Hint}" TextWrapping="Wrap"
+                                                   IsVisible="{Binding HasHint}"/>
+                                        <TextBlock Classes="danger" Text="{Binding Problem}" TextWrapping="Wrap"
+                                                   IsVisible="{Binding HasProblem}"/>
+                                      </StackPanel>
+
+                                      <Panel Grid.Column="1" VerticalAlignment="Center"
+                                             IsEnabled="{Binding IsEnabled}">
+                                        <ToggleSwitch IsChecked="{Binding IsOn, Mode=TwoWay}"
+                                                      IsVisible="{Binding IsToggle}"
+                                                      HorizontalAlignment="Right"
+                                                      OnContent="" OffContent=""
+                                                      AutomationProperties.Name="{Binding Label}"/>
+                                        <ComboBox ItemsSource="{Binding Choices}"
+                                                  SelectedIndex="{Binding SelectedChoice, Mode=TwoWay}"
+                                                  IsVisible="{Binding IsChoice}"
+                                                  Width="{StaticResource SettingsChoiceWidth}"
+                                                  AutomationProperties.Name="{Binding Label}"/>
+                                        <!-- A path is typed or chosen, so Browse sits beside it. -->
+                                        <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceSm}"
+                                                    IsVisible="{Binding IsPath}">
+                                          <TextBox Width="{StaticResource SettingsChoiceWidth}"
+                                                   Text="{Binding Text, Mode=TwoWay}"
+                                                   MaxLength="{Binding MaxLength}"
+                                                   PlaceholderText="{Binding Placeholder}"
+                                                   AutomationProperties.Name="{Binding Label}"/>
+                                          <Button Content="{Binding BrowseLabel}"
+                                                  Command="{Binding BrowseCommand}"/>
+                                        </StackPanel>
+                                        <TextBox Width="{StaticResource SettingsChoiceWidth}"
+                                                 IsVisible="{Binding IsText}"
+                                                 Text="{Binding Text, Mode=TwoWay}"
+                                                 MaxLength="{Binding MaxLength}"
+                                                 PlaceholderText="{Binding Placeholder}"
+                                                 AutomationProperties.Name="{Binding Label}"/>
+                                        <ComboBox Width="{StaticResource SettingsChoiceWidth}"
+                                                  IsVisible="{Binding IsEditableChoice}"
+                                                  IsEditable="True"
+                                                  ItemsSource="{Binding Suggestions}"
+                                                  Text="{Binding Text, Mode=TwoWay}"
+                                                  AutomationProperties.Name="{Binding Label}">
+                                          <!-- The box a name is typed into is the template's, so
+                                               the limit reaches it through a style. -->
+                                          <ComboBox.Styles>
+                                            <Style Selector="ComboBox /template/ TextBox#PART_EditableTextBox"
+                                                   x:DataType="vm:SettingsRowModel">
+                                              <Setter Property="MaxLength" Value="{Binding MaxLength}"/>
+                                            </Style>
+                                          </ComboBox.Styles>
+                                        </ComboBox>
+                                        <!-- A key is never typed: it is imported into the vault,
+                                             and only its reference is shown. -->
+                                        <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceSm}"
+                                                    IsVisible="{Binding IsSecret}">
+                                          <TextBox Width="{StaticResource SettingsKeyWidth}" IsReadOnly="True"
+                                                   Text="{Binding Text}"
+                                                   PlaceholderText="{Binding Placeholder}"
+                                                   AutomationProperties.Name="{Binding Label}"/>
+                                          <Button Content="{Binding ImportLabel}" Command="{Binding ImportCommand}"/>
+                                          <Button Content="{Binding ClearLabel}" Command="{Binding ClearCommand}"/>
+                                        </StackPanel>
+                                        <!-- The unit sits inside the field after the value, as
+                                             1.4 drew "4 jobs". -->
+                                        <NumericUpDown Value="{Binding NumberValue, Mode=TwoWay}"
+                                                       Minimum="{Binding Minimum}"
+                                                       Maximum="{Binding Maximum}"
+                                                       Increment="{Binding Increment}"
+                                                       ClipValueToMinMax="True"
+                                                       FormatString="{Binding FormatString}"
+                                                       IsVisible="{Binding IsNumber}"
+                                                       Width="{StaticResource SettingsNumberWidth}"
+                                                       HorizontalAlignment="Right"
+                                                       TextAlignment="Right"
+                                                       Classes="settings"
+                                                       AutomationProperties.Name="{Binding Label}">
+                                          <!-- Present even without a unit, so a bare number
+                                               keeps the same room before the arrows. -->
+                                          <NumericUpDown.InnerRightContent>
+                                            <TextBlock Text="{Binding Unit}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="{StaticResource SettingsUnitMargin}"/>
+                                          </NumericUpDown.InnerRightContent>
+                                        </NumericUpDown>
+                                      </Panel>
+                                    </Grid>
+                                  </StackPanel>
+                                </DataTemplate>
+                              </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Classes.muted="{Binding !NoteIsTitle}"
+                                       Classes.settings-label="{Binding NoteIsTitle}"
+                                       Classes.warning="{Binding NoteIsWarning}"
+                                       Text="{Binding Note}" TextWrapping="Wrap"
+                                       IsVisible="{Binding HasNote}"
+                                       Margin="{StaticResource SettingsRowPadding}"/>
+                          </StackPanel>
+                        </Border>
+                      </StackPanel>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <Button Classes="primary" HorizontalAlignment="Left"
+                        Margin="{StaticResource SettingsAfterCardMargin}"
+                        IsVisible="{Binding HasCreateConnection}"
+                        Content="{Binding CreateConnectionLabel}"
+                        Command="{Binding CreateConnectionCommand}"/>
+                <TextBlock Classes="muted" TextWrapping="Wrap"
+                           Margin="{StaticResource SettingsAfterCardMargin}"
+                           IsVisible="{Binding HasFootnote}"
+                           Text="{Binding Footnote}"/>
               </StackPanel>
-
-              <ItemsControl ItemsSource="{Binding Rows}">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate DataType="vm:SettingsRowModel">
-
-                    <!-- One template, three kinds. The row owns the label and the hint; only the
-                         control on the right changes, and exactly one of the three is visible. -->
-                    <Border Classes="card" Margin="0,0,0,8" Padding="{StaticResource PagePadding}">
-                      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpaceXl}">
-                        <StackPanel Grid.Column="0" Spacing="{StaticResource SpaceXs}"
-                                    VerticalAlignment="Center">
-                          <TextBlock Text="{Binding Label}" TextWrapping="Wrap"/>
-                          <TextBlock Classes="caption" Text="{Binding Hint}" TextWrapping="Wrap"
-                                     IsVisible="{Binding HasHint}"/>
-                          <TextBlock Classes="caption danger" Text="{Binding Problem}" TextWrapping="Wrap"
-                                     IsVisible="{Binding HasProblem}"/>
-                        </StackPanel>
-
-                        <Panel Grid.Column="1" VerticalAlignment="Center" MinWidth="180">
-                          <ToggleSwitch IsChecked="{Binding IsOn, Mode=TwoWay}"
-                                        IsVisible="{Binding IsToggle}"
-                                        HorizontalAlignment="Right"
-                                        OnContent="" OffContent=""/>
-                          <ComboBox ItemsSource="{Binding Choices}"
-                                    SelectedIndex="{Binding SelectedChoice, Mode=TwoWay}"
-                                    IsVisible="{Binding IsChoice}"
-                                    HorizontalAlignment="Stretch"/>
-                          <!-- A path is typed or chosen, so the box is wide and Browse sits beside it. -->
-                          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpaceSm}"
-                                IsVisible="{Binding IsPath}" MinWidth="320">
-                            <TextBox Grid.Column="0" Text="{Binding Text, Mode=TwoWay}"
-                                     AutomationProperties.Name="{Binding Label}"/>
-                            <Button Grid.Column="1" Content="{Binding BrowseLabel}"
-                                    Command="{Binding BrowseCommand}"/>
-                          </Grid>
-                          <NumericUpDown Value="{Binding NumberValue, Mode=TwoWay}"
-                                         Minimum="{Binding Minimum}"
-                                         Maximum="{Binding Maximum}"
-                                         Increment="1"
-                                         FormatString="0"
-                                         IsVisible="{Binding IsNumber}"
-                                         HorizontalAlignment="Stretch"/>
-                        </Panel>
-                      </Grid>
-                    </Border>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-            </StackPanel>
+            </Grid>
           </ScrollViewer>
         </DataTemplate>
 

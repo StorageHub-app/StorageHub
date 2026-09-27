@@ -34,7 +34,8 @@ public class SettingsPageCatalogTests
             // Every page is a list of rows except the ones whose editor is a screen of its own.
             // Those still appear here, so the navigation list stays one list, but they carry no
             // rows and are drawn by their own template.
-            if (!string.Equals(page.Key, SettingsPageCatalog.ToolbarPageKey, StringComparison.Ordinal))
+            if (page.Key is not (SettingsPageCatalog.ToolbarPageKey or SettingsPageCatalog.ShortcutsPageKey or
+                SettingsPageCatalog.AgentPageKey))
             {
                 Assert.NotEmpty(page.Rows);
             }
@@ -54,7 +55,7 @@ public class SettingsPageCatalogTests
     public void EveryRowRoundTripsEveryValueItCanHold()
     {
         var broken = new List<string>();
-        foreach (var row in SettingsPageCatalog.AllRows)
+        foreach (var row in SettingsPageCatalog.AllRows.Where(Editable))
         {
             foreach (var value in ValuesFor(row))
             {
@@ -74,7 +75,9 @@ public class SettingsPageCatalogTests
     [Fact]
     public void WritingOneRowLeavesEveryOtherRowAlone()
     {
-        var rows = SettingsPageCatalog.AllRows.ToList();
+        // A dimmed row shows what something else decided, such as a remote provider's operation
+        // timeout following its connection timeout, so it is neither written nor watched here.
+        var rows = SettingsPageCatalog.AllRows.Where(Editable).ToList();
         var interference = new List<string>();
 
         foreach (var row in rows)
@@ -139,7 +142,7 @@ public class SettingsPageCatalogTests
     {
         var transfers = SettingsPageCatalog.AllRows.Single(r => r.Key == "maximum-transfers");
 
-        Assert.Equal("16", transfers.Read(transfers.Write(DesktopUpdatePreferences.Defaults, "9999")));
+        Assert.Equal("32", transfers.Read(transfers.Write(DesktopUpdatePreferences.Defaults, "9999")));
         Assert.Equal("1", transfers.Read(transfers.Write(DesktopUpdatePreferences.Defaults, "-4")));
     }
 
@@ -156,7 +159,9 @@ public class SettingsPageCatalogTests
     {
         var defaults = DesktopUpdatePreferences.Defaults;
 
-        foreach (var row in SettingsPageCatalog.AllRows.Where(r => r.Kind != SettingsControlKind.Toggle))
+        // Text can hold anything, so only the rows that choose or count are asked.
+        foreach (var row in SettingsPageCatalog.AllRows.Where(r => r.Kind is not
+            (SettingsControlKind.Toggle or SettingsControlKind.Text or SettingsControlKind.EditableChoice)))
         {
             var after = row.Write(defaults, "not-a-value");
             Assert.Equal(row.Read(defaults), row.Read(after));
@@ -245,6 +250,9 @@ public class SettingsPageCatalogTests
         Assert.Single(SettingsPageCatalog.AllRows, row => row.Key == "warn-unsafe-edit");
     }
 
+    private static bool Editable(SettingsRowDefinition row) =>
+        row.Enabled?.Invoke(DesktopUpdatePreferences.Defaults) ?? true;
+
     private static IReadOnlyList<string> ValuesFor(SettingsRowDefinition row) => row.Kind switch
     {
         SettingsControlKind.Toggle => ["true", "false"],
@@ -254,6 +262,10 @@ public class SettingsPageCatalogTests
              row.Maximum.ToString(System.Globalization.CultureInfo.InvariantCulture)],
         // Blank is a value too: it is what hands the file to the system's own app.
         SettingsControlKind.Path => ["", TestPaths.Rooted("tools/editor")],
+        SettingsControlKind.Text => ["", "vt100"],
+        SettingsControlKind.EditableChoice => ["vt100"],
+        // A key is imported rather than typed, so the one value a test can write is none.
+        SettingsControlKind.Secret => [""],
         _ => []
     };
 }

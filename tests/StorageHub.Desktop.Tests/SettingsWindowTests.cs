@@ -1,9 +1,12 @@
+using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
+using Avalonia.Input;
 using Avalonia.Headless.XUnit;
 using Avalonia.Media.Imaging;
 using Avalonia.VisualTree;
+using StorageHub.Desktop.Localization;
 using StorageHub.Desktop.Settings;
 using StorageHub.Desktop.Themes;
 using StorageHub.Desktop.Views;
@@ -37,9 +40,108 @@ public sealed class SettingsWindowTests : IDisposable
         window.UpdateLayout();
 
         var list = window.GetVisualDescendants().OfType<ListBox>().First();
+        var model = (SettingsModel)window.DataContext!;
 
-        Assert.Equal(SettingsPageCatalog.Pages.Count, list.ItemCount);
-        Assert.Equal(SettingsPageCatalog.Pages[0].Title, ((SettingsPageModel)list.Items[0]!).Title);
+        Assert.Equal(model.Navigation.Count, list.ItemCount);
+        Assert.Equal(SettingsPageCatalog.Pages.Count, model.Navigation.Count(entry => entry.Page is not null));
+        Assert.Equal(SettingsPageCatalog.Pages[0].Title, ((SettingsNavigationEntry)list.Items[0]!).Text);
+    }
+
+    /// <summary>
+    /// The window is 1.4's (ui-reference 02) in its pages, its grouping and the rules between rows.
+    /// </summary>
+    /// <remarks>
+    /// One walk through the things 2.0 had lost: the rail's order with Storage and Clients under
+    /// Connections &amp; trust; Transfers &amp; sync holding what had become Performance and
+    /// Confirmations, under captions, with the unit in each field; "Start with" dimmed without
+    /// adaptive concurrency and raising the maximums it may not exceed, which the settings file
+    /// would otherwise throw back to its defaults, and a maximum's arrow stopping at it rather than
+    /// showing a number that will not be saved; a refused path keeping its text while another row
+    /// changes; a remote provider's
+    /// operation timeout following its connection timeout; Left and Right folding the rail; a
+    /// shortcut that is taken being refused rather than stolen; and a previewed scheme undone when
+    /// the window is closed without OK.
+    /// </remarks>
+    [AvaloniaFact]
+    public void ThePagesAndTheirRowsAreThoseOf14()
+    {
+        var previewed = new List<string?>();
+        var model = Model(p => previewed.Add(p.ColorScheme));
+        var window = new SettingsWindow { DataContext = model };
+        window.Show();
+        window.UpdateLayout();
+
+        Assert.Equal(
+            [
+                Ui.Settings.CategoryTransfersAndSync, Ui.Settings.CategoryEditing, Ui.Settings.CategoryAppearance,
+                Ui.Settings.CategoryWorkspace, Ui.Settings.CategoryShortcuts, Ui.Settings.CategoryConnectionsAndTrust,
+                Ui.Settings.CategoryToolbar, Ui.Settings.CategoryAgent, Ui.Settings.CategoryUpdates
+            ],
+            model.Navigation.Where(entry => entry.IsTopLevel).Select(entry => entry.Text));
+        var trust = model.Navigation.Select(entry => entry.Text)
+            .SkipWhile(text => text != Ui.Settings.CategoryConnectionsAndTrust).ToList();
+        Assert.Equal(Ui.Settings.CategoryStorage.ToUpper(CultureInfo.CurrentCulture), trust[1]);
+        Assert.Equal(ConnectionProviderCatalog.Get(StorageProviderKind.Local).DisplayName, trust[2]);
+        Assert.Contains(Ui.Settings.CategoryClients.ToUpper(CultureInfo.CurrentCulture), trust);
+
+        var transfers = model.SelectedPageModel;
+        Assert.Equal(
+            [Ui.Settings.SectionConcurrency, Ui.Settings.SectionSpeedLimits, Ui.Settings.SectionConfirmations],
+            transfers.Groups.Select(group => group.Caption),
+            StringComparer.OrdinalIgnoreCase);
+        Assert.Equal(Ui.Settings.UnitJobs, Row(model, "maximum-transfers").Unit);
+
+        var startWith = Row(model, "start-with");
+        Row(model, "adaptive-concurrency").IsOn = false;
+        Assert.False(startWith.IsEnabled);
+        Row(model, "adaptive-concurrency").IsOn = true;
+        startWith.NumberValue = 6;
+        Assert.Equal(6, model.Working.MaximumSyncConcurrency);
+        Assert.Equal("6", Row(model, "maximum-synchronizations").Value);
+        var synchronizations = window.GetVisualDescendants().OfType<NumericUpDown>()
+            .Single(field => ReferenceEquals(field.DataContext, Row(model, "maximum-synchronizations")));
+        synchronizations.GetVisualDescendants().OfType<ButtonSpinner>().Single()
+            .RaiseEvent(new SpinEventArgs(Spinner.SpinEvent, SpinDirection.Decrease));
+        Assert.Equal(6, synchronizations.Value);
+        Assert.Equal(6, model.Working.MaximumSyncConcurrency);
+
+        var editor = Row(model, "external-editor");
+        editor.Text = "code";
+        Row(model, "warn-unsafe-edit").IsOn = false;
+        Assert.Equal("code", editor.Text);
+        Assert.True(editor.HasProblem);
+
+        var connect = ConnectionDefaultSettings.Key(StorageProviderKind.Ftp, ConnectionDefaultSettings.ConnectTimeoutKey);
+        var operation = ConnectionDefaultSettings.Key(StorageProviderKind.Ftp, ConnectionDefaultSettings.OperationTimeoutKey);
+        Row(model, "default:" + connect).NumberValue = 90;
+        Assert.False(Row(model, "default:" + operation).IsEnabled);
+        Assert.Equal("90", Row(model, "default:" + operation).Value);
+        Assert.Equal(90, ConnectionDefaultSettings.Get(StorageProviderKind.Ftp, model.Working.ConnectionDefaults).ConnectTimeoutSeconds);
+
+        var ftp = ConnectionProviderCatalog.Get(StorageProviderKind.Ftp).DisplayName;
+        model.SelectPage(SettingsPageCatalog.ProviderPageKey(StorageProviderKind.Ftp));
+        Assert.True(model.Fold(open: false));
+        Assert.Equal(SettingsPageCatalog.ConnectionsPageKey, SettingsPageCatalog.Pages[model.SelectedPage].Key);
+        Assert.True(model.Fold(open: false));
+        Assert.DoesNotContain(model.Navigation, entry => entry.Text == ftp);
+        Assert.True(model.Fold(open: true));
+        Assert.Contains(model.Navigation, entry => entry.Text == ftp);
+
+        var shortcuts = model.Pages.OfType<ShortcutsPageModel>().Single();
+        var bound = ShortcutSettings.Commands.First(command => command.Shortcut is not null);
+        shortcuts.SelectedCommand = shortcuts.Commands.First(row => row.Id != bound.Id);
+        shortcuts.Capture(bound.Shortcut!);
+        shortcuts.AssignCommand.Execute(null);
+        Assert.Null(model.Working.Shortcuts);
+
+        var free = new KeyGesture(Key.F9, KeyModifiers.Control | KeyModifiers.Alt | KeyModifiers.Shift);
+        shortcuts.Capture(free);
+        shortcuts.AssignCommand.Execute(null);
+        Assert.Equal(free, model.Working.Shortcuts![shortcuts.SelectedCommand!.Id]);
+
+        Row(model, "color-scheme").SelectedChoice = IndexOf(model, "color-scheme", "dracula");
+        window.Close();
+        Assert.Equal(DesktopUpdatePreferences.Defaults.ColorScheme, previewed[^1]);
     }
 
     [AvaloniaFact]
@@ -131,8 +233,9 @@ public sealed class SettingsWindowTests : IDisposable
     {
         var model = Model();
 
-        // Move everything off its default, then save and reopen on the result.
-        foreach (var row in model.Pages.SelectMany(page => page.Rows))
+        // Move everything off its default, then save and reopen on the result. A dimmed row is
+        // left alone: what it shows is decided by another row.
+        foreach (var row in model.Pages.SelectMany(page => page.Rows).Where(row => row.IsEnabled))
         {
             switch (row.Definition.Kind)
             {
@@ -158,34 +261,47 @@ public sealed class SettingsWindowTests : IDisposable
         }
     }
 
-    [AvaloniaFact]
-    public void TheWindowCanBePhotographed()
+    /// <summary>
+    /// Photographs the pages that differ most, in both appearances, for a human to hold against
+    /// ui-reference 02. Set STORAGEHUB_SHOT_DIR to keep the files.
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void TheWindowCanBePhotographed(bool dark)
     {
-        var window = new SettingsWindow { DataContext = Model() };
+        ColorSchemeApplier.Apply(
+            global::Avalonia.Application.Current!,
+            ColorSchemeCatalog.Resolve(id: null, preferDark: dark));
+        var model = Model();
+        var window = new SettingsWindow { DataContext = model };
         window.Show();
-        window.Measure(new Size(880, 620));
-        window.Arrange(new Rect(0, 0, 880, 620));
-
-        var frame = window.CaptureRenderedFrame();
-        Assert.NotNull(frame);
 
         var directory = Environment.GetEnvironmentVariable("STORAGEHUB_SHOT_DIR");
-        if (string.IsNullOrWhiteSpace(directory))
+        foreach (var page in new[]
+                 {
+                     SettingsPageCatalog.PerformancePageKey,
+                     SettingsPageCatalog.ConnectionsPageKey,
+                     SettingsPageCatalog.ProviderPageKey(StorageProviderKind.Sftp),
+                     SettingsPageCatalog.ProviderPageKey(StorageProviderKind.Ssh),
+                     SettingsPageCatalog.ShortcutsPageKey,
+                     SettingsPageCatalog.AgentPageKey
+                 })
         {
-            return;
-        }
+            model.SelectPage(page);
+            window.Measure(new Size(1160, 780));
+            window.Arrange(new Rect(0, 0, 1160, 780));
+            window.UpdateLayout();
 
-        Directory.CreateDirectory(directory);
-        using (var stream = File.Create(Path.Combine(directory, "settings.png")))
-        {
+            var frame = window.CaptureRenderedFrame();
+            Assert.NotNull(frame);
+            if (string.IsNullOrWhiteSpace(directory)) continue;
+
+            Directory.CreateDirectory(directory);
+            var name = page.Replace(':', '-');
+            using var stream = File.Create(Path.Combine(directory, $"settings-{name}-{(dark ? "dark" : "light")}.png"));
             frame!.Save(stream, new PngBitmapEncoderOptions());
         }
-
-        // The Performance page too, where the total speed limits sit under the concurrency rows.
-        ((SettingsModel)window.DataContext!).SelectPage(SettingsPageCatalog.PerformancePageKey);
-        window.UpdateLayout();
-        using var performance = File.Create(Path.Combine(directory, "settings-performance.png"));
-        window.CaptureRenderedFrame()!.Save(performance, new PngBitmapEncoderOptions());
     }
 
     /// <summary>Speed Limits opens Settings on the page that holds them.</summary>

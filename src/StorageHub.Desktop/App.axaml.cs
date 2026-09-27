@@ -50,15 +50,20 @@ public partial class App : global::Avalonia.Application
         // working copy, and writes through DesktopConfigStore on Apply.
         model.Router.Handle(UiCommandIds.ToolsSettings, () =>
         {
-            var settings = Views.SettingsWindow.ForCurrentUser();
+            // A provider's page can open the Connection Manager, so the panel is re-read after
+            // it the way it is after the manager opened from the panel.
+            var settings = Views.SettingsWindow.ForCurrentUser(
+                connectionsChanged: () => _ = model.Sidebar.RefreshAsync());
             _ = settings.ShowDialog(window);
         });
 
-        // Speed limits live on the Performance page beside concurrency, since both are how the
+        // Speed limits live on Transfers & sync beside concurrency, since both are how the
         // agent's transfers run; a connection's own limit is in the Connection Manager.
         model.Router.Handle(UiCommandIds.TransferSpeedLimits, () =>
         {
-            var settings = Views.SettingsWindow.ForCurrentUser(SettingsPageCatalog.PerformancePageKey);
+            var settings = Views.SettingsWindow.ForCurrentUser(
+                SettingsPageCatalog.PerformancePageKey,
+                () => _ = model.Sidebar.RefreshAsync());
             _ = settings.ShowDialog(window);
         });
 

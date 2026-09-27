@@ -20,8 +20,8 @@ internal sealed class SettingsStrings : LocalizationModelBase
     public string CategoryAgent { get; set; } = "Background agent";
 
     public string PageAgentDescription { get; set; } =
-        "The agent does the transfers and scheduled syncs. Choose whether it runs only while you " +
-        "are signed in, or as a Windows service that starts with the computer.";
+        "The agent does the transfers and scheduled syncs. Choose whether it starts when you sign " +
+        "in, or runs only while StorageHub is open.";
 
     public string AgentModeSection { get; set; } = "Background agent";
 
@@ -153,12 +153,18 @@ internal sealed class SettingsStrings : LocalizationModelBase
 
     public string CategoriesAccessibleName { get; set; } = "Settings categories";
 
+    /// <summary>
+    /// What a screen reader calls the arrow that folds a page's group away or opens it, such as
+    /// the providers under Connections &amp; trust.
+    /// </summary>
+    public string NavigationCollapseFormat { get; set; } = "Collapse {0}";
+
+    public string NavigationExpandFormat { get; set; } = "Expand {0}";
+
     public string ButtonBrowse { get; set; } = "Browse...";
 
     // -------------------------------------------------------------- categories
     public string CategoryTransfersAndSync { get; set; } = "Transfers & sync";
-
-    public string CategoryPerformance { get; set; } = "Performance";
 
     public string CategoryEditing { get; set; } = "Editing";
 
@@ -207,6 +213,9 @@ internal sealed class SettingsStrings : LocalizationModelBase
 
     public string SectionConfirmations { get; set; } = "Confirmations";
 
+    /// <summary>New in 2.0: the caption over the total speed limits on Transfers &amp; sync.</summary>
+    public string SectionSpeedLimits { get; set; } = "Speed limits";
+
     /// <summary>
     /// Units shown inside a number field, after the value. Short by design: the field is narrow
     /// and the row's title already says what is being counted.
@@ -214,6 +223,8 @@ internal sealed class SettingsStrings : LocalizationModelBase
     public string UnitJobs { get; set; } = "jobs";
 
     public string UnitKibibytes { get; set; } = "KiB";
+
+    public string UnitKibibytesPerSecond { get; set; } = "KiB/s";
 
     public string UnitSeconds { get; set; } = "s";
 
@@ -244,9 +255,9 @@ internal sealed class SettingsStrings : LocalizationModelBase
     public string MaximumSynchronizationsHint { get; set; } =
         "Separate ceiling for scheduled and manually approved synchronization runs.";
 
-    public string TotalUploadLimit { get; set; } = "Total upload limit (KiB/s)";
+    public string TotalUploadLimit { get; set; } = "Total upload limit";
 
-    public string TotalDownloadLimit { get; set; } = "Total download limit (KiB/s)";
+    public string TotalDownloadLimit { get; set; } = "Total download limit";
 
     public string TotalSpeedLimitHint { get; set; } =
         "Shared by every transfer on every connection; 0 is no limit. A connection can have a lower limit of its own.";
@@ -594,10 +605,6 @@ internal sealed class SettingsStrings : LocalizationModelBase
     public string PanelSideLeft { get; set; } = "On the left";
 
     public string PanelSideRight { get; set; } = "On the right";
-
-    public string ShowFavoritesInTheirFolders { get; set; } = "Also list favorites under their own folder";
-
-    public string PageConfirmationsDescription { get; set; } = "Choose which actions StorageHub asks about before carrying them out.";
 
     public string SettingsUnsaved { get; set; } = "Unsaved changes";
 

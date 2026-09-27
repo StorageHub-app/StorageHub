@@ -43,6 +43,7 @@ internal sealed record SshTerminalPreferences(
     bool RenderBoldText = true)
 {
     internal const int MaximumStartupCommandLength = 512;
+    internal const int MaximumFontFamilyLength = 128;
     internal static SshTerminalPreferences Defaults { get; } = new();
 
     internal static SshTerminalPreferences Resolve(SshTerminalPreferences? value)
@@ -85,7 +86,7 @@ internal sealed record SshTerminalPreferences(
 
     private static bool IsFontFamily(string? value) =>
         !string.IsNullOrWhiteSpace(value) &&
-        value.Length <= 128 &&
+        value.Length <= MaximumFontFamilyLength &&
         !value.Any(char.IsControl);
 }
 
