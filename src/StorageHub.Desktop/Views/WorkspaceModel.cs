@@ -154,6 +154,13 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
     internal BrowserPaneModel Active =>
         Panes.FirstOrDefault(static pane => pane.IsActive) ?? Panes[0];
 
+    /// <summary>
+    /// Where a folder being read for a transfer is shown until its files are queued, which is how
+    /// the queue shows it and stops it. Null leaves the reading unseen, as a workspace with no
+    /// queue beside it wants.
+    /// </summary>
+    internal PendingDropRegistry? PendingDrops { get; init; }
+
     /// <summary>What is staged and waiting to be pasted, or nothing.</summary>
     internal PaneClipboard? Clipboard
     {
@@ -287,19 +294,34 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
         BrowserPaneModel destination,
         CancellationToken cancellationToken)
     {
-        // The whole destination first, as 1.x read it: a folder bigger than one page used to be
-        // refused outright ("finish indexing first"), and nothing ever finished it.
+        if (!await ConfirmAsync(clipboard, destination, cancellationToken).ConfigureAwait(true))
+        {
+            return false;
+        }
+
+        // A folder cannot be queued until it has been read, and reading a big tree takes minutes.
+        // From here the queue's Active tab and its log show a row for the reading, as 1.x's did,
+        // the destination's own reading below included, since that is part of the same wait.
+        // Cancel on it stops the reading. Plain files are queued in one go and need none.
+        using var gathering = PendingDrops is { } drops &&
+            clipboard.Selection.Items.Any(static item => item.IsContainer)
+                ? PendingGathering.Begin(
+                    drops,
+                    clipboard.Selection,
+                    PaneTransferSnapshots.ContextFor(destination.Source) is { IsSuccess: true } location
+                        ? location.Value.RelativePath
+                        : null)
+                : null;
+
+        // The whole destination, as 1.x read it: a folder bigger than one page used to be refused
+        // outright ("finish indexing first"), and nothing ever finished it.
         await destination.LoadAllAsync(cancellationToken).ConfigureAwait(true);
         var target = PaneTransferSnapshots.DestinationFor(
             destination.Source, destination.AllRows, destination.HasMorePages);
         if (target.IsFailure)
         {
+            gathering?.Fail(target.Error.Message);
             Message = target.Error.Message;
-            return false;
-        }
-
-        if (!await ConfirmAsync(clipboard, destination, cancellationToken).ConfigureAwait(true))
-        {
             return false;
         }
 
@@ -313,8 +335,15 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
         try
         {
             var result = await recursive
-                .EnqueueAsync(clipboard.Selection, target.Value, clipboard.Operation, cancellationToken)
+                .EnqueueAsync(
+                    clipboard.Selection,
+                    target.Value,
+                    clipboard.Operation,
+                    progress: gathering is null ? null : gathering.Report,
+                    stop: gathering?.Stopped ?? default,
+                    cancellationToken: cancellationToken)
                 .ConfigureAwait(true);
+            gathering?.Settle(result.Failure);
 
             Message = result.Failure is { } failure
                 ? failure.Message
@@ -328,6 +357,7 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
         catch (Exception error) when (error is IOException or TimeoutException or
             InvalidOperationException or ObjectDisposedException)
         {
+            gathering?.Fail(Ui.Transfer.QueueUnavailable);
             Message = Ui.Transfer.QueueUnavailable;
             return false;
         }

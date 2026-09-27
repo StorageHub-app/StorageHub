@@ -1,5 +1,6 @@
 using Avalonia.Headless.XUnit;
 using StorageHub.Contracts.Ipc;
+using StorageHub.Desktop.Localization;
 using StorageHub.Desktop.Views;
 using Xunit;
 using static StorageHub.Desktop.Tests.WorkspaceFakes;
@@ -244,6 +245,79 @@ public class WorkspaceTransferTests
         Assert.Null(PaneDragPayloads.Find(null));
     }
 
+    /// <summary>
+    /// A file dropped in from the desktop is queued at once. A folder is read first, and while it
+    /// is, the queue's Active tab shows the reading and how far it has got, as 1.x's did; Cancel
+    /// there stops it, and what it had already queued stays queued.
+    /// </summary>
+    /// <remarks>
+    /// Every file from the desktop, and every paste to or from This PC, used to be refused as "not
+    /// saved connections on both panes", so a drop from Explorer never reached the queue at all.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task ADesktopFileIsQueuedAndAFolderBeingReadShowsInTheQueueUntilCancelled()
+    {
+        var drops = new PendingDropRegistry();
+        await using var fixture = await Fixture.CreateAsync(drops: drops);
+        await using var queue = new TransferQueueModel(() => fixture.Queue) { PendingDrops = drops };
+
+        // A folder and a file, taken before anything else is awaited: the left pane's first
+        // listing of This PC can still land on top of its connection's after that (P.2.17).
+        fixture.Left.SelectedRows.Add(fixture.Left.Rows.Single(row => row.Name == "reports"));
+        fixture.Left.SelectedRows.Add(fixture.Left.Rows.Single(row => row.Name == "render.exr"));
+        var payload = PaneDragHandler.Payload(fixture.Left)!;
+
+        var file = Path.Combine(Path.GetTempPath(), $"storagehub-drop-{Guid.NewGuid():N}.txt");
+        await File.WriteAllTextAsync(file, "dropped", TestContext.Current.CancellationToken);
+        try
+        {
+            var dropped = LocalDrops.From([file]);
+            await fixture.Right.ReceiveDropAsync(
+                new PaneClipboard(dropped.Value[0], TransferQueueOperation.Copy, Ui.Pane.ThisPc));
+        }
+        finally
+        {
+            File.Delete(file);
+        }
+
+        var queued = Assert.Single(fixture.Queue.Enqueued);
+        Assert.Equal(Path.GetFileName(file), queued.Source.RelativePath);
+        Assert.Equal(fixture.DestinationConnectionId, queued.Destination.ConnectionId);
+        Assert.Empty(drops.Snapshot());
+
+        // The folder's listing is held open, so the reading is caught part way.
+        var reading = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        fixture.Agent.BeforeListing = async (request, cancellationToken) =>
+        {
+            if (!request.Recursive || request.ConnectionId != fixture.SourceConnectionId) return;
+            reading.TrySetResult();
+            await Task.Delay(Timeout.Infinite, cancellationToken);
+        };
+        var dropping = fixture.Right.ReceiveDropAsync(
+            new PaneClipboard(payload.Selection, TransferQueueOperation.Copy, payload.SourceName));
+        await reading.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+        await queue.RefreshAsync();
+        var row = Assert.Single(queue.Rows);
+        Assert.Equal(Ui.Format(Ui.Transfer.DropItemsFromFormat, 2, "/"), row.Source);
+        Assert.Equal("/", row.Destination);
+        Assert.Equal(Ui.Format(Ui.Transfer.DropGatheringFormat, 1, 0), row.Status);
+
+        queue.Selected = row;
+        Assert.True(queue.CancelCommand.CanExecute(null));
+        queue.CancelCommand.Execute(null);
+        await dropping.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+        Assert.Equal(Ui.Validation.ReadingTheFolderWasStopped, fixture.Workspace.Message);
+        Assert.Equal(
+            [Path.GetFileName(file), "render.exr"],
+            fixture.Queue.Enqueued.Select(static request => request.Source.RelativePath));
+        await queue.RefreshAsync();
+        row = Assert.Single(queue.Rows);
+        Assert.Equal(Ui.Format(Ui.Transfer.DropCancelledFormat, Ui.Validation.ReadingTheFolderWasStopped), row.Status);
+        Assert.False(queue.CancelCommand.CanExecute(null));
+    }
+
     /// <summary>Two panes, two connections, and a queue that records what it was asked.</summary>
     /// <remarks>
     /// Two because that is the default arrangement, not because the workspace is limited to it --
@@ -254,11 +328,13 @@ public class WorkspaceTransferTests
         private Fixture(
             WorkspaceModel workspace,
             FakeTransferQueue queue,
+            FakeBrowsingAgent agent,
             Guid source,
             Guid destination)
         {
             Workspace = workspace;
             Queue = queue;
+            Agent = agent;
             SourceConnectionId = source;
             DestinationConnectionId = destination;
         }
@@ -266,6 +342,8 @@ public class WorkspaceTransferTests
         internal WorkspaceModel Workspace { get; }
 
         internal FakeTransferQueue Queue { get; }
+
+        internal FakeBrowsingAgent Agent { get; }
 
         internal BrowserPaneModel Left => Workspace.Panes[0];
 
@@ -277,7 +355,8 @@ public class WorkspaceTransferTests
 
         internal static async Task<Fixture> CreateAsync(
             bool destinationHasMorePages = false,
-            Func<Task>? onQueueChanged = null)
+            Func<Task>? onQueueChanged = null,
+            PendingDropRegistry? drops = null)
         {
             var source = Summary("Studio Assets");
             var destination = Summary("Site Backups");
@@ -296,7 +375,10 @@ public class WorkspaceTransferTests
                 () => queue,
                 () => agent,
                 () => new FakeInspector(),
-                onQueueChanged);
+                onQueueChanged)
+            {
+                PendingDrops = drops
+            };
 
             foreach (var pane in workspace.Panes)
             {
@@ -308,7 +390,7 @@ public class WorkspaceTransferTests
             await workspace.Panes[1].OpenConnectionAsync(
                 destination.ConnectionId, TestContext.Current.CancellationToken);
             workspace.Panes[0].IsActive = true;
-            return new Fixture(workspace, queue, source.ConnectionId, destination.ConnectionId);
+            return new Fixture(workspace, queue, agent, source.ConnectionId, destination.ConnectionId);
         }
 
         /// <summary>

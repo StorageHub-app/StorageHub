@@ -1,3 +1,4 @@
+using StorageHub.Contracts.Results;
 using StorageHub.Desktop.Localization;
 
 namespace StorageHub.Desktop;
@@ -288,5 +289,118 @@ public sealed class PendingDropRegistry
         {
             _entries.Remove(token);
         }
+    }
+}
+
+/// <summary>
+/// A folder transfer being read, from the moment it is confirmed until its files are all queued:
+/// its row in the registry, and the way that row's Cancel reaches the reading.
+/// </summary>
+/// <remarks>
+/// <para>
+/// A dropped or pasted folder cannot be queued until it has been read, and reading a large tree
+/// takes minutes. 1.x showed that wait as a row on the queue's Active tab and in its log, which
+/// Cancel stopped, keeping the files already queued, since those are real work by then.
+/// </para>
+/// <para>
+/// Disposing it settles a row that nothing else settled as failed, so a row never goes on reading
+/// after the work behind it has gone. 1.x settled that row as queued, which said the opposite of
+/// what had happened.
+/// </para>
+/// </remarks>
+internal sealed class PendingGathering : IDisposable
+{
+    private readonly PendingDropRegistry _registry;
+    private readonly string _destination;
+    private readonly CancellationTokenSource _stop = new();
+    private bool _disposed;
+
+    private PendingGathering(PendingDropRegistry registry, string destination)
+    {
+        _registry = registry;
+        _destination = destination;
+    }
+
+    /// <summary>
+    /// The row's name in the registry. A bare id, so the log's Item column shows eight hex digits
+    /// as it does for a transfer; 1.x put "gather:" in front, and the column read "gather:3".
+    /// </summary>
+    internal string Token { get; } = Guid.NewGuid().ToString("N");
+
+    /// <summary>Cancelled when somebody stops the reading from the queue.</summary>
+    internal CancellationToken Stopped => _stop.Token;
+
+    /// <summary>Puts the row up, reading, for a selection on its way to a destination.</summary>
+    /// <param name="destination">
+    /// The folder it is going to, by its path alone, as 1.x named it; the source is named by its
+    /// path too, and a connection on one side only would read as a difference between them.
+    /// </param>
+    internal static PendingGathering Begin(
+        PendingDropRegistry registry,
+        PaneSelectionSnapshot selection,
+        string? destination)
+    {
+        ArgumentNullException.ThrowIfNull(registry);
+        ArgumentNullException.ThrowIfNull(selection);
+
+        var gathering = new PendingGathering(
+            registry,
+            string.IsNullOrWhiteSpace(destination) ? "/" : destination);
+        registry.Begin(gathering.Token, DescribeSource(selection), selection.Items.Count);
+        registry.MarkGathering(gathering.Token, destination, 0, 0);
+        registry.CancelRequested += gathering.OnCancelRequested;
+        return gathering;
+    }
+
+    /// <summary>How far the reading has got: files queued, and folders made at the destination.</summary>
+    internal void Report(int files, int folders) =>
+        _registry.MarkGathering(Token, _destination, files, folders);
+
+    /// <summary>Says how it ended: queued, stopped by somebody, or failed and why.</summary>
+    internal void Settle(StorageFailure? failure)
+    {
+        if (failure is null)
+        {
+            _registry.MarkQueued(Token, _destination);
+        }
+        else if (failure.Kind == StorageFailureKind.Cancelled)
+        {
+            _registry.MarkCancelled(Token, failure.Message);
+        }
+        else
+        {
+            _registry.MarkFailed(Token, failure.Message);
+        }
+    }
+
+    internal void Fail(string? reason) => _registry.MarkFailed(Token, reason);
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _registry.CancelRequested -= OnCancelRequested;
+        if (_registry.IsGathering(Token)) _registry.MarkFailed(Token, reason: null);
+        _stop.Dispose();
+    }
+
+    private void OnCancelRequested(object? sender, string token)
+    {
+        if (!_disposed && string.Equals(token, Token, StringComparison.Ordinal)) _stop.Cancel();
+    }
+
+    /// <summary>
+    /// What is being read: one item by its own name, several by the folder they are in, as 1.x
+    /// named them.
+    /// </summary>
+    private static string DescribeSource(PaneSelectionSnapshot selection)
+    {
+        if (selection.Items.Count == 1 && !string.IsNullOrWhiteSpace(selection.Items[0].Name))
+        {
+            return selection.Items[0].Name;
+        }
+
+        var location = selection.Context.RelativePath;
+        return string.IsNullOrWhiteSpace(location) ? "/" : location;
     }
 }

@@ -180,6 +180,9 @@ internal static class WorkspaceFakes
     {
         internal Dictionary<(Guid Connection, string Path), Page> Listings { get; } = [];
 
+        /// <summary>Awaited before a listing is answered, so a test can catch a folder part way read.</summary>
+        internal Func<StorageListPageRequest, CancellationToken, Task>? BeforeListing { get; set; }
+
         public Task<ConnectionListResponse> ListConnectionsAsync(
             ConnectionListRequest request,
             CancellationToken cancellationToken = default) =>
@@ -191,21 +194,23 @@ internal static class WorkspaceFakes
             Task.FromResult(new ConnectionTestResponse(
                 StorageIpcContract.CurrentVersion, request.ConnectionId, Succeeded: true, 1));
 
-        public Task<StorageListPageResponse> ListStorageAsync(
+        public async Task<StorageListPageResponse> ListStorageAsync(
             StorageListPageRequest request,
             CancellationToken cancellationToken = default)
         {
+            if (BeforeListing is { } hold) await hold(request, cancellationToken).ConfigureAwait(false);
+
             var page = Listings.TryGetValue((request.ConnectionId, request.RelativePath), out var found)
                 ? found
                 : new Page([]);
 
-            return Task.FromResult(new StorageListPageResponse(
+            return new StorageListPageResponse(
                 StorageIpcContract.CurrentVersion,
                 request.ConnectionId,
                 request.RelativePath,
                 page.Entries,
                 page.ContinuationToken,
-                RootIdentity: "root"));
+                RootIdentity: "root");
         }
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;

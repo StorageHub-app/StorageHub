@@ -651,6 +651,11 @@ internal static class ShellPreview
         terminals ??= static () => new NamedPipeSshTerminalAgentClient();
         var router = new ShellCommandRouter();
 
+        // Folders being read for a transfer, before their files are all queued. The workspaces
+        // write to it and the queue reads it: its Active tab and its log show them, and its Cancel
+        // stops them, as 1.x's did.
+        var drops = new PendingDropRegistry();
+
         // The queue is built first so the workspace can tell it to refresh the moment a transfer
         // is accepted, rather than leaving somebody to watch a tab count that updates on its own
         // schedule two seconds later.
@@ -660,9 +665,13 @@ internal static class ShellPreview
             // until its tab is opened.
             new ActivityLogModel(new ActivityLogReader(
                 static () => new NamedPipeTransferQueueAgentClient(),
-                static () => new NamedPipeSyncManagementAgentClient()).ReadAsync),
+                static () => new NamedPipeSyncManagementAgentClient(),
+                drops.Snapshot).ReadAsync),
             // Clear all history asks first, as 1.x's did.
-            Services.ShellServices.Dialogs);
+            Services.ShellServices.Dialogs)
+        {
+            PendingDrops = drops
+        };
         if (live)
         {
             // Only while "Warn before clearing all transfer history" is on, which was saved and
@@ -720,7 +729,10 @@ internal static class ShellPreview
                     // shown even when Next had moved on from it.
                     () => queue.RefreshFromStartAsync(),
                     preset,
-                    Services.ShellServices.Dialogs)),
+                    Services.ShellServices.Dialogs)
+                {
+                    PendingDrops = drops
+                }),
         };
 
         // The queue names a transfer's connections from the list the sidebar has read, rather than

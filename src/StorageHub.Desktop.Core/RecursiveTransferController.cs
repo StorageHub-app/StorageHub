@@ -42,15 +42,46 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
     /// Called with the running file and folder counts after every page, so the queue can show the
     /// walk while it runs. Optional: the transfer is identical without it.
     /// </param>
-    internal async Task<ManualTransferEnqueueResult> EnqueueAsync(
+    internal Task<ManualTransferEnqueueResult> EnqueueAsync(
         PaneSelectionSnapshot source,
         PaneDestinationSnapshot destination,
         TransferQueueOperation operation,
         CancellationToken cancellationToken,
-        Action<int, int>? progress = null)
+        Action<int, int>? progress = null) =>
+        EnqueueAsync(source, destination, operation, progress, stop: default, cancellationToken);
+
+    /// <param name="progress">
+    /// Called with the running file and folder counts after every page, so the queue can show the
+    /// walk while it runs. Null if nothing is shown.
+    /// </param>
+    /// <param name="stop">
+    /// Somebody stopping the walk from the queue. It is not thrown, because a stop is an outcome:
+    /// the walk ends, what it already queued stays, and the result says so. 1.x passed it as the
+    /// same token as the shell closing, so a stop was thrown too, and its row went on to read
+    /// "Queued". Pass it by name: it sits beside the other token.
+    /// </param>
+    /// <param name="cancellationToken">The shell closing, which is thrown, as a cancellation is.</param>
+    internal async Task<ManualTransferEnqueueResult> EnqueueAsync(
+        PaneSelectionSnapshot source,
+        PaneDestinationSnapshot destination,
+        TransferQueueOperation operation,
+        Action<int, int>? progress,
+        CancellationToken stop,
+        CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        if (operation == TransferQueueOperation.Move && source.Items.Any(static item => item.IsContainer))
+
+        // Plain files are the manual controller's whole job, and it is the one that can address a
+        // This PC folder. Refusing them here as "not saved connections on both panes" refused
+        // every paste to or from This PC, and every file dropped in from the desktop.
+        if (!source.Items.Any(static item => item.IsContainer))
+        {
+            return await _transfers
+                .EnqueueAsync(source, destination, operation, cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        if (operation == TransferQueueOperation.Move)
         {
             return Failure(
                 "manual_transfer.folder_move_not_supported",
@@ -68,9 +99,10 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
         }
 
         var accepted = new List<TransferEnqueueResponse>();
+        using var walk = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, stop);
         try
         {
-            return await StreamAsync(source, destination, operation, accepted, progress, cancellationToken)
+            return await StreamAsync(source, destination, operation, accepted, progress, walk.Token)
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

@@ -103,6 +103,13 @@ setting to choose it (P.5.1).
 - [ ] P.2.11 Drag out to Explorer: real paths from This PC, the drop broker from a connection; highlight
       the pane being dragged over. Files dropped from Explorer go through the agent's plan and ask
       Replace/Skip/Cancel on conflicts, as 1.4 did, rather than queueing at once.
+      The drag out feeds `PendingDropRegistry` as 1.4's `BrowserPaneControl` did (P.4.6): Begin when
+      the drag starts, Discard when it lands on a StorageHub pane, MarkQueued, MarkCancelled or
+      MarkFailed from the broker's commit; the queue and the log already show those rows. Until then
+      a desktop file queues at once, and one that is already there is refused ("Replacing an
+      existing file requires captured source and destination version or entity-tag evidence.")
+      rather than asked about; a desktop folder is refused, and leaves a Failed row on the Active
+      tab for a minute.
 - [x] P.2.12 Panes re-read while transfers run and once they settle (1.4's 5 s timer). Quietly: no cover, the filter, selection and scroll kept. A folder over a page re-reads its first page and brings the rest back on scroll.
 - [ ] P.2.13 Filter survives navigation (done); Size right-aligned (done); sort and filter saved with the pane, which comes with workspace saving (P.3.1).
 - [x] P.2.14 The staging bar always shows ("Clipboard: empty"), with "Paste to active pane"; the drag-hint
@@ -113,6 +120,9 @@ setting to choose it (P.5.1).
       it in Welcome's recent list; "Open in new pane".
       Done, with 1.x's right-click menu on a connection card (Open, Open in new pane, Edit, Delete).
 - [x] P.2.16 Connections Home (was L.9).
+- [ ] P.2.17 A pane opens on This PC, and a connection opened in it before that listing arrives
+      loses its rows to the late This PC listing (found in P.4.6; "Open in new pane" can do it).
+      `BrowserPaneModel` drops a listing for a location it has left.
 
 ### P.3 The shell
 
@@ -171,8 +181,18 @@ setting to choose it (P.5.1).
       login.", in a column as wide as Source and Destination, as 1.4's was, with the whole of it on
       the tip. Open: a This PC folder is no saved connection and the summary carries only an id made
       from the folder, so it still shows the short id, as in 1.4.
-- [ ] P.4.6 Explorer drops waiting to be queued show in Active and Logs and can be cancelled
-      (`PendingDropRegistry` is in Core, unused).
+- [x] P.4.6 Explorer drops waiting to be queued show in Active and Logs and can be cancelled
+      (`PendingDropRegistry` is in Core, unused). 1.4's registry held two kinds of row: a drag out
+      to Explorer waiting to hear where it landed, and a folder being read for a transfer. The
+      second is back: a folder pasted or dropped on a pane stands on the Active tab and in the log
+      from the moment it is confirmed, the destination's own reading included ("Gathering folders
+      and files... 3 queued, 1 folders"), and Cancel there stops the reading and keeps what it
+      queued. 1.4's stop was thrown rather than reported, so its row went on to read "Queued";
+      here it reads "Cancelled: Reading the folder was stopped...". Found on the way: plain files
+      to or from This PC were refused as "Recursive transfers require saved connections on both
+      panes"; they go straight to the queue again, as in 1.4, and so do files from the desktop
+      until P.2.11 sends them through the agent's plan. Open, with P.2.11: the drag out has no
+      broker yet, so nothing makes a "Waiting for destination" row.
 - [ ] P.4.7 Sync tasks loads when it is first shown, not only on Refresh.
 - [ ] P.4.8 Schedule delete asks "Delete schedule …?" (`DeleteSchedulePrompt`), not the disabled-profile
       text followed by "Schedule deleted".

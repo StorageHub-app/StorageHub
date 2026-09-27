@@ -42,7 +42,25 @@ internal sealed class TransferRow : INotifyPropertyChanged
         Update(transfer, connectionName);
     }
 
+    /// <summary>
+    /// A folder still being read for a transfer, standing on the Active tab beside the transfers
+    /// it is producing, as 1.x's pending rows did. It is no job of the agent's, so Cancel stops the
+    /// reading where it runs, and nothing else here acts on it.
+    /// </summary>
+    internal TransferRow(PendingDropEntry drop)
+    {
+        Id = IdFor(drop);
+        DropToken = drop.Token;
+        Update(drop);
+    }
+
     public Guid Id { get; }
+
+    /// <summary>The registry's name for a folder being read, or null for a transfer.</summary>
+    internal string? DropToken { get; }
+
+    /// <summary>Whether this row is a folder being read rather than a transfer.</summary>
+    internal bool IsPendingDrop => DropToken is not null;
 
     /// <summary>
     /// What the agent last reported. Cancel and retry send it back, so a request built from a row
@@ -132,6 +150,38 @@ internal sealed class TransferRow : INotifyPropertyChanged
             Raise(nameof(IsComplete));
         }
     }
+
+    /// <summary>Takes what the registry now says about a folder being read.</summary>
+    /// <remarks>
+    /// No size and no attempt: the total is what the reading is there to find out, and nothing
+    /// has been tried yet. Progress says "Pending" while it reads, as 1.x's did.
+    /// </remarks>
+    internal void Update(PendingDropEntry drop)
+    {
+        Set(ref _updated, drop.UpdatedUtc, nameof(Updated));
+        Set(ref _operation, UiEnumNames.Describe(TransferQueueOperation.Copy), nameof(Operation));
+        Set(ref _source, drop.DescribeSource(), nameof(Source));
+        Set(ref _destination, drop.Destination ?? Ui.Transfer.FileExplorerSource, nameof(Destination));
+        Set(
+            ref _progress,
+            drop.IsTerminal ? "-" : UiEnumNames.Describe(TransferQueueState.Pending),
+            nameof(Progress));
+        Set(ref _attempt, "-", nameof(Attempt));
+        Set(ref _status, drop.Describe(), nameof(Status));
+        Set(ref _canCancel, drop.State == PendingDropState.Gathering, nameof(CanCancel));
+    }
+
+    /// <summary>
+    /// A pending row's id, from its token, so it is the same row on every read and a choice of it
+    /// is kept like a transfer's. The tokens the app makes are ids already. The registry takes any
+    /// token, though, so anything else is hashed into one rather than refused: a throw here would
+    /// stop every poll of the queue after it.
+    /// </summary>
+    internal static Guid IdFor(PendingDropEntry drop) =>
+        Guid.TryParseExact(drop.Token, "N", out var id)
+            ? id
+            : new Guid(System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes(drop.Token)).AsSpan(0, 16));
 
     private bool Set<T>(ref T field, T value, string name)
     {
@@ -224,6 +274,7 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
     private readonly Func<ITransferQueueAgentClient> _connect;
     private readonly IDialogService? _dialogs;
     private readonly CancellationTokenSource _lifetime = new();
+    private PendingDropRegistry? _pendingDrops;
     private ITransferQueueAgentClient? _client;
     private DispatcherTimer? _timer;
     private string _message = string.Empty;
@@ -249,6 +300,13 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
 
     /// <summary>A refresh asked for while another was in flight, to be run when it is done.</summary>
     private bool _again;
+
+    /// <summary>
+    /// A folder being read moved on while a read was in flight, to be read again, quietly, when
+    /// it is done. Skipped like a tick, a reading that had stopped went on showing, with Cancel
+    /// still on, until the next poll.
+    /// </summary>
+    private bool _dropsChanged;
 
     /// <summary>
     /// Moves on whenever the tab or the page changes, so a read that was already under way for
@@ -363,6 +421,21 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
     /// or an id it does not know, leaves the id's first eight characters there, as 1.x wrote it.
     /// </summary>
     internal Func<Guid, string?>? ConnectionName { get; set; }
+
+    /// <summary>
+    /// Folders being read for a transfer, shown on the Active tab and in the log until their
+    /// files are queued, and stopped by Cancel, as 1.x's were. Optional: the queue shows the
+    /// agent's work the same without it.
+    /// </summary>
+    internal PendingDropRegistry? PendingDrops
+    {
+        get => _pendingDrops;
+        init
+        {
+            _pendingDrops = value;
+            if (value is not null) value.Changed += OnPendingDropsChanged;
+        }
+    }
 
     public static string ColumnOperation => Ui.Transfer.ColumnOperation;
 
@@ -566,10 +639,11 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
             do
             {
                 _again = false;
+                _dropsChanged = false;
                 await ReadAsync(background).ConfigureAwait(true);
-                background = false;
+                background = !_again;
             }
-            while (_again && !_lifetime.IsCancellationRequested);
+            while ((_again || _dropsChanged) && !_lifetime.IsCancellationRequested);
         }
         finally
         {
@@ -628,6 +702,7 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
     public async ValueTask DisposeAsync()
     {
         await _lifetime.CancelAsync().ConfigureAwait(false);
+        if (_pendingDrops is not null) _pendingDrops.Changed -= OnPendingDropsChanged;
         _timer?.Stop();
         _timer = null;
         if (_client is not null)
@@ -748,12 +823,39 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
         _client = null;
     }
 
+    /// <summary>
+    /// A reading that starts, moves on or ends is something somebody just did, so the tab is read
+    /// again now rather than on the next tick, and the log past its throttle. Only the two tabs
+    /// that show it are. The registry says so from whichever thread is doing the reading.
+    /// </summary>
+    private void OnPendingDropsChanged(object? sender, EventArgs e) =>
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_lifetime.IsCancellationRequested) return;
+            var tab = TabAt(_selectedTab);
+            if (!tab.IsLog && !string.Equals(tab.Key, TransferQueueTabs.ActiveKey, StringComparison.Ordinal)) return;
+
+            Activity?.MarkStale();
+            _dropsChanged = true;
+            _ = RefreshAsync(background: true);
+        });
+
+    /// <summary>
+    /// The folders being read, on the Active tab only, above its transfers, as 1.x put them. They
+    /// are no durable work, so no other tab has them; each clears itself a minute after its
+    /// reading ends.
+    /// </summary>
+    private IReadOnlyList<PendingDropEntry> DropsFor(TransferQueueTab tab) =>
+        _pendingDrops is { } drops && string.Equals(tab.Key, TransferQueueTabs.ActiveKey, StringComparison.Ordinal)
+            ? drops.Snapshot()
+            : [];
+
     private void Apply(TransferListResponse response, TransferQueueTab tab)
     {
         _updating = true;
         try
         {
-            Update(response.Transfers);
+            Update(response.Transfers, DropsFor(tab));
         }
         finally
         {
@@ -779,8 +881,10 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
             _notice = null;
         }
 
-        Message = Rows.Count > 0
-            ? _notice ?? Ui.Format(Ui.Transfer.TransferCountFormat, Rows.Count)
+        // Transfers are counted, and a folder being read is not one, as 1.x counted them.
+        var transfers = Rows.Count(static row => !row.IsPendingDrop);
+        Message = transfers > 0
+            ? _notice ?? Ui.Format(Ui.Transfer.TransferCountFormat, transfers)
             : response.Failure?.Message ?? _notice ?? EmptyMessage(tab);
 
         BytesPerSecond = response.TotalBytesPerSecond ?? 0;
@@ -808,12 +912,15 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
     /// left the tab. The agent lists the most recently changed first, so a running transfer moves
     /// up on most polls, and a table lets go of a selected row that moves; the ones that were
     /// selected are selected again afterwards. So are the ones chosen on this tab before somebody
-    /// last left it, on the first read after they come back.
+    /// last left it, on the first read after they come back. The folders being read go first,
+    /// matched by their own ids the same way.
     /// </remarks>
-    private void Update(IReadOnlyList<TransferQueueSummary> transfers)
+    private void Update(IReadOnlyList<TransferQueueSummary> transfers, IReadOnlyList<PendingDropEntry> drops)
     {
         var listed = transfers.DistinctBy(static transfer => transfer.TransferId).ToArray();
-        var ids = listed.Select(static transfer => transfer.TransferId).ToHashSet();
+        var ids = listed.Select(static transfer => transfer.TransferId)
+            .Concat(drops.Select(TransferRow.IdFor))
+            .ToHashSet();
         var chosen = SelectedRows.Select(static row => row.Id).ToHashSet();
         if (_restore is { } restore) chosen.UnionWith(restore);
         _restore = null;
@@ -824,18 +931,20 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
         }
 
         var shown = Rows.ToDictionary(static row => row.Id);
-        for (var index = 0; index < listed.Length; index++)
+        for (var index = 0; index < drops.Count + listed.Length; index++)
         {
-            var transfer = listed[index];
-            if (shown.TryGetValue(transfer.TransferId, out var row))
+            var drop = index < drops.Count ? drops[index] : null;
+            var transfer = drop is null ? listed[index - drops.Count] : null;
+            if (shown.TryGetValue(transfer?.TransferId ?? TransferRow.IdFor(drop!), out var row))
             {
                 var at = Rows.IndexOf(row);
                 if (at != index) Rows.Move(at, index);
-                row.Update(transfer, ConnectionName);
+                if (transfer is not null) row.Update(transfer, ConnectionName);
+                else row.Update(drop!);
             }
             else
             {
-                Rows.Insert(index, new TransferRow(transfer, ConnectionName));
+                Rows.Insert(index, transfer is not null ? new TransferRow(transfer, ConnectionName) : new TransferRow(drop!));
             }
         }
 
@@ -942,11 +1051,24 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
     /// </remarks>
     private async Task MutateAsync(Mutation mutation)
     {
+        // A folder still being read is no job the agent holds, so it is stopped where it is being
+        // read, as 1.x stopped it. The files it already queued are real work, and stay.
+        if (mutation == Mutation.Cancel && _pendingDrops is { } drops)
+        {
+            var reading = SelectedRows
+                .Where(static row => row.CanCancel)
+                .Select(static row => row.DropToken)
+                .OfType<string>()
+                .ToArray();
+            foreach (var token in reading) drops.RequestCancel(token);
+        }
+
         // The revisions as they were when the button was pressed. The rows are updated in place
         // and the polls go on while the requests go out one by one, so a revision read after the
         // first request could be one the person never saw, and a decision about a state the
         // transfer has since left would be applied rather than refused.
         var targets = SelectedRows
+            .Where(static row => !row.IsPendingDrop)
             .Where(row => mutation switch
             {
                 Mutation.Cancel => row.CanCancel,
@@ -1006,7 +1128,8 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
         response.Outcome is TransferQueueMutationOutcome.Applied or TransferQueueMutationOutcome.Accepted;
 
     /// <summary>An unfinished transfer that can be settled so that it can be cleared.</summary>
-    private static bool CanCancelAndClear(TransferRow row) => !row.IsHistory && row.CanCancel;
+    private static bool CanCancelAndClear(TransferRow row) =>
+        !row.IsPendingDrop && !row.IsHistory && row.CanCancel;
 
     /// <summary>
     /// Cancels the unfinished transfers in the selection, then clears them.

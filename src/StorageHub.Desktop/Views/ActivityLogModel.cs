@@ -53,6 +53,9 @@ internal sealed class ActivityLogModel : INotifyPropertyChanged
     private ActivityRow? _selected;
     private bool _busy;
 
+    /// <summary>Whether something changed while a read was in flight, which that read may have missed.</summary>
+    private bool _stale;
+
     /// <param name="read">
     /// How the log is read -- <see cref="ActivityLogReader.ReadAsync"/> in the shell. A function
     /// rather than the reader so the screen can be tested without standing up two agent clients;
@@ -93,11 +96,14 @@ internal sealed class ActivityLogModel : INotifyPropertyChanged
         if (background && _lastRead is { } last && _clock() - last < PollInterval) return;
 
         _busy = true;
+        _stale = false;
         if (!background) Status = StatusLine.Muted(Ui.Transfer.ActivityRefreshing);
         try
         {
             var result = await _read(cancellationToken).ConfigureAwait(true);
-            _lastRead = _clock();
+
+            // Stamped as read, a change that came in meanwhile would wait out the throttle.
+            _lastRead = _stale ? null : _clock();
             if (result.Failed)
             {
                 // The rows stay. What was last read is still true as far as anybody knows, and a
@@ -116,6 +122,17 @@ internal sealed class ActivityLogModel : INotifyPropertyChanged
         {
             _busy = false;
         }
+    }
+
+    /// <summary>
+    /// Lets the next background poll read at once rather than wait out <see cref="PollInterval"/>:
+    /// a folder that began or finished being read is something somebody just did, and 1.x's log
+    /// showed it straight away.
+    /// </summary>
+    internal void MarkStale()
+    {
+        _stale = true;
+        _lastRead = null;
     }
 
     /// <summary>
