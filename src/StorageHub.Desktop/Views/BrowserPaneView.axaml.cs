@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Windows.Input;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
@@ -297,9 +298,11 @@ public partial class BrowserPaneView : UserControl
     /// <remarks>
     /// Filled when it opens, so Open says "Go up one level" on ".." and each entry's availability is
     /// the one at that moment. The shell's entries route to the active pane, which the right-click
-    /// has just made this one. The menu itself is the list's from the start: one handed to the list
-    /// here, while this request is on its way, is not opened by it, so the first right-click opened
-    /// nothing.
+    /// has just made this one, and each is dimmed where this pane's own button for it is, as 1.x's
+    /// Opening dimmed them: the shell's command is lit whenever it has somewhere to go, so without
+    /// that a Copy with nothing selected was offered and did nothing. The menu itself is the list's
+    /// from the start: one handed to the list here, while this request is on its way, is not opened
+    /// by it, so the first right-click opened nothing.
     /// </remarks>
     private void OnContextRequested(object? sender, ContextRequestedEventArgs e)
     {
@@ -333,6 +336,7 @@ public partial class BrowserPaneView : UserControl
                     {
                         Header = command.Label,
                         Command = command.Command,
+                        IsEnabled = CanRun(model, command.Id),
                         InputGesture = command.Shortcut.Gesture,
                         Icon = command.Icon is { } icon ? new LucideIcon { Kind = icon, Size = 16 } : null,
                     }
@@ -342,6 +346,30 @@ public partial class BrowserPaneView : UserControl
 
         menu.ItemsSource = items;
     }
+
+    /// <summary>
+    /// The pane's own command behind each shell entry of the right-click menu: what its FILES row,
+    /// its "..." or its refresh button runs, and where the shell sends that entry.
+    /// </summary>
+    private static readonly Dictionary<string, Func<BrowserPaneModel, ICommand?>> PaneCommands = new()
+    {
+        [UiCommandIds.EditNewFolder] = static pane => pane.NewFolderCommand,
+        [UiCommandIds.EditNewEmptyFile] = static pane => pane.NewFileCommand,
+        [UiCommandIds.EditRename] = static pane => pane.RenameCommand,
+        [UiCommandIds.EditBatchRename] = static pane => pane.BatchRenameCommand,
+        [UiCommandIds.EditCopy] = static pane => pane.CopyCommand,
+        [UiCommandIds.EditCut] = static pane => pane.MoveCommand,
+        [UiCommandIds.EditPaste] = static pane => pane.PasteCommand,
+        [UiCommandIds.EditDelete] = static pane => pane.DeleteCommand,
+        [UiCommandIds.ViewRefresh] = static pane => pane.RefreshCommand,
+        [UiCommandIds.EditSelectAll] = static pane => pane.SelectAllCommand,
+        [UiCommandIds.EditInvertSelection] = static pane => pane.InvertSelectionCommand,
+        [UiCommandIds.EditProperties] = static pane => pane.PropertiesCommand,
+    };
+
+    /// <summary>Whether this pane's own button for a shell entry would be lit now.</summary>
+    private static bool CanRun(BrowserPaneModel model, string id) =>
+        !PaneCommands.TryGetValue(id, out var choose) || choose(model)?.CanExecute(null) == true;
 
     /// <summary>The entries of the "..." that are shell commands, and which command each one is.</summary>
     private static readonly (string Name, string Id)[] MoreCommands =

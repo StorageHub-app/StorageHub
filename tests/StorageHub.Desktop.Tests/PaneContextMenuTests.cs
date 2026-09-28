@@ -47,12 +47,18 @@ public class PaneContextMenuTests
             .Select(static item => item.Header as string)
             .ToArray();
 
+        // Everything the FILES row and its "..." offer, so that hiding the row loses nothing.
         Assert.Equal(Ui.Pane.Open, headers[0]);
         Assert.Equal(Ui.Pane.EditInExternalEditor, headers[1]);
-        Assert.Contains(Ui.Commands.EditNewFolder, headers);
-        Assert.Contains(Ui.Commands.EditCopy, headers);
-        Assert.Contains(Ui.Commands.EditPaste, headers);
-        Assert.Contains(Ui.Commands.EditDelete, headers);
+        Assert.Subset(
+            new HashSet<string?>(headers),
+            new HashSet<string?>
+            {
+                Ui.Commands.EditNewFolder, Ui.Commands.EditNewEmptyFile, Ui.Commands.EditRename,
+                Ui.Commands.EditBatchRename, Ui.Commands.EditCopy, Ui.Commands.EditCut,
+                Ui.Commands.EditPaste, Ui.Commands.EditDelete, Ui.Commands.EditSelectAll,
+                Ui.Commands.EditInvertSelection,
+            });
         Assert.Equal(Ui.Commands.EditProperties, headers[^1]);
 
         // Each shell entry carries the shortcut the menu bar shows for it.
@@ -70,6 +76,34 @@ public class PaneContextMenuTests
         Assert.Empty(pane.SelectedRows);
         Assert.Null(pane.Selected);
         Assert.True(table.ContextMenu.IsOpen);
+        table.ContextMenu.Close();
+
+        // With the FILES row hidden and the folder empty, the menu is still there to make the
+        // first folder in it: the list fills the pane and still takes the right-click.
+        pane.ShowFilesBar = false;
+        pane.Rows.Clear();
+        window.UpdateLayout();
+        var row = window.GetVisualDescendants().OfType<Border>()
+            .Single(border => border.Classes.Contains("pane-commands") && ReferenceEquals(border.DataContext, pane));
+        Assert.False(row.IsVisible);
+        var middle = table.TranslatePoint(new Point(table.Bounds.Width / 2, table.Bounds.Height / 2), window)!.Value;
+        window.MouseDown(middle, MouseButton.Right);
+        window.MouseUp(middle, MouseButton.Right);
+        Dispatcher.UIThread.RunJobs();
+
+        // Each entry is lit where the row's button for it would be, as 1.x's Opening had it: with
+        // nothing there, nothing to copy, delete or select, while Refresh still has somewhere to go.
+        Assert.True(table.ContextMenu.IsOpen);
+        var entries = table.ContextMenu.ItemsSource!.OfType<MenuItem>().ToDictionary(static item => (string)item.Header!);
+        Assert.Equal(pane.NewFolderCommand.CanExecute(null), entries[Ui.Commands.EditNewFolder].IsEffectivelyEnabled);
+        Assert.All(
+            new[]
+            {
+                Ui.Commands.EditRename, Ui.Commands.EditCopy, Ui.Commands.EditCut, Ui.Commands.EditDelete,
+                Ui.Commands.EditSelectAll, Ui.Commands.EditInvertSelection, Ui.Commands.EditProperties,
+            },
+            header => Assert.False(entries[header].IsEffectivelyEnabled, header));
+        Assert.True(entries[Ui.Commands.ViewRefresh].IsEffectivelyEnabled);
         table.ContextMenu.Close();
     }
 }

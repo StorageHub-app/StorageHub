@@ -56,6 +56,11 @@
                 <MenuItem Header="{Binding ShowConnectionBarLabel}"
                           ToggleType="CheckBox"
                           IsChecked="{Binding ShowConnectionBar, Mode=TwoWay}"/>
+                <!-- Dimmed on a terminal, which has no FILES row to hide. -->
+                <MenuItem Header="{Binding ShowFilesBarLabel}"
+                          ToggleType="CheckBox"
+                          IsEnabled="{Binding IsListing}"
+                          IsChecked="{Binding ShowFilesBar, Mode=TwoWay}"/>
                 <Separator/>
                 <MenuItem Header="{Binding MoveOrSwapLabel}"
                           IsEnabled="{Binding HasMoveTargets}"
@@ -155,9 +160,16 @@
         three that move things between panes, then Delete, with the rest behind the overflow. Copy
         and move stage this pane's selection; paste puts what is staged into this pane - three
         buttons rather than two because a workspace can hold four panes, and "the other one" stops
-        naming anything past two.
+        naming anything past two. It can be hidden from the pane's menu, which 1.x could not do: the
+        list's right-click menu offers every one of these, so the row is a convenience, not the way in.
       -->
-      <Border DockPanel.Dock="Top" Classes="pane-commands" IsVisible="{Binding IsListing}">
+      <Border DockPanel.Dock="Top" Classes="pane-commands">
+        <Border.IsVisible>
+          <MultiBinding Converter="{x:Static BoolConverters.And}">
+            <Binding Path="IsListing"/>
+            <Binding Path="ShowFilesBar"/>
+          </MultiBinding>
+        </Border.IsVisible>
         <DockPanel>
           <!-- The named entries are shell commands, and show their shortcuts as 1.x's "..." did;
                the view reads the key as bound now each time the menu opens. -->

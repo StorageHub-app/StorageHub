@@ -1846,7 +1846,9 @@ internal static class ShellPreview
     /// A pane's right-click menu, as 1.x had it: making things, then changing the selection, then
     /// moving it between panes, then the pane itself. Built from the catalog, so each entry is the
     /// menu bar's own -- the same label, icon, shortcut and routing to the pane it was opened on.
-    /// Open and Edit are the pane's own and are added by the view in front of these.
+    /// Open and Edit are the pane's own and are added by the view in front of these. Invert selection
+    /// is 2.0's addition, from 1.x's "..." on the FILES row: with it, this menu holds everything that
+    /// row does, which is what lets a pane hide the row.
     /// </summary>
     private static IReadOnlyList<object> BuildPaneContextMenu(ShellCommandRouter router) =>
     [
@@ -1856,7 +1858,8 @@ internal static class ShellPreview
             UiCommandIds.EditRename, UiCommandIds.EditBatchRename, ToolbarLayout.Separator,
             UiCommandIds.EditCopy, UiCommandIds.EditCut, UiCommandIds.EditPaste, UiCommandIds.EditDelete,
             ToolbarLayout.Separator,
-            UiCommandIds.ViewRefresh, UiCommandIds.EditSelectAll, ToolbarLayout.Separator,
+            UiCommandIds.ViewRefresh, UiCommandIds.EditSelectAll, UiCommandIds.EditInvertSelection,
+            ToolbarLayout.Separator,
             UiCommandIds.EditProperties,
         }
         .Where(id => id == ToolbarLayout.Separator || UiCommandCatalog.IsAvailable(id))

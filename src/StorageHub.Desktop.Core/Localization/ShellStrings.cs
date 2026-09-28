@@ -422,6 +422,9 @@ internal sealed class ShellStrings : LocalizationModelBase
 
     public string ShowConnectionBar { get; set; } = "Show connection bar";
 
+    /// <summary>The pane's FILES row of file commands, which the list's right-click menu repeats.</summary>
+    public string ShowFilesBar { get; set; } = "Show files bar";
+
     public string MoveOrSwapPane { get; set; } = "Move or swap pane";
 
     public string SwapWithPane { get; set; } = "Swap";

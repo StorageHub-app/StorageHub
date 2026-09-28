@@ -47,7 +47,10 @@ public sealed record BrowserPaneState(
     // Appended, and optional, so an older .shw without the member still loads with the header
     // shown. That is why SchemaVersion stays at 1: Validate hard-rejects anything else, so a
     // bump would need a migration to buy nothing.
-    bool HeaderHidden = false);
+    bool HeaderHidden = false,
+    // 2.0's own, appended the same way: 1.x had no way to hide the FILES row, and its reader skips
+    // a member it does not know, so a workspace saved here still opens there, with the row shown.
+    bool FilesBarHidden = false);
 
 public sealed class WorkspaceLayoutModel
 {

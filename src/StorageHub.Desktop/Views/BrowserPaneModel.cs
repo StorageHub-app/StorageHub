@@ -94,6 +94,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     private PagedListingIndex? _index;
     private int _paneNumber = 1;
     private bool _showConnectionBar = true;
+    private bool _showFilesBar = true;
     private BrowserSortColumn _sortColumn = BrowserSortColumn.Name;
     private bool _sortAscending = true;
     private string _filter = string.Empty;
@@ -608,6 +609,25 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     }
 
     /// <summary>
+    /// Whether the FILES row of file commands is shown above the listing.
+    /// </summary>
+    /// <remarks>
+    /// New in 2.0: 1.x always showed it. Worth hiding for the same reason as the connection bar,
+    /// and nothing is lost by it, since the list's right-click menu offers every command the row and
+    /// its "..." do. Saved with the workspace as <c>FilesBarHidden</c>.
+    /// </remarks>
+    public bool ShowFilesBar
+    {
+        get => _showFilesBar;
+        set
+        {
+            if (_showFilesBar == value) return;
+            _showFilesBar = value;
+            Raise(nameof(ShowFilesBar));
+        }
+    }
+
+    /// <summary>
     /// The pane's own actions, which all need a second pane or the arrangement to act on.
     /// </summary>
     /// <remarks>
@@ -660,6 +680,8 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     public static string ClosePaneLabel => Ui.Shell.ClosePane;
 
     public static string ShowConnectionBarLabel => Ui.Shell.ShowConnectionBar;
+
+    public static string ShowFilesBarLabel => Ui.Shell.ShowFilesBar;
 
     public static string MoveOrSwapLabel => Ui.Shell.MoveOrSwapPane;
 
@@ -1473,7 +1495,8 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             _filter,
             _sortColumn,
             _sortAscending,
-            HeaderHidden: !_showConnectionBar);
+            HeaderHidden: !_showConnectionBar,
+            FilesBarHidden: !_showFilesBar);
     }
 
     /// <summary>
@@ -1481,7 +1504,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     /// </summary>
     /// <remarks>
     /// <para>
-    /// As 1.x's <c>RestoreStateAsync</c> did: the order, the filter and the bar first, then what the
+    /// As 1.x's <c>RestoreStateAsync</c> did: the order, the filter and the bars first, then what the
     /// pane was pointed at and the folder it was in. A connection that no longer exists leaves the
     /// pane on Connections Home saying so, rather than failing the whole workspace over one pane.
     /// </para>
@@ -1508,6 +1531,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         // connected and listed.
         RaiseHeaders();
         ShowConnectionBar = !state.HeaderHidden;
+        ShowFilesBar = !state.FilesBarHidden;
 
         _restoring = true;
         try

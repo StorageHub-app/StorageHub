@@ -168,7 +168,8 @@ applied, and chosen on the Appearance page (P.5.1).
 
 - [x] P.3.1 Workspaces: Save, Save As, Open (.shw), Rename, and the tab's `*` (was L.8); Welcome's
       workspace list with Open, Pin, Remove and Copy path; Workspace menu Pinned/Recent and Pin/Unpin.
-      Save (Ctrl+S), Save As, Open (Ctrl+O) and Rename read and write 1.4's `.shw` unchanged; the
+      Save (Ctrl+S), Save As, Open (Ctrl+O) and Rename read and write 1.4's `.shw`, with one member
+      of 2.0's own, a pane's `filesBarHidden` (4.8), which 1.4 skips and drops when it saves; the
       `*` shows whenever the workspace differs from its file. A save or a close while a file is
       still opening waits for it, and a This PC folder saved on the other OS opens with that pane on
       This PC. Welcome lists the pinned workspaces, then the recent ones, with 1.4's Open, Pin/Unpin,
@@ -524,6 +525,12 @@ The profile already stores these; `CodeLogicConnectionProfileConnector.BuildAsyn
 - [ ] 4.5 Compare folders: a two-pane diff from `CompareAsync`; differences copied through our queue.
 - [ ] 4.6 Clean up leftover staging files, as a maintenance action.
 - [ ] 4.7 (Optional) FTP raw command console.
+- [x] 4.8 Hide a pane's FILES row from Pane actions, as the connection bar can be (1.4 could not).
+      Done: "Show files bar" sits under "Show connection bar", is saved with the pane as
+      `filesBarHidden`, appended so 1.4 still opens the file, and puts the `*` on the tab when it
+      changes; it is dimmed on a terminal, which has no row. The list's right-click menu offers all
+      the row and its "..." do, Invert selection added, and dims each entry where the row's button
+      is dimmed, as 1.4's Opening did, so a Copy with nothing selected is no longer offered.
 
 ## 5. New providers
 

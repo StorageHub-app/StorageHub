@@ -368,7 +368,8 @@ public class WorkspacePaneLayoutTests
                   "panes": {
                     "{{local}}": {
                       "contentKind": "thisPc", "folderPath": {{System.Text.Json.JsonSerializer.Serialize(folder.FullName)}},
-                      "filter": "*.txt", "sortColumn": "size", "sortAscending": false, "headerHidden": true
+                      "filter": "*.txt", "sortColumn": "size", "sortAscending": false, "headerHidden": true,
+                      "filesBarHidden": true
                     },
                     "{{remote}}": {
                       "contentKind": "savedStorage", "profileId": "{{storage.ConnectionId}}",
@@ -410,7 +411,10 @@ public class WorkspacePaneLayoutTests
                 (WorkspaceSplitOrientation.Horizontal, 0.4),
                 workspace.Layout.Root is WorkspaceSplitNode split ? (split.Orientation, split.Ratio) : default);
             Assert.Equal(["large.txt", "small.txt"], Named(left));
-            Assert.Equal((BrowserSortColumn.Size, false, false), (left.SortColumn, left.SortAscending, left.ShowConnectionBar));
+            Assert.Equal(
+                (BrowserSortColumn.Size, false, false, false),
+                (left.SortColumn, left.SortAscending, left.ShowConnectionBar, left.ShowFilesBar));
+            Assert.True(right.ShowFilesBar);
             Assert.Equal(storage.ConnectionId, right.Connection?.Id);
             Assert.Equal(["q1.pdf"], Named(right));
             Assert.True(right.IsActive);
@@ -421,12 +425,17 @@ public class WorkspacePaneLayoutTests
             Assert.Equal("Render farm *", tab.Title);
             right.Filter = string.Empty;
             Assert.Equal("Render farm", tab.Title);
+            right.ShowFilesBar = false;
+            Assert.Equal("Render farm *", tab.Title);
+            right.ShowFilesBar = true;
+            Assert.Equal("Render farm", tab.Title);
             right.SortBy(BrowserSortColumn.Modified);
             Assert.True(await files.SaveAsync(saveAs: false));
             Assert.False(workspace.IsDirty);
             var written = WorkspaceFileStore.Load(file);
             Assert.Equal(BrowserSortColumn.Modified, written.Panes[remote].SortColumn);
             Assert.Equal(("*.txt", folder.FullName), (written.Panes[local].Filter, written.Panes[local].FolderPath));
+            Assert.Equal((true, false), (written.Panes[local].FilesBarHidden, written.Panes[remote].FilesBarHidden));
 
             // The same file again shows the tab it is already in, rather than a second one.
             Assert.True(await files.OpenPathAsync(file));

@@ -191,9 +191,9 @@ are the honest ones — each names what is missing rather than claiming the row.
 
 | What 1.x does | Status |
 |---|---|
-| Two panes, split, swap, move, close, layout presets | **done** — one to four panes, all six presets in a New Workspace chooser, and split / close / swap / move behind each pane's own actions menu. A pane dragged by its header swaps with the one it is dropped in the middle of, or docks at the edge it is dropped on (P.2.14) |
+| Two panes, split, swap, move, close, layout presets | **done** — one to four panes, all six presets in a New Workspace chooser, and split / close / swap / move behind each pane's own actions menu, which also hides the connection bar, as 1.x's did, and the FILES row, which 1.x could not (roadmap 4.8). A pane dragged by its header swaps with the one it is dropped in the middle of, or docks at the edge it is dropped on (P.2.14) |
 | Stage a selection, then paste it into another pane | **done** — the rule that survives four panes, and what 1.x did with two |
-| Save and open a `.shw` workspace file | **done** — Save, Save As, Open and Rename read and write 1.x's `.shw` unchanged, with each pane's sort and filter, and a `*` on the tab while it differs from its file; closing asks about each changed one (P.3.1, P.1.9) |
+| Save and open a `.shw` workspace file | **done** — Save, Save As, Open and Rename read and write 1.x's `.shw`, with each pane's sort and filter and one member of 2.0's own, `filesBarHidden`, which 1.x skips and drops if it saves the file again (roadmap 4.8), and a `*` on the tab while it differs from its file; closing asks about each changed one (P.3.1, P.1.9) |
 | Pinned and recent workspaces on the Welcome screen | **done** — Welcome lists the pinned and then the recent workspaces with Open, Pin/Unpin, Remove and Copy path, and the Workspace menu has them too (P.3.1) |
 | Reconnect remote panes on open | **done** — a pane in an opened `.shw` connects again and goes back to its folder, as 1.x's `RestoreStateAsync` did, waiting for the connection list first; with "Reconnect remote panes automatically" off it is chosen but not opened, and a click on its banner connects. A connection no longer saved leaves that pane on Connections Home saying so (P.3.1) |
 
