@@ -104,8 +104,24 @@
                   -->
                   <TableViewColumn Header="#" Binding="{Binding Index}" Width="60"/>
                   <TableViewColumn Header="{Binding ColumnAction}" Binding="{Binding Action}" Width="120"/>
-                  <TableViewColumn Header="{Binding ColumnFromLocation}" Binding="{Binding From}" Width="*"/>
-                  <TableViewColumn Header="{Binding ColumnToLocation}" Binding="{Binding To}" Width="*"/>
+                  <!-- The whole connection id comes first, as in 1.x, so the path is usually what
+                       gets cut off. It is on the tip, as 1.x's grid showed a cut-off cell. -->
+                  <TableViewColumn Header="{Binding ColumnFromLocation}" Width="*">
+                    <TableViewColumn.CellTemplate>
+                      <DataTemplate DataType="vm:PlanRow">
+                        <TextBlock Text="{Binding From}" ToolTip.Tip="{Binding From}"
+                                   TextTrimming="CharacterEllipsis"/>
+                      </DataTemplate>
+                    </TableViewColumn.CellTemplate>
+                  </TableViewColumn>
+                  <TableViewColumn Header="{Binding ColumnToLocation}" Width="*">
+                    <TableViewColumn.CellTemplate>
+                      <DataTemplate DataType="vm:PlanRow">
+                        <TextBlock Text="{Binding To}" ToolTip.Tip="{Binding To}"
+                                   TextTrimming="CharacterEllipsis"/>
+                      </DataTemplate>
+                    </TableViewColumn.CellTemplate>
+                  </TableViewColumn>
                   <TableViewColumn Header="{Binding ColumnExpectedBytes}" Binding="{Binding ExpectedBytes}" Width="120"/>
                   <!-- Wide enough for "Deletes data - approval required", which is the one cell
                        here nobody should have to widen a column to read. -->

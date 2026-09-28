@@ -106,7 +106,12 @@ public class SyncRunHistoryTests
     {
         var run = Run(SyncIpcRunPhase.AwaitingApproval);
         var agent = new StubReviewAgent { Status = run };
-        agent.PlanPage(run, [Operation(1, destructive: true)], null);
+        var planned = Operation(1, destructive: true) with
+        {
+            SourceConnectionId = Guid.Parse("3fa2b1c4-5d6e-4f70-8192-a3b4c5d6e7f8"),
+            SourcePath = ""
+        };
+        agent.PlanPage(run, [planned], null);
         agent.ConflictPage([Conflict("photos/a.jpg")], null);
         using var model = SyncRunHistoryModel.Create(() => agent);
 
@@ -115,6 +120,10 @@ public class SyncRunHistoryTests
         var operation = Assert.Single(model.Plan);
         Assert.Equal(Ui.Sync.PlanOperationCopy, operation.Action);
         Assert.Equal(Ui.Sync.DestructiveApprovalRequired, operation.Approval);
+
+        // 1.4's review named a connection by its whole id and its top folder "<root>".
+        Assert.Equal("3fa2b1c4-5d6e-4f70-8192-a3b4c5d6e7f8 · <root>", operation.From);
+        Assert.Equal($"{planned.DestinationConnectionId:D} · right/1", operation.To);
 
         var conflict = Assert.Single(model.Conflicts);
         Assert.Equal("photos/a.jpg", conflict.Path);

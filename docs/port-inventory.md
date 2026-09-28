@@ -95,10 +95,9 @@ location picker -- and the splash followed with the parity sweep (P.1.1). Where 
 | 154 | `TransferProgressColumn.cs` | a `ProgressBar` behind the text in `TransferQueueView` |
 
 What is left is behaviour inside screens that exist: the **partial** and **todo** rows below. Most
-name the open roadmap item that finishes them; three gaps have none yet -- two are left open under
-items already ticked (P.3.5, P.3.6) and need an item of their own, and the run review's drift has
-no item at all. Look is the roadmap's section L, and is named here only where a row's screen still
-has an item open there.
+name the open roadmap item that finishes them; two gaps have none yet -- both are left open under
+items already ticked (P.3.5, P.3.6) and need an item of their own. Look is the roadmap's section L,
+and is named here only where a row's screen still has an item open there.
 
 The desktop is two projects now: `StorageHub.Desktop`, which draws, and `StorageHub.Desktop.Core`,
 which does not and is where both platforms' logic lives. The Windows-only integrations -- registry,
@@ -112,7 +111,7 @@ COM registration, the named-pipe lifecycle client -- sit in `Desktop.Core/Window
 Legend: **done** · **partial** — works, with named gaps · **todo** · **dropped** — deliberately not
 reproduced.
 
-Where it stands across the 57 rows below: **46 done, 7 partial, 1 todo, 3 dropped.** The partials
+Where it stands across the 57 rows below: **47 done, 6 partial, 1 todo, 3 dropped.** The partials
 are the honest ones — each names what is missing rather than claiming the row.
 
 ### Shell chrome
@@ -173,7 +172,7 @@ are the honest ones — each names what is missing rather than claiming the row.
 |---|---|
 | Sync profiles: create, edit, preview a run | **done** — the fourteen fields, the nine behaviours as a list that says which of them delete things, and a preview that hands its run to the review screen instead of embedding a second copy of it. Why a draft will not save is now said one field at a time: `SyncProfileDraftRules` names the field, and the contract still has the last word so the two can disagree without the screen offering to save something the agent will refuse. The two Browse buttons are back, over `SyncLocationPickerWindow`, with the browsing in Core as `SyncLocationBrowser`. A preview that warns keeps the editor open to show it, and closing the editor stops a preview still running, as in 1.x (P.4.10) |
 | Schedules: create, edit, enable, delete | **done** — a list beside one schedule's settings, with the recurrence chosen rather than written: `ScheduleRecurrence` turns a frequency and a time into the cron the agent stores and reads one back, so the cron box appears only for the expressions no preset covers, and one written by hand survives being opened and saved. Deleting confirms; disabling, which is reversible from the same screen, does not. A refusal because a run is in progress says that rather than "could not be changed" |
-| Run history and review, dispatch an approved revision | **partial** — history a page at a time, a run's plan and its conflicts, and an approval carrying the revision and digest the reviewer was shown. The checks that make that safe are in `SyncRunReviewController` with a suite of their own; the plan page is refused outright if it does not belong to the plan on screen. Approving confirms first, and defaults to Cancel. A loaded run re-reads itself — closely while the agent is acting on it, occasionally otherwise, not at all once it has settled. An operation names its connection by id rather than by name, as 1.x's did. Not yet as 1.x: that id is its first eight characters where 1.x printed all thirty-six, and a connection's top folder reads "Root" where 1.x printed `<root>` (`SyncRunHistoryModel.Endpoint`). No roadmap item covers either yet |
+| Run history and review, dispatch an approved revision | **done** — history a page at a time, a run's plan and its conflicts, and an approval carrying the revision and digest the reviewer was shown. The checks that make that safe are in `SyncRunReviewController` with a suite of their own; the plan page is refused outright if it does not belong to the plan on screen. Approving confirms first, and defaults to Cancel. A loaded run re-reads itself — closely while the agent is acting on it, occasionally otherwise, not at all once it has settled. An operation names its connection by id rather than by name, as 1.x's did: all thirty-six characters of it, and a connection's top folder `<root>`, as 1.x's review printed them, with a From or To cut off by the column on its tip, as 1.x's grid showed it (P.4.15) |
 | Compare panes | **dropped** — inert in 1.x |
 | Sync tasks overview: enabled, disabled, runs this session | **done** — profiles and recent runs from the agent, read each time the tab comes forward (P.4.7), with the run-to-profile names resolved rather than left as ids. Saved tasks are listed the most recently updated first, and up to 1,000 runs are read, listed and counted, as in 1.x (P.4.13). The first sub-tab reads "Tasks" (L.11), and each row carries 1.x's glyph (L.12) |
 
@@ -279,16 +278,16 @@ They are skipped otherwise, so CI stays green without one.
    the remote program is not ported, and 1.x never sent it either; 1.x did stop selecting and
    scrolling while a program asked for the mouse, which 2.0 does not, on purpose.
 7. ~~**Sync**: profiles, schedules, run review.~~ Done, and proven against the live agent and the
-   lab's servers. The run review's short connection id and "Root" are what remains there.
+   lab's servers. The run review names a connection by its whole id and the top folder `<root>`,
+   as 1.x's did (P.4.15).
 8. ~~**The rest of Settings, and the update window.**~~ Done: every Settings page, export and
    import, Agent control and the update window.
 
 The order from here is `docs/roadmap.md`'s, behaviour before look. Of the rows above, what is left
 is the installers (P.1.5), the update check on start and the status bar's update link (P.1.8),
 dragging out to Explorer, highlighting the pane dragged over and asking about a dropped file that
-is already there (P.2.11), and fetching and rejecting a host key in the editor (2.2). Four more
+is already there (P.2.11), and fetching and rejecting a host key in the editor (2.2). Three more
 have no open item yet: a pane's own news said in the status bar rather than on its status line, a
 failed new file or folder, rename, batch rename, delete or external edit shown in the "Transfer
-queue" warning rather than on that line (both left open under P.3.6), the connections panel
-remembering a collapsed group (left open under P.3.5), and the run review naming a connection by
-its whole id and the top folder `<root>`.
+queue" warning rather than on that line (both left open under P.3.6), and the connections panel
+remembering a collapsed group (left open under P.3.5).

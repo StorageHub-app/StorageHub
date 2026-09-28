@@ -585,18 +585,19 @@ internal sealed class SyncRunHistoryModel : INotifyPropertyChanged, IDisposable
     /// Where an operation reads from or writes to.
     /// </summary>
     /// <remarks>
-    /// The connection id is abbreviated to its first eight characters, as a run id is in the
-    /// history table. 1.x printed all thirty-six and the path went off the end of the column, so
-    /// the one thing a reviewer is there to read -- which file is about to move -- was the part
-    /// that got truncated. Eight is enough to tell two connections apart at a glance.
+    /// As 1.4's review wrote it (<c>SyncRunReviewControl.FormatEndpoint</c>): the whole
+    /// thirty-six-character id, hyphens included, and <c>&lt;root&gt;</c> for a connection's top
+    /// folder, untranslated. 1.4's transfer queue shortened the id to eight characters and wrote
+    /// the top folder "/"; its review did not, and neither does this.
     ///
-    /// Resolving the id to the saved connection's display name would be better still, and needs
-    /// the connection client this screen does not hold. Worth doing when the key store brings that
-    /// client into the shell.
+    /// The view puts the whole of it on the cell's tip, since the id leaves little of the path in
+    /// the column. The saved connection's name is left out on purpose, though the shell could
+    /// hand this screen the lookup the queue names connections with (P.4.5): 1.4's review printed
+    /// the id.
     /// </remarks>
     private static string Endpoint(Guid connectionId, string path) =>
-        $"{connectionId.ToString("N", CultureInfo.InvariantCulture)[..8]} · " +
-        $"{(path.Length == 0 ? Ui.Sync.PickerRoot : path)}";
+        $"{connectionId.ToString("D", CultureInfo.InvariantCulture)} · " +
+        $"{(path.Length == 0 ? "<root>" : path)}";
 
     /// <summary>
     /// A timestamp in the reader's own zone.

@@ -374,6 +374,13 @@ applied, and chosen on the Appearance page (P.5.1).
       how many were queued before it. Left open under P.3.6: 1.4 put a failed new file or folder,
       rename, batch rename, delete or external edit in this warning too, where 2.0 says those on
       the pane's own status line.
+- [x] P.4.15 Run history names a plan operation's connection by its whole id and a connection's top
+      folder `<root>`, as 1.4's review did (`SyncRunReviewControl.FormatEndpoint`), not by the
+      first eight characters and "Root". The eight were 1.4's transfer queue's (P.4.5), not its
+      review's; the history table's run id stays at eight, as 1.4's did. As in 1.4, the whole id
+      leaves less of the path in the From and To columns, and the whole cell is on the tip, as
+      1.4's grid showed a cut-off cell. The connection's name, which the queue shows since P.4.5
+      from the shell's `Sidebar.NameOf`, is left out on purpose: 1.4's review printed the id.
 
 ### P.5 Settings and dialogs
 
