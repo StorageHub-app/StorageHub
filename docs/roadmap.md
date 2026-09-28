@@ -425,6 +425,20 @@ applied, and chosen on the Appearance page (P.5.1).
       under its folder as well as under Favourites, and re-reads the setting when Settings closes, as
       1.4's `RefreshConnectionSurfaces` did. Done with P.3.5: the panel reads it at startup, and
       again when Settings closes or an import finishes.
+- [x] P.5.9 The SSH terminal passes the mouse to a remote program that asks for it, as 1.4's view
+      was built to: clicks and the wheel under DECSET 1000, drags under 1002, every move under 1003,
+      sent in the SGR form (1006) and not at all to a program that asked only for X10, as 1.4
+      encoded them. While a program has the mouse the terminal does not select or scroll back;
+      Shift keeps the mouse local, as in 1.4. 1.4 went no further than taking the mouse: its
+      window never subscribed to what its view raised, so the program was sent nothing, and 2.0
+      sends it. One drift on purpose: 1.4's window pasted on every right-click, program or not,
+      which would now be a click for the program and a paste as well, so a right-click is the
+      program's while it has the mouse and Shift+right-click pastes. A move within the cell last
+      reported is not sent again, a release goes where its press went, each of several held
+      buttons included, and a session that has gone gives the mouse back. Left open: not yet
+      tried against htop or nvim in the running app. Stock vim likely asks for X10 and keeps
+      selecting locally, as under 1.4, because the terminal answers its version query with the
+      VT220 attributes, as 1.4's did; `:set ttymouse=sgr` hands it the mouse.
 
 ## L. Look parity with 1.4 (before 1.5)
 

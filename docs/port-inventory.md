@@ -140,7 +140,7 @@ are the honest ones — each names what is missing rather than claiming the row.
 | Hidden files toggle | **dropped** — inert in 1.x |
 | Paging a large listing, with prefetch | **done** — the next page loads as the list scrolls, with "Load more" and "more available" in the footer (P.2.1); a paste or drop into a folder over a page reads every page first (P.2.2), and a quiet re-read brings the rest back on scroll (P.2.12) |
 | Select all, invert selection | **done** — buttons in the pane, and the menu entries now reach the active one |
-| An SSH connection opens a terminal instead of a listing | **done** — the pane becomes one, and `TerminalView` paints the emulator's screen, follows the live end only while it is there, scrolls the history through the pane's own scroll bar, selects by drag, double and triple click, copies with Ctrl+Shift+C and pastes on a right-click, with the SSH terminal settings read as each session opens (P.5.2). Mouse reporting to the remote program is not ported, and was never delivered by 1.x either: its `TerminalView` raised `MouseInputProduced` and nothing subscribed. What does differ is that 1.x still took the mouse away from the pane while a remote program had asked for it, Shift overriding, so under htop, or vim with mouse=a, a click did not select and the wheel did not scroll (a right-click still pasted); 2.0 selects and scrolls as ever. Kept on purpose, since 1.x's clicks went nowhere |
+| An SSH connection opens a terminal instead of a listing | **done** — the pane becomes one, and `TerminalView` paints the emulator's screen, follows the live end only while it is there, scrolls the history through the pane's own scroll bar, selects by drag, double and triple click, copies with Ctrl+Shift+C and pastes on a right-click, with the SSH terminal settings read as each session opens (P.5.2). A remote program that asks for the mouse (DECSET 1000, 1002, 1003, in the SGR form 1006) is sent its clicks, drags, moves and wheel, and the pane stops selecting and scrolling for it, Shift overriding, as 1.x's `TerminalView` did (P.5.9). 1.x never delivered them: its view raised `MouseInputProduced` and nothing subscribed, so its clicks went nowhere; 2.0 sends them. One drift on purpose: 1.x still pasted on a right-click while a program had the mouse, because its window pasted on every right button up, which would now reach the program as a click and paste as well; 2.0 gives the right-click to the program, and Shift+right-click pastes |
 
 ### Transfers
 
@@ -274,9 +274,9 @@ They are skipped otherwise, so CI stays green without one.
    enrolling and borrowing secrets now that the key store is in. Fetching a host key from the
    host and rejecting one from the editor is what remains (roadmap 2.2).
 6. ~~**The terminal painter**.~~ Done: `TerminalView` renders the screen buffer, drives the pane's
-   scroll bar through `ILogicalScrollable` in lines, and selects and copies. Mouse reporting to
-   the remote program is not ported, and 1.x never sent it either; 1.x did stop selecting and
-   scrolling while a program asked for the mouse, which 2.0 does not, on purpose.
+   scroll bar through `ILogicalScrollable` in lines, and selects and copies. A program that asks
+   for the mouse is sent it, with Shift keeping it local, as 1.x's view was built to; 1.x itself
+   never sent it (P.5.9).
 7. ~~**Sync**: profiles, schedules, run review.~~ Done, and proven against the live agent and the
    lab's servers. The run review names a connection by its whole id and the top folder `<root>`,
    as 1.x's did (P.4.15).

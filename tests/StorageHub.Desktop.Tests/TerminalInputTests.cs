@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using StorageHub.Desktop.Views;
 using Xunit;
 
@@ -188,6 +189,88 @@ public class TerminalInputTests
         Assert.DoesNotContain("from the old", Text(view));
     }
 
+    /// <summary>
+    /// A program that asked for the mouse is sent it, and Shift keeps it local.
+    /// </summary>
+    /// <remarks>
+    /// htop, or nvim, turns reporting on and reads its own clicks and wheel. Under it a click is
+    /// not a selection, the wheel does not move through history and a right-click is the
+    /// program's; Shift is how somebody still selects or pastes. A release goes where its press
+    /// went, whichever of several held buttons it is and whatever Shift did in between. Once the
+    /// program lets go, a right-click pastes again.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task AProgramThatAskedForTheMouseIsSentItAndShiftKeepsItLocal()
+    {
+        var (window, view, session) = Shown();
+        session.Write(string.Join("\r\n", Enumerable.Range(1, 80)) + "\u001b[?1000h\u001b[?1006h");
+        await window.Clipboard!.SetTextAsync("pasted");
+        var cell = view.CellSize;
+        var point = new Point(
+            view.Padding.Left + (5.5 * cell.Width), view.Padding.Top + (2.5 * cell.Height));
+
+        window.MouseDown(point, MouseButton.Left);
+        window.MouseUp(point, MouseButton.Left);
+        window.MouseWheel(point, new Vector(0, 1));
+        window.MouseDown(point, MouseButton.Right);
+        window.MouseUp(point, MouseButton.Right);
+
+        // A second button pressed while the first is held, and each let go in turn.
+        window.MouseDown(point, MouseButton.Left);
+        window.MouseDown(point, MouseButton.Right, RawInputModifiers.LeftMouseButton);
+        window.MouseUp(point, MouseButton.Left, RawInputModifiers.RightMouseButton);
+        window.MouseUp(point, MouseButton.Right);
+
+        // Shift pressed between the press and the release.
+        window.MouseDown(point, MouseButton.Middle);
+        window.MouseUp(point, MouseButton.Middle, RawInputModifiers.Shift);
+
+        Assert.Equal(
+            [
+                "Press Left", "Release Left", "WheelUp None", "Press Right", "Release Right",
+                "Press Left", "Press Right", "Release Left", "Release Right",
+                "Press Middle", "Release Middle",
+            ],
+            session.Mouse.Select(m => $"{m.Event} {m.Button}"));
+        Assert.All(session.Mouse, m => Assert.Equal((5, 2), (m.Column, m.Row)));
+        Assert.True(view.FollowsTail);
+        Assert.False(view.HasSelection);
+
+        // Shift keeps it: a drag selects, a right-click pastes though Shift is let go before the
+        // button, and nothing more is sent.
+        var start = point + new Point(0, cell.Height);
+        var end = start + new Point(4 * cell.Width, 0);
+        window.MouseDown(start, MouseButton.Left, RawInputModifiers.Shift);
+        window.MouseMove(end, RawInputModifiers.Shift | RawInputModifiers.LeftMouseButton);
+        window.MouseUp(end, MouseButton.Left, RawInputModifiers.Shift);
+        Assert.True(view.HasSelection);
+
+        window.MouseDown(point, MouseButton.Right, RawInputModifiers.Shift);
+        window.MouseUp(point, MouseButton.Right);
+        await PastedAsync("pasted");
+
+        // And once the program lets go, a right-click pastes.
+        session.Write("\u001b[?1000l");
+        window.MouseDown(point, MouseButton.Right);
+        window.MouseUp(point, MouseButton.Right);
+        await PastedAsync("pastedpasted");
+
+        Assert.Equal(11, session.Mouse.Count);
+
+        // The clipboard answers asynchronously.
+        async Task PastedAsync(string text)
+        {
+            var deadline = DateTime.UtcNow.AddSeconds(5);
+            while (session.Text != text && DateTime.UtcNow < deadline)
+            {
+                await Task.Delay(20, TestContext.Current.CancellationToken);
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            }
+
+            Assert.Equal(text, session.Text);
+        }
+    }
+
     private static (Window Window, TerminalView View, RecordingSession Session) Shown()
     {
         var session = new RecordingSession();
@@ -249,6 +332,28 @@ public class TerminalInputTests
 
         public void Paste(string text) => Text += text;
 
-        public void Resize(int columns, int rows) => Resizes.Add((columns, rows));
+        internal List<(VtKeyEncoder.VtMouseEvent Event, MouseButton Button, int Column, int Row)> Mouse { get; } = [];
+
+        public VtMouseModes MouseModes => new(
+            _emulator.MouseReporting,
+            _emulator.MouseButtonTracking,
+            _emulator.MouseAnyEventTracking,
+            _emulator.MouseSgrEncoding);
+
+        /// <summary>Taken as a real session takes it: only when asked for, and in SGR form.</summary>
+        public bool SendMouse(
+            VtKeyEncoder.VtMouseEvent mouseEvent, MouseButton button, int column, int row, bool alt, bool control)
+        {
+            if (!_emulator.MouseReporting || !_emulator.MouseSgrEncoding) return false;
+            Mouse.Add((mouseEvent, button, column, row));
+            return true;
+        }
+
+        /// <summary>Recorded, and the screen reflowed to it, as a real session does.</summary>
+        public void Resize(int columns, int rows)
+        {
+            Resizes.Add((columns, rows));
+            _emulator.Resize(columns, rows);
+        }
     }
 }

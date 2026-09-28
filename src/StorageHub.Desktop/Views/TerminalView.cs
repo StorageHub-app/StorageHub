@@ -36,6 +36,13 @@ namespace StorageHub.Desktop.Views;
 /// string, so it survives repaints and scrollback trimming underneath it. Copy is Ctrl+Shift+C or
 /// Ctrl+Insert, for the same reason paste is shifted: plain Ctrl+C is SIGINT and must stay so.
 /// </para>
+/// <para>
+/// A remote program that asks for the mouse in the SGR form -- htop, or nvim -- is sent its clicks,
+/// drags and wheel instead, and the terminal neither selects nor scrolls nor pastes on a right-click
+/// until it lets go. Holding Shift keeps the mouse local, as 1.4's view did. 1.4's view went that
+/// far and no further: it took the mouse and encoded the event, and its window never subscribed to
+/// what it raised, so the program was sent nothing.
+/// </para>
 /// </remarks>
 internal sealed class TerminalView : Control, ILogicalScrollable
 {
@@ -117,6 +124,12 @@ internal sealed class TerminalView : Control, ILogicalScrollable
     private long _selectionFocusLine = -1;
     private int _selectionFocusColumn;
     private bool _selecting;
+
+    /// <summary>The screen cell the last mouse event sent to the remote program was at.</summary>
+    private (int Column, int Row) _mouseCell = (-1, -1);
+
+    /// <summary>The buttons whose press the remote program was sent, so their release is its too.</summary>
+    private readonly HashSet<MouseButton> _forwardedButtons = [];
 
     static TerminalView()
     {
@@ -430,7 +443,14 @@ internal sealed class TerminalView : Control, ILogicalScrollable
         // notch means: three lines, whatever the platform's pixel delta.
         var notches = e.Delta.Y;
         if (notches == 0) return;
-        ScrollByLines(-(long)Math.Round(notches) * WheelLines);
+
+        // A program that asked for the mouse scrolls itself, one report a turn as in 1.4.
+        var wheel = notches > 0 ? VtKeyEncoder.VtMouseEvent.WheelUp : VtKeyEncoder.VtMouseEvent.WheelDown;
+        if (!TryForwardMouse(wheel, MouseButton.None, e))
+        {
+            ScrollByLines(-(long)Math.Round(notches) * WheelLines);
+        }
+
         e.Handled = true;
     }
 
@@ -604,6 +624,14 @@ internal sealed class TerminalView : Control, ILogicalScrollable
         if (e.Handled || Document is null) return;
 
         var point = e.GetCurrentPoint(this);
+
+        // A program that asked for the mouse is sent the press instead of a selection starting.
+        if (TryForwardPress(point.Properties.PointerUpdateKind.GetMouseButton(), e))
+        {
+            e.Handled = true;
+            return;
+        }
+
         if (!point.Properties.IsLeftButtonPressed) return;
 
         var (line, column) = HitTest(point.Position);
@@ -638,7 +666,36 @@ internal sealed class TerminalView : Control, ILogicalScrollable
     protected override void OnPointerMoved(PointerEventArgs e)
     {
         base.OnPointerMoved(e);
-        if (!_selecting || Document is null) return;
+        if (Document is null) return;
+        if (!_selecting)
+        {
+            // A second button pressed or let go while another is held comes as a move, not as a
+            // press or a release, and the program is sent it as the press or release it is.
+            var properties = e.GetCurrentPoint(this).Properties;
+            var kind = properties.PointerUpdateKind;
+            if (kind is not PointerUpdateKind.Other)
+            {
+                var button = kind.GetMouseButton();
+                if (IsPress(kind) ? TryForwardPress(button, e) : ForwardRelease(button, e))
+                {
+                    e.Handled = true;
+                }
+
+                return;
+            }
+
+            // Motion goes only to a program that asked for it: every move under 1003, and under
+            // 1002 a move with a button held.
+            var modes = Session?.MouseModes ?? default;
+            var held = HeldButton(properties);
+            if ((modes.AnyEventTracking || (modes.ButtonTracking && held != MouseButton.None)) &&
+                TryForwardMouse(VtKeyEncoder.VtMouseEvent.Move, held, e))
+            {
+                e.Handled = true;
+            }
+
+            return;
+        }
 
         // Dragging past the top or bottom edge scrolls, so a selection can run past one screen.
         var position = e.GetPosition(this);
@@ -654,6 +711,16 @@ internal sealed class TerminalView : Control, ILogicalScrollable
     {
         base.OnPointerReleased(e);
 
+        // A release goes where its press went. One the program was sent is its, right button too,
+        // so a right-click it had pastes nothing. The button is the one let go, which is not the
+        // first one pressed when several were held.
+        if (ForwardRelease(e.GetCurrentPoint(this).Properties.PointerUpdateKind.GetMouseButton(), e))
+        {
+            e.Pointer.Capture(null);
+            e.Handled = true;
+            return;
+        }
+
         // A right-click pastes the clipboard, as 1.x's terminal did.
         if (e.InitialPressMouseButton == MouseButton.Right && Session is { } session)
         {
@@ -667,6 +734,104 @@ internal sealed class TerminalView : Control, ILogicalScrollable
         e.Pointer.Capture(null);
         e.Handled = true;
     }
+
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        base.OnPointerCaptureLost(e);
+
+        // A press whose release will not come back here is forgotten, so a later release is not
+        // taken for it.
+        _forwardedButtons.Clear();
+    }
+
+    /// <summary>
+    /// Sends a press to the remote program as <see cref="TryForwardMouse"/> does, and holds the
+    /// pointer so its release, and a drag the program asked for, come back here.
+    /// </summary>
+    private bool TryForwardPress(MouseButton button, PointerEventArgs e)
+    {
+        if (!TryForwardMouse(VtKeyEncoder.VtMouseEvent.Press, button, e)) return false;
+        e.Pointer.Capture(this);
+        _forwardedButtons.Add(button);
+        return true;
+    }
+
+    /// <summary>
+    /// Sends the remote program the release of a button whose press it was sent, and says whether
+    /// it was one.
+    /// </summary>
+    /// <remarks>
+    /// A release goes where its press went, whatever changed in between. It is sent with Shift
+    /// held now, or the program would think the button still down, and it is the program's even
+    /// when the program has since let go of the mouse, so it neither pastes nor ends a selection.
+    /// A press kept local is released locally, Shift let go first or not.
+    /// </remarks>
+    private bool ForwardRelease(MouseButton button, PointerEventArgs e)
+    {
+        if (!_forwardedButtons.Remove(button)) return false;
+        SendMouse(VtKeyEncoder.VtMouseEvent.Release, button, e);
+        return true;
+    }
+
+    /// <summary>
+    /// Sends a mouse event to the remote program when it has asked for the mouse and Shift is not
+    /// held, as 1.4's view did. Returns whether it went, in which case the terminal's own handling
+    /// is skipped.
+    /// </summary>
+    private bool TryForwardMouse(VtKeyEncoder.VtMouseEvent mouseEvent, MouseButton button, PointerEventArgs e) =>
+        !e.KeyModifiers.HasFlag(KeyModifiers.Shift) && SendMouse(mouseEvent, button, e);
+
+    /// <summary>
+    /// Sends a mouse event to the remote program at the cell under the pointer, if it has asked for
+    /// the mouse, and says whether it went.
+    /// </summary>
+    /// <remarks>
+    /// The cell is counted from the top of the live screen, which is where the program counts
+    /// from, and held inside it, so a drag carried past the edge reports the edge. A move within
+    /// the cell last reported says nothing new and is not sent: the pointer crosses a cell in
+    /// several events, and each one sent would be a write to the agent.
+    /// </remarks>
+    private bool SendMouse(VtKeyEncoder.VtMouseEvent mouseEvent, MouseButton button, PointerEventArgs e)
+    {
+        if (Session is not { } session || Document is not { } document || !session.MouseModes.Reporting)
+        {
+            return false;
+        }
+
+        var (line, column) = HitTest(e.GetPosition(this));
+        var cell = (
+            Column: Math.Clamp(column, 0, Math.Max(0, document.Columns - 1)),
+            Row: (int)Math.Clamp(line - document.ScreenTopLineNumber, 0, Math.Max(0, document.Rows - 1)));
+        if (mouseEvent == VtKeyEncoder.VtMouseEvent.Move && cell == _mouseCell) return true;
+
+        var modifiers = e.KeyModifiers;
+        if (!session.SendMouse(
+                mouseEvent,
+                button,
+                cell.Column,
+                cell.Row,
+                modifiers.HasFlag(KeyModifiers.Alt),
+                modifiers.HasFlag(KeyModifiers.Control)))
+        {
+            return false;
+        }
+
+        _mouseCell = cell;
+        return true;
+    }
+
+    /// <summary>Whether a change of button is one being pressed rather than let go.</summary>
+    private static bool IsPress(PointerUpdateKind kind) =>
+        kind is PointerUpdateKind.LeftButtonPressed or PointerUpdateKind.MiddleButtonPressed
+            or PointerUpdateKind.RightButtonPressed or PointerUpdateKind.XButton1Pressed
+            or PointerUpdateKind.XButton2Pressed;
+
+    /// <summary>The button a move is made with, the first of them when several are held.</summary>
+    private static MouseButton HeldButton(PointerPointProperties properties) =>
+        properties.IsLeftButtonPressed ? MouseButton.Left
+        : properties.IsMiddleButtonPressed ? MouseButton.Middle
+        : properties.IsRightButtonPressed ? MouseButton.Right
+        : MouseButton.None;
 
     protected override void OnKeyDown(KeyEventArgs e)
     {

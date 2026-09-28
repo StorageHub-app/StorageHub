@@ -9,6 +9,16 @@ namespace StorageHub.Desktop;
 internal readonly record struct VtKeyModes(bool ApplicationCursorKeys = false, bool BracketedPaste = false);
 
 /// <summary>
+/// Which mouse events the remote program has asked for: clicks and the wheel (DECSET 1000), drags
+/// as well (1002), or every move (1003), and whether in the SGR form (1006) that is the only one sent.
+/// </summary>
+internal readonly record struct VtMouseModes(
+    bool Reporting = false,
+    bool ButtonTracking = false,
+    bool AnyEventTracking = false,
+    bool SgrEncoding = false);
+
+/// <summary>
 /// Turns a key press into the bytes a VT-style host expects. Pure and static on purpose: this is
 /// the layer where an off-by-one is invisible on screen and only shows up as an arrow key doing
 /// nothing inside vim, so it is the piece most worth pinning down in tests.

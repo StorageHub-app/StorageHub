@@ -38,6 +38,19 @@ internal interface ITerminalSession
     /// <summary>Sends pasted text, bracketed if the remote program asked for that.</summary>
     void Paste(string text);
 
+    /// <summary>Which mouse events the remote program has asked for, if any.</summary>
+    VtMouseModes MouseModes { get; }
+
+    /// <summary>
+    /// Sends a mouse event at a cell of the screen, and says whether the remote program took it.
+    /// </summary>
+    /// <remarks>
+    /// False when the program has not asked for the mouse, or asked for it only in the X10 form,
+    /// which is not sent. The event is then the terminal's own: a selection, a scroll, a paste.
+    /// </remarks>
+    bool SendMouse(
+        VtKeyEncoder.VtMouseEvent mouseEvent, MouseButton button, int column, int row, bool alt, bool control);
+
     /// <summary>
     /// Tells the remote program how wide its window is now.
     /// </summary>
@@ -386,6 +399,32 @@ internal sealed class SshTerminalSession : ITerminalSession, IAsyncDisposable
     {
         if (string.IsNullOrEmpty(text)) return;
         _ = SendAsync(VtKeyEncoder.EncodePaste(text, KeyModes));
+    }
+
+    /// <remarks>
+    /// Nothing once the session has gone: a program that had the mouse when the link dropped never
+    /// lets go of it, and a dead pane would otherwise keep swallowing clicks and the wheel.
+    /// </remarks>
+    public VtMouseModes MouseModes => IsConnected
+        ? new(
+            Reporting: _emulator.MouseReporting,
+            ButtonTracking: _emulator.MouseButtonTracking,
+            AnyEventTracking: _emulator.MouseAnyEventTracking,
+            SgrEncoding: _emulator.MouseSgrEncoding)
+        : default;
+
+    public bool SendMouse(
+        VtKeyEncoder.VtMouseEvent mouseEvent, MouseButton button, int column, int row, bool alt, bool control)
+    {
+        if (!IsConnected || !_emulator.MouseReporting) return false;
+
+        // Shift is never sent: holding it is how somebody keeps the mouse for selecting, so the
+        // only event that gets here with it held is the release of a press the program was sent.
+        var bytes = VtKeyEncoder.EncodeMouse(
+            mouseEvent, button, column, row, shift: false, alt, control, _emulator.MouseSgrEncoding);
+        if (bytes is null) return false;
+        _ = SendAsync(bytes);
+        return true;
     }
 
     public void Resize(int columns, int rows) => _ = ResizeAsync(columns, rows);
