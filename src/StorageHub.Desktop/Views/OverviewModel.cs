@@ -62,6 +62,18 @@ internal sealed record RowIcon(LucideIconKind Kind, MetricTone Tone)
     /// <summary>An empty table's message.</summary>
     internal static RowIcon Empty { get; } = new(LucideIconKind.Info, MetricTone.Neutral);
 
+    /// <summary>An enabled sync task, in the same tick as "Nothing needs attention".</summary>
+    internal static RowIcon Enabled { get; } = new(LucideIconKind.CircleCheck, MetricTone.Success);
+
+    /// <summary>A disabled sync task.</summary>
+    internal static RowIcon Disabled { get; } = new(LucideIconKind.Pause, MetricTone.Neutral);
+
+    /// <summary>A sync run.</summary>
+    internal static RowIcon Run { get; } = new(LucideIconKind.Play, MetricTone.Primary);
+
+    /// <summary>An empty Sync tasks table's message, which 1.x marked with a "…" rather than an "i".</summary>
+    internal static RowIcon EmptySync { get; } = new(LucideIconKind.Ellipsis, MetricTone.Neutral);
+
     internal bool IsPrimary => Tone == MetricTone.Primary;
 
     internal bool IsSuccess => Tone == MetricTone.Success;

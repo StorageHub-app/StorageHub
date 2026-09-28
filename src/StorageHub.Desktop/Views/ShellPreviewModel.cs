@@ -1579,7 +1579,7 @@ internal static class ShellPreview
                 // A client per load rather than one held open, for the reason the panes and the
                 // queue already hold: a connection kept across an agent restart is one that has to
                 // be found broken before it can be replaced.
-                new PageTab(Ui.Sync.TasksTitle, SyncTasksModel.Create(syncAgent)),
+                new PageTab(Ui.Sync.TasksTab, SyncTasksModel.Create(syncAgent)),
                 // And the review screen reads one run at a time, by id. It takes the dialog service
                 // because Approve & dispatch is the only button in the shell that authorises the
                 // agent to delete files without naming them, and it confirms before it does.

@@ -112,7 +112,7 @@ COM registration, the named-pipe lifecycle client -- sit in `Desktop.Core/Window
 Legend: **done** · **partial** — works, with named gaps · **todo** · **dropped** — deliberately not
 reproduced.
 
-Where it stands across the 57 rows below: **45 done, 8 partial, 1 todo, 3 dropped.** The partials
+Where it stands across the 57 rows below: **46 done, 7 partial, 1 todo, 3 dropped.** The partials
 are the honest ones — each names what is missing rather than claiming the row.
 
 ### Shell chrome
@@ -175,7 +175,7 @@ are the honest ones — each names what is missing rather than claiming the row.
 | Schedules: create, edit, enable, delete | **done** — a list beside one schedule's settings, with the recurrence chosen rather than written: `ScheduleRecurrence` turns a frequency and a time into the cron the agent stores and reads one back, so the cron box appears only for the expressions no preset covers, and one written by hand survives being opened and saved. Deleting confirms; disabling, which is reversible from the same screen, does not. A refusal because a run is in progress says that rather than "could not be changed" |
 | Run history and review, dispatch an approved revision | **partial** — history a page at a time, a run's plan and its conflicts, and an approval carrying the revision and digest the reviewer was shown. The checks that make that safe are in `SyncRunReviewController` with a suite of their own; the plan page is refused outright if it does not belong to the plan on screen. Approving confirms first, and defaults to Cancel. A loaded run re-reads itself — closely while the agent is acting on it, occasionally otherwise, not at all once it has settled. An operation names its connection by id rather than by name, as 1.x's did. Not yet as 1.x: that id is its first eight characters where 1.x printed all thirty-six, and a connection's top folder reads "Root" where 1.x printed `<root>` (`SyncRunHistoryModel.Endpoint`). No roadmap item covers either yet |
 | Compare panes | **dropped** — inert in 1.x |
-| Sync tasks overview: enabled, disabled, runs this session | **partial** — profiles and recent runs from the agent, read each time the tab comes forward (P.4.7), with the run-to-profile names resolved rather than left as ids. Saved tasks are listed by name where 1.x put the most recently updated first, and 200 runs are read and 20 listed where 1.x read, listed and counted up to 1,000 (P.4.13). Its look waits on L.11, the first sub-tab's caption, and L.12, the icons on its two tables' rows |
+| Sync tasks overview: enabled, disabled, runs this session | **done** — profiles and recent runs from the agent, read each time the tab comes forward (P.4.7), with the run-to-profile names resolved rather than left as ids. Saved tasks are listed the most recently updated first, and up to 1,000 runs are read, listed and counted, as in 1.x (P.4.13). The first sub-tab reads "Tasks" (L.11), and each row carries 1.x's glyph (L.12) |
 
 ### Files
 
@@ -286,8 +286,8 @@ They are skipped otherwise, so CI stays green without one.
 The order from here is `docs/roadmap.md`'s, behaviour before look. Of the rows above, what is left
 is the installers (P.1.5), the update check on start and the status bar's update link (P.1.8),
 dragging out to Explorer, highlighting the pane dragged over and asking about a dropped file that
-is already there (P.2.11), Sync tasks' order and run count (P.4.13), a refused paste or drop shown
-as a warning (P.4.14), and fetching and rejecting a host key in the editor (2.2). Three more have
-no open item yet: a pane's own news said in the status bar rather than on its status line (left
-open under P.3.6), the connections panel remembering a collapsed group (left open under P.3.5),
-and the run review naming a connection by its whole id and the top folder `<root>`.
+is already there (P.2.11), a refused paste or drop shown as a warning (P.4.14), and fetching and
+rejecting a host key in the editor (2.2). Three more have no open item yet: a pane's own news said
+in the status bar rather than on its status line (left open under P.3.6), the connections panel
+remembering a collapsed group (left open under P.3.5), and the run review naming a connection by
+its whole id and the top folder `<root>`.

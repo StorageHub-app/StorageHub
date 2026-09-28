@@ -234,6 +234,7 @@
   "maximumBaselinePercent": "Max. Baseline in %",
   "globHint": "Optional; ein Glob mit Schrägstrich pro Zeile.",
   "tasksTitle": "Synchronisierungsaufgaben",
+  "tasksTab": "Aufgaben",
   "tasksViews": "Ansichten der Synchronisierungsaufgaben",
   "tasksOverviewAccessibleName": "Übersicht der Synchronisierungsaufgaben",
   "tasksHeading": "Synchronisierungsaufgaben",

@@ -18,24 +18,32 @@ namespace StorageHub.Desktop.Tests;
 /// </remarks>
 public class SyncTasksLoadingTests
 {
+    /// <summary>
+    /// Saved profiles reach the table, the one changed last first, as 1.x listed them.
+    /// </summary>
+    /// <remarks>
+    /// By name, "Archive" would come first. Each row carries 1.x's glyph too: a tick for an enabled
+    /// task and a pause for a disabled one.
+    /// </remarks>
     [Fact]
-    public async Task SavedProfilesReachTheTable()
+    public async Task SavedProfilesReachTheTableNewestFirst()
     {
         var agent = new StubSyncAgent
         {
             Profiles =
             [
-                Profile("Nightly photos", enabled: true),
-                Profile("Archive", enabled: false)
+                Profile("Archive", enabled: false, updated: DateTimeOffset.UtcNow.AddDays(-2)),
+                Profile("Nightly photos", enabled: true, updated: DateTimeOffset.UtcNow)
             ]
         };
         var model = SyncTasksModel.Create(() => agent);
 
         await model.RefreshAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(["Archive", "Nightly photos"], model.Tasks.Select(static task => task.Name));
-        Assert.Equal(Ui.Sync.Enabled, model.Tasks[1].State);
-        Assert.Equal(Ui.Sync.TaskDisabled, model.Tasks[0].State);
+        Assert.Equal(["Nightly photos", "Archive"], model.Tasks.Select(static task => task.Name));
+        Assert.Equal(Ui.Sync.Enabled, model.Tasks[0].State);
+        Assert.Equal(Ui.Sync.TaskDisabled, model.Tasks[1].State);
+        Assert.Equal([RowIcon.Enabled, RowIcon.Disabled], model.Tasks.Select(static task => task.Icon));
     }
 
     /// <summary>The cards count what was loaded rather than reading zero for ever.</summary>
@@ -198,9 +206,9 @@ public class SyncTasksLoadingTests
         for (var attempt = 0; model.IsBusy && attempt < 100; attempt++) await Task.Delay(10);
     }
 
-    private static SyncProfileSummary Profile(string name, bool enabled) => new(
+    private static SyncProfileSummary Profile(string name, bool enabled, DateTimeOffset? updated = null) => new(
         Guid.NewGuid(), name, Guid.NewGuid(), Guid.NewGuid(),
-        SyncIpcDirection.TwoWay, SyncIpcDeletionMode.Mirror, enabled, 1, DateTimeOffset.UtcNow);
+        SyncIpcDirection.TwoWay, SyncIpcDeletionMode.Mirror, enabled, 1, updated ?? DateTimeOffset.UtcNow);
 
     private static SyncRunSummary Run(Guid profileId) => new(
         Guid.NewGuid(), profileId, 1, SyncIpcRunPhase.Completed, SyncIpcStatusCode.None, 1,

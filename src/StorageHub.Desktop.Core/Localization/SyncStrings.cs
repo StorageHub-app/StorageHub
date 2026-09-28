@@ -616,6 +616,12 @@ internal sealed class SyncStrings : LocalizationModelBase
     // ------------------------------------------------------- tasks tab chrome
     public string TasksTitle { get; set; } = "Sync tasks";
 
+    /// <summary>
+    /// The first sub-tab's caption, as 1.x's read. <see cref="TasksTitle"/> is the headline on the
+    /// page under it, and the workspace tab above it already says "Sync tasks".
+    /// </summary>
+    public string TasksTab { get; set; } = "Tasks";
+
     public string TasksViews { get; set; } = "Sync task views";
 
     public string TasksOverviewAccessibleName { get; set; } = "Synchronization task overview";

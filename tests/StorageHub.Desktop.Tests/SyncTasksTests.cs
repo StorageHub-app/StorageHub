@@ -61,7 +61,7 @@ public class SyncTasksTests
 
         var page = Assert.IsType<TabbedPageModel>(tab.Page);
         Assert.Equal(
-            [Ui.Sync.TasksTitle, Ui.Sync.RunHistoryAndReview],
+            [Ui.Sync.TasksTab, Ui.Sync.RunHistoryAndReview],
             page.Tabs.Select(sub => sub.Title));
         Assert.IsType<SyncTasksModel>(page.Tabs[0].Content);
         Assert.IsType<SyncRunHistoryModel>(page.Tabs[1].Content);

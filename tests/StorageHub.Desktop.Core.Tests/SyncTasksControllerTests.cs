@@ -56,7 +56,7 @@ public class SyncTasksControllerTests
     public async Task HistoryStopsAtTheCapEvenWhenMoreIsOffered()
     {
         var agent = new FakeSyncAgent();
-        for (var page = 0; page < 10; page++)
+        for (var page = 0; page < 15; page++)
         {
             agent.Page(
                 [.. Enumerable.Range(0, 100).Select(static _ => Run())],
@@ -65,10 +65,11 @@ public class SyncTasksControllerTests
 
         var snapshot = await new SyncTasksController(() => agent).LoadAsync(CancellationToken.None);
 
-        Assert.Equal(200, snapshot.Runs.Count);
+        // 1.x's thousand.
+        Assert.Equal(1_000, snapshot.Runs.Count);
 
         // And it stopped asking rather than reading every page and throwing most away.
-        Assert.Equal(2, agent.RunRequests);
+        Assert.Equal(10, agent.RunRequests);
     }
 
     /// <summary>

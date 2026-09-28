@@ -352,10 +352,12 @@ applied, and chosen on the Appearance page (P.5.1).
 - [x] P.4.12 A completed transfer of unknown size draws a full bar, in the success colour, as 1.4's
       did; its text still says the bytes it moved, "0 B" too, rather than "100%" of a size nobody
       knew. A transfer of nothing says "100%", as 1.4's did.
-- [ ] P.4.13 Sync tasks lists saved tasks most recently updated first, as 1.4 did
+- [x] P.4.13 Sync tasks lists saved tasks most recently updated first, as 1.4 did
       (`OrderByDescending(UpdatedUtc)`), not by name. 1.4 also read up to 1,000 runs and listed and
-      counted them all under Last syncs and "Runs this session"; 2.0 reads 200
-      (`SyncTasksController.MaximumLoadedRuns`) and lists 20. Decide the cap against 1.4's.
+      counted them all under Last syncs and "Runs this session"; 2.0 read 200
+      (`SyncTasksController.MaximumLoadedRuns`) and listed 20. Done: 1.4's 1,000, every run read
+      is listed in the agent's order (the run started last first), and the table, the card and the
+      footer's "Showing n durable run(s)" count the same runs.
 - [ ] P.4.14 A paste or drop that fails is shown in a warning ("Transfer queue"), as 1.4's
       `ShowManualTransferFailure` did; a folder read stopped from the queue is not a failure and is
       only said. Until then the refusal is said in the status bar's first cell (P.3.6).
@@ -438,9 +440,9 @@ reference shot.
       second pane did, and opening a row opens that connection. Done as P.2.16.
 - [x] L.10 The overview's Agent card still said "Starting" after the status bar had moved to
       "Agent: connected". Fixed with the live Welcome page (e174058).
-- [ ] L.11 Sync tasks' first sub-tab reads "Tasks", as in ref 03, not "Sync tasks"
+- [x] L.11 Sync tasks' first sub-tab reads "Tasks", as in ref 03, not "Sync tasks"
       (`Ui.Sync.TasksTitle`, which is the page's headline); it needs a caption of its own, with its
-      translations.
+      translations. Done: `Ui.Sync.TasksTab`.
 - [x] L.4 The connection editor (ref 08). Done: 1.x's plain "Edit Connection" dialog, the editor with
       no list beside it, opened on a new connection by New Connection (menu, toolbar, the panel's
       New button, Welcome's Connections) and on a connection by Edit (a card, its menu, the details
@@ -479,11 +481,14 @@ reference shot.
       list favorites under their own folder" is off, as 1.4 did; both copies select together. Was: coloured rounded icon tiles in place of the
       `STORAGE`/`CLIENT` text badges; tag chips under each card; a Favorites section above the
       storage groups; inline edit and delete on the selected card.
-- [ ] L.12 Row icons in the Welcome and Sync tasks tables (ref 01, 03), as 1.4 drew them: a muted info
+- [x] L.12 Row icons in the Welcome and Sync tasks tables (ref 01, 03), as 1.4 drew them: a muted info
       glyph on an empty table's line (a green check on "Nothing needs attention", a muted "…" on
       Sync tasks'), and connection, warning, enabled or run glyphs on real rows. A cell template on
       the Name column keyed on `IsPlaceholder` covers the empty lines.
-      Welcome's three tables are done (with P.3.1). Left open: Sync tasks' two tables.
+      Welcome's three tables are done (with P.3.1). Sync tasks' two are done too: a green tick on
+      an enabled task, a muted pause on a disabled one, a play glyph on a run, and a muted "…" on
+      either table's empty line. In all five, a name too long for its column ends in "…" beside
+      its icon, as 1.4's did, rather than being cut off mid-letter.
 
 ## 1. Settings that are refused today start working
 

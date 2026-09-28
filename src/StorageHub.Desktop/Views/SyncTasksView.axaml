@@ -82,7 +82,17 @@
           </StackPanel>
           <TableView ItemsSource="{Binding Tasks}" Height="170">
             <TableView.Columns>
-              <TableViewColumn Header="{Binding ColumnName}" Binding="{Binding Name}" Width="*"/>
+              <TableViewColumn Header="{Binding ColumnName}" Width="*">
+                <TableViewColumn.CellTemplate>
+                  <DataTemplate DataType="vm:SyncTaskRow">
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceSm}">
+                      <LucideIcon Kind="{Binding Icon.Kind}" Size="{StaticResource IconSizeSm}"
+                                  VerticalAlignment="Center" Classes.success="{Binding Icon.IsSuccess}"/>
+                      <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                    </Grid>
+                  </DataTemplate>
+                </TableViewColumn.CellTemplate>
+              </TableViewColumn>
               <TableViewColumn Header="{Binding ColumnBehavior}" Binding="{Binding Behavior}" Width="180"/>
               <TableViewColumn Header="{Binding ColumnState}" Binding="{Binding State}" Width="180"/>
               <TableViewColumn Header="{Binding ColumnUpdated}" Binding="{Binding Updated}" Width="*"/>
@@ -101,7 +111,17 @@
           </StackPanel>
           <TableView ItemsSource="{Binding LastSyncs}" Height="120">
             <TableView.Columns>
-              <TableViewColumn Header="{Binding ColumnName}" Binding="{Binding Name}" Width="*"/>
+              <TableViewColumn Header="{Binding ColumnName}" Width="*">
+                <TableViewColumn.CellTemplate>
+                  <DataTemplate DataType="vm:LastSyncRow">
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceSm}">
+                      <LucideIcon Kind="{Binding Icon.Kind}" Size="{StaticResource IconSizeSm}"
+                                  VerticalAlignment="Center" Classes.primary="{Binding Icon.IsPrimary}"/>
+                      <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                    </Grid>
+                  </DataTemplate>
+                </TableViewColumn.CellTemplate>
+              </TableViewColumn>
               <TableViewColumn Header="{Binding ColumnState}" Binding="{Binding State}" Width="240"/>
               <TableViewColumn Header="{Binding ColumnUpdated}" Binding="{Binding Updated}" Width="*"/>
             </TableView.Columns>

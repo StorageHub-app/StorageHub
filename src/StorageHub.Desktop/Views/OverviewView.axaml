@@ -106,15 +106,15 @@
               <TableViewColumn Header="{Binding ColumnName}" Width="176">
                 <TableViewColumn.CellTemplate>
                   <DataTemplate DataType="vm:WorkspaceRow">
-                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceSm}"
-                                ToolTip.Tip="{Binding ToolTip}">
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceSm}"
+                          ToolTip.Tip="{Binding ToolTip}">
                       <LucideIcon Kind="{Binding Icon.Kind}" Size="{StaticResource IconSizeSm}"
                                   VerticalAlignment="Center"
                                   Classes.primary="{Binding Icon.IsPrimary}"
                                   Classes.warning="{Binding Icon.IsWarning}"/>
-                      <TextBlock Text="{Binding Name}" VerticalAlignment="Center"
+                      <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center"
                                  TextTrimming="CharacterEllipsis" Classes.muted="{Binding IsMissing}"/>
-                    </StackPanel>
+                    </Grid>
                   </DataTemplate>
                 </TableViewColumn.CellTemplate>
               </TableViewColumn>
@@ -156,11 +156,11 @@
                 <TableViewColumn Header="{Binding ColumnName}" Width="*">
                   <TableViewColumn.CellTemplate>
                     <DataTemplate DataType="vm:RecentConnectionRow">
-                      <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceSm}">
+                      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceSm}">
                         <LucideIcon Kind="{Binding Icon.Kind}" Size="{StaticResource IconSizeSm}"
                                     VerticalAlignment="Center" Classes.primary="{Binding Icon.IsPrimary}"/>
-                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                      </StackPanel>
+                        <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                      </Grid>
                     </DataTemplate>
                   </TableViewColumn.CellTemplate>
                 </TableViewColumn>
@@ -189,13 +189,13 @@
                 <TableViewColumn Header="{Binding ColumnName}" Width="*">
                   <TableViewColumn.CellTemplate>
                     <DataTemplate DataType="vm:AttentionRow">
-                      <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceSm}">
+                      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceSm}">
                         <LucideIcon Kind="{Binding Icon.Kind}" Size="{StaticResource IconSizeSm}"
                                     VerticalAlignment="Center"
                                     Classes.success="{Binding Icon.IsSuccess}"
                                     Classes.warning="{Binding Icon.IsWarning}"/>
-                        <TextBlock Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                      </StackPanel>
+                        <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                      </Grid>
                     </DataTemplate>
                   </TableViewColumn.CellTemplate>
                 </TableViewColumn>

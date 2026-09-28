@@ -44,14 +44,14 @@ internal sealed record SyncTasksSnapshot(
 internal sealed class SyncTasksController(Func<ISyncManagementAgentClient> clients)
 {
     /// <summary>
-    /// How much history the screen holds.
+    /// How much history the screen holds: 1.x's thousand, all of it listed and counted.
     /// </summary>
     /// <remarks>
     /// The screen shows recent runs, not an archive: the review screen is where a particular run is
     /// looked up by id. Without a cap, a profile that has run every ten minutes for a year would
     /// have this screen page through fifty thousand rows before showing anything.
     /// </remarks>
-    private const int MaximumLoadedRuns = 200;
+    private const int MaximumLoadedRuns = 1_000;
 
     private readonly Func<ISyncManagementAgentClient> _clients =
         clients ?? throw new ArgumentNullException(nameof(clients));

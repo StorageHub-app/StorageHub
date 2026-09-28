@@ -234,6 +234,7 @@
   "maximumBaselinePercent": "Maks. reference i %",
   "globHint": "Valgfrit; ét glob med skråstreg pr. linje.",
   "tasksTitle": "Synkroniseringsopgaver",
+  "tasksTab": "Opgaver",
   "tasksViews": "Visninger af synkroniseringsopgaver",
   "tasksOverviewAccessibleName": "Oversigt over synkroniseringsopgaver",
   "tasksHeading": "Synkroniseringsopgaver",

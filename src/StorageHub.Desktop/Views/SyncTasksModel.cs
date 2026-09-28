@@ -53,12 +53,19 @@ internal sealed class TabbedPageModel(IReadOnlyList<PageTab> tabs) : INotifyProp
 internal sealed record SyncTaskRow(string Name, string Behavior, string State, string Updated) : IPlaceholderRow
 {
     public bool IsPlaceholder { get; init; }
+
+    internal bool IsEnabled { get; init; }
+
+    /// <summary>A tick for an enabled task and a pause for a disabled one, as 1.x drew them.</summary>
+    internal RowIcon Icon => IsPlaceholder ? RowIcon.EmptySync : IsEnabled ? RowIcon.Enabled : RowIcon.Disabled;
 }
 
 /// <summary>A row of the last-syncs table.</summary>
 internal sealed record LastSyncRow(string Name, string State, string Updated) : IPlaceholderRow
 {
     public bool IsPlaceholder { get; init; }
+
+    internal RowIcon Icon => IsPlaceholder ? RowIcon.EmptySync : RowIcon.Run;
 }
 
 /// <summary>
@@ -206,15 +213,19 @@ internal sealed class SyncTasksModel : INotifyPropertyChanged
             Count(snapshot.Runs.Count), Ui.Sync.RunsThisSession, LucideIconKind.ArrowLeftRight,
             MetricTone.Primary));
 
+        // The task changed last comes first, as 1.x listed them, so the one just saved is at the
+        // top rather than wherever its name puts it.
         Tasks.Clear();
-        foreach (var profile in snapshot.Profiles.OrderBy(
-            static profile => profile.DisplayName, StringComparer.CurrentCultureIgnoreCase))
+        foreach (var profile in snapshot.Profiles.OrderByDescending(static profile => profile.UpdatedUtc))
         {
             Tasks.Add(new SyncTaskRow(
                 profile.DisplayName,
                 SyncBehaviorCatalog.DisplayName(profile.Behavior),
                 profile.Enabled ? Ui.Sync.Enabled : Ui.Sync.TaskDisabled,
-                Moment(profile.UpdatedUtc)));
+                Moment(profile.UpdatedUtc))
+            {
+                IsEnabled = profile.Enabled
+            });
         }
 
         if (Tasks.Count == 0)
@@ -227,8 +238,11 @@ internal sealed class SyncTasksModel : INotifyPropertyChanged
         var names = snapshot.Profiles.ToDictionary(
             static profile => profile.ProfileId, static profile => profile.DisplayName);
 
+        // Every run that was read, in the agent's order (the run started last first), as 1.x listed
+        // them, so the table, the Runs this session card and the footer's "Showing n durable run(s)"
+        // all count the same runs.
         LastSyncs.Clear();
-        foreach (var run in snapshot.Runs.OrderByDescending(static run => run.UpdatedUtc).Take(20))
+        foreach (var run in snapshot.Runs)
         {
             LastSyncs.Add(new LastSyncRow(
                 names.TryGetValue(run.ProfileId, out var name) ? name : Ui.Sync.UnknownProfile,
