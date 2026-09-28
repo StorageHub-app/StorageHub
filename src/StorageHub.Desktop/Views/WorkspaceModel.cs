@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows.Input;
 using StorageHub.Contracts.Ipc;
+using StorageHub.Contracts.Results;
 using StorageHub.Desktop.Localization;
 using StorageHub.Desktop.Shell;
 
@@ -62,8 +63,9 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
     /// it needs to be able to produce one rather than be handed a fixed set.
     /// </param>
     /// <param name="dialogs">
-    /// Where the paste confirmation goes. Null runs transfers unconfirmed, which is what a headless
-    /// test wants; the shell always passes one.
+    /// Where the paste confirmation and the "Transfer queue" warning for a refused paste or drop
+    /// go. Null runs transfers unconfirmed and says a refusal in <see cref="Message"/> instead,
+    /// which is what a headless test wants; the shell always passes one.
     /// </param>
     /// <param name="name">What the tab says. The shell numbers new workspaces; a file names its own.</param>
     /// <remarks>
@@ -208,7 +210,8 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
     /// <summary>What the last transfer attempt said, or nothing.</summary>
     /// <remarks>
     /// Said in the status bar as well, each time, even when it is what was said last: pasting twice
-    /// queues twice. Nothing else shows it, and a paste that was refused did nothing visible.
+    /// queues twice. Nothing else shows it. A refusal leaves this empty and is shown in a warning
+    /// instead (<see cref="RefuseAsync"/>), unless there is nowhere to show one.
     /// </remarks>
     public string Message
     {
@@ -469,7 +472,7 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
         var selection = PaneTransferSnapshots.SelectionFor(pane.Source, pane.SelectedRows);
         if (selection.IsFailure)
         {
-            Message = selection.Error.Message;
+            _ = RefuseAsync(selection.Error.Message, CancellationToken.None);
             return;
         }
 
@@ -554,17 +557,84 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
                 : null;
 
         // The whole destination, as 1.x read it: a folder bigger than one page used to be refused
-        // outright ("finish indexing first"), and nothing ever finished it.
-        await destination.LoadAllAsync(cancellationToken).ConfigureAwait(true);
+        // outright ("finish indexing first"), and nothing ever finished it. One that could not be
+        // read to the end is refused in 1.x's words.
+        if (!await destination.LoadAllAsync(cancellationToken).ConfigureAwait(true))
+        {
+            gathering?.Fail(Ui.Shell.CouldNotFinishIndexing);
+            await RefuseAsync(Ui.Shell.CouldNotFinishIndexing, cancellationToken).ConfigureAwait(true);
+            return false;
+        }
+
         var target = PaneTransferSnapshots.DestinationFor(
             destination.Source, destination.AllRows, destination.HasMorePages);
         if (target.IsFailure)
         {
             gathering?.Fail(target.Error.Message);
-            Message = target.Error.Message;
+            await RefuseAsync(target.Error.Message, cancellationToken).ConfigureAwait(true);
             return false;
         }
 
+        ManualTransferEnqueueResult? result;
+        try
+        {
+            result = await EnqueueAsync(clipboard, target.Value, gathering, cancellationToken)
+                .ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            return false;
+        }
+
+        if (result is null)
+        {
+            gathering?.Fail(Ui.Shell.AgentCannotEnqueue);
+            await RefuseAsync(Ui.Shell.AgentCannotEnqueue, cancellationToken).ConfigureAwait(true);
+            return false;
+        }
+
+        gathering?.Settle(result.Failure);
+        if (result.Failure is { } failure)
+        {
+            // A folder read stopped from the queue is what somebody asked for rather than a
+            // failure, so it is only said, as 1.x only said it, and in 1.x's words: how many were
+            // queued before it, when some were, then that the reading was stopped.
+            var refusal = RefusalFor(result, clipboard.Selection.Items.Count);
+            if (gathering is not null && failure.Kind == StorageFailureKind.Cancelled && !result.HasAmbiguity)
+            {
+                Message = refusal;
+            }
+            else
+            {
+                await RefuseAsync(refusal, cancellationToken).ConfigureAwait(true);
+            }
+
+            return false;
+        }
+
+        Message = Ui.Format(Ui.Transfer.QueuedFormat, result.Accepted.Count);
+        if (_queueChanged is not null)
+        {
+            await _queueChanged().ConfigureAwait(true);
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Queues a selection through controllers opened for it alone. Null when the agent went away
+    /// part way.
+    /// </summary>
+    /// <remarks>
+    /// Its own method so the controllers, and the agent connections behind them, are closed
+    /// before anything is shown: a warning left up would otherwise hold them open with it.
+    /// </remarks>
+    private async Task<ManualTransferEnqueueResult?> EnqueueAsync(
+        PaneClipboard clipboard,
+        PaneDestinationSnapshot target,
+        PendingGathering? gathering,
+        CancellationToken cancellationToken)
+    {
         // Always the recursive controller, even for a selection of plain files: it delegates to
         // ManualTransferController for those and is the only one that can expand a folder. Choosing
         // between them here would mean this deciding what a container is, which is the storage
@@ -574,40 +644,82 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
             transfers, _storage(), _mutations(), ownsClients: true);
         try
         {
-            var result = await recursive
+            return await recursive
                 .EnqueueAsync(
                     clipboard.Selection,
-                    target.Value,
+                    target,
                     clipboard.Operation,
                     progress: gathering is null ? null : gathering.Report,
                     stop: gathering?.Stopped ?? default,
                     cancellationToken: cancellationToken)
                 .ConfigureAwait(true);
-            gathering?.Settle(result.Failure);
-
-            Message = result.Failure is { } failure
-                ? failure.Message
-                : Ui.Format(Ui.Transfer.QueuedFormat, result.Accepted.Count);
-            if (result.Failure is not null) return false;
-        }
-        catch (OperationCanceledException)
-        {
-            return false;
         }
         catch (Exception error) when (error is IOException or TimeoutException or
             InvalidOperationException or ObjectDisposedException)
         {
-            gathering?.Fail(Ui.Transfer.QueueUnavailable);
-            Message = Ui.Transfer.QueueUnavailable;
-            return false;
+            return null;
         }
+    }
 
-        if (_queueChanged is not null)
+    /// <summary>
+    /// Shows why a transfer was refused, in the "Transfer queue" warning 1.x's
+    /// <c>ShowManualTransferFailure</c> put up.
+    /// </summary>
+    /// <remarks>
+    /// A warning rather than a sentence in the status bar: a paste or drop that was refused did
+    /// nothing anybody could see, and eight seconds in the corner of the window is easy to miss.
+    /// It is not said in the bar as well, as 1.x did not say it there. With no dialogs, as in a
+    /// headless test, it is said in the bar instead. Once the workspace is closing nothing is
+    /// shown or said, as 1.x showed nothing once its window was: a paste still under way when
+    /// StorageHub exits fails as the agent goes, and a warning then would open over a window
+    /// that is closing.
+    /// </remarks>
+    private async Task RefuseAsync(string reason, CancellationToken cancellationToken)
+    {
+        if (_lifetime.IsCancellationRequested) return;
+        if (_dialogs is null)
         {
-            await _queueChanged().ConfigureAwait(true);
+            Message = reason;
+            return;
         }
 
-        return true;
+        Message = string.Empty;
+        await _dialogs.ShowAsync(
+            new DialogRequest
+            {
+                Title = Ui.Dialogs.TransferQueueCaption,
+                Message = reason,
+                Severity = DialogSeverity.Warning
+            },
+            cancellationToken).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// What a refused enqueue says, in 1.x's words: the failure, after how many were queued before
+    /// it when some were, or, when the agent never said whether it took one, which ids to look for.
+    /// </summary>
+    /// <param name="selected">How many items were pasted or dropped.</param>
+    private static string RefusalFor(ManualTransferEnqueueResult result, int selected)
+    {
+        if (!result.HasAmbiguity)
+        {
+            var failure = result.Failure?.Message ?? string.Empty;
+            return result.IsPartial
+                ? Ui.Format(Ui.Shell.PartiallyQueuedFormat, result.Accepted.Count, failure)
+                : failure;
+        }
+
+        var sentences = new List<string>
+        {
+            Ui.Format(Ui.Shell.AcknowledgedTransfersFormat, result.Accepted.Count),
+            Ui.Format(
+                Ui.Shell.AmbiguousTransfersFormat,
+                string.Join(", ", result.AmbiguousTransferIds.Select(static id => id.ToString("D"))))
+        };
+        var unsubmitted = Math.Max(0, selected - result.Accepted.Count - result.AmbiguousTransferIds.Count);
+        if (unsubmitted > 0) sentences.Add(Ui.Format(Ui.Shell.UnsubmittedTransfersFormat, unsubmitted));
+        sentences.Add(Ui.Shell.CheckQueueForAmbiguousTransfers);
+        return string.Join(" ", sentences);
     }
 
     /// <summary>Drops a pane from the arrangement, keeping the others as they are.</summary>
@@ -852,8 +964,10 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
         pane.MoveCommand = StageMoveCommand;
         pane.PasteCommand = PasteCommand;
 
-        // A drop lands in the pane it was dropped on, whichever pane is active.
+        // A drop lands in the pane it was dropped on, whichever pane is active, and one that
+        // cannot be used is refused as a paste would be.
         pane.DropReceiver = clipboard => DropAsync(clipboard, pane);
+        pane.DropRefused = reason => RefuseAsync(reason, CancellationToken.None);
         return pane;
     }
 

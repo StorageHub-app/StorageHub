@@ -1,6 +1,7 @@
 using Avalonia.Headless.XUnit;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Localization;
+using StorageHub.Desktop.Shell;
 using StorageHub.Desktop.Views;
 using Xunit;
 using static StorageHub.Desktop.Tests.WorkspaceFakes;
@@ -120,25 +121,35 @@ public class WorkspaceTransferTests
     }
 
     /// <summary>
-    /// A destination still paging cannot be one.
+    /// A destination still paging cannot be one, and saying so is 1.x's "Transfer queue" warning.
     /// </summary>
     /// <remarks>
     /// A collision is detected by comparing against what is already in the destination, so a
     /// listing that has not finished would report a file just past the last page as absent -- and
-    /// the transfer would silently overwrite it.
+    /// the transfer would silently overwrite it. The refusal is a warning rather than eight seconds
+    /// in the status bar, as every refused paste or drop was in 1.x, and is not said there too.
     /// </remarks>
     [AvaloniaFact]
-    public async Task ADestinationThatHasNotFinishedListingIsRefused()
+    public async Task ADestinationThatHasNotFinishedListingIsRefusedInAWarning()
     {
-        await using var fixture = await Fixture.CreateAsync(destinationHasMorePages: true);
+        var dialogs = new KeyStoreTests.RecordingDialogs { Choice = DialogChoice.Ok };
+        await using var fixture = await Fixture.CreateAsync(destinationHasMorePages: true, dialogs: dialogs);
 
         fixture.Left.SelectedRows.Add(fixture.Left.Rows[0]);
         await fixture.StageAndPasteAsync(TransferQueueOperation.Copy, fixture.Right);
 
         Assert.Empty(fixture.Queue.Enqueued);
-        Assert.True(fixture.Workspace.HasMessage);
+        var warning = dialogs.LastRequest!;
+        Assert.Equal(Ui.Dialogs.TransferQueueCaption, warning.Title);
+        Assert.Equal(Ui.Shell.CouldNotFinishIndexing, warning.Message);
+        Assert.Equal(DialogSeverity.Warning, warning.Severity);
+        Assert.False(fixture.Workspace.HasMessage);
     }
 
+    /// <summary>
+    /// An agent that never answers leaves 1.x's sentence about the transfer it could not confirm,
+    /// said in the status bar when there is nowhere to show a warning.
+    /// </summary>
     [AvaloniaFact]
     public async Task AQueueThatIsNotThereLeavesAMessageRatherThanThrowing()
     {
@@ -148,7 +159,8 @@ public class WorkspaceTransferTests
         fixture.Left.SelectedRows.Add(fixture.Left.Rows[0]);
         await fixture.StageAndPasteAsync(TransferQueueOperation.Copy, fixture.Right);
 
-        Assert.True(fixture.Workspace.HasMessage);
+        Assert.StartsWith(Ui.Format(Ui.Shell.AcknowledgedTransfersFormat, 0), fixture.Workspace.Message);
+        Assert.EndsWith(Ui.Shell.CheckQueueForAmbiguousTransfers, fixture.Workspace.Message);
     }
 
     /// <summary>An accepted transfer tells the queue to look again straight away.</summary>
@@ -258,7 +270,8 @@ public class WorkspaceTransferTests
     public async Task ADesktopFileIsQueuedAndAFolderBeingReadShowsInTheQueueUntilCancelled()
     {
         var drops = new PendingDropRegistry();
-        await using var fixture = await Fixture.CreateAsync(drops: drops);
+        var dialogs = new KeyStoreTests.RecordingDialogs { Choice = DialogChoice.Ok };
+        await using var fixture = await Fixture.CreateAsync(drops: drops, dialogs: dialogs);
         await using var queue = new TransferQueueModel(() => fixture.Queue) { PendingDrops = drops };
 
         // A folder and a file from the left pane, dropped on the right once the desktop file is in.
@@ -307,7 +320,12 @@ public class WorkspaceTransferTests
         queue.CancelCommand.Execute(null);
         await dropping.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
 
-        Assert.Equal(Ui.Validation.ReadingTheFolderWasStopped, fixture.Workspace.Message);
+        // Stopped rather than refused, so it is said and not put up as a warning, in 1.x's words,
+        // the file queued before the folder was read counted.
+        Assert.Equal(
+            Ui.Format(Ui.Shell.PartiallyQueuedFormat, 1, Ui.Validation.ReadingTheFolderWasStopped),
+            fixture.Workspace.Message);
+        Assert.NotEqual(Ui.Dialogs.TransferQueueCaption, dialogs.LastRequest?.Title);
         Assert.Equal(
             [Path.GetFileName(file), "render.exr"],
             fixture.Queue.Enqueued.Select(static request => request.Source.RelativePath));
@@ -355,7 +373,8 @@ public class WorkspaceTransferTests
         internal static async Task<Fixture> CreateAsync(
             bool destinationHasMorePages = false,
             Func<Task>? onQueueChanged = null,
-            PendingDropRegistry? drops = null)
+            PendingDropRegistry? drops = null,
+            IDialogService? dialogs = null)
         {
             var source = Summary("Studio Assets");
             var destination = Summary("Site Backups");
@@ -374,7 +393,8 @@ public class WorkspaceTransferTests
                 () => queue,
                 () => agent,
                 () => new FakeInspector(),
-                onQueueChanged)
+                onQueueChanged,
+                dialogs: dialogs)
             {
                 PendingDrops = drops
             };

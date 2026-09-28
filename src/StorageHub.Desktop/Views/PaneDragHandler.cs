@@ -223,7 +223,7 @@ internal static class PaneDragHandler
         var selections = LocalDrops.From(paths);
         if (selections.IsFailure)
         {
-            model.Status = selections.Error.Message;
+            await model.RefuseDropAsync(selections.Error.Message).ConfigureAwait(true);
             return;
         }
 

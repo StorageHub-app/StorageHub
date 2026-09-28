@@ -936,6 +936,20 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     }
 
     /// <summary>
+    /// Where a drop that cannot be used is refused. Set by the workspace, which shows it in the
+    /// warning a refused paste gets.
+    /// </summary>
+    internal Func<string, Task>? DropRefused { get; set; }
+
+    /// <summary>Says why what was dropped here cannot be used; on the status line, with no workspace.</summary>
+    internal Task RefuseDropAsync(string reason)
+    {
+        if (DropRefused is { } refuse) return refuse(reason);
+        Status = reason;
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
     /// Whether this pane is somewhere things can be made and removed.
     /// </summary>
     /// <remarks>

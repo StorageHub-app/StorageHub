@@ -343,7 +343,8 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         void Watch(WorkspaceModel workspace)
         {
             // "Copied 3 item(s). Choose a destination and paste.", as 1.x said on staging, and what
-            // a paste or drop came to, which nothing else in the window shows.
+            // a paste or drop came to, which nothing else in the window shows. A refused one is a
+            // warning instead, as 1.x's was.
             workspace.Announced += (_, message) => Say(message);
             foreach (var pane in workspace.Panes) WatchPane(pane);
             workspace.Panes.CollectionChanged += (_, e) =>

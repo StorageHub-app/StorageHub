@@ -122,7 +122,7 @@ are the honest ones — each names what is missing rather than claiming the row.
 | Menu bar: the 37 wired entries under their menus, shortcuts shown | **done** — the same 37, each with the key bound now (P.3.4), and the unwired left out as 1.x left them. Transfer > Speed Limits makes a ninth menu where 1.x had eight (roadmap 1.2). The Workspace menu's Pinned and Recent (P.3.1) and the Go menu's Favorites (P.3.5) are there, as in 1.x |
 | Toolbar from `ToolbarLayout`, customisable order and label style | **done** — built from the saved layout with 1.x's three label styles, rebuilt when Settings or an import changes it, and what does not fit goes behind a chevron whose menu runs the same commands, as 1.x's ToolStrip did (P.3.4). Settings has the toolbar editor |
 | Workspace tab strip with per-tab icons | **done** |
-| Status bar: agent state, selection, rate, queue depth | **partial** — location, selection, rate, queue depth and agent state are live; the agent cell opens Agent control and follows a failed call at once; staging, clearing, import, export and what a paste or drop came to show in the first cell, held for eight seconds, 1.x's longest (P.3.6). A refused paste or drop is said there rather than in 1.x's warning (P.4.14); a new file or folder, a rename and a delete are said on the pane's own status line rather than in the bar (left open under P.3.6, with no item of its own yet); and the update link waits for P.1.8 |
+| Status bar: agent state, selection, rate, queue depth | **partial** — location, selection, rate, queue depth and agent state are live; the agent cell opens Agent control and follows a failed call at once; staging, clearing, import, export and what a paste or drop came to show in the first cell, held for eight seconds, 1.x's longest (P.3.6). A refused paste or drop is 1.x's "Transfer queue" warning instead (P.4.14). A new file or folder, a rename and a delete are said on the pane's own status line rather than in the bar (left open under P.3.6, with no item of its own yet); and the update link waits for P.1.8 |
 | Connections panel, dockable left or right, collapsible, remembered width | **done** — left or right, shown and hidden from the View menu, the toolbar and Ctrl+B, and its side, width and visibility remembered, within 1.x's limits (P.3.3) |
 | Shortcut dispatch that beats focus, and declines inside a text box or SSH | **done** — `ShellCommandRouter`, tunnelling, sharing `UiCommandCatalog.CanDispatch` |
 | Splash while the agent starts | **done** — `SplashWindow` over `DesktopBoot`, with 1.x's stages from preparing data to starting the agent, which it starts and waits for on both platforms, and a failure screen with Retry, Quit, Check installation and Copy details (P.1.1, P.1.2, P.5.6) |
@@ -286,8 +286,9 @@ They are skipped otherwise, so CI stays green without one.
 The order from here is `docs/roadmap.md`'s, behaviour before look. Of the rows above, what is left
 is the installers (P.1.5), the update check on start and the status bar's update link (P.1.8),
 dragging out to Explorer, highlighting the pane dragged over and asking about a dropped file that
-is already there (P.2.11), a refused paste or drop shown as a warning (P.4.14), and fetching and
-rejecting a host key in the editor (2.2). Three more have no open item yet: a pane's own news said
-in the status bar rather than on its status line (left open under P.3.6), the connections panel
+is already there (P.2.11), and fetching and rejecting a host key in the editor (2.2). Four more
+have no open item yet: a pane's own news said in the status bar rather than on its status line, a
+failed new file or folder, rename, batch rename, delete or external edit shown in the "Transfer
+queue" warning rather than on that line (both left open under P.3.6), the connections panel
 remembering a collapsed group (left open under P.3.5), and the run review naming a connection by
 its whole id and the top folder `<root>`.

@@ -238,6 +238,21 @@ internal sealed class ShellStrings : LocalizationModelBase
     public string AmbiguousTransfersFormat { get; set; } =
         "The agent did not confirm whether transfer ID(s) {0} were durably enqueued.";
 
+    /// <summary>{0} = transfers the agent took before the one it did not confirm.</summary>
+    public string AcknowledgedTransfersFormat { get; set; } =
+        "{0:N0} transfer(s) were durably acknowledged.";
+
+    /// <summary>{0} = files after the unconfirmed one that were never sent.</summary>
+    public string UnsubmittedTransfersFormat { get; set; } =
+        "{0:N0} later selected file(s) were not submitted.";
+
+    public string CheckQueueForAmbiguousTransfers { get; set; } =
+        "Check the queue for those exact IDs before submitting replacement jobs.";
+
+    /// <summary>{0} = transfers queued before the failure; {1} = the failure.</summary>
+    public string PartiallyQueuedFormat { get; set; } =
+        "{0:N0} transfer(s) were durably accepted before the next request failed. {1}";
+
     /// <summary>{0} = the underlying error message.</summary>
     public string DeleteWarningPreferenceFailedFormat { get; set; } =
         "The delete warning preference could not be saved. {0}";
