@@ -28,6 +28,9 @@ public sealed class ExternalEditingTests : IDisposable
 
     public void Dispose()
     {
+        // The controller OpenAsync made is still watching the edited file. Left running, a check
+        // it started can hold the file open while the folder is deleted, which failed on CI.
+        _last?.DisposeAsync().AsTask().GetAwaiter().GetResult();
         if (Directory.Exists(_directory)) Directory.Delete(_directory, recursive: true);
     }
 
