@@ -52,6 +52,7 @@ public partial class ConnectionManagerWindow : Window
         StorageProviderKind initialProvider = StorageProviderKind.S3)
     {
         var window = new ConnectionManagerWindow();
+        var preferences = LoadPreferences();
         var model = new ConnectionManagerModel(
             static () => new ConnectionManagerController(
                 new NamedPipeRemoteConnectionProfileClient(),
@@ -62,13 +63,27 @@ public partial class ConnectionManagerWindow : Window
             static () => new NamedPipeKeyStoreAgentClient(),
             entries => KeyStorePickerWindow.ChooseAsync(window, entries),
             (current, title) => IconPickerWindow.AskAsync(window, current, title),
-            LoadConnectionDefaults())
+            preferences?.ConnectionDefaults,
+            preferences?.SshHostKeyDiscovery ?? SshHostKeyDiscoveryMode.AskBeforeFetching)
         {
             Tab = tab
         };
         var lifetime = new CancellationTokenSource();
         window.DataContext = model;
         window.Opened += (_, _) => _ = model.OpenAsync(connectionId, initialProvider, lifetime.Token);
+
+        // Settings' host-key discovery is applied as the Trust tab comes forward, as 1.x's
+        // SettingsTabSelected applied it.
+        if (window.FindControl<TabControl>("PART_Tabs") is { } tabs)
+        {
+            tabs.SelectionChanged += (_, e) =>
+            {
+                if (e.Source == tabs && tabs.SelectedIndex == (int)ConnectionEditorTab.Trust)
+                {
+                    _ = model.Editor.OfferHostKeyDiscoveryAsync(lifetime.Token);
+                }
+            };
+        }
         window.Closed += (_, _) =>
         {
             lifetime.Cancel();
@@ -78,17 +93,17 @@ public partial class ConnectionManagerWindow : Window
     }
 
     /// <summary>
-    /// Each provider's new-connection defaults, as Settings saved them.
+    /// Settings as saved, for each provider's new-connection defaults and the host-key discovery.
     /// </summary>
     /// <remarks>
     /// A settings file that cannot be read leaves the built-in defaults, as it does everywhere
     /// else: a new connection is still worth starting without them.
     /// </remarks>
-    private static IReadOnlyDictionary<string, string>? LoadConnectionDefaults()
+    private static DesktopUpdatePreferences? LoadPreferences()
     {
         try
         {
-            return new DesktopConfigStore(DesktopFrameworkPaths.Resolve().ApplicationRoot).Load().ConnectionDefaults;
+            return new DesktopConfigStore(DesktopFrameworkPaths.Resolve().ApplicationRoot).Load();
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException)
         {

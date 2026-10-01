@@ -531,8 +531,8 @@ reference shot.
       there (`TrustOrRolloverAsync`), keeping the dialog open if the pin is refused. Listing, Test
       and Delete are the panel's, as in 1.x: the panel's "Connections" entry and the footer's Test
       are gone, and the panel deletes at the version it listed. Settings' "Create a … connection",
-      under a provider's defaults, opens it on that provider. Left open: fetching a host key from
-      the server or rejecting one is 2.2. Was: back to the dialog shape. Type and Provider / protocol
+      under a provider's defaults, opens it on that provider. Fetch from host and Reject beside
+      the fingerprint came with 2.2. Was: back to the dialog shape. Type and Provider / protocol
       drop-downs in a fixed header with the provider's description under them; General,
       Authentication and TLS / SSH Trust tabs; each description under its control rather than under
       its label; a red asterisk on required fields; icon and colour swatches; the badge preview; the
@@ -592,6 +592,19 @@ The profile already stores these; `CodeLogicConnectionProfileConnector.BuildAsyn
 - [ ] 2.2 A refused host key or certificate is shown with Trust / Reject (`TrustOrRolloverAsync`,
       `RejectAsync`); trust-on-first-use for SFTP and FTPS stops being refused. The editor already
       loads the pinned fingerprint and pins it on save (L.4).
+      Done in the editor, which is as far as 1.4 went: 1.4's "Fetch from host…" (an SFTP or SSH
+      host key) and "Reject…" (any fingerprint) beside the fingerprint. Fetching asks the agent
+      what the endpoint presents and shows the algorithm and SHA-256 in 1.4's "Verify SSH host
+      key" question, defaulting to No; a yes puts it in the field, to be pinned on save as a typed
+      one is, and nothing is trusted until then. Reject asks 1.4's "Reject server identity",
+      records that fingerprint as rejected for the saved connection and clears the field; on one
+      not saved yet it says to save first. Settings' host-key discovery is read again: opening the
+      TLS / SSH Trust tab on an SFTP or SSH endpoint with no fingerprint fetches its key, asking
+      first ("Ask before fetching", the default) or not ("Fetch automatically"), once per endpoint,
+      and "Manual — use Fetch from host" leaves it to the button, as 1.4's SettingsTabSelected did.
+      Left open, past 1.4: a host key or certificate refused while browsing or testing is still
+      only a failure, with no Trust / Reject offered where it happens, and the first connection to
+      an SFTP or FTPS server still needs its fingerprint pinned first.
 - [ ] 2.3 A "Connection details" panel from `GetConnectionDiagnosticsAsync`.
 
 ## 3. Directory tree (was port item 11)

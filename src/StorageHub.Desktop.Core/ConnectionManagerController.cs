@@ -186,6 +186,17 @@ public sealed class ConnectionManagerController
             cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Asks the agent what SSH host key an endpoint presents, without trusting it, for the
+    /// editor's Fetch from host.
+    /// </summary>
+    public Task<ConnectionSshHostKeyDiscoveryResponse> DiscoverSshHostKeyAsync(
+        string host,
+        int port,
+        CancellationToken cancellationToken = default) => _profiles.DiscoverSshHostKeyAsync(
+        new ConnectionSshHostKeyDiscoveryRequest(ConnectionTrustIpcContract.CurrentVersion, host, port),
+        cancellationToken);
+
     public Task<SecretVaultResponse> EnrollOrUpdateSecretAsync(
         SecretMaterialPurpose purpose,
         string? existingReference,

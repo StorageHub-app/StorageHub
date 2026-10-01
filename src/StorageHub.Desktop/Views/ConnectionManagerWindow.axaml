@@ -60,6 +60,20 @@
                     Command="{Binding ChooseFromKeyStoreCommand}"/>
           </StackPanel>
         </StackPanel>
+        <!-- A fingerprint is typed, with 1.x's Fetch from host (an SSH host key only) and Reject
+             beside it on the same line. -->
+        <Grid Grid.Row="0" Grid.Column="1" IsVisible="{Binding IsFingerprint}"
+              ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{StaticResource SpaceXs}">
+          <TextBox Grid.Column="0" Text="{Binding Value, Mode=TwoWay}"
+                   PlaceholderText="{Binding Placeholder}"
+                   AutomationProperties.Name="{Binding Label}"
+                   AutomationProperties.HelpText="{Binding VerifyFingerprintHint}"/>
+          <Button Grid.Column="1" IsVisible="{Binding CanFetchFromHost}"
+                  Content="{Binding FetchFromHostLabel}" Command="{Binding FetchFromHostCommand}"
+                  AutomationProperties.HelpText="{Binding FetchFromHostHint}"/>
+          <Button Grid.Column="2" Content="{Binding RejectLabel}" Command="{Binding RejectCommand}"
+                  AutomationProperties.HelpText="{Binding RejectHint}"/>
+        </Grid>
         <ComboBox Grid.Row="0" Grid.Column="1" IsVisible="{Binding IsChoice}"
                   HorizontalAlignment="Stretch"
                   ItemsSource="{Binding Choices}"

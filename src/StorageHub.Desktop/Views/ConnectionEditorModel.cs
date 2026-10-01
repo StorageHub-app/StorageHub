@@ -70,13 +70,37 @@ internal sealed class ConnectionFieldModel(ConnectionFieldDescriptor descriptor,
     public bool IsKeyStoreSlot => ConnectionSecretFields.KeyStoreSlot(Key) is not null;
 
     /// <summary>
-    /// Everything that is typed into a box, which is every other kind.
+    /// Everything that is typed into a box with nothing beside it, which is every other kind.
     /// </summary>
-    /// <remarks>
-    /// Including a fingerprint, which names something rather than carrying it, so the editor's
-    /// job is the name.
-    /// </remarks>
-    public bool IsText => !IsChoice && !IsToggle && !IsSecret && !IsIcon;
+    public bool IsText => !IsChoice && !IsToggle && !IsSecret && !IsIcon && !IsFingerprint;
+
+    /// <summary>
+    /// A host key or certificate fingerprint: typed, with 1.x's Reject beside it, and Fetch from
+    /// host before that for an SSH host key, as 1.x's FingerprintPicker drew it.
+    /// </summary>
+    public bool IsFingerprint => Kind == ConnectionFieldKind.Fingerprint;
+
+    /// <summary>
+    /// Whether the agent can be asked what this fingerprint should be: an SSH host key, which it
+    /// can read from the server, and not an FTPS certificate pin, as in 1.x.
+    /// </summary>
+    public bool CanFetchFromHost => IsFingerprint && Key == ConnectionEditorModel.HostKeyFingerprintKey;
+
+    /// <summary>Fetches the host key the server presents, to be checked and kept. Set by the editor.</summary>
+    public ICommand? FetchFromHostCommand { get; internal set; }
+
+    /// <summary>Records the fingerprint in the box as rejected. Set by the editor.</summary>
+    public ICommand? RejectCommand { get; internal set; }
+
+    public static string FetchFromHostLabel => Ui.ConnectionEditor.FetchFromHost;
+
+    public static string FetchFromHostHint => Ui.ConnectionEditor.FetchFromHostHint;
+
+    public static string RejectLabel => Ui.ConnectionEditor.Reject;
+
+    public static string RejectHint => Ui.ConnectionEditor.RejectHint;
+
+    public static string VerifyFingerprintHint => Ui.ConnectionEditor.VerifyFingerprintHint;
 
     /// <summary>An icon, shown as itself with a button to choose another.</summary>
     public bool IsIcon => Kind == ConnectionFieldKind.Icon;
@@ -221,9 +245,17 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     private readonly Dictionary<string, string> _values = new(StringComparer.Ordinal);
     private ConnectionProfileDocument? _current;
     private ConnectionProviderDescriptor _provider;
+    private readonly SshHostKeyDiscoveryMode _hostKeyDiscovery;
     private string _status = string.Empty;
     private bool _isBusy;
     private bool _isDirty;
+    private bool _fetchingHostKey;
+
+    /// <summary>The endpoint the Trust tab last offered to fetch a host key from, as 1.x kept it.</summary>
+    private string? _lastDiscoveryOffer;
+
+    /// <summary>The field an SFTP or SSH connection's host key is typed into.</summary>
+    internal const string HostKeyFingerprintKey = "hostKeyFingerprint";
 
     /// <param name="storage">
     /// How the editor reaches the agent to test a connection. Null leaves Test unavailable, which
@@ -240,6 +272,10 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     /// and every save takes its timeouts and retries from, as 1.4's editor did. Read once, when
     /// the editor opens, as 1.4 read them. Null is the built-in defaults.
     /// </param>
+    /// <param name="hostKeyDiscovery">
+    /// Settings' SSH host-key discovery: whether opening the Trust tab on an SFTP or SSH
+    /// connection with no fingerprint fetches one, asks first, or leaves it to Fetch from host.
+    /// </param>
     internal ConnectionEditorModel(
         Func<ConnectionManagerController> controller,
         Func<IRemoteStorageAgentClient>? storage = null,
@@ -248,10 +284,12 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         Func<IKeyStoreAgentClient>? keyStore = null,
         Func<IReadOnlyList<KeyStoreEntryDocument>, Task<KeyStoreEntryDocument?>>? pickKey = null,
         Func<string?, string, Task<IconChoice>>? pickIcon = null,
-        IReadOnlyDictionary<string, string>? connectionDefaults = null)
+        IReadOnlyDictionary<string, string>? connectionDefaults = null,
+        SshHostKeyDiscoveryMode hostKeyDiscovery = SshHostKeyDiscoveryMode.Manual)
     {
         _controller = controller ?? throw new ArgumentNullException(nameof(controller));
         _connectionDefaults = connectionDefaults;
+        _hostKeyDiscovery = hostKeyDiscovery;
         _pickIcon = pickIcon;
         _storage = storage;
         _dialogs = dialogs;
@@ -584,7 +622,7 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         { Provider: StorageConnectionProvider.Ftps, TlsPolicy: ConnectionTlsCertificatePolicy.Pinned } =>
             "certificatePin",
         { Provider: StorageConnectionProvider.Sftp or StorageConnectionProvider.Ssh, SshHostKeyPolicy: ConnectionSshHostKeyPolicy.Pinned } =>
-            "hostKeyFingerprint",
+            HostKeyFingerprintKey,
         _ => null
     };
 
@@ -979,6 +1017,7 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
                     RaiseCommands();
                 };
                 if (field.IsSecret) Arm(field);
+                if (field.IsFingerprint) ArmFingerprint(field);
                 if (field.IsIcon) ArmIcon(field);
                 field.Editor = this;
                 fields.Add(field);
@@ -1228,6 +1267,229 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         {
             IsBusy = false;
         }
+    }
+
+    /// <summary>
+    /// Gives a fingerprint field 1.x's Reject, and an SSH host key Fetch from host as well.
+    /// </summary>
+    /// <remarks>
+    /// Reject is offered on a connection not saved yet, as 1.x offered it, and says to save first
+    /// when pressed: the rejection is recorded against the saved endpoint.
+    /// </remarks>
+    private void ArmFingerprint(ConnectionFieldModel field)
+    {
+        var reject = new RelayCommand(_ => _ = RejectFingerprintAsync(field), _ => !_isBusy && _dialogs is not null);
+        field.RejectCommand = reject;
+        _fieldCommands.Add(reject);
+        if (!field.CanFetchFromHost) return;
+
+        var fetch = new RelayCommand(_ => _ = FetchHostKeyAsync(), _ => !_isBusy && _dialogs is not null);
+        field.FetchFromHostCommand = fetch;
+        _fieldCommands.Add(fetch);
+    }
+
+    /// <summary>
+    /// Asks the agent for the host key the SFTP or SSH endpoint presents and shows it, putting it
+    /// in the field only when it is accepted, as 1.x's FetchSshHostKeyAsync did.
+    /// </summary>
+    /// <remarks>
+    /// Fetching trusts nothing: the key is pinned when the connection is saved, as one typed in
+    /// is. The question defaults to No, as 1.x's did, because the key has to be compared with one
+    /// got some other way before it is used.
+    /// </remarks>
+    internal async Task FetchHostKeyAsync(CancellationToken cancellationToken = default)
+    {
+        if (_dialogs is null) return;
+        if (_fetchingHostKey)
+        {
+            Status = Ui.ConnectionEditor.FetchAlreadyRunning;
+            return;
+        }
+
+        if (!TryGetDiscoveryTarget(out var host, out var port, out var fingerprint))
+        {
+            Status = Ui.ConnectionEditor.EnterValidSftpEndpoint;
+            return;
+        }
+
+        _fetchingHostKey = true;
+        try
+        {
+            Status = Ui.Format(Ui.ConnectionEditor.FetchingHostKeyFormat, host, port);
+            var response = await _controller()
+                .DiscoverSshHostKeyAsync(host, port, cancellationToken)
+                .ConfigureAwait(true);
+            if (response.Failure is not null ||
+                response.Sha256Fingerprint is not { } discovered ||
+                response.HostKeyAlgorithm is not { } algorithm)
+            {
+                Status = response.Failure?.Message ?? Ui.ConnectionEditor.HostKeyUnusable;
+                return;
+            }
+
+            var choice = await _dialogs.ConfirmAsync(
+                new DialogRequest
+                {
+                    Title = Ui.Dialogs.VerifyHostKeyCaption,
+                    Message = Ui.Format(Ui.Dialogs.VerifyHostKeyPromptFormat, algorithm, discovered),
+                    Severity = DialogSeverity.Warning,
+                    Buttons = DialogButtons.YesNo,
+                    Default = DialogChoice.No
+                },
+                cancellationToken).ConfigureAwait(true);
+            if (choice != DialogChoice.Yes)
+            {
+                Status = Ui.ConnectionEditor.HostKeyNotAdded;
+                return;
+            }
+
+            fingerprint.Value = discovered;
+            Status = Ui.ConnectionEditor.HostKeyAdded;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception error) when (IsAgentFailure(error) || error is NotSupportedException or InvalidDataException)
+        {
+            Status = Ui.ConnectionEditor.HostKeyFetchFailed;
+        }
+        finally
+        {
+            _fetchingHostKey = false;
+        }
+    }
+
+    /// <summary>
+    /// What Settings' host-key discovery does when the Trust tab is opened, as 1.x's
+    /// SettingsTabSelected did: nothing when it is Manual, and otherwise, for an SFTP or SSH
+    /// endpoint with no fingerprint yet, fetch its key, asking first when it says to.
+    /// </summary>
+    /// <remarks>
+    /// Offered once per endpoint while the dialog is open, so going back and forth between the
+    /// tabs does not ask again; changing the host or port is a new endpoint and is offered anew.
+    /// </remarks>
+    internal async Task OfferHostKeyDiscoveryAsync(CancellationToken cancellationToken = default)
+    {
+        if (_hostKeyDiscovery == SshHostKeyDiscoveryMode.Manual || _dialogs is null || _isBusy ||
+            !TryGetDiscoveryTarget(out var host, out var port, out var fingerprint) ||
+            fingerprint.Value.Trim().Length > 0)
+        {
+            return;
+        }
+
+        var endpoint = string.Create(CultureInfo.InvariantCulture, $"{host}:{port}");
+        if (string.Equals(_lastDiscoveryOffer, endpoint, StringComparison.OrdinalIgnoreCase)) return;
+        _lastDiscoveryOffer = endpoint;
+
+        if (_hostKeyDiscovery == SshHostKeyDiscoveryMode.AskBeforeFetching)
+        {
+            var choice = await _dialogs.ConfirmAsync(
+                new DialogRequest
+                {
+                    Title = Ui.Dialogs.FetchHostKeyCaption,
+                    Message = Ui.Format(Ui.Dialogs.FetchHostKeyPromptFormat, endpoint),
+                    Severity = DialogSeverity.Question,
+                    Buttons = DialogButtons.YesNo,
+                    Default = DialogChoice.No
+                },
+                cancellationToken).ConfigureAwait(true);
+            if (choice != DialogChoice.Yes) return;
+        }
+
+        await FetchHostKeyAsync(cancellationToken).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Confirms, then records the fingerprint in the field as rejected for the saved endpoint and
+    /// clears the field, as 1.x's RejectFingerprintAsync did.
+    /// </summary>
+    /// <remarks>
+    /// A rejection is history the agent keeps, so the connection has to exist first; one not yet
+    /// saved is told so, in 1.x's words.
+    /// </remarks>
+    internal async Task RejectFingerprintAsync(ConnectionFieldModel field, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(field);
+        if (_isBusy || _dialogs is null) return;
+        if (_current is not { } current)
+        {
+            Status = Ui.ConnectionEditor.SaveBeforeRejecting;
+            return;
+        }
+
+        var fingerprint = field.Value.Trim();
+        if (!ConnectionTrustIpcLimits.IsValidFingerprint(fingerprint))
+        {
+            Status = Ui.ConnectionEditor.EnterValidFingerprint;
+            return;
+        }
+
+        var choice = await _dialogs.ConfirmAsync(
+            new DialogRequest
+            {
+                Title = Ui.Dialogs.RejectServerIdentityCaption,
+                Message = Ui.Dialogs.RejectServerIdentityPrompt,
+                Severity = DialogSeverity.Warning,
+                Buttons = DialogButtons.OkCancel
+            },
+            cancellationToken).ConfigureAwait(true);
+        if (choice != DialogChoice.Ok) return;
+
+        IsBusy = true;
+        try
+        {
+            Status = Ui.ConnectionEditor.RecordingRejected;
+            var response = await _controller()
+                .RejectAsync(current, fingerprint, cancellationToken)
+                .ConfigureAwait(true);
+            if (response.Status != ConnectionTrustMutationStatus.Succeeded)
+            {
+                Status = response.Failure?.Message ?? Ui.ConnectionEditor.RejectedRecordFailed;
+                return;
+            }
+
+            field.Value = string.Empty;
+            Status = Ui.ConnectionEditor.RejectedRecorded;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception error) when (IsAgentFailure(error) || error is InvalidDataException)
+        {
+            Status = Ui.ConnectionEditor.RejectedRecordFailedThroughAgent;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>
+    /// The SFTP or SSH endpoint to fetch a host key from, and the field it goes in, when the host
+    /// and port make a valid one, as 1.x's TryGetSftpDiscoveryTarget read them.
+    /// </summary>
+    private bool TryGetDiscoveryTarget(out string host, out int port, out ConnectionFieldModel fingerprint)
+    {
+        host = string.Empty;
+        port = 0;
+        fingerprint = null!;
+        if (_provider.Kind is not (StorageProviderKind.Sftp or StorageProviderKind.Ssh) ||
+            Field("host") is not { } hostField ||
+            Field("port") is not { } portField ||
+            Field(HostKeyFingerprintKey) is not { } fingerprintField)
+        {
+            return false;
+        }
+
+        host = hostField.Value.Trim();
+        if (!int.TryParse(portField.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out port))
+        {
+            return false;
+        }
+
+        fingerprint = fingerprintField;
+        return new ConnectionSshHostKeyDiscoveryRequest(ConnectionTrustIpcContract.CurrentVersion, host, port)
+            .HasValidBounds;
     }
 
     /// <summary>The field with a given key, or nothing when this provider has none.</summary>

@@ -26,6 +26,7 @@ internal sealed class ConnectionManagerModel
     /// <param name="keyStore">Lists what the key store holds, for the editor's material fields.</param>
     /// <param name="pickKey">Chooses one of those entries; the window supplies a dialog.</param>
     /// <param name="connectionDefaults">Each provider's new-connection defaults from Settings.</param>
+    /// <param name="hostKeyDiscovery">Settings' SSH host-key discovery, for the Trust tab.</param>
     internal ConnectionManagerModel(
         Func<ConnectionManagerController> controller,
         Func<IRemoteStorageAgentClient>? storage = null,
@@ -34,11 +35,12 @@ internal sealed class ConnectionManagerModel
         Func<IKeyStoreAgentClient>? keyStore = null,
         Func<IReadOnlyList<KeyStoreEntryDocument>, Task<KeyStoreEntryDocument?>>? pickKey = null,
         Func<string?, string, Task<IconChoice>>? pickIcon = null,
-        IReadOnlyDictionary<string, string>? connectionDefaults = null)
+        IReadOnlyDictionary<string, string>? connectionDefaults = null,
+        SshHostKeyDiscoveryMode hostKeyDiscovery = SshHostKeyDiscoveryMode.Manual)
     {
         ArgumentNullException.ThrowIfNull(controller);
         Editor = new ConnectionEditorModel(
-            controller, storage, dialogs, files, keyStore, pickKey, pickIcon, connectionDefaults);
+            controller, storage, dialogs, files, keyStore, pickKey, pickIcon, connectionDefaults, hostKeyDiscovery);
         Editor.Written += (_, _) => ProfilesChanged?.Invoke(this, EventArgs.Empty);
         Editor.Saved += (_, _) => Close();
     }

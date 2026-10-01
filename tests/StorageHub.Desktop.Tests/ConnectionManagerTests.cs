@@ -168,9 +168,10 @@ public class ConnectionManagerTests
             Assert.NotEmpty(editor.Sections);
             Assert.All(editor.Sections.SelectMany(static s => s.Fields), field =>
             {
-                // Exactly one of the five editors applies to each field, whatever its kind.
+                // Exactly one of the six editors applies to each field, whatever its kind.
                 var drawn = (field.IsText ? 1 : 0) + (field.IsChoice ? 1 : 0) +
-                    (field.IsToggle ? 1 : 0) + (field.IsSecret ? 1 : 0) + (field.IsIcon ? 1 : 0);
+                    (field.IsToggle ? 1 : 0) + (field.IsSecret ? 1 : 0) + (field.IsIcon ? 1 : 0) +
+                    (field.IsFingerprint ? 1 : 0);
                 Assert.Equal(1, drawn);
                 Assert.False(string.IsNullOrWhiteSpace(field.Label), $"{provider.Kind}/{field.Key}");
             });
@@ -358,17 +359,22 @@ public class ConnectionManagerTests
     }
 
     /// <summary>
-    /// 1.x's plain Edit Connection dialog: New starts on S3 and says it is new; a save pins the host
-    /// key it was given and closes the dialog; Edit opens it on the tab asked for, at the version
-    /// saved and with the pinned key back in its field, so a rename alone can be saved; and Cancel
-    /// writes nothing.
+    /// 1.x's plain Edit Connection dialog: New starts on S3 and says it is new; the Trust tab
+    /// offers to fetch the host key, as Settings' discovery says, and a key accepted is pinned by
+    /// the save, which closes the dialog; Edit opens it on the tab asked for, at the version saved
+    /// and with the pinned key back in its field, so a rename alone can be saved; Reject records
+    /// the key as rejected and clears it; and Cancel writes nothing.
     /// </summary>
     [AvaloniaFact]
     public async Task TheDialogOpensOnANewOrASavedConnectionAndASaveClosesIt()
     {
         var cancellation = TestContext.Current.CancellationToken;
         var profiles = new FakeProfiles();
-        var created = new ConnectionManagerModel(() => Controller(profiles));
+        var dialogs = new YesDialogs();
+        var created = new ConnectionManagerModel(
+            () => Controller(profiles),
+            dialogs: dialogs,
+            hostKeyDiscovery: SshHostKeyDiscoveryMode.AskBeforeFetching);
         var closed = 0;
         var written = 0;
         created.Closed += (_, _) => closed++;
@@ -382,7 +388,24 @@ public class ConnectionManagerTests
         created.Editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Sftp);
         Field(created.Editor, "privateKeyReference").Value = KeyStoreTests.Reference('k');
         Field(created.Editor, "privateKeyPassphraseReference").Value = KeyStoreTests.Reference('p');
-        Field(created.Editor, "hostKeyFingerprint").Value = HostKey;
+        var hostKey = Field(created.Editor, "hostKeyFingerprint");
+        Assert.True(hostKey is { IsFingerprint: true, CanFetchFromHost: true, IsText: false });
+        Field(created.Editor, "host").Value = "sftp.example.com";
+        await created.Editor.RejectFingerprintAsync(hostKey, cancellation);
+        Assert.Equal(Ui.ConnectionEditor.SaveBeforeRejecting, created.Editor.Status);
+
+        // Asked, then shown the key: two yeses put it in the field. Offered once per endpoint.
+        await created.Editor.OfferHostKeyDiscoveryAsync(cancellation);
+        Assert.Equal((HostKey, 2), (hostKey.Value, dialogs.Asked));
+        Assert.Equal(Ui.ConnectionEditor.HostKeyAdded, created.Editor.Status);
+        hostKey.Value = string.Empty;
+        await created.Editor.OfferHostKeyDiscoveryAsync(cancellation);
+        Assert.Equal(2, dialogs.Asked);
+        dialogs.Choice = Desktop.Shell.DialogChoice.No;
+        await created.Editor.FetchHostKeyAsync(cancellation);
+        Assert.Equal((string.Empty, Ui.ConnectionEditor.HostKeyNotAdded), (hostKey.Value, created.Editor.Status));
+        dialogs.Choice = Desktop.Shell.DialogChoice.Yes;
+        await created.Editor.FetchHostKeyAsync(cancellation);
         Fill(created.Editor);
         await created.Editor.SaveAsync(cancellation);
         Assert.Equal(HostKey, Assert.Single(profiles.Pins.Values));
@@ -399,6 +422,14 @@ public class ConnectionManagerTests
         var window = new ConnectionManagerWindow { DataContext = edited };
         window.Show();
         Assert.Equal((int)ConnectionEditorTab.Trust, window.FindControl<TabControl>("PART_Tabs")!.SelectedIndex);
+
+        var rejecting = new ConnectionManagerModel(
+            () => Controller(profiles), dialogs: new YesDialogs { Choice = Desktop.Shell.DialogChoice.Ok });
+        await rejecting.OpenAsync(created.Editor.Current!.ConnectionId, cancellationToken: cancellation);
+        await rejecting.Editor.RejectFingerprintAsync(Field(rejecting.Editor, "hostKeyFingerprint"), cancellation);
+        Assert.Equal(Ui.ConnectionEditor.RejectedRecorded, rejecting.Editor.Status);
+        Assert.Equal(string.Empty, Field(rejecting.Editor, "hostKeyFingerprint").Value);
+        Assert.Equal((HostKey, ConnectionTrustDecision.Rejected), profiles.Decisions[^1]);
 
         edited.CloseCommand.Execute(null);
         Assert.False(window.IsVisible);
@@ -544,7 +575,7 @@ public class ConnectionManagerTests
         Assert.True(passphrase.IsSecret);
         Assert.False(passphrase.IsKeyStoreSlot);
 
-        Assert.True(Field(editor, "hostKeyFingerprint").IsText);
+        Assert.True(Field(editor, "hostKeyFingerprint").IsFingerprint);
 
         // Nothing to enrol with and nothing to pick from, so the buttons say so.
         Assert.False(key.EnrollCommand!.CanExecute(null));
@@ -747,6 +778,20 @@ public class ConnectionManagerTests
         {
             ftps!.Save(stream, new PngBitmapEncoderOptions());
         }
+
+        // And SFTP's Trust tab: the host key with Fetch from host and Reject beside it, as 1.x.
+        manager.Editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Sftp);
+        window.FindControl<TabControl>("PART_Tabs")!.SelectedIndex = (int)ConnectionEditorTab.Trust;
+        window.Measure(new Size(880, 760));
+        window.Arrange(new Rect(0, 0, 880, 760));
+        window.UpdateLayout();
+        var trust = window.CaptureRenderedFrame();
+        Assert.NotNull(trust);
+        using (var stream = File.Create(
+            Path.Combine(directory, $"connection-editor-trust-{(dark ? "dark" : "light")}.png")))
+        {
+            trust!.Save(stream, new PngBitmapEncoderOptions());
+        }
     }
 
     /// <summary>A host key as the agent reports one, which is what a pin is checked against.</summary>
@@ -816,6 +861,9 @@ public class ConnectionManagerTests
         /// <summary>The fingerprint each connection is pinned to, one trusted record apiece.</summary>
         internal Dictionary<Guid, string> Pins { get; } = [];
 
+        /// <summary>Each trust decision asked for, in order.</summary>
+        internal List<(string Fingerprint, ConnectionTrustDecision Decision)> Decisions { get; } = [];
+
         public Task<ConnectionProfileGetResponse> GetAsync(
             ConnectionProfileGetRequest request,
             CancellationToken cancellationToken = default) =>
@@ -872,7 +920,9 @@ public class ConnectionManagerTests
             ConnectionTrustDecisionRequest request,
             CancellationToken cancellationToken = default)
         {
-            Pins[request.ConnectionId] = request.Sha256Fingerprint;
+            Decisions.Add((request.Sha256Fingerprint, request.Decision));
+            if (request.Decision == ConnectionTrustDecision.Trusted) Pins[request.ConnectionId] = request.Sha256Fingerprint;
+            else Pins.Remove(request.ConnectionId);
             return Task.FromResult(new ConnectionTrustMutationResponse(
                 ConnectionTrustIpcContract.CurrentVersion, ConnectionTrustMutationStatus.Succeeded));
         }
@@ -880,6 +930,17 @@ public class ConnectionManagerTests
         public Task<ConnectionTrustMutationResponse> RolloverTrustAsync(
             ConnectionTrustRolloverRequest request,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        /// <summary>Every endpoint presents <see cref="HostKey"/>.</summary>
+        public Task<ConnectionSshHostKeyDiscoveryResponse> DiscoverSshHostKeyAsync(
+            ConnectionSshHostKeyDiscoveryRequest request,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ConnectionSshHostKeyDiscoveryResponse(
+                ConnectionTrustIpcContract.CurrentVersion,
+                new ConnectionTrustTargetDocument(ConnectionTrustArtifactKind.SshHostKey, request.Host, request.Port),
+                "ssh-ed25519",
+                HostKey,
+                null));
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
@@ -977,13 +1038,19 @@ public class ConnectionManagerTests
     {
         internal Desktop.Shell.DialogChoice Choice { get; set; } = Desktop.Shell.DialogChoice.Yes;
 
+        internal int Asked { get; private set; }
+
         public Task ShowAsync(
             Desktop.Shell.DialogRequest request,
             CancellationToken cancellationToken = default) => Task.CompletedTask;
 
         public Task<Desktop.Shell.DialogChoice> ConfirmAsync(
             Desktop.Shell.DialogRequest request,
-            CancellationToken cancellationToken = default) => Task.FromResult(Choice);
+            CancellationToken cancellationToken = default)
+        {
+            Asked++;
+            return Task.FromResult(Choice);
+        }
 
         public Task<string?> PromptAsync(
             Desktop.Shell.DialogPromptRequest request,
