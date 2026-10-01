@@ -284,6 +284,20 @@ public class ShellScalingTests
         if (appearance == "sync") window.DataContext = ShellPreview.SampleOnSyncTasks;
         if (appearance == "workspace") window.DataContext = ShellPreview.CreateOnWorkspace();
         window.Show();
+        if (appearance == "workspace")
+        {
+            var panes = ((ShellPreviewModel)window.DataContext!).Workspaces
+                .Select(static tab => tab.Workspace).OfType<WorkspaceModel>()
+                .SelectMany(static workspace => workspace.Panes).ToArray();
+            foreach (var pane in panes) _ = pane.LoadConnectionsAsync();
+            var until = DateTime.UtcNow.AddSeconds(20);
+            while (panes.Any(static pane => pane.Connection is null || pane.IsBusy) && DateTime.UtcNow < until)
+            {
+                global::Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Thread.Sleep(20);
+            }
+        }
+
         window.Measure(new Size(1500 * scaling, 920 * scaling));
         window.Arrange(new Rect(0, 0, 1500 * scaling, 920 * scaling));
 

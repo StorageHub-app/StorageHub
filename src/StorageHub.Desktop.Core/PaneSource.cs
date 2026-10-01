@@ -313,21 +313,26 @@ internal sealed class ConnectionsHomeSource(Func<IReadOnlyList<ConnectionCardMod
             StorageFailureKind.Validation,
             Ui.Pane.SelectProfileToConnect));
 
+    /// <remarks>
+    /// Laid out as 1.x's PresentConnectionsHome did it: the address reads "Connections", each row
+    /// is a connection by name with its provider in capitals as its type, and its status says
+    /// whether it is a favourite or only saved.
+    /// </remarks>
     public Task<PaneNavigationResult> MoveAsync(
         PaneNavigationKind kind,
         string? target = null,
         CancellationToken cancellationToken = default) =>
         Task.FromResult(PaneNavigationResult.Ok(new PaneListing(
-            Ui.Pane.ConnectionsHome,
+            Ui.Pane.Connections,
             [
                 .. connections()
                     .Where(static card => card.ConnectionId is not null && card.IsEnabled)
                     .Select(static card => new BrowserListItem(
                         card.Name,
                         string.Empty,
-                        card.Descriptor.DisplayName,
+                        card.Descriptor.Kind.ToString().ToUpperInvariant(),
                         string.Empty,
-                        card.State,
+                        card.IsFavorite ? Ui.Pane.Favorite : Ui.Pane.Saved,
                         RowPrefix + card.ConnectionId!.Value.ToString("D"),
                         IsContainer: true))
             ],

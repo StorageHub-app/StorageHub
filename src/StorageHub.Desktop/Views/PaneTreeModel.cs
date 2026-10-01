@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using Lucide.Avalonia;
+using StorageHub.Desktop.Localization;
 
 namespace StorageHub.Desktop.Views;
 
@@ -89,6 +90,16 @@ internal sealed class PaneTreeModel
     {
         _rootKey = null;
         Roots.Clear();
+    }
+
+    /// <summary>
+    /// The one node Connections Home has, "Connections", with nothing under it, as 1.x drew it.
+    /// </summary>
+    internal void ShowConnections()
+    {
+        _rootKey = null;
+        Roots.Clear();
+        Roots.Add(new PaneTreeNode(Ui.Pane.Connections, string.Empty, LucideIconKind.Link));
     }
 
     /// <summary>

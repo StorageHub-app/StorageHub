@@ -23,9 +23,14 @@ public class ConnectionsHomeTests
             pane.Connections.Single(static c => c.Kind == PaneContentKind.ConnectionsHome),
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(Ui.Pane.ConnectionsHome, pane.Path);
+        // As 1.x's ref 05 shows it: "Connections" in the address and as the tree's one node, a
+        // connection's provider as its type and Saved or Favorite as its status, and the state
+        // line asking for a connection to be chosen.
+        Assert.Equal(Ui.Pane.Connections, pane.Path);
+        Assert.Equal(Ui.Pane.Connections, Assert.Single(pane.Tree.Roots).Name);
+        Assert.Equal((Ui.Pane.StateChooseConnection, false), (pane.ConnectionState, pane.ConnectionStateIsReady));
         var row = Assert.Single(pane.Rows);
-        Assert.Equal("Studio Assets", row.Name);
+        Assert.Equal(("Studio Assets", "S3", Ui.Pane.Saved), (row.Name, row.Type, row.Status));
 
         // Not a place files live, so nothing can be pasted or made here.
         Assert.False(pane.NewFolderCommand.CanExecute(null));

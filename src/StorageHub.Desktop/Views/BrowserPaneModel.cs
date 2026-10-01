@@ -406,17 +406,20 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
 
     /// <summary>
     /// The line beside the connection button: "● Ready", "● Loading…", "○ Choose a saved
-    /// connection", as 1.x's pane header said it.
+    /// connection", as 1.x's pane header said it. Connections Home is somewhere to choose a
+    /// connection rather than one, so it says to choose one, as 1.x's PresentConnectionsHome did.
     /// </summary>
     public string ConnectionState =>
         _connection is null ? Ui.Pane.StateChooseConnection
         : _busy ? Ui.Pane.StateLoading
         : IsTerminal ? Ui.Pane.StateSshTerminal
         : _failed ? Ui.Pane.StateLocationUnavailable
+        : _source is ConnectionsHomeSource ? Ui.Pane.StateChooseConnection
         : Ui.Pane.StateReady;
 
     /// <summary>The tone the state line is drawn in: the words and the colour say the same thing.</summary>
-    public bool ConnectionStateIsReady => _connection is not null && !_busy && !_failed;
+    public bool ConnectionStateIsReady =>
+        _connection is not null && !_busy && !_failed && _source is not ConnectionsHomeSource;
 
     public bool ConnectionStateIsBusy => _connection is not null && _busy;
 
@@ -2172,6 +2175,13 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     /// </summary>
     private void FollowTree(IReadOnlyList<BrowserListItem> rows, bool append)
     {
+        // Connections Home is one node, "Connections", as 1.x's tree showed it.
+        if (_source is ConnectionsHomeSource)
+        {
+            Tree.ShowConnections();
+            return;
+        }
+
         if (_source is null || IsTerminal ||
             PaneTransferSnapshots.ContextFor(_source) is not { IsSuccess: true, Value: var here })
         {

@@ -512,8 +512,19 @@ reference shot.
       for unsaved changes comes with them. Done with P.3.1: the tab's tooltip is the file's path and
       its accessible name "{name} workspace", as 1.4 set them. Close is done: the X on a workspace tab
       and Workspace > Close Workspace both close it and release its panes' connections.
-- [ ] L.2 The file pane (ref 05). Done apart from the drag-hint row: the chip, the badges, the state
-      line, the `FILES` row with its overflow, "Filter:" and the item count. Was: the connection chip with its `STORAGE`/`LOCAL` badges and the
+- [x] L.2 The file pane (ref 05). Done: the chip, the badges, the state line, the `FILES` row with
+      its overflow, "Filter:" and the item count, and the drag-hint row, which came back with
+      P.2.14. Put beside ref 05 on 2026-10-01 (the shell's workspace shot, with its panes opened on
+      This PC and Connections Home), three things still differed and are fixed: the pane's frame
+      is 1.4's three pixels on every pane, in the accent on the active one, rather than one; the
+      connection's colour runs under the pane's title bar, where 1.4 drew the top of the pane,
+      rather than above it; and Connections Home reads as 1.4's did, "○ Choose a saved
+      connection" rather than "● Ready", "Connections" in the address and as the tree's one node,
+      and each connection's provider in capitals as its type and Favorite or Saved as its status.
+      Kept: the picker beside the state line shows the connection open in the pane with a chevron,
+      which is what 1.4's `DrawConnectionButton` painted, although ref 05 caught it blank; and with
+      no connections saved, Connections Home says 1.4's two sentences over the empty list rather
+      than as a row of their own. Was: the connection chip with its `STORAGE`/`LOCAL` badges and the
       "● Ready" status line in place of the "Select the profile to connect" drop-down; the labelled
       `FILES` command row (New folder · Copy · Move · Paste · Delete · overflow) in place of the icon
       strip, with Copy/Move/Paste taken out of the bottom-right corner; "Filter:" beside the path box;

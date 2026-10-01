@@ -377,10 +377,11 @@
   </Style>
 
   <!-- A workspace pane, and the border that says which one has focus. -->
+  <!-- Three wide on every pane, as 1.x's pane frame was, so the active one's colour reads. -->
   <Style Selector="Border.pane">
     <Setter Property="Background" Value="{DynamicResource CanvasBrush}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
-    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="BorderThickness" Value="3"/>
   </Style>
   <!--
     The active pane is marked by colour alone, never by a thicker border. Two panes sit side by
