@@ -287,8 +287,16 @@ applied, and chosen on the Appearance page (P.5.1).
       message when the queue counts changed, which 2.0 leaves to the eight seconds. A created file
       or folder, a rename, a send to the Recycle Bin, a delete and "Edited file uploaded" are said
       on the pane's own status line, where 1.4 said them in the bar's first cell. A new file or
-      folder, a rename, a batch rename, a delete or an external edit that fails is said on that
-      line too, where 1.4 showed it in the "Transfer queue" warning a refused paste gets (P.4.14).
+      folder, a rename, a batch rename, a delete or an external edit that fails is 1.4's "Transfer
+      queue" warning, the one a refused paste gets (P.4.14), through the same `RefuseAsync`, and is
+      not said on that line: the name refused on create, rename or batch rename, nothing or too
+      little selected to rename, a batch stopped part way ("Renamed n item(s), then stopped at …"),
+      a delete that failed or stopped part way, and an edit asked of something that is not one
+      file on a connection, as 1.4's `ShowManualTransferFailure` calls were. A refused rename
+      now reads as 1.4's "The item could not be renamed. …" rather than the bare reason. An editor
+      that cannot be opened keeps its own "External editor" warning, as in 1.4. One drift left: a
+      "Don't show this warning again" that cannot be saved is let go for the session, where 1.4
+      warned and did not delete.
 - [x] P.3.7 A concurrency change waits for running transfers before restarting the agent, as 1.4 did.
       The shell restarts it once Settings has closed, or once the agent reports no transfers or
       synchronizations running, and says which in the status bar; an import that changes the
@@ -414,9 +422,8 @@ applied, and chosen on the Appearance page (P.5.1).
       before the next request failed."), and a transfer the agent never confirmed names its ids
       and asks for the queue to be checked for them, as 1.4's did. Staging that fails is the same
       warning, as it was in 1.4. A stopped folder read is still only said, in 1.4's words, with
-      how many were queued before it. Left open under P.3.6: 1.4 put a failed new file or folder,
-      rename, batch rename, delete or external edit in this warning too, where 2.0 says those on
-      the pane's own status line.
+      how many were queued before it. A failed new file or folder, rename, batch rename, delete or
+      external edit is this warning too, as in 1.4 (under P.3.6).
 - [x] P.4.15 Run history names a plan operation's connection by its whole id and a connection's top
       folder `<root>`, as 1.4's review did (`SyncRunReviewControl.FormatEndpoint`), not by the
       first eight characters and "Root". The eight were 1.4's transfer queue's (P.4.5), not its

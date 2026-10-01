@@ -1132,7 +1132,7 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
         // A drop lands in the pane it was dropped on, whichever pane is active, and one that
         // cannot be used is refused as a paste would be.
         pane.DropReceiver = clipboard => DropAsync(clipboard, pane);
-        pane.DropRefused = reason => RefuseAsync(reason, CancellationToken.None);
+        pane.Refused = reason => RefuseAsync(reason, CancellationToken.None);
         pane.FilesDropReceiver = (paths, folder) => DropFilesAsync(paths, pane, folder);
         pane.DragOut = selection => DragOut?.Start(selection) ?? ExplorerDrag.Nothing;
         return pane;

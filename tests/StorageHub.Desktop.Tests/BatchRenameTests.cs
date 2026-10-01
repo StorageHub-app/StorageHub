@@ -45,7 +45,11 @@ public sealed class BatchRenameTests
         Assert.Equal(Ui.Format(Ui.Shell.RenamedItemsFormat, 2), pane.Status);
     }
 
-    /// <summary>A provider's refusal stops the batch there and says how far it got.</summary>
+    /// <summary>
+    /// A provider's refusal stops the batch there and says how far it got: in a workspace in 1.x's
+    /// "Transfer queue" warning, as every failed file operation is, and on the pane's own line
+    /// with nowhere to show one.
+    /// </summary>
     [AvaloniaFact]
     public async Task ARefusalStopsTheBatchAndSaysWhere()
     {
@@ -56,7 +60,20 @@ public sealed class BatchRenameTests
 
         await pane.BatchRenameAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(Ui.Format(Ui.Shell.RenamedThenStoppedFormat, 0, "reports", "That name is taken."), pane.Status);
+        var stopped = Ui.Format(Ui.Shell.RenamedThenStoppedFormat, 0, "reports", "That name is taken.");
+        Assert.Equal(stopped, pane.Status);
+
+        var warnings = new List<string>();
+        pane.Refused = reason =>
+        {
+            warnings.Add(reason);
+            return Task.CompletedTask;
+        };
+        await pane.BatchRenameAsync(TestContext.Current.CancellationToken);
+        pane.SelectedRows.Clear();
+        await pane.RenameAsync(TestContext.Current.CancellationToken);
+        await pane.BatchRenameAsync(TestContext.Current.CancellationToken);
+        Assert.Equal([stopped, Ui.Shell.SelectOneToRename, Ui.Shell.SelectTwoToBatchRename], warnings);
     }
 
     [AvaloniaFact]

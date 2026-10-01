@@ -899,7 +899,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         var selection = PaneTransferSnapshots.SelectionFor(_source, SelectedRows);
         if (selection.IsFailure)
         {
-            Status = selection.Error.Message;
+            await RefuseAsync(selection.Error.Message).ConfigureAwait(true);
             return;
         }
 
@@ -907,7 +907,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             Here(), selection.Value.Items, out var problem, Ui.Shell.ExternalEditRequiresOneFile);
         if (address is null)
         {
-            Status = problem!;
+            await RefuseAsync(problem!).ConfigureAwait(true);
             return;
         }
 
@@ -965,15 +965,16 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     }
 
     /// <summary>
-    /// Where a drop that cannot be used is refused. Set by the workspace, which shows it in the
-    /// warning a refused paste gets.
+    /// Where a drop or a file operation that failed is refused. Set by the workspace, which shows
+    /// it in the "Transfer queue" warning a refused paste gets, as 1.x's ShowManualTransferFailure
+    /// showed a failed new file or folder, rename, batch rename, delete or external edit.
     /// </summary>
-    internal Func<string, Task>? DropRefused { get; set; }
+    internal Func<string, Task>? Refused { get; set; }
 
-    /// <summary>Says why what was dropped here cannot be used; on the status line, with no workspace.</summary>
-    internal Task RefuseDropAsync(string reason)
+    /// <summary>Says why something asked of this pane failed; on the status line, with no workspace.</summary>
+    internal Task RefuseAsync(string reason)
     {
-        if (DropRefused is { } refuse) return refuse(reason);
+        if (Refused is { } refuse) return refuse(reason);
         Status = reason;
         return Task.CompletedTask;
     }
@@ -1703,7 +1704,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
 
         if (result.IsFailure)
         {
-            Status = Ui.Format(Ui.Shell.ItemCreateFailedFormat, result.Error.Message);
+            await RefuseAsync(Ui.Format(Ui.Shell.ItemCreateFailedFormat, result.Error.Message)).ConfigureAwait(true);
             return;
         }
 
@@ -1719,14 +1720,14 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         if (!CanMutateHere || Here() is not { } location) return;
         if (Chosen() is not [var row])
         {
-            Status = Ui.Shell.SelectOneToRename;
+            await RefuseAsync(Ui.Shell.SelectOneToRename).ConfigureAwait(true);
             return;
         }
 
         var item = PaneTransferSnapshots.ItemFor(row);
         if (item.IsFailure)
         {
-            Status = item.Error.Message;
+            await RefuseAsync(item.Error.Message).ConfigureAwait(true);
             return;
         }
 
@@ -1749,7 +1750,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
 
         if (result.IsFailure)
         {
-            Status = result.Error.Message;
+            await RefuseAsync(Ui.Format(Ui.Shell.ItemRenameFailedFormat, result.Error.Message)).ConfigureAwait(true);
             return;
         }
 
@@ -1779,7 +1780,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         var rows = Chosen();
         if (rows.Count < 2)
         {
-            Status = Ui.Shell.SelectTwoToBatchRename;
+            await RefuseAsync(Ui.Shell.SelectTwoToBatchRename).ConfigureAwait(true);
             return;
         }
 
@@ -1789,7 +1790,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             var item = PaneTransferSnapshots.ItemFor(row);
             if (item.IsFailure)
             {
-                Status = item.Error.Message;
+                await RefuseAsync(item.Error.Message).ConfigureAwait(true);
                 return;
             }
 
@@ -1813,7 +1814,8 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
                 if (result.IsFailure)
                 {
                     await MoveAsync(PaneNavigationKind.Refresh, cancellationToken: cancellationToken).ConfigureAwait(true);
-                    Status = Ui.Format(Ui.Shell.RenamedThenStoppedFormat, renamed, items[index].Name, result.Error.Message);
+                    await RefuseAsync(Ui.Format(
+                        Ui.Shell.RenamedThenStoppedFormat, renamed, items[index].Name, result.Error.Message)).ConfigureAwait(true);
                     return;
                 }
 
@@ -1841,7 +1843,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         var selection = PaneTransferSnapshots.SelectionFor(_source, SelectedRows);
         if (selection.IsFailure)
         {
-            Status = selection.Error.Message;
+            await RefuseAsync(selection.Error.Message).ConfigureAwait(true);
             return;
         }
 
@@ -1894,14 +1896,18 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             .ConfigureAwait(true);
 
         // How far it got matters as much as whether it finished: "three of five were deleted, then
-        // this happened" is a different situation from "nothing was deleted".
-        Status = outcome switch
+        // this happened" is a different situation from "nothing was deleted". A failure is the
+        // "Transfer queue" warning, as it was in 1.x.
+        if (outcome.IsSuccess)
         {
-            { IsSuccess: true, Recycled: true } => Ui.Format(Ui.Shell.SentToRecycleBinFormat, outcome.Deleted),
-            { IsSuccess: true } => Ui.Format(Ui.Shell.DeletedItemsFormat, outcome.Deleted),
-            { Deleted: 0 } => Ui.Format(Ui.Shell.ItemsDeleteFailedFormat, outcome.Failure!.Message),
-            _ => Ui.Format(Ui.Shell.DeletedThenStoppedFormat, outcome.Deleted, outcome.Failure!.Message)
-        };
+            Status = Ui.Format(
+                outcome.Recycled ? Ui.Shell.SentToRecycleBinFormat : Ui.Shell.DeletedItemsFormat, outcome.Deleted);
+            return;
+        }
+
+        await RefuseAsync(outcome.Deleted == 0
+            ? Ui.Format(Ui.Shell.ItemsDeleteFailedFormat, outcome.Failure!.Message)
+            : Ui.Format(Ui.Shell.DeletedThenStoppedFormat, outcome.Deleted, outcome.Failure!.Message)).ConfigureAwait(true);
     }
 
     /// <summary>Where this pane is, as a location a mutation can act on.</summary>
