@@ -33,7 +33,7 @@ a provider-neutral contract.
 
 <table>
   <tr>
-    <td width="50%"><a href="docs/screenshots/welcome.png"><img src="docs/screenshots/welcome.png" alt="The Welcome page in the dark theme on Windows: agent status, transfer counters, saved workspaces, recent connections and anything that needs attention"></a></td>
+    <td width="50%"><a href="docs/screenshots/welcome.png"><img src="docs/screenshots/welcome.png" alt="The Welcome page in the dark theme on Linux, installed from the .deb: agent connected, transfer counters, saved workspaces, recent connections and anything that needs attention"></a></td>
     <td width="50%"><a href="docs/screenshots/workspace.png"><img src="docs/screenshots/workspace.png" alt="A two-pane workspace: This PC's drives and folder tree on the left, an SSH terminal session on the right, with the transfer queue below"></a></td>
   </tr>
   <tr>

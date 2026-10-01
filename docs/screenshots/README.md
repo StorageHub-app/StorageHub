@@ -20,7 +20,7 @@ the application was laid out against.
 
 | File | Test output | Shows |
 | --- | --- | --- |
-| `welcome.png` | `shell-windows-dark-1.25x.png` | Welcome, dark, on Windows |
+| `welcome.png` | the installed .deb under WSLg, grabbed with `import -window` | Welcome, dark, on Linux, agent connected |
 | `welcome-linux-light.png` | `shell-linux-light-1.25x.png` | Welcome, light, on Linux |
 | `workspace.png` | `workspace-terminal-dark.png` | A two-pane workspace: This PC beside an SSH terminal |
 | `settings-appearance.png` | `settings-appearance-light.png` | Settings, Appearance page, light |
