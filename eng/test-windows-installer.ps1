@@ -199,6 +199,10 @@ function Get-StorageHubAutoStartEntries {
         }
 
         $properties = Get-ItemProperty -LiteralPath $registryPath
+        if ($null -eq $properties) {
+            continue
+        }
+
         foreach ($property in $properties.PSObject.Properties) {
             if ($property.Name.StartsWith('PS', [System.StringComparison]::Ordinal)) {
                 continue
@@ -368,7 +372,9 @@ function Get-RunEntry {
         return $null
     }
 
-    return (Get-ItemProperty -LiteralPath $runKey -Name 'StorageHub.Agent' -ErrorAction SilentlyContinue).'StorageHub.Agent'
+    # Read through the key rather than as a property: under strict mode a value that is not there
+    # throws "property cannot be found" instead of giving null, which a clean runner always hits.
+    return (Get-Item -LiteralPath $runKey).GetValue('StorageHub.Agent')
 }
 
 function Test-StorageHubInstalledHere {
@@ -377,7 +383,7 @@ function Test-StorageHubInstalledHere {
         return $false
     }
 
-    $folder = (Get-ItemProperty -LiteralPath $key -Name 'InstallFolder' -ErrorAction SilentlyContinue).InstallFolder
+    $folder = (Get-Item -LiteralPath $key).GetValue('InstallFolder')
     return $null -ne $folder -and
         [string]::Equals(
             ([string] $folder).TrimEnd('\'),
