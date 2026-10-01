@@ -269,7 +269,8 @@ applied, and chosen on the Appearance page (P.5.1).
       once (reconnecting, then not connected), as 1.4's did, rather than waiting for the next poll;
       recovery mode is in the warning colour, as 1.4 drew it, and the queue count includes running
       syncs. The rate cell is the queue's total, "0 B/s" while nothing moves, as 1.4's always said,
-      and while the agent is not answering or the queue is on Logs, where nothing reads the rate.
+      and while the agent is not answering. The counts and the rate are read on the queue's Logs
+      tab too, beside the log, as 1.4's bar read them whichever tab was showing.
       Staging says "Copied 3 item(s). Choose a destination and paste." (or Cut), Clear says the
       clipboard was cleared, an import or an export says so, and a paste or drop says what it came
       to ("Queued 3 transfer(s).", or that a folder read was stopped), in the first cell, where 1.4
@@ -283,11 +284,13 @@ applied, and chosen on the Appearance page (P.5.1).
       nothing chosen reads "No connection" rather than "/". The bar is 1.4's 22 px, one row with a
       thin line after each cell from the rate on, and each cell has 1.4's accessible name.
       A refused paste or drop is 1.4's "Transfer queue" warning rather than a message here (P.4.14).
-      Left open: on Logs the queue count holds its last reading, as the queue is not read there. The
-      update cell after the last line came with P.1.8. 1.4 also wrote over a
-      message when the queue counts changed, which 2.0 leaves to the eight seconds. A created file
-      or folder, a rename, a send to the Recycle Bin, a delete and "Edited file uploaded" are said
-      on the pane's own status line, where 1.4 said them in the bar's first cell. A new file or
+      The update cell after the last line came with P.1.8. A created file or folder, a rename
+      (1.4's "Renamed ‘a’ to ‘b’.", which 2.0 had not said at all), a batch rename, a send to the
+      Recycle Bin, a delete and "Edited file uploaded successfully." are said in the bar's first
+      cell, where 1.4 said them, rather than on the pane's own status line. Kept on purpose: 1.4
+      also wrote over a message when the queue counts changed, which 2.0 leaves to the eight
+      seconds, and what came of a drag out to Explorer stays on the pane's line, as 1.4 said it
+      there. A new file or
       folder, a rename, a batch rename, a delete or an external edit that fails is 1.4's "Transfer
       queue" warning, the one a refused paste gets (P.4.14), through the same `RefuseAsync`, and is
       not said on that line: the name refused on create, rename or batch rename, nothing or too

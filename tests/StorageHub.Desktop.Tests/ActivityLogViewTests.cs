@@ -153,18 +153,23 @@ public sealed class ActivityLogViewTests
     }
 
     /// <summary>
-    /// The Logs tab reads the log, counts it, and never asks the queue for a list.
+    /// The Logs tab reads the log and counts it, and goes on reading the queue's counts and rate
+    /// beside it for the status bar, as 1.4's bar read them whichever tab was showing.
     /// </summary>
     /// <remarks>
-    /// The queue's own client throws if it is made at all. A list request with no states would be
-    /// refused by the contract, so the Logs tab asking the queue would be a failure on every poll.
+    /// A list request with no states would be refused by the contract, so the counts are asked
+    /// for with the Active tab's states, and the queue's rows are left as they were.
     /// </remarks>
     [AvaloniaFact]
     public async Task TheLogsTabReadsTheLogRatherThanTheQueue()
     {
         var log = new ActivityLogModel(_ => Task.FromResult(new ActivityLogResult([Entry("a"), Entry("b")], 0)));
-        await using var queue = new TransferQueueModel(
-            () => throw new InvalidOperationException("The Logs tab must not ask the queue."), log);
+        var agent = new WorkspaceFakes.FakeTransferQueue
+        {
+            Counts = new() { [TransferQueueState.Pending] = 3 },
+            Rate = 2048
+        };
+        await using var queue = new TransferQueueModel(() => agent, log);
         var logs = queue.Tabs.Single(tab => tab.IsLog);
 
         queue.SelectedTab = queue.Tabs.IndexOf(logs);
@@ -173,6 +178,8 @@ public sealed class ActivityLogViewTests
         Assert.Equal(2, log.Rows.Count);
         Assert.Contains("(2)", logs.Title, StringComparison.Ordinal);
         Assert.Single(queue.Tabs, tab => tab.IsLog);
+        Assert.Equal((3, 2048L), (queue.QueuedCount, queue.BytesPerSecond));
+        Assert.Empty(queue.Rows);
     }
 
     /// <summary>

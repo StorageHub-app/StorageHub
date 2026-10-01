@@ -1133,6 +1133,7 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
         // cannot be used is refused as a paste would be.
         pane.DropReceiver = clipboard => DropAsync(clipboard, pane);
         pane.Refused = reason => RefuseAsync(reason, CancellationToken.None);
+        pane.Announce = news => Announced?.Invoke(this, news);
         pane.FilesDropReceiver = (paths, folder) => DropFilesAsync(paths, pane, folder);
         pane.DragOut = selection => DragOut?.Start(selection) ?? ExplorerDrag.Nothing;
         return pane;

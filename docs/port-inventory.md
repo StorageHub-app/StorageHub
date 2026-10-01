@@ -31,8 +31,8 @@ entry. The other **24** stay out of the menu and the toolbar, as 1.x kept all 25
 **All 38 have a handler.** A command is offered when it has a handler and dims when it does not,
 so the count of enabled menu entries is the count of handlers. `CommandAvailabilityTests` asserts
 the two are equal, which made the menu the port's progress meter while the screens landed; on a
-workspace it now reads 38 of 38. What is left of the port is behaviour inside screens that exist,
-which the rows below name.
+workspace it now reads 38 of 38. What was left after that was behaviour inside screens that
+exist, which the rows below name, and is done.
 
 Worth knowing before promising any of the 24: several sound like core features -- Hidden files,
 the Directory tree toggle, Transfer queue toggle, Cancel selected -- and are not.
@@ -94,9 +94,9 @@ location picker -- and the splash followed with the parity sweep (P.1.1). Where 
 | 178 | `AboutForm.cs` | `AboutWindow` |
 | 154 | `TransferProgressColumn.cs` | a `ProgressBar` behind the text in `TransferQueueView` |
 
-What is left is behaviour inside screens that exist: the **partial** and **todo** rows below. Most
-name the open roadmap item that finishes them; two gaps have none yet -- both are left open under
-items already ticked (P.3.5, P.3.6) and need an item of their own. Look is the roadmap's section L,
+Nothing is left as **partial** or **todo** below: every row is done or deliberately dropped, and
+roadmap sections P (behaviour) and L (look) are ticked through. What still differs from 1.x is
+named in its row as a drift kept on purpose, with the reason. Look is the roadmap's section L,
 and is named here only where a row's screen still has an item open there.
 
 The desktop is two projects now: `StorageHub.Desktop`, which draws, and `StorageHub.Desktop.Core`,
@@ -111,8 +111,9 @@ COM registration, the named-pipe lifecycle client -- sit in `Desktop.Core/Window
 Legend: **done** · **partial** — works, with named gaps · **todo** · **dropped** — deliberately not
 reproduced.
 
-Where it stands across the 57 rows below: **51 done, 2 partial, 1 todo, 3 dropped.** The partials
-are the honest ones — each names what is missing rather than claiming the row.
+Where it stands across the 57 rows below: **54 done, 0 partial, 0 todo, 3 dropped.** Counted from
+the rows themselves on 2026-10-01; the count above them had drifted to 49, 4 and 1 while rows
+moved to done underneath it. A done row that still differs from 1.x says how and why.
 
 ### Shell chrome
 
@@ -121,7 +122,7 @@ are the honest ones — each names what is missing rather than claiming the row.
 | Menu bar: the 37 wired entries under their menus, shortcuts shown | **done** — the same 37, each with the key bound now (P.3.4), and the unwired left out as 1.x left them. Transfer > Speed Limits makes a ninth menu where 1.x had eight (roadmap 1.2). The Workspace menu's Pinned and Recent (P.3.1) and the Go menu's Favorites (P.3.5) are there, as in 1.x |
 | Toolbar from `ToolbarLayout`, customisable order and label style | **done** — built from the saved layout with 1.x's three label styles, rebuilt when Settings or an import changes it, and what does not fit goes behind a chevron whose menu runs the same commands, as 1.x's ToolStrip did (P.3.4). Settings has the toolbar editor |
 | Workspace tab strip with per-tab icons | **done** |
-| Status bar: agent state, selection, rate, queue depth | **partial** — location, selection, rate, queue depth and agent state are live; the agent cell opens Agent control and follows a failed call at once; staging, clearing, import, export and what a paste or drop came to show in the first cell, held for eight seconds, 1.x's longest (P.3.6). A refused paste or drop is 1.x's "Transfer queue" warning instead (P.4.14), and so is a failed new file or folder, rename, batch rename, delete or external edit, as 1.x showed them (P.3.6). The update link is the last cell, as 1.x's was (P.1.8). Not yet: a new file or folder, a rename and a delete that worked are said on the pane's own status line rather than in the bar (left open under P.3.6, with no item of its own yet) |
+| Status bar: agent state, selection, rate, queue depth | **done** — location, selection, rate, queue depth and agent state are live; the agent cell opens Agent control and follows a failed call at once; staging, clearing, import, export and what a paste or drop came to show in the first cell, held for eight seconds, 1.x's longest (P.3.6). A refused paste or drop is 1.x's "Transfer queue" warning instead (P.4.14), and so is a failed new file or folder, rename, batch rename, delete or external edit, as 1.x showed them (P.3.6). The update link is the last cell, as 1.x's was (P.1.8). A new file or folder, a rename, a batch rename, a delete and an edited file uploaded are said in the first cell, and the counts and the rate are read while the queue shows its Logs tab, as in 1.x (P.3.6). Kept on purpose: a message stays its eight seconds where 1.x's queue poll wrote over it, and a saved setting waiting on a restart stays until it is applied |
 | Connections panel, dockable left or right, collapsible, remembered width | **done** — left or right, shown and hidden from the View menu, the toolbar and Ctrl+B, and its side, width and visibility remembered, within 1.x's limits (P.3.3) |
 | Shortcut dispatch that beats focus, and declines inside a text box or SSH | **done** — `ShellCommandRouter`, tunnelling, sharing `UiCommandCatalog.CanDispatch` |
 | Splash while the agent starts | **done** — `SplashWindow` over `DesktopBoot`, with 1.x's stages from preparing data to starting the agent, which it starts and waits for on both platforms, and a failure screen with Retry, Quit, Check installation and Copy details (P.1.1, P.1.2, P.5.6) |
@@ -283,10 +284,9 @@ They are skipped otherwise, so CI stays green without one.
 8. ~~**The rest of Settings, and the update window.**~~ Done: every Settings page, export and
    import, Agent control and the update window.
 
-The order from here is `docs/roadmap.md`'s, behaviour before look. Of the rows above, what is left
-is the installers (P.1.5) and the update check on start and the status bar's update link (P.1.8),
-both done since, and fetching and rejecting a host key in the editor (2.2), done too. Three more
-have no open item yet: a pane's own news said in the status bar rather than on its status line, a
-failed new file or folder, rename, batch rename, delete or external edit shown in the "Transfer
-queue" warning rather than on that line (both left open under P.3.6; the warning is done now), and the connections panel
-remembering a collapsed group (left open under P.3.5).
+The order from here is `docs/roadmap.md`'s, behaviour before look. Of the rows above, nothing is
+left: the installers (P.1.5), the update check on start and the status bar's update link (P.1.8),
+fetching and rejecting a host key in the editor (2.2), a pane's news said in the status bar and a
+failed file operation shown in the "Transfer queue" warning (P.3.6), and the connections panel
+keeping a collapsed group (P.3.5) are all done. What follows is the roadmap's numbered sections,
+which go past 1.x.

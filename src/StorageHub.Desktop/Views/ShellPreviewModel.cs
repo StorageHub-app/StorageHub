@@ -310,12 +310,9 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
                     ActiveJobs = Queue.ActiveCount + (AgentStatus?.ActiveSyncRuns ?? 0),
                     QueuedJobs = Queue.QueuedCount,
 
-                    // The Logs tab reads the log rather than the queue, so the last rate read
-                    // would stay up after the transfer had finished. 0 B/s claims nothing, as
-                    // 1.x's always did, until the queue is read again.
-                    TransferBytesPerSecond = Queue.Tabs.ElementAtOrDefault(Queue.SelectedTab) is { IsLog: true }
-                        ? 0
-                        : Queue.BytesPerSecond
+                    // Read on the Logs tab too, beside the log, as 1.x's bar read them whatever
+                    // the queue showed.
+                    TransferBytesPerSecond = Queue.BytesPerSecond
                 };
                 FollowTransfers();
             }
@@ -417,18 +414,18 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
 
     /// <summary>The active pane of the workspace on screen, or none when a page is showing.</summary>
     /// <summary>
-    /// Reloads the active pane after an edited file was uploaded, and says so there.
+    /// Reloads the active pane after an edited file was uploaded, and says so in the status bar,
+    /// as 1.x's ExternalEditorFileUploaded did.
     /// </summary>
     /// <remarks>
     /// The active pane, as 1.x did: it is almost always the one the file was opened from, and a
-    /// reload of the wrong one costs a listing, not a mistake. The sentence goes on after the
-    /// reload, which would otherwise clear it the moment the listing arrived.
+    /// reload of the wrong one costs a listing, not a mistake.
     /// </remarks>
     internal async Task EditedFileUploadedAsync()
     {
         if (ActivePane() is not { } pane) return;
         await pane.RefreshAsync().ConfigureAwait(true);
-        pane.Status = Ui.Shell.StatusEditedFileUploaded;
+        Say(Ui.Shell.StatusEditedFileUploaded);
     }
 
     internal BrowserPaneModel? ActivePane() =>

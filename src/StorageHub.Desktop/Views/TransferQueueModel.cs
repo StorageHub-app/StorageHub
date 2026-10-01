@@ -686,6 +686,7 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
             Message = string.Empty;
             await Activity.RefreshAsync(background, _lifetime.Token).ConfigureAwait(true);
             tab.Count = Activity.Rows.Count;
+            await ReadCountsAsync().ConfigureAwait(true);
             return;
         }
 
@@ -773,6 +774,44 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
             SelectedRows.Clear();
             Raise(nameof(HasMessage));
             return null;
+        }
+    }
+
+    /// <summary>
+    /// The other tabs' counts and the total rate alone, for while the Logs tab is showing.
+    /// </summary>
+    /// <remarks>
+    /// 1.4's status bar read the queue depth and the rate from the agent whichever tab the queue
+    /// was on, so they went on moving while somebody read the log. One row is asked for, as the
+    /// counts come with any page; the rows the queue shows are left alone, and a failure is left
+    /// to the queue's own read, which says it, once the tab changes back.
+    /// </remarks>
+    private async Task ReadCountsAsync()
+    {
+        try
+        {
+            _client ??= _connect();
+            var response = await _client.ListAsync(
+                new TransferListRequest(TransferQueueIpcContract.CurrentVersion, [.. Tabs[0].States], PageSize: 1),
+                _lifetime.Token).ConfigureAwait(true);
+            if (response.Failure is not null || response.StateCounts is not { } counts) return;
+
+            foreach (var each in Tabs.Where(static each => !each.IsLog))
+            {
+                each.Count = each.States.Sum(state => counts.TryGetValue(state, out var value) ? value : 0);
+            }
+
+            BytesPerSecond = response.TotalBytesPerSecond ?? 0;
+            Raise(nameof(ActiveCount));
+            Raise(nameof(QueuedCount));
+            Raise(nameof(BytesPerSecond));
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception error) when (IsUnavailable(error) || IsRefusal(error))
+        {
+            await DropClientAsync().ConfigureAwait(true);
         }
     }
 

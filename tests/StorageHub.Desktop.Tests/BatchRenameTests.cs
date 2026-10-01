@@ -29,20 +29,26 @@ public sealed class BatchRenameTests
         Assert.True(pane.BatchRenameCommand.CanExecute(null));
     }
 
-    /// <summary>What the preview showed is what is renamed, and the pane says how many.</summary>
+    /// <summary>
+    /// What the preview showed is what is renamed, and how many is said in the status bar, as 1.x
+    /// said it, rather than on the pane's own line.
+    /// </summary>
     [AvaloniaFact]
     public async Task ThePreviewedRenamesAreApplied()
     {
         var (pane, agent) = await PaneAsync(Replace("re", "old-re"));
         await using var _1 = pane;
         SelectBoth(pane);
+        var said = new List<string>();
+        pane.Announce = said.Add;
 
         await pane.BatchRenameAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(
             [("reports", "old-reports"), ("render.exr", "old-render.exr")],
             agent.Renames.Select(rename => (rename.Item1, rename.Item2)));
-        Assert.Equal(Ui.Format(Ui.Shell.RenamedItemsFormat, 2), pane.Status);
+        Assert.Equal([Ui.Format(Ui.Shell.RenamedItemsFormat, 2)], said);
+        Assert.NotEqual(said[0], pane.Status);
     }
 
     /// <summary>

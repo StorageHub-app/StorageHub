@@ -315,11 +315,16 @@ internal static class WorkspaceFakes
                     NeedsReconciliation: false)));
         }
 
+        /// <summary>What every listing says the queue holds, by state; none by default.</summary>
+        internal Dictionary<TransferQueueState, int>? Counts { get; init; }
+
+        internal long? Rate { get; init; }
+
         public Task<TransferListResponse> ListAsync(
             TransferListRequest request,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(new TransferListResponse(
-                TransferQueueIpcContract.CurrentVersion, [], null));
+                TransferQueueIpcContract.CurrentVersion, [], null, StateCounts: Counts, TotalBytesPerSecond: Rate));
 
         public Task<TransferStatusResponse> GetStatusAsync(
             TransferStatusRequest request,

@@ -983,6 +983,20 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     }
 
     /// <summary>
+    /// Where what a file operation came to is said. Set by the workspace, which says it in the
+    /// status bar's first cell, as 1.x's <c>_locationStatus</c> said a created item, a rename or a
+    /// delete.
+    /// </summary>
+    internal Action<string>? Announce { get; set; }
+
+    /// <summary>Says what a file operation came to; on the status line, with no workspace.</summary>
+    private void Say(string news)
+    {
+        if (Announce is { } announce) announce(news);
+        else Status = news;
+    }
+
+    /// <summary>
     /// Whether this pane is somewhere things can be made and removed.
     /// </summary>
     /// <remarks>
@@ -1713,8 +1727,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
 
         await MoveAsync(PaneNavigationKind.Refresh, cancellationToken: cancellationToken)
             .ConfigureAwait(true);
-        Status = Ui.Format(
-            container ? Ui.Shell.CreatedFolderFormat : Ui.Shell.CreatedFileFormat, name);
+        Say(Ui.Format(container ? Ui.Shell.CreatedFolderFormat : Ui.Shell.CreatedFileFormat, name));
     }
 
     /// <summary>Asks for a new name for the one selected item, and applies it.</summary>
@@ -1759,6 +1772,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
 
         await MoveAsync(PaneNavigationKind.Refresh, cancellationToken: cancellationToken)
             .ConfigureAwait(true);
+        Say(Ui.Format(Ui.Shell.RenamedOneFormat, row.Name, name));
     }
 
     /// <summary>
@@ -1827,7 +1841,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         }
 
         await MoveAsync(PaneNavigationKind.Refresh, cancellationToken: cancellationToken).ConfigureAwait(true);
-        Status = Ui.Format(Ui.Shell.RenamedItemsFormat, renamed);
+        Say(Ui.Format(Ui.Shell.RenamedItemsFormat, renamed));
     }
 
     /// <summary>
@@ -1903,8 +1917,8 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         // "Transfer queue" warning, as it was in 1.x.
         if (outcome.IsSuccess)
         {
-            Status = Ui.Format(
-                outcome.Recycled ? Ui.Shell.SentToRecycleBinFormat : Ui.Shell.DeletedItemsFormat, outcome.Deleted);
+            Say(Ui.Format(
+                outcome.Recycled ? Ui.Shell.SentToRecycleBinFormat : Ui.Shell.DeletedItemsFormat, outcome.Deleted));
             return;
         }
 
