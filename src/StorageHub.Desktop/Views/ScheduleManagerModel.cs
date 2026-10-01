@@ -140,7 +140,12 @@ internal sealed class ScheduleManagerModel : INotifyPropertyChanged
     /// current offset is shown beside it because that is what makes a region recognisable.
     /// </remarks>
     public static IReadOnlyList<TimeZoneChoice> TimeZones { get; } =
+        // The machine's own zone is added if the list leaves it out. On Linux it can: a machine on
+        // Etc/UTC is not in GetSystemTimeZones, and a new schedule then started on whichever zone
+        // sorted first, Africa/Abidjan.
         [.. TimeZoneInfo.GetSystemTimeZones()
+            .Append(TimeZoneInfo.Local)
+            .DistinctBy(static zone => zone.Id, StringComparer.Ordinal)
             .Select(static zone => new TimeZoneChoice(zone.Id, $"{zone.Id} · UTC{Offset(zone)}"))
             .OrderBy(static zone => zone.Id, StringComparer.CurrentCultureIgnoreCase)];
 
