@@ -130,6 +130,7 @@
   "terminalPending": "Terminalen for denne forbindelse er ikke åbnet endnu.",
   "terminalConnectHint": "SSH-klienter åbner en terminal her i stedet for en filliste.",
   "columnType": "Type",
+  "dragOutNeedsExplorer": "Filer kan kun trækkes ud af en gemt forbindelse til Stifinder på Windows. Kopiér dem til en Denne pc-rude i stedet.",
   "droppedItemsUnusable": "Kun filer og mapper på denne computer kan slippes her.",
   "itemCountFormat": "{0:N0} elementer",
   "itemCountFilteredFormat": "{0:N0} af {1:N0} elementer",

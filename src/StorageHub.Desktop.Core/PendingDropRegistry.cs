@@ -393,7 +393,7 @@ internal sealed class PendingGathering : IDisposable
     /// What is being read: one item by its own name, several by the folder they are in, as 1.x
     /// named them.
     /// </summary>
-    private static string DescribeSource(PaneSelectionSnapshot selection)
+    internal static string DescribeSource(PaneSelectionSnapshot selection)
     {
         if (selection.Items.Count == 1 && !string.IsNullOrWhiteSpace(selection.Items[0].Name))
         {

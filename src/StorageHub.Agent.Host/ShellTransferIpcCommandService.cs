@@ -8,7 +8,7 @@ using StorageHub.Domain.Storage;
 using StorageHub.Storage.Models;
 using StorageHub.Transfers;
 
-namespace StorageHub.Agent.Windows;
+namespace StorageHub.Agent.Host;
 
 /// <summary>Creates short-lived immutable Explorer drop reviews and turns an approved review into
 /// ordinary durable copy jobs. The agent, rather than the desktop process, captures the source

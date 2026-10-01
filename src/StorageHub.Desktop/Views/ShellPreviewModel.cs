@@ -1584,7 +1584,17 @@ internal static class ShellPreview
                 Services.ShellServices.Dialogs,
                 name)
             {
-                PendingDrops = drops
+                PendingDrops = drops,
+
+                // A connection's rows dragged out to Explorer go through the drop broker the boot
+                // registered, and wait on the queue's Active tab for where they landed, as 1.x's
+                // did. Only the application's own shell: a preview's agent is a test's.
+                DragOut = live
+                    ? new ExplorerDragOut(
+                        static () => new NamedPipeTransferQueueAgentClient(),
+                        drops,
+                        static () => ExplorerDragOut.BrokerRegistered)
+                    : null
             },
         };
 

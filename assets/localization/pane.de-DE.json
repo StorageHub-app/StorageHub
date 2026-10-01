@@ -130,6 +130,7 @@
   "terminalPending": "Das Terminal für diese Verbindung ist noch nicht geöffnet.",
   "terminalConnectHint": "SSH-Clients öffnen hier ein Terminal statt einer Dateiliste.",
   "columnType": "Typ",
+  "dragOutNeedsExplorer": "Dateien können nur unter Windows aus einer gespeicherten Verbindung in den Explorer gezogen werden. Kopieren Sie sie stattdessen in einen Dieser-PC-Bereich.",
   "droppedItemsUnusable": "Hier können nur Dateien und Ordner dieses Computers abgelegt werden.",
   "itemCountFormat": "{0:N0} Elemente",
   "itemCountFilteredFormat": "{0:N0} von {1:N0} Elementen",

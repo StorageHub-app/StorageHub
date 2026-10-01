@@ -936,6 +936,35 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     }
 
     /// <summary>
+    /// What a drop of files from the operating system's file manager does. Set by the workspace,
+    /// which asks the agent about them first, as 1.x did.
+    /// </summary>
+    internal Func<IReadOnlyList<string>, string?, Task>? FilesDropReceiver { get; set; }
+
+    /// <summary>Hands files dropped from Explorer, Nautilus or Dolphin to the workspace.</summary>
+    /// <param name="folder">The folder in the tree they were dropped on; null for where the pane is.</param>
+    internal Task ReceiveFilesAsync(IReadOnlyList<string> paths, string? folder = null)
+    {
+        ArgumentNullException.ThrowIfNull(paths);
+        return FilesDropReceiver is { } receive && CanReceiveDrop ? receive(paths, folder) : Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Readies a drag of this pane's rows for somewhere outside StorageHub. Set by the workspace;
+    /// with none, a drag carries nothing out.
+    /// </summary>
+    internal Func<PaneSelectionSnapshot, ExplorerDrag>? DragOut { get; set; }
+
+    internal ExplorerDrag StartDragOut(PaneSelectionSnapshot selection) =>
+        DragOut?.Invoke(selection) ?? ExplorerDrag.Nothing;
+
+    /// <summary>Says what came of a drag out, in the pane's banner, as 1.x's did.</summary>
+    internal void ReportDragOut(string? outcome)
+    {
+        if (!string.IsNullOrEmpty(outcome)) Status = outcome;
+    }
+
+    /// <summary>
     /// Where a drop that cannot be used is refused. Set by the workspace, which shows it in the
     /// warning a refused paste gets.
     /// </summary>

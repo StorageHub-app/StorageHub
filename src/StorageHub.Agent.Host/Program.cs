@@ -201,16 +201,15 @@ var transferCommands = new TransferQueueIpcCommandService(
     transferStore,
     transferStore,
     transferQueueSubsystem);
-// The second and last guard. The Explorer drop broker's server half is not a weakened feature
-// elsewhere - there is no Explorer - so the handler simply is not registered rather than being
-// present and reporting failure.
-IAgentIpcCommandHandler? shellTransferCommands = OperatingSystem.IsWindows()
-    ? new ShellTransferIpcCommandService(
-        transferStore,
-        transferEndpointConnector,
-        timeProvider: null,
-        transferQueueSubsystem)
-    : null;
+// On every platform. Its import review is what files dropped in from Explorer, Nautilus or
+// Dolphin go through, reading them and saying which are already there before anything is
+// queued, as 1.x's did. Its Explorer drop half is only ever asked for on Windows, where the drop
+// broker is; elsewhere nothing calls it.
+IAgentIpcCommandHandler? shellTransferCommands = new ShellTransferIpcCommandService(
+    transferStore,
+    transferEndpointConnector,
+    timeProvider: null,
+    transferQueueSubsystem);
 var syncProfiles = new SqliteSyncProfileRepository(transferDatabase);
 var syncBaselines = new SqliteSyncBaselineStore(transferDatabase);
 var syncPlans = new SqliteSyncPlanStore(transferDatabase);

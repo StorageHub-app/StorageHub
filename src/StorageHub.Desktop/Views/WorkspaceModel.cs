@@ -187,6 +187,12 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
     /// </summary>
     internal PendingDropRegistry? PendingDrops { get; init; }
 
+    /// <summary>
+    /// What lets a connection's rows be dragged out to File Explorer through the drop broker, as
+    /// 1.x's could. Null drags nothing out, as a workspace with no agent behind it wants.
+    /// </summary>
+    internal ExplorerDragOut? DragOut { get; init; }
+
     /// <summary>What is staged and waiting to be pasted, or nothing.</summary>
     internal PaneClipboard? Clipboard
     {
@@ -529,6 +535,165 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
         ArgumentNullException.ThrowIfNull(clipboard);
         ArgumentNullException.ThrowIfNull(destination);
         return TransferAsync(clipboard, destination, cancellationToken);
+    }
+
+    /// <summary>
+    /// Brings files dropped from Explorer, Nautilus or Dolphin into a pane.
+    /// </summary>
+    /// <remarks>
+    /// Into a saved connection they go as 1.x's did: the agent reads what was dropped, folders
+    /// and all, says which files are already there, and only then is anything queued, after
+    /// asking: Replace, Skip or Cancel when some are there, OK or Cancel when none are. Into a
+    /// This PC folder, which 1.x refused, they are queued as a paste from This PC would be.
+    /// </remarks>
+    /// <param name="folder">
+    /// The folder they were dropped on in the pane's tree, as 1.x took it; null for where the pane is.
+    /// </param>
+    internal async Task DropFilesAsync(
+        IReadOnlyList<string> paths,
+        BrowserPaneModel destination,
+        string? folder = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(paths);
+        ArgumentNullException.ThrowIfNull(destination);
+        if (paths.Count == 0) return;
+
+        if (PaneTransferSnapshots.ContextFor(destination.Source) is
+            {
+                IsSuccess: true,
+                Value: { Kind: PaneTransferContextKind.SavedConnection, ConnectionId: { } id } here
+            } &&
+            !string.IsNullOrWhiteSpace(here.RootIdentity))
+        {
+            await ImportAsync(
+                [.. paths],
+                new TransferQueueAddress(id, here.RootIdentity, folder ?? here.RelativePath),
+                cancellationToken).ConfigureAwait(true);
+            return;
+        }
+
+        var selections = LocalDrops.From(paths);
+        if (selections.IsFailure)
+        {
+            await RefuseAsync(selections.Error.Message, cancellationToken).ConfigureAwait(true);
+            return;
+        }
+
+        foreach (var selection in selections.Value)
+        {
+            await TransferAsync(
+                new PaneClipboard(selection, TransferQueueOperation.Copy, Ui.Pane.ThisPc),
+                destination,
+                cancellationToken).ConfigureAwait(true);
+        }
+    }
+
+    /// <summary>
+    /// 1.x's <c>ReviewShellImportAsync</c>: the agent's plan, the question, and the commit.
+    /// </summary>
+    /// <remarks>
+    /// A client for each call rather than one held across the question, so nothing is held open
+    /// while a dialog is up; the plan is the agent's, kept by its token for five minutes. Cancel is
+    /// committed too, so the agent lets the plan go at once. With no dialogs, as in a headless
+    /// test, nothing already there is replaced.
+    /// </remarks>
+    private async Task ImportAsync(
+        string[] paths,
+        TransferQueueAddress destination,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            ShellImportPlanResponse plan;
+            await using (var agent = _queue())
+            {
+                plan = await agent.PlanShellImportAsync(
+                    new ShellImportPlanRequest(ShellTransferIpcContract.CurrentVersion, paths, destination),
+                    cancellationToken).ConfigureAwait(true);
+            }
+
+            if (plan.Failure is not null || string.IsNullOrWhiteSpace(plan.ReviewToken))
+            {
+                await RefuseAsync(plan.Failure?.Message ?? Ui.Shell.CouldNotReviewDrop, cancellationToken)
+                    .ConfigureAwait(true);
+                return;
+            }
+
+            var conflicts = plan.Items.Count(static item => item.DestinationConflict);
+            var choice = await AskImportAsync(plan.Items.Length, conflicts, cancellationToken).ConfigureAwait(true);
+
+            ShellImportCommitResponse committed;
+            await using (var agent = _queue())
+            {
+                committed = await agent.CommitShellImportAsync(
+                    new ShellImportCommitRequest(ShellTransferIpcContract.CurrentVersion, plan.ReviewToken, choice),
+                    cancellationToken).ConfigureAwait(true);
+            }
+
+            if (committed.Failure is not null)
+            {
+                await RefuseAsync(committed.Failure.Message, cancellationToken).ConfigureAwait(true);
+            }
+            else if (committed.Accepted)
+            {
+                Message = Ui.Format(Ui.Shell.QueuedExplorerImportFormat, committed.TransferIds.Length);
+                if (_queueChanged is not null) await _queueChanged().ConfigureAwait(true);
+            }
+        }
+        catch (OperationCanceledException) when (
+            cancellationToken.IsCancellationRequested || _lifetime.IsCancellationRequested)
+        {
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or
+            InvalidDataException or InvalidOperationException or TimeoutException or
+            System.Text.Json.JsonException or NotSupportedException or ArgumentException or
+            ObjectDisposedException)
+        {
+            await RefuseAsync(Ui.Shell.AgentCannotReviewDrop, cancellationToken).ConfigureAwait(true);
+        }
+    }
+
+    /// <summary>1.x's two questions: OK or Cancel with nothing in the way, Yes, No or Cancel with.</summary>
+    private async Task<ShellImportDisposition> AskImportAsync(
+        int items,
+        int conflicts,
+        CancellationToken cancellationToken)
+    {
+        if (_dialogs is null)
+        {
+            return conflicts == 0 ? ShellImportDisposition.ReplaceFiles : ShellImportDisposition.SkipConflictingFiles;
+        }
+
+        if (conflicts == 0)
+        {
+            var go = await _dialogs.ConfirmAsync(
+                new DialogRequest
+                {
+                    Title = Ui.Dialogs.ImportFromExplorerCaption,
+                    Message = Ui.Format(Ui.Dialogs.ImportFromExplorerPromptFormat, items),
+                    Severity = DialogSeverity.Question,
+                    Buttons = DialogButtons.OkCancel
+                },
+                cancellationToken).ConfigureAwait(true);
+            return go == DialogChoice.Ok ? ShellImportDisposition.ReplaceFiles : ShellImportDisposition.Cancel;
+        }
+
+        var choice = await _dialogs.ConfirmAsync(
+            new DialogRequest
+            {
+                Title = Ui.Dialogs.ImportConflictsCaption,
+                Message = Ui.Format(Ui.Dialogs.ImportConflictsPromptFormat, conflicts),
+                Severity = DialogSeverity.Warning,
+                Buttons = DialogButtons.YesNoCancel
+            },
+            cancellationToken).ConfigureAwait(true);
+        return choice switch
+        {
+            DialogChoice.Yes => ShellImportDisposition.ReplaceFiles,
+            DialogChoice.No => ShellImportDisposition.SkipConflictingFiles,
+            _ => ShellImportDisposition.Cancel
+        };
     }
 
     /// <summary>Queues a selection into a pane, after confirming it. True when it was queued.</summary>
@@ -968,6 +1133,8 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
         // cannot be used is refused as a paste would be.
         pane.DropReceiver = clipboard => DropAsync(clipboard, pane);
         pane.DropRefused = reason => RefuseAsync(reason, CancellationToken.None);
+        pane.FilesDropReceiver = (paths, folder) => DropFilesAsync(paths, pane, folder);
+        pane.DragOut = selection => DragOut?.Start(selection) ?? ExplorerDrag.Nothing;
         return pane;
     }
 

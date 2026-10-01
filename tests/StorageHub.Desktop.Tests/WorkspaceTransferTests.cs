@@ -258,44 +258,56 @@ public class WorkspaceTransferTests
     }
 
     /// <summary>
-    /// A file dropped in from the desktop is queued at once. A folder is read first, and while it
-    /// is, the queue's Active tab shows the reading and how far it has got, as 1.x's did; Cancel
-    /// there stops it, and what it had already queued stays queued.
+    /// Files dropped in from the desktop go through the agent's review first, as 1.x's did: one
+    /// already there is asked about (Yes replaces, No skips, Cancel stops) before anything is
+    /// queued. A folder from another pane is read first, and while it is, the queue's Active tab
+    /// shows the reading and how far it has got; Cancel there stops it, and what it had already
+    /// queued stays queued.
     /// </summary>
     /// <remarks>
-    /// Every file from the desktop, and every paste to or from This PC, used to be refused as "not
-    /// saved connections on both panes", so a drop from Explorer never reached the queue at all.
+    /// Desktop files used to be queued at once, so one already at the destination was refused
+    /// rather than asked about, and a desktop folder was refused outright.
     /// </remarks>
     [AvaloniaFact]
-    public async Task ADesktopFileIsQueuedAndAFolderBeingReadShowsInTheQueueUntilCancelled()
+    public async Task ADesktopDropIsReviewedAndAFolderBeingReadShowsInTheQueueUntilCancelled()
     {
         var drops = new PendingDropRegistry();
-        var dialogs = new KeyStoreTests.RecordingDialogs { Choice = DialogChoice.Ok };
+        var dialogs = new KeyStoreTests.RecordingDialogs { Choice = DialogChoice.No };
         await using var fixture = await Fixture.CreateAsync(drops: drops, dialogs: dialogs);
         await using var queue = new TransferQueueModel(() => fixture.Queue) { PendingDrops = drops };
 
-        // A folder and a file from the left pane, dropped on the right once the desktop file is in.
+        // A folder and a file from the left pane, dropped on the right once the desktop files are in.
         fixture.Left.SelectedRows.Add(fixture.Left.Rows.Single(row => row.Name == "reports"));
         fixture.Left.SelectedRows.Add(fixture.Left.Rows.Single(row => row.Name == "render.exr"));
         var payload = PaneDragHandler.Payload(fixture.Left)!;
 
-        var file = Path.Combine(Path.GetTempPath(), $"storagehub-drop-{Guid.NewGuid():N}.txt");
-        await File.WriteAllTextAsync(file, "dropped", TestContext.Current.CancellationToken);
-        try
-        {
-            var dropped = LocalDrops.From([file]);
-            await fixture.Right.ReceiveDropAsync(
-                new PaneClipboard(dropped.Value[0], TransferQueueOperation.Copy, Ui.Pane.ThisPc));
-        }
-        finally
-        {
-            File.Delete(file);
-        }
+        // The agent finds a folder, a new file and one already there; No skips that one.
+        fixture.Queue.PlanItems =
+        [
+            new ShellImportItem("shots", true, null, false),
+            new ShellImportItem("shots/new.png", false, 10, false),
+            new ShellImportItem("shots/archive.zip", false, 20, true)
+        ];
+        await fixture.Right.ReceiveFilesAsync([@"C:\Users\me\Desktop\shots"]);
 
-        var queued = Assert.Single(fixture.Queue.Enqueued);
-        Assert.Equal(Path.GetFileName(file), queued.Source.RelativePath);
-        Assert.Equal(fixture.DestinationConnectionId, queued.Destination.ConnectionId);
+        var planned = Assert.Single(fixture.Queue.Planned);
+        Assert.Equal([@"C:\Users\me\Desktop\shots"], planned.SourcePaths);
+        Assert.Equal(fixture.DestinationConnectionId, planned.Destination.ConnectionId);
+        Assert.Equal(Ui.Dialogs.ImportConflictsCaption, dialogs.LastRequest?.Title);
+        Assert.Equal(DialogButtons.YesNoCancel, dialogs.LastRequest?.Buttons);
+        Assert.Equal(ShellImportDisposition.SkipConflictingFiles, Assert.Single(fixture.Queue.Imported).Disposition);
+        Assert.Equal(Ui.Format(Ui.Shell.QueuedExplorerImportFormat, 1), fixture.Workspace.Message);
+
+        // Nothing in the way is OK or Cancel; dropped on a folder in the tree, it goes there.
+        fixture.Queue.PlanItems = [new ShellImportItem("new.png", false, 10, false)];
+        dialogs.Choice = DialogChoice.Cancel;
+        await fixture.Right.ReceiveFilesAsync([@"C:\Users\me\Desktop\new.png"], "incoming");
+        Assert.Equal("incoming", fixture.Queue.Planned[^1].Destination.RelativePath);
+        Assert.Equal(Ui.Dialogs.ImportFromExplorerCaption, dialogs.LastRequest?.Title);
+        Assert.Equal(ShellImportDisposition.Cancel, fixture.Queue.Imported[^1].Disposition);
+        Assert.Empty(fixture.Queue.Enqueued);
         Assert.Empty(drops.Snapshot());
+        dialogs.Choice = DialogChoice.Ok;
 
         // The folder's listing is held open, so the reading is caught part way.
         var reading = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -327,12 +339,73 @@ public class WorkspaceTransferTests
             fixture.Workspace.Message);
         Assert.NotEqual(Ui.Dialogs.TransferQueueCaption, dialogs.LastRequest?.Title);
         Assert.Equal(
-            [Path.GetFileName(file), "render.exr"],
+            ["render.exr"],
             fixture.Queue.Enqueued.Select(static request => request.Source.RelativePath));
         await queue.RefreshAsync();
         row = Assert.Single(queue.Rows);
         Assert.Equal(Ui.Format(Ui.Transfer.DropCancelledFormat, Ui.Validation.ReadingTheFolderWasStopped), row.Status);
         Assert.False(queue.CancelCommand.CanExecute(null));
+    }
+
+    /// <summary>
+    /// A connection's rows dragged out to Explorer wait on the queue's Active tab until the agent
+    /// says where they landed, then read as queued there; one that lands on a StorageHub pane
+    /// instead leaves no row. Without the drop broker, or off Windows, the drag carries nothing
+    /// out and says why once it ends, as 1.x said it.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task ADragOutWaitsInTheQueueUntilTheAgentSaysWhereItLanded()
+    {
+        var drops = new PendingDropRegistry();
+        var markers = Path.Combine(Path.GetTempPath(), $"storagehub-markers-{Guid.NewGuid():N}");
+        var registered = true;
+        await using var fixture = await Fixture.CreateAsync(
+            drops: drops,
+            dragOut: queue => new ExplorerDragOut(() => queue, drops, () => registered, markers));
+        try
+        {
+            fixture.Left.SelectedRows.Add(fixture.Left.Rows.Single(row => row.Name == "render.exr"));
+            var selection = PaneDragHandler.Payload(fixture.Left)!.Selection;
+
+            var drag = fixture.Left.StartDragOut(selection);
+            if (!OperatingSystem.IsWindows())
+            {
+                Assert.Null(drag.MarkerPath);
+                Assert.Equal(Ui.Pane.DragOutNeedsExplorer, await drag.FinishAsync(landedInStorageHub: false));
+                Assert.Empty(drops.Snapshot());
+                return;
+            }
+
+            Assert.True(Directory.Exists(drag.MarkerPath));
+            var waiting = Assert.Single(drops.Snapshot());
+            Assert.Equal(PendingDropState.AwaitingDestination, waiting.State);
+            Assert.Equal("render.exr", waiting.Source);
+
+            fixture.Queue.ExplorerDestination = @"C:\Users\me\Desktop";
+            Assert.Equal(
+                Ui.Format(Ui.Pane.QueuedToFormat, @"C:\Users\me\Desktop"),
+                await drag.FinishAsync(landedInStorageHub: false));
+            var source = Assert.Single(Assert.Single(fixture.Queue.DragsOut).Sources);
+            Assert.Equal(fixture.SourceConnectionId, source.Address.ConnectionId);
+            Assert.Equal("render.exr", source.Address.RelativePath);
+            Assert.Equal(PendingDropState.Queued, Assert.Single(drops.Snapshot()).State);
+
+            // Landed on a pane: that pane's transfer, and no row of its own.
+            var landed = fixture.Left.StartDragOut(selection);
+            Assert.Equal(2, drops.Snapshot().Count);
+            Assert.Null(await landed.FinishAsync(landedInStorageHub: true));
+            Assert.Equal(PendingDropState.Queued, Assert.Single(drops.Snapshot()).State);
+
+            registered = false;
+            var unavailable = fixture.Left.StartDragOut(selection);
+            Assert.Null(unavailable.MarkerPath);
+            Assert.Equal(Ui.Shell.ExplorerIntegrationUnavailable, await unavailable.FinishAsync(landedInStorageHub: false));
+            Assert.Null(await unavailable.FinishAsync(landedInStorageHub: false));
+        }
+        finally
+        {
+            if (Directory.Exists(markers)) Directory.Delete(markers, recursive: true);
+        }
     }
 
     /// <summary>Two panes, two connections, and a queue that records what it was asked.</summary>
@@ -374,7 +447,8 @@ public class WorkspaceTransferTests
             bool destinationHasMorePages = false,
             Func<Task>? onQueueChanged = null,
             PendingDropRegistry? drops = null,
-            IDialogService? dialogs = null)
+            IDialogService? dialogs = null,
+            Func<FakeTransferQueue, ExplorerDragOut>? dragOut = null)
         {
             var source = Summary("Studio Assets");
             var destination = Summary("Site Backups");
@@ -396,7 +470,8 @@ public class WorkspaceTransferTests
                 onQueueChanged,
                 dialogs: dialogs)
             {
-                PendingDrops = drops
+                PendingDrops = drops,
+                DragOut = dragOut?.Invoke(queue)
             };
 
             foreach (var pane in workspace.Panes)

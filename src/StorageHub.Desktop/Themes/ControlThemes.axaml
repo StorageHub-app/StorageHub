@@ -693,6 +693,12 @@
     <Setter Property="Padding" Value="0"/>
   </Style>
 
+  <!-- A pane's list or tree while something is dragged over it that it would take: the selection
+       colour, as 1.4 drew it. PaneDragHandler sets the class. -->
+  <Style Selector="TreeView.pane-tree.drop-target">
+    <Setter Property="Background" Value="{DynamicResource SelectionBrush}"/>
+  </Style>
+
   <!-- A pane's banner above the list: quiet for a note, the warning colour for a failure. -->
   <Style Selector="Button.pane-banner">
     <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}"/>
@@ -1032,6 +1038,9 @@
   <Style Selector="TableView">
     <Setter Property="Background" Value="Transparent"/>
     <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
+  </Style>
+  <Style Selector="TableView.drop-target">
+    <Setter Property="Background" Value="{DynamicResource SelectionBrush}"/>
   </Style>
 
   <!--

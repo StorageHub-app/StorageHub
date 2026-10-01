@@ -157,16 +157,32 @@ applied, and chosen on the Appearance page (P.5.1).
       "don't show again", skipped when "Warn before deleting" is off (the setting is saved and unread).
       `DeleteItemsConfirmationForm.cs`. Done, and Linux too: the desktop Trash through `gio trash`,
       permanent only where there is no gio -- the reason 2.0 had given for dropping the Recycle Bin.
-- [ ] P.2.11 Drag out to Explorer: real paths from This PC, the drop broker from a connection; highlight
+- [x] P.2.11 Drag out to Explorer: real paths from This PC, the drop broker from a connection; highlight
       the pane being dragged over. Files dropped from Explorer go through the agent's plan and ask
       Replace/Skip/Cancel on conflicts, as 1.4 did, rather than queueing at once.
-      The drag out feeds `PendingDropRegistry` as 1.4's `BrowserPaneControl` did (P.4.6): Begin when
-      the drag starts, Discard when it lands on a StorageHub pane, MarkQueued, MarkCancelled or
-      MarkFailed from the broker's commit; the queue and the log already show those rows. Until then
-      a desktop file queues at once, and one that is already there is refused ("Replacing an
-      existing file requires captured source and destination version or entity-tag evidence.")
-      rather than asked about; a desktop folder is refused, and leaves a Failed row on the Active
-      tab for a minute.
+      Done. This PC's rows carry their own paths beside the pane token, so Explorer, Nautilus and
+      Dolphin take them as any file drop, copy or move. A connection's rows carry 1.4's marker
+      folder (`ExplorerDragOut`, in Desktop.Core): made before the drag, registered with the agent
+      while it runs, committed once it ends, with `PendingDropRegistry` fed as 1.4's
+      `BrowserPaneControl` fed it: Begin, Discard when a StorageHub pane took the drop, MarkQueued,
+      MarkCancelled or MarkFailed from the commit, and "Queued in StorageHub -> folder" in the pane's
+      banner. Copy only while the marker rides along, as in 1.4: Explorer moving the marker would
+      move it for real, since the copy hook only stands in a copy's way. Without the broker the drag
+      carries nothing out and says 1.4's "Drag to File Explorer is unavailable...". The list or tree
+      under the pointer is drawn in the selection colour while it would take the drop, a drag from
+      another pane included. Files dropped on a connection go to the agent's import review, folders
+      and all, and ask OK/Cancel or, with some already there, Yes (replace), No (skip) or Cancel,
+      then "Queued N Explorer import file(s)."; dropped on a folder in the tree they go there, as
+      in 1.4. The agent now serves that review on Linux as well, so a Nautilus or Dolphin drop is
+      asked about the same way. Kept from 2.0: files dropped on a This PC folder, which 1.4 refused,
+      are queued as a paste from This PC.
+      Not possible on Linux: dragging a connection's rows out. There is no drop broker, and a file
+      manager takes file URIs and nothing that could stand in for a file not yet downloaded;
+      staging the download first, as 1.4's Explorer export did for Copy, would hold the pointer for
+      as long as the download takes. The pane says so once such a drag ends outside StorageHub
+      ("...only be dragged out ... on Windows. Copy them to a This PC pane instead.").
+      Open: the drag out to Explorer is proven headless (the registry rows, the agent's begin and
+      commit, the landed-in-a-pane case) but not yet by hand against a real Explorer window.
 - [x] P.2.12 Panes re-read while transfers run and once they settle (1.4's 5 s timer). Quietly: no cover, the filter, selection and scroll kept. A folder over a page re-reads its first page and brings the rest back on scroll.
 - [x] P.2.13 Filter survives navigation (done); Size right-aligned (done); sort and filter saved with the pane, which comes with workspace saving (P.3.1).
       Done: each pane's sort column, direction and filter go in the `.shw` and come back applied.
@@ -343,8 +359,8 @@ applied, and chosen on the Appearance page (P.5.1).
       here it reads "Cancelled: Reading the folder was stopped...". Found on the way: plain files
       to or from This PC were refused as "Recursive transfers require saved connections on both
       panes"; they go straight to the queue again, as in 1.4, and so do files from the desktop
-      until P.2.11 sends them through the agent's plan. Open, with P.2.11: the drag out has no
-      broker yet, so nothing makes a "Waiting for destination" row.
+      until P.2.11 sends them through the agent's plan. The drag out's "Waiting for destination"
+      row came with P.2.11.
 - [x] P.4.7 Sync tasks loads when it is first shown, not only on Refresh. 1.4's control read the
       agent in OnVisibleChanged, so every time the tab came forward, not only the first; the shell
       now does the same when Sync tasks is selected, and going to Run history and back does not

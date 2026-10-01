@@ -141,12 +141,17 @@ public class AddressBarTests
             await failed.LoadConnectionsAsync(TestContext.Current.CancellationToken);
             await failed.OpenConnectionAsync(connection.ConnectionId, TestContext.Current.CancellationToken);
 
-            foreach (var (pane, name) in new[] { (empty, "pane-empty"), (failed, "pane-failed") })
+            foreach (var (pane, name) in new[] { (empty, "pane-empty"), (failed, "pane-failed"), (empty, "pane-drop-target") })
             {
-                var window = new Avalonia.Controls.Window
+                var view = new BrowserPaneView { DataContext = pane };
+                var window = new Avalonia.Controls.Window { Content = view, Width = 700, Height = 360 };
+                if (name == "pane-drop-target")
                 {
-                    Content = new BrowserPaneView { DataContext = pane }, Width = 700, Height = 360
-                };
+                    // Lit as a drag over it would light it, list and tree both, to see the colour.
+                    Avalonia.Controls.ControlExtensions.FindControl<Avalonia.Controls.Control>(view, "PART_Rows")!.Classes.Add(PaneDragHandler.DropTargetClass);
+                    Avalonia.Controls.ControlExtensions.FindControl<Avalonia.Controls.Control>(view, "PART_Tree")!.Classes.Add(PaneDragHandler.DropTargetClass);
+                }
+
                 window.Show();
                 window.Measure(new Avalonia.Size(700, 360));
                 window.Arrange(new Avalonia.Rect(0, 0, 700, 360));

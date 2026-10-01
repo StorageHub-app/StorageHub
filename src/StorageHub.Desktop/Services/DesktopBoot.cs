@@ -124,7 +124,7 @@ internal sealed class DesktopBoot : IDisposable
             // pointing at a DLL that has moved.
             if (OperatingSystem.IsWindows())
             {
-                _ = ExplorerDropBrokerInstaller.EnsureRegistered(AppContext.BaseDirectory);
+                ExplorerDragOut.BrokerRegistered = ExplorerDropBrokerInstaller.EnsureRegistered(AppContext.BaseDirectory);
             }
 
             _model.Report(BootStatus.StartingAgent);

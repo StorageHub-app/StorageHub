@@ -341,6 +341,64 @@ internal static class WorkspaceFakes
             CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
+        /// <summary>What the agent's review of a drop from the desktop finds.</summary>
+        internal ShellImportItem[] PlanItems { get; set; } = [];
+
+        internal List<ShellImportPlanRequest> Planned { get; } = [];
+
+        internal List<ShellImportCommitRequest> Imported { get; } = [];
+
+        public Task<ShellImportPlanResponse> PlanShellImportAsync(
+            ShellImportPlanRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            Planned.Add(request);
+            return Task.FromResult(new ShellImportPlanResponse(
+                ShellTransferIpcContract.CurrentVersion, "review-" + Planned.Count, PlanItems));
+        }
+
+        public Task<ShellImportCommitResponse> CommitShellImportAsync(
+            ShellImportCommitRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            Imported.Add(request);
+            var queued = request.Disposition switch
+            {
+                ShellImportDisposition.Cancel => [],
+                ShellImportDisposition.SkipConflictingFiles =>
+                    PlanItems.Where(static item => !item.IsDirectory && !item.DestinationConflict),
+                _ => PlanItems.Where(static item => !item.IsDirectory)
+            };
+            return Task.FromResult(new ShellImportCommitResponse(
+                ShellTransferIpcContract.CurrentVersion,
+                request.Disposition != ShellImportDisposition.Cancel,
+                [.. queued.Select(static _ => Guid.NewGuid())]));
+        }
+
+        /// <summary>Where Explorer reports a dragged-out marker landed; null for nowhere.</summary>
+        internal string? ExplorerDestination { get; set; }
+
+        internal List<ExplorerDropBeginRequest> DragsOut { get; } = [];
+
+        public Task<ExplorerDropBeginResponse> BeginExplorerDropAsync(
+            ExplorerDropBeginRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            DragsOut.Add(request);
+            return Task.FromResult(new ExplorerDropBeginResponse(
+                ShellTransferIpcContract.CurrentVersion, request.DropToken, "marker"));
+        }
+
+        public Task<ExplorerDropCommitResponse> CommitExplorerDropAsync(
+            ExplorerDropCommitRequest request,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(ExplorerDestination is { } destination
+                ? new ExplorerDropCommitResponse(ShellTransferIpcContract.CurrentVersion, true, Guid.NewGuid(), destination)
+                : new ExplorerDropCommitResponse(
+                    ShellTransferIpcContract.CurrentVersion, false, Guid.Empty, null,
+                    new StorageIpcFailure("shell-transfer.invalid", StorageIpcFailureCategory.Validation,
+                        "Explorer did not report a usable destination folder.", false)));
+
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 }

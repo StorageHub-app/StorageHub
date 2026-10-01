@@ -111,7 +111,7 @@ COM registration, the named-pipe lifecycle client -- sit in `Desktop.Core/Window
 Legend: **done** · **partial** — works, with named gaps · **todo** · **dropped** — deliberately not
 reproduced.
 
-Where it stands across the 57 rows below: **47 done, 6 partial, 1 todo, 3 dropped.** The partials
+Where it stands across the 57 rows below: **49 done, 4 partial, 1 todo, 3 dropped.** The partials
 are the honest ones — each names what is missing rather than claiming the row.
 
 ### Shell chrome
@@ -150,8 +150,8 @@ are the honest ones — each names what is missing rather than claiming the row.
 | Queue: active, queued, paused, failed, completed, conflicts | **done** |
 | Cancel, retry, reconcile, with revision checks | **done** |
 | Progress column drawn as a bar behind the text | **done** — a bar behind the percentage, hidden rather than collapsed while the size is unknown, and full in the success colour once a transfer of unknown size completes, as 1.x drew it (P.4.12) |
-| Drag and drop between panes | **partial** — a press on a selected row that moves becomes a drag; it lands as the same transfer a paste is, copy by default and move with Shift where the rows can be moved, and leaves what is staged alone. Not here: 1.x drew the list or tree being dragged over in the selection colour for every drop it would take, a drag from another pane included; 2.0 highlights nothing (P.2.11) |
-| Drag out to Explorer, and drop in from it | **partial** — files dropped in from Explorer, Nautilus or Dolphin land as This PC transfers, one per folder they came from, and queue at once: one already at the destination is refused rather than asked about, and a folder is refused, where 1.x sent the drop through the agent's plan and asked Replace, Skip or Cancel. Dragging out is not built, nor is the pane being dragged over highlighted; the drop broker it needs is registered at launch again (P.1.7, P.2.11) |
+| Drag and drop between panes | **done** — a press on a selected row that moves becomes a drag; it lands as the same transfer a paste is, copy by default and move with Shift where the rows can be moved, and leaves what is staged alone. The list or the tree being dragged over is drawn in the selection colour for every drop it would take, a drag from another pane included, as 1.x drew it (P.2.11). One drift: on Windows a connection's rows can only be copied, as in 1.x, because the drag also carries the drop broker's marker and Explorer would move that for real |
+| Drag out to Explorer, and drop in from it | **done** — This PC's rows drag out as their own paths, a plain file drop. A connection's rows drag out to Explorer through the drop broker registered at launch (P.1.7): the drag carries an empty marker folder, the copy hook reports where it landed, and the agent downloads the selection there, with the drag on the Active tab as "Waiting for destination" until then (P.4.6). Files dropped in from Explorer, Nautilus or Dolphin on a connection go through the agent's plan, folders included, and ask Replace, Skip or Cancel when some are already there, OK or Cancel when none are, as 1.x did; dropped on a folder in the tree, they go there. On Linux a connection's rows cannot be dragged out: there is no broker, and a file manager takes nothing that could stand in for a file not yet downloaded, so the pane says so and Copy to a This PC pane is the way. Dropped on a This PC folder, which 1.x refused, files are queued as a paste from This PC would be (P.2.11) |
 | Clear transfer history, with a confirmation | **done** — the queue's right-click menu has Clear selected, Cancel and clear and Clear all history, and "Warn before clearing" asks first (P.4.2) |
 | Activity log tab | **done** — the queue's Logs tab, with the rules in Core as `ActivityLog` and `ActivityLogReader`; a folder being read for a transfer is listed there too (P.4.6) |
 | Speed limits, pause all, resume all, cancel selected, start queue | **dropped** — all five inert in 1.x. Speed Limits is the one 2.0 wires, to the total limits on Settings' Transfers & sync page, since there are limits to set now (roadmap 1.2) |
@@ -285,8 +285,7 @@ They are skipped otherwise, so CI stays green without one.
 
 The order from here is `docs/roadmap.md`'s, behaviour before look. Of the rows above, what is left
 is the installers (P.1.5), the update check on start and the status bar's update link (P.1.8),
-dragging out to Explorer, highlighting the pane dragged over and asking about a dropped file that
-is already there (P.2.11), and fetching and rejecting a host key in the editor (2.2). Three more
+and fetching and rejecting a host key in the editor (2.2). Three more
 have no open item yet: a pane's own news said in the status bar rather than on its status line, a
 failed new file or folder, rename, batch rename, delete or external edit shown in the "Transfer
 queue" warning rather than on that line (both left open under P.3.6), and the connections panel

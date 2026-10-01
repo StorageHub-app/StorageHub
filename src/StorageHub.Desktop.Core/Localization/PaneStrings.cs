@@ -251,6 +251,9 @@ internal sealed class PaneStrings : LocalizationModelBase
 
     public string NoDestinationReported { get; set; } = "No destination was reported.";
 
+    public string DragOutNeedsExplorer { get; set; } =
+        "Files can only be dragged out of a saved connection to File Explorer on Windows. Copy them to a This PC pane instead.";
+
     public string DragCouldNotStart { get; set; } = "Windows could not start the drag.";
 
     /// <summary>{0} = the underlying error message.</summary>

@@ -6,7 +6,6 @@ using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.VisualTree;
 using StorageHub.Contracts.Ipc;
-using StorageHub.Desktop.Localization;
 
 namespace StorageHub.Desktop.Views;
 
@@ -16,8 +15,8 @@ namespace StorageHub.Desktop.Views;
 /// <remarks>
 /// A drag's data crosses a platform boundary as strings and files, and a selection snapshot is
 /// neither. The drag carries a token; this holds what the token names, and forgets it when the
-/// drag ends. Dropping a StorageHub selection on another application therefore does nothing,
-/// which is right: nothing else can act on a saved connection's listing.
+/// drag ends. What another application can use travels beside the token: This PC's own paths,
+/// or the drop broker's marker for a connection's rows on Windows.
 /// </remarks>
 internal static class PaneDragPayloads
 {
@@ -47,10 +46,19 @@ internal sealed record PaneDragPayload(
     BrowserPaneModel Source,
     PaneSelectionSnapshot Selection,
     string SourceName,
-    bool CanMove);
+    bool CanMove)
+{
+    /// <summary>
+    /// Whether a StorageHub pane took it, which is how a drag out to Explorer that landed in
+    /// StorageHub instead is told from one that went to Explorer, as 1.x's
+    /// <c>InternalDropHandled</c> told them.
+    /// </summary>
+    internal bool Landed { get; set; }
+}
 
 /// <summary>
-/// Dragging rows from one pane to another, and files from the desktop into a pane.
+/// Dragging rows from one pane to another or out to the desktop, and files from the desktop into
+/// a pane.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -65,9 +73,15 @@ internal sealed record PaneDragPayload(
 /// pane. Copy unless Shift is held and the rows can be moved, as in 1.x.
 /// </para>
 /// <para>
-/// Files from the operating system's file manager land the same way, as This PC selections. What
-/// is not here is the other direction: dragging a remote file out to Explorer needs the broker
-/// that stages it, which has not been ported.
+/// Out of StorageHub, as 1.x's did: This PC's rows go as their own paths, so Explorer, Nautilus
+/// or Dolphin copy them as they would any file. A connection's rows go to Explorer through the
+/// drop broker (<see cref="ExplorerDragOut"/>), copy only, since a move would move the broker's
+/// marker folder for real. Nothing else can take them: on Linux there is no broker, and a file
+/// manager takes nothing that could stand in for a file not yet downloaded.
+/// </para>
+/// <para>
+/// The list or the tree being dragged over is drawn in the selection colour while it would take
+/// the drop, as 1.x drew it.
 /// </para>
 /// </remarks>
 internal static class PaneDragHandler
@@ -78,6 +92,9 @@ internal static class PaneDragHandler
 
     /// <summary>How far the pointer moves before a press on a selected row becomes a drag.</summary>
     private const double DragThreshold = 4;
+
+    /// <summary>The class that draws a list or tree as the place a drop would land.</summary>
+    internal const string DropTargetClass = "drop-target";
 
     internal static void Attach(Control view, Func<BrowserPaneModel?> pane)
     {
@@ -119,30 +136,44 @@ internal static class PaneDragHandler
             pending = null;
             if (Payload(model) is not { } payload) return;
 
-            var token = PaneDragPayloads.Register(payload);
-            var transfer = new DataTransfer();
-            transfer.Add(DataTransferItem.Create(Format, token));
-            var effects = payload.CanMove ? DragDropEffects.Copy | DragDropEffects.Move : DragDropEffects.Copy;
-            _ = DragAsync(press, transfer, effects, token);
+            _ = DragAsync(view, press, model, payload);
         }, RoutingStrategies.Tunnel);
 
         view.AddHandler(InputElement.PointerReleasedEvent, (_, _) => pending = null, RoutingStrategies.Tunnel);
 
-        view.AddHandler(DragDrop.DragOverEvent, (_, e) =>
+        // Entering a list or tree lights it, leaving it puts it out. Moving from one to the other
+        // is a leave and then an enter, in that order, so the light moves with the pointer.
+        Control? lit = null;
+        void Light(Control? target)
         {
-            e.DragEffects = EffectFor(e, pane());
+            if (ReferenceEquals(lit, target)) return;
+            lit?.Classes.Set(DropTargetClass, false);
+            lit = target;
+            lit?.Classes.Set(DropTargetClass, true);
+        }
+
+        void Over(DragEventArgs e)
+        {
+            var effect = EffectFor(e, pane());
+            e.DragEffects = effect;
             e.Handled = true;
-        });
+            Light(effect == DragDropEffects.None ? null : TargetFor(view, e.Source));
+        }
+
+        view.AddHandler(DragDrop.DragEnterEvent, (_, e) => Over(e));
+        view.AddHandler(DragDrop.DragOverEvent, (_, e) => Over(e));
+        view.AddHandler(DragDrop.DragLeaveEvent, (_, _) => Light(null));
 
         view.AddHandler(DragDrop.DropEvent, (_, e) =>
         {
+            Light(null);
             if (pane() is not { } model) return;
             var effect = EffectFor(e, model);
             if (effect == DragDropEffects.None) return;
 
             e.DragEffects = effect;
             e.Handled = true;
-            _ = ReceiveAsync(e, model, effect);
+            _ = ReceiveAsync(e, model, effect, FolderAt(view, e.Source));
         });
     }
 
@@ -184,16 +215,67 @@ internal static class PaneDragHandler
             : DragDropEffects.None;
     }
 
+    /// <summary>
+    /// Carries the selection: to another pane by its token, and out of StorageHub as the files
+    /// that stand for it, then settles what a drag out came to.
+    /// </summary>
     private static async Task DragAsync(
-        PointerPressedEventArgs e, DataTransfer transfer, DragDropEffects effects, string token)
+        Control view, PointerPressedEventArgs press, BrowserPaneModel model, PaneDragPayload payload)
     {
+        var storage = TopLevel.GetTopLevel(view)?.StorageProvider;
+        var outside = new List<IStorageItem>();
+        var drag = ExplorerDrag.Nothing;
+        if (payload.Selection.Context.Kind == PaneTransferContextKind.ThisPc)
+        {
+            // Real paths, a plain file drop, as 1.x's was.
+            foreach (var row in model.SelectedRows.Where(static row => !row.IsParentNavigation).ToArray())
+            {
+                if (await LocalItemAsync(storage, row.Location, row.IsContainer).ConfigureAwait(true) is { } item)
+                {
+                    outside.Add(item);
+                }
+            }
+        }
+        else
+        {
+            drag = model.StartDragOut(payload.Selection);
+            if (drag.Refusal is { } refusal)
+            {
+                model.ReportDragOut(refusal);
+                return;
+            }
+
+            if (await LocalItemAsync(storage, drag.MarkerPath, container: true).ConfigureAwait(true) is { } marker)
+            {
+                // Copy only, as 1.x's was: Explorer moving the marker would move it for real,
+                // since the broker only stands in the way of a copy.
+                outside.Add(marker);
+                payload = payload with { CanMove = false };
+            }
+        }
+
+        var token = PaneDragPayloads.Register(payload);
         try
         {
-            _ = await DragDrop.DoDragDropAsync(e, transfer, effects).ConfigureAwait(true);
-        }
-        catch (Exception error) when (error is InvalidOperationException or NotSupportedException)
-        {
-            // A platform with no drag support, or a drag begun without a pointer: nothing to do.
+            var transfer = new DataTransfer();
+            transfer.Add(DataTransferItem.Create(Format, token));
+            foreach (var item in outside) transfer.Add(DataTransferItem.CreateFile(item));
+            var effects = payload.CanMove ? DragDropEffects.Copy | DragDropEffects.Move : DragDropEffects.Copy;
+
+            try
+            {
+                _ = await DragDrop.DoDragDropAsync(press, transfer, effects).ConfigureAwait(true);
+            }
+            catch (Exception error) when (error is InvalidOperationException or NotSupportedException or
+                System.Runtime.InteropServices.ExternalException)
+            {
+                // A platform with no drag support, or a drag begun without a pointer. Only a drag
+                // out through the broker has anything to put right, and says so, as 1.x said it.
+                if (drag.MarkerPath is not null) model.ReportDragOut(await drag.AbandonAsync(error.Message).ConfigureAwait(true));
+                return;
+            }
+
+            model.ReportDragOut(await drag.FinishAsync(payload.Landed).ConfigureAwait(true));
         }
         finally
         {
@@ -201,11 +283,30 @@ internal static class PaneDragHandler
         }
     }
 
-    /// <summary>Hands what landed to the pane, as one transfer per source folder.</summary>
-    private static async Task ReceiveAsync(DragEventArgs e, BrowserPaneModel model, DragDropEffects effect)
+    /// <summary>A file or folder on this computer, as the platform's drag wants it, or nothing.</summary>
+    private static async Task<IStorageItem?> LocalItemAsync(IStorageProvider? storage, string? path, bool container)
+    {
+        if (storage is null || string.IsNullOrWhiteSpace(path) || !Path.IsPathFullyQualified(path)) return null;
+        try
+        {
+            return container
+                ? await storage.TryGetFolderFromPathAsync(path).ConfigureAwait(true)
+                : await storage.TryGetFileFromPathAsync(path).ConfigureAwait(true);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or
+            ArgumentException or NotSupportedException or System.Security.SecurityException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Hands what landed to the pane: another pane's rows, or the desktop's files.</summary>
+    private static async Task ReceiveAsync(
+        DragEventArgs e, BrowserPaneModel model, DragDropEffects effect, string? folder)
     {
         if (PaneDragPayloads.Find(e.DataTransfer?.TryGetValue(Format)) is { } payload)
         {
+            payload.Landed = true;
             var operation = effect == DragDropEffects.Move
                 ? TransferQueueOperation.Move
                 : TransferQueueOperation.Copy;
@@ -220,18 +321,33 @@ internal static class PaneDragHandler
             .ToArray();
         if (paths.Length == 0) return;
 
-        var selections = LocalDrops.From(paths);
-        if (selections.IsFailure)
+        await model.ReceiveFilesAsync(paths, folder).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// What a drop over this element lights: the tree when it is over the tree, the list for
+    /// anywhere else in the pane, since that is where it lands.
+    /// </summary>
+    private static Control? TargetFor(Control view, object? source)
+    {
+        for (Visual? step = source as Visual; step is not null && !ReferenceEquals(step, view); step = step.GetVisualParent())
         {
-            await model.RefuseDropAsync(selections.Error.Message).ConfigureAwait(true);
-            return;
+            if (step is TreeView tree) return tree;
         }
 
-        foreach (var selection in selections.Value)
+        return view.FindControl<Control>("PART_Rows");
+    }
+
+    /// <summary>The folder in the tree a drop is over, as 1.x took it for a drop from Explorer.</summary>
+    private static string? FolderAt(Control view, object? source)
+    {
+        for (Visual? step = source as Visual; step is not null && !ReferenceEquals(step, view); step = step.GetVisualParent())
         {
-            await model.ReceiveDropAsync(new PaneClipboard(selection, TransferQueueOperation.Copy, Ui.Pane.ThisPc))
-                .ConfigureAwait(true);
+            if (step is StyledElement { DataContext: PaneTreeNode node }) return node.Target;
+            if (step is TreeView) return null;
         }
+
+        return null;
     }
 
     private static BrowserListItem? RowAt(object? source)
