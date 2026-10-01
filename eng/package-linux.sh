@@ -178,8 +178,9 @@ done < <(find "$APP_DIR" "$AGENT_DIR" -type f \( -name '*.so' -o -perm -u+x \) -
 # --ignore-missing-info because the runtime ships its own shared objects -- libcoreclr, libclrjit,
 # libSkiaSharp and the rest -- which belong to no package on the system and would otherwise each be
 # a fatal "no dependency information found". Its complaints are kept rather than discarded, so a
-# real failure here has something to read.
-SHLIB_LOG="$STAGE/.shlibdeps.log"
+# real failure here has something to read. The log lives outside the stage: inside it, it shipped
+# in the package and dpkg installed it as /.shlibdeps.log.
+SHLIB_LOG="$(mktemp)"
 SHLIB_DEPENDS="$(
   cd "$SHLIB_ROOT" &&
   dpkg-shlibdeps -O --ignore-missing-info "${SHLIB_TARGETS[@]}" 2>"$SHLIB_LOG" |
@@ -192,6 +193,7 @@ if [ -z "$SHLIB_DEPENDS" ]; then
   sed -n '1,20p' "$SHLIB_LOG" >&2
   exit 1
 fi
+rm -f "$SHLIB_LOG"
 
 echo "    $SHLIB_DEPENDS"
 
