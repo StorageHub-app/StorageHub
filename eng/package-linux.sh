@@ -40,6 +40,10 @@ fi
 
 # Debian versions may not carry a '+build' suffix; the informational version keeps it.
 DEB_VERSION="${VERSION%%+*}"
+# A prerelease's '-' becomes '~', which dpkg sorts before the release itself: read as written,
+# 2.0.0-rc.1 is a Debian revision of 2.0.0 and sorts after it, so the final release would
+# install as a downgrade.
+DEB_VERSION="${DEB_VERSION/-/\~}"
 
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
