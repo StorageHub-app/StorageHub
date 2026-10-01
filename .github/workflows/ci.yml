@@ -295,9 +295,91 @@ jobs:
           compression-level: 0
           retention-days: 30
 
-  attest-windows:
-    name: Attest Windows release provenance
+  package-linux:
+    name: Test, package and exercise Linux release
+    # The version comes from the Windows job so both platforms ship under one release name.
     needs: package-windows
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      artifact-name: ${{ steps.package.outputs.artifact-name }}
+
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+      NUGET_XMLDOC_MODE: skip
+
+    steps:
+      - name: Check out StorageHub
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+
+      # The desktop's own suites are the ones with Linux code paths (systemd agent, trash, file
+      # URIs, X11 drag and drop); the rest run on Windows above.
+      - name: Test the desktop on Linux
+        run: |
+          dotnet test tests/StorageHub.Desktop.Core.Tests --configuration Release
+          dotnet test tests/StorageHub.Desktop.Tests --configuration Release
+
+      - name: Build the .deb
+        id: package
+        env:
+          RELEASE_VERSION: ${{ needs.package-windows.outputs.version }}
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq dpkg-dev
+          out="$RUNNER_TEMP/linux-build"
+          ./eng/package-linux.sh --version "$RELEASE_VERSION" --output "$out"
+          # The package's own version uses '~' so a release sorts above its candidates; the file
+          # keeps the release's name, which is what the updater and the release page show.
+          bundle="$RUNNER_TEMP/StorageHub-Linux-Release"
+          mkdir -p "$bundle"
+          deb="$(ls "$out"/*.deb)"
+          name="storagehub_${RELEASE_VERSION}_amd64.deb"
+          cp "$deb" "$bundle/$name"
+          (cd "$bundle" && sha256sum "$name" > SHA256SUMS)
+          echo "deb=$bundle/$name" >> "$GITHUB_OUTPUT"
+          echo "artifact-name=linux-release-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
+
+      # apt pulls in the declared dependencies, so a library missing from Depends shows up as the
+      # desktop failing to start rather than passing on a runner that happens to have it.
+      - name: Install, start, and remove package
+        env:
+          DEB: ${{ steps.package.outputs.deb }}
+        run: |
+          sudo apt-get install -y "$DEB"
+          storagehub --version
+          sudo apt-get install -y -qq xvfb
+          xvfb-run -a timeout 20s storagehub > desktop.out 2>&1 || status=$?
+          # timeout's 124 means the window was still open after 20 seconds, which is the pass.
+          if [ "${status:-0}" -ne 124 ]; then cat desktop.out; echo "The desktop exited ($status)."; exit 1; fi
+          sudo apt-get remove -y storagehub
+
+      - name: Upload Linux release package
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.package.outputs.artifact-name }}
+          path: ${{ runner.temp }}/StorageHub-Linux-Release
+          if-no-files-found: error
+          include-hidden-files: false
+          compression-level: 0
+          retention-days: 30
+
+  attest-windows:
+    name: Attest release provenance
+    needs:
+      - package-windows
+      - package-linux
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: windows-2022
     timeout-minutes: 10
@@ -316,10 +398,18 @@ jobs:
           name: ${{ needs.package-windows.outputs.artifact-name }}
           path: windows-release
 
+      - name: Download Linux release package
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ needs.package-linux.outputs.artifact-name }}
+          path: linux-release
+
       - name: Attest release files
         uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
         with:
-          subject-path: windows-release/*
+          subject-path: |
+            windows-release/*
+            linux-release/*.deb
           # Left off. Linked artifact storage records are an organization
           # feature, which this repository now qualifies for, but turning them
           # on changes what a release carries and is a decision of its own. The
@@ -327,9 +417,10 @@ jobs:
           create-storage-record: false
 
   publish-release:
-    name: Publish Windows release
+    name: Publish release
     needs:
       - package-windows
+      - package-linux
       - attest-windows
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: windows-2022
@@ -350,6 +441,33 @@ jobs:
         with:
           name: ${{ needs.package-windows.outputs.artifact-name }}
           path: windows-release
+
+      - name: Download attested Linux release package
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ needs.package-linux.outputs.artifact-name }}
+          path: linux-release
+
+      # One release, one manifest: the .deb joins the Windows bundle after its hash is checked
+      # against the Linux job's own SHA256SUMS, and its line is added to the bundle's, which the
+      # next step then verifies file by file like every other asset.
+      - name: Add the Linux package to the release bundle
+        shell: pwsh
+        run: |
+          $linuxRoot = (Resolve-Path -LiteralPath 'linux-release').Path
+          $bundleRoot = (Resolve-Path -LiteralPath 'windows-release').Path
+          $debs = @(Get-ChildItem -LiteralPath $linuxRoot -File -Filter '*_amd64.deb')
+          if ($debs.Count -ne 1) { throw "Expected one .deb in the Linux artifact, found $($debs.Count)." }
+          $deb = $debs[0]
+          $line = Get-Content -LiteralPath (Join-Path $linuxRoot 'SHA256SUMS') |
+            Where-Object { $_ -match "^[0-9A-Fa-f]{64}\s+\*?$([regex]::Escape($deb.Name))$" }
+          if (-not $line) { throw "The Linux SHA256SUMS does not list '$($deb.Name)'." }
+          $expected = ($line -split '\s+')[0].ToUpperInvariant()
+          $actual = (Get-FileHash -LiteralPath $deb.FullName -Algorithm SHA256).Hash
+          if ($actual -cne $expected) { throw "SHA-256 verification failed for '$($deb.Name)'." }
+          Copy-Item -LiteralPath $deb.FullName -Destination $bundleRoot
+          Add-Content -LiteralPath (Join-Path $bundleRoot 'SHA256SUMS') `
+            -Value "$($expected.ToLowerInvariant())  $($deb.Name)"
 
       - name: Validate release version and SHA-256 manifest
         shell: pwsh
