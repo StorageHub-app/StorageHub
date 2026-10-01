@@ -16,8 +16,8 @@ $ErrorActionPreference = 'Stop'
 
 $script:Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 $script:Rid = 'win-x64'
-$script:VpkVersion = '1.2.0'
 $script:PackId = 'StorageHub.Desktop'
+$script:MsiUpgradeCode = '{B3EFE8FA-EACC-421F-8782-EF2FFA41E905}'
 
 function Resolve-AbsolutePath {
     param(
@@ -241,100 +241,115 @@ function New-DeterministicZip {
     }
 }
 
-function Update-VelopackAssetManifest {
+function Get-MsiTableRows {
     param(
         [Parameter(Mandatory)]
-        [string] $ManifestPath,
+        [string] $MsiPath,
 
         [Parameter(Mandatory)]
-        [string] $BundleDirectory,
+        [string] $Query,
 
         [Parameter(Mandatory)]
-        [System.Collections.Generic.Dictionary[string, string]] $RenamedFiles
+        [int] $ColumnCount
     )
 
-    if (-not (Test-Path -LiteralPath $ManifestPath -PathType Leaf)) {
-        throw "Velopack asset manifest '$ManifestPath' does not exist."
-    }
-
+    # Windows Installer's own automation interface, read-only: what the package will do is in its
+    # tables, and reading them needs neither an install nor the WiX tools.
+    $installer = New-Object -ComObject WindowsInstaller.Installer
+    $database = $installer.GetType().InvokeMember(
+        'OpenDatabase', 'InvokeMethod', $null, $installer, @($MsiPath, 0))
+    $view = $database.GetType().InvokeMember('OpenView', 'InvokeMethod', $null, $database, @($Query))
     try {
-        $manifest = Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json
-    }
-    catch {
-        throw "Velopack asset manifest '$ManifestPath' is invalid JSON."
-    }
-
-    [object[]] $assets = @($manifest)
-    if ($assets.Count -eq 0) {
-        throw "Velopack asset manifest '$ManifestPath' contains no assets."
-    }
-
-    $appliedRenames = [System.Collections.Generic.HashSet[string]]::new(
-        [System.StringComparer]::Ordinal)
-    $referencedFiles = [System.Collections.Generic.HashSet[string]]::new(
-        [System.StringComparer]::OrdinalIgnoreCase)
-    foreach ($asset in $assets) {
-        $relativeFileNameProperty = $asset.PSObject.Properties['RelativeFileName']
-        if ($null -eq $relativeFileNameProperty -or
-            [string]::IsNullOrWhiteSpace([string] $relativeFileNameProperty.Value)) {
-            throw "Velopack asset manifest '$ManifestPath' contains an asset without RelativeFileName."
-        }
-
-        $relativeFileName = [string] $relativeFileNameProperty.Value
-        if ($RenamedFiles.ContainsKey($relativeFileName)) {
-            $relativeFileName = $RenamedFiles[$relativeFileName]
-            $relativeFileNameProperty.Value = $relativeFileName
-            if (-not $appliedRenames.Add([string] $relativeFileNameProperty.Value)) {
-                throw "Velopack asset manifest '$ManifestPath' applies duplicate rename '$relativeFileName'."
+        [void] $view.GetType().InvokeMember('Execute', 'InvokeMethod', $null, $view, $null)
+        $rows = [System.Collections.Generic.List[string[]]]::new()
+        while ($true) {
+            $record = $view.GetType().InvokeMember('Fetch', 'InvokeMethod', $null, $view, $null)
+            if ($null -eq $record) {
+                break
             }
+            $row = [string[]]::new($ColumnCount)
+            for ($column = 1; $column -le $ColumnCount; $column++) {
+                $row[$column - 1] = $record.GetType().InvokeMember(
+                    'StringData', 'GetProperty', $null, $record, @($column))
+            }
+            $rows.Add($row)
         }
-
-        if ([System.IO.Path]::IsPathRooted($relativeFileName) -or
-            $relativeFileName.IndexOfAny([char[]] @('\', '/')) -ge 0 -or
-            [System.IO.Path]::GetFileName($relativeFileName) -cne $relativeFileName) {
-            throw "Velopack asset manifest '$ManifestPath' references non-flat path '$relativeFileName'."
-        }
-        if (-not $referencedFiles.Add($relativeFileName)) {
-            throw "Velopack asset manifest '$ManifestPath' references duplicate file '$relativeFileName'."
-        }
-
-        $referencedPath = Join-Path $BundleDirectory $relativeFileName
-        if (-not (Test-Path -LiteralPath $referencedPath -PathType Leaf)) {
-            throw "Velopack asset manifest '$ManifestPath' references missing file '$relativeFileName'."
-        }
-    }
-
-    foreach ($originalFileName in $RenamedFiles.Keys) {
-        $renamedFileName = $RenamedFiles[$originalFileName]
-        if (-not $appliedRenames.Contains($renamedFileName)) {
-            throw "Velopack asset manifest '$ManifestPath' does not reference renamed file '$originalFileName'."
-        }
-    }
-
-    $serializedManifest = ConvertTo-Json `
-        -InputObject $assets `
-        -Depth 100 `
-        -Compress
-    $replacementId = [System.Guid]::NewGuid().ToString('N')
-    $temporaryManifestPath = '{0}.{1}.tmp' -f $ManifestPath, $replacementId
-    $backupManifestPath = '{0}.{1}.bak' -f $ManifestPath, $replacementId
-    try {
-        [System.IO.File]::WriteAllText(
-            $temporaryManifestPath,
-            $serializedManifest + "`n",
-            $script:Utf8NoBom)
-        [System.IO.File]::Replace(
-            $temporaryManifestPath,
-            $ManifestPath,
-            $backupManifestPath)
+        return , $rows.ToArray()
     }
     finally {
-        if (Test-Path -LiteralPath $temporaryManifestPath) {
-            Remove-Item -LiteralPath $temporaryManifestPath -Force
+        [void] $view.GetType().InvokeMember('Close', 'InvokeMethod', $null, $view, $null)
+        [void] [System.Runtime.InteropServices.Marshal]::ReleaseComObject($view)
+        [void] [System.Runtime.InteropServices.Marshal]::ReleaseComObject($database)
+        [void] [System.Runtime.InteropServices.Marshal]::ReleaseComObject($installer)
+    }
+}
+
+function Assert-MsiPackage {
+    param(
+        [Parameter(Mandatory)]
+        [string] $MsiPath,
+
+        [Parameter(Mandatory)]
+        [string] $ExpectedVersion
+    )
+
+    $properties = @{}
+    foreach ($row in (Get-MsiTableRows -MsiPath $MsiPath -Query 'SELECT Property, Value FROM Property' -ColumnCount 2)) {
+        $properties[$row[0]] = $row[1]
+    }
+    if ($properties['UpgradeCode'] -cne $script:MsiUpgradeCode) {
+        throw "The MSI does not carry StorageHub's upgrade code $($script:MsiUpgradeCode)."
+    }
+    if ($properties['ProductVersion'] -cne $ExpectedVersion) {
+        throw "The MSI is version '$($properties['ProductVersion'])', not '$ExpectedVersion'."
+    }
+    if ($properties.ContainsKey('ALLUSERS')) {
+        throw 'The MSI is not a per-user package.'
+    }
+
+    $actions = @{}
+    foreach ($row in (Get-MsiTableRows -MsiPath $MsiPath -Query 'SELECT Action, Target FROM CustomAction' -ColumnCount 2)) {
+        $actions[$row[0]] = $row[1]
+    }
+    $sequenced = @{}
+    foreach ($row in (Get-MsiTableRows -MsiPath $MsiPath -Query 'SELECT Action, Condition FROM InstallExecuteSequence' -ColumnCount 2)) {
+        $sequenced[$row[0]] = $row[1]
+    }
+    foreach ($expected in @(
+            @{ Action = 'StopAgentBeforeUpdate'; Hook = '--package-hook before-update' },
+            @{ Action = 'ReleaseStorageHubBeforeUninstall'; Hook = '--package-hook before-uninstall' },
+            @{ Action = 'RegisterAutostartAfterInstall'; Hook = '--package-hook after-install' },
+            @{ Action = 'RefreshAutostartAfterUpdate'; Hook = '--package-hook after-update' },
+            @{ Action = 'ReopenStorageHub'; Hook = 'StorageHub.Desktop.exe"' })) {
+        if (-not $actions.ContainsKey($expected.Action) -or
+            -not $actions[$expected.Action].EndsWith($expected.Hook, [System.StringComparison]::Ordinal)) {
+            throw "The MSI does not define custom action '$($expected.Action)' running '$($expected.Hook)'."
         }
-        if (Test-Path -LiteralPath $backupManifestPath) {
-            Remove-Item -LiteralPath $backupManifestPath -Force
+        if (-not $sequenced.ContainsKey($expected.Action)) {
+            throw "The MSI does not schedule custom action '$($expected.Action)'."
         }
+    }
+    if ($sequenced['ReleaseStorageHubBeforeUninstall'] -notmatch 'NOT UPGRADINGPRODUCTCODE') {
+        throw 'The uninstall hook would also run while an upgrade removes the older package.'
+    }
+
+    # FileName is "SHORT~1.EXE|Long name.exe" wherever the long name is not a valid short one.
+    $files = @(
+        foreach ($row in (Get-MsiTableRows -MsiPath $MsiPath -Query 'SELECT FileName FROM File' -ColumnCount 1)) {
+            ($row[0] -split '\|')[-1]
+        }
+    )
+    foreach ($requiredFile in @(
+            'StorageHub.Desktop.exe',
+            'StorageHub.Agent.Host.exe',
+            'StorageHub.ShellExtension.Native.dll',
+            'BUILDINFO.json')) {
+        if ($files -cnotcontains $requiredFile) {
+            throw "The MSI does not install '$requiredFile'."
+        }
+    }
+    if (@($files | Where-Object { $_.EndsWith('.pdb', [System.StringComparison]::OrdinalIgnoreCase) }).Count -ne 0) {
+        throw 'The MSI installs program database symbols.'
     }
 }
 
@@ -467,6 +482,16 @@ if (-not $semVerMatch.Success -or $Version.Length -gt 128) {
     throw "Version '$Version' is not a supported SemVer 2.0 version."
 }
 
+# Windows Installer reads three numbers below 256.256.65536 and nothing else, so a release
+# candidate's MSI carries its release's version and upgrades a candidate before it as a
+# same-version upgrade (eng\installer\StorageHub.wxs).
+$msiVersion = '{0}.{1}.{2}' -f $semVerMatch.Groups[1].Value, $semVerMatch.Groups[2].Value, $semVerMatch.Groups[3].Value
+if ([int] $semVerMatch.Groups[1].Value -gt 255 -or
+    [int] $semVerMatch.Groups[2].Value -gt 255 -or
+    [int] $semVerMatch.Groups[3].Value -gt 65535) {
+    throw "Version '$Version' cannot be expressed as a Windows Installer product version."
+}
+
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $outputRootPath = Resolve-AbsolutePath -Path $OutputRoot -BasePath $repoRoot
 if (Test-Path -LiteralPath $outputRootPath -PathType Leaf) {
@@ -479,8 +504,8 @@ $agentProject = Join-Path $repoRoot 'src\StorageHub.Agent.Host\StorageHub.Agent.
 $licensePath = Join-Path $repoRoot 'LICENSE'
 $readmePath = Join-Path $repoRoot 'README.md'
 $iconPath = Join-Path $repoRoot 'assets\branding\storagehub.ico'
-$splashImagePath = Join-Path $repoRoot 'assets\branding\storagehub-icon.png'
-$toolManifestPath = Join-Path $repoRoot '.config\dotnet-tools.json'
+$installerProject = Join-Path $repoRoot 'eng\installer\StorageHub.Installer.wixproj'
+$installerSource = Join-Path $repoRoot 'eng\installer\StorageHub.wxs'
 $directoryPackagesPropsPath = Join-Path $repoRoot 'Directory.Packages.props'
 
 foreach ($requiredFile in @(
@@ -489,18 +514,12 @@ foreach ($requiredFile in @(
         $licensePath,
         $readmePath,
         $iconPath,
-        $splashImagePath,
-        $toolManifestPath,
+        $installerProject,
+        $installerSource,
         $directoryPackagesPropsPath)) {
     if (-not (Test-Path -LiteralPath $requiredFile -PathType Leaf)) {
         throw "Required packaging input '$requiredFile' does not exist."
     }
-}
-
-$toolManifest = Get-Content -LiteralPath $toolManifestPath -Raw | ConvertFrom-Json
-$manifestVpk = $toolManifest.tools.vpk
-if ($manifestVpk.version -ne $script:VpkVersion -or $manifestVpk.rollForward -ne $false) {
-    throw "The local vpk tool must be pinned to exact version $($script:VpkVersion) with rollForward disabled."
 }
 
 $propsText = Get-Content -LiteralPath $directoryPackagesPropsPath -Raw
@@ -613,9 +632,9 @@ $agentPublish = Join-Path $workRoot 'publish\Agent'
 $stageRoot = Join-Path $workRoot 'stage'
 $stageAgent = Join-Path $stageRoot 'Agent'
 $symbolRoot = Join-Path $workRoot 'symbols'
-$vpkOutput = Join-Path $workRoot 'velopack'
+$msiOutput = Join-Path $workRoot 'msi'
+$msiIntermediate = Join-Path $workRoot 'msi-obj'
 $candidateRelease = Join-Path $workRoot 'release'
-$installerMetadata = Join-Path $workRoot 'installer-metadata'
 
 foreach ($directory in @(
         $buildArtifacts,
@@ -623,21 +642,23 @@ foreach ($directory in @(
         $agentPublish,
         $stageRoot,
         $symbolRoot,
-        $vpkOutput,
-        $candidateRelease,
-        $installerMetadata)) {
+        $msiOutput,
+        $candidateRelease)) {
     New-Item -ItemType Directory -Path $directory -Force | Out-Null
 }
 
-$temporaryLicensePath = Join-Path $installerMetadata 'LICENSE.md'
-Copy-Item -LiteralPath $licensePath -Destination $temporaryLicensePath -Force
 $pathMap = "$repoRoot=/_/StorageHub"
 
-$commonDependencyArguments = @(
-    '--runtime', $script:Rid,
+# Restored for the RuntimeIdentifiers the projects declare (src\Directory.Build.props), which is
+# what the committed lock files cover: naming the runtime here as well replaced that pair with
+# win-x64 alone, and locked mode refused every project. Publishing names it.
+$restoreArguments = @(
     '--artifacts-path', $buildArtifacts,
     '--nologo'
 )
+$commonDependencyArguments = @(
+    '--runtime', $script:Rid
+) + $restoreArguments
 $commonPublishArguments = @(
     '--configuration', 'Release',
     '--self-contained', 'true',
@@ -659,16 +680,11 @@ $commonPublishArguments = @(
 $completed = $false
 Push-Location $repoRoot
 try {
-    Invoke-NativeCommand `
-        -FilePath $dotnetCommand.Source `
-        -ArgumentList @('tool', 'restore') `
-        -Description "Restore pinned vpk $($script:VpkVersion)"
-
     $desktopRestoreArguments = @(
         'restore',
         $desktopProject,
         '--locked-mode'
-    ) + $commonDependencyArguments
+    ) + $restoreArguments
     Invoke-NativeCommand `
         -FilePath $dotnetCommand.Source `
         -ArgumentList $desktopRestoreArguments `
@@ -678,7 +694,7 @@ try {
         'restore',
         $agentProject,
         '--locked-mode'
-    ) + $commonDependencyArguments
+    ) + $restoreArguments
     Invoke-NativeCommand `
         -FilePath $dotnetCommand.Source `
         -ArgumentList $agentRestoreArguments `
@@ -779,76 +795,33 @@ try {
         throw 'The installer staging directory contains program database symbols.'
     }
 
-    $vpkArguments = @(
-        'tool', 'run', 'vpk', '--',
-        '--skip-updates',
-        '--yes',
-        '--legacyConsole',
-        'pack',
-        '--packId', $script:PackId,
-        '--packVersion', $Version,
-        '--packDir', $stageRoot,
-        '--mainExe', 'StorageHub.Desktop.exe',
-        '--packTitle', 'StorageHub',
-        '--packAuthors', 'StorageHub Contributors',
-        '--runtime', $script:Rid,
-        '--channel', $script:Rid,
-        '--outputDir', $vpkOutput,
-        '--icon', ([System.IO.Path]::GetFullPath($iconPath)),
-        '--splashImage', ([System.IO.Path]::GetFullPath($splashImagePath)),
-        '--splashProgressColor', '#1479FF',
-        '--shortcuts', 'StartMenuRoot',
-        '--delta', 'None',
-        '--msi',
-        '--instLocation', 'PerUser',
-        '--instLicense', $temporaryLicensePath,
-        '--instReadme', ([System.IO.Path]::GetFullPath($readmePath))
+    # The MSI, from the staged folder. The WiX SDK restores from NuGet like any other, so this
+    # needs nothing installed beyond the .NET SDK; its own obj and bin stay in the work folder.
+    $installerArguments = @(
+        'build',
+        $installerProject,
+        '--configuration', 'Release',
+        '--nologo',
+        "-p:StageDir=$stageRoot\",
+        "-p:ProductVersion=$msiVersion",
+        "-p:IconPath=$([System.IO.Path]::GetFullPath($iconPath))",
+        "-p:OutputPath=$msiOutput\",
+        "-p:IntermediateOutputPath=$msiIntermediate\",
+        "-p:BaseIntermediateOutputPath=$msiIntermediate\"
     )
     Invoke-NativeCommand `
         -FilePath $dotnetCommand.Source `
-        -ArgumentList $vpkArguments `
-        -Description 'Build unsigned per-user Velopack Setup, MSI, and portable bundle'
+        -ArgumentList $installerArguments `
+        -Description 'Build the unsigned per-user StorageHub MSI'
 
-    foreach ($artifact in Get-ChildItem -LiteralPath $vpkOutput -File) {
-        Copy-Item -LiteralPath $artifact.FullName -Destination $candidateRelease -Force
-    }
-
-    $setupArtifacts = @(Get-ChildItem -LiteralPath $candidateRelease -Filter '*-Setup.exe' -File)
-    $msiArtifacts = @(Get-ChildItem -LiteralPath $candidateRelease -Filter '*.msi' -File)
-    $portableArtifacts = @(Get-ChildItem -LiteralPath $candidateRelease -Filter '*-Portable.zip' -File)
-    if ($setupArtifacts.Count -ne 1) {
-        throw "vpk produced $($setupArtifacts.Count) Setup executables; expected exactly one."
-    }
+    $msiArtifacts = @(Get-ChildItem -LiteralPath $msiOutput -Filter '*.msi' -File -Recurse)
     if ($msiArtifacts.Count -ne 1) {
-        throw "vpk produced $($msiArtifacts.Count) MSI packages; expected exactly one."
+        throw "The installer build produced $($msiArtifacts.Count) MSI packages; expected exactly one."
     }
-    if ($portableArtifacts.Count -ne 1) {
-        throw "vpk produced $($portableArtifacts.Count) portable ZIP files; expected exactly one."
-    }
-    foreach ($artifact in @($setupArtifacts[0], $msiArtifacts[0], $portableArtifacts[0])) {
-        if (-not $artifact.Name.StartsWith(
-                "$($script:PackId)-",
-                [System.StringComparison]::Ordinal)) {
-            throw "vpk artifact '$($artifact.Name)' does not use immutable pack ID '$($script:PackId)'."
-        }
-    }
-
-    $setupName = "$releaseName-Setup.exe"
     $msiName = "$releaseName.msi"
-    $portableName = "$releaseName-portable.zip"
-    $renamedVelopackFiles = [System.Collections.Generic.Dictionary[string, string]]::new(
-        [System.StringComparer]::Ordinal)
-    $renamedVelopackFiles.Add($setupArtifacts[0].Name, $setupName)
-    $renamedVelopackFiles.Add($msiArtifacts[0].Name, $msiName)
-    $renamedVelopackFiles.Add($portableArtifacts[0].Name, $portableName)
-    Move-Item -LiteralPath $setupArtifacts[0].FullName -Destination (Join-Path $candidateRelease $setupName)
-    Move-Item -LiteralPath $msiArtifacts[0].FullName -Destination (Join-Path $candidateRelease $msiName)
-    Move-Item -LiteralPath $portableArtifacts[0].FullName -Destination (Join-Path $candidateRelease $portableName)
-
-    Update-VelopackAssetManifest `
-        -ManifestPath (Join-Path $candidateRelease "assets.$($script:Rid).json") `
-        -BundleDirectory $candidateRelease `
-        -RenamedFiles $renamedVelopackFiles
+    $msiPath = Join-Path $candidateRelease $msiName
+    Copy-Item -LiteralPath $msiArtifacts[0].FullName -Destination $msiPath
+    Assert-MsiPackage -MsiPath $msiPath -ExpectedVersion $msiVersion
 
     if (@(Get-ChildItem -LiteralPath $symbolRoot -Filter '*.pdb' -File -Recurse).Count -gt 0) {
         New-DeterministicZip `

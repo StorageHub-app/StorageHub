@@ -82,7 +82,7 @@
   "checkAutomatically": "Beim Start von StorageHub auf GitHub nach Updates suchen",
   "checkAutomaticallyHint": "Verwendet das feste offizielle StorageHub-Repository. Manuelle Suchen bleiben auch dann möglich, wenn dies deaktiviert ist.",
   "downloadAutomatically": "Verfügbare Updates automatisch herunterladen",
-  "downloadAutomaticallyHint": "Lädt das passende, integritätsgeprüfte Velopack-Paket nach einer automatischen Suche im Hintergrund herunter.",
+  "downloadAutomaticallyHint": "Lädt nach einer automatischen Suche das passende Installationsprogramm herunter und prüft es, bevor es zur Installation angeboten wird.",
   "restartAutomatically": "Unbeaufsichtigt installieren und automatisch neu starten",
   "restartAutomaticallyHint": "Schließt StorageHub nach dem Download, wendet das Update an und öffnet es erneut. Standardmäßig deaktiviert, um die Arbeit nicht zu unterbrechen.",
   "includePrereleases": "Release Candidates einbeziehen",

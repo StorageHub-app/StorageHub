@@ -200,7 +200,7 @@
   "theTransferOperationVerificationPolicyOrPriority": "Der Übertragungsvorgang, die Prüfrichtlinie oder die Priorität ist ungültig.",
   "theTransferRequestIsOutsideTheNegotiated": "Die Übertragungsanforderung liegt außerhalb der vereinbarten IPC-Vertragsgrenzen.",
   "theTrustRequestIsOutsideTheConnection": "Die Vertrauensanforderung liegt außerhalb der Vertragsgrenzen des Verbindungsvertrauens.",
-  "theUpdateCandidateDidNotOriginateFrom": "Der Update-Kandidat stammt nicht von Velopack.",
+  "theUpdateCandidateDidNotOriginateFrom": "Der Update-Kandidat stammt nicht aus der Update-Quelle.",
   "theseSettingsAreTooLargeToExport": "Diese Einstellungen sind zu groß für einen Export.",
   "thisPCConnectionHomeAndAdHoc": "Bereiche für Dieser PC, Verbindungsübersicht und Ad-hoc können keine gespeicherte Verbindungsidentität beanspruchen.",
   "thisFileNeedsAPassword": "Diese Datei benötigt ein Kennwort.",

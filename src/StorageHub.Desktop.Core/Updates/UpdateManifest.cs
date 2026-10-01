@@ -33,7 +33,8 @@ internal sealed record UpdatePackage(
 /// StorageHub is installed by an MSI on Windows and a .deb on Linux, so an update cannot swap files
 /// underneath itself: it fetches the platform's own package and hands it to the platform's own
 /// installer. What this manifest carries is therefore one release described once, with a package
-/// per platform, rather than a patch.
+/// per platform, rather than a patch. <see cref="GitHubReleaseFeed"/> builds one from the release
+/// on GitHub and holds it to <see cref="Validate"/> before anything is downloaded.
 /// </remarks>
 internal sealed record UpdateManifest(
     int SchemaVersion,

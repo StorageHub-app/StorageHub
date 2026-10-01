@@ -82,7 +82,7 @@
   "checkAutomatically": "Søg efter opdateringer på GitHub, når StorageHub starter",
   "checkAutomaticallyHint": "Bruger det faste officielle StorageHub-arkiv. Manuelle søgninger er stadig mulige, når dette er slået fra.",
   "downloadAutomatically": "Hent tilgængelige opdateringer automatisk",
-  "downloadAutomaticallyHint": "Henter den tilsvarende integritetskontrollerede Velopack-pakke i baggrunden efter en automatisk søgning.",
+  "downloadAutomaticallyHint": "Henter det tilsvarende installationsprogram efter en automatisk søgning og kontrollerer det, før det tilbydes installeret.",
   "restartAutomatically": "Installér i baggrunden og genstart automatisk",
   "restartAutomaticallyHint": "Lukker StorageHub efter download, anvender opdateringen og åbner programmet igen. Slået fra som standard for ikke at afbryde arbejdet.",
   "includePrereleases": "Medtag udgivelseskandidater",

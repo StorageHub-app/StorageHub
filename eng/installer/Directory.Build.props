@@ -1,0 +1,5 @@
+<Project>
+  <!-- Here so the installer does not pick up the repository's own: those set a .NET target
+       framework, analyzers and warnings-as-errors for C# projects, none of which a WiX package
+       has, and they would make it one more project every build of the code had to know about. -->
+</Project>

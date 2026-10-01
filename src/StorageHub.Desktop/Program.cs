@@ -14,6 +14,14 @@ public static class Program
             return frameworkExitCode;
         }
 
+        // The MSI's custom actions: register the sign-in entry, stop the agent, take the Explorer
+        // drop broker away. Each runs and exits without a framework or a window.
+        if (OperatingSystem.IsWindows() && DesktopPackageLifecycleHooks.Named(args) is { } hook)
+        {
+            using var hookLifecycle = WindowsDesktopLifecycle.Create();
+            return new DesktopPackageLifecycleHooks(hookLifecycle).Run(hook) ? 0 : 2;
+        }
+
         // The sign-in autostart. It starts the agent and exits without a window; ignoring it, as
         // 2.0 did, opened the whole shell at every sign-in.
         if (DesktopCommandLine.IsAgentOnly(args))
@@ -22,6 +30,14 @@ public static class Program
         }
 
         var exitCode = BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+
+        // An update installs once the shell has gone, as 1.4's did, and the package reopens
+        // StorageHub when it is done, so a restart asked for as well is left to it.
+        if (DesktopUpdateInstall.TryStart())
+        {
+            DesktopRestart.Reset();
+            return exitCode;
+        }
 
         // After the lifetime, so the replacement shell never overlaps this one. See DesktopRestart.
         // The close left the agent running for that shell, so when none could be started, "Only

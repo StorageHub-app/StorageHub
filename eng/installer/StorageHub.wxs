@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  StorageHub for Windows: a plain per-user MSI, and the only Windows installer.
+
+  Per-user, as 1.4's Velopack install was: into %LOCALAPPDATA%\Programs\StorageHub, with no
+  elevation to install, update or remove it. The agent is a process of the signed-in user, and its
+  data lives in %LOCALAPPDATA%\StorageHub, which this package never touches, so an upgrade or an
+  uninstall keeps every connection, task, schedule and secret.
+
+  The desktop sits at the top of the folder and the agent in Agent beside it, which is where the
+  desktop's lifecycle looks for StorageHub.Agent.Host.exe.
+
+  What 1.4's install hooks did, the custom actions below do, each by running the installed desktop
+  with the package-hook argument (DesktopPackageLifecycleHooks):
+    before-update     the copy being replaced stops the agent it started, before Windows Installer
+                      looks for files in use;
+    before-uninstall  the same, and the sign-in entry and the Explorer drop broker's registration go;
+    after-install     the new copy registers the sign-in entry, as a fresh install always has;
+    after-update      the new copy keeps the sign-in entry only if the mode in force wants one.
+  None of them can fail the package. STORAGEHUB_RELAUNCH=1, which the in-app updater passes,
+  reopens StorageHub once the update is in.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="StorageHub"
+           Manufacturer="StorageHub Contributors"
+           Version="$(ProductVersion)"
+           UpgradeCode="B3EFE8FA-EACC-421F-8782-EF2FFA41E905"
+           Scope="perUser"
+           Language="1033"
+           Compressed="yes">
+
+    <!-- Release candidates share their release's MSI version, so the same version upgrades too;
+         the updater is what refuses to go backwards. -->
+    <MajorUpgrade AllowSameVersionUpgrades="yes"
+                  DowngradeErrorMessage="A newer version of StorageHub is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="StorageHubIcon" SourceFile="$(IconPath)" />
+    <Property Id="ARPPRODUCTICON" Value="StorageHubIcon" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/StorageHub-app/StorageHub" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/StorageHub-app/StorageHub/issues" />
+    <Property Id="ARPNOMODIFY" Value="1" />
+
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="ProgramsFolder" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="StorageHub" />
+      </Directory>
+    </StandardDirectory>
+
+    <Feature Id="StorageHub" Title="StorageHub" AllowAbsent="no">
+      <ComponentGroupRef Id="Payload" />
+      <ComponentRef Id="Registration" />
+      <ComponentRef Id="StartMenuShortcut" />
+    </Feature>
+
+    <ComponentGroup Id="Payload" Directory="INSTALLFOLDER">
+      <Component Id="DesktopExecutable">
+        <File Id="StorageHubDesktopExe" Name="StorageHub.Desktop.exe" Source="!(bindpath.Stage)StorageHub.Desktop.exe" KeyPath="yes" />
+      </Component>
+      <Files Include="!(bindpath.Stage)**">
+        <Exclude Files="!(bindpath.Stage)StorageHub.Desktop.exe" />
+      </Files>
+    </ComponentGroup>
+
+    <!-- Where this copy is: the desktop's updater reads it to tell an installed copy from a build
+         run from source (MsiInstallation), and it is the per-user key path the folders need. -->
+    <Component Id="Registration" Directory="INSTALLFOLDER">
+      <RegistryKey Root="HKCU" Key="Software\StorageHub\Installer" ForceDeleteOnUninstall="yes">
+        <RegistryValue Name="InstallFolder" Type="string" Value="[INSTALLFOLDER]" KeyPath="yes" />
+        <RegistryValue Name="Version" Type="string" Value="$(ProductVersion)" />
+      </RegistryKey>
+      <RemoveFolder Id="RemoveInstallFolder" Directory="INSTALLFOLDER" On="uninstall" />
+      <RemoveFolder Id="RemoveProgramsFolder" Directory="ProgramsFolder" On="uninstall" />
+    </Component>
+
+    <!-- At the top of the Start menu, where 1.4's install put it. -->
+    <Component Id="StartMenuShortcut" Directory="ProgramMenuFolder">
+      <Shortcut Id="StorageHubShortcut"
+                Name="StorageHub"
+                Target="[#StorageHubDesktopExe]"
+                WorkingDirectory="INSTALLFOLDER"
+                Icon="StorageHubIcon" />
+      <RegistryValue Root="HKCU" Key="Software\StorageHub\Installer" Name="StartMenuShortcut"
+                     Type="integer" Value="1" KeyPath="yes" />
+    </Component>
+
+    <!-- Each hook runs the desktop by its path in the install folder: before the files are
+         touched it is the copy being replaced, afterwards the copy just put in. Immediate and
+         impersonated, so they run as the user whose agent and sign-in entry they are. -->
+    <CustomAction Id="StopAgentBeforeUpdate"
+                  Directory="INSTALLFOLDER"
+                  ExeCommand="&quot;[INSTALLFOLDER]StorageHub.Desktop.exe&quot; --package-hook before-update"
+                  Execute="immediate"
+                  Return="ignore" />
+    <CustomAction Id="ReleaseStorageHubBeforeUninstall"
+                  Directory="INSTALLFOLDER"
+                  ExeCommand="&quot;[INSTALLFOLDER]StorageHub.Desktop.exe&quot; --package-hook before-uninstall"
+                  Execute="immediate"
+                  Return="ignore" />
+    <CustomAction Id="RegisterAutostartAfterInstall"
+                  Directory="INSTALLFOLDER"
+                  ExeCommand="&quot;[INSTALLFOLDER]StorageHub.Desktop.exe&quot; --package-hook after-install"
+                  Execute="immediate"
+                  Return="ignore" />
+    <CustomAction Id="RefreshAutostartAfterUpdate"
+                  Directory="INSTALLFOLDER"
+                  ExeCommand="&quot;[INSTALLFOLDER]StorageHub.Desktop.exe&quot; --package-hook after-update"
+                  Execute="immediate"
+                  Return="ignore" />
+    <CustomAction Id="ReopenStorageHub"
+                  Directory="INSTALLFOLDER"
+                  ExeCommand="&quot;[INSTALLFOLDER]StorageHub.Desktop.exe&quot;"
+                  Execute="immediate"
+                  Return="asyncNoWait" />
+
+    <InstallExecuteSequence>
+      <!-- WIX_UPGRADE_DETECTED: an older StorageHub is about to be replaced. The removal of that
+           older package, inside this install, carries UPGRADINGPRODUCTCODE, and must not take the
+           sign-in entry with it: after-update reads that entry to know the mode in force. -->
+      <Custom Action="StopAgentBeforeUpdate" Before="InstallValidate"
+              Condition="WIX_UPGRADE_DETECTED AND NOT (REMOVE~=&quot;ALL&quot;)" />
+      <Custom Action="ReleaseStorageHubBeforeUninstall" Before="InstallValidate"
+              Condition="Installed AND (REMOVE~=&quot;ALL&quot;) AND NOT UPGRADINGPRODUCTCODE" />
+      <Custom Action="RegisterAutostartAfterInstall" After="InstallFinalize"
+              Condition="NOT Installed AND NOT WIX_UPGRADE_DETECTED" />
+      <Custom Action="RefreshAutostartAfterUpdate" After="RegisterAutostartAfterInstall"
+              Condition="NOT Installed AND WIX_UPGRADE_DETECTED" />
+      <Custom Action="ReopenStorageHub" After="RefreshAutostartAfterUpdate"
+              Condition="STORAGEHUB_RELAUNCH=&quot;1&quot; AND NOT (REMOVE~=&quot;ALL&quot;)" />
+    </InstallExecuteSequence>
+  </Package>
+</Wix>

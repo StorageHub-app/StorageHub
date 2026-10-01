@@ -200,7 +200,7 @@
   "theTransferOperationVerificationPolicyOrPriority": "Overførselshandlingen, kontrolpolitikken eller prioriteten er ugyldig.",
   "theTransferRequestIsOutsideTheNegotiated": "Overførselsanmodningen ligger uden for de aftalte IPC-kontraktgrænser.",
   "theTrustRequestIsOutsideTheConnection": "Tillidsanmodningen ligger uden for kontraktgrænserne for forbindelsestillid.",
-  "theUpdateCandidateDidNotOriginateFrom": "Opdateringskandidaten kom ikke fra Velopack.",
+  "theUpdateCandidateDidNotOriginateFrom": "Opdateringskandidaten kom ikke fra opdateringskilden.",
   "theseSettingsAreTooLargeToExport": "Disse indstillinger er for store til at blive eksporteret.",
   "thisPCConnectionHomeAndAdHoc": "Ruder for Denne pc, forbindelsesoversigt og ad hoc kan ikke gøre krav på en gemt forbindelsesidentitet.",
   "thisFileNeedsAPassword": "Denne fil kræver en adgangskode.",

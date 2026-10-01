@@ -36,12 +36,43 @@ internal static class SemanticRelease
             if (right[index] != left[index]) return right[index] > left[index];
         }
 
-        // Same numbers: a release beats a pre-release of it, and two pre-releases sort by text.
+        // Same numbers: a release beats a pre-release of it, and two pre-releases sort as semver
+        // says, identifier by identifier.
         if (leftPre is null && rightPre is null) return false;
         if (leftPre is null) return false;
         if (rightPre is null) return true;
 
-        return string.CompareOrdinal(rightPre, leftPre) > 0;
+        return ComparePrerelease(rightPre, leftPre) > 0;
+    }
+
+    /// <summary>
+    /// Orders two pre-release labels identifier by identifier, numbers as numbers.
+    /// </summary>
+    /// <remarks>
+    /// A candidate is <c>rc.&lt;run&gt;.g&lt;sha&gt;</c>, and compared as text rc.10 sorted before
+    /// rc.9, so the tenth candidate was never offered to anybody on the ninth.
+    /// </remarks>
+    private static int ComparePrerelease(string left, string right)
+    {
+        var leftParts = left.Split('.');
+        var rightParts = right.Split('.');
+        for (var index = 0; index < Math.Min(leftParts.Length, rightParts.Length); index++)
+        {
+            var leftNumeric = long.TryParse(leftParts[index], System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture, out var leftNumber);
+            var rightNumeric = long.TryParse(rightParts[index], System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture, out var rightNumber);
+            var order = (leftNumeric, rightNumeric) switch
+            {
+                (true, true) => leftNumber.CompareTo(rightNumber),
+                (true, false) => -1,
+                (false, true) => 1,
+                _ => string.CompareOrdinal(leftParts[index], rightParts[index])
+            };
+            if (order != 0) return order;
+        }
+
+        return leftParts.Length.CompareTo(rightParts.Length);
     }
 
     /// <summary>

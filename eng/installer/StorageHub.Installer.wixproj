@@ -1,0 +1,35 @@
+<Project Sdk="WixToolset.Sdk/6.0.2">
+  <!--
+    The Windows installer: one per-user MSI, built by eng/package-windows.ps1 from the folder it
+    stages (the desktop, with the agent in Agent beside it). The WiX SDK comes from NuGet, so
+    `dotnet build` is all it needs; it is not in StorageHub.slnx, because it builds from that
+    staged folder and has nothing to add to a build or a test run of the code.
+
+      dotnet build eng\installer\StorageHub.Installer.wixproj -c Release
+        -p:StageDir=<staged folder> -p:ProductVersion=2.0.0 -p:IconPath=<storagehub.ico>
+  -->
+  <PropertyGroup>
+    <OutputName>StorageHub</OutputName>
+    <OutputType>Package</OutputType>
+    <InstallerPlatform>x64</InstallerPlatform>
+    <ProductVersion Condition="'$(ProductVersion)' == ''">0.0.0</ProductVersion>
+    <IconPath Condition="'$(IconPath)' == ''">$(MSBuildThisFileDirectory)..\..\assets\branding\storagehub.ico</IconPath>
+    <DefineConstants>ProductVersion=$(ProductVersion);IconPath=$(IconPath)</DefineConstants>
+    <!-- Every file goes under the user's own profile, where these validations expect a per-user
+         registry value as each component's key path and a RemoveFile per folder. The package is
+         per-user by design, as 1.4's was, and Windows Installer removes the folders it made.
+         ICE61 is the same-version upgrade a release candidate needs, and ICE69 the Start menu
+         shortcut naming the desktop's file from its own component, both in the one feature.
+         ICE60 is two published runtime files that carry a version and no language. -->
+    <SuppressIces>ICE38;ICE60;ICE61;ICE64;ICE69;ICE91</SuppressIces>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <BindPath Include="$(StageDir)" BindName="Stage" Condition="'$(StageDir)' != ''" />
+  </ItemGroup>
+
+  <Target Name="RequireStageDir" BeforeTargets="Build">
+    <Error Condition="'$(StageDir)' == '' Or !Exists('$(StageDir)\StorageHub.Desktop.exe')"
+           Text="StageDir must name the staged StorageHub folder; build the MSI through eng\package-windows.ps1." />
+  </Target>
+</Project>

@@ -13,13 +13,16 @@ namespace StorageHub.Desktop.Updates;
 /// to draw, and neither should be: a credential dialog that an application drew itself is the shape
 /// of every phishing attempt, and people are right to distrust it.
 ///
-/// StorageHub is being replaced by what it launches, so the installer is started detached and this
-/// process exits rather than waiting for it.
+/// StorageHub is being replaced by what it launches, so the installer is started detached, once
+/// the shell has closed, and this process exits rather than waiting for it.
 /// </remarks>
 internal interface IUpdateInstaller
 {
     /// <summary>The package kind this machine can apply.</summary>
     UpdatePackageKind Kind { get; }
+
+    /// <summary>Whether this copy of StorageHub is the one the package would update.</summary>
+    bool ManagesThisCopy { get; }
 
     /// <summary>The architecture to ask the feed for.</summary>
     string Architecture { get; }
@@ -49,10 +52,51 @@ internal static class UpdateInstallers
     internal static string CurrentArchitecture => RuntimeInformation.ProcessArchitecture.ToString();
 }
 
+/// <summary>
+/// Where the MSI says it installed StorageHub.
+/// </summary>
+/// <remarks>
+/// The package writes this value for the current user (eng/installer/StorageHub.wxs), and it is
+/// what tells an installed copy from a build run from source or a folder copied by hand: only the
+/// copy in the folder the MSI recorded is the one its next version replaces.
+/// </remarks>
+internal static class MsiInstallation
+{
+    internal const string RegistryKey = @"Software\StorageHub\Installer";
+
+    internal const string InstallFolderValue = "InstallFolder";
+
+    /// <summary>The property that has the package reopen StorageHub once it is installed.</summary>
+    internal const string RelaunchProperty = "STORAGEHUB_RELAUNCH";
+
+    /// <summary>Whether the MSI installed StorageHub into <paramref name="applicationDirectory"/>.</summary>
+    internal static bool Installed(string applicationDirectory)
+    {
+        if (!OperatingSystem.IsWindows()) return false;
+
+        try
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(RegistryKey);
+            return key?.GetValue(InstallFolderValue) is string folder &&
+                string.Equals(Normalise(folder), Normalise(applicationDirectory), StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception error) when (error is System.Security.SecurityException or
+            UnauthorizedAccessException or IOException or ArgumentException)
+        {
+            return false;
+        }
+    }
+
+    private static string Normalise(string path) =>
+        Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+}
+
 /// <summary>Applies an MSI through msiexec.</summary>
 internal sealed class MsiUpdateInstaller : IUpdateInstaller
 {
     public UpdatePackageKind Kind => UpdatePackageKind.Msi;
+
+    public bool ManagesThisCopy => MsiInstallation.Installed(AppContext.BaseDirectory);
 
     public string Architecture => UpdateInstallers.CurrentArchitecture;
 
@@ -60,14 +104,18 @@ internal sealed class MsiUpdateInstaller : IUpdateInstaller
     /// <c>/i</c> rather than <c>/fa</c>: the package carries a major-upgrade rule, so installing it
     /// over the current one is what removes the old version. <c>/qb</c> shows a progress bar and no
     /// questions - a silent install would leave somebody staring at an application that closed for
-    /// no visible reason.
+    /// no visible reason. The relaunch property has the package reopen StorageHub when it is done,
+    /// as 1.4's updater did, and the log beside the package is what to read when it did not.
+    /// StorageHub installs for the current user, so none of this asks for elevation.
     /// </remarks>
     public bool Launch(string packagePath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(packagePath);
         if (!File.Exists(packagePath)) return false;
 
-        var start = new ProcessStartInfo("msiexec.exe")
+        var system = Environment.GetFolderPath(Environment.SpecialFolder.System);
+        var start = new ProcessStartInfo(
+            string.IsNullOrEmpty(system) ? "msiexec.exe" : Path.Combine(system, "msiexec.exe"))
         {
             UseShellExecute = true,
             WorkingDirectory = Path.GetDirectoryName(packagePath) ?? Environment.CurrentDirectory,
@@ -75,6 +123,10 @@ internal sealed class MsiUpdateInstaller : IUpdateInstaller
         start.ArgumentList.Add("/i");
         start.ArgumentList.Add(packagePath);
         start.ArgumentList.Add("/qb");
+        start.ArgumentList.Add("/norestart");
+        start.ArgumentList.Add("/l*v");
+        start.ArgumentList.Add(Path.ChangeExtension(packagePath, ".install.log"));
+        start.ArgumentList.Add(MsiInstallation.RelaunchProperty + "=1");
 
         return Start(start);
     }
@@ -99,6 +151,8 @@ internal sealed class MsiUpdateInstaller : IUpdateInstaller
 internal sealed class DebUpdateInstaller : IUpdateInstaller
 {
     public UpdatePackageKind Kind => UpdatePackageKind.Deb;
+
+    public bool ManagesThisCopy => true;
 
     /// <summary>Debian names amd64 what the runtime calls X64.</summary>
     public string Architecture => UpdateInstallers.CurrentArchitecture;

@@ -75,20 +75,19 @@ public sealed class WindowsAgentDataDirectoryLease : IDisposable, IAsyncDisposab
     }
 
     /// <summary>
-    /// Resolves the complete Velopack-owned tree for an Agent located at
-    /// <c>&lt;package&gt;\current\Agent</c>. Non-packaged hosts retain their exact
+    /// Resolves the complete installed tree for an Agent located at <c>&lt;install&gt;\Agent</c>
+    /// beside the desktop, as the MSI lays it out. Non-packaged hosts retain their exact
     /// application directory so source and test execution are not broadened.
     /// </summary>
     public static string ResolveApplicationOwnedTreeRoot(string applicationDirectory)
     {
         var fullApplicationPath = ValidateLocalPath(applicationDirectory, "application directory");
         var agentDirectory = new DirectoryInfo(fullApplicationPath);
-        var currentDirectory = agentDirectory.Parent;
-        var packageDirectory = currentDirectory?.Parent;
+        var installDirectory = agentDirectory.Parent;
         return string.Equals(agentDirectory.Name, "Agent", StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(currentDirectory?.Name, "current", StringComparison.OrdinalIgnoreCase) &&
-            packageDirectory is not null
-                ? packageDirectory.FullName
+            installDirectory is not null &&
+            File.Exists(Path.Combine(installDirectory.FullName, "StorageHub.Desktop.exe"))
+                ? installDirectory.FullName
                 : fullApplicationPath;
     }
 

@@ -149,13 +149,14 @@ Provider coverage is listed under [Provider status](#provider-status).
 Download the latest release from
 [GitHub Releases](https://github.com/StorageHub-app/StorageHub/releases):
 
-- `StorageHub-<version>-win-x64-Setup.exe` — recommended one-click, per-user installer;
-- `StorageHub-<version>-win-x64.msi` — per-user MSI for managed deployment; and
-- `StorageHub-<version>-win-x64-portable.zip` — self-contained portable payload.
+- `StorageHub-<version>-win-x64.msi` on Windows, a per-user installer; and
+- `storagehub_<version>_amd64.deb` on Debian and Ubuntu.
 
-The installer does not require elevation and starts the background agent as the
-signed-in Windows user. Application data under `%LOCALAPPDATA%\StorageHub` is
-preserved across updates and uninstalls.
+The MSI does not require elevation, installs into
+`%LOCALAPPDATA%\Programs\StorageHub`, and starts the background agent at sign-in
+as the signed-in Windows user. StorageHub checks for new releases when it starts
+and installs one through the same MSI. Application data under
+`%LOCALAPPDATA%\StorageHub` is preserved across updates and uninstalls.
 
 ### How the background agent runs
 

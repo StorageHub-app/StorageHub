@@ -1,10 +1,25 @@
 ﻿#Requires -Version 5.1
 
+<#
+.SYNOPSIS
+Installs the release MSI for the current user, checks what it installed and registered, and
+uninstalls it again, keeping the data.
+
+.DESCRIPTION
+Changes this user's installed programs, sign-in entry and Explorer registration, so it refuses to
+run outside CI unless -AllowOutsideCi and -ConfirmDisposableRunner are both given, and refuses on
+any account where StorageHub is already installed or registered at sign-in. The package is
+per-user and needs no elevation. With -PreviousBundleRoot the earlier MSI is installed first, so
+the upgrade, its hooks and its kept sign-in entry are what is tested.
+#>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)]
     [ValidateNotNullOrEmpty()]
     [string] $BundleRoot,
+
+    # A bundle from an earlier version, installed first so that this one is tested as the upgrade.
+    [string] $PreviousBundleRoot,
 
     [switch] $AllowOutsideCi,
 
@@ -250,6 +265,126 @@ function Test-ProcessHasExited {
     }
 }
 
+function Get-ReleaseMsi {
+    param(
+        [Parameter(Mandatory)]
+        [string] $Root
+    )
+
+    $bundleFullPath = if ([System.IO.Path]::IsPathRooted($Root)) {
+        [System.IO.Path]::GetFullPath($Root)
+    }
+    else {
+        [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $Root))
+    }
+    if (-not (Test-Path -LiteralPath $bundleFullPath -PathType Container)) {
+        throw "Release bundle '$bundleFullPath' does not exist."
+    }
+    $nestedBundleFiles = @(
+        Get-ChildItem -LiteralPath $bundleFullPath -File -Recurse |
+            Where-Object { $_.DirectoryName -cne $bundleFullPath }
+    )
+    if ($nestedBundleFiles.Count -ne 0) {
+        throw "Release bundle '$bundleFullPath' is not flat."
+    }
+
+    # The MSI is the one Windows installer: a bundle that still carries Velopack's Setup.exe or
+    # a portable ZIP was not built by this repository's packaging.
+    foreach ($retired in @('*-Setup.exe', '*-portable.zip', '*.nupkg', 'RELEASES*', 'assets.*.json')) {
+        if (@(Get-ChildItem -LiteralPath $bundleFullPath -Filter $retired -File).Count -ne 0) {
+            throw "Release bundle '$bundleFullPath' carries a retired installer artifact matching '$retired'."
+        }
+    }
+    $installerCandidates = @(Get-ChildItem -LiteralPath $bundleFullPath -Filter '*.msi' -File)
+    if ($installerCandidates.Count -ne 1) {
+        throw "Release bundle must contain exactly one MSI; found $($installerCandidates.Count)."
+    }
+    $installer = $installerCandidates[0]
+
+    $checksumsPath = Join-Path $bundleFullPath 'SHA256SUMS'
+    if (-not (Test-Path -LiteralPath $checksumsPath -PathType Leaf)) {
+        throw 'Release bundle does not contain SHA256SUMS.'
+    }
+    $installerHashes = @(
+        foreach ($line in Get-Content -LiteralPath $checksumsPath) {
+            if ($line -match '^(?<hash>[0-9A-Fa-f]{64})\s+(?:\*)?(?<name>.+)$' -and
+                $Matches.name.Trim() -ceq $installer.Name) {
+                $Matches.hash
+            }
+        }
+    )
+    if ($installerHashes.Count -ne 1) {
+        throw 'SHA256SUMS must contain exactly one entry for the MSI.'
+    }
+    $actualInstallerHash = (Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256).Hash
+    if ($actualInstallerHash -cne $installerHashes[0].ToUpperInvariant()) {
+        throw 'The MSI does not match SHA256SUMS.'
+    }
+
+    $buildInfoPath = Join-Path $bundleFullPath 'BUILDINFO.json'
+    if (-not (Test-Path -LiteralPath $buildInfoPath -PathType Leaf)) {
+        throw 'Release bundle does not contain BUILDINFO.json.'
+    }
+    try {
+        $buildInfo = Get-Content -LiteralPath $buildInfoPath -Raw | ConvertFrom-Json
+    }
+    catch {
+        throw 'Release bundle BUILDINFO.json is invalid.'
+    }
+    if ($buildInfo.packId -cne 'StorageHub.Desktop' -or $buildInfo.rid -cne 'win-x64') {
+        throw 'Release bundle does not use the immutable StorageHub.Desktop win-x64 package identity.'
+    }
+    if ($installer.Name -cne "StorageHub-$($buildInfo.version)-win-x64.msi") {
+        throw "The MSI is named '$($installer.Name)', which is not the name the updater looks for."
+    }
+
+    return $installer.FullName
+}
+
+function Invoke-Msiexec {
+    param(
+        [Parameter(Mandatory)]
+        [string[]] $ArgumentList,
+
+        [Parameter(Mandatory)]
+        [string] $LogPath,
+
+        [Parameter(Mandatory)]
+        [string] $Description
+    )
+
+    # Quiet, and never a reboot. The package is per-user, so none of this asks for elevation.
+    Invoke-CheckedProcess `
+        -FilePath (Join-Path $env:SystemRoot 'System32\msiexec.exe') `
+        -ArgumentList ($ArgumentList + @('/qn', '/norestart', '/l*v', $LogPath)) `
+        -EnvironmentVariables $childEnvironment `
+        -Description $Description `
+        -TimeoutSeconds $ProcessTimeoutSeconds
+}
+
+function Get-RunEntry {
+    $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+    if (-not (Test-Path -LiteralPath $runKey)) {
+        return $null
+    }
+
+    return (Get-ItemProperty -LiteralPath $runKey -Name 'StorageHub.Agent' -ErrorAction SilentlyContinue).'StorageHub.Agent'
+}
+
+function Test-StorageHubInstalledHere {
+    $key = 'HKCU:\Software\StorageHub\Installer'
+    if (-not (Test-Path -LiteralPath $key)) {
+        return $false
+    }
+
+    $folder = (Get-ItemProperty -LiteralPath $key -Name 'InstallFolder' -ErrorAction SilentlyContinue).InstallFolder
+    return $null -ne $folder -and
+        [string]::Equals(
+            ([string] $folder).TrimEnd('\'),
+            $installDirectory.TrimEnd('\'),
+            [System.StringComparison]::OrdinalIgnoreCase)
+}
+
 if ([System.Environment]::OSVersion.Platform -ne [System.PlatformID]::Win32NT) {
     throw 'The Windows installer smoke test can only run on Windows.'
 }
@@ -273,61 +408,18 @@ if (-not $isConfirmedDisposableRunner) {
     throw 'Installer execution is refused on a non-disposable worker. Use a GitHub-hosted runner or explicitly confirm an isolated test machine.'
 }
 
-$bundleFullPath = if ([System.IO.Path]::IsPathRooted($BundleRoot)) {
-    [System.IO.Path]::GetFullPath($BundleRoot)
+# An installed StorageHub, or one already registered at sign-in, is somebody's real installation:
+# installing over it would upgrade it and uninstalling would remove it.
+if ((Test-Path -LiteralPath 'HKCU:\Software\StorageHub\Installer') -or $null -ne (Get-RunEntry)) {
+    throw 'StorageHub is already installed or registered at sign-in for this user; refusing to touch it.'
+}
+
+$installerFullPath = Get-ReleaseMsi -Root $BundleRoot
+$previousInstallerFullPath = if ([string]::IsNullOrWhiteSpace($PreviousBundleRoot)) {
+    $null
 }
 else {
-    [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path $BundleRoot))
-}
-if (-not (Test-Path -LiteralPath $bundleFullPath -PathType Container)) {
-    throw "Release bundle '$bundleFullPath' does not exist."
-}
-$nestedBundleFiles = @(
-    Get-ChildItem -LiteralPath $bundleFullPath -File -Recurse |
-        Where-Object { $_.DirectoryName -cne $bundleFullPath }
-)
-if ($nestedBundleFiles.Count -ne 0) {
-    throw "Release bundle '$bundleFullPath' is not flat."
-}
-$installerCandidates = @(
-    Get-ChildItem -LiteralPath $bundleFullPath -Filter '*-Setup.exe' -File
-)
-if ($installerCandidates.Count -ne 1) {
-    throw "Release bundle must contain exactly one *-Setup.exe; found $($installerCandidates.Count)."
-}
-$installerFullPath = $installerCandidates[0].FullName
-
-$checksumsPath = Join-Path $bundleFullPath 'SHA256SUMS'
-if (-not (Test-Path -LiteralPath $checksumsPath -PathType Leaf)) {
-    throw 'Release bundle does not contain SHA256SUMS.'
-}
-$installerHashes = @(
-    foreach ($line in Get-Content -LiteralPath $checksumsPath) {
-        if ($line -match '^(?<hash>[0-9A-Fa-f]{64})\s+(?:\*)?(?<name>.+)$' -and
-            $Matches.name.Trim() -ceq $installerCandidates[0].Name) {
-            $Matches.hash
-        }
-    }
-)
-if ($installerHashes.Count -ne 1) {
-    throw 'SHA256SUMS must contain exactly one entry for the Setup executable.'
-}
-$actualInstallerHash = (Get-FileHash -LiteralPath $installerFullPath -Algorithm SHA256).Hash
-if ($actualInstallerHash -cne $installerHashes[0].ToUpperInvariant()) {
-    throw 'The Setup executable does not match SHA256SUMS.'
-}
-$buildInfoPath = Join-Path $bundleFullPath 'BUILDINFO.json'
-if (-not (Test-Path -LiteralPath $buildInfoPath -PathType Leaf)) {
-    throw 'Release bundle does not contain BUILDINFO.json.'
-}
-try {
-    $buildInfo = Get-Content -LiteralPath $buildInfoPath -Raw | ConvertFrom-Json
-}
-catch {
-    throw 'Release bundle BUILDINFO.json is invalid.'
-}
-if ($buildInfo.packId -cne 'StorageHub.Desktop' -or $buildInfo.rid -cne 'win-x64') {
-    throw 'Release bundle does not use the immutable StorageHub.Desktop win-x64 package identity.'
+    Get-ReleaseMsi -Root $PreviousBundleRoot
 }
 
 $smokeRoot = Join-Path `
@@ -335,6 +427,7 @@ $smokeRoot = Join-Path `
     ("StorageHub-installer-smoke-" + [System.Guid]::NewGuid().ToString('N'))
 $installDirectory = Join-Path $smokeRoot 'Install'
 $dataRoot = Join-Path $smokeRoot 'Data'
+$logRoot = Join-Path $smokeRoot 'Logs'
 $sentinelPath = Join-Path $dataRoot 'uninstall-preservation.sentinel'
 $sentinelContent = [System.Guid]::NewGuid().ToString('D')
 
@@ -353,16 +446,19 @@ Assert-SeparateDirectoryTrees `
 $autoStartBefore = @(Get-StorageHubAutoStartEntries)
 
 New-Item -ItemType Directory -Path $dataRoot -Force | Out-Null
+New-Item -ItemType Directory -Path $logRoot -Force | Out-Null
 [System.IO.File]::WriteAllText(
     $sentinelPath,
     $sentinelContent,
     [System.Text.UTF8Encoding]::new($false))
 
+# The data root keeps the installed agent away from this user's real data. The sign-in entry is
+# not switched off: registering it on install, and taking it away on uninstall, is part of what is
+# under test.
 $childEnvironment = @{
-    STORAGEHUB_AUTOSTART = '0'
-    STORAGEHUB_DISABLE_AUTOSTART = '1'
     STORAGEHUB_DATA_ROOT = $dataRoot
 }
+$installAttempted = $false
 $uninstallAttempted = $false
 $completed = $false
 $liveAgentProcessId = $null
@@ -370,48 +466,66 @@ $brokerRegistered = $false
 $brokerClassId = '{D7AE012A-EC7C-4CC3-AD34-7EE7155518CE}'
 $brokerClassKey = "HKCU:\Software\Classes\CLSID\$brokerClassId"
 $brokerHandlerKey = 'HKCU:\Software\Classes\Directory\shellex\CopyHookHandlers\StorageHub'
+$desktopExe = Join-Path $installDirectory 'StorageHub.Desktop.exe'
+$agentExe = Join-Path $installDirectory 'Agent\StorageHub.Agent.Host.exe'
+$startMenuShortcut = Join-Path `
+    ([System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::Programs)) `
+    'StorageHub.lnk'
+$expectedRunEntry = '"{0}" --agent-only' -f $desktopExe
 
 try {
-    # Velopack --silent suppresses its normal post-install first launch. The
-    # environment switches also make future StorageHub autostart support opt out.
-    Invoke-CheckedProcess `
-        -FilePath $installerFullPath `
-        -ArgumentList @('--silent', '--installto', $installDirectory) `
-        -EnvironmentVariables $childEnvironment `
-        -Description 'Silently install StorageHub' `
-        -TimeoutSeconds $ProcessTimeoutSeconds
+    $installAttempted = $true
+    if ($null -ne $previousInstallerFullPath) {
+        Invoke-Msiexec `
+            -ArgumentList @('/i', $previousInstallerFullPath, "INSTALLFOLDER=$installDirectory\") `
+            -LogPath (Join-Path $logRoot 'install-previous.log') `
+            -Description 'Silently install the previous StorageHub'
+        if (-not (Test-Path -LiteralPath $desktopExe -PathType Leaf)) {
+            throw 'The previous StorageHub did not install its desktop.'
+        }
+    }
 
-    $desktopExe = Join-Path $installDirectory 'current\StorageHub.Desktop.exe'
-    $agentExe = Join-Path $installDirectory 'current\Agent\StorageHub.Agent.Host.exe'
-    $updateExe = Join-Path $installDirectory 'Update.exe'
-    $stableDesktopExe = Join-Path $installDirectory 'StorageHub.Desktop.exe'
+    Invoke-Msiexec `
+        -ArgumentList @('/i', $installerFullPath, "INSTALLFOLDER=$installDirectory\") `
+        -LogPath (Join-Path $logRoot 'install.log') `
+        -Description $(if ($null -ne $previousInstallerFullPath) { 'Silently upgrade StorageHub' } else { 'Silently install StorageHub' })
+
     Wait-ForCondition `
         -Condition {
             (Test-Path -LiteralPath $desktopExe -PathType Leaf) -and
-            (Test-Path -LiteralPath $agentExe -PathType Leaf) -and
-            (Test-Path -LiteralPath $updateExe -PathType Leaf) -and
-            (Test-Path -LiteralPath $stableDesktopExe -PathType Leaf)
+            (Test-Path -LiteralPath $agentExe -PathType Leaf)
         } `
         -TimeoutSeconds 30 `
-        -FailureMessage 'The installed Desktop, Agent, or Update executable was not found.'
+        -FailureMessage 'The installed Desktop or Agent executable was not found.'
 
     foreach ($requiredPayload in @(
-            (Join-Path $installDirectory 'current\coreclr.dll'),
-            (Join-Path $installDirectory 'current\StorageHub.ShellExtension.Native.dll'),
-            (Join-Path $installDirectory 'current\Agent\coreclr.dll'),
-            (Join-Path $installDirectory 'current\BUILDINFO.json'),
-            (Join-Path $installDirectory 'current\release-version.txt'),
-            (Join-Path $installDirectory 'current\LICENSE'),
-            (Join-Path $installDirectory 'current\README.md'))) {
+            (Join-Path $installDirectory 'coreclr.dll'),
+            (Join-Path $installDirectory 'StorageHub.ShellExtension.Native.dll'),
+            (Join-Path $installDirectory 'Agent\coreclr.dll'),
+            (Join-Path $installDirectory 'BUILDINFO.json'),
+            (Join-Path $installDirectory 'release-version.txt'),
+            (Join-Path $installDirectory 'LICENSE'),
+            (Join-Path $installDirectory 'README.md'))) {
         if (-not (Test-Path -LiteralPath $requiredPayload -PathType Leaf)) {
             throw "Installed payload is missing '$requiredPayload'."
         }
     }
-    if (@(Get-ChildItem -LiteralPath (Join-Path $installDirectory 'current') -Filter '*.pdb' -File -Recurse).Count -ne 0) {
+    if (@(Get-ChildItem -LiteralPath $installDirectory -Filter '*.pdb' -File -Recurse).Count -ne 0) {
         throw 'The installed payload contains program database symbols.'
     }
+    if (-not (Test-StorageHubInstalledHere)) {
+        throw 'The MSI did not record its install folder, so the installed desktop could not update itself.'
+    }
+    if (-not (Test-Path -LiteralPath $startMenuShortcut -PathType Leaf)) {
+        throw 'The MSI did not add the Start menu shortcut.'
+    }
 
-    $brokerDll = Join-Path $installDirectory 'current\StorageHub.ShellExtension.Native.dll'
+    # The after-install hook registers the sign-in entry, as 1.4's install did; an upgrade keeps it.
+    if ((Get-RunEntry) -cne $expectedRunEntry) {
+        throw "The sign-in entry is '$(Get-RunEntry)', not '$expectedRunEntry'."
+    }
+
+    $brokerDll = Join-Path $installDirectory 'StorageHub.ShellExtension.Native.dll'
     $regsvr32 = Join-Path $env:SystemRoot 'System32\regsvr32.exe'
     Invoke-CheckedProcess `
         -FilePath $regsvr32 `
@@ -423,12 +537,6 @@ try {
     if (-not (Test-Path -LiteralPath $brokerClassKey) -or
         -not (Test-Path -LiteralPath $brokerHandlerKey)) {
         throw 'The installed Explorer drop broker did not create its current-user registration.'
-    }
-
-    $autoStartAfterInstall = @(Get-StorageHubAutoStartEntries)
-    if ([string]::Join("`n", $autoStartAfterInstall) -ne
-        [string]::Join("`n", $autoStartBefore)) {
-        throw 'The installer added or changed a StorageHub Run/RunOnce autostart entry.'
     }
 
     Invoke-CheckedProcess `
@@ -444,42 +552,36 @@ try {
         -Description 'Run the installed Agent health check' `
         -TimeoutSeconds $ProcessTimeoutSeconds
 
-    $lifecycleEnvironment = @{
-        STORAGEHUB_AUTOSTART = '0'
-        STORAGEHUB_DATA_ROOT = $dataRoot
-    }
     Invoke-CheckedProcess `
-        -FilePath $stableDesktopExe `
+        -FilePath $desktopExe `
         -ArgumentList @('--agent-only') `
-        -EnvironmentVariables $lifecycleEnvironment `
-        -Description 'Start the packaged Agent through the stable Desktop launcher' `
+        -EnvironmentVariables $childEnvironment `
+        -Description 'Start the packaged Agent as the sign-in entry does' `
         -TimeoutSeconds $ProcessTimeoutSeconds
     Wait-ForCondition `
         -Condition {
             @(Get-ProcessIdsByExecutablePath -ExecutablePath $agentExe).Count -eq 1
         } `
         -TimeoutSeconds 20 `
-        -FailureMessage 'The stable Desktop launcher did not leave one packaged Agent running.'
+        -FailureMessage 'The sign-in launch did not leave one packaged Agent running.'
     $liveAgentProcessIds = @(Get-ProcessIdsByExecutablePath -ExecutablePath $agentExe)
     if ($liveAgentProcessIds.Count -ne 1) {
         throw "Expected one live packaged Agent; found $($liveAgentProcessIds.Count)."
     }
     $liveAgentProcessId = $liveAgentProcessIds[0]
 
+    # The before-uninstall hook stops that agent, takes the sign-in entry and the drop broker's
+    # registration away, and leaves the data alone.
     $uninstallAttempted = $true
-    Invoke-CheckedProcess `
-        -FilePath $updateExe `
-        -ArgumentList @('--silent', 'uninstall') `
-        -EnvironmentVariables $childEnvironment `
-        -Description 'Silently uninstall StorageHub' `
-        -TimeoutSeconds $ProcessTimeoutSeconds
+    Invoke-Msiexec `
+        -ArgumentList @('/x', $installerFullPath) `
+        -LogPath (Join-Path $logRoot 'uninstall.log') `
+        -Description 'Silently uninstall StorageHub'
 
     Wait-ForCondition `
         -Condition {
             -not (Test-Path -LiteralPath $desktopExe) -and
             -not (Test-Path -LiteralPath $agentExe) -and
-            -not (Test-Path -LiteralPath $stableDesktopExe) -and
-            -not (Test-Path -LiteralPath $updateExe) -and
             (Test-ProcessHasExited -ProcessId $liveAgentProcessId)
         } `
         -TimeoutSeconds 45 `
@@ -502,29 +604,28 @@ try {
         throw 'StorageHub Explorer integration remained registered after uninstall.'
     }
     $brokerRegistered = $false
+    if ((Test-Path -LiteralPath 'HKCU:\Software\StorageHub\Installer') -or
+        (Test-Path -LiteralPath $startMenuShortcut)) {
+        throw 'The uninstall left the install record or the Start menu shortcut behind.'
+    }
 
     $completed = $true
-    Write-Host 'Installer smoke test passed: payload and lifecycle verified, live-Agent uninstall completed, and data was preserved.'
+    Write-Host 'Installer smoke test passed: payload, sign-in entry and hooks verified, live-Agent uninstall completed, and data was preserved.'
 }
 finally {
     if ($brokerRegistered) {
         Remove-Item -LiteralPath $brokerClassKey -Recurse -Force -ErrorAction SilentlyContinue
         Remove-Item -LiteralPath $brokerHandlerKey -Recurse -Force -ErrorAction SilentlyContinue
     }
-    if (-not $uninstallAttempted) {
-        $fallbackUpdateExe = Join-Path $installDirectory 'Update.exe'
-        if (Test-Path -LiteralPath $fallbackUpdateExe -PathType Leaf) {
-            try {
-                Invoke-CheckedProcess `
-                    -FilePath $fallbackUpdateExe `
-                    -ArgumentList @('--silent', 'uninstall') `
-                    -EnvironmentVariables $childEnvironment `
-                    -Description 'Best-effort cleanup uninstall' `
-                    -TimeoutSeconds $ProcessTimeoutSeconds
-            }
-            catch {
-                Write-Warning "Cleanup uninstall failed: $($_.Exception.Message)"
-            }
+    if ($installAttempted -and -not $uninstallAttempted -and (Test-StorageHubInstalledHere)) {
+        try {
+            Invoke-Msiexec `
+                -ArgumentList @('/x', $installerFullPath) `
+                -LogPath (Join-Path $logRoot 'cleanup-uninstall.log') `
+                -Description 'Best-effort cleanup uninstall'
+        }
+        catch {
+            Write-Warning "Cleanup uninstall failed: $($_.Exception.Message)"
         }
     }
 
@@ -546,6 +647,6 @@ finally {
         }
     }
     elseif (Test-Path -LiteralPath $smokeRoot) {
-        Write-Warning "Installer smoke diagnostics remain at '$smokeRoot'."
+        Write-Warning "Installer smoke diagnostics, msiexec logs included, remain at '$smokeRoot'."
     }
 }

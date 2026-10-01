@@ -1,0 +1,8 @@
+<Project>
+  <!-- Stops the repository's central package versions and lock files reaching the installer. The
+       WiX SDK it builds with is pinned where an SDK is named, in StorageHub.Installer.wixproj. -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
+  </PropertyGroup>
+</Project>

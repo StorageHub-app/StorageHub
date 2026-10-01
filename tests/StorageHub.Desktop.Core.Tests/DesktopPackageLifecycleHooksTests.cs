@@ -18,8 +18,13 @@ namespace StorageHub.Desktop.Tests;
 [System.Runtime.Versioning.SupportedOSPlatform("windows")]
 public sealed class DesktopPackageLifecycleHooksTests
 {
+    /// <summary>
+    /// The MSI's custom actions, as eng/installer/StorageHub.wxs runs them: the installed desktop
+    /// with --package-hook and a hook's name, in the order an install, an upgrade and an uninstall
+    /// reach them. A name the desktop does not know does nothing, and says so in its exit code.
+    /// </summary>
     [WindowsOnlyFact]
-    public void VelopackHooksRegisterRefreshStopAndUnregisterWithoutADataDeletionSurface()
+    public void InstallerHooksRegisterRefreshStopAndUnregisterWithoutADataDeletionSurface()
     {
         var fixture = CreateFixture(shutdownResult: true);
         var brokerUnregisterCalls = 0;
@@ -31,11 +36,16 @@ public sealed class DesktopPackageLifecycleHooksTests
                 return true;
             });
 
-        hooks.AfterInstall();
-        hooks.BeforeUpdate();
-        hooks.AfterUpdate();
-        hooks.BeforeUninstall();
+        foreach (var hook in new[] { "after-install", "before-update", "after-update", "before-uninstall" })
+        {
+            var named = DesktopPackageLifecycleHooks.Named(["--package-hook", hook]);
+            Assert.Equal(hook, named);
+            Assert.True(hooks.Run(named));
+        }
 
+        Assert.Null(DesktopPackageLifecycleHooks.Named(["--agent-only"]));
+        Assert.Null(DesktopPackageLifecycleHooks.Named(["--package-hook"]));
+        Assert.False(hooks.Run("delete-everything"));
         Assert.Equal(2, fixture.RunEntries.SetCalls.Count);
         Assert.Equal("StorageHub.Agent", Assert.Single(fixture.RunEntries.RemovedNames));
         Assert.Equal(

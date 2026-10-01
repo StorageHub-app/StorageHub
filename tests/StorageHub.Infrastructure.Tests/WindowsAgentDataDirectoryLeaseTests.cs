@@ -124,10 +124,12 @@ public sealed class WindowsAgentDataDirectoryLeaseTests : IDisposable
     }
 
     [WindowsOnlyFact]
-    public void Packaged_agent_resolves_the_complete_velopack_owned_tree()
+    public void Packaged_agent_resolves_the_complete_installed_tree()
     {
-        var applicationRoot = Path.Combine(_testRoot, "StorageHub.Desktop");
-        var agentDirectory = Path.Combine(applicationRoot, "current", "Agent");
+        var applicationRoot = Path.Combine(_testRoot, "StorageHub");
+        var agentDirectory = Path.Combine(applicationRoot, "Agent");
+        Directory.CreateDirectory(agentDirectory);
+        File.WriteAllText(Path.Combine(applicationRoot, "StorageHub.Desktop.exe"), string.Empty);
 
         var resolvedRoot = WindowsAgentDataDirectoryLease.ResolveApplicationOwnedTreeRoot(
             agentDirectory);
@@ -139,7 +141,7 @@ public sealed class WindowsAgentDataDirectoryLeaseTests : IDisposable
                 resolvedRoot));
         _ = Assert.Throws<WindowsAgentDataDirectoryException>(() =>
             WindowsAgentDataDirectoryLease.EnsureDataRootIsSeparateFromApplication(
-                Path.Combine(applicationRoot, "current", "Data"),
+                Path.Combine(applicationRoot, "Agent", "Data"),
                 resolvedRoot));
     }
 

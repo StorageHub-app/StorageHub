@@ -1,6 +1,7 @@
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
+using StorageHub.Desktop.Configuration;
 using StorageHub.Desktop.Updates;
 using Xunit;
 
@@ -153,6 +154,7 @@ public class SemanticReleaseTests
     [InlineData("2.0.0-beta.1", "2.0.0", false)]
     [InlineData("2.0.0", "2.0.0-beta.1", true)]
     [InlineData("2.0.0-beta.2", "2.0.0-beta.1", true)]
+    [InlineData("2.0.0-rc.10.gabc1234", "2.0.0-rc.9.gdef5678", true)]
     public void APreReleaseSortsBeforeItsRelease(string candidate, string current, bool expected) =>
         Assert.Equal(expected, SemanticRelease.IsNewer(candidate, current));
 
@@ -293,6 +295,172 @@ public class UpdateDownloadTests : IDisposable
         Assert.True(result.Succeeded, result.Message);
         Assert.Contains(100, seen.Percentages);
         Assert.Equal(seen.Percentages.OrderBy(percent => percent), seen.Percentages);
+    }
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_directory)) Directory.Delete(_directory, recursive: true);
+        GC.SuppressFinalize(this);
+    }
+}
+
+/// <summary>
+/// Finding a release on GitHub, fetching its MSI, and installing it once the shell has gone.
+/// </summary>
+/// <remarks>
+/// GitHub, the release's SHA256SUMS and the package are all answered here, by URL, so the whole
+/// path from "Check for updates" to msiexec runs without a network or an installed copy.
+/// </remarks>
+public sealed class GitHubReleaseUpdateTests : IDisposable
+{
+    private const string Download = "https://github.com/StorageHub-app/StorageHub/releases/download/";
+
+    private readonly string _directory = Path.Combine(
+        Path.GetTempPath(), $"storagehub-github-update-{Guid.NewGuid():N}");
+
+    private sealed class GitHub(Dictionary<string, byte[]> documents) : HttpMessageHandler
+    {
+        internal Dictionary<string, byte[]> Documents => documents;
+
+        internal List<string> Requested { get; } = [];
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var url = request.RequestUri!.AbsoluteUri;
+            Requested.Add(url);
+            return Task.FromResult(documents.TryGetValue(url, out var body)
+                ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(body) }
+                : new HttpResponseMessage(HttpStatusCode.NotFound));
+        }
+    }
+
+    private sealed class Msiexec : IUpdateInstaller
+    {
+        internal List<string> Launched { get; } = [];
+
+        public UpdatePackageKind Kind => UpdatePackageKind.Msi;
+
+        public bool ManagesThisCopy => true;
+
+        public string Architecture => "X64";
+
+        public bool Launch(string packagePath)
+        {
+            Launched.Add(packagePath);
+            return true;
+        }
+    }
+
+    private sealed class OneEngine(IDesktopUpdateEngine engine) : IDesktopUpdateEngineFactory
+    {
+        internal bool? AskedForPrereleases { get; private set; }
+
+        public IDesktopUpdateEngine Create(bool includePrereleases)
+        {
+            AskedForPrereleases = includePrereleases;
+            return engine;
+        }
+    }
+
+    private static string Release(string version, bool prerelease, bool draft, params string[] assets) =>
+        $$"""
+        { "tag_name": "v{{version}}", "draft": {{(draft ? "true" : "false")}}, "prerelease": {{(prerelease ? "true" : "false")}},
+          "published_at": "2026-09-30T12:00:00Z", "body": "Notes.",
+          "assets": [{{string.Join(',', assets)}}] }
+        """;
+
+    private static string Asset(string name, long size, string? url = null) =>
+        $$"""{ "name": "{{name}}", "size": {{size}}, "browser_download_url": "{{url ?? Download + "v" + name}}" }""";
+
+    /// <summary>
+    /// The scenario 1.4's updater covered, on the MSI: the newest stable release is chosen over a
+    /// release candidate nobody asked for, a draft, and a "newer" one whose package lives anywhere
+    /// but this repository's releases; the MSI is held to the release's SHA256SUMS; and "Restart
+    /// and install" closes the shell and leaves msiexec to start once it has gone. A SHA256SUMS
+    /// that does not match is a failed download, and the file is not kept.
+    /// </summary>
+    [Fact]
+    public async Task TheNewestStableReleaseIsFoundVerifiedAndInstalledOnceTheShellHasClosed()
+    {
+        var msi = Encoding.UTF8.GetBytes("an MSI for StorageHub 2.0.1, more or less");
+        var digest = Convert.ToHexString(SHA256.HashData(msi)).ToLowerInvariant();
+        var stableMsi = "StorageHub-2.0.1-win-x64.msi";
+        var stableMsiUrl = Download + "v2.0.1/" + stableMsi;
+        var stableSumsUrl = Download + "v2.0.1/SHA256SUMS";
+        var listing = "[" + string.Join(',',
+            Release("2.0.3", prerelease: false, draft: true,
+                Asset("StorageHub-2.0.3-win-x64.msi", msi.Length, Download + "v2.0.3/StorageHub-2.0.3-win-x64.msi"),
+                Asset("SHA256SUMS", 100, Download + "v2.0.3/SHA256SUMS")),
+            Release("9.0.0", prerelease: false, draft: false,
+                Asset("StorageHub-9.0.0-win-x64.msi", msi.Length, "https://example.invalid/StorageHub-9.0.0-win-x64.msi"),
+                Asset("SHA256SUMS", 100, "https://example.invalid/SHA256SUMS")),
+            Release("2.0.2-rc.3.gabc1234", prerelease: true, draft: false,
+                Asset("StorageHub-2.0.2-rc.3.gabc1234-win-x64.msi", msi.Length,
+                    Download + "v2.0.2-rc.3.gabc1234/StorageHub-2.0.2-rc.3.gabc1234-win-x64.msi"),
+                Asset("SHA256SUMS", 100, Download + "v2.0.2-rc.3.gabc1234/SHA256SUMS")),
+            Release("2.0.1", prerelease: false, draft: false,
+                Asset("storagehub_2.0.1_amd64.deb", 10, Download + "v2.0.1/storagehub_2.0.1_amd64.deb"),
+                Asset(stableMsi, msi.Length, stableMsiUrl),
+                Asset("SHA256SUMS", 100, stableSumsUrl))) + "]";
+        var github = new GitHub(new Dictionary<string, byte[]>
+        {
+            [GitHubReleaseFeed.ReleasesUrl] = Encoding.UTF8.GetBytes(listing),
+            [stableSumsUrl] = Encoding.UTF8.GetBytes(
+                $"{new string('0', 64)}  storagehub_2.0.1_amd64.deb\n{digest}  {stableMsi}\n"),
+            [stableMsiUrl] = msi,
+        });
+        using var client = new HttpClient(github);
+        var msiexec = new Msiexec();
+        using var engine = new StorageHubUpdateEngine(
+            new UpdateFeedOptions(GitHubReleaseFeed.ReleasesUrl, "2.0.0", IncludePrereleases: false),
+            client,
+            msiexec,
+            Path.Combine(_directory, "downloads"));
+        var store = new DesktopConfigStore(Path.Combine(_directory, "settings"));
+        store.Save(DesktopUpdatePreferences.Defaults with { IncludePrereleases = false });
+        var factory = new OneEngine(engine);
+        using var updater = new DesktopUpdater(store, factory);
+        var closes = 0;
+        updater.RestartRequested += (_, _) => closes++;
+        DesktopUpdateInstall.Reset();
+        try
+        {
+            var found = await updater.CheckForUpdatesAsync(TestContext.Current.CancellationToken);
+            Assert.Equal(DesktopUpdateState.UpdateAvailable, found.State);
+            Assert.Equal("2.0.1", found.Version);
+            Assert.False(factory.AskedForPrereleases);
+            Assert.DoesNotContain(github.Requested, url => url.Contains("example.invalid", StringComparison.Ordinal));
+
+            var fetched = await updater.DownloadAvailableAsync(TestContext.Current.CancellationToken);
+            Assert.Equal(DesktopUpdateState.ReadyToRestart, fetched.State);
+
+            // Nothing runs while the shell is open: the close is asked for, and msiexec is left to
+            // Program.Main, which starts it once the window has gone.
+            Assert.True(updater.ApplyAndRestart());
+            Assert.Equal(1, closes);
+            Assert.Equal(DesktopUpdateState.Installing, updater.Snapshot.State);
+            Assert.Empty(msiexec.Launched);
+            Assert.True(DesktopUpdateInstall.TryStart());
+            var launched = Assert.Single(msiexec.Launched);
+            Assert.Equal(msi, await File.ReadAllBytesAsync(launched, TestContext.Current.CancellationToken));
+            Assert.False(DesktopUpdateInstall.TryStart());
+
+            // The same release with a SHA256SUMS that names other bytes is refused, and the
+            // download it refused is not left behind to be run by hand.
+            File.Delete(launched);
+            github.Documents[stableSumsUrl] = Encoding.UTF8.GetBytes($"{new string('a', 64)}  {stableMsi}\n");
+            Assert.Equal(DesktopUpdateState.UpdateAvailable,
+                (await updater.CheckForUpdatesAsync(TestContext.Current.CancellationToken)).State);
+            Assert.Equal(DesktopUpdateState.Failed,
+                (await updater.DownloadAvailableAsync(TestContext.Current.CancellationToken)).State);
+            Assert.False(File.Exists(launched));
+            Assert.False(updater.ApplyAndRestart());
+        }
+        finally
+        {
+            DesktopUpdateInstall.Reset();
+        }
     }
 
     public void Dispose()
