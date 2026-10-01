@@ -202,7 +202,13 @@ ICU_DEPENDS="$(
   for version in $(seq 80 -1 63); do printf 'libicu%s | ' "$version"; done | sed 's/ | $//'
 )"
 
-DEPENDS="$SHLIB_DEPENDS, $ICU_DEPENDS, libssl3t64 | libssl3 | libssl1.1"
+# Avalonia's X11 backend is dlopened the same way, so dpkg-shlibdeps misses it too, and without
+# libICE the desktop aborted before its first window. These are the sonames Avalonia.X11 12.1
+# names: X11 and its extensions are needed to open a window at all. GTK (the native file
+# dialogs) and libGL (GPU drawing) each have a fallback, so they are only recommended.
+X11_DEPENDS="libx11-6, libice6, libsm6, libxcursor1, libxext6, libxfixes3, libxi6, libxrandr2"
+
+DEPENDS="$SHLIB_DEPENDS, $ICU_DEPENDS, libssl3t64 | libssl3 | libssl1.1, $X11_DEPENDS"
 
 install -d "$STAGE/DEBIAN"
 cat > "$STAGE/DEBIAN/control" <<CONTROL
@@ -214,7 +220,7 @@ Architecture: amd64
 Maintainer: StorageHub <noreply@storagehub.app>
 Installed-Size: $INSTALLED_KB
 Depends: $DEPENDS
-Recommends: liblttng-ust1 | liblttng-ust0
+Recommends: liblttng-ust1 | liblttng-ust0, libgtk-3-0t64 | libgtk-3-0, libgl1
 Description: Browse, transfer and synchronise local and remote storage
  StorageHub manages local, UNC, S3, FTP, FTPS and SFTP storage from one window,
  with a background agent that carries out transfers and scheduled synchronisation.
