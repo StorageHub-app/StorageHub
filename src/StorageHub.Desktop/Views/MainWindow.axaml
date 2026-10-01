@@ -127,11 +127,11 @@
 
     <!-- 1.4's StatusStrip: where the active pane is, what is selected, how fast the transfers
          move, the queue and the agent, one row tall with a line after each cell from the rate
-         on. The first cell also carries 1.4's short messages for a while, such as what was just
+         on, and 1.4's update link last. The first cell also carries 1.4's short messages for a while, such as what was just
          staged; the rate is 0 B/s while nothing moves, as 1.4's said. -->
     <Border DockPanel.Dock="Bottom" Classes="statusbar"
             AutomationProperties.Name="{x:Static vm:ShellPreviewModel.ApplicationStatusLabel}">
-      <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+      <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
         <TextBlock Grid.Column="0" Classes="muted status-cell" Text="{Binding ShellStatus.Location}"
                    TextTrimming="CharacterEllipsis"
                    AutomationProperties.Name="{x:Static vm:ShellPreviewModel.CurrentLocationLabel}"/>
@@ -157,6 +157,17 @@
                      Classes.down="{Binding ShellStatus.AgentIsDown}"/>
         </Button>
         <Border Grid.Column="8" Classes="statusbar-separator"/>
+        <!-- 1.4's update link, after the last line: what the updater last said, coloured as 1.4
+             coloured it, and a click opens the update window, as Help, Check for updates does. -->
+        <Button Grid.Column="9" Classes="status-cell link" Focusable="False"
+                Command="{Binding UpdateCheckCommand}"
+                ToolTip.Tip="{x:Static vm:ShellPreviewModel.UpdateStatusToolTip}"
+                AutomationProperties.Name="{x:Static vm:ShellPreviewModel.UpdateStatusLabel}">
+          <TextBlock Classes="update" Text="{Binding Update.Message}"
+                     Classes.ready="{Binding UpdateIsReady}"
+                     Classes.available="{Binding UpdateIsAvailable}"
+                     Classes.failed="{Binding UpdateFailed}"/>
+        </Button>
       </Grid>
     </Border>
 

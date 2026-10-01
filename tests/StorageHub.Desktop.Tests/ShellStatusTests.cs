@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
@@ -61,7 +62,8 @@ public class ShellStatusTests
     /// <summary>
     /// The bar does what 1.4's did: a click on the agent cell opens Agent control, whose tooltip
     /// says so until the agent says more, and a short message such as "clipboard cleared" stands in
-    /// the first cell for a while and then gives the location back.
+    /// the first cell for a while and then gives the location back. The last cell is 1.4's update
+    /// link: what the updater last said, coloured by it, and a click opens the update window.
     /// </summary>
     /// <remarks>
     /// Another pane picked does not write over it, as it did not redraw 1.4's bar. It used to, so
@@ -73,6 +75,8 @@ public class ShellStatusTests
         var model = ShellPreview.CreateOnWorkspace();
         var opened = 0;
         model.Router.Handle(UiCommandIds.ToolsBackgroundAgent, () => opened++);
+        var updatesOpened = 0;
+        model.Router.Handle(UiCommandIds.HelpCheckForUpdates, () => updatesOpened++);
         var window = new MainWindow { DataContext = model };
         window.Show();
         window.Measure(new Size(1500, 920));
@@ -80,12 +84,32 @@ public class ShellStatusTests
         var bar = window.GetVisualDescendants().OfType<Border>()
             .First(border => border.Classes.Contains("statusbar"));
 
-        var agent = bar.GetVisualDescendants().OfType<Button>().Single();
+        var cells = bar.GetVisualDescendants().OfType<Button>().ToArray();
+        Assert.Equal(2, cells.Length);
+        var (agent, update) = (cells[0], cells[1]);
         Assert.Equal(Ui.Shell.AgentControlsTooltip, ToolTip.GetTip(agent));
         var centre = agent.TranslatePoint(new Point(agent.Bounds.Width / 2, agent.Bounds.Height / 2), window)!.Value;
         window.MouseDown(centre, MouseButton.Left);
         window.MouseUp(centre, MouseButton.Left);
         Assert.Equal(1, opened);
+
+        Assert.Equal(Ui.Shell.CheckForUpdatesTooltip, ToolTip.GetTip(update));
+        Assert.Equal(Ui.Shell.UpdateStatus, AutomationProperties.GetName(update));
+        Assert.True(update.Bounds.X > agent.Bounds.X);
+        var updateText = update.GetVisualDescendants().OfType<TextBlock>().Single();
+        Assert.Equal(Ui.Validation.UpdatesIdle, updateText.Text);
+        model.ShowUpdate(new DesktopUpdateSnapshot(DesktopUpdateState.UpdateAvailable, "Update 2.0.1 available", "2.0.1"));
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal("Update 2.0.1 available", updateText.Text);
+        Assert.Contains("available", updateText.Classes);
+        model.ShowUpdate(new DesktopUpdateSnapshot(DesktopUpdateState.Failed, Ui.Validation.UpdatesCheckFailedTryAgainLater));
+        Dispatcher.UIThread.RunJobs();
+        Assert.Contains("failed", updateText.Classes);
+        Assert.DoesNotContain("available", updateText.Classes);
+        centre = update.TranslatePoint(new Point(update.Bounds.Width / 2, update.Bounds.Height / 2), window)!.Value;
+        window.MouseDown(centre, MouseButton.Left);
+        window.MouseUp(centre, MouseButton.Left);
+        Assert.Equal(1, updatesOpened);
 
         var location = model.ShellStatus.Location;
         model.MessageLifetime = TimeSpan.FromMilliseconds(50);

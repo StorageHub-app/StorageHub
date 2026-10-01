@@ -188,6 +188,7 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
 {
     private ShellStatusSnapshot _shellStatus = ShellStatusSnapshot.Initial;
     private string _agentToolTip = Ui.Shell.AgentControlsTooltip;
+    private DesktopUpdateSnapshot _update = DesktopUpdateSnapshot.Initial;
 
     /// <summary>Puts the location back once the last message has been up long enough.</summary>
     private IDisposable? _unsay;
@@ -498,6 +499,44 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
     /// <summary>What Tools > Background agent runs, which the status bar's agent cell runs too.</summary>
     public ICommand AgentControlCommand => Router.For(UiCommandIds.ToolsBackgroundAgent);
 
+    /// <summary>What Help > Check for updates runs, which the status bar's update cell runs too, as 1.4's link did.</summary>
+    public ICommand UpdateCheckCommand => Router.For(UiCommandIds.HelpCheckForUpdates);
+
+    /// <summary>
+    /// What the updater last said, in the status bar's last cell, as 1.4's update link said it.
+    /// </summary>
+    /// <remarks>
+    /// The updater's own words, "Updates: current (2.0.0)" or "Update 2.0.1 available", and 1.4's
+    /// colours: green once an update is ready or installing, amber while one waits to be fetched,
+    /// red when the check or the download failed, and muted otherwise.
+    /// </remarks>
+    public DesktopUpdateSnapshot Update
+    {
+        get => _update;
+        private set
+        {
+            if (_update == value) return;
+            _update = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Update)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(UpdateIsReady)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(UpdateIsAvailable)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(UpdateFailed)));
+        }
+    }
+
+    public bool UpdateIsReady => _update.State is DesktopUpdateState.ReadyToRestart or DesktopUpdateState.Installing;
+
+    public bool UpdateIsAvailable => _update.State is DesktopUpdateState.UpdateAvailable;
+
+    public bool UpdateFailed => _update.State is DesktopUpdateState.Failed;
+
+    /// <summary>Takes what the updater reports. Called on the UI thread.</summary>
+    internal void ShowUpdate(DesktopUpdateSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        Update = snapshot;
+    }
+
     /// <summary>
     /// The agent cell's tooltip: what the agent last said about itself, as 1.x's carried.
     /// </summary>
@@ -529,6 +568,10 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
     public static string QueueSummaryLabel => Ui.Shell.QueueSummary;
 
     public static string AgentStatusLabel => Ui.Shell.AgentStatus;
+
+    public static string UpdateStatusLabel => Ui.Shell.UpdateStatus;
+
+    public static string UpdateStatusToolTip => Ui.Shell.CheckForUpdatesTooltip;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 

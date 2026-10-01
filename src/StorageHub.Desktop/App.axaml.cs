@@ -152,6 +152,13 @@ public partial class App : global::Avalonia.Application
         var updater = Views.UpdateCheckerWindow.CreateUpdater();
         model.Router.Handle(
             UiCommandIds.HelpCheckForUpdates, () => ShowUpdateChecker(desktop, updater));
+
+        // 1.4's update link: the status bar's last cell says what the updater last said. And as
+        // in 1.4, an update that is to install closes the shell, the same way Exit does, so each
+        // changed workspace is asked about first; the installer starts once the shell has gone.
+        model.ShowUpdate(updater.Snapshot);
+        updater.StatusChanged += (_, snapshot) => Dispatcher.UIThread.Post(() => model.ShowUpdate(snapshot));
+        updater.RestartRequested += (_, _) => Dispatcher.UIThread.Post(() => window.Close());
         model.Router.Handle(UiCommandIds.HelpAboutStorageHub, () =>
         {
             var about = Views.AboutWindow.Create();
@@ -196,7 +203,23 @@ public partial class App : global::Avalonia.Application
         void OfferAgentHostMode(object? sender, EventArgs e)
         {
             window.Opened -= OfferAgentHostMode;
+            _ = CheckForUpdatesOnStartAsync();
             _ = AgentHostModeWindow.OfferOnceAsync(window);
+        }
+
+        // 1.4 checked once its window was shown, as the update settings say: not at all with
+        // automatic checks off, fetching what it found unless downloads are off, and installing
+        // it, which closes the shell, only with automatic restart on.
+        async Task CheckForUpdatesOnStartAsync()
+        {
+            try
+            {
+                await updater.RunAutomaticAsync(CancellationToken.None).ConfigureAwait(true);
+            }
+            catch (Exception error) when (error is OperationCanceledException or ObjectDisposedException)
+            {
+                // Closing the shell, or turning automatic checks off, ends the check.
+            }
         }
 
         // Everything the shell holds, closed before the window goes, after each changed workspace

@@ -943,6 +943,24 @@
     <Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/>
   </Style>
 
+  <!-- The update cell, in 1.4's colours for each state of the updater, with a hand over it, as
+       1.4's link had. -->
+  <Style Selector="Button.status-cell.link">
+    <Setter Property="Cursor" Value="Hand"/>
+  </Style>
+  <Style Selector="TextBlock.update">
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+  </Style>
+  <Style Selector="TextBlock.update.ready">
+    <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}"/>
+  </Style>
+  <Style Selector="TextBlock.update.available">
+    <Setter Property="Foreground" Value="{DynamicResource WarningBrush}"/>
+  </Style>
+  <Style Selector="TextBlock.update.failed">
+    <Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/>
+  </Style>
+
   <!-- An overview metric card: a surface with a coloured rail down its left edge, which is what
        UiCard drew by hand and re-tinted through the theme walker. -->
   <Style Selector="Border.metric">

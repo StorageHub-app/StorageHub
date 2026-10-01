@@ -51,19 +51,46 @@ applied, and chosen on the Appearance page (P.5.1).
 - [x] P.1.4 Load the framework and the language: `EnsureCreated`, `EnsureSupportedCultures`,
       `SeedShippedTranslations`, `Ui.UseFramework`. 2.0 is English whatever is configured.
       `Framework/DesktopFrameworkHost.cs`.
-- [ ] P.1.5 Installers: a plain WiX MSI on Windows and the .deb on Linux, nothing else (decided
+- [x] P.1.5 Installers: a plain WiX MSI on Windows and the .deb on Linux, nothing else (decided
       2026-09-26). Velopack goes: drop `vpk` from `eng/package-windows.ps1` (no Setup.exe, no portable
       ZIP), and the hooks in `DesktopPackageLifecycleHooks` become MSI custom actions -- autostart on
       install and upgrade, stop the agent before upgrade and uninstall, remove the Run entry and the
       drop broker's COM registration on uninstall. `DesktopUpdater` is Velopack-based and needs a
       replacement: find the newer release, download its MSI, verify it, and run it. Update
       `docs/releasing.md` and `eng/test-windows-installer.ps1` to match.
+      `eng/installer` is a WiX SDK project (NuGet, `dotnet build`, kept out of the solution) that
+      the packaging script builds from its staged folder and then reads back to check. Per-user, as
+      1.4 was: `%LOCALAPPDATA%\Programs\StorageHub`, Agent beside the desktop, no elevation, a Start
+      menu shortcut, and the folder recorded under `HKCU\Software\StorageHub\Installer`. The custom
+      actions run the installed desktop with `--package-hook`: the copy being replaced stops the
+      agent before Windows Installer looks for files in use, on upgrade and uninstall; install
+      registers the sign-in entry and an upgrade keeps it only for the mode in force; uninstall
+      also takes the Run entry and the drop broker's registration. The older package's removal
+      inside an upgrade runs no uninstall hook, and the data is never touched. The updater reads
+      the GitHub releases, as 1.4's did, offers the newest newer one with
+      `StorageHub-<version>-win-x64.msi` and a SHA256SUMS naming it (candidates only when asked
+      for, drafts never, downloads only from the repository's own releases), holds the MSI to
+      that digest and GitHub's size, and starts `msiexec /i /qb` with `STORAGEHUB_RELAUNCH=1` once
+      the shell has closed; the MSI reopens StorageHub. Releases are unsigned, so there is no
+      signature to check yet. A copy the MSI did not install is never updated. Candidates now
+      compare by number (rc.10 after rc.9). The locked restore in the packaging script also
+      stopped naming the runtime, which had broken it against the two-RID lock files. Not run
+      here: installing, upgrading and uninstalling for real, which would stop the dev agent on
+      this user's pipe; `eng/test-windows-installer.ps1` does that on a disposable machine, with
+      `-PreviousBundleRoot` for the upgrade.
 - [x] P.1.6 `--agent-only` (the sign-in autostart) ensures the agent and exits without a window, and
       honours `STORAGEHUB_DISABLE_AUTOSTART`; intercept `--version/--info/--health/--dry-run/
       --generate-configs` before the framework. `Program.cs:15-53`; `DesktopCommandLine` is uncalled.
 - [x] P.1.7 Register the Explorer drop broker on launch (`ExplorerDropBrokerInstaller.EnsureRegistered`).
-- [ ] P.1.8 Update check on start, close the shell when an update is installing, and the update link in
+- [x] P.1.8 Update check on start, close the shell when an update is installing, and the update link in
       the status bar -- on the MSI updater from P.1.5. `MainForm.cs:246-250, 3604-3693`.
+      The check runs once the window is up, by the update settings: none with automatic checks
+      off, a download unless downloads are off, and an install only with automatic restart on.
+      An update to install closes the shell as Exit does, asking about changed workspaces, and a
+      close cancelled there leaves it to install when StorageHub does close. The status bar's last
+      cell, after the last line, is 1.4's link: the updater's own words in 1.4's colours (green
+      ready or installing, amber available, red failed, muted otherwise), 1.4's tooltip and
+      accessible name, and a click opens the update window.
 - [x] P.1.9 Stop the agent on exit in "only while StorageHub is open" mode (`DesktopStopsAgent`); ask to
       save each changed workspace before closing; make shutdown finish before the process exits (the
       async `ShutdownRequested` handler is not awaited). The save prompt came with P.3.1: Cancel on
@@ -239,8 +266,8 @@ applied, and chosen on the Appearance page (P.5.1).
       nothing chosen reads "No connection" rather than "/". The bar is 1.4's 22 px, one row with a
       thin line after each cell from the rate on, and each cell has 1.4's accessible name.
       A refused paste or drop is 1.4's "Transfer queue" warning rather than a message here (P.4.14).
-      Left open: on Logs the queue count holds its last reading, as the queue is not read there; the
-      update cell after the last line, and the room it took, come with P.1.8. 1.4 also wrote over a
+      Left open: on Logs the queue count holds its last reading, as the queue is not read there. The
+      update cell after the last line came with P.1.8. 1.4 also wrote over a
       message when the queue counts changed, which 2.0 leaves to the eight seconds. A created file
       or folder, a rename, a send to the Recycle Bin, a delete and "Edited file uploaded" are said
       on the pane's own status line, where 1.4 said them in the bar's first cell. A new file or
