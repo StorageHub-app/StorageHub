@@ -11,24 +11,28 @@ A stable release is cut by tagging, so the decision is recorded in git before
 anything is published and the tag names the exact commit that ships. How the
 number is chosen is in [Versioning and merges](versioning.md).
 
-`main` is protected, so steps 1 and 3 arrive through a pull request like any
-other change. Only the tag is pushed directly, because a tag is not a branch.
+Steps 1 and 3 are ordinary changes to `main`, pushed or merged like any other.
+The tag is pushed on its own, after the commit it names has built.
 
 ```powershell
-# 1. In a pull request: rename the changelog's Unreleased heading to the version
-#    and today's date, open a fresh Unreleased above it, and confirm
-#    Directory.Build.props already declares that version:
-#    <VersionPrefix>1.4.2</VersionPrefix>
-#    Merging it publishes one more candidate.
+# 1. Rename the changelog's Unreleased heading to the version and today's date,
+#    open a fresh Unreleased above it, and confirm Directory.Build.props already
+#    declares that version:
+#    <VersionPrefix>2.0.0</VersionPrefix>
+#    Pushing it publishes one more candidate.
 
-# 2. Tag the merged commit. This publishes the stable release.
-git tag v1.4.2 <the merge commit>
-git push origin v1.4.2
+# 2. Tag that commit. This publishes the stable release and makes it Latest.
+git tag v2.0.0 <the commit>
+git push origin v2.0.0
 
-# 3. In a second pull request: open the next line of development, which returns
-#    main to candidates.
-#    Directory.Build.props: <VersionPrefix>1.4.3</VersionPrefix>
+# 3. Open the next line of development, which returns main to candidates.
+#    Directory.Build.props: <VersionPrefix>2.0.1</VersionPrefix>
 ```
+
+`main` is the 2.0 line. Until `v2.0.0` is pushed, 2.0 ships only as
+candidates and 1.4.5 stays Latest; 1.4 itself is kept on the `1.x-archive`
+branch, which CI does not build. See
+[Versioning and merges](versioning.md#lines-of-development).
 
 The tag must match the `VersionPrefix` declared by the commit it points at. A
 tag that disagrees fails the build rather than publishing a release whose
@@ -110,10 +114,18 @@ fixed upgrade code, and a release candidate carries its release's
 same release.
 
 Uninstall removes program files, the shortcut, the install record, and
-autostart registration, but deliberately preserves `%LOCALAPPDATA%\StorageHub`,
-and an upgrade never touches it. Deleting durable state, connection profiles,
-trust decisions, schedules, or the encrypted vault requires a separate explicit
-user action.
+autostart registration, but deliberately preserves the agent's data in
+`%PROGRAMDATA%\StorageHub` and the desktop's preferences in
+`%LOCALAPPDATA%\StorageHub`, and an upgrade never touches either. Deleting
+durable state, connection profiles, trust decisions, schedules, or the
+encrypted vault requires a separate explicit user action.
+
+The .deb installs into `/opt/storagehub`, with a `storagehub` launcher, a menu
+entry, and the agent's user unit `storagehub-agent.service` under
+`/usr/lib/systemd/user`. It enables the unit for nobody: each user does that
+with `systemctl --user enable --now storagehub-agent`, which needs no
+privilege. Removing the package stops the agent for whoever is signed in; the data under
+each user's `~/.local/share/storagehub` is left alone.
 
 ## Updates
 
@@ -132,7 +144,7 @@ The package is chosen by the machine's architecture
 copy running under emulation on Windows on ARM is therefore offered the native
 ARM64 MSI, which replaces it as an ordinary upgrade.
 
-The MSI is checked before anything runs it: its size must be the one GitHub
+The package is checked before anything runs it: its size must be the one GitHub
 lists, and its SHA-256 the one the release's `SHA256SUMS` gives; a download
 that fails either is deleted. Releases are not yet Authenticode-signed, so
 there is no signature to check; that integrity check is not a substitute for
@@ -143,7 +155,9 @@ changed workspace first, and only once it has closed starts
 `msiexec /i <msi> /qb /norestart STORAGEHUB_RELAUNCH=1`, logging beside the
 download. The package stops the agent, upgrades, and reopens StorageHub. A
 close cancelled at the save prompt leaves the update to install when
-StorageHub does close.
+StorageHub does close. On Linux the same step runs
+`pkexec apt-get install <deb>`, so polkit asks for the password and apt
+resolves anything the new package depends on.
 
 Automatic checks on start, automatic downloads, release candidate inclusion,
 and automatic restart are persisted per user; automatic restart is opt-in.

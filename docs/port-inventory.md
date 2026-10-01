@@ -41,20 +41,19 @@ the Directory tree toggle, Transfer queue toggle, Cancel selected -- and are not
 
 ## Where the work happens, and where the old app is
 
-2.0 is built on the **`2.0` branch**. `main` stays on 1.4 until the port is finished, and is then
-replaced by it -- so nothing that is half-ported is ever what `main` says StorageHub is, and CI's
-release jobs, which fire on a push to `main`, stay pointed at something shippable.
+2.0 was built on a `2.0` branch while `main` stayed on 1.4, so nothing half-ported was ever what
+`main` said StorageHub is. The port is done and `main` is now 2.0; CI's release jobs, which fire on
+a push to `main`, publish 2.0 candidates.
 
-| Branch | Commit | What it is |
-|---|---|---|
-| **`2.0`** | working branch | Where 2.0 is built. The Avalonia shell, no WinForms. |
-| `main` | `2db3820` | 1.4, and still what the remote's `main` is. Replaced by `2.0` when the port is done. |
-| `1.x` | `2db3820` | The 1.4 product, kept under its own name so `main` can move without losing it. |
-| `winforms-reference` | `522514f` | The last tree holding both shells, with the WinForms screens beside the `Desktop.Core` they were extracted into. For when the extracted form is the one worth reading. |
+| Branch | What it is |
+|---|---|
+| **`main`** | 2.0: the Avalonia shell, no WinForms. Every push publishes a candidate. |
+| `1.x-archive` | The last commit of the 1.4 line, `2db3820` (published as the 1.4.6-rc.135 candidate, after 1.4.5), kept so `main` could move without losing it. Not built by CI. |
+| `winforms-reference` | Local only, not pushed. The last tree holding both shells, at `522514f`, with the WinForms screens beside the `Desktop.Core` they were extracted into. For when the extracted form is the one worth reading. |
 
 ### The old app, on disk
 
-`C:\Projects\StorageHubOld` is a git worktree of `1.x` -- the whole 1.4 tree as real files, with no
+`C:\Projects\StorageHubOld` is a git worktree of the local `1.x` branch, at the same commit as `1.x-archive` -- the whole 1.4 tree as real files, with no
 2.0 code in it. Read and grep it directly:
 
 ```

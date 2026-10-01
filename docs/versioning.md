@@ -10,7 +10,7 @@ StorageHub versions are `MAJOR.MINOR.PATCH`. One number is declared in one place
 `Directory.Build.props`:
 
 ```xml
-<VersionPrefix>1.4.2</VersionPrefix>
+<VersionPrefix>2.0.0</VersionPrefix>
 ```
 
 Everything else follows from it: assembly versions, the installer, the update
@@ -43,7 +43,22 @@ Every successful push to `main` publishes a prerelease,
 they differ in the version they carry and how the release is marked.
 
 So `main` always carries the *next* version, not the last one released. After
-1.4.2 is tagged, `main` moves to 1.4.3 and starts publishing 1.4.3 candidates.
+1.4.2 was tagged, `main` moved to 1.4.3 and started publishing 1.4.3 candidates.
+
+## Lines of development
+
+`main` is StorageHub 2.0: the Avalonia desktop, on Windows and Linux, declaring
+`2.0.0`. It publishes `2.0.0-rc.<run>.g<sha>` candidates until `v2.0.0` is
+tagged. The first, `2.0.0-rc.1`, was published by hand before the ARM64 and
+Linux CI jobs existed; every candidate since comes from CI. Until 2.0.0 is
+tagged, 1.4.5 stays the release marked Latest.
+
+1.4 is preserved on the `1.x-archive` branch, the last commit of the WinForms
+line. It is kept for reference and is not built by CI: the workflow only
+publishes from `main` and from version tags. A fix that has to reach 1.4 users
+after this point would need its own decision about where it is built and how it
+is numbered, since a candidate can never carry a lower version than one already
+published from `main`.
 
 ## The changelog
 
@@ -62,15 +77,14 @@ after.
 
 ## Getting a change into `main`
 
-`main` is protected. It is always releasable, because a push to it publishes a
-candidate that an installation can take.
+`main` is always releasable, because a push to it publishes a candidate that an
+installation can take. Nothing is published unless the whole gate passes on the
+pushed commit: Release build, the whole test suite, the dependency audit, the
+provider conformance fixtures, and a silent install and removal of every
+package on a runner of its own architecture. A failed push produces no release.
 
-1. Branch.
-2. Open a pull request. CI runs the full gate: Release build, the whole test
-   suite, the dependency audit, the provider conformance fixtures, and a silent
-   install and uninstall of the packaged result.
-3. Turn on auto-merge. It squashes and lands the branch unattended once the
-   required checks pass, and deletes the branch.
+A change arrives either as a commit pushed to `main` by the maintainer, or
+through a pull request, which runs the same gate without publishing anything:
 
 ```powershell
 git switch -c short-description-of-the-change
@@ -80,10 +94,8 @@ gh pr create --fill
 gh pr merge --auto --squash
 ```
 
-Direct pushes to `main` are refused, including for administrators. That is
-deliberate: the thing being protected is not code review, which one maintainer
-cannot give themselves, but the guarantee that nothing reaches `main` without
-having built, tested, packaged and installed cleanly first.
+`main` has no branch protection at present, so nothing but the gate stands
+between a push and a published candidate. Run the tests before pushing.
 
 A squash lands one commit per pull request, so the subject line is what the
 history reads as. See [Contributing](../CONTRIBUTING.md) for what belongs in it.

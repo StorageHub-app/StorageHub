@@ -1,20 +1,24 @@
 # Architecture
 
 StorageHub separates file semantics, provider integration, durable execution,
-Windows security, and presentation so that a provider SDK cannot define the
-application's safety rules.
+operating-system security, and presentation so that a provider SDK cannot define
+the application's safety rules. One source tree builds for Windows and Linux;
+what differs between them is kept behind a platform seam in the agent, the IPC
+transport, and the vault's key store.
 
 ## Runtime shape
 
 ```text
-StorageHub.Desktop (WinForms, custom-painted)
+StorageHub.Desktop (Avalonia) over StorageHub.Desktop.Core
             |
-            | versioned current-user named pipe
+            | versioned current-user channel:
+            | a named pipe on Windows, a Unix domain socket on Linux
             v
-StorageHub.Agent.Windows (CodeLogic lifecycle)
+StorageHub.Agent.Host (CodeLogic lifecycle)
        |            |             |
        v            v             v
-  SQLite/WAL    DPAPI vault   scheduler/engine seams
+  SQLite/WAL    vault (DPAPI   scheduler/engine seams
+                or 0600 key)
                                     |
                                     v
                          StorageHub.Storage contract
@@ -25,12 +29,19 @@ StorageHub.Agent.Windows (CodeLogic lifecycle)
                    local / S3 / FTP(S) / SFTP / ...
 ```
 
+The agent runs as the signed-in user on both platforms, never as a service. On
+Windows it is started at sign-in by a per-user Run entry, or alongside the
+window only; on Linux it is the `storagehub-agent` unit under `systemd --user`.
+Its data root is `%PROGRAMDATA%\StorageHub` on Windows, protected to the user's
+account, and `$XDG_DATA_HOME/storagehub` (`~/.local/share/storagehub`) on Linux.
+`STORAGEHUB_DATA_ROOT` overrides either.
+
 The desktop is intended to be disposable presentation state. The agent owns
 long-running work and durable state. It exposes status, request-scoped saved
 connection discovery/testing, paged storage listing, optimistic profile CRUD,
 profile-bound certificate/host-key trust decisions and atomic rollover,
-durable transfer queue commands, sync preview/apply management, and preview-only
-schedule management. A separate current-user-only channel owns secret enrollment
+durable transfer queue commands, sync preview/apply management, and schedule
+management. A separate current-user-only channel owns secret enrollment
 and rotation. The desktop uses these operations for bounded remote browsing,
 Connection Manager, saved-pane file transfers, queue control, sync review, and
 schedule editing. A dedicated read-only inspector contract exposes bounded object
@@ -43,22 +54,26 @@ remain outside that contract.
 | --- | --- |
 | `StorageHub.Contracts` | Stable results and versioned IPC data transfer objects |
 | `StorageHub.Domain` | Strong IDs, root-safe addresses, entries, and capabilities |
-| `StorageHub.Application` | CodeLogic application lifecycle and validated connection-profile model |
+| `StorageHub.Application` | CodeLogic application lifecycle, validated connection-profile model, and the shared key/certificate store model with reference-counted profile bindings |
 | `StorageHub.Storage` | Provider-neutral asynchronous endpoint/session contract |
 | `StorageHub.Storage.CodeLogic` | Vault/trust-aware profile connector, runtime-only `CL.Storage` adapter, and streaming write bridge |
 | `StorageHub.Transfers` | Transfer intent, state, durable-store contracts, checkpoints, bounded copy, and verified move behavior |
 | `StorageHub.Sync` | Three-way classification, deletion policy, immutable plans, execution approvals, and plan execution |
 | `StorageHub.Persistence` | SQLite configuration/migrations and durable profile, trust, scheduler, transfer, sync, execution, and outbox stores |
 | `StorageHub.Security` | Opaque secret references, vault contracts/envelopes, trust contracts |
-| `StorageHub.Application.Credentials` | Shared key/certificate store model, derived non-sensitive summaries, and reference-counted profile bindings |
-| `StorageHub.Infrastructure.Windows` | Windows DPAPI and restricted runtime-secret files |
-| `StorageHub.Agent` | Runtime coordination, named-pipe IPC, schedules, and scheduler contracts |
-| `StorageHub.Agent.Windows` | CodeLogic console host and database/vault/worker composition, storage browsing, profile/transfer/sync/schedule IPC, and dedicated secret IPC |
-| `StorageHub.Desktop.WinForms` | High-DPI WinForms multi-pane shell with a custom-painted element set, owned Light/Dark/System themes, English/Danish/German localization, asynchronous local/remote browsers, saved-pane transfers, queue/sync/schedule management, Connection Manager, and agent-status monitor |
+| `StorageHub.Infrastructure` | The vault's master-key stores (Windows DPAPI current-user, or a 0600 key file on Linux), restricted runtime-secret files, and the Windows data-directory lease |
+| `StorageHub.Ipc` | Length-prefixed JSON IPC with protocol negotiation, over current-user named pipes on Windows and peer-checked Unix domain sockets on Linux |
+| `StorageHub.Agent` | Runtime coordination, host modes and data-root layout, per-platform agent hosting (Windows Run entry, systemd user unit), schedules, and scheduler contracts |
+| `StorageHub.Agent.Host` | The agent executable: CodeLogic console host and database/vault/worker composition, storage browsing, profile/transfer/sync/schedule/key-store/terminal IPC, and dedicated secret IPC |
+| `StorageHub.Agent.Windows` | A residual Windows-only assembly with no code of its own, still referenced by the host |
+| `StorageHub.Desktop.Core` | Everything the desktop decides that is not drawing: controllers, agent clients and lifecycle (packaged MSI or systemd), workspaces and `.shw` files, settings and their export, the updater, the VT terminal emulator, colour schemes, and English/Danish/German strings |
+| `StorageHub.Desktop` | The Avalonia shell: views, design tokens and control themes, and the multi-pane workspace, connections panel, transfer queue, sync, Settings, and dialogs |
+| `StorageHub.ShellExtension.Native` | The native Explorer drop broker (Windows only) that lets a remote connection's files be dragged out to Explorer |
 | `StorageHub.Diagnostics` | Allow-list policy for safe diagnostic artifacts |
 
-Core projects target `net10.0`. Windows hosts target Windows-specific TFMs; only
-those layers may depend on WinForms or operating-system security APIs.
+Every managed project targets `net10.0`. Code that only works on one system says
+so with `SupportedOSPlatform` and is reached through a platform seam, so the
+same assemblies ship in the Windows and Linux packages.
 
 ## Storage contract
 
@@ -137,7 +152,7 @@ revisions, exclusive fenced claims, renewable leases, monotonic versioned
 checkpoints, retry availability, and atomic attempt closure. Its recovery marks
 expired in-flight ownership as interrupted while preserving live leases;
 migrated legacy in-flight rows without root identity are held for reconciliation.
-The Windows agent composes the worker and bounded queue IPC. Manual enqueue
+The agent host composes the worker and bounded queue IPC. Manual enqueue
 reuses a stable transfer ID after a lost acknowledgement and surfaces unresolved
 ambiguity instead of creating an invisible duplicate.
 
@@ -161,10 +176,12 @@ tokens. It bounds global concurrency, prevents overlapping runs for a profile,
 samples lease time only after acquiring the cross-process write lock, bounds
 renewal calls by the remaining lease, rejects stale completion, records exact
 completion retries through the schema-v4 immutable journal, records misfires, and
-can retain at most one queued occurrence. The Windows host composes a fenced
-runner that records a durable preview outbox event. Schedule management is
-intentionally preview-only: a schedule cannot create an execution approval or
-request unattended provider mutation.
+can retain at most one queued occurrence. The agent host composes a fenced
+runner that records a durable outbox event. A schedule is either review-only,
+preparing a plan that waits for approval, or safe-automatic, which runs
+unattended only when the plan adds or replaces files: a plan with a deletion, a
+conflict, or a changed permission waits for approval whatever the mode. A new
+schedule starts on the time zone Settings names, the system's own by default.
 
 ## Persistence and recovery
 
@@ -196,52 +213,28 @@ concurrency protocols. Transfer, sync-outbox, and scheduler workers are composed
 into the agent; schema presence alone is still not treated as feature completion.
 
 Initialization can report recovery-only operation instead of starting mutating
-subsystems after a database failure. The Windows host composes real database,
+subsystems after a database failure. The agent host composes real database,
 vault, transfer, sync-outbox, scheduler, and IPC health checks under the CodeLogic
 lifecycle.
 
 ## Desktop presentation
 
-The shell is WinForms, but its inputs are not. `StorageHubFieldChrome` holds one
-set of metrics -- padding, corner radius, the width of the zone a trailing glyph
-or stepper occupies -- and the painting that draws a field from them, in a
-standard and a dense variant. `StorageHubTextField`, `StorageHubChoiceField`,
-`StorageHubNumberField`, `StorageHubTimeField`, `StorageHubToggle`,
-`StorageHubCheckBox`, and `StorageHubButton` are built on it, so a field is the
-same height and sits on the same baseline whether it appears in Settings, in a
-dialog, or hosted in a toolbar. Toolbars use the dense variant through
-`ToolStripControlHost` wrappers rather than the stock `ToolStripTextBox` and
-`ToolStripComboBox`, which cannot be themed.
+The shell is Avalonia, on Fluent's controls restyled rather than replaced. The
+logic behind each screen lives in `StorageHub.Desktop.Core`, which holds no
+views, so most of it is tested without a window; `StorageHub.Desktop` holds the
+views and binds them to it.
 
-Every metric is written as a logical unit and converted with
-`Control.LogicalToDeviceUnits`. A literal pixel in layout code is a bug on a
-scaled display, and most of this project's DPI defects have been exactly that.
-`DisplayMetrics` supplies the `Padding` and `Point` conversions WinForms leaves
-out; the framework converts only an `int` and a `Size`, and the two shapes it
-omits are the ones layout code writes most, which is why the rule went unapplied
-for so long outside the custom controls.
+Every margin, padding, radius, height, and font size comes from
+`Themes/DesignTokens.axaml`, and every colour from a scheme's tokens. The
+twenty-two schemes in `ColorSchemeCatalog` write only colours; each brush in the
+tokens points at its colour by name, so applying a scheme repaints the live tree
+without walking it, and a scheme looks the same on Windows and Linux.
+[UI rules](ui-rules.md) lists the layout rules and the test that holds each.
 
-Nothing is left to the framework's own scaling. Every form sets
-`AutoScaleMode.Dpi` but none assigns `AutoScaleDimensions`, so WinForms
-initializes it to the current DPI and the automatic pass is a no-op by
-construction. That is deliberate rather than accidental: the automatic pass only
-ever scales the tree that exists when a container is first laid out, and this
-shell builds most of its surface afterwards — panes per workspace tab, rows per
-settings page, cards per connection. Converting at the point of use is the only
-form of it that reaches those.
-
-Two consequences are easy to forget. A rasterised glyph has to be drawn at the
-size it was rasterised for, so `ToolStrip.ImageScalingSize` is converted too --
-the framework never scales it, and left alone it resamples a 125% glyph back down
-to its 96-DPI extent. And a metric a control compares against measured text has
-to be in device units, because `TextRenderer` measures in device units: a column
-width left logical is compared against text a quarter larger than itself at 125%.
-
-Settings pages are composed rather than positioned: `SettingsRow` puts a title
-and its description on the left and the control on the right, `SettingsCard`
-stacks rows and draws the dividers between them, `SettingsCaption` labels a
-group, and `SettingsPagePanel` scrolls the column. A page therefore cannot drift
-out of alignment with the others, because none of them carry coordinates.
+The shell is laid out against 1.4's, which is kept as reference shots in
+`docs/ui-reference/`. Headless tests render the shell and its windows at
+several scalings in both themes, and write the pictures to `STORAGEHUB_SHOT_DIR`
+when it is set, so a change to a screen can be looked at as well as asserted on.
 
 The toolbar's contents are a saved list of command ids -- ids rather than labels
 or indices, so a customised toolbar survives a language change and a command

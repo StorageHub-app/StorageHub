@@ -3,6 +3,11 @@
 What is left before 2.0 ships, in order. Each numbered item is one commit (or a few), ticked off when it
 lands. The Avalonia port's screens 1–9 are done; this picks up from there.
 
+2.0 is now `main`, and 1.4 is kept on the `1.x-archive` branch. Sections P (behaviour) and L (look) are
+ticked through, and 2.0 ships as pre-releases until `v2.0.0` is tagged: `2.0.0-rc.1` by hand, x64 only,
+then a CI candidate for every push, for Windows and Linux on x64 and ARM64. 1.4.5 stays the Latest
+release until then.
+
 **Ground rules**
 
 - CodeLogic.Storage is frozen at 4.8.95. It moves bytes; StorageHub keeps its own transfer queue, sync

@@ -18,6 +18,11 @@ chosen is written down in [Versioning and merges](docs/versioning.md).
 
 ## Unreleased
 
+What follows is StorageHub 2.0, published as release candidates until 2.0.0 is
+tagged: `2.0.0-rc.1` by hand, then one for every push to `main`. 1.4.5 stays the
+release marked Latest until then, and the 1.4 source is kept on the
+`1.x-archive` branch.
+
 **StorageHub 2.0: a new shell, and one place its data lives.** The desktop is
 rewritten on AvaloniaUI and runs on Windows and Linux from the same source. The
 WinForms shell is gone -- 35,686 lines of it -- and with it the DPI machinery,
@@ -33,7 +38,20 @@ cannot take a data root that LocalSystem owns. `eng/remove-legacy-agent-service.
 does both halves, elevated. There is no migration of the old vault and there
 cannot be -- it is protected with the machine's DPAPI key and the new one with
 yours, so its entries could not be read across the move even if the files were
-kept.
+kept. A 1.4 installation that ran its agent in your session kept its database
+under `%LOCALAPPDATA%\StorageHub`, which 2.0 does not read either; the
+installation check points at it, and a 1.4 settings export is refused rather
+than imported with its shortcuts bound to the wrong keys. Workspace files are
+the same `.shw` 1.4 wrote, and open in both.
+
+**It works as 1.4 did.** Every screen of 1.4 was ported, and then compared with
+1.4 code against code and picture against picture until each row of
+[the port inventory](docs/port-inventory.md) was done or deliberately dropped:
+the Welcome page, workspaces with their folder tree and paging, the transfer
+queue, sync tasks, schedules and run review, the connection editor, the key
+store, the object inspector, Settings, favourites, shortcuts, the toolbar
+layout, the SSH terminal, drag and drop with Explorer, the updater, and Danish
+and German. What still differs from 1.4 is named in its row, with the reason.
 
 What is better rather than merely different: the connections panel holds groups
 you make and drag between, instead of a fixed Storage/Clients split, with a
@@ -42,45 +60,44 @@ arrangements. Transfers stage and paste, so "the other pane" no longer has to
 mean anything. Panes browse this computer through the same object they browse a
 bucket with. Twenty-two colour schemes, identical on both platforms.
 
-Still being ported, and tracked in [the port inventory](docs/port-inventory.md):
-the SSH terminal's painter, the sync screens, drag and drop, the key store and
-the object inspector.
+**Linux.** A `.deb` for Debian and Ubuntu installs into `/opt/storagehub` and
+runs the agent per user under `systemd --user`, as the `storagehub-agent` unit,
+with no root and no service. Its vault key is a file only your account can
+read, which is what DPAPI's current-user scope gives on Windows; the keyring was
+passed over because a lingering agent has to read its vault with nobody signed
+in. Files dropped in from Nautilus or Dolphin go through the same review as an
+Explorer drop. A remote connection's rows cannot be dragged out to a Linux file
+manager, which takes only files that already exist.
 
+**Four installers, one checksum file.** Windows ships a plain per-user WiX MSI
+in place of Velopack's Setup.exe and portable ZIP: no elevation, the same
+install folder as 1.4, a sign-in entry for the agent, and the agent stopped
+before an upgrade or removal. Every release carries it for x64 and ARM64 beside
+an amd64 and an arm64 `.deb`, each built, installed and smoke-tested by CI on a
+runner of its own architecture, all under one `SHA256SUMS` and with GitHub
+artifact attestations. They are not code-signed yet. The updater reads the
+GitHub releases, picks the package for the machine's own architecture -- so an
+x64 copy on an ARM64 PC is offered the ARM64 MSI -- holds it to `SHA256SUMS`
+and GitHub's size, and installs it once StorageHub has closed: through
+`msiexec` on Windows, and through `apt` under polkit on Linux.
 
-**Updating no longer kills a service-hosted agent.** Before applying an update
-the desktop asked the agent to shut down, so that files were not swapped
-underneath it. It asked unconditionally -- and a service-hosted agent answers
-the same pipe, so it obliged. The service control manager had issued no stop,
-so Windows recorded an unexpected termination, and with no failure actions
-configured it left the service stopped. Every single update therefore ended
-with "the StorageHub background agent did not become ready in time", on a
-machine where nothing was wrong until the update ran.
+**An SSH key without a passphrase is accepted.** 1.4 refused one. It is kept
+encrypted in the vault like any other, the library is handed no passphrase for
+it, and importing or choosing one warns that a passphrase is still recommended.
 
-The stop now applies only to an agent this desktop started. There was nothing
-to get out of the way in the first place: an update replaces the application,
-not the machine-owned copy the service runs from. Uninstalling is the same --
-removing the service is what stops it, through the control manager rather than
-behind it.
+**Smaller things that are new.** A pane's FILES bar can be hidden from Pane
+actions and is saved with the workspace, now that the list's right-click menu
+offers everything the bar does. The SSH terminal passes the mouse to a program
+that asks for it, with Shift keeping it for selecting and pasting. The
+connection editor fetches an SFTP or SSH server's host key for you to accept
+into the fingerprint field, and rejects a fingerprint for a saved connection,
+as 1.4 did. A new schedule starts on the time zone Settings names, following
+the system by default, and the schedule window says which one is in use; on
+Linux a machine on `Etc/UTC` no longer gets `Africa/Abidjan`.
 
-Registering the service also configures what Windows should do when the agent
-dies: restart after five seconds, then ten, then thirty. Without failure
-actions a crash was permanent, and the only symptom was the desktop reporting
-that the agent never became ready.
-
-**An update tells you when it cannot bring the agent with it.** In the session
-modes the agent lives inside the installation and updates with it. Hosted as a
-Windows service it cannot: StorageHub installs per user, into a directory the
-user can write, and a service binary its own user can replace runs that user's
-code as SYSTEM -- so the service runs from a machine-owned copy instead, and the
-unelevated updater has no way to reach it. The result was an application that
-moved forward while the service stayed on the version it was staged with, and
-nothing said so.
-
-The update now says so while there is still a decision to be made, and Check
-installation will bring the service across afterwards in one elevated pass:
-stopping it, copying the current agent over the staged one, and starting it
-again. Until now that repair only told you to go and re-apply the service mode
-yourself.
+The 1.4 line's last unreleased fixes, to updating and repairing a
+service-hosted agent, stay in `1.x-archive`'s changelog. 2.0 has no service for
+them to apply to.
 
 ## 1.4.5 — 2026-09-19
 

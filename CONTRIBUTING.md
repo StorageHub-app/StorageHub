@@ -10,8 +10,9 @@ report it privately through the repository's **Security** tab (**Report a
 vulnerability**) rather than opening a public issue, and keep credentials,
 private keys, and real endpoint names out of the report.
 
-Development currently requires Windows, PowerShell, and the .NET SDK selected by
-[global.json](global.json). CodeLogic dependencies are restored from NuGet.
+StorageHub builds and tests on Windows or Linux with the .NET SDK selected by
+[global.json](global.json); the packaging and installer scripts need the system
+they package for. CodeLogic dependencies are restored from NuGet.
 
 ## Set up the repository
 
@@ -30,8 +31,10 @@ Keep dependencies pointing inward:
    provider SDKs.
 2. `StorageHub.Storage` defines the endpoint boundary; provider behavior belongs
    in an adapter such as `StorageHub.Storage.CodeLogic`.
-3. Windows-only behavior belongs in `StorageHub.Infrastructure.Windows`, the
-   Windows agent host, or the desktop project.
+3. Behavior that differs between Windows and Linux sits behind a platform seam
+   (`StorageHub.Agent`'s platforms, `StorageHub.Ipc`'s transports,
+   `StorageHub.Infrastructure`'s key stores), marked with
+   `SupportedOSPlatform`, and works on both unless it genuinely cannot.
 4. Secret bytes never enter profile JSON, SQLite, logs, diagnostics, exception
    messages, or normal IPC messages.
 
@@ -43,11 +46,11 @@ For a feature or bug fix:
 3. Preserve cancellation and return structured storage failures for expected
    endpoint errors.
 4. Treat deletes, overwrites, trust changes, and resume as fail-closed paths.
-5. Build desktop UI from the shared element set in
-   `StorageHub.Desktop.WinForms` -- `StorageHubFieldChrome` and the fields,
-   buttons, and settings rows built on it -- rather than from stock WinForms
-   inputs, and express every metric in logical units through
-   `Control.LogicalToDeviceUnits`.
+5. Put desktop logic in `StorageHub.Desktop.Core` and keep
+   `StorageHub.Desktop` to Avalonia views. Take every size from the design
+   tokens and every colour from the scheme, as [UI rules](docs/ui-rules.md)
+   describes, and look at a changed screen through the headless shot tests
+   (`STORAGEHUB_SHOT_DIR`) on both systems where you can.
 6. Update documentation when contracts, security assumptions, supported
    providers, or operator behavior changes.
 
@@ -75,10 +78,10 @@ keyboard access, accessible names, high-DPI behavior, and construction tests.
 
 ## Pull requests
 
-`main` is protected: every change arrives through a pull request, and auto-merge
-squashes it in once the full gate passes. Direct pushes are refused, for
-administrators too. [Versioning and merges](docs/versioning.md) explains why, and
-has the three commands the flow takes.
+Every push to `main` publishes a release candidate once the full gate passes,
+so a change arrives through a pull request, which runs the same gate without
+publishing anything, and is squashed in once it passes.
+[Versioning and merges](docs/versioning.md) explains the flow.
 
 ```powershell
 git switch -c short-description-of-the-change
