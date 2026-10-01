@@ -3,10 +3,10 @@
 
   <PropertyGroup>
     <!--
-      Production projects are restored with both runtime graphs available so the
+      Production projects are restored with every shipped runtime graph available so the
       committed lock files cover normal builds and the self-contained installer
-      payloads for each platform. Test projects remain runtime-neutral.
+      payloads for each platform and architecture. Test projects remain runtime-neutral.
     -->
-    <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
+    <RuntimeIdentifiers>win-x64;win-arm64;linux-x64;linux-arm64</RuntimeIdentifiers>
   </PropertyGroup>
 </Project>

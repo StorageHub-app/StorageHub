@@ -2,7 +2,7 @@
 
 StorageHub publishes an unsigned engineering prerelease for every successful
 push to `main`, and an unsigned stable release for every successful push of a
-`vMAJOR.MINOR.PATCH` tag. Pull requests build and smoke-test the same installer,
+`vMAJOR.MINOR.PATCH` tag. Pull requests build and smoke-test the same installers,
 but never receive a write-capable GitHub token and never publish a release.
 
 ## Cutting a stable release
@@ -44,23 +44,46 @@ Stable releases remain unsigned for now; see the signing gate below.
 
 ## Release contents
 
-The Windows bundle is built for `win-x64` with the .NET runtime included. The
-Desktop and Agent are published as complete directory trees; trimming, native
-AOT, ReadyToRun, and single-file bundling remain disabled because StorageHub,
-Avalonia, provider SDKs, SQLite native assets, and `CL.Storage` use runtime
-discovery and platform-specific files.
+Every release carries four installers, each built and smoke-tested on a machine
+of its own architecture, under one `SHA256SUMS`:
 
-The Windows release contains one installer, a plain WiX MSI
-(`StorageHub-<version>-win-x64.msi`), with separated symbols when available,
-`BUILDINFO.json`, `release-version.txt`, `LICENSE`, `README.md`, and
-`SHA256SUMS`. There is no Setup.exe and no portable ZIP. Linux ships the .deb
-from `eng/package-linux.sh`.
+| | x64 | ARM64 |
+| --- | --- | --- |
+| Windows (plain WiX MSI) | `StorageHub-<version>-win-x64.msi` | `StorageHub-<version>-win-arm64.msi` |
+| Debian/Ubuntu | `storagehub_<version>_amd64.deb` | `storagehub_<version>_arm64.deb` |
+
+Alongside them are each MSI's separated symbols
+(`StorageHub-<version>-win-<arch>-symbols.zip`), and the x64 Windows bundle's
+`BUILDINFO.json`, `release-version.txt`, `LICENSE` and `README.md`. There is no
+Setup.exe and no portable ZIP.
+
+Each is built for its runtime (`win-x64`, `win-arm64`, `linux-x64`,
+`linux-arm64`) with the .NET runtime included. The Desktop and Agent are
+published as complete directory trees; trimming, native AOT, ReadyToRun, and
+single-file bundling remain disabled because StorageHub, Avalonia, provider
+SDKs, SQLite native assets, and `CL.Storage` use runtime discovery and
+platform-specific files. The production projects declare all four runtimes
+(`src\Directory.Build.props`), so the committed lock files cover every one.
+
+A runtime a NuGet package has no native asset for is left out of a publish
+without a word, and a file built for the wrong machine fails only when it is
+loaded, so both packaging scripts check every native file they ship (PE machine
+on Windows, ELF `e_machine` on Linux) against the package's architecture. The
+SQLite (`e_sqlite3`), SkiaSharp, HarfBuzzSharp and ANGLE assets all ship for
+ARM64 on both systems.
 
 The MSI is built from `eng/installer/StorageHub.wxs` by
 `eng/installer/StorageHub.Installer.wixproj`, which uses the WiX Toolset SDK
 from NuGet, so `dotnet build` is all it needs. It is not in `StorageHub.slnx`:
 it builds from the folder the packaging script stages and has nothing to add to
 a build or a test run of the code.
+
+The two MSIs are the same package for different machines: the same upgrade code,
+the same install folder, and `Platform` set to `x64` or `arm64`. Moving a machine
+from one to the other is an ordinary major upgrade. The Explorer drop broker is
+native, so it is built for each (`ARM64` is a platform of
+`StorageHub.ShellExtension.Native.vcxproj`), and the ARM64 one needs the Visual
+Studio ARM64 C++ build tools (`Microsoft.VisualStudio.Component.VC.Tools.ARM64`).
 
 The MSI installs per user, as 1.4 did, into `%LOCALAPPDATA%\Programs\StorageHub`
 with the Agent in `Agent` beside the Desktop, and needs no elevation to
@@ -99,9 +122,15 @@ GitHub releases of the fixed public repository
 `https://github.com/StorageHub-app/StorageHub`, read through GitHub's release
 listing. The Desktop offers the newest release newer than the one running that
 is not a draft, is a stable release unless release candidates are included,
-and carries `StorageHub-<version>-win-x64.msi` (on Linux, the `_amd64.deb`) and
-a `SHA256SUMS` naming it, both downloaded from that repository's own release
-downloads. Downgrades are never offered.
+and carries the package for this machine and a `SHA256SUMS` naming it, both
+downloaded from that repository's own release downloads. Downgrades are never
+offered.
+
+The package is chosen by the machine's architecture
+(`RuntimeInformation.OSArchitecture`), not the process's: `-win-x64.msi` or
+`-win-arm64.msi` on Windows, `_amd64.deb` or `_arm64.deb` on Linux. An x64
+copy running under emulation on Windows on ARM is therefore offered the native
+ARM64 MSI, which replaces it as an ordinary upgrade.
 
 The MSI is checked before anything runs it: its size must be the one GitHub
 lists, and its SHA-256 the one the release's `SHA256SUMS` gives; a download
@@ -131,6 +160,13 @@ Run:
   -OutputRoot artifacts\local-release
 ```
 
+`-Architecture arm64` builds the ARM64 MSI instead (the default is `x64`); it
+cross-builds from an x64 machine, given the ARM64 C++ build tools. The Linux
+package is `eng/package-linux.sh --version <v> --arch x64|arm64`, and must be
+built on a machine of that architecture: `dpkg-shlibdeps` works out the
+dependencies from the packages installed where it runs, and the script refuses
+anything else.
+
 The packaging script publishes the Desktop (with the Explorer drop broker,
 which needs the Visual Studio C++ build tools) and the Agent, stages them,
 builds the MSI, reads its tables back to check the upgrade code, version,
@@ -145,7 +181,8 @@ on any account where StorageHub is already installed or registered at sign-in.
 Run it only on a disposable Windows runner, Sandbox, or test account. Outside
 CI, both `-AllowOutsideCi` and `-ConfirmDisposableRunner` are required before
 it will make system changes. Pass `-PreviousBundleRoot` with an earlier
-version's bundle to test the upgrade as well.
+version's bundle to test the upgrade as well. It only accepts a bundle built for
+the machine it runs on.
 
 ## Automated publication
 
@@ -154,11 +191,21 @@ The CI workflow uses a least-privilege job chain:
 1. build, test, audit NuGet and hash-locked Python dependencies, and run the
    SHA-256-pinned MinIO/S3 plus FTP/FTPS and SFTP fixtures with read-only repository
    access;
-2. package the MSI and silently install/test/uninstall it on a disposable
-   Windows runner;
-3. attest the exact same-run artifacts after a successful `main` push; and
-4. create or verify the prerelease for the exact commit without checking out or
-   executing repository code in the write-capable publication job.
+2. derive the one release version every package in the run carries;
+3. package each installer and exercise it on a disposable runner of its own
+   architecture, since an ARM64 machine would also run the x64 package under
+   emulation and prove nothing about its own:
+
+   | | x64 | ARM64 |
+   | --- | --- | --- |
+   | MSI: silent install, test, uninstall | `windows-2022` | `windows-11-arm` |
+   | .deb: desktop tests, `apt` install, start under `xvfb`, remove | `ubuntu-24.04` | `ubuntu-24.04-arm` |
+
+4. attest the exact same-run artifacts after a successful `main` push; and
+5. merge the ARM64 MSI and both .debs into the x64 Windows bundle, each checked
+   against the `SHA256SUMS` of the job that built it, and create or verify the
+   prerelease for the exact commit without checking out or executing repository
+   code in the write-capable publication job.
 
 Push concurrency is keyed by commit SHA, so a newer push cannot cancel an older
 successful push before its release is produced. Rerunning one workflow is

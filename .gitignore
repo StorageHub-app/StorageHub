@@ -11,6 +11,7 @@ coverage/
 ## Native Windows build output
 src/StorageHub.ShellExtension.Native/StorageH.*/
 src/StorageHub.ShellExtension.Native/x64/
+src/StorageHub.ShellExtension.Native/ARM64/
 tests/StorageHub.ShellExtension.Native.Tests/StorageH.*/
 tests/StorageHub.ShellExtension.Native.Tests/x64/
 

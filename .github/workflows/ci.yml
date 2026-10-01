@@ -172,35 +172,25 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-  package-windows:
-    name: Package and exercise Windows release
+  # One version for every package in the run. It used to come out of the Windows packaging job,
+  # which was fine while there was one; with a job per platform and architecture, each deriving
+  # its own would let four installers disagree about the release that carries them.
+  release-version:
+    name: Derive release version
     needs: build-test-audit
-    runs-on: windows-2022
-    timeout-minutes: 35
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     permissions:
       contents: read
     outputs:
-      artifact-name: ${{ steps.release-version.outputs.artifact-name }}
       version: ${{ steps.release-version.outputs.version }}
       stable: ${{ steps.release-version.outputs.stable }}
-
-    env:
-      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
-      DOTNET_NOLOGO: '1'
-      NUGET_XMLDOC_MODE: skip
 
     steps:
       - name: Check out StorageHub
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-
-      - name: Install .NET SDK
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-        with:
-          global-json-file: global.json
-          cache: true
-          cache-dependency-path: '**/packages.lock.json'
 
       - name: Derive immutable release version
         id: release-version
@@ -255,17 +245,56 @@ jobs:
 
           "version=$version" >> $env:GITHUB_OUTPUT
           "stable=$($isStable.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
-          "artifact-name=windows-release-$env:GITHUB_RUN_ATTEMPT" >> $env:GITHUB_OUTPUT
+
+  # Each architecture is built, installed and started on its own kind of machine. An ARM64 runner
+  # would happily install and run the x64 package under emulation, so a smoke test anywhere else
+  # would say nothing about the ARM64 one.
+  package-windows:
+    name: Package and exercise Windows release (${{ matrix.arch }})
+    needs: release-version
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 35
+    permissions:
+      contents: read
+    strategy:
+      # One architecture failing says nothing about the other, and seeing both is quicker to fix.
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-2022
+          - arch: arm64
+            runner: windows-11-arm
+
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+      NUGET_XMLDOC_MODE: skip
+
+    steps:
+      - name: Check out StorageHub
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
 
       - name: Build Windows release bundle
         shell: pwsh
         env:
-          RELEASE_VERSION: ${{ steps.release-version.outputs.version }}
+          RELEASE_VERSION: ${{ needs.release-version.outputs.version }}
+          RELEASE_ARCH: ${{ matrix.arch }}
         run: |
           $bundleRoot = Join-Path $env:RUNNER_TEMP 'StorageHub-Windows-Release'
 
           & .\eng\package-windows.ps1 `
             -Version $env:RELEASE_VERSION `
+            -Architecture $env:RELEASE_ARCH `
             -OutputRoot $bundleRoot
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
@@ -285,10 +314,12 @@ jobs:
           & .\eng\test-windows-installer.ps1 -BundleRoot $bundleRoot
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      # Named from the matrix rather than passed out as a job output: a matrix job has one set of
+      # outputs, which whichever leg finished last would overwrite.
       - name: Upload complete Windows release bundle
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ${{ steps.release-version.outputs.artifact-name }}
+          name: windows-release-${{ matrix.arch }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/StorageHub-Windows-Release
           if-no-files-found: error
           include-hidden-files: false
@@ -296,15 +327,22 @@ jobs:
           retention-days: 30
 
   package-linux:
-    name: Test, package and exercise Linux release
-    # The version comes from the Windows job so both platforms ship under one release name.
-    needs: package-windows
-    runs-on: ubuntu-24.04
+    name: Test, package and exercise Linux release (${{ matrix.arch }})
+    needs: release-version
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     permissions:
       contents: read
-    outputs:
-      artifact-name: ${{ steps.package.outputs.artifact-name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            deb-arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            deb-arch: arm64
+            runner: ubuntu-24.04-arm
 
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: '1'
@@ -331,25 +369,28 @@ jobs:
           dotnet test tests/StorageHub.Desktop.Core.Tests --configuration Release
           dotnet test tests/StorageHub.Desktop.Tests --configuration Release
 
+      # dpkg-shlibdeps answers from this machine's own packages, which is why each architecture's
+      # .deb is built on a runner of that architecture rather than cross-published.
       - name: Build the .deb
         id: package
         env:
-          RELEASE_VERSION: ${{ needs.package-windows.outputs.version }}
+          RELEASE_VERSION: ${{ needs.release-version.outputs.version }}
+          RELEASE_ARCH: ${{ matrix.arch }}
+          DEB_ARCH: ${{ matrix.deb-arch }}
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq dpkg-dev
           out="$RUNNER_TEMP/linux-build"
-          ./eng/package-linux.sh --version "$RELEASE_VERSION" --output "$out"
+          ./eng/package-linux.sh --version "$RELEASE_VERSION" --arch "$RELEASE_ARCH" --output "$out"
           # The package's own version uses '~' so a release sorts above its candidates; the file
           # keeps the release's name, which is what the updater and the release page show.
           bundle="$RUNNER_TEMP/StorageHub-Linux-Release"
           mkdir -p "$bundle"
-          deb="$(ls "$out"/*.deb)"
-          name="storagehub_${RELEASE_VERSION}_amd64.deb"
+          deb="$(ls "$out"/*_"$DEB_ARCH".deb)"
+          name="storagehub_${RELEASE_VERSION}_${DEB_ARCH}.deb"
           cp "$deb" "$bundle/$name"
           (cd "$bundle" && sha256sum "$name" > SHA256SUMS)
           echo "deb=$bundle/$name" >> "$GITHUB_OUTPUT"
-          echo "artifact-name=linux-release-$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
 
       # apt pulls in the declared dependencies, so a library missing from Depends shows up as the
       # desktop failing to start rather than passing on a runner that happens to have it.
@@ -368,7 +409,7 @@ jobs:
       - name: Upload Linux release package
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ${{ steps.package.outputs.artifact-name }}
+          name: linux-release-${{ matrix.arch }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/StorageHub-Linux-Release
           if-no-files-found: error
           include-hidden-files: false
@@ -391,25 +432,40 @@ jobs:
 
     steps:
       # This privileged job deliberately does not check out or execute
-      # repository code. It only consumes the artifact produced in this run.
-      - name: Download Windows release bundle
+      # repository code. It only consumes the artifacts produced in this run.
+      - name: Download Windows x64 release bundle
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: ${{ needs.package-windows.outputs.artifact-name }}
-          path: windows-release
+          name: windows-release-x64-${{ github.run_attempt }}
+          path: windows-x64
 
-      - name: Download Linux release package
+      - name: Download Windows ARM64 release bundle
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: ${{ needs.package-linux.outputs.artifact-name }}
-          path: linux-release
+          name: windows-release-arm64-${{ github.run_attempt }}
+          path: windows-arm64
+
+      - name: Download Linux x64 release package
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: linux-release-x64-${{ github.run_attempt }}
+          path: linux-x64
+
+      - name: Download Linux ARM64 release package
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: linux-release-arm64-${{ github.run_attempt }}
+          path: linux-arm64
 
       - name: Attest release files
         uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
         with:
           subject-path: |
-            windows-release/*
-            linux-release/*.deb
+            windows-x64/*
+            windows-arm64/*.msi
+            windows-arm64/*.zip
+            linux-x64/*.deb
+            linux-arm64/*.deb
           # Left off. Linked artifact storage records are an organization
           # feature, which this repository now qualifies for, but turning them
           # on changes what a release carries and is a decision of its own. The
@@ -419,61 +475,111 @@ jobs:
   publish-release:
     name: Publish release
     needs:
+      - release-version
       - package-windows
       - package-linux
       - attest-windows
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: windows-2022
-    # The bundle is around 415 MB across four large assets. This job normally finishes in about
-    # ninety seconds, but an upload that GitHub is throttling can run far longer, and when the
-    # timeout struck mid-upload it left a draft release holding nine of the thirteen assets --
-    # invisible to users, but enough to block the retry. The margin is now for the slow day.
-    timeout-minutes: 30
+    # The bundle is around 800 MB across eight large assets now that each platform ships for two
+    # architectures. This job normally finishes in a few minutes, but an upload that GitHub is
+    # throttling can run far longer, and when the timeout struck mid-upload it left a draft
+    # release holding some of the assets -- invisible to users, but enough to block the retry.
+    # The margin is for the slow day.
+    timeout-minutes: 45
     permissions:
       actions: read
       contents: write
 
     steps:
       # This is the only contents:write job. It never checks out or executes
-      # repository code and only publishes the validated same-run artifact.
-      - name: Download attested Windows release bundle
+      # repository code and only publishes the validated same-run artifacts.
+      - name: Download attested Windows x64 release bundle
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: ${{ needs.package-windows.outputs.artifact-name }}
+          name: windows-release-x64-${{ github.run_attempt }}
           path: windows-release
 
-      - name: Download attested Linux release package
+      - name: Download attested Windows ARM64 release bundle
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: ${{ needs.package-linux.outputs.artifact-name }}
-          path: linux-release
+          name: windows-release-arm64-${{ github.run_attempt }}
+          path: windows-arm64
 
-      # One release, one manifest: the .deb joins the Windows bundle after its hash is checked
-      # against the Linux job's own SHA256SUMS, and its line is added to the bundle's, which the
-      # next step then verifies file by file like every other asset.
-      - name: Add the Linux package to the release bundle
+      - name: Download attested Linux x64 release package
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: linux-release-x64-${{ github.run_attempt }}
+          path: linux-x64
+
+      - name: Download attested Linux ARM64 release package
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: linux-release-arm64-${{ github.run_attempt }}
+          path: linux-arm64
+
+      # One release, one manifest. The x64 Windows bundle is the release, with its BUILDINFO,
+      # licence and readme; the other packages join it. Each is checked against the SHA256SUMS of
+      # the job that built it, and its line is added to the bundle's, which the next step then
+      # verifies file by file like every other asset. The ARM64 bundle's own metadata stays
+      # behind: the names would collide, and the version in it is checked here instead.
+      - name: Add the other architectures and the Linux packages to the release bundle
         shell: pwsh
+        env:
+          EXPECTED_VERSION: ${{ needs.release-version.outputs.version }}
         run: |
-          $linuxRoot = (Resolve-Path -LiteralPath 'linux-release').Path
           $bundleRoot = (Resolve-Path -LiteralPath 'windows-release').Path
-          $debs = @(Get-ChildItem -LiteralPath $linuxRoot -File -Filter '*_amd64.deb')
-          if ($debs.Count -ne 1) { throw "Expected one .deb in the Linux artifact, found $($debs.Count)." }
-          $deb = $debs[0]
-          $line = Get-Content -LiteralPath (Join-Path $linuxRoot 'SHA256SUMS') |
-            Where-Object { $_ -match "^[0-9A-Fa-f]{64}\s+\*?$([regex]::Escape($deb.Name))$" }
-          if (-not $line) { throw "The Linux SHA256SUMS does not list '$($deb.Name)'." }
-          $expected = ($line -split '\s+')[0].ToUpperInvariant()
-          $actual = (Get-FileHash -LiteralPath $deb.FullName -Algorithm SHA256).Hash
-          if ($actual -cne $expected) { throw "SHA-256 verification failed for '$($deb.Name)'." }
-          Copy-Item -LiteralPath $deb.FullName -Destination $bundleRoot
-          Add-Content -LiteralPath (Join-Path $bundleRoot 'SHA256SUMS') `
-            -Value "$($expected.ToLowerInvariant())  $($deb.Name)"
+
+          function Add-ReleaseFiles([string] $sourceDirectory, [string[]] $patterns) {
+            $sourceRoot = (Resolve-Path -LiteralPath $sourceDirectory).Path
+            $sums = Get-Content -LiteralPath (Join-Path $sourceRoot 'SHA256SUMS')
+            foreach ($pattern in $patterns) {
+              $files = @(Get-ChildItem -LiteralPath $sourceRoot -File -Filter $pattern)
+              if ($files.Count -ne 1) {
+                throw "Expected one '$pattern' in '$sourceDirectory', found $($files.Count)."
+              }
+              $file = $files[0]
+              if (Test-Path -LiteralPath (Join-Path $bundleRoot $file.Name)) {
+                throw "'$($file.Name)' from '$sourceDirectory' is already in the release bundle."
+              }
+              $line = $sums |
+                Where-Object { $_ -match "^[0-9A-Fa-f]{64}\s+\*?$([regex]::Escape($file.Name))$" }
+              if (@($line).Count -ne 1) { throw "'$sourceDirectory' SHA256SUMS does not list '$($file.Name)' once." }
+              $expected = (@($line)[0] -split '\s+')[0].ToUpperInvariant()
+              $actual = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash
+              if ($actual -cne $expected) { throw "SHA-256 verification failed for '$($file.Name)'." }
+              Copy-Item -LiteralPath $file.FullName -Destination $bundleRoot
+              Add-Content -LiteralPath (Join-Path $bundleRoot 'SHA256SUMS') `
+                -Value "$($expected.ToLowerInvariant())  $($file.Name)"
+            }
+          }
+
+          $arm64Version = (Get-Content -LiteralPath 'windows-arm64/release-version.txt' -Raw).Trim()
+          if ($arm64Version -cne $env:EXPECTED_VERSION) {
+            throw "The ARM64 bundle is version '$arm64Version', not '$env:EXPECTED_VERSION'."
+          }
+          Add-ReleaseFiles 'windows-arm64' @(
+            "StorageHub-$env:EXPECTED_VERSION-win-arm64.msi",
+            "StorageHub-$env:EXPECTED_VERSION-win-arm64-symbols.zip")
+          Add-ReleaseFiles 'linux-x64' @("storagehub_$($env:EXPECTED_VERSION)_amd64.deb")
+          Add-ReleaseFiles 'linux-arm64' @("storagehub_$($env:EXPECTED_VERSION)_arm64.deb")
+
+          # The four installers the updater looks for, by the names it looks for them.
+          foreach ($installer in @(
+              "StorageHub-$env:EXPECTED_VERSION-win-x64.msi",
+              "StorageHub-$env:EXPECTED_VERSION-win-arm64.msi",
+              "storagehub_$($env:EXPECTED_VERSION)_amd64.deb",
+              "storagehub_$($env:EXPECTED_VERSION)_arm64.deb")) {
+            if (-not (Test-Path -LiteralPath (Join-Path $bundleRoot $installer) -PathType Leaf)) {
+              throw "The release bundle is missing '$installer'."
+            }
+          }
 
       - name: Validate release version and SHA-256 manifest
         shell: pwsh
         env:
-          EXPECTED_VERSION: ${{ needs.package-windows.outputs.version }}
-          RELEASE_STABLE: ${{ needs.package-windows.outputs.stable }}
+          EXPECTED_VERSION: ${{ needs.release-version.outputs.version }}
+          RELEASE_STABLE: ${{ needs.release-version.outputs.stable }}
         run: |
           $bundleRoot = (Resolve-Path -LiteralPath 'windows-release').Path
           $versionPath = Join-Path $bundleRoot 'release-version.txt'
@@ -553,8 +659,8 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_VERSION: ${{ needs.package-windows.outputs.version }}
-          RELEASE_STABLE: ${{ needs.package-windows.outputs.stable }}
+          RELEASE_VERSION: ${{ needs.release-version.outputs.version }}
+          RELEASE_STABLE: ${{ needs.release-version.outputs.stable }}
         run: |
           $ErrorActionPreference = 'Stop'
           $repo = $env:GITHUB_REPOSITORY

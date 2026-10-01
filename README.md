@@ -149,13 +149,19 @@ Provider coverage is listed under [Provider status](#provider-status).
 Download the latest release from
 [GitHub Releases](https://github.com/StorageHub-app/StorageHub/releases):
 
-- `StorageHub-<version>-win-x64.msi` on Windows, a per-user installer; and
-- `storagehub_<version>_amd64.deb` on Debian and Ubuntu.
+| | x64 (Intel and AMD) | ARM64 |
+| --- | --- | --- |
+| Windows, a per-user installer | `StorageHub-<version>-win-x64.msi` | `StorageHub-<version>-win-arm64.msi` |
+| Debian and Ubuntu | `storagehub_<version>_amd64.deb` | `storagehub_<version>_arm64.deb` |
+
+Every file is listed in the release's `SHA256SUMS`.
 
 The MSI does not require elevation, installs into
 `%LOCALAPPDATA%\Programs\StorageHub`, and starts the background agent at sign-in
 as the signed-in Windows user. StorageHub checks for new releases when it starts
-and installs one through the same MSI. Application data under
+and installs one through the same kind of package, built for the machine's own
+architecture: an x64 copy on an ARM64 PC is offered the ARM64 MSI, which
+replaces it. Application data under
 `%LOCALAPPDATA%\StorageHub` is preserved across updates and uninstalls.
 
 ### How the background agent runs

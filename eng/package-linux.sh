@@ -8,23 +8,41 @@
 # desktop's own settings page performs. Installing needs root once; nothing StorageHub does
 # afterwards does.
 #
-# Usage: eng/package-linux.sh [--version 2.0.0] [--output artifacts/linux]
+# Usage: eng/package-linux.sh [--version 2.0.0] [--output artifacts/linux] [--arch x64|arm64]
 
 set -euo pipefail
 
 VERSION=""
 OUTPUT="artifacts/linux"
 CONFIGURATION="Release"
-RUNTIME="linux-x64"
+ARCH="x64"
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --version) VERSION="$2"; shift 2 ;;
     --output) OUTPUT="$2"; shift 2 ;;
     --configuration) CONFIGURATION="$2"; shift 2 ;;
+    --arch) ARCH="$2"; shift 2 ;;
     *) echo "Unknown argument: $1" >&2; exit 2 ;;
   esac
 done
+
+# The runtime the binaries are published for, the name Debian gives that machine, and the ELF
+# e_machine every native file has to carry for it.
+case "$ARCH" in
+  x64) RUNTIME="linux-x64"; DEB_ARCH="amd64"; ELF_MACHINE=62 ;;
+  arm64) RUNTIME="linux-arm64"; DEB_ARCH="arm64"; ELF_MACHINE=183 ;;
+  *) echo "Unknown --arch '$ARCH'; expected x64 or arm64." >&2; exit 2 ;;
+esac
+
+# dpkg-shlibdeps answers from the packages installed on this machine, so it can only work out the
+# dependencies of binaries this machine could run. Built anywhere else, the package would either
+# fail here or, worse, declare the build machine's libraries. CI builds each architecture on its
+# own runner for exactly this reason.
+if command -v dpkg >/dev/null 2>&1 && [ "$(dpkg --print-architecture)" != "$DEB_ARCH" ]; then
+  echo "This machine is $(dpkg --print-architecture); build the $DEB_ARCH package on an $DEB_ARCH machine." >&2
+  exit 2
+fi
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO"
@@ -76,6 +94,20 @@ dotnet publish src/StorageHub.Agent.Host/StorageHub.Agent.Host.csproj \
 # without it is the browser failing to open rather than anything mentioning SQLite.
 if [ ! -f "$AGENT_DIR/libe_sqlite3.so" ]; then
   echo "libe_sqlite3.so is missing from the agent publish; the package would not browse." >&2
+  exit 1
+fi
+
+# A package with no native asset for this runtime is left out of the publish without a word, and
+# one built for the wrong machine fails only when it is loaded. Every ELF file shipped is held to
+# the package's architecture: e_machine is the little-endian 16 bit field at offset 18.
+WRONG_MACHINE=""
+while IFS= read -r -d '' candidate; do
+  [ "$(head -c 4 "$candidate" | od -An -c | tr -d ' ')" = '177ELF' ] || continue
+  machine="$(od -An -tu2 --endian=little -j18 -N2 "$candidate" | tr -d ' ')"
+  [ "$machine" = "$ELF_MACHINE" ] || WRONG_MACHINE="$WRONG_MACHINE ${candidate#"$APP_DIR"/}($machine)"
+done < <(find "$APP_DIR" -type f -print0)
+if [ -n "$WRONG_MACHINE" ]; then
+  echo "These files are not built for $RUNTIME:$WRONG_MACHINE" >&2
   exit 1
 fi
 
@@ -163,11 +195,11 @@ echo "==> resolving library dependencies"
 
 SHLIB_ROOT="$STAGE/.shlibdeps"
 install -d "$SHLIB_ROOT/debian"
-cat > "$SHLIB_ROOT/debian/control" <<'SHLIBCONTROL'
+cat > "$SHLIB_ROOT/debian/control" <<SHLIBCONTROL
 Source: storagehub
 
 Package: storagehub
-Architecture: amd64
+Architecture: $DEB_ARCH
 SHLIBCONTROL
 
 # Everything executable and every shared object, except the LTTng trace provider. That one is
@@ -220,7 +252,7 @@ Package: storagehub
 Version: $DEB_VERSION
 Section: utils
 Priority: optional
-Architecture: amd64
+Architecture: $DEB_ARCH
 Maintainer: StorageHub <noreply@storagehub.app>
 Installed-Size: $INSTALLED_KB
 Depends: $DEPENDS
@@ -299,7 +331,7 @@ PRERM
 chmod 0755 "$STAGE/DEBIAN/prerm"
 
 mkdir -p "$OUTPUT"
-PACKAGE="$OUTPUT/storagehub_${DEB_VERSION}_amd64.deb"
+PACKAGE="$OUTPUT/storagehub_${DEB_VERSION}_${DEB_ARCH}.deb"
 
 echo "==> building $PACKAGE"
 # --root-owner-group so the package does not carry the build account's uid, which would otherwise

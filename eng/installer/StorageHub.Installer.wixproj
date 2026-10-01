@@ -7,11 +7,13 @@
 
       dotnet build eng\installer\StorageHub.Installer.wixproj -c Release
         -p:StageDir=<staged folder> -p:ProductVersion=2.0.0 -p:IconPath=<storagehub.ico>
+        -p:InstallerPlatform=x64|arm64
   -->
   <PropertyGroup>
     <OutputName>StorageHub</OutputName>
     <OutputType>Package</OutputType>
-    <InstallerPlatform>x64</InstallerPlatform>
+    <!-- x64 or arm64, from the packaging script; each is its own MSI under the one upgrade code. -->
+    <InstallerPlatform Condition="'$(InstallerPlatform)' == ''">x64</InstallerPlatform>
     <ProductVersion Condition="'$(ProductVersion)' == ''">0.0.0</ProductVersion>
     <IconPath Condition="'$(IconPath)' == ''">$(MSBuildThisFileDirectory)..\..\assets\branding\storagehub.ico</IconPath>
     <DefineConstants>ProductVersion=$(ProductVersion);IconPath=$(IconPath)</DefineConstants>

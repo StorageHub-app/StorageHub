@@ -376,7 +376,8 @@ public sealed class GitHubReleaseUpdateTests : IDisposable
     /// <summary>
     /// The scenario 1.4's updater covered, on the MSI: the newest stable release is chosen over a
     /// release candidate nobody asked for, a draft, and a "newer" one whose package lives anywhere
-    /// but this repository's releases; the MSI is held to the release's SHA256SUMS; and "Restart
+    /// but this repository's releases; x64 and ARM64 machines each get their own architecture's
+    /// MSI or .deb from it; the MSI is held to the release's SHA256SUMS; and "Restart
     /// and install" closes the shell and leaves msiexec to start once it has gone. A SHA256SUMS
     /// that does not match is a failed download, and the file is not kept.
     /// </summary>
@@ -401,8 +402,23 @@ public sealed class GitHubReleaseUpdateTests : IDisposable
                 Asset("SHA256SUMS", 100, Download + "v2.0.2-rc.3.gabc1234/SHA256SUMS")),
             Release("2.0.1", prerelease: false, draft: false,
                 Asset("storagehub_2.0.1_amd64.deb", 10, Download + "v2.0.1/storagehub_2.0.1_amd64.deb"),
+                Asset("storagehub_2.0.1_arm64.deb", 10, Download + "v2.0.1/storagehub_2.0.1_arm64.deb"),
+                Asset("StorageHub-2.0.1-win-arm64.msi", 11, Download + "v2.0.1/StorageHub-2.0.1-win-arm64.msi"),
                 Asset(stableMsi, msi.Length, stableMsiUrl),
                 Asset("SHA256SUMS", 100, stableSumsUrl))) + "]";
+
+        // Each machine is offered its own architecture's package from the same release, and one
+        // the release has none for is offered nothing.
+        var releases = GitHubReleaseFeed.ParseReleases(Encoding.UTF8.GetBytes(listing))!;
+        var stableOnly = new UpdateFeedOptions(GitHubReleaseFeed.ReleasesUrl, "2.0.0", IncludePrereleases: false);
+        Assert.Equal(stableMsi, GitHubReleaseFeed.ChooseNewer(releases, stableOnly, UpdatePackageKind.Msi, "X64")?.Package.Name);
+        Assert.Equal("StorageHub-2.0.1-win-arm64.msi",
+            GitHubReleaseFeed.ChooseNewer(releases, stableOnly, UpdatePackageKind.Msi, "Arm64")?.Package.Name);
+        Assert.Equal("storagehub_2.0.1_amd64.deb",
+            GitHubReleaseFeed.ChooseNewer(releases, stableOnly, UpdatePackageKind.Deb, "X64")?.Package.Name);
+        Assert.Equal("storagehub_2.0.1_arm64.deb",
+            GitHubReleaseFeed.ChooseNewer(releases, stableOnly, UpdatePackageKind.Deb, "Arm64")?.Package.Name);
+        Assert.Null(GitHubReleaseFeed.ChooseNewer(releases, stableOnly, UpdatePackageKind.Msi, "X86"));
         var github = new GitHub(new Dictionary<string, byte[]>
         {
             [GitHubReleaseFeed.ReleasesUrl] = Encoding.UTF8.GetBytes(listing),

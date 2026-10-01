@@ -49,7 +49,12 @@ internal static class UpdateInstallers
     }
 
     /// <summary>The architecture name the feed uses, which is the runtime's own spelling.</summary>
-    internal static string CurrentArchitecture => RuntimeInformation.ProcessArchitecture.ToString();
+    /// <remarks>
+    /// The machine's, not this process's. Windows on ARM runs the x64 build under emulation, and an
+    /// x64 copy there would otherwise go on updating to x64 for ever; asked by the machine, it is
+    /// offered the native ARM64 MSI, which upgrades it in place under the same upgrade code.
+    /// </remarks>
+    internal static string CurrentArchitecture => RuntimeInformation.OSArchitecture.ToString();
 }
 
 /// <summary>

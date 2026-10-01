@@ -335,10 +335,17 @@ function Get-ReleaseMsi {
     catch {
         throw 'Release bundle BUILDINFO.json is invalid.'
     }
-    if ($buildInfo.packId -cne 'StorageHub.Desktop' -or $buildInfo.rid -cne 'win-x64') {
-        throw 'Release bundle does not use the immutable StorageHub.Desktop win-x64 package identity.'
+    if ($buildInfo.packId -cne 'StorageHub.Desktop' -or $buildInfo.rid -cnotin @('win-x64', 'win-arm64')) {
+        throw 'Release bundle does not use the immutable StorageHub.Desktop package identity.'
     }
-    if ($installer.Name -cne "StorageHub-$($buildInfo.version)-win-x64.msi") {
+
+    # Each architecture is exercised on its own kind of machine. ARM64 Windows would install the
+    # x64 package too, under emulation, and passing that way would say nothing about the ARM64 one.
+    $machine = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant()
+    if ($buildInfo.rid -cne "win-$machine") {
+        throw "The bundle is for $($buildInfo.rid), but this machine is win-$machine."
+    }
+    if ($installer.Name -cne "StorageHub-$($buildInfo.version)-$($buildInfo.rid).msi") {
         throw "The MSI is named '$($installer.Name)', which is not the name the updater looks for."
     }
 

@@ -8,16 +8,24 @@ param(
 
     [Parameter(Mandatory)]
     [ValidateNotNullOrEmpty()]
-    [string] $OutputRoot
+    [string] $OutputRoot,
+
+    # The machine the release is for. Each architecture gets its own MSI under the one upgrade
+    # code, so a machine moving from the x64 build to the ARM64 one upgrades rather than ending
+    # up with both.
+    [ValidateSet('x64', 'arm64')]
+    [string] $Architecture = 'x64'
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $script:Utf8NoBom = [System.Text.UTF8Encoding]::new($false)
-$script:Rid = 'win-x64'
+$script:Rid = "win-$Architecture"
 $script:PackId = 'StorageHub.Desktop'
 $script:MsiUpgradeCode = '{B3EFE8FA-EACC-421F-8782-EF2FFA41E905}'
+# IMAGE_FILE_MACHINE_AMD64 and IMAGE_FILE_MACHINE_ARM64, as a PE header spells them.
+$script:PeMachine = @{ x64 = 0x8664; arm64 = 0xAA64 }[$Architecture]
 
 function Resolve-AbsolutePath {
     param(
@@ -293,6 +301,23 @@ function Assert-MsiPackage {
         [string] $ExpectedVersion
     )
 
+    # The summary's Template is "<platform>;<languages>", and it is what Windows Installer refuses
+    # a package on the wrong machine by. An x64 MSI of ARM64 files would install and not start.
+    $installer = New-Object -ComObject WindowsInstaller.Installer
+    try {
+        $summary = $installer.GetType().InvokeMember(
+            'SummaryInformation', 'GetProperty', $null, $installer, @($MsiPath, 0))
+        $template = [string] $summary.GetType().InvokeMember('Property', 'GetProperty', $null, $summary, @(7))
+        [void] [System.Runtime.InteropServices.Marshal]::ReleaseComObject($summary)
+    }
+    finally {
+        [void] [System.Runtime.InteropServices.Marshal]::ReleaseComObject($installer)
+    }
+    $platform = ($template -split ';')[0]
+    if (-not [string]::Equals($platform, $Architecture, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "The MSI is built for platform '$platform', not '$Architecture'."
+    }
+
     $properties = @{}
     foreach ($row in (Get-MsiTableRows -MsiPath $MsiPath -Query 'SELECT Property, Value FROM Property' -ColumnCount 2)) {
         $properties[$row[0]] = $row[1]
@@ -387,6 +412,84 @@ function Get-PeSubsystem {
     }
     finally {
         $stream.Dispose()
+    }
+}
+
+function Get-PeImage {
+    param(
+        [Parameter(Mandatory)]
+        [string] $Path
+    )
+
+    # The machine a PE file is built for, and whether it is managed: what decides whether the file
+    # can load into a process of this release's architecture. Null for a file that is not PE.
+    $stream = [System.IO.File]::OpenRead($Path)
+    try {
+        $reader = [System.IO.BinaryReader]::new($stream)
+        try {
+            if ($stream.Length -lt 0x40 -or $reader.ReadUInt16() -ne 0x5A4D) {
+                return $null
+            }
+            $stream.Position = 0x3C
+            $peOffset = $reader.ReadInt32()
+            if ($peOffset -lt 0 -or $peOffset -gt ($stream.Length - 24)) {
+                return $null
+            }
+            $stream.Position = $peOffset
+            if ($reader.ReadUInt32() -ne 0x00004550) {
+                return $null
+            }
+            $machine = $reader.ReadUInt16()
+
+            # The CLI header is data directory 14, at 96 bytes into a PE32 optional header and 112
+            # into a PE32+ one; a file with one is managed.
+            $optionalHeader = $peOffset + 24
+            $stream.Position = $optionalHeader
+            $magic = $reader.ReadUInt16()
+            $directories = if ($magic -eq 0x20B) { $optionalHeader + 112 } else { $optionalHeader + 96 }
+            $managed = $false
+            if ($directories + (15 * 8) -le $stream.Length) {
+                $stream.Position = $directories + (14 * 8) + 4
+                $managed = $reader.ReadUInt32() -ne 0
+            }
+
+            return [pscustomobject] @{ Machine = [int] $machine; Managed = $managed }
+        }
+        finally {
+            $reader.Dispose()
+        }
+    }
+    finally {
+        $stream.Dispose()
+    }
+}
+
+function Assert-PayloadArchitecture {
+    param(
+        [Parameter(Mandatory)]
+        [string] $Directory
+    )
+
+    # Publishing for a runtime takes whatever native assets each package has for it and silently
+    # leaves out the ones it has none of, and the broker is built by a separate toolchain. Either
+    # way the symptom is a release that installs and then fails to load a DLL on the user's
+    # machine, so every native image is held to the release's architecture here. A managed image
+    # marked i386 is AnyCPU IL; one marked otherwise is precompiled and is held to it as well.
+    $wrong = [System.Collections.Generic.List[string]]::new()
+    foreach ($file in Get-ChildItem -LiteralPath $Directory -File -Recurse -Include '*.dll', '*.exe') {
+        $image = Get-PeImage -Path $file.FullName
+        if ($null -eq $image) {
+            continue
+        }
+        if ($image.Managed -and $image.Machine -eq 0x14C) {
+            continue
+        }
+        if ($image.Machine -ne $script:PeMachine) {
+            $wrong.Add(('{0} (0x{1:X4})' -f (Get-RelativeChildPath -ParentPath $Directory -ChildPath $file.FullName), $image.Machine))
+        }
+    }
+    if ($wrong.Count -ne 0) {
+        throw "These files are not built for $($script:Rid): $($wrong -join ', ')"
     }
 }
 
@@ -650,8 +753,8 @@ foreach ($directory in @(
 $pathMap = "$repoRoot=/_/StorageHub"
 
 # Restored for the RuntimeIdentifiers the projects declare (src\Directory.Build.props), which is
-# what the committed lock files cover: naming the runtime here as well replaced that pair with
-# win-x64 alone, and locked mode refused every project. Publishing names it.
+# what the committed lock files cover: naming the runtime here as well replaced that set with
+# the one runtime alone, and locked mode refused every project. Publishing names it.
 $restoreArguments = @(
     '--artifacts-path', $buildArtifacts,
     '--nologo'
@@ -688,7 +791,7 @@ try {
     Invoke-NativeCommand `
         -FilePath $dotnetCommand.Source `
         -ArgumentList $desktopRestoreArguments `
-        -Description 'Restore locked win-x64 StorageHub Desktop dependencies'
+        -Description "Restore locked $($script:Rid) StorageHub Desktop dependencies"
 
     $agentRestoreArguments = @(
         'restore',
@@ -698,7 +801,7 @@ try {
     Invoke-NativeCommand `
         -FilePath $dotnetCommand.Source `
         -ArgumentList $agentRestoreArguments `
-        -Description 'Restore locked win-x64 StorageHub Agent dependencies'
+        -Description "Restore locked $($script:Rid) StorageHub Agent dependencies"
 
     # The Explorer drop broker is opt-in so that a clone without the Visual Studio C++ build tools
     # can still build and test the solution. A release must always carry it, and the project's
@@ -794,6 +897,7 @@ try {
     if (@(Get-ChildItem -LiteralPath $stageRoot -Filter '*.pdb' -File -Recurse).Count -ne 0) {
         throw 'The installer staging directory contains program database symbols.'
     }
+    Assert-PayloadArchitecture -Directory $stageRoot
 
     # The MSI, from the staged folder. The WiX SDK restores from NuGet like any other, so this
     # needs nothing installed beyond the .NET SDK; its own obj and bin stay in the work folder.
@@ -804,6 +908,7 @@ try {
         '--nologo',
         "-p:StageDir=$stageRoot\",
         "-p:ProductVersion=$msiVersion",
+        "-p:InstallerPlatform=$Architecture",
         "-p:IconPath=$([System.IO.Path]::GetFullPath($iconPath))",
         "-p:OutputPath=$msiOutput\",
         "-p:IntermediateOutputPath=$msiIntermediate\",

@@ -31,9 +31,10 @@ internal sealed record GitHubReleaseAsset(
 /// </para>
 /// <para>
 /// What is offered is the newest release newer than the running one that carries this platform's
-/// package and a SHA256SUMS naming it: <c>StorageHub-{version}-win-x64.msi</c> on Windows, the
-/// <c>_amd64.deb</c> on Linux. A release candidate is only considered by somebody who asked for
-/// them, and a draft never. The package must be downloaded from this repository's own release
+/// package for this machine's architecture and a SHA256SUMS naming it:
+/// <c>StorageHub-{version}-win-x64.msi</c> or <c>-win-arm64.msi</c> on Windows, the
+/// <c>_amd64.deb</c> or <c>_arm64.deb</c> on Linux. A release candidate is only considered by
+/// somebody who asked for them, and a draft never. The package must be downloaded from this repository's own release
 /// downloads, so a listing that pointed anywhere else names nothing worth installing.
 /// </para>
 /// </remarks>
@@ -192,17 +193,20 @@ internal static class GitHubReleaseFeed
     /// <summary>Whether an asset is the package this machine applies, by the names the scripts give them.</summary>
     private static bool IsPackageFor(string name, string version, UpdatePackageKind kind, string architecture)
     {
-        // Only x64 is published, on either system.
-        if (!string.Equals(architecture, nameof(System.Runtime.InteropServices.Architecture.X64), StringComparison.OrdinalIgnoreCase))
+        // x64 and ARM64 are published on both systems; Windows and Debian each spell them their way.
+        (string? windows, string? debian) = architecture.ToUpperInvariant() switch
         {
-            return false;
-        }
+            "X64" => ("win-x64", "amd64"),
+            "ARM64" => ("win-arm64", "arm64"),
+            _ => ((string?)null, (string?)null)
+        };
+        if (windows is null) return false;
 
         return kind switch
         {
-            UpdatePackageKind.Msi => string.Equals(name, $"StorageHub-{version}-win-x64.msi", StringComparison.Ordinal),
+            UpdatePackageKind.Msi => string.Equals(name, $"StorageHub-{version}-{windows}.msi", StringComparison.Ordinal),
             UpdatePackageKind.Deb => name.StartsWith("storagehub_", StringComparison.Ordinal) &&
-                name.EndsWith("_amd64.deb", StringComparison.Ordinal),
+                name.EndsWith($"_{debian}.deb", StringComparison.Ordinal),
             _ => false
         };
     }

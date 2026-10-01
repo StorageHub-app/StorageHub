@@ -29,7 +29,7 @@
     <PackageReference Include="Lucide.Avalonia" />
     <ProjectReference Include="..\StorageHub.Desktop.Core\StorageHub.Desktop.Core.csproj" />
   </ItemGroup>
-  <!-- The Explorer drop broker is a native x64 COM DLL, so building it needs the Visual Studio C++
+  <!-- The Explorer drop broker is a native COM DLL, so building it needs the Visual Studio C++
        toolchain. Requiring that of every build meant a plain `dotnet build` of this project could
        not succeed without Visual Studio installed, and `dotnet test` on the solution inherited the
        same requirement through the shell's own test suite. It is opt-in instead: CI and
@@ -45,7 +45,15 @@
     <StorageHubCanBuildShellExtension Condition="'$(StorageHubBuildShellExtension)' == 'true' and '$(DesignTimeBuild)' != 'true' and $([MSBuild]::IsOSPlatform('Windows'))">true</StorageHubCanBuildShellExtension>
     <StorageHubVsWhere>$(MSBuildProgramFiles32)\Microsoft Visual Studio\Installer\vswhere.exe</StorageHubVsWhere>
     <StorageHubNativeProject>$(MSBuildProjectDirectory)\..\StorageHub.ShellExtension.Native\StorageHub.ShellExtension.Native.vcxproj</StorageHubNativeProject>
-    <StorageHubNativeOutput>$(MSBuildProjectDirectory)\..\StorageHub.ShellExtension.Native\x64\$(Configuration)\StorageHub.ShellExtension.Native.dll</StorageHubNativeOutput>
+    <!-- Explorer loads the broker in-process, so it has to match the architecture the shell is
+         published for; a build without a runtime follows the SDK's own, which is what runs it. -->
+    <StorageHubNativeRuntime>$(RuntimeIdentifier)</StorageHubNativeRuntime>
+    <StorageHubNativeRuntime Condition="'$(StorageHubNativeRuntime)' == ''">$(NETCoreSdkRuntimeIdentifier)</StorageHubNativeRuntime>
+    <StorageHubNativePlatform>x64</StorageHubNativePlatform>
+    <StorageHubNativePlatform Condition="$(StorageHubNativeRuntime.EndsWith('-arm64'))">ARM64</StorageHubNativePlatform>
+    <StorageHubNativeToolsComponent>Microsoft.VisualStudio.Component.VC.Tools.x86.x64</StorageHubNativeToolsComponent>
+    <StorageHubNativeToolsComponent Condition="'$(StorageHubNativePlatform)' == 'ARM64'">Microsoft.VisualStudio.Component.VC.Tools.ARM64</StorageHubNativeToolsComponent>
+    <StorageHubNativeOutput>$(MSBuildProjectDirectory)\..\StorageHub.ShellExtension.Native\$(StorageHubNativePlatform)\$(Configuration)\StorageHub.ShellExtension.Native.dll</StorageHubNativeOutput>
   </PropertyGroup>
   <Target Name="ReportExplorerDropBrokerSkipped"
           AfterTargets="Build"
@@ -57,7 +65,7 @@
           Condition="'$(StorageHubCanBuildShellExtension)' == 'true'">
     <Error Condition="!Exists('$(StorageHubVsWhere)')"
            Text="StorageHub Explorer integration requires Visual Studio C++ build tools, but vswhere.exe was not found." />
-    <Exec Command="&quot;$(StorageHubVsWhere)&quot; -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -find MSBuild\**\Bin\MSBuild.exe"
+    <Exec Command="&quot;$(StorageHubVsWhere)&quot; -latest -products * -requires $(StorageHubNativeToolsComponent) -find MSBuild\**\Bin\MSBuild.exe"
           ConsoleToMSBuild="true"
           StandardOutputImportance="Low">
       <Output TaskParameter="ConsoleOutput" ItemName="_StorageHubNativeMsBuildCandidate" />
@@ -72,7 +80,7 @@
           AfterTargets="Build"
           DependsOnTargets="ResolveStorageHubNativeMsBuild"
           Condition="'$(StorageHubCanBuildShellExtension)' == 'true'">
-    <Exec Command="&quot;$(StorageHubNativeMsBuild)&quot; &quot;$(StorageHubNativeProject)&quot; /p:Configuration=$(Configuration) /p:Platform=x64 /m" />
+    <Exec Command="&quot;$(StorageHubNativeMsBuild)&quot; &quot;$(StorageHubNativeProject)&quot; /p:Configuration=$(Configuration) /p:Platform=$(StorageHubNativePlatform) /m" />
     <Error Condition="!Exists('$(StorageHubNativeOutput)')"
            Text="The StorageHub Explorer drop broker build did not produce $(StorageHubNativeOutput)." />
     <Copy SourceFiles="$(StorageHubNativeOutput)"
