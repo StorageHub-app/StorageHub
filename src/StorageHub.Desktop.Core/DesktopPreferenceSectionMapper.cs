@@ -54,7 +54,8 @@ internal static class DesktopPreferenceSectionMapper
             preferences.ToolbarLabels,
             preferences.ColorScheme,
             preferences.TotalUploadBytesPerSecond,
-            preferences.TotalDownloadBytesPerSecond);
+            preferences.TotalDownloadBytesPerSecond,
+            preferences.NewScheduleTimeZone);
     }
 
     /// <summary>
@@ -209,7 +210,13 @@ internal static class DesktopPreferenceSectionMapper
                 : current.ToolbarLabels,
             // A limit this build cannot use is no limit, the same as repairing a hand-edited file.
             TotalUploadBytesPerSecond = DesktopUpdatePreferences.ValidSpeedLimit(general.TotalUploadBytesPerSecond),
-            TotalDownloadBytesPerSecond = DesktopUpdatePreferences.ValidSpeedLimit(general.TotalDownloadBytesPerSecond)
+            TotalDownloadBytesPerSecond = DesktopUpdatePreferences.ValidSpeedLimit(general.TotalDownloadBytesPerSecond),
+            // A file from Windows names zones the Windows way and one from Linux the IANA way, so
+            // the zone is put in this machine's terms. One this machine does not know at all is
+            // left as it was, as an unknown colour scheme is.
+            NewScheduleTimeZone = general.NewScheduleTimeZone is null
+                ? null
+                : ScheduleTimeZones.Normalize(general.NewScheduleTimeZone) ?? current.NewScheduleTimeZone
         };
 
     private static DesktopUpdatePreferences ApplyMachineSpecific(

@@ -178,7 +178,13 @@ internal sealed record DesktopUpdatePreferences(
     /// </summary>
     long? TotalUploadBytesPerSecond = null,
     /// <summary>The same for downloads.</summary>
-    long? TotalDownloadBytesPerSecond = null)
+    long? TotalDownloadBytesPerSecond = null,
+    /// <summary>
+    /// The zone a new schedule starts on, as this machine names it; null follows the operating
+    /// system, read again each time. Existing schedules keep their own zone, and the times shown
+    /// everywhere else follow the system whatever this says.
+    /// </summary>
+    string? NewScheduleTimeZone = null)
 {
     /// <summary>16 GiB/s: far past any link, and small enough that KiB * 1024 cannot overflow.</summary>
     internal const long MaximumSpeedLimitBytesPerSecond = 16L * 1024 * 1024 * 1024;

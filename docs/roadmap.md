@@ -656,6 +656,14 @@ The profile already stores these; `CodeLogicConnectionProfileConnector.BuildAsyn
       changes; it is dimmed on a terminal, which has no row. The list's right-click menu offers all
       the row and its "..." do, Invert selection added, and dims each entry where the row's button
       is dimmed, as 1.4's Opening did, so a Copy with nothing selected is no longer offered.
+- [x] 4.9 A time zone for new schedules: Settings, Transfers & sync, "Time zone for new schedules",
+      either "Follow the system (recommended)", read again each time so a machine that moves is
+      followed, or a zone from the schedule window's list. A schedule keeps its own zone, the
+      schedule window says which default is in use, and every time shown elsewhere still follows
+      the system. It travels in a settings export, put in the importing machine's terms (Windows
+      or IANA name). Nothing else takes it: an FTP server's time zone describes the server, which
+      is usually elsewhere or on UTC, so it stays empty (UTC) unless set; SFTP, S3 and local times
+      are UTC already; and SSH.NET has no public way to send TZ on the terminal's shell channel.
 
 ## 5. New providers
 

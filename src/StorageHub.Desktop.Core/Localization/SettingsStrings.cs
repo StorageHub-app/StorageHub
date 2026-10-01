@@ -265,6 +265,16 @@ internal sealed class SettingsStrings : LocalizationModelBase
     public string MinimumConcurrencyHint { get; set; } =
         "The adaptive controller begins conservatively at this many jobs.";
 
+    /// <summary>New in 2.0: the caption over the new-schedule time zone on Transfers &amp; sync.</summary>
+    public string SectionSchedules { get; set; } = "Schedules";
+
+    public string NewScheduleTimeZone { get; set; } = "Time zone for new schedules";
+
+    public string NewScheduleTimeZoneHint { get; set; } =
+        "Only decides what a new schedule starts on; each schedule keeps its own zone. Times shown elsewhere follow the system.";
+
+    public string TimeZoneFollowSystem { get; set; } = "Follow the system (recommended)";
+
     // ------------------------------------------------------------------ editing
     public string EditorExecutable { get; set; } = "Editor executable";
 

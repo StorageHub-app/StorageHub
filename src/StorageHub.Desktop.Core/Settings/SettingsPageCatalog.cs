@@ -348,6 +348,33 @@ internal static class SettingsPageCatalog
                     static (p, limit) => p with { TotalDownloadBytesPerSecond = limit })
             ]),
 
+            // New in 2.0. Which zone a new schedule starts on, and nothing more: a schedule keeps
+            // the zone it was saved with, and every time shown in the shell follows the system.
+            new(Ui.Settings.SectionSchedules,
+            [
+                new()
+                {
+                    Key = "new-schedule-time-zone",
+                    Label = Ui.Settings.NewScheduleTimeZone,
+                    Hint = Ui.Settings.NewScheduleTimeZoneHint,
+                    Kind = SettingsControlKind.Choice,
+                    Choices =
+                    [
+                        new(ScheduleTimeZones.FollowSystem, Ui.Settings.TimeZoneFollowSystem),
+                        .. ScheduleTimeZones.All.Select(zone => new SettingsChoice(zone.Id, ScheduleTimeZones.Caption(zone)))
+                    ],
+                    Read = p => ScheduleTimeZones.Normalize(p.NewScheduleTimeZone) ?? ScheduleTimeZones.FollowSystem,
+                    // Following is null rather than the zone the system is on today, so a machine
+                    // that moves takes its new schedules with it. A zone this machine does not
+                    // know changes nothing.
+                    Write = (p, v) => v == ScheduleTimeZones.FollowSystem
+                        ? p with { NewScheduleTimeZone = null }
+                        : ScheduleTimeZones.Normalize(v) is { } zone
+                            ? p with { NewScheduleTimeZone = zone }
+                            : p
+                }
+            ]),
+
             new(Ui.Settings.SectionConfirmations,
             [
                 new()

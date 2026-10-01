@@ -75,6 +75,7 @@ internal sealed class ScheduleManagerModel : INotifyPropertyChanged
 {
     private readonly ScheduleManagerController? _controller;
     private readonly IDialogService? _dialogs;
+    private readonly string? _newScheduleTimeZone;
     private ScheduleDocument? _current;
     private ScheduleRow? _selectedRow;
     private ProfileChoice? _profile;
@@ -91,16 +92,21 @@ internal sealed class ScheduleManagerModel : INotifyPropertyChanged
     private StatusLine _status = StatusLine.Muted(Ui.Schedules.NewScheduleDraft);
     private bool _isBusy;
 
+    /// <param name="newScheduleTimeZone">
+    /// The zone Settings starts a new schedule on, or null to follow the system.
+    /// </param>
     internal ScheduleManagerModel(
         ScheduleManagerController? controller = null,
-        IDialogService? dialogs = null)
+        IDialogService? dialogs = null,
+        string? newScheduleTimeZone = null)
     {
         _controller = controller;
         _dialogs = dialogs;
+        _newScheduleTimeZone = newScheduleTimeZone;
         _frequency = Frequencies[0];
         _executionMode = ExecutionModes[0];
         _dayOfWeek = Day(System.DayOfWeek.Monday);
-        _timeZone = LocalZone();
+        _timeZone = NewScheduleZone();
 
         RefreshCommand = new RelayCommand(_ => _ = LoadAsync(), _ => Live && !IsBusy);
         SaveCommand = new RelayCommand(_ => _ = SaveAsync(), _ => Live && !IsBusy);
@@ -119,8 +125,9 @@ internal sealed class ScheduleManagerModel : INotifyPropertyChanged
     internal static ScheduleManagerModel Create(
         Func<IScheduleManagementAgentClient> scheduleClients,
         Func<ISyncManagementAgentClient> syncClients,
-        IDialogService? dialogs = null) =>
-        new(new ScheduleManagerController(scheduleClients, syncClients), dialogs);
+        IDialogService? dialogs = null,
+        string? newScheduleTimeZone = null) =>
+        new(new ScheduleManagerController(scheduleClients, syncClients), dialogs, newScheduleTimeZone);
 
     public ObservableCollection<ScheduleRow> Schedules { get; } = [];
 
@@ -140,31 +147,7 @@ internal sealed class ScheduleManagerModel : INotifyPropertyChanged
     /// current offset is shown beside it because that is what makes a region recognisable.
     /// </remarks>
     public static IReadOnlyList<TimeZoneChoice> TimeZones { get; } =
-        // The machine's own zone is added if the list leaves it out. On Linux it can: a machine on
-        // Etc/UTC is not in GetSystemTimeZones, and a new schedule then started on whichever zone
-        // sorted first, Africa/Abidjan.
-        [.. TimeZoneInfo.GetSystemTimeZones()
-            .Append(TimeZoneInfo.Local)
-            .DistinctBy(static zone => zone.Id, StringComparer.Ordinal)
-            .Select(static zone => new TimeZoneChoice(zone.Id, $"{zone.Id} · UTC{Offset(zone)}"))
-            .OrderBy(static zone => zone.Id, StringComparer.CurrentCultureIgnoreCase)];
-
-    /// <summary>
-    /// A zone's standard offset, as "+01:00".
-    /// </summary>
-    /// <remarks>
-    /// Written out rather than handed to a format string: TimeSpan's custom formats have no
-    /// positive/negative sections -- that is a numeric-format feature -- and asking for one throws
-    /// a FormatException from inside a static initializer, where it surfaces as the entire screen
-    /// failing to construct rather than as one wrong label.
-    /// </remarks>
-    private static string Offset(TimeZoneInfo zone)
-    {
-        var offset = zone.BaseUtcOffset;
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"{(offset < TimeSpan.Zero ? '-' : '+')}{Math.Abs(offset.Hours):00}:{Math.Abs(offset.Minutes):00}");
-    }
+        [.. ScheduleTimeZones.All.Select(static zone => new TimeZoneChoice(zone.Id, ScheduleTimeZones.Caption(zone)))];
 
     /// <summary>The seven days, in the order a week is read in and in the shell's language.</summary>
     public static IReadOnlyList<DayChoice> Days { get; } =
@@ -472,7 +455,8 @@ internal sealed class ScheduleManagerModel : INotifyPropertyChanged
         SelectedRow = null;
         Apply(ScheduleRecurrence.Default);
         Profile = Profiles.FirstOrDefault();
-        TimeZone = LocalZone();
+        TimeZone = NewScheduleZone();
+        Raise(nameof(NewScheduleZoneNotice));
         ExecutionMode = ExecutionModes[0];
         MisfireGraceMinutes = 15;
         QueueOneWhileRunning = true;
@@ -702,16 +686,28 @@ internal sealed class ScheduleManagerModel : INotifyPropertyChanged
         return Days[0];
     }
 
-    /// <summary>This machine's own zone, which is what a new schedule should start on.</summary>
-    private static TimeZoneChoice? LocalZone()
+    /// <summary>
+    /// What a new schedule starts on: the zone chosen in Settings, or this machine's own as it is
+    /// now. A zone the machine moved to after the list was made is offered as it is rather than
+    /// swapped for the first in the list.
+    /// </summary>
+    private TimeZoneChoice NewScheduleZone()
     {
-        foreach (var zone in TimeZones)
-        {
-            if (zone.Id == TimeZoneInfo.Local.Id) return zone;
-        }
-
-        return TimeZones.Count > 0 ? TimeZones[0] : null;
+        var zone = ScheduleTimeZones.ForNewSchedule(_newScheduleTimeZone);
+        return TimeZones.FirstOrDefault(choice => string.Equals(choice.Id, zone.Id, StringComparison.Ordinal))
+            ?? new TimeZoneChoice(zone.Id, ScheduleTimeZones.Caption(zone));
     }
+
+    /// <summary>
+    /// Which zone a new schedule starts on, and where that was decided, under the zone picker.
+    /// </summary>
+    /// <remarks>
+    /// Said whatever schedule is open, because a schedule that was saved before the setting
+    /// changed keeps its zone, and the difference should not look like a mistake.
+    /// </remarks>
+    public string NewScheduleZoneNotice => ScheduleTimeZones.FollowsSystem(_newScheduleTimeZone)
+        ? Ui.Format(Ui.Schedules.NewSchedulesFollowSystemFormat, ScheduleTimeZones.SystemZone().Id)
+        : Ui.Format(Ui.Schedules.NewSchedulesUseSettingFormat, ScheduleTimeZones.ForNewSchedule(_newScheduleTimeZone).Id);
 
     private bool Live => _controller is not null;
 

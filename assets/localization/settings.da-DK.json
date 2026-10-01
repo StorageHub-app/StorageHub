@@ -234,5 +234,9 @@
   "unitSeconds": "sek.",
   "unitPoints": "pt",
   "sectionSpeedLimits": "Hastighedsgrænser",
-  "unitKibibytesPerSecond": "KiB/s"
+  "unitKibibytesPerSecond": "KiB/s",
+  "sectionSchedules": "Tidsplaner",
+  "newScheduleTimeZone": "Tidszone for nye tidsplaner",
+  "newScheduleTimeZoneHint": "Bestemmer kun, hvad en ny tidsplan starter med; hver tidsplan beholder sin egen zone. Tider vist andre steder følger systemet.",
+  "timeZoneFollowSystem": "Følg systemet (anbefales)"
 }

@@ -118,6 +118,9 @@ internal sealed class DesktopConfig : ConfigModelBase
     public long? TotalUploadBytesPerSecond { get; set; }
 
     public long? TotalDownloadBytesPerSecond { get; set; }
+
+    /// <summary>The zone a new schedule starts on; absent follows the operating system.</summary>
+    public string? NewScheduleTimeZone { get; set; }
 }
 
 /// <summary>

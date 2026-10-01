@@ -111,6 +111,12 @@ internal sealed class ScheduleStrings : LocalizationModelBase
     public string TimeZoneHint { get; set; } =
         "Offsets reflect today's daylight-saving rules; the named region controls future changes.";
 
+    public string NewSchedulesFollowSystemFormat { get; set; } =
+        "New schedules start on this computer's time zone, {0}. Choose another in Settings, under Transfers & sync.";
+
+    public string NewSchedulesUseSettingFormat { get; set; } =
+        "New schedules start on {0}, as chosen in Settings, under Transfers & sync.";
+
     // ------------------------------------------------------------------ modes
     public string ReviewOnly { get; set; } = "Review only";
 

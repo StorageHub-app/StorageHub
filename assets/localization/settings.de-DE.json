@@ -234,5 +234,9 @@
   "unitSeconds": "s",
   "unitPoints": "pt",
   "sectionSpeedLimits": "Geschwindigkeitslimits",
-  "unitKibibytesPerSecond": "KiB/s"
+  "unitKibibytesPerSecond": "KiB/s",
+  "sectionSchedules": "Zeitpläne",
+  "newScheduleTimeZone": "Zeitzone für neue Zeitpläne",
+  "newScheduleTimeZoneHint": "Bestimmt nur, womit ein neuer Zeitplan beginnt; jeder Zeitplan behält seine eigene Zone. Andernorts angezeigte Zeiten folgen dem System.",
+  "timeZoneFollowSystem": "Dem System folgen (empfohlen)"
 }

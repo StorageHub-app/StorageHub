@@ -70,24 +70,41 @@ public sealed class DesktopPreferenceSectionMapperTests
             DesktopPreferenceSectionMapper.CaptureGeneral(result.Preferences));
     }
 
-    /// <summary>A limit in an imported file that this build cannot use is no limit, not an error.</summary>
+    /// <summary>
+    /// An imported file is read in this machine's terms: a limit this build cannot use is no limit,
+    /// not an error, and a zone named the other operating system's way is this one's zone.
+    /// </summary>
     [Fact]
-    public void AnImportedSpeedLimitOutOfRangeIsNoLimit()
+    public void AnImportedValueIsTakenInThisMachinesTerms()
     {
+        var foreignTokyo = OperatingSystem.IsWindows() ? "Asia/Tokyo" : "Tokyo Standard Time";
         var document = Document() with
         {
             DesktopGeneral = DesktopPreferenceSectionMapper.CaptureGeneral(DesktopUpdatePreferences.Defaults) with
             {
                 TotalUploadBytesPerSecond = -1,
-                TotalDownloadBytesPerSecond = long.MaxValue
+                TotalDownloadBytesPerSecond = long.MaxValue,
+                NewScheduleTimeZone = foreignTokyo
             }
         };
 
         var result = DesktopPreferenceSectionMapper.Apply(
-            Customised(), document, [SettingsSectionId.DesktopGeneral]);
+            Customised() with { NewScheduleTimeZone = null }, document, [SettingsSectionId.DesktopGeneral]);
 
+        Assert.Empty(result.Blocked);
         Assert.Null(result.Preferences.TotalUploadBytesPerSecond);
         Assert.Null(result.Preferences.TotalDownloadBytesPerSecond);
+        Assert.Equal(OperatingSystem.IsWindows() ? "Tokyo Standard Time" : "Asia/Tokyo", result.Preferences.NewScheduleTimeZone);
+
+        // A zone this machine does not know at all leaves the choice already made.
+        var unknown = document with
+        {
+            DesktopGeneral = document.DesktopGeneral! with { NewScheduleTimeZone = "Nowhere/Invalid" }
+        };
+        Assert.Equal(
+            Customised().NewScheduleTimeZone,
+            DesktopPreferenceSectionMapper.Apply(Customised(), unknown, [SettingsSectionId.DesktopGeneral])
+                .Preferences.NewScheduleTimeZone);
     }
 
     [Fact]
@@ -329,7 +346,8 @@ public sealed class DesktopPreferenceSectionMapperTests
         Shortcuts = ShortcutSettings.Resolve(null),
         SshTerminal = new SshTerminalPreferences("screen-256color"),
         TotalUploadBytesPerSecond = 512 * 1024,
-        TotalDownloadBytesPerSecond = 2 * 1024 * 1024
+        TotalDownloadBytesPerSecond = 2 * 1024 * 1024,
+        NewScheduleTimeZone = ScheduleTimeZones.Normalize("Asia/Tokyo")
     };
 
     private static DesktopUpdatePreferences WithPrivateKey(string reference) =>

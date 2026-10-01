@@ -97,5 +97,7 @@
   "savedSafeAutomatic": "Tidsplanen er gemt. Planer, der kun tilføjer eller erstatter filer, kører af sig selv.",
   "runsDailyFormat": "Kører hver dag kl. {0}.",
   "runsWeekdaysFormat": "Kører mandag til fredag kl. {0}.",
-  "culture": "da-DK"
+  "culture": "da-DK",
+  "newSchedulesFollowSystemFormat": "Nye tidsplaner starter med denne computers tidszone, {0}. Vælg en anden i Indstillinger under Overførsler og sync.",
+  "newSchedulesUseSettingFormat": "Nye tidsplaner starter med {0}, som valgt i Indstillinger under Overførsler og sync."
 }

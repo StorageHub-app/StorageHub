@@ -42,7 +42,10 @@ internal sealed record DesktopGeneralSection(
     // Total speed limits in bytes per second, null for none. A preference about the person's link
     // rather than about this machine's files, so it travels; appended with defaults like the rest.
     long? TotalUploadBytesPerSecond = null,
-    long? TotalDownloadBytesPerSecond = null);
+    long? TotalDownloadBytesPerSecond = null,
+    // Where the person is rather than where the machine is, so it travels too. Null follows the
+    // system on the machine that imports it.
+    string? NewScheduleTimeZone = null);
 
 /// <summary>
 /// Settings that name something on one computer: a path, or a reference into that machine's

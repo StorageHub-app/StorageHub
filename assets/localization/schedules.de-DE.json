@@ -97,5 +97,7 @@
   "savedSafeAutomatic": "Zeitplan gespeichert. Pläne, die nur Dateien hinzufügen oder ersetzen, laufen von selbst.",
   "runsDailyFormat": "Läuft täglich um {0}.",
   "runsWeekdaysFormat": "Läuft montags bis freitags um {0}.",
-  "culture": "de-DE"
+  "culture": "de-DE",
+  "newSchedulesFollowSystemFormat": "Neue Zeitpläne beginnen mit der Zeitzone dieses Computers, {0}. Eine andere wählen Sie in den Einstellungen unter Übertragung & Sync.",
+  "newSchedulesUseSettingFormat": "Neue Zeitpläne beginnen mit {0}, wie in den Einstellungen unter Übertragung & Sync gewählt."
 }

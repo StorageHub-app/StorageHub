@@ -227,7 +227,10 @@ public class ScheduleManagerTests
         Assert.True(model.ExecutionNotice.IsWarning);
     }
 
-    /// <summary>A new schedule starts off, at two in the morning, in this machine's zone.</summary>
+    /// <summary>
+    /// A new schedule starts off, at two in the morning, in this machine's zone, unless Settings
+    /// names another; and the window says which it is.
+    /// </summary>
     [Fact]
     public void ANewScheduleStartsOnSafeDefaults()
     {
@@ -237,6 +240,18 @@ public class ScheduleManagerTests
         Assert.Equal(ScheduleFrequency.Daily, model.Frequency.Frequency);
         Assert.Equal(TimeSpan.FromHours(2), model.TimeOfDay);
         Assert.Equal(TimeZoneInfo.Local.Id, model.TimeZone!.Id);
+        Assert.Equal(
+            Ui.Format(Ui.Schedules.NewSchedulesFollowSystemFormat, TimeZoneInfo.Local.Id),
+            model.NewScheduleZoneNotice);
+
+        var chosen = ScheduleTimeZones.All.First(static zone => zone.Id != TimeZoneInfo.Local.Id).Id;
+        var setByHand = new ScheduleManagerModel(newScheduleTimeZone: chosen);
+        Assert.Equal(chosen, setByHand.TimeZone!.Id);
+        Assert.Equal(chosen, setByHand.BuildDraft().TimeZoneId);
+        Assert.Equal(Ui.Format(Ui.Schedules.NewSchedulesUseSettingFormat, chosen), setByHand.NewScheduleZoneNotice);
+
+        // A zone this machine does not know, from a file edited by hand, follows the system.
+        Assert.Equal(TimeZoneInfo.Local.Id, new ScheduleManagerModel(newScheduleTimeZone: "Nowhere/Invalid").TimeZone!.Id);
     }
 
     /// <summary>The grace period travels in seconds, as the contract has it.</summary>

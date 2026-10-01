@@ -13,6 +13,24 @@ public sealed class ScheduleCalculatorTests
         Assert.NotNull(zoneError);
     }
 
+    /// <summary>
+    /// A zone is accepted by either operating system's name.
+    /// </summary>
+    /// <remarks>
+    /// The desktop sends the names its own system uses: Windows ids on Windows, IANA ids on Linux,
+    /// where Etc/UTC is what a machine set to UTC reports and is missing from the system's zone
+    /// list. A schedule imported from the other system carries the other kind.
+    /// </remarks>
+    [Fact]
+    public void AcceptsEitherOperatingSystemsZoneNames()
+    {
+        foreach (var zone in new[] { "Romance Standard Time", "Europe/Copenhagen", "Etc/UTC", "UTC" })
+        {
+            Assert.True(CronScheduleDefinition.TryCreate("0 2 * * *", zone, out var schedule, out _), zone);
+            Assert.NotNull(ScheduleCalculator.GetNextOccurrence(schedule!, DateTimeOffset.UnixEpoch));
+        }
+    }
+
     [Fact]
     public void DefaultsMisfireGraceToTwentyFourHours()
     {

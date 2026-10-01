@@ -170,7 +170,10 @@ internal static class DesktopConfigRepair
                 : ConnectionsPanelSide.Left,
             Language = DesktopCulture.IsSupportedSetting(preferences.Language)
                 ? preferences.Language
-                : DesktopCulture.AutomaticLanguage
+                : DesktopCulture.AutomaticLanguage,
+            // A zone this machine does not know follows the system, which is what a new schedule
+            // would have started on anyway; another system's name for a known zone becomes ours.
+            NewScheduleTimeZone = ScheduleTimeZones.Normalize(preferences.NewScheduleTimeZone)
         };
     }
 
@@ -211,6 +214,12 @@ internal static class DesktopConfigRepair
         if (!Enum.IsDefined(preferences.ConnectionsPanelSide))
         {
             return "The connections panel must be docked to the left or the right.";
+        }
+
+        if (preferences.NewScheduleTimeZone is { } zone &&
+            !string.Equals(ScheduleTimeZones.Normalize(zone), zone, StringComparison.Ordinal))
+        {
+            return "The time zone for new schedules is not one this computer knows.";
         }
 
         return !IsValidEditorPath(preferences.ExternalEditorPath) ||

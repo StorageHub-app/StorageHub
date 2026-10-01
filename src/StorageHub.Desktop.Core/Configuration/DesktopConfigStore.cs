@@ -294,7 +294,8 @@ internal sealed class DesktopConfigStore
                 : ToolbarLabelStyle.IconsOnly,
             ConnectionGroups: ReadGroups(general.ConnectionGroups),
             TotalUploadBytesPerSecond: general.TotalUploadBytesPerSecond,
-            TotalDownloadBytesPerSecond: general.TotalDownloadBytesPerSecond);
+            TotalDownloadBytesPerSecond: general.TotalDownloadBytesPerSecond,
+            NewScheduleTimeZone: general.NewScheduleTimeZone);
     }
 
     /// <summary>
@@ -375,7 +376,8 @@ internal sealed class DesktopConfigStore
                 })
                 .ToList(),
             TotalUploadBytesPerSecond = preferences.TotalUploadBytesPerSecond,
-            TotalDownloadBytesPerSecond = preferences.TotalDownloadBytesPerSecond
+            TotalDownloadBytesPerSecond = preferences.TotalDownloadBytesPerSecond,
+            NewScheduleTimeZone = preferences.NewScheduleTimeZone
         };
 
         var shortcuts = new DesktopShortcutsConfig

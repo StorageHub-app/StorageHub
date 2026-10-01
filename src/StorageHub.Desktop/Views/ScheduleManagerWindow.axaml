@@ -135,6 +135,8 @@
                         HorizontalAlignment="Stretch" MaxDropDownHeight="320"
                         AutomationProperties.Name="{Binding TimeZoneAccessibleName}"/>
               <TextBlock Classes="muted" Text="{Binding TimeZoneHint}" TextWrapping="Wrap"/>
+              <!-- Which zone a new schedule starts on, and where that is decided. -->
+              <TextBlock Classes="muted" Text="{Binding NewScheduleZoneNotice}" TextWrapping="Wrap"/>
             </StackPanel>
 
             <StackPanel Spacing="{StaticResource SpaceXs}">

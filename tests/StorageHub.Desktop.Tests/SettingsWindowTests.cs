@@ -86,10 +86,21 @@ public sealed class SettingsWindowTests : IDisposable
 
         var transfers = model.SelectedPageModel;
         Assert.Equal(
-            [Ui.Settings.SectionConcurrency, Ui.Settings.SectionSpeedLimits, Ui.Settings.SectionConfirmations],
+            [
+                Ui.Settings.SectionConcurrency, Ui.Settings.SectionSpeedLimits, Ui.Settings.SectionSchedules,
+                Ui.Settings.SectionConfirmations
+            ],
             transfers.Groups.Select(group => group.Caption),
             StringComparer.OrdinalIgnoreCase);
         Assert.Equal(Ui.Settings.UnitJobs, Row(model, "maximum-transfers").Unit);
+
+        // New schedules follow the system until a zone is chosen, and following again stores no zone.
+        var zone = ScheduleTimeZones.All.First(static zone => zone.Id != TimeZoneInfo.Local.Id).Id;
+        Assert.Equal(0, Row(model, "new-schedule-time-zone").SelectedChoice);
+        Row(model, "new-schedule-time-zone").SelectedChoice = IndexOf(model, "new-schedule-time-zone", zone);
+        Assert.Equal(zone, model.Working.NewScheduleTimeZone);
+        Row(model, "new-schedule-time-zone").SelectedChoice = 0;
+        Assert.Null(model.Working.NewScheduleTimeZone);
 
         var startWith = Row(model, "start-with");
         Row(model, "adaptive-concurrency").IsOn = false;
