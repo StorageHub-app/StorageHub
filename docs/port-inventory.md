@@ -111,7 +111,7 @@ COM registration, the named-pipe lifecycle client -- sit in `Desktop.Core/Window
 Legend: **done** · **partial** — works, with named gaps · **todo** · **dropped** — deliberately not
 reproduced.
 
-Where it stands across the 57 rows below: **50 done, 3 partial, 1 todo, 3 dropped.** The partials
+Where it stands across the 57 rows below: **51 done, 2 partial, 1 todo, 3 dropped.** The partials
 are the honest ones — each names what is missing rather than claiming the row.
 
 ### Shell chrome
@@ -160,7 +160,7 @@ are the honest ones — each names what is missing rather than claiming the row.
 
 | What 1.x does | Status |
 |---|---|
-| Sidebar: grouped by folder, favourites, per-row menu, search | **partial** — groups are there and are better than 1.x: made by hand, reordered by dragging, remembered, and seeded from each connection's folder path so an upgrade keeps its organisation. Each card is drawn as 1.x's were, with its coloured icon tile, the provider, folder and health line and its tag chips (L.7). Favorites is back above the groups, a card's right-click menu has 1.x's Open, Open in new pane, Toggle favorite, Edit and Delete (P.2.15, P.3.5), and the search box filters the cards. A collapsed group opens again on each listing or search, where 1.x kept it closed (left open under P.3.5, with no item of its own yet) |
+| Sidebar: grouped by folder, favourites, per-row menu, search | **done** — groups are there and are better than 1.x: made by hand, reordered by dragging, remembered, and seeded from each connection's folder path so an upgrade keeps its organisation. Each card is drawn as 1.x's were, with its coloured icon tile, the provider, folder and health line and its tag chips (L.7). Favorites is back above the groups, a card's right-click menu has 1.x's Open, Open in new pane, Toggle favorite, Edit and Delete (P.2.15, P.3.5), and the search box filters the cards. A collapsed group stays collapsed across listings and searches, for the session, as 1.x kept it (P.3.5) |
 | Connection Manager: create, edit, delete, test, 1,784 lines of provider fields | **done** — 1.x's plain Edit Connection dialog for create and edit, with listing, testing and deleting on the connections panel as in 1.x. The fields are not written out: they come from `ConnectionProviderCatalog` and the draft from `ConnectionEditorDraftFactory`, which is what most of those 1,784 lines were doing by hand. A secret field is a read-only reference with Enroll, Delete and, for the two material fields, Key Store beside it, as in 1.x. A pinned host key or certificate is loaded into its field and pinned on save, as in 1.x. Beside the fingerprint are 1.x's Fetch from host (an SFTP or SSH host key), which shows what the endpoint presents for it to be accepted into the field or not, and Reject, which records the fingerprint as rejected and clears it; opening the Trust tab fetches or asks to, as Settings' host key discovery says, as 1.x did (roadmap 2.2) |
 | Connection picker in a pane's header | **done** — a button over a picker grouped under This PC, favourites, folders and providers, filtered as it is typed into, with the open connection marked, as 1.x's was; the keyboard rules are in Core as `ConnectionPickerSession` |
 | Per-connection icon and accent colour | **done** — chosen in the Edit Connection dialog from 1.x's icon picker and colour swatches (L.4), and a group's icon from the same picker on a right-click on its heading |

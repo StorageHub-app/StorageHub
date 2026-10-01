@@ -132,8 +132,10 @@ internal sealed class ConnectionGroupModel(
     /// Whether the group is open.
     /// </summary>
     /// <remarks>
-    /// Not saved. A collapsed group is a way to get something out of the way while doing something
-    /// else, and reopening the shell is the clearest signal that the something else is over.
+    /// The panel keeps a closed group closed across its listings and searches, as 1.x did, but
+    /// does not save it: 1.x did not either. A collapsed group is a way to get something out of
+    /// the way while doing something else, and reopening the shell is the clearest signal that the
+    /// something else is over.
     /// </remarks>
     public bool IsExpanded
     {

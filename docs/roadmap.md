@@ -256,9 +256,10 @@ applied, and chosen on the Appearance page (P.5.1).
       or no, rather than a button: 1.4 kept the toggle on the menu. Go's "No favorite connections"
       shows its hint although dimmed. Fixed on the way: saving from the editor no longer drops the
       favourite flag (1.4 did), nor the enabled state and default paths, which the editor has no
-      field for. Left open: a collapsed group, Favorites included, opens again on each listing or
-      search (1.4 remembered it), and the Go entries and the starred name have no accessible
-      description yet.
+      field for. A collapsed group, Favorites included, stays collapsed across the panel's
+      listings and searches, and follows a rename, as 1.4's `_collapsedGroups` kept it; like
+      1.4's, it is remembered for the session and not saved, so StorageHub opens with every group
+      open. Left open: the Go entries and the starred name have no accessible description yet.
 - [x] P.3.6 Status bar: the agent cell opens Agent control and carries its detail as a tooltip; the
       transfer speed cell (the queue already has `BytesPerSecond`); short messages for copied, staged,
       imported, exported.

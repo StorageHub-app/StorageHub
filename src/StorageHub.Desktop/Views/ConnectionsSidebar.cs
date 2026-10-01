@@ -32,6 +32,15 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     private readonly Func<string?, string, Task<IconChoice>>? _pickIcon;
     private readonly Func<IRemoteConnectionProfileClient>? _profiles;
     private Dictionary<string, string> _icons = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The groups closed by hand, by name, so a listing or a search that draws them again draws
+    /// them closed, as 1.x's <c>_collapsedGroups</c> kept them. For the session only, as 1.x's was.
+    /// </summary>
+    private readonly HashSet<string> _collapsed = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Whether Favorites was closed, kept apart because a group of one's own may share its name.</summary>
+    private bool _favoritesCollapsed;
     private IReadOnlyList<ConnectionCardModel> _cards = [];
 
     /// <summary>
@@ -756,6 +765,7 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         // The icon goes with the group; left behind, it would come back on the next group given
         // the old name.
         if (_icons.Remove(from, out var icon)) _icons[name.Trim()] = icon;
+        if (_collapsed.Remove(from)) _collapsed.Add(name.Trim());
         PersistIcons();
         Persist();
         Rebuild();
@@ -765,6 +775,7 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     internal void RemoveGroup(string name)
     {
         _arrangement = ConnectionGrouping.Remove(_arrangement, name);
+        _collapsed.Remove(name);
         if (_icons.Remove(name)) PersistIcons();
         Persist();
         Rebuild();
@@ -853,7 +864,17 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
             .ToArray();
         Favorites = favorites.Length == 0
             ? null
-            : new ConnectionGroupModel(Ui.Connections.GroupFavorites, favorites, Inert, Inert, isFavorites: true);
+            : new ConnectionGroupModel(Ui.Connections.GroupFavorites, favorites, Inert, Inert, isFavorites: true)
+            {
+                IsExpanded = !_favoritesCollapsed
+            };
+        if (Favorites is { } starred)
+        {
+            starred.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(ConnectionGroupModel.IsExpanded)) _favoritesCollapsed = !starred.IsExpanded;
+            };
+        }
 
         Groups.Clear();
         var matched = favorites.Length;
@@ -868,13 +889,23 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
                 .Select(card => new ConnectionRowModel(card))
                 .ToArray();
             matched += rows.Length;
-            Groups.Add(new ConnectionGroupModel(
+            var drawn = new ConnectionGroupModel(
                 name,
                 rows,
                 new RelayCommand(_ => _ = RenameGroupAsync(name), _ => _dialogs is not null),
                 new RelayCommand(_ => RemoveGroup(name), _ => _arrangement.Count > 1),
                 new RelayCommand(_ => _ = ChangeGroupIconAsync(name), _ => _pickIcon is not null),
-                _icons.GetValueOrDefault(name)));
+                _icons.GetValueOrDefault(name))
+            {
+                IsExpanded = !_collapsed.Contains(name)
+            };
+            drawn.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName != nameof(ConnectionGroupModel.IsExpanded)) return;
+                if (drawn.IsExpanded) _collapsed.Remove(name);
+                else _collapsed.Add(name);
+            };
+            Groups.Add(drawn);
         }
 
         // The same connection stays selected on its new row, and one that has gone, deleted or

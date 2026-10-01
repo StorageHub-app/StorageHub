@@ -42,17 +42,25 @@ public class ConnectionSearchTests
         Assert.Equal(["Studio Renders"], Rows(sidebar));
     }
 
+    /// <summary>
+    /// Clearing brings every connection back, and a group closed before the search, or a listing
+    /// since, is still closed, as 1.x kept it.
+    /// </summary>
     [AvaloniaFact]
     public async Task ClearingTheSearchBringsEverythingBack()
     {
         var sidebar = Sidebar(Summary("Studio Assets"), Summary("Site Backups"));
         await sidebar.RefreshAsync(TestContext.Current.CancellationToken);
+        var name = sidebar.Groups[0].Name;
+        sidebar.Groups[0].IsExpanded = false;
         sidebar.Search = "site";
 
         sidebar.ClearSearchCommand.Execute(null);
+        await sidebar.RefreshAsync(TestContext.Current.CancellationToken);
 
         Assert.False(sidebar.HasSearch);
         Assert.Equal(2, Rows(sidebar).Length);
+        Assert.False(sidebar.Groups.Single(group => group.Name == name).IsExpanded);
     }
 
     /// <summary>
