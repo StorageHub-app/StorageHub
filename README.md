@@ -4,8 +4,8 @@
 
 # StorageHub
 
-A file manager, transfer client, and synchronization engine for Windows, for
-people who move files they cannot afford to lose.
+A file manager, transfer client, and synchronization engine for Windows and
+Linux, for people who move files they cannot afford to lose.
 
 Put local disks and remote storage side by side. Queue a transfer and close the
 window — it keeps running. Synchronize two locations and see exactly what is
@@ -13,14 +13,18 @@ about to change before anything is touched. Every credential lives in an
 encrypted vault, and no server is trusted until you have checked its fingerprint
 yourself.
 
-Open source, and built with C# and .NET 10 on the CodeLogic application
-lifecycle, adapting the all-in-one `CL.Storage` (`CodeLogic.Storage`) provider
-library behind a provider-neutral contract.
+Open source, and built with C# and .NET 10. The desktop is
+[Avalonia](https://avaloniaui.net/), so Windows and Linux run the same shell
+from the same source. It sits on the CodeLogic application lifecycle and
+adapts the all-in-one `CL.Storage` (`CodeLogic.Storage`) provider library behind
+a provider-neutral contract.
 
 > [!IMPORTANT]
-> StorageHub 1.4 is the current stable release. Every push to `main` also
-> publishes a release candidate, which an installation can opt into or exclude.
-> Release binaries are not yet Authenticode-signed, so Windows SmartScreen may
+> `main` is StorageHub 2.0, which ships as pre-releases until 2.0.0 is tagged.
+> StorageHub 1.4.5 is still the current stable release, marked Latest on the
+> releases page; the 1.4 source is kept on the
+> [`1.x-archive`](https://github.com/StorageHub-app/StorageHub/tree/1.x-archive)
+> branch. Release binaries are not yet code-signed, so Windows SmartScreen may
 > warn on first run; verify downloads against the published `SHA256SUMS`. As
 > with any file-management tool, keep an independent backup of irreplaceable
 > data.
@@ -29,77 +33,49 @@ library behind a provider-neutral contract.
 
 <table>
   <tr>
-    <td width="50%"><a href="docs/screenshots/welcome.png"><img src="docs/screenshots/welcome.png" alt="The Welcome page: agent status, transfer counters, saved workspaces, and recent connections"></a></td>
-    <td width="50%"><a href="docs/screenshots/workspace.png"><img src="docs/screenshots/workspace.png" alt="A two-pane workspace with local disks beside a connection's saved locations"></a></td>
+    <td width="50%"><a href="docs/screenshots/welcome.png"><img src="docs/screenshots/welcome.png" alt="The Welcome page in the dark theme on Windows: agent status, transfer counters, saved workspaces, recent connections and anything that needs attention"></a></td>
+    <td width="50%"><a href="docs/screenshots/workspace.png"><img src="docs/screenshots/workspace.png" alt="A two-pane workspace: This PC's drives and folder tree on the left, an SSH terminal session on the right, with the transfer queue below"></a></td>
   </tr>
   <tr>
     <td><b>Welcome</b> - connections, transfers, and anything that needs attention, in one place.</td>
-    <td><b>Workspaces</b> - one to four panes, any mix of local and remote.</td>
+    <td><b>Workspaces</b> - one to four panes, any mix of local, remote, and SSH terminal.</td>
   </tr>
   <tr>
-    <td><a href="docs/screenshots/new-workspace.png"><img src="docs/screenshots/new-workspace.png" alt="The New Workspace chooser, showing six pane layouts"></a></td>
-    <td><a href="docs/screenshots/sync-tasks.png"><img src="docs/screenshots/sync-tasks.png" alt="The Sync tasks page, listing saved synchronization profiles and recent runs"></a></td>
+    <td><a href="docs/screenshots/welcome-linux-light.png"><img src="docs/screenshots/welcome-linux-light.png" alt="The same Welcome page in the light theme, running on Linux"></a></td>
+    <td><a href="docs/screenshots/settings-appearance.png"><img src="docs/screenshots/settings-appearance.png" alt="Settings, on the Appearance page, choosing a colour scheme, the theme and the language"></a></td>
   </tr>
   <tr>
-    <td><b>Six layouts</b> - from a single pane to a 2x2 grid, remembered per workspace.</td>
-    <td><b>Sync tasks</b> - saved profiles and durable run history from the background agent.</td>
-  </tr>
-  <tr>
-    <td><a href="docs/screenshots/connection-editor.png"><img src="docs/screenshots/connection-editor.png" alt="The connection editor on its General tab, editing a Local/UNC profile"></a></td>
-    <td><a href="docs/screenshots/connection-editor-s3.png"><img src="docs/screenshots/connection-editor-s3.png" alt="The connection editor showing S3 endpoint, signing region, bucket, and prefix"></a></td>
-  </tr>
-  <tr>
-    <td><b>Connections</b> - typed profiles, with folders, labels, and a colour of their own.</td>
-    <td><b>Per provider</b> - the fields that provider actually has, and no others.</td>
-  </tr>
-  <tr>
-    <td><a href="docs/screenshots/key-store.png"><img src="docs/screenshots/key-store.png" alt="The key store, listing imported certificates and SSH keys"></a></td>
-    <td><a href="docs/screenshots/settings-transfers.png"><img src="docs/screenshots/settings-transfers.png" alt="Settings, on the transfers and sync page, showing the concurrency limits"></a></td>
-  </tr>
-  <tr>
-    <td><b>Key store</b> - certificates and SSH keys in one place, so rotating one updates every profile that uses it.</td>
-    <td><b>Settings</b> - captioned cards of labelled rows, in the app's own controls rather than Windows'.</td>
-  </tr>
-  <tr>
-    <td><a href="docs/screenshots/settings-background-agent.png"><img src="docs/screenshots/settings-background-agent.png" alt="Settings, on the background agent page, with the three hosting modes listed"></a></td>
-    <td><a href="docs/screenshots/settings-ssh-terminal.png"><img src="docs/screenshots/settings-ssh-terminal.png" alt="Settings, on the SSH terminal page, choosing the default authentication for new profiles"></a></td>
-  </tr>
-  <tr>
-    <td><b>Background agent</b> - three ways to run it, switched without reinstalling. See <a href="#how-the-background-agent-runs">below</a>.</td>
-    <td><b>Per-provider defaults</b> - what a new profile starts with, including SSH keys and timeouts.</td>
-  </tr>
-  <tr>
-    <td><a href="docs/screenshots/settings-updates.png"><img src="docs/screenshots/settings-updates.png" alt="Settings, on the updates page, with automatic checks and downloads enabled and silent restart disabled"></a></td>
-    <td></td>
-  </tr>
-  <tr>
-    <td><b>Updates</b> - checked against one fixed repository, downloaded with their checksums verified, installed when you say so.</td>
-    <td></td>
+    <td><b>On Linux</b> - the same window, the same controls, here in the light theme.</td>
+    <td><b>Settings</b> - twenty-two colour schemes, light and dark, identical on both systems.</td>
   </tr>
 </table>
 
 ## Features
 
 **Browse and manage** — Workspaces of one to four equal-capability panes, in six
-layouts from a single pane to a 2×2 grid. Saving a workspace names it after the
-file, and pinning it reopens it where you left off. Each pane carries a
-one-line connection bar that can be hidden per pane when you want the whole
-pane for the listing. Local and remote browsing is asynchronous, with
-history, filtering, and bounded paging, so a folder with a hundred thousand
-objects does not freeze the window. Create, rename, batch-rename, and delete
-items; inspect versions, metadata, and tags read-only. Drag files to and from
-File Explorer.
+layouts from a single pane to a 2×2 grid, each with a folder tree beside its
+list. Workspaces save to `.shw` files, the same format 1.4 used, so a 1.4
+workspace opens in 2.0; pinning one reopens it where you left off. Each pane's
+connection bar and its FILES bar can be hidden per pane when you want the whole
+pane for the listing. Local and remote browsing is asynchronous, with history,
+filtering, and bounded paging, so a folder with a hundred thousand objects does
+not freeze the window. Create, rename, batch-rename, and delete items; inspect
+versions, metadata, and tags read-only. Drop files in from File Explorer,
+Nautilus, or Dolphin, and drag them out again; on Windows that includes a remote
+connection's files, which the agent downloads to wherever they were dropped.
 
-**Connect securely** — Typed profiles for Local/UNC, S3, FTP, FTPS, and SFTP
-storage plus SSH clients, organized in a grouped, searchable tree with folders,
-favorites, and tags. Give a connection or a folder its own icon and color, and
-read a profile as a foldable property grid. A favorite is listed under Favorites
-and in its own folder, which Settings can turn off. Credentials live in a
-Windows DPAPI current-user vault and never enter profile JSON, logs, or
-diagnostics. Keys and certificates live in a
-shared store, so rotating one updates every profile that uses it instead of
-sending you hunting. Server identity is pinned explicitly: no certificate or
-host key is accepted on first contact.
+**Connect securely** — Typed profiles for Local/UNC, S3 and S3-compatible, FTP,
+FTPS, and SFTP storage plus SSH terminal clients, in a connections panel of
+groups you make and drag between, with favorites, search, and an icon and
+colour of their own. Credentials live in an encrypted vault — its key protected
+by Windows DPAPI for your account, or in a file only your account can read on
+Linux — and never enter profile JSON, logs, or diagnostics. Keys and
+certificates live in a shared key store, so rotating one updates every profile
+that uses it instead of sending you hunting. An SSH key without a passphrase is
+accepted, with a warning that one is still recommended. Server identity is
+pinned explicitly: no certificate or host key is accepted on first contact. The
+connection editor can fetch an SFTP or SSH server's host key for you to accept
+or reject.
 
 **Transfer durably** — Any-to-any copy and move with source preconditions,
 optional SHA-256 verification, and delete-only-after-verified-commit move
@@ -110,94 +86,122 @@ the desktop does not discard accepted work.
 **Synchronize and schedule** — Three-way classification with conflict
 categories and deletion guards, producing immutable SHA-256 plans. Preview is
 read-only; applying requires an explicit approval bound to the plan, verified
-roots, and live capabilities. Cron schedules honor time zones and DST and
-dispatch preview-only runs.
+roots, and live capabilities. Schedules honor time zones and DST, starting on
+the time zone Settings names (the system's own by default). A schedule either
+prepares a plan for you to review, or runs on its own when the plan only adds or
+replaces files; anything that deletes or conflicts waits for you.
 
-**SSH terminal** — A managed SSH.NET client with no PuTTY dependency. Sessions
-run in the agent with vault-backed authentication and verified host keys. A full
-VT emulator renders the alternate screen, so `htop`, `vim`, `less`, and `nano`
-draw correctly and leave your scrollback intact on exit. Resizing reflows rather
-than truncating, and tells the remote its new size. Output survives a dropped
-read: the agent holds it until the terminal confirms it arrived, so a timeout
-replays instead of losing the bytes. ANSI, 256-color, and true-color with
-inverse, underline, and box drawing; the mouse is forwarded to programs that ask
-for it, with Shift to select locally. Ctrl+Shift+C and Ctrl+Shift+V copy and
-paste, which leaves Ctrl+C free to always interrupt.
+**SSH terminal** — A managed SSH.NET client with no PuTTY dependency, in a pane
+of its own. Sessions run in the agent with vault-backed authentication and
+verified host keys. A full VT emulator renders the alternate screen, so `htop`,
+`vim`, `less`, and `nano` draw correctly and leave your scrollback intact on
+exit. Resizing tells the remote its new size. ANSI, 256-color, and true-color
+with inverse, underline, and box drawing; the mouse is forwarded to programs
+that ask for it, with Shift to select locally.
 
-**In your language** — English, Danish, and German throughout, including the
-menus, the error messages and the screen-reader labels. Pick one in Settings or
-follow Windows; StorageHub offers to restart so the change takes effect
+**In your language** — English, Danish, and German. Pick one in Settings or
+follow the system; StorageHub offers to restart so the change takes effect
 everywhere at once.
 
-**Themes and settings** — Light, Dark, and System appearances applied across
-every window, including native scrollbars, list headers, and edit borders. Text
-fields, dropdowns, number steppers, switches, and buttons are drawn by
-StorageHub rather than by Windows, so a field looks and measures the same in
-Settings, in a dialog, and on a toolbar, at any display scale. Settings are laid
-out as captioned cards of labelled rows: a title and its explanation on the
-left, the control on the right. They cover transfers and sync, editing,
-appearance, workspaces, the toolbar's contents, rebindable shortcuts,
-per-provider connection defaults and trust policy, language, and updates.
-Settings, connections, and sync tasks can be exported and imported, optionally
-password-protected.
+**Themes and settings** — Twenty-two colour schemes, from StorageHub's own light
+and dark to Solarized, Nord, Gruvbox, Catppuccin, and two high-contrast ones,
+drawn the same on Windows and Linux. Follow the system's light or dark setting,
+or pin one. Settings are laid out as captioned cards of labelled rows and cover
+transfers and sync, editing, appearance, workspaces, the toolbar's contents,
+rebindable shortcuts, per-provider connection defaults and trust policy, the
+background agent, and updates. Settings, connections, and sync tasks can be
+exported and imported, optionally password-protected.
 
 What is implemented is what is described above and covered by the test suite.
-Provider coverage is listed under [Provider status](#provider-status).
+Provider coverage is listed under [Provider status](#provider-status). How 2.0
+reached parity with 1.4, screen by screen, is in the
+[port inventory](docs/port-inventory.md) and the [roadmap](docs/roadmap.md).
 
 ## Install
 
-Download the latest release from
-[GitHub Releases](https://github.com/StorageHub-app/StorageHub/releases):
+Download from [GitHub Releases](https://github.com/StorageHub-app/StorageHub/releases).
+1.4.5 is the release marked Latest; 2.0 builds are the newest pre-releases.
 
 | | x64 (Intel and AMD) | ARM64 |
 | --- | --- | --- |
-| Windows, a per-user installer | `StorageHub-<version>-win-x64.msi` | `StorageHub-<version>-win-arm64.msi` |
+| Windows 10 and 11, a per-user installer | `StorageHub-<version>-win-x64.msi` | `StorageHub-<version>-win-arm64.msi` |
 | Debian and Ubuntu | `storagehub_<version>_amd64.deb` | `storagehub_<version>_arm64.deb` |
 
-Every file is listed in the release's `SHA256SUMS`.
+Every file is listed in the release's `SHA256SUMS`, and each is built with
+GitHub artifact attestations, so `gh attestation verify <file> --repo
+StorageHub-app/StorageHub` shows which workflow run and commit produced it.
+
+### Windows
 
 The MSI does not require elevation, installs into
-`%LOCALAPPDATA%\Programs\StorageHub`, and starts the background agent at sign-in
-as the signed-in Windows user. StorageHub checks for new releases when it starts
-and installs one through the same kind of package, built for the machine's own
-architecture: an x64 copy on an ARM64 PC is offered the ARM64 MSI, which
-replaces it. Application data under
-`%LOCALAPPDATA%\StorageHub` is preserved across updates and uninstalls.
+`%LOCALAPPDATA%\Programs\StorageHub` with a Start menu shortcut, and starts the
+background agent at sign-in as you. The agent keeps its database and vault in
+`%PROGRAMDATA%\StorageHub`, protected to your account; preferences stay under
+`%LOCALAPPDATA%\StorageHub`. Neither is touched by an upgrade or an uninstall.
+
+Each release's MSI is silently installed, checked, and uninstalled by CI on a
+disposable runner of its own architecture before it is published.
+
+### Linux
+
+```sh
+sudo apt install ./storagehub_<version>_amd64.deb
+```
+
+StorageHub installs into `/opt/storagehub` with a menu entry, and runs its agent
+per user under `systemd --user` as the `storagehub-agent` unit, which needs no
+root. The desktop starts that unit when it opens; to have the agent start at
+sign-in instead, enable it for your account:
+
+```sh
+systemctl --user enable --now storagehub-agent
+```
+
+The database and vault live in `~/.local/share/storagehub` (or
+`$XDG_DATA_HOME/storagehub`). A user unit stops when you sign out; for schedules
+to keep running with nobody signed in, enable lingering for your account with
+`loginctl enable-linger`, which StorageHub leaves to you.
+
+The packages are built and tested on Ubuntu 24.04, where CI installs each one
+with `apt`, starts it under `xvfb`, and removes it again.
+
+### Coming from 1.4
+
+2.0 keeps the agent's data somewhere new and does not read 1.4's database or a
+1.4 settings export, so saved connections and credentials have to be set up
+again. Workspace (`.shw`) files carry across. An installation that ran the 1.4
+agent as a Windows service must have that service removed before the 2.0 agent
+can use its data folder; `eng/remove-legacy-agent-service.ps1`, run elevated,
+does that and deletes the old service's data with it.
 
 ### How the background agent runs
 
 The agent is the part that actually moves files: it owns the transfer queue, the
 schedules, and the database, which is why closing the window does not stop a
-transfer. How it is hosted is a decision StorageHub asks you to make once, on
-first run, and you can change it whenever you like in
-**Tools > Settings > Background agent**.
+transfer. It always runs as you, never as a service. On Windows, how long it
+runs is your choice, in **Tools > Settings > Background agent**:
 
 | Mode | The agent runs | Choose it when |
 | --- | --- | --- |
-| **When I sign in** | From the moment you sign in to Windows until you sign out, window open or not | You want queued transfers to finish after closing StorageHub |
-| **Only while StorageHub is open** | Only alongside the window, with no logon entry and nothing left behind | You would rather nothing ran in the background |
-| **As a Windows service** | From startup, with nobody signed in at all | A schedule has to run overnight, or on a machine nobody is logged into |
+| **When I sign in** | From the moment you sign in until you sign out, window open or not | You want queued transfers and schedules to carry on after closing StorageHub |
+| **Only while StorageHub is open** | Only alongside the window, with no sign-in entry and nothing left behind | You would rather nothing ran in the background |
 
-The first two are your account's own process, so your credentials stay readable
-only by you. The service is the one with consequences, and they are stated
-before it is installed: it needs administrator approval once, it moves the
-database to `%ProgramData%\StorageHub`, and it re-protects every stored secret
-with the machine key rather than yours — which means an administrator of that
-computer can read them. Your existing data is copied rather than moved, so
-switching back leaves the original exactly where it was.
-
-Setup never makes this choice for you. An unelevated installer could not install
-a service correctly anyway, and a decision that changes where your secrets live
-is not a packaging detail.
+An installed copy asks once, on first run. Scheduled work does not progress
+while you are signed out of Windows. On Linux the same choice is whether the
+`storagehub-agent` unit is enabled, which is made with `systemctl` as shown
+above rather than in Settings.
 
 ### Updates
 
-Installed builds check the official GitHub release feed at startup and silently
-download integrity-checked updates by default. Settings can disable automatic
-checks or downloads, exclude release candidates, or opt into silent
-install-and-restart. **Help > Check for Updates...** remains available when
-automatic checks are off. Portable and developer builds never modify an
-installation.
+Installed builds check the official GitHub releases at startup and download the
+package for the machine's own architecture — the MSI on Windows, the `.deb` on
+Linux — checking it against the release's `SHA256SUMS` before anything runs it.
+An x64 copy on an ARM64 PC is offered the ARM64 MSI, which replaces it.
+Settings can turn off automatic checks or downloads, include or exclude release
+candidates, or opt into installing and restarting on its own.
+**Help > Check for Updates...** remains available when automatic checks are off.
+On Linux the package is installed through `apt`, with polkit asking for your
+password. Builds run from source never modify an installation.
 
 ## Provider status
 
@@ -225,15 +229,16 @@ integration test. Existing in `CL.Storage` is not enough.
 
 ### Prerequisites
 
-- Windows and PowerShell
-- Visual Studio C++ build tools with the Desktop development workload, required
-  for the Explorer drag/drop broker
+- Windows with PowerShell, or Linux
 - [.NET SDK 10.0.401](global.json), or a later 10.0 patch accepted by `global.json`
 - Git
+- Visual Studio C++ build tools with the Desktop development workload —
+  **only** on Windows, and only to build the Explorer drop broker that the
+  installer ships. An ordinary build leaves it out and says so.
 - CPython 3.12 — **only** to run the FTP/FTPS and SFTP test fixtures, which
   stand up real loopback servers for the integration tests. StorageHub itself
-  has no Python dependency; building and running it needs none of this. CI
-  pins 3.12.10
+  has no Python dependency. CI pins 3.12.10. [`eng/testlab`](eng/testlab/README.md)
+  is the alternative: real SFTP, FTP, and S3 servers in Docker.
 
 The CodeLogic framework and `CL.Storage` provider library are restored from the
 centrally pinned `CodeLogic` and `CodeLogic.Storage` NuGet packages.
@@ -247,14 +252,16 @@ dotnet test StorageHub.slnx --configuration Release --no-build --no-restore
 dotnet list StorageHub.slnx package --vulnerable --include-transitive --no-restore
 ```
 
-Warnings are errors, package versions are centrally managed, and StorageHub
-projects restore from committed lock files. CI runs the same Release build,
-test, and vulnerability-audit path on Windows.
+The same commands work on Linux. Warnings are errors, package versions are
+centrally managed, and StorageHub projects restore from committed lock files.
+CI runs the Release build, the full test suite, and the vulnerability audit on
+Windows, and the desktop tests again on Linux.
 
-Every successful push to `main` publishes a uniquely versioned prerelease after
-the Release build, full test suite, dependency audit, packaging, silent install,
-agent health, and silent uninstall checks pass. A failed check produces no
-release.
+Every successful push to `main` publishes a uniquely versioned pre-release once
+the build, tests, dependency audit, packaging, and the install checks of all
+four packages pass. A failed check produces no release. How versions and
+releases are cut is in [Versioning and merges](docs/versioning.md) and
+[Release engineering](docs/releasing.md).
 
 ### Provider fixtures
 
@@ -274,28 +281,35 @@ guarantee.
 Start the background agent first:
 
 ```powershell
-dotnet run --project src\StorageHub.Agent.Windows --configuration Release
+dotnet run --project src/StorageHub.Agent.Host --configuration Release
 ```
 
-Then the desktop shell in another terminal:
+Then the desktop in another terminal:
 
 ```powershell
-dotnet run --project src\StorageHub.Desktop.WinForms --configuration Release
+dotnet run --project src/StorageHub.Desktop --configuration Release
 ```
 
-The agent uses `%LOCALAPPDATA%\StorageHub` by default. Set
-`STORAGEHUB_DATA_ROOT` before starting it to use an isolated development data
-directory. `--run-once` performs startup and a clean shutdown; `--health` runs
-the CodeLogic health path.
+A desktop run from source does not start an agent of its own: it uses the one
+already answering for your account, and its splash says so if there is none.
+`eng/run-dev-agent.ps1` builds and starts the agent in the background on
+Windows.
+
+The agent uses the same data folder as an installed copy
+(`%PROGRAMDATA%\StorageHub` on Windows, `~/.local/share/storagehub` on Linux).
+Set `STORAGEHUB_DATA_ROOT` before starting it to use an isolated development
+data directory. `--run-once` performs startup and a clean shutdown; `--health`
+runs the CodeLogic health path.
 
 ## Using StorageHub
 
 File commands act on the pane marked **Active**, outlined in the theme accent
 color. Defaults include Ctrl+C/Ctrl+X/Ctrl+V for copy/cut/paste, Ctrl+A for
 select all, F2 for rename, Delete for delete, Ctrl+Shift+N for a folder,
-Ctrl+Alt+N for an empty file, F5 for refresh, Ctrl+L for the address, and F6 for
-the next pane. Text fields and SSH terminal input keep their own keyboard
-behavior; file shortcuts never operate on SSH panes.
+Ctrl+Alt+N for an empty file, F5 for refresh, Ctrl+L for the address, F6 for
+the next pane, and Ctrl+B to show or hide the connections panel. Text fields
+and SSH terminal input keep their own keyboard behavior; file shortcuts never
+operate on SSH panes.
 
 Use **Tools > Settings > Shortcuts** to reassign commands, clear a binding, or
 restore the defaults. Conflicting shortcuts must be cleared before reassignment.
@@ -306,14 +320,16 @@ restore the defaults. Conflicting shortcuts must be cleared before reassignment.
 - [Architecture](docs/architecture.md)
 - [Versioning and merges](docs/versioning.md)
 - [Release engineering](docs/releasing.md)
+- [2.0 roadmap](docs/roadmap.md) and [port inventory](docs/port-inventory.md)
 - [Contributing](CONTRIBUTING.md)
 
-StorageHub is written to keep credentials in a current-user vault, to refuse a
-server whose identity has not been confirmed, and to treat every delete,
-overwrite, and resume as its own decision. None of that has been independently
-audited. Report a suspected vulnerability privately through the repository's
-**Security** tab (**Report a vulnerability**) rather than in a public issue, and
-never put a credential or private key in an issue, log, or test fixture.
+StorageHub is written to keep credentials in a vault only your account can
+read, to refuse a server whose identity has not been confirmed, and to treat
+every delete, overwrite, and resume as its own decision. None of that has been
+independently audited. Report a suspected vulnerability privately through the
+repository's **Security** tab (**Report a vulnerability**) rather than in a
+public issue, and never put a credential or private key in an issue, log, or
+test fixture.
 
 ## License
 
