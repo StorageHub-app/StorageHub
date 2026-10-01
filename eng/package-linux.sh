@@ -261,8 +261,8 @@ Description: Browse, transfer and synchronise local and remote storage
  StorageHub manages local, UNC, S3, FTP, FTPS and SFTP storage from one window,
  with a background agent that carries out transfers and scheduled synchronisation.
  .
- The agent runs per user under systemd --user. Enable it from StorageHub's own
- settings, or with: systemctl --user enable --now storagehub-agent
+ The agent runs per user under systemd --user. Enable it for your account with:
+ systemctl --user enable --now storagehub-agent
 CONTROL
 
 # The agent is not started here. It belongs to a user, and a package's postinst runs as root with
