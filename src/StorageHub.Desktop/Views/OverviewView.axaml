@@ -21,7 +21,7 @@
         <Button Classes="primary" Content="{Binding NewWorkspaceLabel}" Command="{Binding NewWorkspaceCommand}"/>
         <Button Command="{Binding ConnectionsCommand}">
           <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
-            <LucideIcon Kind="Network" Size="{StaticResource IconSizeSm}"/>
+            <LucideIcon Kind="Plus" Size="{StaticResource IconSizeSm}"/>
             <TextBlock Text="{Binding ConnectionsLabel}"/>
           </StackPanel>
         </Button>

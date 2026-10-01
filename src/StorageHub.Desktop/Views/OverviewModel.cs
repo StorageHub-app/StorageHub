@@ -236,7 +236,9 @@ internal sealed class OverviewModel : INotifyPropertyChanged
 
     public string NewWorkspaceLabel => Ui.Overview.ActionNewWorkspace;
 
-    public string ConnectionsLabel => Ui.Overview.ActionConnections;
+    // The button opens the New connection dialog since 1.x's Connection Manager became the
+    // connections panel, so it says that rather than 1.x's "Connections".
+    public string ConnectionsLabel => Ui.Shell.NewConnection;
 
     public string SyncTasksLabel => Ui.Overview.ActionSyncTasks;
 
