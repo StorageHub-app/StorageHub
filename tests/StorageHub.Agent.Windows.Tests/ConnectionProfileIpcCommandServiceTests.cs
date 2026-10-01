@@ -78,7 +78,7 @@ public sealed class ConnectionProfileIpcCommandServiceTests
         var authentication = Assert.IsType<SshPrivateKeyPasswordAuthentication>(repository.Created?.Authentication);
         Assert.Equal(password, authentication.PasswordReference.Value);
         Assert.Equal(key, authentication.PrivateKeyReference.Value);
-        Assert.Equal(passphrase, authentication.PassphraseReference.Value);
+        Assert.Equal(passphrase, authentication.PassphraseReference?.Value);
     }
 
     [WindowsOnlyFact]

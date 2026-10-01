@@ -238,7 +238,7 @@ public static class ConnectionProviderCatalog
                 Field("authenticationMode", Ui.Providers.Authentication, ConnectionFieldKind.Choice, defaultValue: SshAuthenticationModes[0], choices: SshAuthenticationModes),
                 Field("passwordReference", "Password reference", ConnectionFieldKind.SecretReference, placeholder: Ui.Providers.OptionalVaultEntry),
                 Field("privateKeyReference", Ui.Providers.OpenSSHPEMPrivateKeyReference, ConnectionFieldKind.SecretReference, placeholder: Ui.Providers.SelectAVaultEntry),
-                Field("privateKeyPassphraseReference", Ui.Providers.PrivateKeyPassphraseReference, ConnectionFieldKind.SecretReference, required: true, placeholder: Ui.Providers.RequiredVaultEntry, help: Ui.Providers.OnlyEncryptedPrivateKeysAreAccepted)
+                Field("privateKeyPassphraseReference", Ui.Providers.PrivateKeyPassphraseReference, ConnectionFieldKind.SecretReference, placeholder: Ui.Providers.OptionalVaultEntry, help: Ui.Providers.LeaveEmptyForAKeyWithNoPassphrase)
             ],
             [
                 Field("hostKeyFingerprint", Ui.Providers.SSHHostKeySHA256Fingerprint, ConnectionFieldKind.Fingerprint, required: true, placeholder: "SHA256:...")
@@ -262,7 +262,7 @@ public static class ConnectionProviderCatalog
                 Field("authenticationMode", Ui.Providers.Authentication, ConnectionFieldKind.Choice, defaultValue: SshClientAuthenticationModes[0], choices: SshClientAuthenticationModes),
                 Field("passwordReference", "Password reference", ConnectionFieldKind.SecretReference, placeholder: Ui.Providers.OptionalVaultEntry),
                 Field("privateKeyReference", Ui.Providers.OpenSSHPEMPrivateKeyReference, ConnectionFieldKind.SecretReference, placeholder: Ui.Providers.SelectAVaultEntry),
-                Field("privateKeyPassphraseReference", Ui.Providers.PrivateKeyPassphraseReference, ConnectionFieldKind.SecretReference, required: true, placeholder: Ui.Providers.RequiredVaultEntry)
+                Field("privateKeyPassphraseReference", Ui.Providers.PrivateKeyPassphraseReference, ConnectionFieldKind.SecretReference, placeholder: Ui.Providers.OptionalVaultEntry, help: Ui.Providers.LeaveEmptyForAKeyWithNoPassphrase)
             ],
             [
                 Field("hostKeyFingerprint", Ui.Providers.SSHHostKeySHA256Fingerprint, ConnectionFieldKind.Fingerprint, required: true, placeholder: "SHA256:...")

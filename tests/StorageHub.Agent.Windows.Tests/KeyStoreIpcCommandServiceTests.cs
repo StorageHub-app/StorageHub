@@ -140,12 +140,12 @@ public sealed class KeyStoreIpcCommandServiceTests : IDisposable
     }
 
     [WindowsOnlyFact]
-    public async Task An_ssh_key_without_a_passphrase_is_still_refused()
+    public async Task An_ssh_key_without_a_passphrase_is_stored_without_any_passphrase()
     {
-        // The SFTP connector rejects an unprotected key, so storing one would be storing
-        // something StorageHub could never use.
+        // 1.4 refused such a key; 2.0 stores it, as it stores a password-less certificate.
         var fixture = await CreateFixtureAsync();
-        var stored = await fixture.Vault.CreateAsync(CreateCertificate());
+        using var rsa = RSA.Create(2048);
+        var stored = await fixture.Vault.CreateAsync(Encoding.ASCII.GetBytes(rsa.ExportPkcs8PrivateKeyPem()));
 
         var response = await SendAsync<KeyStoreCreateRequest, KeyStoreWriteResponse>(
             fixture.Service,
@@ -158,9 +158,10 @@ public sealed class KeyStoreIpcCommandServiceTests : IDisposable
                 [],
                 stored.Reference.Value,
                 PassphraseReference: null,
-                KeyFormat: KeyStorePrivateKeyFormat.OpenSsh));
+                KeyFormat: KeyStorePrivateKeyFormat.Pkcs8));
 
-        Assert.Equal(KeyStoreWriteOutcome.Rejected, response.Outcome);
+        Assert.Equal(KeyStoreWriteOutcome.Applied, response.Outcome);
+        Assert.Null(response.Entry!.PassphraseReference);
     }
 
     [WindowsOnlyFact]

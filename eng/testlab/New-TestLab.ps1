@@ -64,7 +64,8 @@ function New-SshKey {
     if (Test-Path $Path) { return }
 
     # No passphrase on a host key: sshd cannot be asked for one at startup. Client keys get one,
-    # because an unencrypted client key would not exercise the passphrase path the provider takes.
+    # because an unencrypted client key would not exercise the passphrase path the provider takes,
+    # except the one key minted without, for the path a key without a passphrase takes.
     #
     # The empty passphrase is written '""' rather than ''. Windows PowerShell drops an empty string
     # when it builds a native command line, so -N '' does not pass an empty argument -- it passes
@@ -119,9 +120,18 @@ $alternateKey = Join-Path $sshFixtures 'alternate.key'
 New-SshKey -Path $clientKey -Passphrase $clientKeyPassphrase -Comment 'storagehub-testlab-client'
 New-SshKey -Path $alternateKey -Passphrase $alternateKeyPassphrase -Comment 'storagehub-testlab-alternate'
 
-# Only the primary key is published to the servers. The alternate exists precisely so that there is
-# a well-formed, correctly-passphrased key that is still not allowed in.
-Copy-Item (Join-Path $sshFixtures 'client.key.pub') (Join-Path $sshFixtures 'client.pub') -Force
+# A client key with no passphrase, which 2.0 accepts where 1.4 refused it. Minted on its own, so a
+# lab made before it existed gains it on the next run without -Force.
+$unprotectedKey = Join-Path $sshFixtures 'unprotected.key'
+New-SshKey -Path $unprotectedKey -Passphrase '' -Comment 'storagehub-testlab-unprotected'
+
+# The primary key and the unprotected one are published to the servers. The alternate exists
+# precisely so that there is a well-formed, correctly-passphrased key that is still not allowed in.
+[System.IO.File]::WriteAllLines(
+    (Join-Path $sshFixtures 'client.pub'),
+    [string[]] @(
+        (Get-Content (Join-Path $sshFixtures 'client.key.pub')),
+        (Get-Content (Join-Path $sshFixtures 'unprotected.key.pub'))))
 
 $hostFingerprint = Get-HostKeyFingerprint (Join-Path $sshFixtures 'hostkey.pub')
 $rotatedFingerprint = Get-HostKeyFingerprint (Join-Path $sshFixtures 'hostkey-rotated.pub')
@@ -182,6 +192,7 @@ $settings = [ordered] @{
     STORAGEHUB_SFTP_CLIENT_KEY_PASSPHRASE = $clientKeyPassphrase
     STORAGEHUB_SFTP_ALTERNATE_KEY_PATH   = (Resolve-Path $alternateKey).Path
     STORAGEHUB_SFTP_ALTERNATE_KEY_PASSPHRASE = $alternateKeyPassphrase
+    STORAGEHUB_SFTP_UNPROTECTED_KEY_PATH = (Resolve-Path $unprotectedKey).Path
 
     STORAGEHUB_REQUIRE_FTP               = '1'
     STORAGEHUB_FTP_USERNAME              = 'storagehub'

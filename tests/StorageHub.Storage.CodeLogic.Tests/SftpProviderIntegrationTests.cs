@@ -1,6 +1,7 @@
 using CL.Storage;
 using CL.Storage.Configuration;
 using CodeLogic;
+using StorageHub.Application.Connections;
 using StorageHub.Contracts.Results;
 using StorageHub.Domain.Identifiers;
 using StorageHub.Domain.Storage;
@@ -117,6 +118,36 @@ public sealed class SftpProviderIntegrationTests : IAsyncLifetime
             connection.Session,
             profileId,
             rootIdentity);
+
+        // A key with no passphrase, which 2.0 accepts where 1.4 refused it. The connector checks
+        // it as below and then hands the library no passphrase at all, so this is that exact
+        // configuration against a real server. Labs minted before the key existed skip it.
+        if (settings.UnprotectedClientKeyPath is not { } unprotectedKeyPath)
+        {
+            return;
+        }
+
+        Assert.Equal(
+            PrivateKeyValidationResult.Unencrypted,
+            PrivateKeyEncryptionValidator.Validate(
+                await File.ReadAllBytesAsync(unprotectedKeyPath),
+                passphrase: null,
+                SftpPrivateKeyFormat.OpenSsh));
+        var unprotectedProfileId = ConnectionProfileId.New();
+        var unprotectedRootIdentity = $"sftp-unprotected-key-root-{Guid.NewGuid():N}";
+        await using var unprotected = await RegisterRequiredAsync(
+            unprotectedProfileId,
+            unprotectedRootIdentity,
+            CreatePrivateKeyConfiguration(
+                settings,
+                settings.PrivateKeyPort,
+                unprotectedKeyPath,
+                privateKeyPassphrase: null));
+        await ProviderSessionConformance.AssertBoundedRoundTripAsync(
+            unprotected.Session,
+            unprotectedProfileId,
+            unprotectedRootIdentity,
+            StorageWriteMode.Overwrite);
     }
 
     private async Task AssertHostKeyFailuresAsync(SftpFixtureSettings settings)
@@ -271,7 +302,7 @@ public sealed class SftpProviderIntegrationTests : IAsyncLifetime
         SftpFixtureSettings settings,
         int port,
         string privateKeyPath,
-        string privateKeyPassphrase) => new()
+        string? privateKeyPassphrase) => new()
         {
             Enabled = true,
             Host = "127.0.0.1",
@@ -325,7 +356,8 @@ public sealed class SftpProviderIntegrationTests : IAsyncLifetime
         string ClientKeyPath,
         string ClientKeyPassphrase,
         string AlternateClientKeyPath,
-        string AlternateClientKeyPassphrase)
+        string AlternateClientKeyPassphrase,
+        string? UnprotectedClientKeyPath)
     {
         private static readonly string[] PortNames =
             ["password port", "private-key port", "rotated-key port"];
@@ -376,7 +408,10 @@ public sealed class SftpProviderIntegrationTests : IAsyncLifetime
                 RequiredKeyPath(values["client key path"], "client key path"),
                 RequiredBounded(values["client key passphrase"], "client key passphrase"),
                 RequiredKeyPath(values["alternate client key path"], "alternate client key path"),
-                RequiredBounded(values["alternate client key passphrase"], "alternate client key passphrase"));
+                RequiredBounded(values["alternate client key passphrase"], "alternate client key passphrase"),
+                Environment.GetEnvironmentVariable("STORAGEHUB_SFTP_UNPROTECTED_KEY_PATH") is { } unprotected
+                    ? RequiredKeyPath(unprotected, "unprotected client key path")
+                    : null);
         }
 
         private static string RequiredBounded(string? value, string description)

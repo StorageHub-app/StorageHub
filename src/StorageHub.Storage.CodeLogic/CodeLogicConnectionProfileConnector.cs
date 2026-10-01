@@ -402,17 +402,11 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
             return Fail("storage.credential.encoding_invalid", StorageFailureKind.Security,
                 "A text credential is not valid UTF-8.");
         }
-        catch (UnprotectedPrivateKeyException)
-        {
-            await DisposeResourcesAsync(runtimeResources).ConfigureAwait(false);
-            return Fail("storage.credential.private_key_unprotected", StorageFailureKind.Security,
-                "The SSH private key is not encrypted with a supported passphrase-protected format.");
-        }
         catch (InvalidPrivateKeyException)
         {
             await DisposeResourcesAsync(runtimeResources).ConfigureAwait(false);
             return Fail("storage.credential.private_key_invalid", StorageFailureKind.Security,
-                "The SSH private key is malformed or could not be decrypted with its vault passphrase.");
+                "The SSH private key is malformed, or it is passphrase protected and could not be opened with its vault passphrase.");
         }
         catch (IOException)
         {
@@ -612,13 +606,15 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
             case SftpPrivateKeyAuthentication privateKey:
                 configuration.Username = privateKey.Username;
                 configuration.AuthenticationMode = SftpAuthenticationMode.PrivateKey;
-                var passphraseReference = privateKey.PassphraseReference ??
-                    throw new UnprotectedPrivateKeyException();
-                var privateKeyPassphrase = await OpenTextSecretAsync(
-                    passphraseReference,
-                    "sftp.private-key-passphrase",
-                    rootIdentityEvidence,
-                    cancellationToken).ConfigureAwait(false);
+                // A key without a passphrase has no passphrase reference, and nothing is opened
+                // for it. The library and SSH.NET read a null passphrase as "the key has none".
+                string? privateKeyPassphrase = privateKey.PassphraseReference is { } passphraseReference
+                    ? await OpenTextSecretAsync(
+                        passphraseReference,
+                        "sftp.private-key-passphrase",
+                        rootIdentityEvidence,
+                        cancellationToken).ConfigureAwait(false)
+                    : null;
                 await using (var lease = await _secretVault
                     .OpenAsync(privateKey.PrivateKeyReference, cancellationToken)
                     .ConfigureAwait(false))
@@ -633,7 +629,10 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
                         privateKey.KeyFormat))
                     {
                         case PrivateKeyValidationResult.Unencrypted:
-                            throw new UnprotectedPrivateKeyException();
+                            // A passphrase kept for a key that has none unlocks nothing, so it is
+                            // not handed on: the key is used as it is.
+                            privateKeyPassphrase = null;
+                            break;
                         case PrivateKeyValidationResult.Invalid:
                             throw new InvalidPrivateKeyException();
                     }
@@ -1006,7 +1005,6 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
 
     private sealed class UnsupportedProfileException(string message) : Exception(message);
     private sealed class TrustApprovalRequiredException : Exception;
-    private sealed class UnprotectedPrivateKeyException : Exception;
     private sealed class InvalidPrivateKeyException : Exception;
 
     private sealed class RootIdentityEvidence

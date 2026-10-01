@@ -105,18 +105,31 @@ public sealed class KeyMaterialInspectorTests
         Assert.False(string.IsNullOrWhiteSpace(summary.PublicKeyAlgorithm));
     }
 
+    /// <summary>
+    /// A key without a passphrase is described, where 1.4 refused it; a passphrase given for it is
+    /// refused as not needed, and an encrypted key without its passphrase is still unreadable.
+    /// </summary>
     [Fact]
-    public void RefusesAPrivateKeyThatCarriesNoPassphrase()
+    public void DescribesAPrivateKeyThatCarriesNoPassphrase()
     {
-        // The SFTP connector rejects unprotected keys outright, so the store must not accept one
-        // it could never use.
         using var rsa = RSA.Create(2048);
         var pem = Encoding.ASCII.GetBytes(rsa.ExportPkcs8PrivateKeyPem());
 
-        var result = KeyMaterialInspector.InspectSshPrivateKey(pem, Password, SftpPrivateKeyFormat.Pkcs8);
+        var described = KeyMaterialInspector.InspectSshPrivateKey(pem, string.Empty, SftpPrivateKeyFormat.Pkcs8);
+        Assert.True(described.IsSuccess, described.Error?.Message);
+        Assert.StartsWith(
+            "SHA256:",
+            Assert.IsType<SshPrivateKeySummary>(described.Value).Sha256Fingerprint,
+            StringComparison.Ordinal);
 
-        Assert.True(result.IsFailure);
-        Assert.Equal("keystore.material.unprotected", result.Error.Code);
+        var withPassphrase = KeyMaterialInspector.InspectSshPrivateKey(pem, Password, SftpPrivateKeyFormat.Pkcs8);
+        Assert.True(withPassphrase.IsFailure);
+        Assert.Equal("keystore.material.passphrase_not_needed", withPassphrase.Error.Code);
+
+        var lockedWithoutPassphrase = KeyMaterialInspector.InspectSshPrivateKey(
+            CreateEncryptedPkcs8Key(), null, SftpPrivateKeyFormat.Pkcs8);
+        Assert.True(lockedWithoutPassphrase.IsFailure);
+        Assert.Equal("keystore.material.unreadable", lockedWithoutPassphrase.Error.Code);
     }
 
     [Fact]

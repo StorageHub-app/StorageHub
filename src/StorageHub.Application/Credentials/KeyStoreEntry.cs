@@ -159,8 +159,8 @@ public sealed record KeyStoreEntry
     public SecretReference MaterialReference { get; }
 
     /// <summary>
-    /// Required for an SSH private key, because the SFTP connector refuses an unprotected key
-    /// outright. Optional for a PKCS#12 bundle, which may legitimately carry no password.
+    /// What unlocks the material, or nothing when it has no password: a PKCS#12 bundle may carry
+    /// none, and so may an SSH private key. Either way the material itself is held in the vault.
     /// </summary>
     public SecretReference? PassphraseReference { get; }
 
@@ -223,14 +223,6 @@ public sealed record KeyStoreEntry
         if (passphraseReference is { } passphrase)
         {
             ValidateReference(passphrase, nameof(passphraseReference));
-        }
-        else if (kind is KeyMaterialKind.SshPrivateKey)
-        {
-            // The SFTP connector rejects an unprotected private key, so storing one would be
-            // storing something StorageHub could never use.
-            throw new ArgumentException(
-                "An SSH private key requires a vault-backed passphrase.",
-                nameof(passphraseReference));
         }
 
         ArgumentOutOfRangeException.ThrowIfLessThan(version, 1);

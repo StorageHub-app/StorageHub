@@ -101,7 +101,8 @@ public sealed class KeyStoreIpcCommandService : IAgentIpcCommandHandler
             return WriteFailure(KeyStoreIpcMessageTypes.CreateResponse, "The vault references are malformed.");
         }
 
-        // A password-less certificate enrolls no passphrase at all, so there is no second reference.
+        // Material without a password, a certificate or an SSH key, enrolls no passphrase at all, so
+        // there is no second reference.
         SecretReference? passphrase = null;
         if (request.PassphraseReference is not null)
         {
@@ -111,12 +112,6 @@ public sealed class KeyStoreIpcCommandService : IAgentIpcCommandHandler
             }
 
             passphrase = parsed;
-        }
-        else if (request.Kind is KeyStoreMaterialKind.SshPrivateKey)
-        {
-            return WriteFailure(
-                KeyStoreIpcMessageTypes.CreateResponse,
-                "An SSH private key requires a passphrase.");
         }
 
         var described = await DescribeAsync(request, material, passphrase, cancellationToken).ConfigureAwait(false);
@@ -252,8 +247,9 @@ public sealed class KeyStoreIpcCommandService : IAgentIpcCommandHandler
         }
 
         await using var materialLease = await vault.OpenAsync(material, cancellationToken).ConfigureAwait(false);
-        // A password-less certificate has no passphrase envelope to open; PKCS#12 treats an empty
-        // password as "no password", which is what the loader expects for such a bundle.
+        // Password-less material has no passphrase envelope to open. PKCS#12 treats an empty
+        // password as "no password", which is what the loader expects for such a bundle, and the
+        // key inspector reads an empty passphrase as a key that has none.
         SecretLease? passphraseLease = null;
         var secret = string.Empty;
         try

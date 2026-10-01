@@ -72,7 +72,13 @@ internal sealed class KeyStoreStrings : LocalizationModelBase
 
     public string SelectMaterial { get; set; } = "Select material";
 
-    public string StorageHubCannotStoreAnUnprotectedPrivateKey { get; set; } = "StorageHub cannot store an unprotected private key. Add a passphrase to the key, then import it.";
+    public string KeyPassphraseHint { get; set; } = "Leave empty only if the key has no passphrase.";
+
+    /// <summary>
+    /// Said, in the warning colour, when a key without a passphrase is imported or chosen. 1.4
+    /// refused such a key; 2.0 takes it, because the vault keeps it encrypted, and says so.
+    /// </summary>
+    public string KeyHasNoPassphraseWarning { get; set; } = "This key has no passphrase. StorageHub keeps it encrypted in its vault, but a passphrase is still recommended.";
 
     public string StoredKeysAndCertificates { get; set; } = "Stored keys and certificates";
 

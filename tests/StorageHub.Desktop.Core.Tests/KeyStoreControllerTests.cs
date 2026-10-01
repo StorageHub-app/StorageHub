@@ -95,9 +95,12 @@ public class KeyStoreControllerTests
         Assert.Empty(vault.Deleted);
     }
 
-    /// <summary>A bundle with no password enrols no passphrase, and declares no envelope.</summary>
+    /// <summary>
+    /// A bundle with no password enrols no passphrase, and declares no envelope; an SSH key with no
+    /// passphrase likewise enrols only the key, where 1.4 refused it, and keeps its envelope.
+    /// </summary>
     [Fact]
-    public async Task ACertificateWithoutAPasswordEnrolsOnlyTheBundle()
+    public async Task MaterialWithoutAPasswordEnrolsOnlyTheMaterial()
     {
         var agent = new FakeKeyStoreAgent();
         var vault = new RecordingVault();
@@ -114,33 +117,21 @@ public class KeyStoreControllerTests
         Assert.Equal(SecretMaterialPurpose.ClientCertificatePfx, enrolled.Purpose);
         Assert.Null(agent.Created!.PassphraseReference);
         Assert.Null(agent.Created.KeyFormat);
-    }
 
-    /// <summary>
-    /// An unprotected SSH key is refused before anything reaches the vault.
-    /// </summary>
-    /// <remarks>
-    /// The SFTP connector rejects an unprotected key outright, so storing one would store something
-    /// unusable. Refusing it after enrolling would leave an orphan to clean up for a draft that was
-    /// never going to be accepted.
-    /// </remarks>
-    [Fact]
-    public async Task AnUnprotectedSshKeyIsRefusedBeforeAnythingIsEnrolled()
-    {
-        var agent = new FakeKeyStoreAgent();
-        var vault = new RecordingVault();
-        using var file = TemporaryFile("key");
+        agent = new FakeKeyStoreAgent();
+        vault = new RecordingVault();
+        using var key = TemporaryFile("key");
 
-        var result = await Controller(agent, vault).ImportAsync(
+        result = await Controller(agent, vault).ImportAsync(
             new KeyStoreImportDraft(
-                KeyStoreMaterialKind.SshPrivateKey, file.Path, "build box", string.Empty,
+                KeyStoreMaterialKind.SshPrivateKey, key.Path, "build box", string.Empty,
                 KeyStorePrivateKeyFormat.OpenSsh),
             CancellationToken.None);
 
-        Assert.False(result.Changed);
-        Assert.Equal(Ui.KeyStore.StorageHubCannotStoreAnUnprotectedPrivateKey, result.ErrorMessage);
-        Assert.Empty(vault.Enrolled);
-        Assert.Null(agent.Created);
+        Assert.True(result.Changed, result.ErrorMessage);
+        Assert.Equal(SecretMaterialPurpose.SshPrivateKey, Assert.Single(vault.Enrolled).Purpose);
+        Assert.Null(agent.Created!.PassphraseReference);
+        Assert.Equal(KeyStorePrivateKeyFormat.OpenSsh, agent.Created.KeyFormat);
     }
 
     [Fact]

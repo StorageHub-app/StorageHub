@@ -181,6 +181,39 @@ public sealed class SshTerminalIpcCommandService : IAgentIpcCommandHandler, IAsy
         }
     }
 
+    /// <summary>
+    /// Opens a private key from the vault, with its passphrase or, for a key that has none,
+    /// without one. The copy of the key bytes is zeroed as soon as SSH.NET has parsed it.
+    /// </summary>
+    private static async Task<PrivateKeyFile> OpenPrivateKeyAsync(
+        ISecretVault vault,
+        SecretReference keyReference,
+        SecretReference? passphraseReference,
+        CancellationToken cancellationToken)
+    {
+        await using var keyLease = await vault.OpenAsync(keyReference, cancellationToken).ConfigureAwait(false);
+        string? passphrase = null;
+        if (passphraseReference is { } reference)
+        {
+            await using var passphraseLease = await vault.OpenAsync(reference, cancellationToken)
+                .ConfigureAwait(false);
+            passphrase = Encoding.UTF8.GetString(passphraseLease.Memory.Span);
+        }
+
+        var keyBytes = keyLease.Memory.ToArray();
+        try
+        {
+            using var keyStream = new MemoryStream(keyBytes, writable: false);
+            return string.IsNullOrEmpty(passphrase)
+                ? new PrivateKeyFile(keyStream)
+                : new PrivateKeyFile(keyStream, passphrase);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(keyBytes);
+        }
+    }
+
     private async Task<SshTerminalSession> CreateSessionAsync(
         ConnectionProfile profile,
         SshClientEndpoint endpoint,
@@ -206,56 +239,25 @@ public sealed class SshTerminalIpcCommandService : IAgentIpcCommandHandler, IAsy
                 }
                 break;
             case SftpPrivateKeyAuthentication key:
-                await using (var keyLease = await vault.OpenAsync(key.PrivateKeyReference, cancellationToken)
-                    .ConfigureAwait(false))
-                await using (var passphraseLease = await vault.OpenAsync(
-                    key.PassphraseReference ?? throw new InvalidDataException("The SSH private-key passphrase is missing."),
-                    cancellationToken).ConfigureAwait(false))
-                {
-                    var keyBytes = keyLease.Memory.ToArray();
-                    try
-                    {
-                        using var keyStream = new MemoryStream(keyBytes, writable: false);
-                        var privateKey = new PrivateKeyFile(
-                            keyStream,
-                            Encoding.UTF8.GetString(passphraseLease.Memory.Span));
-                        authenticationResource = privateKey;
-                        authenticationMethods = [new PrivateKeyAuthenticationMethod(key.Username, privateKey)];
-                    }
-                    finally
-                    {
-                        CryptographicOperations.ZeroMemory(keyBytes);
-                    }
-                }
+                authenticationResource = await OpenPrivateKeyAsync(
+                    vault, key.PrivateKeyReference, key.PassphraseReference, cancellationToken).ConfigureAwait(false);
+                authenticationMethods = [new PrivateKeyAuthenticationMethod(key.Username, authenticationResource)];
                 break;
             case SshPrivateKeyPasswordAuthentication mfa:
-                await using (var keyLease = await vault.OpenAsync(mfa.PrivateKeyReference, cancellationToken)
-                    .ConfigureAwait(false))
-                await using (var passphraseLease = await vault.OpenAsync(mfa.PassphraseReference, cancellationToken)
-                    .ConfigureAwait(false))
+                // The password is opened first, so a failure there leaves no parsed key behind.
                 await using (var passwordLease = await vault.OpenAsync(mfa.PasswordReference, cancellationToken)
                     .ConfigureAwait(false))
                 {
-                    var keyBytes = keyLease.Memory.ToArray();
-                    try
-                    {
-                        using var keyStream = new MemoryStream(keyBytes, writable: false);
-                        var privateKey = new PrivateKeyFile(
-                            keyStream,
-                            Encoding.UTF8.GetString(passphraseLease.Memory.Span));
-                        authenticationResource = privateKey;
-                        authenticationMethods =
-                        [
-                            new PrivateKeyAuthenticationMethod(mfa.Username, privateKey),
-                            new PasswordAuthenticationMethod(
-                                mfa.Username,
-                                Encoding.UTF8.GetString(passwordLease.Memory.Span))
-                        ];
-                    }
-                    finally
-                    {
-                        CryptographicOperations.ZeroMemory(keyBytes);
-                    }
+                    var privateKey = await OpenPrivateKeyAsync(
+                        vault, mfa.PrivateKeyReference, mfa.PassphraseReference, cancellationToken).ConfigureAwait(false);
+                    authenticationResource = privateKey;
+                    authenticationMethods =
+                    [
+                        new PrivateKeyAuthenticationMethod(mfa.Username, privateKey),
+                        new PasswordAuthenticationMethod(
+                            mfa.Username,
+                            Encoding.UTF8.GetString(passwordLease.Memory.Span))
+                    ];
                 }
                 break;
             default:

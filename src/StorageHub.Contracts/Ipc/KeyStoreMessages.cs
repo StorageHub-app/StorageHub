@@ -122,9 +122,8 @@ public sealed record KeyStoreEntryDocument(
         Tags.All(tag => IsSafeRequired(tag, KeyStoreIpcLimits.MaximumTagLength)) &&
         ConnectionEndpointDocument.IsOpaqueSecretReference(MaterialReference) &&
         MaterialReference is not null &&
-        // A certificate may have no password; an SSH key must always have a passphrase.
+        // A certificate may have no password, and an SSH key may have no passphrase.
         ConnectionEndpointDocument.IsOpaqueSecretReference(PassphraseReference) &&
-        (Kind is not KeyStoreMaterialKind.SshPrivateKey || PassphraseReference is not null) &&
         Summary is { } summary && summary.HasValidBounds &&
         Version > 0 &&
         ReferencedByProfiles is { Length: <= KeyStoreIpcLimits.MaximumReferencedProfiles } &&
@@ -181,9 +180,8 @@ public sealed record KeyStoreCreateRequest(
             tag.Length <= KeyStoreIpcLimits.MaximumTagLength && !tag.Any(char.IsControl)) &&
         MaterialReference is not null &&
         ConnectionEndpointDocument.IsOpaqueSecretReference(MaterialReference) &&
+        // A password-less PKCS#12 bundle is legitimate, and so is an SSH key without a passphrase.
         ConnectionEndpointDocument.IsOpaqueSecretReference(PassphraseReference) &&
-        // A password-less PKCS#12 bundle is legitimate; an unprotected SSH key is not.
-        (Kind is not KeyStoreMaterialKind.SshPrivateKey || PassphraseReference is not null) &&
         // An SSH key must declare its envelope; a certificate must not.
         (Kind is KeyStoreMaterialKind.SshPrivateKey
             ? KeyFormat is { } format && Enum.IsDefined(format)

@@ -106,10 +106,13 @@ internal sealed class KeyStoreImportModel : INotifyPropertyChanged
         ? Ui.KeyStore.CertificatePassword
         : Ui.KeyStore.KeyPassphrase;
 
-    /// <summary>A bundle may have no password; a key must have a passphrase. Say which.</summary>
+    /// <summary>
+    /// Either may have none: a bundle no password, a key no passphrase. Importing a key without
+    /// one is warned about afterwards, once the agent has confirmed the key really has none.
+    /// </summary>
     public string PassphraseHint => Kind is KeyStoreMaterialKind.Pkcs12Certificate
         ? Ui.KeyStore.CertificatePasswordHint
-        : Ui.KeyStore.StorageHubCannotStoreAnUnprotectedPrivateKey;
+        : Ui.KeyStore.KeyPassphraseHint;
 
     /// <summary>Why the draft will not do, or nothing.</summary>
     public string Problem => KeyStoreRules.Validate(Draft()) ?? string.Empty;

@@ -315,10 +315,10 @@ public sealed record ConnectionAuthenticationDocument(
                 !hasKey && !hasPassphrase,
             ConnectionAuthenticationKind.SftpPrivateKey =>
                 hasUsername && !hasCredential && !hasPassword && !hasAccess && !hasSecret &&
-                !hasToken && hasKey && hasPassphrase,
+                !hasToken && hasKey,
             ConnectionAuthenticationKind.SshPrivateKeyPassword =>
                 hasUsername && !hasCredential && hasPassword && !hasAccess && !hasSecret &&
-                !hasToken && hasKey && hasPassphrase,
+                !hasToken && hasKey,
             _ => false
         };
     }

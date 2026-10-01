@@ -28,7 +28,7 @@
   "makeTheDestinationMatchTheSourceIncluding": "Das Ziel an die Quelle angleichen, einschließlich geprüfter Löschungen.",
   "mergeChangesUsingTheLastCompleteBaseline": "Änderungen anhand der letzten vollständigen Baseline und einer expliziten Konfliktregel zusammenführen.",
   "objectStoreService": "Objektspeicherdienst",
-  "onlyEncryptedPrivateKeysAreAccepted": "Es werden nur verschlüsselte private Schlüssel akzeptiert.",
+  "leaveEmptyForAKeyWithNoPassphrase": "Leer lassen für einen Schlüssel ohne Kennsatz. Ein Kennsatz wird weiterhin empfohlen.",
   "openSSHPEMPrivateKeyReference": "Verweis auf privaten OpenSSH-/PEM-Schlüssel",
   "optionalVaultEntry": "Optionaler Tresoreintrag",
   "optionalWhenUsingAProviderCredentialChain": "Optional bei Verwendung einer Anbieter-Anmeldekette",

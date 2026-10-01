@@ -64,10 +64,15 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
         }
     }
 
+    /// <summary>
+    /// A real unencrypted key in each format is recognised, with or without a passphrase offered,
+    /// and an encrypted one without its passphrase is not mistaken for one.
+    /// </summary>
     [Fact]
-    public void Private_key_formats_reject_real_unencrypted_keys()
+    public void Private_key_formats_recognise_real_unencrypted_keys()
     {
         var fixtures = CreateUnencryptedPrivateKeyFixtures();
+        var encrypted = CreateEncryptedPrivateKeyFixtures();
         try
         {
             foreach (var (format, key) in fixtures)
@@ -75,11 +80,22 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
                 Assert.Equal(
                     PrivateKeyValidationResult.Unencrypted,
                     PrivateKeyEncryptionValidator.Validate(key, TestPrivateKeyPassphrase, format));
+                Assert.Equal(
+                    PrivateKeyValidationResult.Unencrypted,
+                    PrivateKeyEncryptionValidator.Validate(key, passphrase: null, format));
+            }
+
+            foreach (var (format, key) in encrypted)
+            {
+                Assert.Equal(
+                    PrivateKeyValidationResult.Invalid,
+                    PrivateKeyEncryptionValidator.Validate(key, passphrase: null, format));
             }
         }
         finally
         {
             ZeroFixtures(fixtures);
+            ZeroFixtures(encrypted);
         }
     }
 
@@ -382,24 +398,36 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
         Assert.Equal(StorageFailureKind.Security, result.Error.Kind);
     }
 
+    /// <summary>
+    /// An unencrypted key is used as it is, where 1.4 refused it: the library is handed no
+    /// passphrase, whether the profile has none or kept one that unlocks nothing.
+    /// </summary>
     [Fact]
-    public async Task Unencrypted_private_key_is_rejected_before_runtime_materialization()
+    public async Task Unencrypted_private_key_is_materialized_without_a_passphrase()
     {
         _trust.Records.Add(TrustedRecord(TrustArtifactKind.SshHostKey, "sftp.example.test", 22));
         var unencryptedKey = CreateUnencryptedOpenSshPrivateKey();
         var key = await StoreBytesAsync(unencryptedKey);
         var passphrase = await StoreTextAsync("a-vault-passphrase");
-        var profile = CreateProfile(
-            new SftpEndpoint("sftp.example.test", 22, SshHostKeyPolicy.Pinned),
-            new SftpPrivateKeyAuthentication("operator", key, passphrase, SftpPrivateKeyFormat.OpenSsh));
 
-        var result = await CreateBuilder().BuildAsync(profile);
+        foreach (var passphraseReference in new SecretReference?[] { null, passphrase })
+        {
+            var profile = CreateProfile(
+                new SftpEndpoint("sftp.example.test", 22, SshHostKeyPolicy.Pinned),
+                new SftpPrivateKeyAuthentication("operator", key, passphraseReference, SftpPrivateKeyFormat.OpenSsh));
 
-        Assert.True(result.IsFailure);
-        Assert.Equal("storage.credential.private_key_unprotected", result.Error.Code);
-        Assert.Empty(_materializer.Materials);
+            var result = await CreateBuilder().BuildAsync(profile);
+
+            Assert.True(result.IsSuccess, result.Error?.Message);
+            await using var prepared = result.Value;
+            var configuration = Assert.IsType<SftpConnectionConfig>(prepared.Configuration);
+            Assert.Equal(SftpAuthenticationMode.PrivateKey, configuration.AuthenticationMode);
+            Assert.Null(configuration.PrivateKeyPassphrase);
+            Assert.Equal(unencryptedKey, _materializer.Materials[^1].Bytes);
+        }
     }
 
+    /// <summary>An encrypted key with the wrong passphrase, or with none, never reaches the library.</summary>
     [Fact]
     public async Task Wrong_private_key_passphrase_is_rejected_before_runtime_materialization()
     {
@@ -407,16 +435,20 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
         var encryptedKey = CreateEncryptedOpenSshPrivateKey();
         var key = await StoreBytesAsync(encryptedKey);
         var passphrase = await StoreTextAsync("wrong-passphrase");
-        var profile = CreateProfile(
-            new SftpEndpoint("sftp.example.test", 22, SshHostKeyPolicy.Pinned),
-            new SftpPrivateKeyAuthentication("operator", key, passphrase, SftpPrivateKeyFormat.OpenSsh));
 
-        var result = await CreateBuilder().BuildAsync(profile);
+        foreach (var passphraseReference in new SecretReference?[] { passphrase, null })
+        {
+            var profile = CreateProfile(
+                new SftpEndpoint("sftp.example.test", 22, SshHostKeyPolicy.Pinned),
+                new SftpPrivateKeyAuthentication("operator", key, passphraseReference, SftpPrivateKeyFormat.OpenSsh));
 
-        Assert.True(result.IsFailure);
-        Assert.Equal("storage.credential.private_key_invalid", result.Error.Code);
-        Assert.Equal(StorageFailureKind.Security, result.Error.Kind);
-        Assert.Empty(_materializer.Materials);
+            var result = await CreateBuilder().BuildAsync(profile);
+
+            Assert.True(result.IsFailure);
+            Assert.Equal("storage.credential.private_key_invalid", result.Error.Code);
+            Assert.Equal(StorageFailureKind.Security, result.Error.Kind);
+            Assert.Empty(_materializer.Materials);
+        }
     }
 
     [Fact]

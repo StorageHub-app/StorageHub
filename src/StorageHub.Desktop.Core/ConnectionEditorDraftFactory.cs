@@ -571,11 +571,9 @@ public static class ConnectionEditorDraftFactory
                 PrivateKeyReference: Require(
                     values,
                     "privateKeyReference",
-                    Ui.Validation.AnEncryptedPrivateKeyVaultReferenceIs2),
-                PrivateKeyPassphraseReference: Require(
-                    values,
-                    "privateKeyPassphraseReference",
-                    Ui.Validation.APrivateKeyPassphraseVaultReferenceIs2)),
+                    Ui.Validation.APrivateKeyVaultReferenceIsRequired),
+                // Absent for a key that has no passphrase, which 2.0 accepts with a warning.
+                PrivateKeyPassphraseReference: Get(values, "privateKeyPassphraseReference")),
             "Password reference" => new ConnectionAuthenticationDocument(
                 ConnectionAuthenticationKind.UsernamePassword,
                 Username: username,
@@ -593,11 +591,8 @@ public static class ConnectionEditorDraftFactory
                 PrivateKeyReference: Require(
                     values,
                     "privateKeyReference",
-                    Ui.Validation.AnEncryptedPrivateKeyVaultReferenceIs),
-                PrivateKeyPassphraseReference: Require(
-                    values,
-                    "privateKeyPassphraseReference",
-                    Ui.Validation.APrivateKeyPassphraseVaultReferenceIs)),
+                    Ui.Validation.APrivateKeyVaultReferenceIsRequiredForMfa),
+                PrivateKeyPassphraseReference: Get(values, "privateKeyPassphraseReference")),
             _ => throw new ArgumentException(
                 Ui.Validation.SSHAgentAuthenticationIsNotAvailableIn,
                 nameof(values))

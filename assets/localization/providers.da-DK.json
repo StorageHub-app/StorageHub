@@ -28,7 +28,7 @@
   "makeTheDestinationMatchTheSourceIncluding": "Få destinationen til at matche kilden, inklusive gennemsete sletninger.",
   "mergeChangesUsingTheLastCompleteBaseline": "Flet ændringer ud fra den seneste komplette reference og en eksplicit konfliktpolitik.",
   "objectStoreService": "Objektlagertjeneste",
-  "onlyEncryptedPrivateKeysAreAccepted": "Kun krypterede privatnøgler accepteres.",
+  "leaveEmptyForAKeyWithNoPassphrase": "Lad feltet stå tomt for en nøgle uden kodeord. Et kodeord anbefales stadig.",
   "openSSHPEMPrivateKeyReference": "Reference til OpenSSH-/PEM-privatnøgle",
   "optionalVaultEntry": "Valgfri post i boksen",
   "optionalWhenUsingAProviderCredentialChain": "Valgfrit ved brug af udbyderens kæde af loginoplysninger",

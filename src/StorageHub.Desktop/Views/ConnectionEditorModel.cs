@@ -1208,9 +1208,9 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     /// </summary>
     /// <remarks>
     /// One entry fills both halves: the provider needs the passphrase to open the material, and
-    /// the profile requires them together. A password-less certificate has no passphrase
-    /// reference, so the companion field is cleared rather than left pointing at whatever was
-    /// there before.
+    /// the profile requires them together. A password-less certificate or a passphrase-less key
+    /// has no passphrase reference, so the companion field is cleared rather than left pointing
+    /// at whatever was there before, and a key without one is warned about in the status.
     /// </remarks>
     internal async Task ChooseFromKeyStoreAsync(ConnectionFieldModel field, CancellationToken cancellationToken = default)
     {
@@ -1254,7 +1254,10 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
                 passphrase.Value = chosen.PassphraseReference ?? string.Empty;
             }
 
-            Status = Ui.Format(Ui.ConnectionEditor.UsingStoredKeyFormat, chosen.DisplayName);
+            var usingKey = Ui.Format(Ui.ConnectionEditor.UsingStoredKeyFormat, chosen.DisplayName);
+            Status = KeyStoreRules.IsKeyWithoutPassphrase(kind, chosen.PassphraseReference)
+                ? usingKey + " " + Ui.KeyStore.KeyHasNoPassphraseWarning
+                : usingKey;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

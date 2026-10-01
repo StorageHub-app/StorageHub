@@ -815,6 +815,11 @@ public sealed record S3AccessKeyAuthentication : ConnectionAuthentication
     }
 }
 
+/// <summary>
+/// SSH private-key authentication. The passphrase reference is absent for a key that has no
+/// passphrase: StorageHub accepts one, as it accepts a certificate without a password, because
+/// the key itself still lives encrypted in the vault.
+/// </summary>
 public sealed record SftpPrivateKeyAuthentication : ConnectionAuthentication
 {
     public SftpPrivateKeyAuthentication(
@@ -845,13 +850,6 @@ public sealed record SftpPrivateKeyAuthentication : ConnectionAuthentication
                 "SFTP accepts OpenSSH, PEM, or PKCS#8 keys; PFX is an FTPS certificate format.");
         }
 
-        if (passphraseReference is null)
-        {
-            throw new ArgumentException(
-                "StorageHub requires encrypted SSH private keys with a vault-backed passphrase.",
-                nameof(passphraseReference));
-        }
-
         Username = username.Trim();
         PrivateKeyReference = privateKeyReference;
         PassphraseReference = passphraseReference;
@@ -867,7 +865,7 @@ public sealed record SftpPrivateKeyAuthentication : ConnectionAuthentication
 /// <summary>
 /// SSH multi-factor authentication where the server requires both a private key
 /// and the account password. The private-key passphrase protects the key itself
-/// and is intentionally stored as a separate vault reference.
+/// and is intentionally stored as a separate vault reference, absent for a key without one.
 /// </summary>
 public sealed record SshPrivateKeyPasswordAuthentication : ConnectionAuthentication
 {
@@ -875,7 +873,7 @@ public sealed record SshPrivateKeyPasswordAuthentication : ConnectionAuthenticat
         string username,
         SecretReference passwordReference,
         SecretReference privateKeyReference,
-        SecretReference passphraseReference,
+        SecretReference? passphraseReference,
         SftpPrivateKeyFormat keyFormat)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(username);
@@ -885,7 +883,10 @@ public sealed record SshPrivateKeyPasswordAuthentication : ConnectionAuthenticat
         }
         ValidateReference(passwordReference, nameof(passwordReference));
         ValidateReference(privateKeyReference, nameof(privateKeyReference));
-        ValidateReference(passphraseReference, nameof(passphraseReference));
+        if (passphraseReference is { } passphrase)
+        {
+            ValidateReference(passphrase, nameof(passphraseReference));
+        }
         if (!Enum.IsDefined(keyFormat))
         {
             throw new ArgumentOutOfRangeException(nameof(keyFormat));
@@ -901,7 +902,7 @@ public sealed record SshPrivateKeyPasswordAuthentication : ConnectionAuthenticat
     public string Username { get; }
     public SecretReference PasswordReference { get; }
     public SecretReference PrivateKeyReference { get; }
-    public SecretReference PassphraseReference { get; }
+    public SecretReference? PassphraseReference { get; }
     public SftpPrivateKeyFormat KeyFormat { get; }
 
     private static void ValidateReference(SecretReference reference, string parameterName)

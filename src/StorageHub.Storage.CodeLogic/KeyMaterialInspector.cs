@@ -76,9 +76,19 @@ public static class KeyMaterialInspector
         }
     }
 
+    /// <summary>
+    /// Describes an SSH private key, with its passphrase or, for a key that has none, with an
+    /// empty one.
+    /// </summary>
+    /// <remarks>
+    /// A key without a passphrase is accepted: the vault keeps it encrypted, and the desktop warns
+    /// that a passphrase is still recommended. A passphrase given for such a key is refused rather
+    /// than stored, because a secret that unlocks nothing would only mislead whoever reads the
+    /// entry later about how the key is protected.
+    /// </remarks>
     public static StorageResult<KeyMaterialSummary> InspectSshPrivateKey(
         ReadOnlyMemory<byte> material,
-        string passphrase,
+        string? passphrase,
         SftpPrivateKeyFormat format)
     {
         if (material.IsEmpty || material.Length > MaximumMaterialBytes)
@@ -94,14 +104,14 @@ public static class KeyMaterialInspector
         // Reuse the existing envelope validator rather than reimplementing it: it is the same check
         // the SFTP connector applies, so a key the store accepts is a key that can actually connect.
         var envelope = PrivateKeyEncryptionValidator.Validate(material.Span, passphrase, format);
-        if (envelope == PrivateKeyValidationResult.Unencrypted)
+        if (envelope == PrivateKeyValidationResult.Unencrypted && !string.IsNullOrEmpty(passphrase))
         {
             return Invalid(
-                "keystore.material.unprotected",
-                "The private key is not passphrase protected. StorageHub requires an encrypted key.");
+                "keystore.material.passphrase_not_needed",
+                "The private key has no passphrase, so none is needed. Leave the passphrase empty.");
         }
 
-        if (envelope != PrivateKeyValidationResult.Valid)
+        if (envelope == PrivateKeyValidationResult.Invalid)
         {
             return Invalid(
                 "keystore.material.unreadable",
@@ -111,7 +121,9 @@ public static class KeyMaterialInspector
         try
         {
             using var stream = new MemoryStream(material.ToArray(), writable: false);
-            using var key = new PrivateKeyFile(stream, passphrase);
+            using var key = string.IsNullOrEmpty(passphrase)
+                ? new PrivateKeyFile(stream)
+                : new PrivateKeyFile(stream, passphrase);
             var algorithm = key.HostKeyAlgorithms.FirstOrDefault();
             if (algorithm is null)
             {

@@ -15,6 +15,17 @@ internal enum PrivateKeyValidationResult
     Invalid
 }
 
+/// <summary>
+/// Classifies private-key material before anything is handed to the SSH library: a key in a
+/// supported envelope that opens, either with its passphrase or, when it has none, without one.
+/// </summary>
+/// <remarks>
+/// An unencrypted key is accepted (it lives encrypted in the vault), but it still has to parse:
+/// <see cref="PrivateKeyValidationResult.Unencrypted"/> is only reported for one SSH.NET can read.
+/// An encrypted key without its passphrase is <see cref="PrivateKeyValidationResult.Invalid"/>.
+/// A passphrase supplied for an unencrypted key does not change the answer; the caller decides
+/// what that means.
+/// </remarks>
 internal static class PrivateKeyEncryptionValidator
 {
     private const int MaximumKeyBytes = 16 * 1024 * 1024;
@@ -27,10 +38,10 @@ internal static class PrivateKeyEncryptionValidator
 
     internal static PrivateKeyValidationResult Validate(
         ReadOnlySpan<byte> key,
-        string passphrase,
+        string? passphrase,
         SftpPrivateKeyFormat format)
     {
-        if (key.IsEmpty || key.Length > MaximumKeyBytes || string.IsNullOrEmpty(passphrase))
+        if (key.IsEmpty || key.Length > MaximumKeyBytes)
         {
             return PrivateKeyValidationResult.Invalid;
         }
@@ -43,9 +54,14 @@ internal static class PrivateKeyEncryptionValidator
             _ => PrivateKeyValidationResult.Invalid
         };
 
-        return envelope == PrivateKeyValidationResult.Valid && !CanDecryptWithSshNet(key, passphrase)
-            ? PrivateKeyValidationResult.Invalid
-            : envelope;
+        return envelope switch
+        {
+            PrivateKeyValidationResult.Valid when string.IsNullOrEmpty(passphrase) ||
+                !CanDecryptWithSshNet(key, passphrase) => PrivateKeyValidationResult.Invalid,
+            PrivateKeyValidationResult.Unencrypted when !CanDecryptWithSshNet(key, passphrase: null) =>
+                PrivateKeyValidationResult.Invalid,
+            _ => envelope
+        };
     }
 
     private static PrivateKeyValidationResult ValidateOpenSshEnvelope(ReadOnlySpan<byte> key)
@@ -495,13 +511,15 @@ internal static class PrivateKeyEncryptionValidator
         return true;
     }
 
-    private static bool CanDecryptWithSshNet(ReadOnlySpan<byte> key, string passphrase)
+    private static bool CanDecryptWithSshNet(ReadOnlySpan<byte> key, string? passphrase)
     {
         var keyCopy = key.ToArray();
         try
         {
             using var stream = new MemoryStream(keyCopy, writable: false);
-            using var parsedKey = new PrivateKeyFile(stream, passphrase);
+            using var parsedKey = string.IsNullOrEmpty(passphrase)
+                ? new PrivateKeyFile(stream)
+                : new PrivateKeyFile(stream, passphrase);
             return parsedKey.HostKeyAlgorithms.Count > 0;
         }
 #pragma warning disable CA1031 // Malformed hostile key material must fail closed regardless of parser exception type.

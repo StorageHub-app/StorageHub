@@ -73,7 +73,7 @@ internal sealed class ProviderStrings : LocalizationModelBase
 
     public string ObjectStoreService { get; set; } = "Object-store service";
 
-    public string OnlyEncryptedPrivateKeysAreAccepted { get; set; } = "Only encrypted private keys are accepted.";
+    public string LeaveEmptyForAKeyWithNoPassphrase { get; set; } = "Leave empty for a key that has no passphrase. A passphrase is still recommended.";
 
     public string OpenSSHPEMPrivateKeyReference { get; set; } = "OpenSSH / PEM private-key reference";
 

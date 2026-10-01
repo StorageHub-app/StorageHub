@@ -160,11 +160,12 @@ public sealed class ConnectionProfileTests
             SecretReference.Create(),
             passphraseReference: null,
             (SftpPrivateKeyFormat)999));
-        Assert.Throws<ArgumentException>(() => new SftpPrivateKeyAuthentication(
+        // A key without a passphrase is accepted since 2.0, where 1.4 refused it.
+        Assert.Null(new SftpPrivateKeyAuthentication(
             "operator",
             SecretReference.Create(),
             passphraseReference: null,
-            SftpPrivateKeyFormat.OpenSsh));
+            SftpPrivateKeyFormat.OpenSsh).PassphraseReference);
     }
 
     [Fact]

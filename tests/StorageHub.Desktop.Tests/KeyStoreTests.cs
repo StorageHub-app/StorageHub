@@ -216,13 +216,12 @@ public class KeyStoreTests
             Assert.Equal(Ui.KeyStore.ChooseTheFileToImport, model.Problem);
             Assert.False(model.ImportCommand.CanExecute(null));
 
+            // A key may have no passphrase, so with a file and a name there is nothing to fix.
             model.FilePath = file;
             Assert.Equal(Path.GetFileNameWithoutExtension(file), model.DisplayName);
-            Assert.Equal(Ui.KeyStore.StorageHubCannotStoreAnUnprotectedPrivateKey, model.Problem);
-
-            model.Passphrase = "open sesame";
             Assert.False(model.HasProblem);
             Assert.True(model.ImportCommand.CanExecute(null));
+            Assert.Equal(Ui.KeyStore.KeyPassphraseHint, model.PassphraseHint);
 
             model.DisplayName = "my own name";
             model.FilePath = file + "2";

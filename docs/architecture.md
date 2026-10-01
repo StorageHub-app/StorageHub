@@ -93,10 +93,17 @@ never included. Rotating credentials or trust invalidates stale pane pages,
 queued addresses, and other identity-bound work instead of silently retargeting
 it.
 
-FTPS client PFX use requires a separate vault-backed password. SFTP private-key
-profiles require a vault-backed passphrase. The connector strictly parses the
-OpenSSH, legacy PEM, or PKCS#8 envelope and uses SSH.NET to decrypt and parse the
-actual key with that passphrase before creating the runtime backend.
+FTPS client PFX use takes a separate vault-backed password when the bundle has
+one. SFTP private-key profiles take a vault-backed passphrase when the key has
+one; a key without a passphrase is accepted (1.4 refused it) because the vault
+keeps it encrypted, and the desktop warns that a passphrase is still recommended
+when such a key is imported or picked. The connector strictly parses the OpenSSH,
+legacy PEM, or PKCS#8 envelope and uses SSH.NET to decrypt and parse the actual
+key, with its passphrase or without one, before creating the runtime backend. An
+encrypted key without its passphrase is refused; for an unencrypted key no
+passphrase is handed to CodeLogic.Storage, and one stored for it is ignored. The
+key store refuses a passphrase for a key that has none rather than store a
+secret that unlocks nothing.
 
 The connector rejects settings that the current provider boundary cannot enforce,
 including TOFU capture, S3 certificate pinning, per-connection proxy/bandwidth,
@@ -178,7 +185,7 @@ Schema v12 lets durable intents address agent-owned root-validated local
 endpoints that are not saved profiles. Schemas v13-v14 replace the credential
 reference placeholder with the shared key and certificate store, whose bindings
 block deletion while a profile still uses an entry, and allow a PKCS#12 bundle
-to carry no passphrase while SSH keys still require one.
+to carry no passphrase. Schema v15 drops the check that every SSH key has one.
 
 Connection-profile and trust repositories use optimistic versions. Trust
 rollover revokes the old identity and inserts the verified replacement in one

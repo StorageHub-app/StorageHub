@@ -34,7 +34,8 @@ public sealed class StorageHubDatabaseInitializer
                 new NonAtomicSyncWritesSchemaMigration(),
                 new LocalTransferEndpointsSchemaMigration(),
                 new KeyStoreSchemaMigration(),
-                new OptionalKeyPassphraseSchemaMigration()
+                new OptionalKeyPassphraseSchemaMigration(),
+                new OptionalSshKeyPassphraseSchemaMigration()
             ],
             timeProvider);
     }

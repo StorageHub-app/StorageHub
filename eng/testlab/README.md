@@ -62,6 +62,10 @@ The pairing is deliberate, and each half is asserted:
 - Two client keys are minted, both well-formed and both passphrase-protected. Only one is ever
   published to `authorized_keys`. The other exists so that "rejected" can be distinguished from
   "malformed".
+- A third client key, `unprotected.key`, has no passphrase and is published too: 2.0 accepts such a
+  key where 1.4 refused it, and the SFTP fixture connects with it, handing the library no
+  passphrase. A lab made before it existed gains it on the next run of `New-TestLab.ps1`; restart
+  `sftp-key` afterwards, since the server copies `authorized_keys` when it starts.
 
 The image runs an ordinary `sshd` with a real shell rather than a chrooted `internal-sftp`, because
 StorageHub's SSH client panes open an interactive shell and the terminal fixture drives one.

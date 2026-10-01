@@ -20,10 +20,6 @@ internal sealed class ValidationStrings : LocalizationModelBase
 
     public string AFileCannotBeCopiedOrMoved { get; set; } = "A file cannot be copied or moved onto itself.";
 
-    public string APrivateKeyPassphraseVaultReferenceIs { get; set; } = "A private-key passphrase vault reference is required for SSH multi-factor authentication.";
-
-    public string APrivateKeyPassphraseVaultReferenceIs2 { get; set; } = "A private-key passphrase vault reference is required.";
-
     public string AGroupNameIsRequired { get; set; } = "A group name is required.";
 
     public string AProfileNameIsRequired { get; set; } = "A profile name is required.";
@@ -75,9 +71,9 @@ internal sealed class ValidationStrings : LocalizationModelBase
 
     public string AnAccountPasswordVaultReferenceIsRequired { get; set; } = "An account-password vault reference is required for SSH multi-factor authentication.";
 
-    public string AnEncryptedPrivateKeyVaultReferenceIs { get; set; } = "An encrypted private-key vault reference is required for SSH multi-factor authentication.";
+    public string APrivateKeyVaultReferenceIsRequiredForMfa { get; set; } = "A private-key vault reference is required for SSH multi-factor authentication.";
 
-    public string AnEncryptedPrivateKeyVaultReferenceIs2 { get; set; } = "An encrypted private-key vault reference is required.";
+    public string APrivateKeyVaultReferenceIsRequired { get; set; } = "A private-key vault reference is required.";
 
     public string AtLeastOneUniqueValidAcceptedOr { get; set; } = "At least one unique valid accepted or ambiguous transfer ID is required.";
 

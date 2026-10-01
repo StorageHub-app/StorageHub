@@ -607,6 +607,14 @@ The profile already stores these; `CodeLogicConnectionProfileConnector.BuildAsyn
 - [ ] 1.8 Server checksums (`PreferServer`): verify without re-downloading; the inspector shows where a
       checksum came from; the sync scanner uses them.
 - [ ] 1.9 Certificate pins for S3.
+- [x] 1.10 SSH keys without a passphrase: 1.4 refused them, and 2.0 accepts them by decision. The
+      profile, the key store (schema v15 drops its check), IPC, the agent, the editor and the SSH
+      terminal all treat the passphrase as optional, as a certificate's password already was. The
+      key must still parse as OpenSSH, PEM or PKCS#8, an encrypted key without its passphrase is
+      still refused, and a passphrase given for a key that has none is refused at import and
+      ignored on connect. The connector hands CodeLogic.Storage no passphrase for such a key.
+      Importing or picking one says, in the warning colour, that it has no passphrase, that the
+      vault keeps it encrypted, and that a passphrase is still recommended.
 
 ## 2. Connection test and trust (was port item 10)
 

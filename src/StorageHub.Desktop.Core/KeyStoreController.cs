@@ -52,8 +52,9 @@ internal sealed record KeyStoreChangeResult(
 /// What an import needs: the file, what it is, what protects it, and what to call it.
 /// </summary>
 /// <param name="Passphrase">
-/// Empty means the material carries no password. That is legitimate for a PKCS#12 bundle and
-/// refused for an SSH key; see <see cref="KeyStoreRules.DescribeMissingPassphrase"/>.
+/// Empty means the material carries no password. That is legitimate for a PKCS#12 bundle and,
+/// since 2.0, for an SSH key too, which is warned about; see
+/// <see cref="KeyStoreRules.IsKeyWithoutPassphrase"/>.
 /// </param>
 /// <param name="KeyFormat">
 /// The envelope an SSH key uses. The agent validates the declared format against the material, so
@@ -83,17 +84,17 @@ internal static class KeyStoreRules
     internal static readonly TimeSpan ExpiryNotice = TimeSpan.FromDays(30);
 
     /// <summary>
-    /// Explains why material is refused, or null when it can be stored.
+    /// Whether this is an SSH key with no passphrase, which is stored but warned about.
     /// </summary>
     /// <remarks>
-    /// A PKCS#12 bundle may legitimately carry no password, so an empty value is accepted and no
-    /// passphrase is enrolled at all. An SSH private key still requires one: the SFTP connector
-    /// rejects an unprotected key outright, so storing one would store something unusable.
+    /// 1.4 refused such a key. 2.0 takes it, as it takes a certificate without a password: the
+    /// vault keeps the key encrypted either way, and no passphrase is enrolled for it. The screens
+    /// that import or pick one say <see cref="KeyStoreStrings.KeyHasNoPassphraseWarning"/>, because
+    /// a passphrase is still the better protection once the key leaves StorageHub.
     /// </remarks>
-    internal static string? DescribeMissingPassphrase(KeyStoreMaterialKind kind, string? value) =>
-        !string.IsNullOrEmpty(value) || kind is KeyStoreMaterialKind.Pkcs12Certificate
-            ? null
-            : Ui.KeyStore.StorageHubCannotStoreAnUnprotectedPrivateKey;
+    /// <param name="passphrase">The passphrase typed, or the reference stored, or nothing.</param>
+    internal static bool IsKeyWithoutPassphrase(KeyStoreMaterialKind kind, string? passphrase) =>
+        kind is KeyStoreMaterialKind.SshPrivateKey && string.IsNullOrEmpty(passphrase);
 
     /// <summary>
     /// Everything wrong with a draft, in the order it should be fixed, or nothing.
@@ -121,11 +122,6 @@ internal static class KeyStoreRules
         if (file.Length is 0 or > MaximumMaterialBytes)
         {
             return Ui.KeyStore.TheSelectedFileIsEmptyOrLarger;
-        }
-
-        if (DescribeMissingPassphrase(draft.Kind, draft.Passphrase) is { } missing)
-        {
-            return missing;
         }
 
         if (draft.Kind is KeyStoreMaterialKind.SshPrivateKey && draft.KeyFormat is null)
@@ -281,8 +277,8 @@ internal sealed class KeyStoreController(
     /// Enrols a file and its passphrase, then registers them as one entry.
     /// </summary>
     /// <remarks>
-    /// The draft is validated first, so an unprotected SSH key is refused before anything reaches
-    /// the vault rather than after the material has been enrolled and has to be deleted again.
+    /// The draft is validated first, so a draft that cannot be stored is refused before anything
+    /// reaches the vault rather than after the material has been enrolled and has to be deleted again.
     /// </remarks>
     internal async Task<KeyStoreChangeResult> ImportAsync(
         KeyStoreImportDraft draft,

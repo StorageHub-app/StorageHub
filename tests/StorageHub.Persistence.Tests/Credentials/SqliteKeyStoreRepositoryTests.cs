@@ -51,42 +51,47 @@ public sealed class SqliteKeyStoreRepositoryTests : IDisposable
         Assert.StartsWith("SHA256:", summary.Sha256Fingerprint, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Neither kind needs a passphrase: a certificate may have no password, and since 2.0 an SSH
+    /// key may have no passphrase, which the v15 schema stopped refusing.
+    /// </summary>
     [Fact]
-    public async Task A_certificate_round_trips_without_a_passphrase()
+    public async Task A_certificate_and_an_ssh_key_round_trip_without_a_passphrase()
     {
         var repository = Repository();
-        var entry = KeyStoreEntry.Create(
-            KeyStoreEntryId.New(),
-            KeyMaterialKind.Pkcs12Certificate,
-            "Password-less certificate",
-            SecretReference.Create(),
-            passphraseReference: null,
-            Summary("CN=none.example.test"),
-            DateTimeOffset.UtcNow);
+        KeyStoreEntry[] entries =
+        [
+            KeyStoreEntry.Create(
+                KeyStoreEntryId.New(),
+                KeyMaterialKind.Pkcs12Certificate,
+                "Password-less certificate",
+                SecretReference.Create(),
+                passphraseReference: null,
+                Summary("CN=none.example.test"),
+                DateTimeOffset.UtcNow),
+            KeyStoreEntry.Create(
+                KeyStoreEntryId.New(),
+                KeyMaterialKind.SshPrivateKey,
+                "Passphrase-less key",
+                SecretReference.Create(),
+                passphraseReference: null,
+                new SshPrivateKeySummary(
+                    SftpPrivateKeyFormat.OpenSsh,
+                    "ssh-ed25519",
+                    "SHA256:3q2+7wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+                    comment: null),
+                DateTimeOffset.UtcNow)
+        ];
 
-        var created = await repository.CreateAsync(entry);
-        var loaded = await repository.GetAsync(entry.Id);
+        foreach (var entry in entries)
+        {
+            var created = await repository.CreateAsync(entry);
+            var loaded = await repository.GetAsync(entry.Id);
 
-        Assert.Equal(KeyStoreWriteStatus.Succeeded, created.Status);
-        Assert.Null(loaded!.PassphraseReference);
-        Assert.Equal(entry.MaterialReference, loaded.MaterialReference);
-    }
-
-    [Fact]
-    public void An_ssh_key_still_requires_a_passphrase()
-    {
-        Assert.Throws<ArgumentException>(() => KeyStoreEntry.Create(
-            KeyStoreEntryId.New(),
-            KeyMaterialKind.SshPrivateKey,
-            "Unprotected key",
-            SecretReference.Create(),
-            passphraseReference: null,
-            new SshPrivateKeySummary(
-                SftpPrivateKeyFormat.OpenSsh,
-                "ssh-ed25519",
-                "SHA256:3q2+7wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-                comment: null),
-            DateTimeOffset.UtcNow));
+            Assert.Equal(KeyStoreWriteStatus.Succeeded, created.Status);
+            Assert.Null(loaded!.PassphraseReference);
+            Assert.Equal(entry.MaterialReference, loaded.MaterialReference);
+        }
     }
 
     [Fact]
