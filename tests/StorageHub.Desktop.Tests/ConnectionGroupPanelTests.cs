@@ -206,8 +206,11 @@ public class ConnectionGroupPanelTests
             ColorSchemeCatalog.Resolve(id: null, preferDark: dark));
 
         // Studio Assets is a favourite, as in ui-reference 09, so Favorites is over the groups.
+        // Lab SFTP sync2 is one too, and first, so the selected card is one whose name has to
+        // share its line with edit and delete.
         var window = await PanelAsync(
             Summary("Studio Assets", "Team") with { IsFavorite = true },
+            Summary("Lab SFTP sync2", "Lab", StorageConnectionProvider.Sftp) with { IsFavorite = true },
             Summary("Renders", "Team"),
             Summary("build-box", "Team", StorageConnectionProvider.Ssh, client: true),
             Summary("Site Backups"),
@@ -218,7 +221,7 @@ public class ConnectionGroupPanelTests
         var sidebar = (ConnectionsSidebar)((ConnectionsPanelView)window.Content!).DataContext!;
         sidebar.EditConnection = static (_, _) => { };
         sidebar.DeleteConnection = static _ => Task.FromResult(false);
-        sidebar.Select(sidebar.Groups[0].Connections[0]);
+        sidebar.Select(sidebar.Favorites!.Connections.First(static row => row.Name == "Lab SFTP sync2"));
         window.UpdateLayout();
 
         var frame = window.CaptureRenderedFrame();
@@ -233,7 +236,10 @@ public class ConnectionGroupPanelTests
         frame!.Save(stream, new PngBitmapEncoderOptions());
     }
 
-    /// <summary>The panel on its own, with connections in it.</summary>
+    /// <summary>
+    /// The panel on its own, with connections in it, 240 wide: narrower than it opens, which is
+    /// where a selected card's name has to make room for edit and delete.
+    /// </summary>
     private static async Task<Window> PanelAsync(params ConnectionSummary[] connections)
     {
         // "Team" carries a chosen icon, so the photograph shows a heading with one and one without.
@@ -246,12 +252,12 @@ public class ConnectionGroupPanelTests
         var window = new Window
         {
             Content = new ConnectionsPanelView { DataContext = sidebar },
-            Width = 300,
+            Width = 240,
             Height = 620
         };
         window.Show();
-        window.Measure(new Size(300, 620));
-        window.Arrange(new Rect(0, 0, 300, 620));
+        window.Measure(new Size(240, 620));
+        window.Arrange(new Rect(0, 0, 240, 620));
         window.UpdateLayout();
         return window;
     }

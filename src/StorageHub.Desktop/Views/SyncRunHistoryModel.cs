@@ -32,22 +32,54 @@ internal sealed record StatusLine(string Text, MetricTone Tone = MetricTone.Neut
 
 /// <summary>A row of the run history table.</summary>
 /// <param name="SyncRunId">Not shown. It is what selecting the row puts in the run id box.</param>
+/// <param name="Updated">When, as briefly as is still unambiguous; see <c>Moment</c>.</param>
+/// <param name="UpdatedInFull">When, with the date in full, for the cell's tip.</param>
 internal sealed record SyncRunRow(
     Guid SyncRunId,
     string Updated,
     string Run,
     string Phase,
     string Dispatch,
-    string Conflicts);
+    string Conflicts,
+    string UpdatedInFull = "")
+{
+    /// <summary>The whole run id, for the Run cell's tip.</summary>
+    public string RunInFull => SyncRunId.ToString("D", CultureInfo.InvariantCulture);
+}
 
 /// <summary>A row of the plan table.</summary>
+/// <param name="From">The source in full: its connection, then its path. The cell's tip.</param>
+/// <param name="To">The destination in full, likewise. Empty for an operation with none.</param>
 internal sealed record PlanRow(
     string Index,
     string Action,
     string From,
     string To,
     string ExpectedBytes,
-    string Approval);
+    string Approval)
+{
+    /// <summary>The source's connection with the separator after it, as the cell starts.</summary>
+    public string FromConnection => ConnectionPart(From);
+
+    /// <summary>The source's path, which the cell cuts from the left so the file's name stays.</summary>
+    public string FromPath => PathPart(From);
+
+    public string ToConnection => ConnectionPart(To);
+
+    public string ToPath => PathPart(To);
+
+    internal const string Separator = " · ";
+
+    private static string ConnectionPart(string endpoint) =>
+        endpoint.IndexOf(Separator, StringComparison.Ordinal) is var at and >= 0
+            ? endpoint[..(at + Separator.Length)]
+            : string.Empty;
+
+    private static string PathPart(string endpoint) =>
+        endpoint.IndexOf(Separator, StringComparison.Ordinal) is var at and >= 0
+            ? endpoint[(at + Separator.Length)..]
+            : endpoint;
+}
 
 /// <summary>A row of the conflicts table.</summary>
 internal sealed record ConflictRow(string Path, string Kind, string State, string Reason);
@@ -519,15 +551,17 @@ internal sealed class SyncRunHistoryModel : INotifyPropertyChanged, IDisposable
     private void Show(IReadOnlyList<SyncRunSummary> runs)
     {
         Runs.Clear();
+        var now = DateTimeOffset.Now;
         foreach (var run in runs)
         {
             Runs.Add(new SyncRunRow(
                 run.SyncRunId,
-                Moment(run.UpdatedUtc),
+                Moment(run.UpdatedUtc, now),
                 ShortId(run.SyncRunId),
                 UiEnumNames.Describe(run.Phase),
                 UiEnumNames.Describe(run.DispatchState),
-                run.ConflictCount.ToString(CultureInfo.CurrentCulture)));
+                run.ConflictCount.ToString(CultureInfo.CurrentCulture),
+                run.UpdatedUtc.ToLocalTime().ToString("f", CultureInfo.CurrentCulture)));
         }
     }
 
@@ -639,21 +673,53 @@ internal sealed class SyncRunHistoryModel : INotifyPropertyChanged, IDisposable
         var connection = ConnectionName?.Invoke(connectionId) is { Length: > 0 } name
             ? name
             : connectionId.ToString("D", CultureInfo.InvariantCulture);
-        return $"{connection} · {(path.Length == 0 ? "<root>" : path)}";
+        return $"{connection}{PlanRow.Separator}{(path.Length == 0 ? "<root>" : path)}";
     }
 
     /// <summary>Names a connection by its id, from the connections panel, when the shell has one.</summary>
     internal Func<Guid, string?>? ConnectionName { get; set; }
 
     /// <summary>
-    /// A timestamp in the reader's own zone.
+    /// A timestamp in the reader's own zone, as short as it can be without being ambiguous.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The agent works in UTC and says so on the wire. Showing that unconverted is how a sync that
     /// ran ten minutes ago reads as having run two hours from now.
+    /// </para>
+    /// <para>
+    /// 1.4 wrote every one in full ("g"), which in the history's narrow first column was cut to
+    /// "02-10-2026 1…", the time being the part lost. Today's runs are the time alone, this year's
+    /// leave the year out, and older ones are in full; the cell's tip has the whole date.
+    /// </para>
     /// </remarks>
-    private static string Moment(DateTimeOffset value) =>
-        value.ToLocalTime().ToString("g", CultureInfo.CurrentCulture);
+    internal static string Moment(DateTimeOffset value, DateTimeOffset now)
+    {
+        var culture = CultureInfo.CurrentCulture;
+        var local = value.ToLocalTime();
+        var today = now.ToLocalTime();
+        if (local.Date == today.Date) return local.ToString("t", culture);
+        if (local.Year != today.Year) return local.ToString("g", culture);
+
+        var format = culture.DateTimeFormat;
+        var dayAndMonth = WithoutYear(format.ShortDatePattern);
+        return dayAndMonth.Length == 0
+            ? local.ToString("g", culture)
+            : local.ToString($"{dayAndMonth} {format.ShortTimePattern}", culture);
+    }
+
+    /// <summary>
+    /// A short date pattern with its year and the separator beside it taken out: dd-MM-yyyy is
+    /// dd-MM, M/d/yyyy is M/d and yyyy-MM-dd is MM-dd. Empty when what is left is not a day and a
+    /// month, so the caller writes the date in full instead.
+    /// </summary>
+    private static string WithoutYear(string pattern)
+    {
+        var left = System.Text.RegularExpressions.Regex.Replace(pattern, @"[^dM]*y+[^dM]*", string.Empty).Trim();
+        return left.Contains('d', StringComparison.Ordinal) && left.Contains('M', StringComparison.Ordinal)
+            ? left
+            : string.Empty;
+    }
 
     /// <summary>A run id as the history list and the heading write it: its first eight characters.</summary>
     private static string ShortId(Guid syncRunId) =>

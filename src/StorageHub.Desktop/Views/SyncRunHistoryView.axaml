@@ -56,13 +56,44 @@
           <!--
             Weighted by what the cells hold rather than evenly. Five equal columns spend as much
             width on a conflict count that is nearly always one digit as on a date and time, and
-            truncate both the timestamp and "Awaiting approval" to do it.
+            truncate both the timestamp and "Awaiting approval" to do it. The weights are about the
+            widths the cells need, so at 1280 pixels, where the list is some 440 wide, every cell
+            reads in full; the date is short (today's runs are the time alone) for the same reason.
+            Each cell has its whole value on its tip: the date in full and the run's whole id.
           -->
-          <TableViewColumn Header="{Binding ColumnUpdated}" Binding="{Binding Updated}" Width="120*"/>
-          <TableViewColumn Header="{Binding ColumnRun}" Binding="{Binding Run}" Width="85*"/>
-          <TableViewColumn Header="{Binding ColumnPhase}" Binding="{Binding Phase}" Width="115*"/>
-          <TableViewColumn Header="{Binding ColumnDispatch}" Binding="{Binding Dispatch}" Width="110*"/>
-          <TableViewColumn Header="{Binding ColumnConflicts}" Binding="{Binding Conflicts}" Width="75*"/>
+          <TableViewColumn Header="{Binding ColumnUpdated}" Width="85*">
+            <TableViewColumn.CellTemplate>
+              <DataTemplate DataType="vm:SyncRunRow">
+                <TextBlock Text="{Binding Updated}" ToolTip.Tip="{Binding UpdatedInFull}"
+                           TextTrimming="CharacterEllipsis"/>
+              </DataTemplate>
+            </TableViewColumn.CellTemplate>
+          </TableViewColumn>
+          <TableViewColumn Header="{Binding ColumnRun}" Width="70*">
+            <TableViewColumn.CellTemplate>
+              <DataTemplate DataType="vm:SyncRunRow">
+                <TextBlock Text="{Binding Run}" ToolTip.Tip="{Binding RunInFull}"
+                           TextTrimming="CharacterEllipsis"/>
+              </DataTemplate>
+            </TableViewColumn.CellTemplate>
+          </TableViewColumn>
+          <TableViewColumn Header="{Binding ColumnPhase}" Width="115*">
+            <TableViewColumn.CellTemplate>
+              <DataTemplate DataType="vm:SyncRunRow">
+                <TextBlock Text="{Binding Phase}" ToolTip.Tip="{Binding Phase}"
+                           TextTrimming="CharacterEllipsis"/>
+              </DataTemplate>
+            </TableViewColumn.CellTemplate>
+          </TableViewColumn>
+          <TableViewColumn Header="{Binding ColumnDispatch}" Width="100*">
+            <TableViewColumn.CellTemplate>
+              <DataTemplate DataType="vm:SyncRunRow">
+                <TextBlock Text="{Binding Dispatch}" ToolTip.Tip="{Binding Dispatch}"
+                           TextTrimming="CharacterEllipsis"/>
+              </DataTemplate>
+            </TableViewColumn.CellTemplate>
+          </TableViewColumn>
+          <TableViewColumn Header="{Binding ColumnConflicts}" Binding="{Binding Conflicts}" Width="65*"/>
         </TableView.Columns>
       </TableView>
 
@@ -121,26 +152,35 @@
                     fit the width a row number needs anyway.
                   -->
                   <TableViewColumn Header="#" Binding="{Binding Index}" Width="60"/>
-                  <TableViewColumn Header="{Binding ColumnAction}" Binding="{Binding Action}" Width="120"/>
-                  <!-- The whole connection id comes first, as in 1.x, so the path is usually what
-                       gets cut off. It is on the tip, as 1.x's grid showed a cut-off cell. -->
+                  <TableViewColumn Header="{Binding ColumnAction}" Binding="{Binding Action}" Width="100"/>
+                  <!-- The connection's name, then the path, cut from the left when there is not
+                       room for it, so what shows is the connection and the file's own name: the
+                       middle of a path is the part a reviewer needs least. The whole of it is on
+                       the tip, as 1.x's grid showed a cut-off cell. The fixed columns are as narrow
+                       as their words allow, so the two locations have the rest. -->
                   <TableViewColumn Header="{Binding ColumnFromLocation}" Width="*">
                     <TableViewColumn.CellTemplate>
                       <DataTemplate DataType="vm:PlanRow">
-                        <TextBlock Text="{Binding From}" ToolTip.Tip="{Binding From}"
-                                   TextTrimming="CharacterEllipsis"/>
+                        <Grid ColumnDefinitions="Auto,*" ToolTip.Tip="{Binding From}">
+                          <TextBlock Text="{Binding FromConnection}"/>
+                          <TextBlock Grid.Column="1" Text="{Binding FromPath}"
+                                     TextTrimming="LeadingCharacterEllipsis"/>
+                        </Grid>
                       </DataTemplate>
                     </TableViewColumn.CellTemplate>
                   </TableViewColumn>
                   <TableViewColumn Header="{Binding ColumnToLocation}" Width="*">
                     <TableViewColumn.CellTemplate>
                       <DataTemplate DataType="vm:PlanRow">
-                        <TextBlock Text="{Binding To}" ToolTip.Tip="{Binding To}"
-                                   TextTrimming="CharacterEllipsis"/>
+                        <Grid ColumnDefinitions="Auto,*" ToolTip.Tip="{Binding To}">
+                          <TextBlock Text="{Binding ToConnection}"/>
+                          <TextBlock Grid.Column="1" Text="{Binding ToPath}"
+                                     TextTrimming="LeadingCharacterEllipsis"/>
+                        </Grid>
                       </DataTemplate>
                     </TableViewColumn.CellTemplate>
                   </TableViewColumn>
-                  <TableViewColumn Header="{Binding ColumnExpectedBytes}" Binding="{Binding ExpectedBytes}" Width="120"/>
+                  <TableViewColumn Header="{Binding ColumnExpectedBytes}" Binding="{Binding ExpectedBytes}" Width="105"/>
                   <!-- Wide enough for "Deletes data - approval required", which is the one cell
                        here nobody should have to widen a column to read. -->
                   <TableViewColumn Header="{Binding ColumnSafety}" Binding="{Binding Approval}" Width="210"/>
@@ -156,10 +196,24 @@
               <TableView ItemsSource="{Binding Conflicts}"
                          AutomationProperties.Name="{Binding ConflictsAccessibleName}">
                 <TableView.Columns>
-                  <TableViewColumn Header="{Binding ColumnPath}" Binding="{Binding Path}" Width="*"/>
+                  <TableViewColumn Header="{Binding ColumnPath}" Width="*">
+                    <TableViewColumn.CellTemplate>
+                      <DataTemplate DataType="vm:ConflictRow">
+                        <TextBlock Text="{Binding Path}" ToolTip.Tip="{Binding Path}"
+                                   TextTrimming="CharacterEllipsis"/>
+                      </DataTemplate>
+                    </TableViewColumn.CellTemplate>
+                  </TableViewColumn>
                   <TableViewColumn Header="{Binding ColumnKind}" Binding="{Binding Kind}" Width="140"/>
                   <TableViewColumn Header="{Binding ColumnState}" Binding="{Binding State}" Width="120"/>
-                  <TableViewColumn Header="{Binding ColumnSafeReason}" Binding="{Binding Reason}" Width="*"/>
+                  <TableViewColumn Header="{Binding ColumnSafeReason}" Width="*">
+                    <TableViewColumn.CellTemplate>
+                      <DataTemplate DataType="vm:ConflictRow">
+                        <TextBlock Text="{Binding Reason}" ToolTip.Tip="{Binding Reason}"
+                                   TextTrimming="CharacterEllipsis"/>
+                      </DataTemplate>
+                    </TableViewColumn.CellTemplate>
+                  </TableViewColumn>
                 </TableView.Columns>
               </TableView>
             </DockPanel>

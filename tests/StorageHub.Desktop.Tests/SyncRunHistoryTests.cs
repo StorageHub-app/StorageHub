@@ -46,6 +46,29 @@ public class SyncRunHistoryTests
         Assert.Equal(Ui.Sync.RunPhaseCompleted, row.Phase);
         Assert.Equal(Ui.Sync.DispatchDurablyDispatched, row.Dispatch);
         Assert.Equal("3", row.Conflicts);
+
+        // Short enough for the column: today's run is the time alone, a run earlier this year
+        // leaves the year out, and the tip has the date in full.
+        var local = run.UpdatedUtc.ToLocalTime();
+        Assert.Equal(local.ToString("t", System.Globalization.CultureInfo.CurrentCulture), row.Updated);
+        Assert.Equal(local.ToString("f", System.Globalization.CultureInfo.CurrentCulture), row.UpdatedInFull);
+        var danish = new System.Globalization.CultureInfo("da-DK");
+        var culture = System.Globalization.CultureInfo.CurrentCulture;
+        System.Globalization.CultureInfo.CurrentCulture = danish;
+        try
+        {
+            var now = new DateTimeOffset(2026, 10, 2, 12, 0, 0, TimeSpan.Zero);
+            Assert.Equal(
+                now.AddDays(-6).ToLocalTime().ToString("dd-MM HH:mm", danish),
+                SyncRunHistoryModel.Moment(now.AddDays(-6), now));
+            Assert.Equal(
+                now.AddYears(-1).ToLocalTime().ToString("g", danish),
+                SyncRunHistoryModel.Moment(now.AddYears(-1), now));
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentCulture = culture;
+        }
     }
 
     /// <summary>

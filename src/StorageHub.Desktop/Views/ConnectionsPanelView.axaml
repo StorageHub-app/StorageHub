@@ -89,14 +89,19 @@
                 <vm:ConnectionCard.ContextMenu>
                   <ContextMenu/>
                 </vm:ConnectionCard.ContextMenu>
-                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource SpaceMd}">
-                  <Border Grid.Column="0" Classes="icon-tile" Background="{Binding AccentBrush}"
+                <!-- The name has the card's whole width, and edit and delete sit at the end of the
+                     second line, as 1.4 drew them (ui-reference 09). In a column of their own
+                     beside the name they took its room, so a selected card's name was cut short
+                     with space left around the two icons. -->
+                <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto"
+                      ColumnSpacing="{StaticResource SpaceMd}" RowSpacing="{StaticResource SpaceXs}">
+                  <Border Grid.Column="0" Grid.RowSpan="2" Classes="icon-tile" Background="{Binding AccentBrush}"
                           VerticalAlignment="Top">
                     <LucideIcon Kind="{Binding Icon}" Size="{StaticResource IconSizeMd}"/>
                   </Border>
-                  <StackPanel Grid.Column="1" Spacing="2">
-                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold"
-                               TextTrimming="CharacterEllipsis"/>
+                  <TextBlock Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding Name}" FontWeight="SemiBold"
+                             TextTrimming="CharacterEllipsis"/>
+                  <StackPanel Grid.Column="1" Grid.Row="1" Spacing="2">
                     <TextBlock Classes="caption" Text="{Binding Subtitle}"
                                TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Endpoint}"/>
                     <ItemsControl ItemsSource="{Binding Tags}" IsVisible="{Binding HasTags}"
@@ -115,15 +120,16 @@
                       </ItemsControl.ItemTemplate>
                     </ItemsControl>
                   </StackPanel>
-                  <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"
+                  <StackPanel Grid.Column="2" Grid.Row="1" Orientation="Horizontal" VerticalAlignment="Top"
+                              Margin="{StaticResource CardActionOutset}" Spacing="{StaticResource SpaceXs}"
                               IsVisible="{Binding IsSelected}">
-                    <Button Classes="tool"
+                    <Button Classes="tool" Padding="{StaticResource CardActionPadding}"
                             Command="{Binding $parent[UserControl].((vm:ConnectionsSidebar)DataContext).EditSelectedCommand}"
                             CommandParameter="{Binding}"
                             ToolTip.Tip="{Binding $parent[UserControl].((vm:ConnectionsSidebar)DataContext).EditLabel}">
                       <LucideIcon Kind="Pencil" Size="{StaticResource IconSizeSm}"/>
                     </Button>
-                    <Button Classes="tool"
+                    <Button Classes="tool" Padding="{StaticResource CardActionPadding}"
                             Command="{Binding $parent[UserControl].((vm:ConnectionsSidebar)DataContext).DeleteSelectedCommand}"
                             CommandParameter="{Binding}"
                             ToolTip.Tip="{Binding $parent[UserControl].((vm:ConnectionsSidebar)DataContext).DeleteLabel}">
