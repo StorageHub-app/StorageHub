@@ -105,11 +105,16 @@ internal sealed record AgentTransferConfiguration(
         MaximumSyncs is >= 1 and <= 8 &&
         Minimum <= MaximumSyncs;
 
+    // TryGetInt32 and TryGetInt64 throw, rather than answer false, for anything that is not a
+    // number, and "no limit" is written as null. The agent read every installation's settings that
+    // way once the desktop had saved them, and stopped at startup on the first null it met.
     private static int ReadInt(JsonElement root, string name, int fallback) =>
-        root.TryGetProperty(name, out var value) && value.TryGetInt32(out var result) ? result : fallback;
+        root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number &&
+        value.TryGetInt32(out var result) ? result : fallback;
 
     private static long? ReadSpeedLimit(JsonElement root, string name) =>
         root.TryGetProperty(name, out var value) &&
+        value.ValueKind == JsonValueKind.Number &&
         value.TryGetInt64(out var result) &&
         result is > 0 and <= MaximumSpeedLimit
             ? result

@@ -60,6 +60,19 @@ public sealed class AgentTransferConfigurationTests : IDisposable
 
         Assert.Null(result.TotalUploadBytesPerSecond);
         Assert.Null(result.TotalDownloadBytesPerSecond);
+
+        // And written as null, which is how the desktop saves "no limit": the agent threw on it
+        // and would not start once the desktop had saved its settings.
+        File.WriteAllText(Path.Combine(_directory, "config.json"), """
+            {"schemaVersion":1,"maximumTransferConcurrency":null,
+             "totalUploadBytesPerSecond":null,"totalDownloadBytesPerSecond":null}
+            """);
+
+        result = AgentTransferConfiguration.Load(_directory);
+
+        Assert.Null(result.TotalUploadBytesPerSecond);
+        Assert.Null(result.TotalDownloadBytesPerSecond);
+        Assert.Equal(AgentTransferConfiguration.Load(Path.Combine(_directory, "absent")).MaximumTransfers, result.MaximumTransfers);
     }
 
     [WindowsOnlyFact]
