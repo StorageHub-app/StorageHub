@@ -450,6 +450,11 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
                 : response.Succeeded
                     ? Ui.Connections.ConnectionReachable
                     : Ui.Connections.ConnectionUnreachable;
+
+            // The agent records the outcome against the connection, so listing again is what moves
+            // the card off "Not tested" to Healthy or Unavailable, as 1.4's panel did. What the test
+            // said stays under the details through it.
+            await RefreshAsync(cancellationToken).ConfigureAwait(true);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {

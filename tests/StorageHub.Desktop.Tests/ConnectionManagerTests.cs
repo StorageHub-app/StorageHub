@@ -504,9 +504,10 @@ public class ConnectionManagerTests
             Summary("Backups"),
             Summary("Retired") with { IsFavorite = true, IsEnabled = false },
         ];
+        var agent = new ListingAgent(listing);
         var sidebar = new ConnectionsSidebar(
             new RelayCommand(static _ => { }),
-            () => new ListingAgent(listing),
+            () => agent,
             profiles: () => profiles);
         var changed = 0;
         sidebar.ConnectionsChanged += (_, _) => changed++;
@@ -537,6 +538,19 @@ public class ConnectionManagerTests
             sidebar.Details.Where(static row => row.IsSection).Select(static row => row.Key));
         Assert.DoesNotContain(sidebar.Details, static row => row.Value == Ui.Connections.DetailLoading);
         Assert.DoesNotContain(sidebar.Details, static row => row.Value.StartsWith("shs_", StringComparison.Ordinal));
+
+        // A test that fails moves the card off "Not tested": the agent keeps the outcome, and the
+        // panel lists again to show it, with what the test said still under the details.
+        Assert.Equal(Ui.Pane.NotTested, favourite.Card.State);
+        agent.Connections = [.. agent.Connections.Select(listed => listed.ConnectionId != saved ? listed : listed with
+        {
+            Health = new ConnectionHealthSnapshot(
+                ConnectionHealthState.Unavailable, DateTimeOffset.UtcNow, 5, "Connection refused.")
+        })];
+        agent.TestSucceeds = false;
+        await sidebar.TestSelectedAsync(cancellation);
+        Assert.Equal(Ui.Pane.Unavailable, sidebar.Selected!.Card.State);
+        Assert.Equal(Ui.Connections.ConnectionUnreachable, sidebar.DetailStatus);
 
         // Plain FTP says it is unencrypted, and SFTP whether its host key is pinned.
         var stored = (await profiles.GetAsync(
@@ -1088,16 +1102,21 @@ public class ConnectionManagerTests
 
     private sealed class ListingAgent(ConnectionSummary[] connections) : IRemoteStorageAgentClient
     {
+        /// <summary>What the next listing says, which a test can change as the agent would.</summary>
+        internal ConnectionSummary[] Connections { get; set; } = connections;
+
+        internal bool TestSucceeds { get; set; } = true;
+
         public Task<ConnectionListResponse> ListConnectionsAsync(
             ConnectionListRequest request,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ConnectionListResponse(StorageIpcContract.CurrentVersion, connections));
+            Task.FromResult(new ConnectionListResponse(StorageIpcContract.CurrentVersion, Connections));
 
         public Task<ConnectionTestResponse> TestConnectionAsync(
             ConnectionTestRequest request,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(new ConnectionTestResponse(
-                StorageIpcContract.CurrentVersion, request.ConnectionId, Succeeded: true, 1));
+                StorageIpcContract.CurrentVersion, request.ConnectionId, Succeeded: TestSucceeds, 1));
 
         public Task<StorageListPageResponse> ListStorageAsync(
             StorageListPageRequest request,
