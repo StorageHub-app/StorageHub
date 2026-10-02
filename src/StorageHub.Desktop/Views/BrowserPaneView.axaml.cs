@@ -54,6 +54,15 @@ public partial class BrowserPaneView : UserControl
             if (e.Key == Key.Enter) Open(e);
         }, RoutingStrategies.Tunnel);
         AddHandler(PointerPressedEvent, OnPointerPressed, RoutingStrategies.Tunnel);
+        // A pane's own Copy, Move and Paste are the workspace's commands, which act on the active
+        // pane. A click made it active on the way, but a button pressed from the keyboard or by a
+        // screen reader is not a pointer press, so Pane 2's Paste pasted into Pane 1. Click is
+        // raised before a button runs its command, so activating here is in time.
+        AddHandler(Button.ClickEvent, (_, _) => Activate(), RoutingStrategies.Bubble, handledEventsToo: true);
+        AddHandler(GotFocusEvent, (_, e) =>
+        {
+            if (e.NavigationMethod is NavigationMethod.Tab or NavigationMethod.Directional) Activate();
+        }, RoutingStrategies.Bubble);
         // handledEventsToo, because a column heading handles its own tap for resizing and
         // reordering. Without it the sort click is swallowed by the control it is aimed at.
         AddHandler(TappedEvent, OnTapped, RoutingStrategies.Bubble, handledEventsToo: true);
@@ -239,6 +248,11 @@ public partial class BrowserPaneView : UserControl
     }
 
     private void OnDoubleTapped(object? sender, TappedEventArgs e) => Open(e);
+
+    private void Activate()
+    {
+        if (Model is { IsActive: false } model) model.IsActive = true;
+    }
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
