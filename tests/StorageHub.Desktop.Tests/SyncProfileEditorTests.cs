@@ -383,6 +383,13 @@ public class SyncProfileEditorTests
             .RaiseEvent(new SpinEventArgs(Spinner.SpinEvent, SpinDirection.Decrease));
         Assert.Equal(0.25m, model.MaximumDeletionPercentage);
 
+        // The two locations' connection boxes are told apart by name.
+        Assert.Equal(
+            [Ui.Sync.LocationAConnection, Ui.Sync.LocationBConnection],
+            window.GetVisualDescendants().OfType<ComboBox>()
+                .Select(AutomationProperties.GetName)
+                .Where(static name => name == Ui.Sync.LocationAConnection || name == Ui.Sync.LocationBConnection || name == Ui.Sync.SavedConnection));
+
         // Its arrows are named for a screen reader by what they do, not after their icon.
         Assert.Equal(
             [Ui.Shell.SpinIncrease, Ui.Shell.SpinDecrease],

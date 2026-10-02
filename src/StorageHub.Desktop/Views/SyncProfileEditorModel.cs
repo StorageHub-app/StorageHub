@@ -822,7 +822,13 @@ internal sealed class SyncProfileEditorModel : INotifyPropertyChanged, IDisposab
 
     public static string LocationBLabel => Ui.Sync.LocationB;
 
-    public static string ConnectionLabel => Ui.Sync.SavedConnection;
+    /// <summary>
+    /// What a screen reader calls each location's connection box. Both were "Saved connection",
+    /// which left nobody able to tell the source from the destination.
+    /// </summary>
+    public static string LocationAConnectionAccessibleName => Ui.Sync.LocationAConnection;
+
+    public static string LocationBConnectionAccessibleName => Ui.Sync.LocationBConnection;
 
     public static string FolderLabel => Ui.Sync.FolderInsideConnection;
 

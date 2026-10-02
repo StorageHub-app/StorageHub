@@ -91,7 +91,7 @@
                 <ComboBox ItemsSource="{Binding Connections}"
                           SelectedItem="{Binding LocationA, Mode=TwoWay}"
                           HorizontalAlignment="Stretch"
-                          AutomationProperties.Name="{Binding ConnectionLabel}"/>
+                          AutomationProperties.Name="{Binding LocationAConnectionAccessibleName}"/>
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpaceSm}">
                   <TextBox Text="{Binding LocationARoot, Mode=TwoWay}"
                            PlaceholderText="{Binding FolderLabel}"
@@ -113,7 +113,7 @@
                 <ComboBox ItemsSource="{Binding Connections}"
                           SelectedItem="{Binding LocationB, Mode=TwoWay}"
                           HorizontalAlignment="Stretch"
-                          AutomationProperties.Name="{Binding ConnectionLabel}"/>
+                          AutomationProperties.Name="{Binding LocationBConnectionAccessibleName}"/>
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpaceSm}">
                   <TextBox Text="{Binding LocationBRoot, Mode=TwoWay}"
                            PlaceholderText="{Binding FolderLabel}"
