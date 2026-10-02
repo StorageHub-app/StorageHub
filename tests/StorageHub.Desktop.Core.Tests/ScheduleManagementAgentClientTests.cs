@@ -71,7 +71,12 @@ public sealed class ScheduleManagementAgentClientTests
                         ScheduleManagementIpcContract.CurrentVersion,
                         scheduleId,
                         ScheduleMutationOutcome.Succeeded,
-                        CreateSchedule(scheduleId, 2, profileId),
+                        // Safe automatic, which the manager starts a new schedule on, and
+                        // which the client used to refuse as out of bounds.
+                        CreateSchedule(scheduleId, 2, profileId) with
+                        {
+                            ExecutionMode = ScheduleIpcExecutionMode.SafeAutomatic
+                        },
                         ActualRevision: 2)),
                 _ => IpcEnvelope.Create(
                     ScheduleManagementIpcMessageTypes.DeleteResponse,
@@ -110,6 +115,7 @@ public sealed class ScheduleManagementAgentClientTests
 
         Assert.Equal(1, created.Schedule?.Revision);
         Assert.Equal(2, updated.Schedule?.Revision);
+        Assert.Equal(ScheduleIpcExecutionMode.SafeAutomatic, updated.Schedule?.ExecutionMode);
         Assert.Null(deleted.Schedule);
     }
 

@@ -366,7 +366,10 @@ public sealed class NamedPipeScheduleManagementAgentClient : IScheduleManagement
         IsSafeText(schedule.LastRunOutcome, ScheduleManagementIpcLimits.MaximumOutcomeLength) &&
         IsSafeText(schedule.LastErrorCode, ScheduleManagementIpcLimits.MaximumErrorCodeLength) &&
         schedule.Revision >= 0 &&
-        schedule.ExecutionMode == ScheduleIpcExecutionMode.PreviewOnly;
+        // Either mode. Only preview-only was accepted, while the manager starts every new schedule
+        // on Safe automatic: such a schedule was saved, then refused as out of bounds, and the
+        // list stopped loading for good with "the agent is not answering".
+        Enum.IsDefined(schedule.ExecutionMode);
 
     private static bool IsValidFailure(StorageIpcFailure? failure) => failure is null ||
         IsSafeText(failure.Code, StorageIpcLimits.MaximumFailureCodeLength, required: true) &&
