@@ -22,6 +22,7 @@
   "reviewTransferBodyFormat": "Sie sind dabei, {1} zu {0}.\n\nVon: {2}\nNach: {3}\n\n{4}",
   "transferOriginalsRemoved": "Die Originale werden entfernt, sobald die Übertragung erfolgreich abgeschlossen ist.",
   "transferOriginalsRemain": "Die Originale bleiben erhalten.",
+  "transferNonAtomicNote": "Dieses Ziel kann Dateien nicht atomar schreiben: Jede Datei wird direkt geschrieben, nachdem geprüft wurde, dass dort noch nichts liegt. Eine unterbrochene Übertragung kann daher eine unvollständige Datei hinterlassen.",
   "selectedItemsFormat": "{0:N0} ausgewählte Elemente",
   "transferQueueCaption": "Übertragungswarteschlange",
   "importFromExplorerCaption": "Aus dem Explorer importieren",

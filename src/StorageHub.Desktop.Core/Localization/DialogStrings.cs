@@ -90,6 +90,13 @@ internal sealed class DialogStrings : LocalizationModelBase
 
     public string TransferOriginalsRemain { get; set; } = "The originals will remain in place.";
 
+    /// <summary>
+    /// Under a review whose destination cannot create a file atomically (SFTP, FTP, FTPS), so the
+    /// person knows what they are agreeing to: the queue writes in place after looking first.
+    /// </summary>
+    public string TransferNonAtomicNote { get; set; } =
+        "This destination cannot write files atomically: each file is written in place once it is checked that nothing is there yet, so an interrupted transfer can leave a partial file.";
+
     /// <summary>{0} = the number of items.</summary>
     public string SelectedItemsFormat { get; set; } = "{0:N0} selected items";
 

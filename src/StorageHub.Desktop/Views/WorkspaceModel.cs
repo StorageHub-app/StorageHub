@@ -1171,6 +1171,7 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
                     clipboard.IsMove
                         ? Ui.Dialogs.TransferOriginalsRemoved
                         : Ui.Dialogs.TransferOriginalsRemain),
+                Detail = destination.WritesNonAtomically ? Ui.Dialogs.TransferNonAtomicNote : null,
                 Severity = clipboard.IsMove ? DialogSeverity.Warning : DialogSeverity.Question,
                 Buttons = DialogButtons.OkCancel
             },

@@ -22,6 +22,7 @@
   "reviewTransferBodyFormat": "Du er ved at {0} {1}.\n\nFra: {2}\nTil: {3}\n\n{4}",
   "transferOriginalsRemoved": "Originalerne fjernes, når overførslen er gennemført uden fejl.",
   "transferOriginalsRemain": "Originalerne bliver liggende.",
+  "transferNonAtomicNote": "Denne destination kan ikke skrive filer atomisk: hver fil skrives direkte, når det er kontrolleret, at der ikke ligger noget i forvejen, så en afbrudt overførsel kan efterlade en ufuldstændig fil.",
   "selectedItemsFormat": "{0:N0} valgte elementer",
   "transferQueueCaption": "Overførselskø",
   "importFromExplorerCaption": "Importér fra Stifinder",

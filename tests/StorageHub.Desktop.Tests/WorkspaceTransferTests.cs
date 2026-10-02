@@ -22,10 +22,15 @@ public class WorkspaceTransferTests
     [AvaloniaFact]
     public async Task CopyingSendsTheStagedSelectionToThePaneItIsPastedInto()
     {
-        await using var fixture = await Fixture.CreateAsync();
+        var dialogs = new KeyStoreTests.RecordingDialogs { Choice = DialogChoice.Ok };
+        await using var fixture = await Fixture.CreateAsync(
+            dialogs: dialogs, destinationProvider: StorageConnectionProvider.Sftp);
 
         fixture.Left.SelectedRows.Add(fixture.Left.Rows.Single(row => row.Name == "render.exr"));
         await fixture.StageAndPasteAsync(TransferQueueOperation.Copy, fixture.Right);
+
+        // The review says, in one line, that an SFTP destination is written in place.
+        Assert.Equal(Ui.Dialogs.TransferNonAtomicNote, dialogs.LastRequest?.Detail);
 
         var request = Assert.Single(fixture.Queue.Enqueued);
         Assert.Equal(TransferQueueOperation.Copy, request.Operation);
@@ -461,10 +466,11 @@ public class WorkspaceTransferTests
             Func<Task>? onQueueChanged = null,
             PendingDropRegistry? drops = null,
             IDialogService? dialogs = null,
-            Func<FakeTransferQueue, ExplorerDragOut>? dragOut = null)
+            Func<FakeTransferQueue, ExplorerDragOut>? dragOut = null,
+            StorageConnectionProvider destinationProvider = StorageConnectionProvider.S3)
         {
             var source = Summary("Studio Assets");
-            var destination = Summary("Site Backups");
+            var destination = Summary("Site Backups", destinationProvider);
 
             var agent = new FakeBrowsingAgent([source, destination]);
             agent.Listings[(source.ConnectionId, "")] =

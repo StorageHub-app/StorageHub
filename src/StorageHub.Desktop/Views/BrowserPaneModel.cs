@@ -495,6 +495,14 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     public static string MoreFileCommandsLabel => Ui.Pane.MoreFileCommands;
 
     /// <summary>The saved connection behind the pane's choice, or This PC's card for no id.</summary>
+    /// <summary>
+    /// Whether this pane's connection cannot create a file atomically, so the queue writes a file
+    /// in place after checking nothing is there: SFTP, FTP and FTPS, which advertise no atomic
+    /// create. This computer and S3 can, and are written atomically.
+    /// </summary>
+    internal bool WritesNonAtomically => _connection?.Id is not null &&
+        ConnectionCard()?.Provider is StorageProviderKind.Sftp or StorageProviderKind.Ftp or StorageProviderKind.Ftps or StorageProviderKind.Ssh;
+
     private ConnectionCardModel? ConnectionCard() => _connection is null
         ? null
         : _cards.FirstOrDefault(card => card.ConnectionId == _connection.Id);
