@@ -254,6 +254,9 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     /// <summary>The endpoint the Trust tab last offered to fetch a host key from, as 1.x kept it.</summary>
     private string? _lastDiscoveryOffer;
 
+    /// <summary>The Trust tab's "fetch the host key?" question, while it is open.</summary>
+    private CancellationTokenSource? _discoveryQuestion;
+
     /// <summary>The field an SFTP or SSH connection's host key is typed into.</summary>
     internal const string HostKeyFingerprintKey = "hostKeyFingerprint";
 
@@ -1333,6 +1336,9 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
             return;
         }
 
+        // Fetch from host answers the Trust tab's question too, so that question is withdrawn
+        // rather than left open to be answered after the key is in, and fetch it a second time.
+        _discoveryQuestion?.Cancel();
         _fetchingHostKey = true;
         try
         {
@@ -1388,10 +1394,14 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     /// <remarks>
     /// Offered once per endpoint while the dialog is open, so going back and forth between the
     /// tabs does not ask again; changing the host or port is a new endpoint and is offered anew.
+    /// One fetch question at a time: none is asked while a fetch is under way or a question is
+    /// open, Fetch from host withdraws an open one, and a yes that arrives once the key is in
+    /// fetches nothing.
     /// </remarks>
     internal async Task OfferHostKeyDiscoveryAsync(CancellationToken cancellationToken = default)
     {
         if (_hostKeyDiscovery == SshHostKeyDiscoveryMode.Manual || _dialogs is null || _isBusy ||
+            _fetchingHostKey || _discoveryQuestion is not null ||
             !TryGetDiscoveryTarget(out var host, out var port, out var fingerprint) ||
             fingerprint.Value.Trim().Length > 0)
         {
@@ -1404,17 +1414,36 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
 
         if (_hostKeyDiscovery == SshHostKeyDiscoveryMode.AskBeforeFetching)
         {
-            var choice = await _dialogs.ConfirmAsync(
-                new DialogRequest
-                {
-                    Title = Ui.Dialogs.FetchHostKeyCaption,
-                    Message = Ui.Format(Ui.Dialogs.FetchHostKeyPromptFormat, endpoint),
-                    Severity = DialogSeverity.Question,
-                    Buttons = DialogButtons.YesNo,
-                    Default = DialogChoice.No
-                },
-                cancellationToken).ConfigureAwait(true);
-            if (choice != DialogChoice.Yes) return;
+            using var question = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            _discoveryQuestion = question;
+            DialogChoice choice;
+            try
+            {
+                choice = await _dialogs.ConfirmAsync(
+                    new DialogRequest
+                    {
+                        Title = Ui.Dialogs.FetchHostKeyCaption,
+                        Message = Ui.Format(Ui.Dialogs.FetchHostKeyPromptFormat, endpoint),
+                        Severity = DialogSeverity.Question,
+                        Buttons = DialogButtons.YesNo,
+                        Default = DialogChoice.No
+                    },
+                    question.Token).ConfigureAwait(true);
+            }
+            catch (OperationCanceledException) when (question.IsCancellationRequested)
+            {
+                return;
+            }
+            finally
+            {
+                _discoveryQuestion = null;
+            }
+
+            if (choice != DialogChoice.Yes || question.IsCancellationRequested ||
+                _fetchingHostKey || fingerprint.Value.Trim().Length > 0)
+            {
+                return;
+            }
         }
 
         await FetchHostKeyAsync(cancellationToken).ConfigureAwait(true);

@@ -39,6 +39,12 @@ internal sealed class AvaloniaDialogService(Func<Window?> owner) : IDialogServic
         return await Dispatcher.UIThread.InvokeAsync(async () =>
         {
             var window = DialogWindow.For(request);
+
+            // A question its asker no longer needs closes, answered with its default, rather than
+            // staying open over the work it was about: the asker's window closing, or the same
+            // thing having been asked and answered another way meanwhile.
+            using var withdrawn = cancellationToken.Register(
+                () => Dispatcher.UIThread.Post(window.Close));
             if (_owner() is { } parent)
             {
                 await window.ShowDialog(parent).ConfigureAwait(true);

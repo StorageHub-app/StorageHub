@@ -406,6 +406,17 @@ public class ConnectionManagerTests
         Assert.Equal((string.Empty, Ui.ConnectionEditor.HostKeyNotAdded), (hostKey.Value, created.Editor.Status));
         dialogs.Choice = Desktop.Shell.DialogChoice.Yes;
         await created.Editor.FetchHostKeyAsync(cancellation);
+
+        // The Trust tab's question, still open when Fetch from host is used, is withdrawn rather
+        // than left behind to be answered once the key is in and fetch it again.
+        Field(created.Editor, "host").Value = "sftp2.example.com";
+        hostKey.Value = string.Empty;
+        dialogs.Hold = Ui.Dialogs.FetchHostKeyCaption;
+        var asked = dialogs.Asked;
+        var offered = created.Editor.OfferHostKeyDiscoveryAsync(cancellation);
+        await created.Editor.FetchHostKeyAsync(cancellation);
+        await offered;
+        Assert.Equal((HostKey, asked + 2, 1), (hostKey.Value, dialogs.Asked, dialogs.Withdrawn));
         Fill(created.Editor);
         await created.Editor.SaveAsync(cancellation);
         Assert.Equal(HostKey, Assert.Single(profiles.Pins.Values));
@@ -1083,16 +1094,33 @@ public class ConnectionManagerTests
 
         internal int Asked { get; private set; }
 
+        /// <summary>A question with this title stays open until it is withdrawn.</summary>
+        internal string? Hold { get; set; }
+
+        internal int Withdrawn { get; private set; }
+
         public Task ShowAsync(
             Desktop.Shell.DialogRequest request,
             CancellationToken cancellationToken = default) => Task.CompletedTask;
 
-        public Task<Desktop.Shell.DialogChoice> ConfirmAsync(
+        public async Task<Desktop.Shell.DialogChoice> ConfirmAsync(
             Desktop.Shell.DialogRequest request,
             CancellationToken cancellationToken = default)
         {
             Asked++;
-            return Task.FromResult(Choice);
+            if (request.Title != Hold) return Choice;
+
+            // As the shell's dialog does: withdrawn, it closes with its default answer.
+            try
+            {
+                await Task.Delay(Timeout.Infinite, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                Withdrawn++;
+            }
+
+            return request.Default ?? Desktop.Shell.DialogChoice.Cancel;
         }
 
         public Task<string?> PromptAsync(
