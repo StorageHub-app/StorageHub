@@ -36,6 +36,22 @@ internal static class TableColumnRules
     /// <summary>Room kept for the vertical scroll bar, which the columns share the width with.</summary>
     private const double ScrollBarAllowance = 14;
 
+    /// <summary>
+    /// The narrowest a flexible column may be in one table, where that is more than
+    /// <see cref="MinimumWidth"/>.
+    /// </summary>
+    /// <remarks>
+    /// A pane's Name column is flexible and takes what the fixed ones leave, so in a two-pane
+    /// workspace it was the column at the minimum, an icon and four letters, while Size, Type and
+    /// Modified kept their full widths. 1.4 kept the name readable and let the others be narrow. A
+    /// table that sets this has its fixed columns give way first, down to their own minimum.
+    /// </remarks>
+    internal static readonly AttachedProperty<double> FlexibleMinimumProperty =
+        AvaloniaProperty.RegisterAttached<TableView, double>("FlexibleMinimum", typeof(TableColumnRules), MinimumWidth);
+
+    internal static void SetFlexibleMinimum(TableView table, double value) =>
+        table.SetValue(FlexibleMinimumProperty, Math.Max(MinimumWidth, value));
+
     private static readonly AttachedProperty<bool> AppliedProperty =
         AvaloniaProperty.RegisterAttached<TableView, bool>("TableColumnRulesApplied", typeof(TableColumnRules));
 
@@ -95,7 +111,8 @@ internal static class TableColumnRules
         var available = table.Bounds.Width - ScrollBarAllowance;
         if (available <= 0) return;
 
-        Unpin(table, available);
+        var flexibleMinimum = table.GetValue(FlexibleMinimumProperty);
+        Unpin(table, available, flexibleMinimum);
 
         // Every fixed column at least the minimum.
         foreach (var column in columns)
@@ -108,7 +125,7 @@ internal static class TableColumnRules
 
         // What the fixed columns take, and what the rest need at their minimum.
         double Fixed() => columns.Where(static c => c.Width.IsAbsolute).Sum(static c => c.Width.Value);
-        var overflow = Fixed() + FlexibleMinimum(columns.Where(static c => !c.Width.IsAbsolute)) - available;
+        var overflow = Fixed() + FlexibleMinimum(columns.Where(static c => !c.Width.IsAbsolute), flexibleMinimum) - available;
         if (overflow <= 0) return;
 
         // The column just resized gives back first; then the widest fixed columns, each only as far
@@ -135,7 +152,7 @@ internal static class TableColumnRules
             foreach (var column in columns.Where(static c => !c.Width.IsAbsolute))
             {
                 Pinned.AddOrUpdate(column, new PinnedWidth(column.Width));
-                column.Width = new GridLength(MinimumWidth);
+                column.Width = new GridLength(flexibleMinimum);
             }
         }
     }
@@ -147,13 +164,13 @@ internal static class TableColumnRules
     /// Not the count times the minimum: they share their room by weight, so a 75* column beside
     /// 85*, 110* and 115* gets less than a quarter. The lightest one decides it.
     /// </remarks>
-    private static double FlexibleMinimum(IEnumerable<TableViewColumn> columns) =>
-        FlexibleMinimum(columns.Select(static c => c.Width));
+    private static double FlexibleMinimum(IEnumerable<TableViewColumn> columns, double minimum) =>
+        FlexibleMinimum(columns.Select(static c => c.Width), minimum);
 
-    private static double FlexibleMinimum(IEnumerable<GridLength> widths)
+    private static double FlexibleMinimum(IEnumerable<GridLength> widths, double minimum)
     {
         var weights = widths.Where(static w => w.IsStar).Select(static w => Math.Max(w.Value, 0.001)).ToList();
-        return weights.Count == 0 ? 0 : MinimumWidth * weights.Sum() / weights.Min();
+        return weights.Count == 0 ? 0 : minimum * weights.Sum() / weights.Min();
     }
 
     /// <summary>A flexible column's own width, while it is pinned at the minimum.</summary>
@@ -162,7 +179,7 @@ internal static class TableColumnRules
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<TableViewColumn, PinnedWidth> Pinned = new();
 
     /// <summary>Gives pinned columns their own widths back, if the table now has room for them.</summary>
-    private static void Unpin(TableView table, double available)
+    private static void Unpin(TableView table, double available, double flexibleMinimum)
     {
         var pinned = table.Columns.Where(static c => Pinned.TryGetValue(c, out _)).ToList();
         if (pinned.Count == 0) return;
@@ -172,7 +189,7 @@ internal static class TableColumnRules
             .Sum(static c => c.Width.Value);
         var restored = pinned.Select(static c => Pinned.TryGetValue(c, out var original) ? original.Width : c.Width);
         var flexible = table.Columns.Where(c => !c.Width.IsAbsolute && !pinned.Contains(c)).Select(static c => c.Width);
-        if (fixedWidth + FlexibleMinimum(restored.Concat(flexible)) > available) return;
+        if (fixedWidth + FlexibleMinimum(restored.Concat(flexible), flexibleMinimum) > available) return;
 
         foreach (var column in pinned)
         {

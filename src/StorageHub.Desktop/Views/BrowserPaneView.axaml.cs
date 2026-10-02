@@ -111,6 +111,8 @@ public partial class BrowserPaneView : UserControl
                 if (Model is { } model && !model.IsBusy) model.ResetAddress();
             };
         }
+        // The name is the column somebody reads, so it keeps room for one before the others do.
+        if (Table is { } table) Themes.TableColumnRules.SetFlexibleMinimum(table, 160);
         PaneDragHandler.Attach(this, () => Model);
         if (this.FindControl<Border>("PART_Header") is { } header)
         {
