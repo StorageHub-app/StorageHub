@@ -20,7 +20,13 @@ namespace StorageHub.Desktop.Views;
 /// wording - the exact reason that factory was extracted in the first place.
 /// </remarks>
 /// <summary>One key and value in the details panel, e.g. "Provider  S3 / Object Storage".</summary>
-internal sealed record ConnectionDetailRow(string Key, string Value);
+internal sealed record ConnectionDetailRow(string Key, string Value)
+{
+    /// <summary>A section's heading, "Server" or "Security", drawn across both columns.</summary>
+    public bool IsSection { get; init; }
+
+    public bool IsFact => !IsSection;
+}
 
 internal sealed class ConnectionsSidebar : INotifyPropertyChanged
 {
@@ -164,6 +170,7 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
             foreach (var row in Rows()) row.IsSelected = value is not null && row.Id == value.Id;
             DetailStatus = string.Empty;
             _testedVersion = null;
+            LoadProfile();
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Selected)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasSelection)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Details)));
@@ -201,16 +208,64 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     /// Favorite is always there, yes or no, as it was in 1.x. Toggling it is not a button here but
     /// the card's own right-click menu, where 1.x put it beside every other action on a connection.
     /// </remarks>
-    public IReadOnlyList<ConnectionDetailRow> Details => _selected is not { Card: var card }
+    public IReadOnlyList<ConnectionDetailRow> Details => _selected is not { Card: var card } row
         ? []
-        : [.. new ConnectionDetailRow[]
+        : ConnectionDetailFacts.Build(
+            card,
+            Connections.FirstOrDefault(listed => listed.ConnectionId == row.Id),
+            _profile is { } profile && profile.ConnectionId == row.Id ? profile : null);
+
+    /// <summary>
+    /// The selected connection's saved profile, which the Server, Authentication, Security and
+    /// Transfer sections are read from, or null until it has been read.
+    /// </summary>
+    private ConnectionProfileDocument? _profile;
+
+    /// <summary>The connection and listed version last asked for, so a listing does not ask again.</summary>
+    private (Guid Id, long? Version)? _profileAsked;
+
+    /// <summary>
+    /// Reads the selected connection's profile for the details, once per connection and version, as
+    /// 1.4's panel did on selection. A connection that cannot be read keeps saying "Loading…" in
+    /// those sections rather than inventing an answer.
+    /// </summary>
+    private void LoadProfile()
+    {
+        if (_selected is not { } row || _profiles is null) return;
+        var version = Connections.FirstOrDefault(listed => listed.ConnectionId == row.Id)?.Version;
+        if (_profileAsked == (row.Id, version)) return;
+        _profileAsked = (row.Id, version);
+        _ = LoadProfileAsync(row.Id);
+    }
+
+    private async Task LoadProfileAsync(Guid connectionId)
+    {
+        try
+        {
+            ConnectionProfileGetResponse response;
+            await using (var profiles = _profiles!())
             {
-                new(Ui.Connections.Provider, card.Descriptor.DisplayName),
-                new(Ui.Connections.FieldFolder, card.FolderPath ?? string.Empty),
-                new(Ui.Connections.FieldTags, string.Join(", ", card.DisplayTags)),
-                new(Ui.Connections.FieldFavorite, card.IsFavorite ? Ui.Connections.DetailYes : Ui.Connections.DetailNo),
-                new(Ui.Connections.FieldState, card.State)
-            }.Where(static row => !string.IsNullOrWhiteSpace(row.Value))];
+                response = await profiles
+                    .GetAsync(new ConnectionProfileGetRequest(ConnectionProfileIpcContract.CurrentVersion, connectionId))
+                    .ConfigureAwait(true);
+            }
+
+            void Show()
+            {
+                if (response.Profile is not { } profile || _selected?.Id != connectionId) return;
+                _profile = profile;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Details)));
+            }
+
+            if (Dispatcher.UIThread.CheckAccess()) Show();
+            else Dispatcher.UIThread.Post(Show);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            // The sections go on saying "Loading…"; the next selection or listing asks again.
+            _profileAsked = null;
+        }
+    }
 
     /// <summary>What the last test said, under the details.</summary>
     public string DetailStatus

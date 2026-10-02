@@ -528,6 +528,35 @@ public class ConnectionManagerTests
             sidebar.Groups.SelectMany(static g => g.Connections).Where(row => row.Id == saved),
             static row => Assert.True(row.IsSelected));
         Assert.Contains(new ConnectionDetailRow(Ui.Connections.FieldFavorite, Ui.Connections.DetailYes), sidebar.Details);
+
+        // The details read the saved profile into 1.4's sections, never a secret's value.
+        // A local folder has no wire to secure, so no Security section.
+        Assert.Equal(
+            [Ui.Connections.SectionServer, Ui.Connections.SectionAuthentication,
+             Ui.Connections.SectionTransfer, Ui.Connections.SectionOrganisation, Ui.Connections.SectionStatus],
+            sidebar.Details.Where(static row => row.IsSection).Select(static row => row.Key));
+        Assert.DoesNotContain(sidebar.Details, static row => row.Value == Ui.Connections.DetailLoading);
+        Assert.DoesNotContain(sidebar.Details, static row => row.Value.StartsWith("shs_", StringComparison.Ordinal));
+
+        // Plain FTP says it is unencrypted, and SFTP whether its host key is pinned.
+        var stored = (await profiles.GetAsync(
+            new ConnectionProfileGetRequest(ConnectionProfileIpcContract.CurrentVersion, saved), cancellation)).Profile!;
+        ConnectionDetailRow[] Security(StorageConnectionProvider provider) =>
+        [
+            .. ConnectionDetailFacts.Build(
+                favourite.Card,
+                null,
+                stored with
+                {
+                    Draft = stored.Draft with { Endpoint = new ConnectionEndpointDocument(provider, Host: "lab") }
+                })
+        ];
+        Assert.Contains(
+            new ConnectionDetailRow(Ui.Connections.FieldTransport, Ui.Connections.TransportUnencrypted),
+            Security(StorageConnectionProvider.Ftp));
+        Assert.Contains(
+            new ConnectionDetailRow(Ui.Connections.FieldHostKey, Ui.Connections.DetailPinned),
+            Security(StorageConnectionProvider.Sftp));
         Assert.Contains(
             sidebar.ContextEntriesFor(favourite),
             static entry => entry.Label == Ui.Connections.ContextToggleFavorite && entry.Enabled);

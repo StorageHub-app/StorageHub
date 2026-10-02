@@ -282,13 +282,24 @@
             <ScrollViewer>
               <ItemsControl ItemsSource="{Binding Details}">
                 <ItemsControl.ItemTemplate>
+                  <!-- 1.4's sections, a heading over the facts that belong to it: Server,
+                       Authentication, Security, Transfer, Organisation, Status. -->
                   <DataTemplate DataType="vm:ConnectionDetailRow">
-                    <Grid ColumnDefinitions="80,*" ColumnSpacing="{StaticResource SpaceSm}"
-                          Classes="detail-row">
-                      <TextBlock Grid.Column="0" Classes="muted" Text="{Binding Key}"/>
-                      <TextBlock Grid.Column="1" Text="{Binding Value}"
-                                 TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Value}"/>
-                    </Grid>
+                    <Panel>
+                      <TextBlock Classes="detail-section" Text="{Binding Key}"
+                                 IsVisible="{Binding IsSection}"/>
+                      <Grid ColumnSpacing="{StaticResource SpaceSm}" Classes="detail-row"
+                            IsVisible="{Binding IsFact}">
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="{StaticResource DetailKeyWidth}"/>
+                          <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Classes="muted" Text="{Binding Key}"
+                                   TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Grid.Column="1" Text="{Binding Value}"
+                                   TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Value}"/>
+                      </Grid>
+                    </Panel>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>

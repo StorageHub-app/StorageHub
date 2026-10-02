@@ -664,6 +664,12 @@
   <Style Selector="Grid.detail-row">
     <Setter Property="Margin" Value="0,1"/>
   </Style>
+  <!-- A section heading in the connection details, bold as 1.4 drew them, a step below the last
+       fact of the section before. -->
+  <Style Selector="TextBlock.detail-section">
+    <Setter Property="FontWeight" Value="SemiBold"/>
+    <Setter Property="Margin" Value="{StaticResource DetailSectionMargin}"/>
+  </Style>
 
   <!-- A connection nobody can open reads as unavailable rather than as missing. -->
   <Style Selector="Border.connection-row.disabled">

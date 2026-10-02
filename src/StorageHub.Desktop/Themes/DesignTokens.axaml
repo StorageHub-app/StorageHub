@@ -296,6 +296,11 @@
   <sys:Double x:Key="SettingsNavigationAccentWidth">3</sys:Double>
   <Thickness x:Key="SettingsNavigationAccentMargin">0,5</Thickness>
 
+  <!-- The connection details: the key column, wide enough for "Operation timeout" as 1.4's
+       104 px was, and the space above each section's heading. -->
+  <GridLength x:Key="DetailKeyWidth">104</GridLength>
+  <Thickness x:Key="DetailSectionMargin">0,6,0,1</Thickness>
+
   <!-- The line that explains a radio choice, indented under its label as 1.4 laid it out. -->
   <Thickness x:Key="ChoiceDetailMargin">24,0,0,0</Thickness>
   <!-- A button inside a card, a step clear of the text it acts on. -->
