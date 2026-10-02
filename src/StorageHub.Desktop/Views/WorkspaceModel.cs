@@ -454,8 +454,10 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
     /// stage, which is the one case decided here rather than there.
     /// </remarks>
     internal bool CanStage(TransferQueueOperation operation) =>
-        Panes.Count > 0 &&
-        Active is { IsTerminal: false, Source: not null } pane &&
+        Panes.Count > 0 && CanStageFrom(Active, operation);
+
+    private static bool CanStageFrom(BrowserPaneModel pane, TransferQueueOperation operation) =>
+        pane is { IsTerminal: false, Source: not null } &&
         PaneClipboardRules.CanStage(pane.SelectedRows, operation);
 
     /// <summary>
@@ -1122,12 +1124,19 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
         pane.PropertyChanged += OnPaneChanged;
         pane.SelectedRows.CollectionChanged += (_, _) => RaiseCommands();
 
-        // Every pane shows the same three buttons. Which pane they act on is decided when one of
-        // them runs, from whichever pane is active - not from which button was pressed, because
-        // pressing a button in a pane is one of the ways to make it the active one.
-        pane.CopyCommand = StageCopyCommand;
-        pane.MoveCommand = StageMoveCommand;
-        pane.PasteCommand = PasteCommand;
+        // Every pane shows the same three buttons, and they act on the pane they are in: pressing
+        // one makes that pane the active one, then runs the workspace's own command. They were the
+        // workspace's commands themselves, so they were enabled by the active pane's selection,
+        // and a pane with a file selected showed Copy dimmed until it had been clicked once.
+        pane.CopyCommand = new RelayCommand(
+            _ => { pane.IsActive = true; Stage(TransferQueueOperation.Copy); },
+            _ => CanStageFrom(pane, TransferQueueOperation.Copy));
+        pane.MoveCommand = new RelayCommand(
+            _ => { pane.IsActive = true; Stage(TransferQueueOperation.Move); },
+            _ => CanStageFrom(pane, TransferQueueOperation.Move));
+        pane.PasteCommand = new RelayCommand(
+            _ => { pane.IsActive = true; _ = PasteAsync(); },
+            _ => _clipboard is not null && pane is { IsTerminal: false, Source: not null });
 
         // A drop lands in the pane it was dropped on, whichever pane is active, and one that
         // cannot be used is refused as a paste would be.
@@ -1211,6 +1220,12 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
         (PasteCommand as RelayCommand)?.RaiseCanExecuteChanged();
         (ClearClipboardCommand as RelayCommand)?.RaiseCanExecuteChanged();
         (ClosePaneCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        foreach (var pane in Panes)
+        {
+            (pane.CopyCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (pane.MoveCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (pane.PasteCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        }
     }
 
     private void Raise(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));

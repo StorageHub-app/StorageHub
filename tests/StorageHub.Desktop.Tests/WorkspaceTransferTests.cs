@@ -57,6 +57,19 @@ public class WorkspaceTransferTests
         Assert.Equal(TransferQueueOperation.Move, request.Operation);
         Assert.Equal(fixture.DestinationConnectionId, request.Source.ConnectionId);
         Assert.Equal(fixture.SourceConnectionId, request.Destination.ConnectionId);
+
+        // A pane's own Copy is enabled by its own selection, not the active pane's, and pressing
+        // it makes that pane the active one before staging from it.
+        fixture.Right.IsActive = true;
+        fixture.Right.SelectedRows.Clear();
+        fixture.Left.SelectedRows.Add(fixture.Left.Rows.Single(row => row.Name == "render.exr"));
+        Assert.False(fixture.Right.CopyCommand!.CanExecute(null));
+        Assert.True(fixture.Left.CopyCommand!.CanExecute(null));
+
+        fixture.Left.CopyCommand.Execute(null);
+
+        Assert.True(fixture.Left.IsActive);
+        Assert.Equal("render.exr", fixture.Workspace.Clipboard!.ItemSummary);
     }
 
     [AvaloniaFact]
