@@ -9,6 +9,7 @@ using Avalonia.Markup.Xaml;
 using Avalonia.VisualTree;
 using Lucide.Avalonia;
 using StorageHub.Desktop.Localization;
+using StorageHub.Desktop.Themes;
 
 namespace StorageHub.Desktop.Views;
 
@@ -428,5 +429,51 @@ public partial class BrowserPaneView : UserControl
             Model.OpenCommand.Execute(null);
             e.Handled = true;
         }
+    }
+
+    /// <summary>
+    /// The chrome rows down a pane, in the order they are docked; each counts while it is shown.
+    /// </summary>
+    private static readonly string[] ChromeRows =
+    [
+        "PART_Header", "PART_Accent", "PART_ConnectionBar", "PART_FilesBar", "PART_AddressRow",
+        "PART_Banner", "PART_Footer"
+    ];
+
+    /// <summary>
+    /// The smallest this pane can be with its chrome whole: the title bar, the connection and
+    /// FILES bars while they are shown, the address and filter row, a banner while there is one,
+    /// the list's heading and a few rows, and the footer.
+    /// </summary>
+    /// <remarks>
+    /// Heights add up down the pane. The width is what the widest of the fixed rows needs: the
+    /// FILES bar with its labels, or the address row with its buttons, the filter and
+    /// PaneAddressMinWidth of address. The title and the connection's name trim, so their length is
+    /// not a limit, and the list scrolls sideways under TableColumnRules. A pane with its bars
+    /// hidden is allowed to be that much smaller, which is what hiding them is for.
+    /// </remarks>
+    internal Size MinimumSize()
+    {
+        double width = 0, height = 0;
+        foreach (var name in ChromeRows)
+        {
+            if (this.FindControl<Control>(name) is not { IsVisible: true } row) continue;
+            // The banner wraps, so it is measured at the pane's width; the rest are single rows.
+            var natural = LayoutLimits.Natural(row, name == "PART_Banner" ? Bounds.Width : double.PositiveInfinity);
+            height += natural.Height;
+            if (name == "PART_FilesBar") width = Math.Max(width, natural.Width);
+            if (name == "PART_AddressRow" && this.FindControl<TextBox>("PART_Address") is { } address)
+            {
+                width = Math.Max(width,
+                    natural.Width - address.DesiredSize.Width +
+                    DesignTokens.Get<double>("PaneAddressMinWidth"));
+            }
+        }
+
+        height += LayoutLimits.ListBand("PaneMinimumListRows");
+        var frame = this.FindControl<Border>("PART_Frame") is { } border
+            ? border.BorderThickness + border.Padding
+            : default;
+        return new Size(width + frame.Left + frame.Right, height + frame.Top + frame.Bottom);
     }
 }

@@ -185,14 +185,16 @@ public class ShellWiringTests
         var model = ShellPreview.CreateOnWorkspace();
         model.ConnectionsPanel.Restore(saved);
         model.ConnectionsPanel.Persist = change => saved = change(saved);
-        var window = new MainWindow { DataContext = model, Width = 1500, Height = 920 };
+        // Wide enough for the panel at 1.x's widest beside two panes at their minimum, which is
+        // where the splitter stops otherwise (docs/ui-rules.md, Layout).
+        var window = new MainWindow { DataContext = model, Width = 1800, Height = 920 };
         window.Show();
         var panel = window.GetControl<Border>("PART_ConnectionsPanel");
         Settle(window);
 
         // On the right, at the width it was left at.
         Assert.Equal(360, panel.Bounds.Width, 1);
-        Assert.Equal(1500 - 360, panel.Bounds.X, 1);
+        Assert.Equal(1800 - 360, panel.Bounds.X, 1);
 
         // Ticked in the View menu; clicking the entry hides the panel and takes the tick away.
         var view = window.GetControl<Menu>("PART_Menu").GetVisualDescendants().OfType<MenuItem>()

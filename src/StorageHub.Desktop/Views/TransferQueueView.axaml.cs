@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
@@ -76,5 +77,27 @@ public partial class TransferQueueView : UserControl
                 Command = model.ClearAllHistoryCommand,
             },
         };
+    }
+
+    /// <summary>
+    /// The least the queue can be dragged down to: its toolbar, its tabs, the table's heading and
+    /// QueueMinimumRows rows under it.
+    /// </summary>
+    /// <remarks>
+    /// The toolbar's height is a token's, but its labels and the tab strip are text, so both are
+    /// measured. The strip is the tab control's own items presenter, which is the row of tabs,
+    /// measured at the queue's width: a narrow window wraps it onto a second row.
+    /// </remarks>
+    internal double MinimumHeight()
+    {
+        var height = LayoutLimits.ListBand("QueueMinimumRows");
+        if (this.FindControl<Border>("PART_Toolbar") is { } toolbar) height += LayoutLimits.Natural(toolbar).Height;
+        if (this.FindControl<TabControl>("PART_Tabs")?.GetVisualDescendants()
+                .OfType<ItemsPresenter>().FirstOrDefault() is { } strip)
+        {
+            height += LayoutLimits.Natural(strip, Bounds.Width).Height;
+        }
+
+        return height;
     }
 }

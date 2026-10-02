@@ -1,7 +1,11 @@
+using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
+using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 
 namespace StorageHub.Desktop.Views;
 
@@ -26,20 +30,53 @@ namespace StorageHub.Desktop.Views;
 /// </remarks>
 public partial class WorkspaceView : UserControl
 {
+    /// <summary>
+    /// Raised, bubbling, when <see cref="Minimum"/> has changed, so the window can give the
+    /// workspace that much room and stop its own splitters short of it.
+    /// </summary>
+    internal static readonly RoutedEvent<RoutedEventArgs> MinimumChangedEvent =
+        RoutedEvent.Register<WorkspaceView, RoutedEventArgs>("MinimumChanged", RoutingStrategies.Bubble);
+
+    /// <summary>
+    /// What changes about a pane that changes how small it can be: a bar shown or hidden, a
+    /// listing turned terminal, a banner come or gone.
+    /// </summary>
+    private static readonly HashSet<string> ChromeProperties =
+    [
+        nameof(BrowserPaneModel.ShowConnectionBar), nameof(BrowserPaneModel.ShowFilesBar),
+        nameof(BrowserPaneModel.IsListing), nameof(BrowserPaneModel.IsTerminal),
+        nameof(BrowserPaneModel.HasStatus), nameof(BrowserPaneModel.HasBadges)
+    ];
+
+    private readonly List<BrowserPaneModel> _watched = [];
     private WorkspaceModel? _bound;
+    private Func<Size>? _minimum;
+    private bool _evaluating;
 
     public WorkspaceView()
     {
         AvaloniaXamlLoader.Load(this);
         DataContextChanged += (_, _) => Attach(DataContext as WorkspaceModel);
+        Scroller.SizeChanged += (_, _) => FitHost(Minimum);
+        AttachedToVisualTree += (_, _) => RequestMinimum();
     }
 
+    /// <summary>
+    /// The smallest the panes can be together, splitters included: each pane at least its
+    /// <see cref="BrowserPaneView.MinimumSize"/>, combined up the tree by
+    /// <see cref="LayoutLimits.Split"/>. Nothing while there is no workspace to show.
+    /// </summary>
+    internal Size Minimum { get; private set; }
+
     private Panel Host => this.FindControl<Panel>("PART_Host")!;
+
+    private ScrollViewer Scroller => this.FindControl<ScrollViewer>("PART_Scroller")!;
 
     private void Attach(WorkspaceModel? model)
     {
         if (ReferenceEquals(_bound, model)) return;
         if (_bound is not null) _bound.LayoutChanged -= OnLayoutChanged;
+
         _bound = model;
         if (_bound is not null) _bound.LayoutChanged += OnLayoutChanged;
         Rebuild();
@@ -50,22 +87,89 @@ public partial class WorkspaceView : UserControl
     private void Rebuild()
     {
         Host.Children.Clear();
-        if (_bound is null) return;
-        Host.Children.Add(Build(_bound.Layout.Root));
+        _minimum = null;
+        foreach (var pane in _watched) pane.PropertyChanged -= OnPaneChanged;
+        _watched.Clear();
+        if (_bound is not null)
+        {
+            foreach (var pane in _bound.Panes)
+            {
+                pane.PropertyChanged += OnPaneChanged;
+                _watched.Add(pane);
+            }
+
+            var (root, minimum) = Build(_bound.Layout.Root);
+            Host.Children.Add(root);
+            _minimum = minimum;
+        }
+
+        RequestMinimum();
     }
 
-    private Control Build(WorkspaceLayoutNode node) => node switch
+    private void OnPaneChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is { } name && ChromeProperties.Contains(name)) RequestMinimum();
+    }
+
+    /// <summary>
+    /// Works the minimum out again once the layout has settled, when the pane views a rebuild made
+    /// exist and have their templates. Several requests in a row are one evaluation.
+    /// </summary>
+    private void RequestMinimum()
+    {
+        if (_evaluating) return;
+        _evaluating = true;
+        Dispatcher.UIThread.Post(EvaluateMinimum, DispatcherPriority.Background);
+    }
+
+    /// <summary>
+    /// Sets every split's limits from its two sides, and the host's, and tells the window when
+    /// the whole has changed.
+    /// </summary>
+    private void EvaluateMinimum()
+    {
+        _evaluating = false;
+        var minimum = _minimum is { } evaluate && this.IsAttachedToVisualTree() ? evaluate() : default;
+        FitHost(minimum);
+        if (minimum == Minimum) return;
+        Minimum = minimum;
+        RaiseEvent(new RoutedEventArgs(MinimumChangedEvent, this));
+    }
+
+    /// <summary>
+    /// The panes get all the room there is, or their minimum where that is more, and the area
+    /// scrolls for the difference.
+    /// </summary>
+    /// <remarks>
+    /// Sized explicitly rather than left to the scroll viewer, which measures its content with
+    /// unlimited room: a list measured that way asks for every row it has, and the panes would grow
+    /// to the length of their listings.
+    /// </remarks>
+    private void FitHost(Size minimum)
+    {
+        var room = Scroller.Bounds.Size;
+        if (room.Width <= 0 || room.Height <= 0) return;
+        Host.Width = Math.Max(room.Width, minimum.Width);
+        Host.Height = Math.Max(room.Height, minimum.Height);
+    }
+
+    private (Control View, Func<Size> Minimum) Build(WorkspaceLayoutNode node) => node switch
     {
         WorkspacePaneLeaf leaf => BuildPane(leaf),
         WorkspaceSplitNode split => BuildSplit(split),
-        _ => new Panel()
+        _ => (new Panel(), static () => default)
     };
 
-    private ContentControl BuildPane(WorkspacePaneLeaf leaf) => new()
+    private (Control, Func<Size>) BuildPane(WorkspacePaneLeaf leaf)
     {
-        Content = _bound?.PaneFor(leaf.PaneId),
-        ContentTemplate = PaneTemplate.Instance
-    };
+        var host = new ContentControl
+        {
+            Content = _bound?.PaneFor(leaf.PaneId),
+            ContentTemplate = PaneTemplate.Instance
+        };
+        return (host, () =>
+            host.GetVisualDescendants().OfType<BrowserPaneView>().FirstOrDefault()?.MinimumSize() ?? default);
+    }
 
     /// <summary>
     /// A split: two cells sized by the node's ratio, with a draggable divider between them.
@@ -82,8 +186,15 @@ public partial class WorkspaceView : UserControl
     /// know where they stopped. Reading it live would fight the drag; rebuilding on it would reset
     /// every pane's scroll position mid-gesture.
     /// </para>
+    /// <para>
+    /// Each side's row or column has that side's minimum as its own, which is what stops the
+    /// splitter: a GridSplitter goes no further than leaves both definitions their minimum, at any
+    /// depth, because the minimum of a side that is itself split already includes both of its
+    /// panes. A saved ratio that would leave a side too small is held at that side's minimum the
+    /// same way, without the saved ratio being changed, so a bigger window gives it back.
+    /// </para>
     /// </remarks>
-    private Grid BuildSplit(WorkspaceSplitNode split)
+    private (Control, Func<Size>) BuildSplit(WorkspaceSplitNode split)
     {
         var vertical = split.Orientation == WorkspaceSplitOrientation.Vertical;
         var grid = new Grid();
@@ -104,8 +215,8 @@ public partial class WorkspaceView : UserControl
             grid.RowDefinitions.Add(new RowDefinition(second));
         }
 
-        var one = Build(split.First);
-        var two = Build(split.Second);
+        var (one, oneMinimum) = Build(split.First);
+        var (two, twoMinimum) = Build(split.Second);
         var splitter = new GridSplitter();
         if (vertical)
         {
@@ -128,7 +239,24 @@ public partial class WorkspaceView : UserControl
         grid.Children.Add(one);
         grid.Children.Add(splitter);
         grid.Children.Add(two);
-        return grid;
+
+        return (grid, () =>
+        {
+            var first = oneMinimum();
+            var second = twoMinimum();
+            if (vertical)
+            {
+                grid.ColumnDefinitions[0].MinWidth = first.Width;
+                grid.ColumnDefinitions[2].MinWidth = second.Width;
+            }
+            else
+            {
+                grid.RowDefinitions[0].MinHeight = first.Height;
+                grid.RowDefinitions[2].MinHeight = second.Height;
+            }
+
+            return LayoutLimits.Split(vertical, first, second, LayoutLimits.Thickness(splitter, vertical));
+        });
     }
 
     /// <summary>Reads the ratio back off the grid the drag just resized.</summary>

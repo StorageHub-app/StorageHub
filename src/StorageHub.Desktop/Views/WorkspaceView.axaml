@@ -13,5 +13,14 @@
     into a BrowserPaneView. That walk is fifty lines and is the only layout code in the shell.
   -->
 
-  <Panel Name="PART_Host"/>
+  <!--
+    Scrolls only when the window cannot be made big enough for every pane at its minimum, as a
+    small screen with four panes can be: the panes keep their chrome and the area scrolls, rather
+    than the panes being squeezed until the last one slides under the transfer queue. The host is
+    sized to the larger of the room and that minimum by the code-behind (docs/ui-rules.md, Layout).
+  -->
+  <ScrollViewer Name="PART_Scroller"
+                HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+    <Panel Name="PART_Host"/>
+  </ScrollViewer>
 </UserControl>

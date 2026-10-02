@@ -15,7 +15,7 @@
     manager since Norton Commander has done it and what makes a double-click enough to go up.
   -->
 
-  <Border Classes="pane" Classes.active="{Binding IsActive}">
+  <Border x:Name="PART_Frame" Classes="pane" Classes.active="{Binding IsActive}">
     <DockPanel>
 
       <!--
@@ -95,7 +95,7 @@
 
       <!-- The connection's colour across the pane under its title bar, as 1.x drew it: there the
            title bar was the workspace's and the colour the top of the pane below it. -->
-      <Border DockPanel.Dock="Top" Height="3" Background="{Binding AccentBrush}"
+      <Border x:Name="PART_Accent" DockPanel.Dock="Top" Height="3" Background="{Binding AccentBrush}"
               IsVisible="{Binding HasBadges}"/>
 
       <!--
@@ -104,7 +104,7 @@
         badges are what let four panes on four different servers tell themselves apart at a glance,
         which is why the name alone was not enough.
       -->
-      <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*"
+      <Grid x:Name="PART_ConnectionBar" DockPanel.Dock="Top" ColumnDefinitions="Auto,*"
             IsVisible="{Binding ShowConnectionBar}"
             ColumnSpacing="{StaticResource SpaceMd}"
             Margin="{StaticResource PaddingMd}">
@@ -172,7 +172,7 @@
         naming anything past two. It can be hidden from the pane's menu, which 1.x could not do: the
         list's right-click menu offers every one of these, so the row is a convenience, not the way in.
       -->
-      <Border DockPanel.Dock="Top" Classes="pane-commands">
+      <Border x:Name="PART_FilesBar" DockPanel.Dock="Top" Classes="pane-commands">
         <Border.IsVisible>
           <MultiBinding Converter="{x:Static BoolConverters.And}">
             <Binding Path="IsListing"/>
@@ -265,7 +265,7 @@
         address, refresh, then the filter under its own label. The filter narrows what is shown,
         not what was fetched, so clearing it costs nothing.
       -->
-      <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto,Auto"
+      <Grid x:Name="PART_AddressRow" DockPanel.Dock="Top" ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto,Auto"
             ColumnSpacing="{StaticResource SpaceXs}"
             IsVisible="{Binding IsListing}"
             Margin="8,4">
@@ -304,7 +304,7 @@
       </Grid>
 
       <!-- "12 items" and what is selected, under the listing, as 1.x's pane footer read. -->
-      <Grid DockPanel.Dock="Bottom" ColumnDefinitions="Auto,*"
+      <Grid x:Name="PART_Footer" DockPanel.Dock="Bottom" ColumnDefinitions="Auto,*"
             ColumnSpacing="{StaticResource SpaceLg}"
             IsVisible="{Binding IsListing}"
             Margin="8,4">
@@ -323,7 +323,7 @@
         over nothing: a failed navigation keeps the listing somebody was looking at, so a typo in
         a path costs nothing to recover from.
       -->
-      <Button DockPanel.Dock="Top" Classes="pane-banner"
+      <Button x:Name="PART_Banner" DockPanel.Dock="Top" Classes="pane-banner"
               Classes.warning="{Binding StatusIsWarning}"
               IsVisible="{Binding HasStatus}"
               IsHitTestVisible="{Binding BannerIsClickable}"

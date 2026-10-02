@@ -16,6 +16,32 @@ a wish; each one below names the test that fails when it is broken. The target i
   lines up. Fluent's own sizes are for dialogs; in a toolbar they are too tall.
   _Test:_ the shell photographs (`ShellScalingTests`) are compared by eye with `docs/ui-reference/`.
 
+## Layout
+
+- **No pane loses its chrome, and none slides under the queue.** Every pane has a minimum size
+  that `BrowserPaneView.MinimumSize` measures from what it is drawn with: the title bar, the
+  connection bar and FILES bar while they are shown, the address and filter row, a banner while
+  there is one, the list's heading and `PaneMinimumListRows` rows, and the footer, in height; the
+  FILES bar with its labels, or the address row with `PaneAddressMinWidth` of address, in width.
+  Hiding a bar lets the pane be that much smaller. A split needs both sides side by side (widths
+  add, the taller sets the height) or stacked (heights add, the wider sets the width), splitter
+  included (`LayoutLimits.Split`), so a nested split's side already holds both of its panes.
+- **Splitters stop at the minimums.** Each side of every split, at any depth, has its side's minimum
+  as its row or column minimum, so a splitter is only ever dragged as far as leaves both sides
+  theirs. The splitter above the transfer queue stops where the workspace (its panes plus the tab
+  strip and the strip above them) or the queue (`TransferQueueView.MinimumHeight`: toolbar, tabs,
+  heading and `QueueMinimumRows` rows) would go under; the connections panel's stops at 1.4's 640
+  or where the workspace beside it would go under its own width, whichever is first. A saved
+  ratio or panel width that would break a minimum is held at it, and given back when there is room.
+- **The window cannot be made too small for them, and where the screen is, the panes scroll.** The
+  window's minimum is the menu, toolbar and status bar, the workspace's minimum, the queue's, and
+  the connections panel's narrowest beside the workspace, worked out again on a split, a closed or
+  moved pane, a bar shown or hidden, another tab, and the panel shown, hidden or moved. A screen
+  too small for that caps it, and then the workspace area scrolls rather than squeezing a pane.
+  _Test:_ `WorkspaceLayoutViewTests.NoSplitterOrWindowSizeSqueezesAPaneOrPutsItUnderTheQueue`,
+  which drags every splitter as far as it goes in nine arrangements, then shrinks the window and
+  the screen.
+
 ## Tables
 
 - **Rows are dense.** `TableViewRowPadding` is 6,3. That gives about 22 px rows, close to 1.4's.

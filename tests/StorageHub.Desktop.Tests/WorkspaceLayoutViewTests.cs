@@ -126,6 +126,184 @@ public class WorkspaceLayoutViewTests
     }
 
     /// <summary>
+    /// Every arrangement the panes can be in: the six presets, and three that only splitting and
+    /// moving reach, a row of three, a stack of four, and two over two split the other way first.
+    /// </summary>
+    public static TheoryData<string> Layouts =>
+        ["1", "2-side", "2-stacked", "3-left", "3-top", "4-grid", "3-row", "4-stacked", "4-rows"];
+
+    /// <summary>
+    /// No splitter and no window size can make a pane smaller than its chrome or put it under the
+    /// transfer queue, in any arrangement (docs/ui-rules.md, Layout).
+    /// </summary>
+    /// <remarks>
+    /// Each splitter in the shell, between panes at any depth, above the queue and beside the
+    /// connections panel, is dragged as far as it goes both ways with the pointer; then the window
+    /// is made smaller than it will go, and then the screen is made too small for the panes, which
+    /// is when the workspace has to scroll instead. After each, every pane is at least its minimum
+    /// and either inside the workspace's visible area or the area scrolls to it, and the area ends
+    /// above the queue, which keeps its own minimum inside the window. The bug this was written
+    /// for: two stacked panes and the queue dragged up, and Pane 2's footer was under the queue.
+    /// </remarks>
+    [AvaloniaTheory]
+    [MemberData(nameof(Layouts))]
+    public void NoSplitterOrWindowSizeSqueezesAPaneOrPutsItUnderTheQueue(string layout)
+    {
+        var (shell, workspace) = Shell();
+        var window = (MainWindow)shell;
+        Arrange(workspace, layout);
+        Settle(window);
+        AssertWithinLimits(window, $"{layout} as opened");
+
+        var splitters = window.GetVisualDescendants().OfType<GridSplitter>()
+            .Where(static splitter => splitter.IsEffectivelyVisible &&
+                splitter.FindAncestorOfType<BrowserPaneView>() is null)
+            .ToArray();
+        Assert.Equal(workspace.Panes.Count - 1 + 2, splitters.Length);
+        foreach (var splitter in splitters)
+        {
+            foreach (var reach in new[] { 4000d, -4000d })
+            {
+                Drag(window, splitter, reach);
+                AssertWithinLimits(window, $"{layout}, {splitter.Name ?? "pane splitter"} dragged {reach}");
+            }
+        }
+
+        // Smaller than the window will go: it stays at its minimum, and nothing has to scroll.
+        Resize(window, 600, 400);
+        Assert.True(window.Width >= window.MinWidth - 1 && window.Height >= window.MinHeight - 1,
+            $"{layout}: the window is {window.Width:0}x{window.Height:0}, under its minimum " +
+            $"{window.MinWidth:0}x{window.MinHeight:0}");
+        AssertWithinLimits(window, $"{layout} at the window's minimum");
+        var scroller = Scroller(window);
+        Assert.True(scroller.Extent.Width <= scroller.Viewport.Width + 1 &&
+            scroller.Extent.Height <= scroller.Viewport.Height + 1,
+            $"{layout}: at its minimum size the window still scrolls the panes " +
+            $"({scroller.Extent} in {scroller.Viewport})");
+        Photograph(window, $"layout-{layout}-minimum");
+
+        // A screen too small for that: the minimum gives way to the screen, and the panes scroll.
+        window.ScreenLimit = new Size(900, 560);
+        Resize(window, 900, 560);
+        AssertWithinLimits(window, $"{layout} on a small screen");
+        Photograph(window, $"layout-{layout}-small-screen");
+    }
+
+    private static void Arrange(WorkspaceModel workspace, string layout)
+    {
+        var presets = WorkspaceModel.Presets;
+        switch (layout)
+        {
+            case "1": workspace.Preset = presets[0]; break;
+            case "2-side": workspace.Preset = presets[1]; break;
+            case "2-stacked": workspace.Preset = presets[2]; break;
+            case "3-left": workspace.Preset = presets[3]; break;
+            case "3-top": workspace.Preset = presets[4]; break;
+            case "4-grid": workspace.Preset = presets[5]; break;
+            case "3-row":
+                workspace.Preset = presets[0];
+                workspace.SplitActive(WorkspaceDockEdge.Right);
+                workspace.SplitActive(WorkspaceDockEdge.Right);
+                break;
+            case "4-stacked":
+                workspace.Preset = presets[0];
+                for (var split = 0; split < 3; split++) workspace.SplitActive(WorkspaceDockEdge.Bottom);
+                break;
+            case "4-rows":
+                workspace.Preset = presets[4];
+                workspace.Panes[0].IsActive = true;
+                workspace.SplitActive(WorkspaceDockEdge.Right);
+                break;
+        }
+    }
+
+    /// <summary>Presses on a splitter, drags it the given distance along its axis, and lets go.</summary>
+    private static void Drag(MainWindow window, GridSplitter splitter, double reach)
+    {
+        var across = splitter.Bounds.Height > splitter.Bounds.Width;
+        var start = splitter.TranslatePoint(new Point(splitter.Bounds.Width / 2, splitter.Bounds.Height / 2), window)!.Value;
+        var end = across ? start + new Point(reach, 0) : start + new Point(0, reach);
+        window.MouseMove(start, RawInputModifiers.None);
+        window.MouseDown(start, MouseButton.Left);
+        for (var step = 1; step <= 4; step++)
+        {
+            window.MouseMove(start + (end - start) * (step / 4d), RawInputModifiers.LeftMouseButton);
+        }
+
+        window.MouseUp(end, MouseButton.Left);
+        Settle(window);
+    }
+
+    private static void Resize(MainWindow window, double width, double height)
+    {
+        window.Width = width;
+        window.Height = height;
+        Settle(window);
+    }
+
+    private static ScrollViewer Scroller(Window window) =>
+        window.GetVisualDescendants().OfType<WorkspaceView>().Single(static view => view.IsEffectivelyVisible)
+            .GetVisualDescendants().OfType<ScrollViewer>().First(static viewer => viewer.Name == "PART_Scroller");
+
+    private static Rect InWindow(Visual visual, Window window) =>
+        new(visual.TranslatePoint(default, window)!.Value, visual.Bounds.Size);
+
+    private static void AssertWithinLimits(MainWindow window, string when)
+    {
+        var scroller = Scroller(window);
+        var area = InWindow(scroller, window);
+        var queue = InWindow(window.GetVisualDescendants().OfType<Border>().Single(static b => b.Name == "PART_Queue"), window);
+        var queueMinimum = window.GetVisualDescendants().OfType<TransferQueueView>().Single().MinimumHeight();
+
+        Assert.True(area.Bottom <= queue.Top + 1, $"{when}: the workspace area ends at {area.Bottom:0}, under the queue at {queue.Top:0}");
+        Assert.True(queue.Height >= queueMinimum - 1, $"{when}: the queue is {queue.Height:0} tall, under its minimum {queueMinimum:0}");
+        Assert.True(queue.Bottom <= window.Bounds.Height + 1, $"{when}: the queue ends at {queue.Bottom:0}, past the window's {window.Bounds.Height:0}");
+
+        var panes = Panes(window);
+        foreach (var pane in panes)
+        {
+            var bounds = InWindow(pane, window);
+            var minimum = pane.MinimumSize();
+            var name = $"{when}: pane {((BrowserPaneModel)pane.DataContext!).PaneNumber}";
+            Assert.True(bounds.Width >= minimum.Width - 1 && bounds.Height >= minimum.Height - 1,
+                $"{name} is {bounds.Size}, under its minimum {minimum}");
+            Assert.True(bounds.Right <= area.Right + 1 || scroller.Extent.Width > scroller.Viewport.Width + 1,
+                $"{name} ends at {bounds.Right:0}, past the area's {area.Right:0}, which does not scroll");
+            Assert.True(bounds.Bottom <= area.Bottom + 1 || scroller.Extent.Height > scroller.Viewport.Height + 1,
+                $"{name} ends at {bounds.Bottom:0}, past the area's {area.Bottom:0}, which does not scroll.");
+        }
+
+        for (var one = 0; one < panes.Length; one++)
+        {
+            for (var two = one + 1; two < panes.Length; two++)
+            {
+                var overlap = InWindow(panes[one], window).Intersect(InWindow(panes[two], window));
+                Assert.True(overlap.Width < 1 || overlap.Height < 1, $"{when}: two panes overlap by {overlap}");
+            }
+        }
+    }
+
+    private static void Photograph(Window window, string name)
+    {
+        var directory = Environment.GetEnvironmentVariable("STORAGEHUB_SHOT_DIR");
+        if (string.IsNullOrWhiteSpace(directory) || !(name.Contains("4-grid") || name.Contains("2-stacked"))) return;
+        var frame = window.CaptureRenderedFrame();
+        Assert.NotNull(frame);
+        Directory.CreateDirectory(directory);
+        using var stream = File.Create(Path.Combine(directory, name + ".png"));
+        frame!.Save(stream, new PngBitmapEncoderOptions());
+    }
+
+    private static void Settle(Window window)
+    {
+        for (var pass = 0; pass < 6; pass++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+        }
+    }
+
+    /// <summary>
     /// Select all and invert reach the pane that is active, not the one that was.
     /// </summary>
     /// <remarks>

@@ -15,7 +15,7 @@
 
   <DockPanel>
     <!-- The queue's own toolbar, above its tabs, exactly where TransferQueueControl put it. -->
-    <Border DockPanel.Dock="Top" Classes="toolbar">
+    <Border x:Name="PART_Toolbar" DockPanel.Dock="Top" Classes="toolbar">
       <Grid ColumnDefinitions="Auto,*">
         <StackPanel Grid.Column="0" Orientation="Horizontal"
                     Spacing="{StaticResource SpaceSm}" VerticalAlignment="Center">
@@ -78,7 +78,7 @@
       </Grid>
     </Border>
 
-    <TabControl ItemsSource="{Binding Tabs}"
+    <TabControl x:Name="PART_Tabs" ItemsSource="{Binding Tabs}"
                 SelectedIndex="{Binding SelectedTab, Mode=TwoWay}">
       <TabControl.ItemTemplate>
         <DataTemplate DataType="vm:TransferQueueTab">

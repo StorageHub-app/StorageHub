@@ -184,8 +184,11 @@
       <GridSplitter x:Name="PART_ConnectionsSplitter" Grid.Column="1"
                     Width="{StaticResource SplitterThickness}"/>
 
+      <!-- The queue's row is sized in code, from TransferQueueHeight, and both rows have the
+           minimums MainWindow works out from what is in them, so the splitter between them stops
+           before either loses its chrome (docs/ui-rules.md, Layout). -->
       <Grid x:Name="PART_WorkArea" Grid.Column="2" RowDefinitions="*,Auto,Auto">
-        <TabControl Grid.Row="0" ItemsSource="{Binding Workspaces}"
+        <TabControl x:Name="PART_WorkspaceTabs" Grid.Row="0" ItemsSource="{Binding Workspaces}"
                     SelectedIndex="{Binding SelectedWorkspace}"
                     Theme="{StaticResource WorkspaceTabControl}">
           <!-- The "+" that adds a workspace. A sibling of the strip rather than a tab in it: the
@@ -311,13 +314,13 @@
           </TabControl.ContentTemplate>
         </TabControl>
 
-        <GridSplitter Grid.Row="1" Height="{StaticResource SplitterThickness}"
+        <GridSplitter x:Name="PART_QueueSplitter" Grid.Row="1" Height="{StaticResource SplitterThickness}"
                       HorizontalAlignment="Stretch"/>
 
-        <Border Grid.Row="2" Classes="surface" Height="240"
+        <Border x:Name="PART_Queue" Grid.Row="2" Classes="surface"
                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
           <!-- The queue and its Logs tab are a view of their own now; see TransferQueueView. -->
-          <vm:TransferQueueView DataContext="{Binding Queue}"/>
+          <vm:TransferQueueView x:Name="PART_QueueView" DataContext="{Binding Queue}"/>
         </Border>
       </Grid>
     </Grid>

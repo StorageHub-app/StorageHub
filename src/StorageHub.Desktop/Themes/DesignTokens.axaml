@@ -252,6 +252,15 @@
   <!-- The connection details' row of actions, a step below the facts above it. -->
   <Thickness x:Key="DetailActionsMargin">0,8,0,0</Thickness>
   <sys:Double x:Key="SplitterThickness">4</sys:Double>
+  <!-- Layout limits (docs/ui-rules.md, Layout). A pane is never smaller than its chrome, which
+       BrowserPaneView measures, plus its list's heading and this many rows; the address field
+       keeps this much of its own width beside its buttons and the filter. -->
+  <sys:Double x:Key="PaneMinimumListRows">3</sys:Double>
+  <sys:Double x:Key="PaneAddressMinWidth">120</sys:Double>
+  <!-- The transfer queue's height when the shell opens, and the rows it keeps under its toolbar,
+       tabs and heading however far its splitter is dragged. -->
+  <sys:Double x:Key="TransferQueueHeight">240</sys:Double>
+  <sys:Double x:Key="QueueMinimumRows">2</sys:Double>
 
   <!--
     The Settings window, from 1.4's SettingsForm and SettingsRow (ui-reference 02). The page is

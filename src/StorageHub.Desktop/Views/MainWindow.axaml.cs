@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Markup.Xaml;
 using Avalonia.Platform;
+using Avalonia.VisualTree;
 using Lucide.Avalonia;
 using StorageHub.Desktop.Themes;
 
@@ -22,9 +23,28 @@ public partial class MainWindow : Window
     private ToolbarOverflowPanel? _toolbarRow;
     private bool _opened;
 
+    /// <summary>The window's own floor, from the markup or what a small screen made of it.</summary>
+    private Size _baseMinimum;
+
+    /// <summary>The height the queue was last dragged to, which a short window takes from first.</summary>
+    private double _queueHeight;
+
+    /// <summary>
+    /// What the active workspace needs across, panes and the chrome around them: the connections
+    /// panel's splitter stops there.
+    /// </summary>
+    private double _workspaceWidthNeed;
+
+    /// <summary>
+    /// The tab strip and the strip above the panes, and the padding round them: what the workspace
+    /// tab adds to the panes' own minimum. Kept from the last layout that showed the panes.
+    /// </summary>
+    private Size _aroundPanes;
+
     public MainWindow()
     {
         AvaloniaXamlLoader.Load(this);
+        _baseMinimum = new Size(MinWidth, MinHeight);
 
         // The Workspace menu's pinned and recent workspaces sit under bold headings, and one whose
         // file has gone is dimmed, as 1.x drew them. A style cannot see an entry's model, so each
@@ -83,13 +103,138 @@ public partial class MainWindow : Window
         {
             _opened = true;
             ArrangeConnectionsPanel();
+            ApplyLayoutLimits();
         };
         this.GetControl<Grid>("PART_Body").SizeChanged += (_, e) =>
         {
             if (e.WidthChanged) ArrangeConnectionsPanel();
         };
         ScalingChanged += (_, _) => OnScalingChanged();
+
+        // The limits between the workspace and the queue, and of the window itself: worked out
+        // again when the panes' minimum changes (a split, a closed pane, a bar hidden, another
+        // tab), when the room changes, and remembered where the queue's splitter was let go.
+        var area = this.GetControl<Grid>("PART_WorkArea");
+        _queueHeight = DesignTokens.Get<double>("TransferQueueHeight");
+        area.RowDefinitions[2].Height = new GridLength(_queueHeight);
+        AddHandler(WorkspaceView.MinimumChangedEvent, (_, _) => ApplyLayoutLimits());
+        area.SizeChanged += (_, _) => ApplyLayoutLimits();
+        var queueSplitter = this.GetControl<GridSplitter>("PART_QueueSplitter");
+        queueSplitter.DragCompleted += (_, _) => RememberQueueHeight();
+        queueSplitter.AddHandler(KeyUpEvent, (_, e) =>
+        {
+            if (e.Key is Key.Up or Key.Down) RememberQueueHeight();
+        }, handledEventsToo: true);
     }
+
+    /// <summary>
+    /// The size of the screen's working area less the window's frame, which no minimum may pass;
+    /// unlimited until the window has been fitted to a screen. A test sets it to stand for a small
+    /// screen.
+    /// </summary>
+    internal Size ScreenLimit
+    {
+        get => _screenLimit;
+        set
+        {
+            _screenLimit = value;
+            ApplyLayoutLimits();
+        }
+    }
+
+    private Size _screenLimit = new(double.PositiveInfinity, double.PositiveInfinity);
+
+    private void RememberQueueHeight() =>
+        _queueHeight = this.GetControl<Grid>("PART_WorkArea").RowDefinitions[2].ActualHeight;
+
+    /// <summary>
+    /// Applies the layout rule (docs/ui-rules.md, Layout) to the shell's own splitters and to the
+    /// window: the workspace keeps room for every pane at its minimum, the queue keeps its
+    /// toolbar, tabs and a couple of rows, and the window cannot be made smaller than both.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The workspace row's minimum is the panes' (<see cref="WorkspaceView.Minimum"/>) plus the
+    /// tab strip and the strip above them; the queue row's is <see cref="TransferQueueView.MinimumHeight"/>.
+    /// Those two minimums are what stop the splitter between them. The queue is the one sized in
+    /// pixels, so a window made shorter takes from the queue first, down to its minimum, and gives
+    /// it back as far as it was dragged when the window grows.
+    /// </para>
+    /// <para>
+    /// The window's minimum is the menu, toolbar and status bar, plus both rows' minimums, and
+    /// across the connections panel's narrowest beside the workspace's. A screen too small for it
+    /// caps it (<see cref="ScreenLimit"/>), and then the rows' minimums give way rather than push
+    /// the queue out of the window: the workspace scrolls instead, which is the last resort.
+    /// </para>
+    /// </remarks>
+    private void ApplyLayoutLimits()
+    {
+        var area = this.GetControl<Grid>("PART_WorkArea");
+        var tabs = this.GetControl<TabControl>("PART_WorkspaceTabs");
+        var queue = this.GetControl<Border>("PART_Queue");
+        var splitter = LayoutLimits.Thickness(this.GetControl<GridSplitter>("PART_QueueSplitter"), sideBySide: false);
+        var panelSplitter = LayoutLimits.Thickness(this.GetControl<GridSplitter>("PART_ConnectionsSplitter"), sideBySide: true);
+        var queueMinimum = this.GetControl<TransferQueueView>("PART_QueueView").MinimumHeight() +
+            queue.BorderThickness.Top + queue.BorderThickness.Bottom;
+
+        var view = tabs.GetVisualDescendants().OfType<WorkspaceView>()
+            .FirstOrDefault(static candidate => candidate.IsEffectivelyVisible);
+        var panes = view?.Minimum ?? default;
+        if (view is { Bounds: { Width: > 0, Height: > 0 } })
+        {
+            _aroundPanes = new Size(
+                Math.Max(0, tabs.Bounds.Width - view.Bounds.Width),
+                Math.Max(0, tabs.Bounds.Height - view.Bounds.Height));
+        }
+
+        var workspace = panes is { Width: > 0, Height: > 0 } ? panes + _aroundPanes : default;
+
+        var rows = area.RowDefinitions;
+        rows[2].MinHeight = queueMinimum;
+
+        // Nothing to measure the rest against until the window has been laid out once.
+        var available = area.Bounds.Height;
+        if (available <= 0) return;
+
+        var queueHeight = Math.Max(queueMinimum, Math.Min(_queueHeight, available - splitter - workspace.Height));
+        if (!rows[2].Height.IsAbsolute || Math.Abs(rows[2].Height.Value - queueHeight) > 0.5)
+        {
+            rows[2].Height = new GridLength(queueHeight);
+        }
+
+        rows[0].MinHeight = Math.Clamp(workspace.Height, 0, Math.Max(0, available - splitter - queueHeight));
+
+        if (Math.Abs(_workspaceWidthNeed - workspace.Width) > 0.5)
+        {
+            _workspaceWidthNeed = workspace.Width;
+            ArrangeConnectionsPanel();
+        }
+
+        // The window: everything that is not the work area, then the work area's two rows at their
+        // minimums, and across, the panel at its narrowest beside the workspace at its.
+        var chrome = Math.Max(0, ClientSize.Height - area.Bounds.Height);
+        var height = chrome + workspace.Height + splitter + queueMinimum;
+        var width = _panelLayout is { IsVisible: true }
+            ? PanelMinimum + panelSplitter + Math.Max(WorkspaceMinimumWidth / Scaling, workspace.Width)
+            : workspace.Width;
+        MinWidth = Math.Min(Math.Max(_baseMinimum.Width, width), ScreenLimit.Width);
+        MinHeight = Math.Min(Math.Max(_baseMinimum.Height, height), ScreenLimit.Height);
+
+        // A window already smaller than that, from a layout that just grew a pane, grows to it.
+        if (WindowState == WindowState.Normal)
+        {
+            if (Width < MinWidth) Width = MinWidth;
+            if (Height < MinHeight) Height = MinHeight;
+        }
+    }
+
+    /// <summary>
+    /// The connections panel's narrowest: 1.x's 220 device pixels, with a token under it at high
+    /// scaling, where 220 pixels no longer fits the panel's own header.
+    /// </summary>
+    private double PanelMinimum => Math.Max(
+        DesignTokens.Get<double>("SidebarMinWidth"),
+        DesktopUpdatePreferences.MinimumConnectionsPanelWidth / Scaling);
 
     /// <summary>
     /// Keeps the window within the screen it opens in the middle of, as 1.x's did.
@@ -139,11 +284,15 @@ public partial class MainWindow : Window
         var over = new Size(
             Math.Max(0, frame.Width - area.Width / screen.Scaling),
             Math.Max(0, frame.Height - area.Height / screen.Scaling));
+        ScreenLimit = new Size(
+            area.Width / screen.Scaling - (frame.Width - client.Width),
+            area.Height / screen.Scaling - (frame.Height - client.Height));
         if (over.Width <= 0 && over.Height <= 0) return;
 
         var fitted = new Size(client.Width - over.Width, client.Height - over.Height);
         MinWidth = Math.Min(MinWidth, fitted.Width);
         MinHeight = Math.Min(MinHeight, fitted.Height);
+        _baseMinimum = new Size(Math.Min(_baseMinimum.Width, fitted.Width), Math.Min(_baseMinimum.Height, fitted.Height));
         Width = fitted.Width;
         Height = fitted.Height;
 
@@ -205,7 +354,11 @@ public partial class MainWindow : Window
         ArrangeConnectionsPanel();
     }
 
-    private void OnPanelLayoutChanged(object? sender, PropertyChangedEventArgs e) => ArrangeConnectionsPanel();
+    private void OnPanelLayoutChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        ArrangeConnectionsPanel();
+        ApplyLayoutLimits();
+    }
 
     /// <summary>
     /// Puts the connections panel on its side at its width, or hides it with its splitter.
@@ -232,27 +385,32 @@ public partial class MainWindow : Window
         // The saved width is 1.x's device pixels, and so are its limits: the panel between 220 and
         // 640, and the workspace beside it never under 560, so the splitter stops where 1.x's did
         // and every width it can be dragged to is one that saves. The token is a floor under the
-        // panel at high scaling, where 220 pixels no longer fits the panel's own header.
+        // panel at high scaling, where 220 pixels no longer fits the panel's own header. The
+        // workspace needs more than 560 where its panes do (docs/ui-rules.md, Layout), and a saved
+        // width that would leave them less is clamped as it is restored.
         var scaling = Scaling;
-        var minimum = Math.Max(
-            DesignTokens.Get<double>("SidebarMinWidth"),
-            DesktopUpdatePreferences.MinimumConnectionsPanelWidth / scaling);
-        var workMinimum = layout.IsVisible ? WorkspaceMinimumWidth / scaling : 0;
+        var minimum = PanelMinimum;
+        var workMinimum = layout.IsVisible ? Math.Max(WorkspaceMinimumWidth / scaling, _workspaceWidthNeed) : 0;
         var maximum = DesktopUpdatePreferences.MaximumConnectionsPanelWidth / scaling;
+        var splitterWidth = LayoutLimits.Thickness(
+            this.GetControl<GridSplitter>("PART_ConnectionsSplitter"), sideBySide: true);
 
         // In a window too narrow for both, the panel gives way down to its narrowest, as 1.x's
         // SetConnectionsPanelWidth clamped it, and takes its width back when the window widens.
         if (body.Bounds.Width > 0)
         {
-            var splitter = DesignTokens.Get<double>("SplitterThickness");
-            maximum = Math.Min(maximum, body.Bounds.Width - splitter - workMinimum);
+            maximum = Math.Min(maximum, body.Bounds.Width - splitterWidth - workMinimum);
         }
 
         maximum = Math.Max(minimum, maximum);
 
+        // Where even the panel at its narrowest leaves the workspace too little, the workspace
+        // takes what there is and scrolls, rather than pushing past the window's edge.
         var work = body.ColumnDefinitions[left ? 2 : 0];
         work.Width = GridLength.Star;
-        work.MinWidth = workMinimum;
+        work.MinWidth = body.Bounds.Width > 0 && layout.IsVisible
+            ? Math.Min(workMinimum, Math.Max(0, body.Bounds.Width - splitterWidth - minimum))
+            : workMinimum;
         work.MaxWidth = double.PositiveInfinity;
 
         var column = PanelColumn(layout);
