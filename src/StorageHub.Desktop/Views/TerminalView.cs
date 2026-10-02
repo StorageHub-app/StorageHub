@@ -1,5 +1,7 @@
 using System.Text;
 using Avalonia;
+using Avalonia.Automation.Peers;
+using Avalonia.Automation.Provider;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
@@ -514,6 +516,62 @@ internal sealed class TerminalView : Control, ILogicalScrollable
     /// window width rather than to what was written: pasting a copied command back should not
     /// insert a newline in the middle of it. Trailing spaces on a full-width row are padding.
     /// </remarks>
+    /// <summary>
+    /// The lines the terminal is showing, as text, top to bottom.
+    /// </summary>
+    /// <remarks>
+    /// What a screen reader reads (<see cref="TerminalAutomationPeer"/>). The rows on screen
+    /// rather than the scrollback, because that is what a sighted reader has in front of them, and
+    /// the scrollback can be thousands of lines.
+    /// </remarks>
+    internal string VisibleText
+    {
+        get
+        {
+            if (Document is not { } document) return string.Empty;
+
+            var builder = new StringBuilder();
+            var last = Math.Min(_viewportTop + Math.Max(1, VisibleRows) - 1, document.LastLineNumber);
+            for (var number = Math.Max(_viewportTop, document.FirstLineNumber); number <= last; number++)
+            {
+                if (document.FindLine(number) is not { } line) continue;
+                line.AppendTextTo(builder, 0, Math.Min(line.TrimmedLength(), line.Length));
+                while (builder.Length > 0 && builder[^1] == ' ') builder.Length--;
+                if (number < last) builder.Append(Environment.NewLine);
+            }
+
+            return builder.ToString().TrimEnd();
+        }
+    }
+
+    /// <summary>
+    /// Shows the terminal to screen readers and UI Automation.
+    /// </summary>
+    /// <remarks>
+    /// A plain control gets no peer of its own, so the terminal was missing from the automation
+    /// tree altogether: its name in the markup was never read, it could not be focused from a
+    /// screen reader, and nothing it printed could be heard. As a document whose value is the
+    /// screen, it is named, focusable and readable. Read-only: typing goes through the keyboard,
+    /// as it does for everybody.
+    /// </remarks>
+    protected override AutomationPeer OnCreateAutomationPeer() => new TerminalAutomationPeer(this);
+
+    private sealed class TerminalAutomationPeer(TerminalView owner) : ControlAutomationPeer(owner), IValueProvider
+    {
+        public bool IsReadOnly => true;
+
+        public string? Value => ((TerminalView)Owner).VisibleText;
+
+        public void SetValue(string? value) =>
+            throw new InvalidOperationException("The terminal's text is what the remote end printed; type to send input.");
+
+        protected override AutomationControlType GetAutomationControlTypeCore() => AutomationControlType.Document;
+
+        protected override bool IsContentElementCore() => true;
+
+        protected override bool IsControlElementCore() => true;
+    }
+
     internal string SelectedText
     {
         get

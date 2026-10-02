@@ -291,6 +291,13 @@ public class TerminalViewTests
         view.ClearSelection();
         Assert.False(view.HasSelection);
         Assert.Equal(string.Empty, view.SelectedText);
+
+        // And the screen as a screen reader reads it: a document whose value is what is shown.
+        var peer = Avalonia.Automation.Peers.ControlAutomationPeer.CreatePeerForElement(view);
+        Assert.Equal(Avalonia.Automation.Peers.AutomationControlType.Document, peer.GetAutomationControlType());
+        Assert.Equal(
+            "first line" + Environment.NewLine + "second line",
+            Assert.IsAssignableFrom<Avalonia.Automation.Provider.IValueProvider>(peer).Value);
     }
 
     /// <summary>A double-click takes the word: letters, digits and underscores, as a shell would.</summary>
