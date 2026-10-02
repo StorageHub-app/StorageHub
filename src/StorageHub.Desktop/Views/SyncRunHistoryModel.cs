@@ -493,7 +493,7 @@ internal sealed class SyncRunHistoryModel : INotifyPropertyChanged, IDisposable
             PlanSubtitle = Ui.Format(Ui.Sync.RunSubtitleFormat, UiEnumNames.Describe(run.Phase), run.Revision);
             PlanStatus = review.Failed
                 ? new StatusLine(review.ErrorMessage!, MetricTone.Danger)
-                : Narrate(run);
+                : Narrate(review);
         }
         else
         {
@@ -525,10 +525,21 @@ internal sealed class SyncRunHistoryModel : INotifyPropertyChanged, IDisposable
     /// and nothing-yet. The agent makes the apply request durable and then executes it, and the gap
     /// between those two is where a half-done sync would be read as a completed one.
     /// </remarks>
-    private static StatusLine Narrate(SyncRunSummary run)
+    /// <remarks>
+    /// A plan with nothing in it says so rather than asking for approval as if it had work to do.
+    /// It is still approvable, as it was in 1.4, because approving it is what records that the two
+    /// locations match.
+    /// </remarks>
+    private static StatusLine Narrate(SyncRunReview review)
     {
+        var run = review.Run!;
         if (run.DispatchState != SyncIpcDispatchState.DurablyDispatched)
         {
+            if (run.Phase == SyncIpcRunPhase.AwaitingApproval && IsEmpty(review))
+            {
+                return new StatusLine(Ui.Sync.NoPlanOperations, MetricTone.Success);
+            }
+
             return run.Phase == SyncIpcRunPhase.AwaitingApproval
                 ? new StatusLine(Ui.Sync.AwaitingApproval, MetricTone.Warning)
                 : StatusLine.Muted(
@@ -550,6 +561,11 @@ internal sealed class SyncRunHistoryModel : INotifyPropertyChanged, IDisposable
             _ => new StatusLine(Ui.Sync.PhaseQueued, MetricTone.Primary)
         };
     }
+
+    /// <summary>Whether the plan has been read to its end and holds nothing, conflicts included.</summary>
+    private static bool IsEmpty(SyncRunReview review) =>
+        review.Operations.Count == 0 && !review.HasMoreOperations &&
+        review.Conflicts.Count == 0 && review.Run!.ConflictCount == 0;
 
     /// <summary>
     /// What the confirmation says is about to happen.

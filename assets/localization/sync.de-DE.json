@@ -288,7 +288,7 @@
   "conflictStateUnresolved": "Ungelöst",
   "conflictStateResolved": "Gelöst",
   "conflictStateDismissed": "Verworfen",
-  "noPlanOperations": "Dieser Plan hat nichts zu tun.",
+  "noPlanOperations": "Nichts zu synchronisieren: Keine Datei muss kopiert oder gelöscht werden. Genehmigen und senden hält fest, dass beide Orte übereinstimmen, damit der nächste Lauf damit vergleichen kann.",
   "noConflicts": "In diesem Lauf wurden keine Konflikte gefunden.",
   "approveDetailFormat": "Dieser Plan hat {0} Vorgang/Vorgänge.",
   "approveDestructiveFormat": "Dieser Plan hat {0} Vorgang/Vorgänge, davon {1} mit Datenverlust.",

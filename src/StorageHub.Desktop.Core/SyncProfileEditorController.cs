@@ -213,11 +213,13 @@ internal sealed record SyncProfileSaveResult(
 }
 
 /// <summary>The result of asking the agent to scan and plan.</summary>
+/// <param name="Plan">The plan's counts, beside the run they describe.</param>
 internal sealed record SyncPreviewResult(
     SyncProfileDocument? Profile,
     SyncRunSummary? Run,
     IReadOnlyList<SyncDraftProblem> Problems,
-    string? ErrorMessage = null)
+    string? ErrorMessage = null,
+    SyncPlanOverview? Plan = null)
 {
     internal bool Previewed => Run is not null;
 }
@@ -391,7 +393,7 @@ internal sealed class SyncProfileEditorController(
                 return new SyncPreviewResult(profile, null, [], Ui.Sync.PlanRunMismatch);
             }
 
-            return new SyncPreviewResult(profile, run, []);
+            return new SyncPreviewResult(profile, run, [], Plan: plan);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

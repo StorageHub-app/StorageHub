@@ -734,7 +734,12 @@ internal sealed class SyncStrings : LocalizationModelBase
 
     public string ConflictStateDismissed { get; set; } = "Dismissed";
 
-    public string NoPlanOperations { get; set; } = "This plan has nothing to do.";
+    /// <summary>
+    /// A plan with no operations. It still waits for approval, as in 1.4: approving it is what
+    /// records that the two locations match, which the next run compares against.
+    /// </summary>
+    public string NoPlanOperations { get; set; } =
+        "Nothing to sync: no file needs copying or deleting. Approve & dispatch records that the two locations match, for the next run to compare against.";
 
     public string NoConflicts { get; set; } = "No conflicts were found in this run.";
 

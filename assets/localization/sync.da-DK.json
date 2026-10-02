@@ -288,7 +288,7 @@
   "conflictStateUnresolved": "Uløst",
   "conflictStateResolved": "Løst",
   "conflictStateDismissed": "Afvist",
-  "noPlanOperations": "Denne plan har intet at udføre.",
+  "noPlanOperations": "Intet at synkronisere: ingen filer skal kopieres eller slettes. Godkend og afsend registrerer, at de to placeringer stemmer overens, så næste kørsel kan sammenligne med det.",
   "noConflicts": "Der blev ikke fundet konflikter i denne kørsel.",
   "approveDetailFormat": "Denne plan har {0} handling(er).",
   "approveDestructiveFormat": "Denne plan har {0} handling(er), hvoraf {1} fjerner data.",

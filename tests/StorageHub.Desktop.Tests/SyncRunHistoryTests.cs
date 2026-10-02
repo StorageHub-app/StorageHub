@@ -258,6 +258,10 @@ public class SyncRunHistoryTests
         using var model = SyncRunHistoryModel.Create(() => agent);
         await model.LoadRunAsync(run.SyncRunId, TestContext.Current.CancellationToken);
 
+        // An empty plan says there is nothing to sync, and can still be approved, as in 1.4: that
+        // is what records that the two sides match.
+        Assert.Equal((Ui.Sync.NoPlanOperations, true), (model.PlanStatus.Text, model.CanApprove));
+
         await model.ApproveAsync(TestContext.Current.CancellationToken);
 
         Assert.Null(agent.ApprovalSent);

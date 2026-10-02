@@ -460,10 +460,13 @@ internal sealed class SyncProfileEditorModel : INotifyPropertyChanged, IDisposab
             // to Run history behind the user's back, wherever they had gone since.
             token.ThrowIfCancellationRequested();
 
-            Status = (result.Profile?.Draft.Enabled, result.Profile?.Draft.AllowNonAtomicDestinationWrites) switch
+            // A plan with nothing in it says so rather than "ready", which reads as work to approve.
+            var empty = result.Plan is { OperationCount: 0 } && run.ConflictCount == 0;
+            Status = (result.Profile?.Draft.Enabled, empty, result.Profile?.Draft.AllowNonAtomicDestinationWrites) switch
             {
-                (false, _) => Warn(Ui.Sync.PreviewedWhileDisabled),
-                (_, true) => Warn(Ui.Sync.PlanReadyNonAtomic),
+                (false, _, _) => Warn(Ui.Sync.PreviewedWhileDisabled),
+                (_, true, _) => new StatusLine(Ui.Sync.NoPlanOperations, MetricTone.Success),
+                (_, _, true) => Warn(Ui.Sync.PlanReadyNonAtomic),
                 _ => new StatusLine(Ui.Sync.PlanReady, MetricTone.Success)
             };
             PreviewReady?.Invoke(this, run);
