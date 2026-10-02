@@ -544,6 +544,7 @@ public sealed class NamedPipeSyncManagementAgentClient : ISyncManagementAgentCli
         profile.LocationBConnectionId != Guid.Empty &&
         Enum.IsDefined(profile.Direction) &&
         Enum.IsDefined(profile.DeletionMode) &&
+        (profile.StoredBehavior is null || Enum.IsDefined(profile.StoredBehavior.Value)) &&
         profile.Revision >= 1 &&
         profile.UpdatedUtc.Offset == TimeSpan.Zero;
 

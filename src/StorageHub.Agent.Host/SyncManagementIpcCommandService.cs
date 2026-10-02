@@ -632,7 +632,8 @@ public sealed class SyncManagementIpcCommandService : IAgentIpcCommandHandler
         Map(profile.DeletionMode),
         profile.Enabled,
         profile.Revision,
-        profile.UpdatedAtUtc);
+        profile.UpdatedAtUtc,
+        Map(profile.Behavior));
 
     private static SyncProfileDocument MapProfile(SyncProfile profile) => new(
         profile.ProfileId.Value,

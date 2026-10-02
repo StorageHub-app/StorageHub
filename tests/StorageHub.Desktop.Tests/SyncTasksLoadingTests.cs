@@ -72,13 +72,30 @@ public class SyncTasksLoadingTests
     [Fact]
     public async Task ABehaviourIsNamedInWords()
     {
-        var agent = new StubSyncAgent { Profiles = [Profile("Nightly", enabled: true)] };
+        var agent = new StubSyncAgent
+        {
+            Profiles =
+            [
+                Profile("Nightly", enabled: true),
+                // "Update A to B" is "Copy new files A to B" by direction and deletion mode alone,
+                // and was listed as that: the saved behaviour is what names it.
+                Profile("Photos", enabled: true) with
+                {
+                    Direction = SyncIpcDirection.LeftToRight,
+                    DeletionMode = SyncIpcDeletionMode.Disabled,
+                    StoredBehavior = SyncIpcBehavior.UpdateAToB
+                }
+            ]
+        };
         var model = SyncTasksModel.Create(() => agent);
 
         await model.RefreshAsync(TestContext.Current.CancellationToken);
 
         Assert.False(string.IsNullOrWhiteSpace(model.Tasks[0].Behavior));
         Assert.DoesNotContain(model.Tasks[0].Behavior, "0123456789", StringComparison.Ordinal);
+        Assert.Equal(
+            SyncBehaviorCatalog.DisplayName(SyncIpcBehavior.UpdateAToB),
+            model.Tasks.Single(task => task.Name == "Photos").Behavior);
     }
 
     /// <summary>

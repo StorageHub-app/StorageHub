@@ -383,11 +383,22 @@ public sealed record SyncProfileSummary(
     SyncIpcDeletionMode DeletionMode,
     bool Enabled,
     long Revision,
-    DateTimeOffset UpdatedUtc)
+    DateTimeOffset UpdatedUtc,
+    SyncIpcBehavior? StoredBehavior = null)
 {
     public Guid LocationAConnectionId => LeftConnectionId;
     public Guid LocationBConnectionId => RightConnectionId;
-    public SyncIpcBehavior Behavior => new SyncProfileDraftDocument(
+
+    /// <summary>
+    /// The profile's behaviour: the one it was saved with, when the agent says, and otherwise the
+    /// one its direction and deletion mode imply.
+    /// </summary>
+    /// <remarks>
+    /// Direction and deletion mode cannot tell "Update A to B" from "Copy new files A to B", which
+    /// differ only in whether changed files are replaced, so Sync tasks listed every Update task
+    /// as Copy new files.
+    /// </remarks>
+    public SyncIpcBehavior Behavior => StoredBehavior ?? new SyncProfileDraftDocument(
         DisplayName, LeftConnectionId, string.Empty, RightConnectionId, string.Empty,
         Direction, DeletionMode, SyncIpcConflictPolicy.Block, 1, 100, false, 1, Enabled).Behavior;
 }
