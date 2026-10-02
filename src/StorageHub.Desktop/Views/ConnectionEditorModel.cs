@@ -516,7 +516,7 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         get => GroupChoices.FirstOrDefault(choice => !choice.IsNew && choice.GroupId == KnownGroupId);
         set
         {
-            if (value is null) return;
+            if (value is null || _replacingGroupChoices) return;
             if (value.IsNew)
             {
                 _ = CreateGroupAsync();
@@ -529,6 +529,32 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
             Raise(nameof(SelectedGroup));
         }
     }
+
+    /// <summary>
+    /// Hands the drop-down a new list of groups, then the group the connection is in.
+    /// </summary>
+    /// <remarks>
+    /// While its list is replaced, the drop-down writes back the item it was showing. The groups
+    /// arrive after the connection, so that item was Ungrouped (its own group not listed yet), and
+    /// writing it back moved every connection opened for editing to Ungrouped before anyone chose
+    /// anything. Nothing it writes while the list is being replaced is taken.
+    /// </remarks>
+    private void RaiseGroupChoices()
+    {
+        _replacingGroupChoices = true;
+        try
+        {
+            Raise(nameof(GroupChoices));
+        }
+        finally
+        {
+            _replacingGroupChoices = false;
+        }
+
+        Raise(nameof(SelectedGroup));
+    }
+
+    private bool _replacingGroupChoices;
 
     /// <summary>The chosen group if the agent has it, else null for Ungrouped.</summary>
     private Guid? KnownGroupId =>
@@ -555,8 +581,7 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
             return;
         }
 
-        Raise(nameof(GroupChoices));
-        Raise(nameof(SelectedGroup));
+        RaiseGroupChoices();
     }
 
     /// <summary>
@@ -610,8 +635,7 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
 
         // Raised whatever happened, so a drop-down left showing "New group…" goes back to the
         // group the connection is in.
-        Raise(nameof(GroupChoices));
-        Raise(nameof(SelectedGroup));
+        RaiseGroupChoices();
     }
 
     public static string GroupLabel => Ui.Connections.FieldGroup;
@@ -1841,8 +1865,7 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     private void RaiseAll()
     {
         Raise(nameof(IsNew));
-        Raise(nameof(GroupChoices));
-        Raise(nameof(SelectedGroup));
+        RaiseGroupChoices();
         Raise(nameof(Provider));
         Raise(nameof(Type));
         Raise(nameof(ProvidersForType));

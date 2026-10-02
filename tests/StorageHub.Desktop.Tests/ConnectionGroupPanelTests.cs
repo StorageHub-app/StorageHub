@@ -225,8 +225,28 @@ public class ConnectionGroupPanelTests
             if (field.Required && field.Value.Trim().Length == 0) field.Value = "sample";
         }
 
+        var savedId = Guid.Empty;
+        editor.Saved += (_, id) => savedId = id;
         await editor.SaveAsync(cancellation);
         Assert.Equal(agent.Groups[2].GroupId, agent.LastDraft?.Metadata.GroupId);
+
+        // Opened again for editing with the window already up, as the app does: the drop-down is
+        // live while the connection loads before the groups, and it used to write Ungrouped back.
+        var again = new ConnectionManagerModel(() => new ConnectionManagerController(agent, new NoVault()));
+        var window = new ConnectionManagerWindow { DataContext = again };
+        window.Show();
+        // In two steps with the window drawn between them, as the agent's answers arrive in the
+        // app: the connection first, then the groups.
+        await again.Editor.OpenAsync(savedId, cancellation);
+        window.UpdateLayout();
+        await again.Editor.LoadGroupsAsync(cancellation);
+        window.UpdateLayout();
+        Assert.Equal("Clients", again.Editor.SelectedGroup?.Label);
+        Assert.Equal(agent.Groups[2].GroupId, again.Editor.GroupId);
+        var shown = window.GetVisualDescendants().OfType<ComboBox>()
+            .Single(box => box.IsEffectivelyVisible && box.SelectedItem is ConnectionGroupChoice);
+        Assert.Equal("Clients", (shown.SelectedItem as ConnectionGroupChoice)?.Label);
+        window.Close();
     }
 
     /// <summary>
@@ -599,16 +619,23 @@ public class ConnectionGroupPanelTests
         {
             LastDraft = request.Draft;
             var id = Guid.NewGuid();
+            _created = new ConnectionProfileDocument(id, 1, request.Draft, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
             return Task.FromResult(new ConnectionProfileWriteResponse(
                 request.ContractVersion,
                 ConnectionProfileWriteStatus.Succeeded,
-                new ConnectionProfileDocument(id, 1, request.Draft, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch),
+                _created,
                 ActualVersion: 1));
         }
 
+        /// <summary>The connection made by the last create, which is the one that can be read back.</summary>
+        private ConnectionProfileDocument? _created;
+
         public Task<ConnectionProfileGetResponse> GetAsync(
             ConnectionProfileGetRequest request,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+            CancellationToken cancellationToken = default) =>
+            _created is { } created && created.ConnectionId == request.ConnectionId
+                ? Task.FromResult(new ConnectionProfileGetResponse(request.ContractVersion, created))
+                : throw new NotSupportedException();
 
         public Task<ConnectionProfileWriteResponse> UpdateAsync(
             ConnectionProfileUpdateRequest request,
