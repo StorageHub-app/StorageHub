@@ -48,6 +48,9 @@ internal static class ConnectionDragHandler
         {
             if (RowAt(e.Source) is not { Id: var id } || id == Guid.Empty) return;
             if (!e.GetCurrentPoint(panel).Properties.IsLeftButtonPressed) return;
+            // Not from a card's own buttons: a drag holds the pointer until it is let go, so the
+            // edit and delete on a selected card never saw their click.
+            if (OnButton(e.Source)) return;
 
             var transfer = new DataTransfer();
             transfer.Add(DataTransferItem.Create(Format, id.ToString("D")));
@@ -94,6 +97,17 @@ internal static class ConnectionDragHandler
     /// <summary>The group whose part of the panel a visual sits in.</summary>
     private static ConnectionGroupModel? GroupOf(Visual source) =>
         Nearest<ConnectionGroupModel>(source);
+
+    private static bool OnButton(object? source)
+    {
+        for (var step = source as Visual; step is not null; step = step.GetVisualParent())
+        {
+            if (step is Button) return true;
+            if (step is ConnectionCard) return false;
+        }
+
+        return false;
+    }
 
     private static ConnectionRowModel? RowAt(object? source) =>
         source is Visual visual ? Nearest<ConnectionRowModel>(visual) : null;
