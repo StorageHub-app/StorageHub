@@ -1182,4 +1182,15 @@
     <Setter Property="Focusable" Value="False"/>
   </Style>
 
+  <!--
+    A tooltip's text is the tooltip's, whatever button it belongs to. A tooltip is a logical child
+    of its control, so a style written as "Button.x TextBlock" reaches the tooltip's text as well:
+    the details' compact rule hid it, leaving an empty box, and the primary and danger colours
+    would paint it in theirs. Keyed on :open because a style with a state (".compact") outranks
+    one without whatever their order; with one too, being last in the file, this one wins.
+  -->
+  <Style Selector="ToolTip:open TextBlock">
+    <Setter Property="IsVisible" Value="True"/>
+    <Setter Property="Foreground" Value="{DynamicResource ToolTipForeground}"/>
+  </Style>
 </Styles>

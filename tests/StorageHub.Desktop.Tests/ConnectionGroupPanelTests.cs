@@ -1,4 +1,4 @@
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
@@ -276,6 +276,22 @@ public class ConnectionGroupPanelTests
         var actions = window.GetVisualDescendants().OfType<DockPanel>()
             .Single(static panel => panel.Classes.Contains("detail-actions"));
         Assert.Contains("compact", actions.Classes);
+
+        // The labels they dropped are their tooltips, which a style hiding the labels once hid too.
+        var edit = actions.GetVisualDescendants().OfType<Button>()
+            .Single(button => Equals(ToolTip.GetTip(button), sidebar.EditLabel));
+        ToolTip.SetIsOpen(edit, true);
+        window.UpdateLayout();
+        // The ToolTip is held in an internal attached property and only points up at the button,
+        // which is exactly why a "Button TextBlock" style reaches it; read it the same way.
+        var held = (AvaloniaProperty)typeof(ToolTip)
+            .GetField("ToolTipProperty", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!
+            .GetValue(null)!;
+        var tip = Assert.IsType<ToolTip>(edit.GetValue(held));
+        tip.UpdateLayout();
+        var tipText = tip.GetVisualDescendants().OfType<TextBlock>().Single(text => text.Text == sidebar.EditLabel);
+        Assert.True(tipText.IsVisible);
+        ToolTip.SetIsOpen(edit, false);
 
         var frame = window.CaptureRenderedFrame();
         Assert.NotNull(frame);
