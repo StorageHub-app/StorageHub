@@ -82,6 +82,12 @@ internal sealed class SettingsRowModel : INotifyPropertyChanged
     public bool IsSecret => _definition.Kind == SettingsControlKind.Secret;
 
     /// <summary>
+    /// A key row's badge and name in place of its reference. Always the vault's: Import here
+    /// enrols the file for this default, not into the Key Store.
+    /// </summary>
+    public SecretReferenceDisplay SecretDisplay => SecretReferenceNames.Vault(_value, Ui.Connections.DetailStoredInVault);
+
+    /// <summary>
     /// Whether the row can be changed now. Dimmed rows stay on screen, as 1.4 kept them, so what
     /// a setting would do is visible before whatever it depends on is turned on.
     /// </summary>
@@ -265,6 +271,7 @@ internal sealed class SettingsRowModel : INotifyPropertyChanged
     private void RaiseValue()
     {
         Raise(nameof(Text));
+        Raise(nameof(SecretDisplay));
         Raise(nameof(Problem));
         Raise(nameof(HasProblem));
         Raise(nameof(Hint));

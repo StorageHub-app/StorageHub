@@ -43,15 +43,29 @@ public partial class KeyStorePickerWindow : Window
         };
     }
 
-    /// <summary>One of the entries, chosen over a window, or nothing when dismissed.</summary>
+    /// <summary>
+    /// One of the entries, chosen over a window, or nothing when dismissed.
+    /// </summary>
+    /// <remarks>
+    /// Import opens the Key Store's own import dialog over this one and imports through the same
+    /// controller the Key Store window uses, so the rules, the vault and the warning for a key with
+    /// no passphrase are the Key Store's, not a second copy of them.
+    /// </remarks>
     internal static async Task<KeyStoreEntryDocument?> ChooseAsync(
         Window owner,
-        IReadOnlyList<KeyStoreEntryDocument> entries)
+        KeyStoreMaterialKind kind,
+        IReadOnlyList<KeyStoreEntryDocument> entries,
+        KeyStoreController? controller = null)
     {
         ArgumentNullException.ThrowIfNull(owner);
 
-        var model = new KeyStorePickerModel(entries);
-        var window = new KeyStorePickerWindow { DataContext = model };
+        KeyStorePickerWindow? window = null;
+        var model = new KeyStorePickerModel(
+            entries,
+            kind,
+            controller,
+            controller is null ? null : asked => KeyStoreImportWindow.AskAsync(window!, asked));
+        window = new KeyStorePickerWindow { DataContext = model };
         await window.ShowDialog(owner).ConfigureAwait(true);
         return model.Chosen;
     }

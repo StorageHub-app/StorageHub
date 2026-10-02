@@ -76,7 +76,7 @@ public class LiveKeyStoreTests
                 Controller,
                 Storage,
                 keyStore: Clients,
-                pickKey: entries => Task.FromResult(
+                pickKey: (_, entries) => Task.FromResult(
                     entries.FirstOrDefault(entry => entry.DisplayName == EntryName + " renamed")));
             editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Sftp);
             editor.Field("profileName")!.Value = ConnectionName;
@@ -91,6 +91,8 @@ public class LiveKeyStoreTests
             Assert.Equal(
                 Ui.Format(Ui.ConnectionEditor.UsingStoredKeyFormat, EntryName + " renamed"), editor.Status);
             Assert.False(string.IsNullOrEmpty(editor.Field("privateKeyPassphraseReference")!.Value));
+            Assert.Equal(EntryName + " renamed", editor.Field("privateKeyReference")!.SecretDisplay.Name);
+            Assert.True(editor.Field("privateKeyReference")!.SecretDisplay.IsKeyStore);
 
             await editor.SaveAsync(token);
             Assert.False(editor.IsNew, $"The agent did not store the connection: {editor.Status}");

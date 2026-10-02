@@ -873,6 +873,21 @@
   <Style Selector="Border.pill.primary TextBlock">
     <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}"/>
   </Style>
+  <Style Selector="Border.pill.warning">
+    <Setter Property="Background" Value="{DynamicResource WarningTintBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource WarningBrush}"/>
+  </Style>
+  <Style Selector="Border.pill.warning TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource WarningBrush}"/>
+  </Style>
+
+  <!--
+    Where a secret came from, as a pill inside the box that shows it (SecretReferenceBox) and in
+    the connection details: Key Store in the accent, Vault muted, Missing from Key Store in amber.
+  -->
+  <Style Selector="TextBox Border.pill.secret-source">
+    <Setter Property="Margin" Value="{StaticResource SecretSourceBadgeMargin}"/>
+  </Style>
 
   <!-- The state line: its colour says what its words say. -->
   <Style Selector="TextBlock.pane-state">

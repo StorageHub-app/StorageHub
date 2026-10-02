@@ -452,13 +452,13 @@
                                           </ComboBox.Styles>
                                         </ComboBox>
                                         <!-- A key is never typed: it is imported into the vault,
-                                             and only its reference is shown. -->
+                                             and the box says so, with the reference in its tooltip. -->
                                         <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceSm}"
                                                     IsVisible="{Binding IsSecret}">
-                                          <TextBox Width="{StaticResource SettingsKeyWidth}" IsReadOnly="True"
-                                                   Text="{Binding Text}"
-                                                   PlaceholderText="{Binding Placeholder}"
-                                                   AutomationProperties.Name="{Binding Label}"/>
+                                          <vm:SecretReferenceBox Width="{StaticResource SettingsKeyWidth}"
+                                                                 Display="{Binding SecretDisplay}"
+                                                                 Label="{Binding Label}"
+                                                                 PlaceholderText="{Binding Placeholder}"/>
                                           <Button Content="{Binding ImportLabel}" Command="{Binding ImportCommand}"/>
                                           <Button Content="{Binding ClearLabel}" Command="{Binding ClearCommand}"/>
                                         </StackPanel>

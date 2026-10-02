@@ -50,7 +50,6 @@
   "secretFileInvalid": "Die gewählte Geheimnisdatei ist leer oder größer als 16 MiB.",
   "vaultSecretDeleted": "Das Tresor-Geheimnis wurde gelöscht. Speichern Sie das Profil, um seinen alten Verweis zu entfernen.",
   "keyStoreUnreadable": "Der Schlüsselspeicher konnte nicht gelesen werden.",
-  "noStoredKeys": "Es sind noch keine passenden Schlüssel gespeichert. Importieren Sie einen über Verbindungen > Schlüsselspeicher.",
   "enrollFieldFormat": "{0} registrieren",
   "vaultReferenceReadyFormat": "Tresorverweis bereit (Version {0}).",
   "usingStoredKeyFormat": "Verwendet '{0}' aus dem Schlüsselspeicher.",

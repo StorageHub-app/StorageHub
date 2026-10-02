@@ -168,4 +168,25 @@ internal sealed class KeyStoreStrings : LocalizationModelBase
     public string PrivateKeyFiles { get; set; } = "Private keys";
 
     public string AllFiles { get; set; } = "All files";
+
+    // ------------------------------------------------------------- where a field's secret came from
+    /// <summary>{0} = the badge, "Key Store" or "Vault"; {1} = the name beside it.</summary>
+    public string SourceAccessibleFormat { get; set; } = "{0}: {1}";
+
+    /// <summary>{0} = the opaque vault reference.</summary>
+    public string VaultReferenceFormat { get; set; } = "Vault reference: {0}";
+
+    public string VaultBadge { get; set; } = "Vault";
+
+    public string StoredForThisConnection { get; set; } = "Stored for this connection";
+
+    public string MissingFromKeyStore { get; set; } = "Missing from Key Store";
+
+    public string CopyReference { get; set; } = "Copy reference";
+
+    public string Created { get; set; } = "Created";
+
+    public string NoSshKeysYet { get; set; } = "No SSH keys in the Key Store yet. Import one to use it here.";
+
+    public string NoCertificatesYet { get; set; } = "No certificates in the Key Store yet. Import one to use it here.";
 }

@@ -637,12 +637,14 @@ public class ConnectionManagerTests
     }
 
     /// <summary>
-    /// Choosing a stored key fills the material field and the passphrase field together.
+    /// Choosing a stored key fills the material field and the passphrase field together, and both
+    /// then show the entry by name, under a Key Store badge, rather than its reference.
     /// </summary>
     /// <remarks>
     /// The listing is asked for the kind the field accepts, so a certificate is never offered
     /// where a key is required. One entry fills both halves: the provider needs the passphrase to
-    /// open the material, and the profile requires them together.
+    /// open the material, and the profile requires them together. Once the entry is deleted from
+    /// the store, the field says it is missing, under the name it had.
     /// </remarks>
     [AvaloniaFact]
     public async Task ChoosingFromTheKeyStoreFillsBothHalves()
@@ -650,47 +652,75 @@ public class ConnectionManagerTests
         var stored = KeyStoreTests.Entry("build box", KeyStoreMaterialKind.SshPrivateKey);
         var keyStore = new KeyStoreTests.StubKeyStoreAgent { Entries = { stored } };
         KeyStoreEntryDocument[]? offered = null;
+        KeyStoreMaterialKind? askedFor = null;
         var editor = new ConnectionEditorModel(
             () => Controller(new FakeProfiles()),
             keyStore: () => keyStore,
-            pickKey: entries =>
+            pickKey: (kind, entries) =>
             {
+                askedFor = kind;
                 offered = [.. entries];
                 return Task.FromResult<KeyStoreEntryDocument?>(entries[0]);
             });
         editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Sftp);
         var key = Field(editor, "privateKeyReference");
+        var passphrase = Field(editor, "privateKeyPassphraseReference");
         Assert.True(key.ChooseFromKeyStoreCommand!.CanExecute(null));
+        Assert.False(key.SecretDisplay.HasBadge);
 
         await editor.ChooseFromKeyStoreAsync(key, TestContext.Current.CancellationToken);
 
         Assert.Equal(KeyStoreMaterialKind.SshPrivateKey, keyStore.Listed!.Kind);
+        Assert.Equal(KeyStoreMaterialKind.SshPrivateKey, askedFor);
         Assert.Single(offered!);
         Assert.Equal(stored.MaterialReference, key.Value);
-        Assert.Equal(stored.PassphraseReference, Field(editor, "privateKeyPassphraseReference").Value);
+        Assert.Equal(stored.PassphraseReference, passphrase.Value);
         Assert.Equal(Ui.Format(Ui.ConnectionEditor.UsingStoredKeyFormat, "build box"), editor.Status);
         Assert.True(editor.IsDirty);
+
+        foreach (var field in new[] { key, passphrase })
+        {
+            Assert.True(field.SecretDisplay.IsKeyStore);
+            Assert.Equal("build box", field.SecretDisplay.Name);
+            Assert.Equal(Ui.KeyStore.KeyStore + ": build box", field.SecretDisplay.AccessibleText);
+            Assert.Contains(field.Value, field.SecretDisplay.ToolTip, StringComparison.Ordinal);
+        }
+
+        keyStore.Entries.Clear();
+        await editor.RefreshKeyStoreNamesAsync(TestContext.Current.CancellationToken);
+        Assert.True(key.SecretDisplay.IsMissing);
+        Assert.Equal("build box", key.SecretDisplay.Name);
+        Assert.Equal(Ui.KeyStore.MissingFromKeyStore, key.SecretDisplay.Badge);
     }
 
-    /// <summary>An empty store says where to import one, rather than opening an empty picker.</summary>
+    /// <summary>
+    /// An empty store still opens the picker, which says so and offers Import; dismissing it
+    /// leaves the field as it was.
+    /// </summary>
     [AvaloniaFact]
-    public async Task AnEmptyKeyStoreSaysSo()
+    public async Task AnEmptyKeyStoreStillOpensThePicker()
     {
-        var picked = false;
+        IReadOnlyList<KeyStoreEntryDocument>? offered = null;
         var editor = new ConnectionEditorModel(
             () => Controller(new FakeProfiles()),
             keyStore: () => new KeyStoreTests.StubKeyStoreAgent(),
-            pickKey: _ =>
+            pickKey: (_, entries) =>
             {
-                picked = true;
+                offered = entries;
                 return Task.FromResult<KeyStoreEntryDocument?>(null);
             });
-        editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Sftp);
+        editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Ftps);
+        var certificate = Field(editor, "clientCertificateReference");
+        var existing = KeyStoreTests.Reference('x');
+        certificate.Value = existing;
 
-        await editor.ChooseFromKeyStoreAsync(Field(editor, "privateKeyReference"), TestContext.Current.CancellationToken);
+        await editor.ChooseFromKeyStoreAsync(certificate, TestContext.Current.CancellationToken);
 
-        Assert.False(picked);
-        Assert.Equal(Ui.ConnectionEditor.NoStoredKeys, editor.Status);
+        Assert.NotNull(offered);
+        Assert.Empty(offered);
+        Assert.Equal(existing, certificate.Value);
+        Assert.True(certificate.SecretDisplay.IsVault);
+        Assert.Equal(Ui.KeyStore.StoredForThisConnection, certificate.SecretDisplay.Name);
     }
 
     /// <summary>
@@ -718,6 +748,8 @@ public class ConnectionManagerTests
         Assert.Equal(SecretMaterialPurpose.Password, enrolled.Purpose);
         Assert.Equal("hunter2"u8.ToArray(), enrolled.Secret);
         Assert.Equal(enrolled.Reference, password.Value);
+        Assert.True(password.SecretDisplay.IsVault);
+        Assert.Equal(Ui.KeyStore.StoredForThisConnection, password.SecretDisplay.Name);
         Assert.Equal(Ui.Format(Ui.ConnectionEditor.VaultReferenceReadyFormat, 1), editor.Status);
         Assert.True(editor.IsDirty);
     }
@@ -781,7 +813,8 @@ public class ConnectionManagerTests
             global::Avalonia.Application.Current!,
             ColorSchemeCatalog.Resolve(id: null, preferDark: dark));
 
-        var manager = new ConnectionManagerModel(() => Controller(new FakeProfiles()));
+        var keyStore = new KeyStoreTests.StubKeyStoreAgent();
+        var manager = new ConnectionManagerModel(() => Controller(new FakeProfiles()), keyStore: () => keyStore);
         await manager.OpenAsync(null, cancellationToken: TestContext.Current.CancellationToken);
 
         // At the size it opens at, and with the editor alone in it: the connections are the
@@ -845,6 +878,45 @@ public class ConnectionManagerTests
             Path.Combine(directory, $"connection-editor-trust-{(dark ? "dark" : "light")}.png")))
         {
             trust!.Save(stream, new PngBitmapEncoderOptions());
+        }
+
+        // And where each secret came from. SFTP's Authentication tab with its key and passphrase
+        // from the Key Store and its password enrolled for the connection; then FTPS's TLS / SSH
+        // Trust tab with a password-less certificate from the store, which leaves the password
+        // field empty; then the key deleted from the store from under the field.
+        var key = KeyStoreTests.Entry("deploy-key (ed25519)", KeyStoreMaterialKind.SshPrivateKey,
+            fingerprint: "SHA256:k3yF1ngerpr1ntOfTheDeployKey");
+        var certificate = KeyStoreTests.Entry("Studio client certificate", KeyStoreMaterialKind.Pkcs12Certificate,
+            subject: "CN=client, O=Studio") with { MaterialReference = KeyStoreTests.Reference('c') };
+        keyStore.Entries.AddRange([key, certificate]);
+        Field(manager.Editor, "privateKeyReference").Value = key.MaterialReference;
+        Field(manager.Editor, "privateKeyPassphraseReference").Value = key.PassphraseReference!;
+        Field(manager.Editor, "passwordReference").Value = KeyStoreTests.Reference('v');
+        await manager.Editor.RefreshKeyStoreNamesAsync(TestContext.Current.CancellationToken);
+        var sources = Path.Combine(directory, "keystore-shots");
+        Directory.CreateDirectory(sources);
+        Shoot(ConnectionEditorTab.Authentication, $"sftp-authentication-{(dark ? "dark" : "light")}");
+
+        manager.Editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Ftps);
+        Field(manager.Editor, "clientCertificateReference").Value = certificate.MaterialReference;
+        Field(manager.Editor, "clientCertificatePasswordReference").Value = string.Empty;
+        Shoot(ConnectionEditorTab.Trust, $"ftps-tls-{(dark ? "dark" : "light")}");
+
+        manager.Editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Sftp);
+        keyStore.Entries.Remove(key);
+        await manager.Editor.RefreshKeyStoreNamesAsync(TestContext.Current.CancellationToken);
+        Shoot(ConnectionEditorTab.Authentication, $"sftp-authentication-missing-{(dark ? "dark" : "light")}");
+
+        void Shoot(ConnectionEditorTab tab, string name)
+        {
+            window.FindControl<TabControl>("PART_Tabs")!.SelectedIndex = (int)tab;
+            window.Measure(new Size(880, 760));
+            window.Arrange(new Rect(0, 0, 880, 760));
+            window.UpdateLayout();
+            var shot = window.CaptureRenderedFrame();
+            Assert.NotNull(shot);
+            using var stream = File.Create(Path.Combine(sources, name + ".png"));
+            shot!.Save(stream, new PngBitmapEncoderOptions());
         }
     }
 

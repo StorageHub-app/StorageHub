@@ -348,7 +348,7 @@ public class LiveSyncTests
         var editor = new ConnectionEditorModel(
             Controller,
             keyStore: KeyStore,
-            pickKey: entries => Task.FromResult(entries.FirstOrDefault(entry => entry.DisplayName == KeyName)));
+            pickKey: (_, entries) => Task.FromResult(entries.FirstOrDefault(entry => entry.DisplayName == KeyName)));
         editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Sftp);
         Field(editor, "profileName").Value = RemoteName;
         Field(editor, "host").Value = "127.0.0.1";

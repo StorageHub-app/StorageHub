@@ -197,12 +197,7 @@ internal sealed class KeyStoreModel : INotifyPropertyChanged
 
             await RefreshListAsync(cancellationToken).ConfigureAwait(true);
             if (result.Entry is { } entry) Select(entry.EntryId);
-            var imported = Ui.Format(Ui.KeyStore.ImportedFormat, draft.DisplayName.Trim());
-            // The agent refuses an encrypted key without its passphrase, so an SSH key that got
-            // this far with none really has none: stored, but said in the warning colour.
-            Status = KeyStoreRules.IsKeyWithoutPassphrase(draft.Kind, draft.Passphrase)
-                ? new StatusLine(imported + " " + Ui.KeyStore.KeyHasNoPassphraseWarning, MetricTone.Warning)
-                : new StatusLine(imported, MetricTone.Success);
+            Status = DescribeImported(draft);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -211,6 +206,23 @@ internal sealed class KeyStoreModel : INotifyPropertyChanged
         {
             EndBusy();
         }
+    }
+
+    /// <summary>
+    /// What a finished import says: that it was imported, and, for an SSH key with no passphrase,
+    /// that it has none. The Key Store and the picker's Import both say it this way.
+    /// </summary>
+    /// <remarks>
+    /// The agent refuses an encrypted key without its passphrase, so an SSH key that got this far
+    /// with none really has none: stored, but said in the warning colour.
+    /// </remarks>
+    internal static StatusLine DescribeImported(KeyStoreImportDraft draft)
+    {
+        ArgumentNullException.ThrowIfNull(draft);
+        var imported = Ui.Format(Ui.KeyStore.ImportedFormat, draft.DisplayName.Trim());
+        return KeyStoreRules.IsKeyWithoutPassphrase(draft.Kind, draft.Passphrase)
+            ? new StatusLine(imported + " " + Ui.KeyStore.KeyHasNoPassphraseWarning, MetricTone.Warning)
+            : new StatusLine(imported, MetricTone.Success);
     }
 
     /// <summary>Asks for a new name, then renames the entry in hand.</summary>

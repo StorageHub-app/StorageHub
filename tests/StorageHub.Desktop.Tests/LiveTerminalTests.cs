@@ -56,7 +56,7 @@ public class LiveTerminalTests
             var editor = new ConnectionEditorModel(
                 Controller,
                 keyStore: KeyStore,
-                pickKey: entries => Task.FromResult(entries.FirstOrDefault(entry => entry.DisplayName == KeyName)));
+                pickKey: (_, entries) => Task.FromResult(entries.FirstOrDefault(entry => entry.DisplayName == KeyName)));
             editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Ssh);
             editor.Field("profileName")!.Value = ConnectionName;
             editor.Field("host")!.Value = "127.0.0.1";

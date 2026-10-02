@@ -57,6 +57,19 @@ a wish; each one below names the test that fails when it is broken. The target i
   `SystemAccentColor*` and the table band are, so all 22 schemes cover it.
   _Test:_ `ColorSchemeApplierTests`, `DesignTokenTests`.
 
+## Secrets
+
+- **A secret reference is never the text.** A field or detail that holds a vault reference shows
+  where the secret came from as a pill, then a name: [Key Store] and the entry's name, [Vault]
+  "Stored for this connection", or [Missing from Key Store] in amber under the name the entry had.
+  The reference is in the tooltip and behind Copy reference. A box uses `SecretReferenceBox`; the
+  connection details draw the same pill (`Border.pill.secret-source`). An empty field shows its
+  placeholder and no pill. The accessible name is the label, then "Key Store: deploy-key".
+  _Test:_ `ConnectionManagerTests.ChoosingFromTheKeyStoreFillsBothHalves`.
+- **Key Store… always opens the picker**, filtered to the field's kind, empty store included: it
+  says so and offers the Key Store's own Import, which selects what it imported.
+  _Test:_ `KeyStoreTests.ThePickerImportsIntoAnEmptyStoreAndSelectsTheEntry`.
+
 ## Markup
 
 - **No `--` inside an XML comment.** The build refuses the file, and the error names the parser,

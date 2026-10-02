@@ -12,14 +12,16 @@ namespace StorageHub.Desktop.Views;
 /// Ported from 1.4's ConnectionDetailView. The listing says only what a card needs, so Server,
 /// Authentication, Security and Transfer come from the saved profile, read once a connection is
 /// selected; until it has been read they say "Loading…", as 1.4's did. A row with nothing to say is
-/// left out, and secrets are never shown: a stored one reads "Stored in vault".
+/// left out, and secrets are never shown: a stored one reads as the connection editor's field does,
+/// [Key Store] and the entry's name, or [Vault] Stored for this connection.
 /// </remarks>
 internal static class ConnectionDetailFacts
 {
     internal static IReadOnlyList<ConnectionDetailRow> Build(
         ConnectionCardModel card,
         ConnectionSummary? summary,
-        ConnectionProfileDocument? profile)
+        ConnectionProfileDocument? profile,
+        SecretReferenceNames? keyNames = null)
     {
         ArgumentNullException.ThrowIfNull(card);
         var rows = new List<ConnectionDetailRow>();
@@ -27,6 +29,14 @@ internal static class ConnectionDetailFacts
         void Fact(string key, string? value)
         {
             if (!string.IsNullOrWhiteSpace(value)) rows.Add(new ConnectionDetailRow(key, value));
+        }
+
+        void Secret(string key, string? reference)
+        {
+            if (string.IsNullOrWhiteSpace(reference)) return;
+            var display = keyNames?.Describe(reference, Ui.KeyStore.StoredForThisConnection)
+                ?? SecretReferenceNames.Vault(reference, Ui.KeyStore.StoredForThisConnection);
+            rows.Add(new ConnectionDetailRow(key, display.Name) { Secret = display });
         }
 
         var endpoint = profile?.Draft.Endpoint;
@@ -64,18 +74,22 @@ internal static class ConnectionDetailFacts
                 auth.Kind is ConnectionAuthenticationKind.SftpPrivateKey or ConnectionAuthenticationKind.SshPrivateKeyPassword
                     ? auth.PrivateKeyFormat.ToString()
                     : null);
-            Fact(Ui.Connections.FieldPassword, Vaulted(auth.PasswordReference));
-            Fact(Ui.Connections.FieldAccessKey, Vaulted(auth.AccessKeyReference));
-            Fact(Ui.Connections.FieldSecretKey, Vaulted(auth.SecretKeyReference));
-            Fact(Ui.Connections.FieldSessionToken, Vaulted(auth.SessionTokenReference));
-            Fact(Ui.Connections.FieldPrivateKey, Vaulted(auth.PrivateKeyReference));
-            Fact(Ui.Connections.FieldKeyPassphrase, Vaulted(auth.PrivateKeyPassphraseReference));
+            Secret(Ui.Connections.FieldPassword, auth.PasswordReference);
+            Secret(Ui.Connections.FieldAccessKey, auth.AccessKeyReference);
+            Secret(Ui.Connections.FieldSecretKey, auth.SecretKeyReference);
+            Secret(Ui.Connections.FieldSessionToken, auth.SessionTokenReference);
+            Secret(Ui.Connections.FieldPrivateKey, auth.PrivateKeyReference);
+            Secret(Ui.Connections.FieldKeyPassphrase, auth.PrivateKeyPassphraseReference);
         }
 
         if (endpoint is not null && DescribeSecurity(endpoint) is { Count: > 0 } security)
         {
             Section(Ui.Connections.SectionSecurity);
             foreach (var (key, value) in security) Fact(key, value);
+            if (endpoint.Provider == StorageConnectionProvider.Ftps)
+            {
+                Secret(Ui.Connections.FieldClientCert, endpoint.ClientCertificatePfxReference);
+            }
         }
 
         if (options is not null)
@@ -119,11 +133,6 @@ internal static class ConnectionDetailFacts
             case StorageConnectionProvider.Ftps:
                 rows.Add((Ui.Connections.FieldTls, DescribeTls(endpoint.TlsPolicy)));
                 rows.Add((Ui.Connections.FieldFtpsMode, endpoint.FtpsTlsMode.ToString()));
-                if (endpoint.ClientCertificatePfxReference is not null)
-                {
-                    rows.Add((Ui.Connections.FieldClientCert, Ui.Connections.DetailStoredInVault));
-                }
-
                 break;
             case StorageConnectionProvider.Sftp:
             case StorageConnectionProvider.Ssh:
@@ -166,9 +175,6 @@ internal static class ConnectionDetailFacts
         ConnectionAuthenticationKind.SshPrivateKeyPassword => Ui.Connections.AuthPrivateKeyAndPassword,
         _ => kind.ToString()
     };
-
-    private static string? Vaulted(string? reference) =>
-        string.IsNullOrWhiteSpace(reference) ? null : Ui.Connections.DetailStoredInVault;
 
     private static string Seconds(int seconds) => $"{seconds.ToString(CultureInfo.CurrentCulture)} s";
 

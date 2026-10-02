@@ -305,6 +305,28 @@
                         <TextBlock Grid.Column="1" Text="{Binding Value}"
                                    TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Value}"/>
                       </Grid>
+                      <!-- A secret, as its field in the editor shows it: where it came from, then
+                           its name, with the vault reference in the tooltip. -->
+                      <Grid ColumnSpacing="{StaticResource SpaceSm}" Classes="detail-row"
+                            IsVisible="{Binding IsSecret}">
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="{StaticResource DetailKeyWidth}"/>
+                          <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Classes="muted" Text="{Binding Key}"
+                                   TextTrimming="CharacterEllipsis"/>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource SpaceSm}"
+                                    ToolTip.Tip="{Binding Secret.ToolTip}"
+                                    AutomationProperties.Name="{Binding Secret.AccessibleText}">
+                          <Border Classes="pill secret-source"
+                                  Classes.primary="{Binding Secret.IsKeyStore}"
+                                  Classes.warning="{Binding Secret.IsMissing}">
+                            <TextBlock Text="{Binding Secret.Badge}"/>
+                          </Border>
+                          <TextBlock Text="{Binding Value}" TextTrimming="CharacterEllipsis"
+                                     VerticalAlignment="Center"/>
+                        </StackPanel>
+                      </Grid>
                     </Panel>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>

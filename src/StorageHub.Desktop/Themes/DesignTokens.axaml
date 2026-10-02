@@ -269,6 +269,9 @@
   <sys:Double x:Key="SettingsShortcutCaptureWidth">180</sys:Double>
   <!-- A number's unit, inside its field between the value and the spinner: "4 jobs". -->
   <Thickness x:Key="SettingsUnitMargin">4,0,8,0</Thickness>
+  <!-- The source badge inside a secret reference box, clear of the box's left edge, as the
+       search glyph sits in a pane's filter box. -->
+  <Thickness x:Key="SecretSourceBadgeMargin">6,0,0,0</Thickness>
   <!--
     The message box, drawn as Windows draws one: sized to its text between a minimum and a maximum
     width, a 32 px icon beside the message, and a footer band whose buttons are the dense standard

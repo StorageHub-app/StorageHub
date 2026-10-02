@@ -24,7 +24,9 @@ internal sealed class ConnectionManagerModel
 {
     /// <param name="files">Picks a certificate or a key file to enrol. Null leaves that unavailable.</param>
     /// <param name="keyStore">Lists what the key store holds, for the editor's material fields.</param>
-    /// <param name="pickKey">Chooses one of those entries; the window supplies a dialog.</param>
+    /// <param name="pickKey">
+    /// Chooses one of those entries, or imports one; the window supplies a dialog.
+    /// </param>
     /// <param name="connectionDefaults">Each provider's new-connection defaults from Settings.</param>
     /// <param name="hostKeyDiscovery">Settings' SSH host-key discovery, for the Trust tab.</param>
     internal ConnectionManagerModel(
@@ -33,7 +35,7 @@ internal sealed class ConnectionManagerModel
         IDialogService? dialogs = null,
         IFilePickerService? files = null,
         Func<IKeyStoreAgentClient>? keyStore = null,
-        Func<IReadOnlyList<KeyStoreEntryDocument>, Task<KeyStoreEntryDocument?>>? pickKey = null,
+        Func<KeyStoreMaterialKind, IReadOnlyList<KeyStoreEntryDocument>, Task<KeyStoreEntryDocument?>>? pickKey = null,
         Func<string?, string, Task<IconChoice>>? pickIcon = null,
         IReadOnlyDictionary<string, string>? connectionDefaults = null,
         SshHostKeyDiscoveryMode hostKeyDiscovery = SshHostKeyDiscoveryMode.Manual)

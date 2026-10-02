@@ -1817,7 +1817,10 @@ internal static class ShellPreview
 
         // Toggle favorite reads and writes the whole profile, as the Edit Connection dialog does,
         // and Delete removes one at the version the panel listed it at.
-        static () => new NamedPipeRemoteConnectionProfileClient());
+        static () => new NamedPipeRemoteConnectionProfileClient(),
+
+        // The details name the Key Store entry a connection's key or certificate is.
+        static () => new NamedPipeKeyStoreAgentClient());
 
     /// <summary>The icons chosen for groups in the connections panel, from the settings file.</summary>
     private static IReadOnlyDictionary<string, string>? LoadGroupIcons()

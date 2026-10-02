@@ -25,7 +25,15 @@ internal sealed record ConnectionDetailRow(string Key, string Value)
     /// <summary>A section's heading, "Server" or "Security", drawn across both columns.</summary>
     public bool IsSection { get; init; }
 
-    public bool IsFact => !IsSection;
+    public bool IsFact => !IsSection && Secret is null;
+
+    /// <summary>
+    /// For a secret, where it came from and its name, drawn as the connection editor draws the
+    /// field: a badge, then the name. Null for every other fact.
+    /// </summary>
+    public SecretReferenceDisplay? Secret { get; init; }
+
+    public bool IsSecret => !IsSection && Secret is not null;
 }
 
 internal sealed class ConnectionsSidebar : INotifyPropertyChanged
@@ -37,6 +45,10 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     private readonly Action<IReadOnlyDictionary<string, string>>? _saveIcons;
     private readonly Func<string?, string, Task<IconChoice>>? _pickIcon;
     private readonly Func<IRemoteConnectionProfileClient>? _profiles;
+    private readonly Func<IKeyStoreAgentClient>? _keyStore;
+
+    /// <summary>The Key Store's entries by reference, so the details can name the key a connection uses.</summary>
+    private readonly SecretReferenceNames _keyNames = new();
     private Dictionary<string, string> _icons = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
@@ -99,6 +111,10 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     /// same reason <paramref name="client"/> is one: each toggle opens a connection and closes it.
     /// Null leaves Toggle favorite dim.
     /// </param>
+    /// <param name="keyStore">
+    /// Lists the Key Store, so the details can name the entry a connection's key or certificate
+    /// is. Null says Vault for every secret, which is true as far as it goes.
+    /// </param>
     internal ConnectionsSidebar(
         ICommand newCommand,
         Func<IRemoteStorageAgentClient>? client = null,
@@ -108,8 +124,10 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         Func<IReadOnlyDictionary<string, string>?>? loadIcons = null,
         Action<IReadOnlyDictionary<string, string>>? saveIcons = null,
         Func<string?, string, Task<IconChoice>>? pickIcon = null,
-        Func<IRemoteConnectionProfileClient>? profiles = null)
+        Func<IRemoteConnectionProfileClient>? profiles = null,
+        Func<IKeyStoreAgentClient>? keyStore = null)
     {
+        _keyStore = keyStore;
         NewCommand = newCommand;
         _client = client;
         _dialogs = dialogs;
@@ -213,7 +231,8 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         : ConnectionDetailFacts.Build(
             card,
             Connections.FirstOrDefault(listed => listed.ConnectionId == row.Id),
-            _profile is { } profile && profile.ConnectionId == row.Id ? profile : null);
+            _profile is { } profile && profile.ConnectionId == row.Id ? profile : null,
+            _keyNames);
 
     /// <summary>
     /// The selected connection's saved profile, which the Server, Authentication, Security and
@@ -250,10 +269,14 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
                     .ConfigureAwait(true);
             }
 
+            // Read with the profile, so the details name its key from a listing as fresh as it.
+            var keys = await ReadKeyStoreAsync().ConfigureAwait(true);
+
             void Show()
             {
                 if (response.Profile is not { } profile || _selected?.Id != connectionId) return;
                 _profile = profile;
+                if (keys is not null) _keyNames.Replace(keys);
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Details)));
             }
 
@@ -264,6 +287,27 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         {
             // The sections go on saying "Loading…"; the next selection or listing asks again.
             _profileAsked = null;
+        }
+    }
+
+    /// <summary>
+    /// The whole Key Store, or nothing when there is none to ask or it did not answer, in which
+    /// case the names already known are kept.
+    /// </summary>
+    private async Task<KeyStoreEntryDocument[]?> ReadKeyStoreAsync()
+    {
+        if (_keyStore is null) return null;
+        try
+        {
+            await using var client = _keyStore();
+            var listed = await client
+                .ListAsync(new KeyStoreListRequest(KeyStoreIpcContract.CurrentVersion, Limit: KeyStoreIpcLimits.MaximumEntriesPerPage))
+                .ConfigureAwait(true);
+            return listed.Failure is null ? listed.Entries : null;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            return null;
         }
     }
 

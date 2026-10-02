@@ -136,6 +136,18 @@ internal sealed class ConnectionFieldModel(ConnectionFieldDescriptor descriptor,
 
     public static string KeyStoreLabel => Ui.ConnectionEditor.KeyStore;
 
+    /// <summary>
+    /// What the field shows in place of its reference: a badge saying whether it is a Key Store
+    /// entry or a secret enrolled for this connection, and a name. Set by the editor.
+    /// </summary>
+    internal Func<string, SecretReferenceDisplay>? SecretResolver { get; set; }
+
+    public SecretReferenceDisplay SecretDisplay =>
+        SecretResolver?.Invoke(_value) ?? SecretReferenceNames.Vault(_value, Ui.KeyStore.StoredForThisConnection);
+
+    /// <summary>Says the display may have changed, after the Key Store has been read again.</summary>
+    internal void RefreshSecretDisplay() => Raise(nameof(SecretDisplay));
+
     /// <summary>A toggle field stores "true" or "false", so it is read and written as text.</summary>
     public bool IsOn
     {
@@ -154,6 +166,7 @@ internal sealed class ConnectionFieldModel(ConnectionFieldDescriptor descriptor,
             Raise(nameof(Value));
             Raise(nameof(IsOn));
             Raise(nameof(IconKind));
+            Raise(nameof(SecretDisplay));
             Changed?.Invoke(this, EventArgs.Empty);
         }
     }
@@ -230,7 +243,13 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     private readonly IDialogService? _dialogs;
     private readonly IFilePickerService? _files;
     private readonly Func<IKeyStoreAgentClient>? _keyStore;
-    private readonly Func<IReadOnlyList<KeyStoreEntryDocument>, Task<KeyStoreEntryDocument?>>? _pickKey;
+    private readonly Func<KeyStoreMaterialKind, IReadOnlyList<KeyStoreEntryDocument>, Task<KeyStoreEntryDocument?>>? _pickKey;
+
+    /// <summary>
+    /// The Key Store's entries by reference, so a field can say which entry it holds. For this
+    /// editor's lifetime, so an entry deleted while it is open still has a name to be missing under.
+    /// </summary>
+    private readonly SecretReferenceNames _keyNames = new();
     private readonly Func<string?, string, Task<IconChoice>>? _pickIcon;
 
     /// <summary>The new-connection defaults from Settings, as saved; null is the built-in ones.</summary>
@@ -268,7 +287,8 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     /// <param name="files">Picks a certificate or a key file to enrol. Null leaves that unavailable.</param>
     /// <param name="keyStore">Lists what the key store holds, for the material fields.</param>
     /// <param name="pickKey">
-    /// Chooses one of those entries. The window supplies a dialog; a test supplies the answer.
+    /// Chooses one of those entries for a kind of material, or imports one and chooses that. The
+    /// window supplies a dialog; a test supplies the answer.
     /// </param>
     /// <param name="connectionDefaults">
     /// Each provider's new-connection defaults from Settings, which a new connection starts from
@@ -285,7 +305,7 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         IDialogService? dialogs = null,
         IFilePickerService? files = null,
         Func<IKeyStoreAgentClient>? keyStore = null,
-        Func<IReadOnlyList<KeyStoreEntryDocument>, Task<KeyStoreEntryDocument?>>? pickKey = null,
+        Func<KeyStoreMaterialKind, IReadOnlyList<KeyStoreEntryDocument>, Task<KeyStoreEntryDocument?>>? pickKey = null,
         Func<string?, string, Task<IconChoice>>? pickIcon = null,
         IReadOnlyDictionary<string, string>? connectionDefaults = null,
         SshHostKeyDiscoveryMode hostKeyDiscovery = SshHostKeyDiscoveryMode.Manual)
@@ -1097,6 +1117,7 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
             _ => _ = ChooseFromKeyStoreAsync(field),
             _ => !_isBusy && _keyStore is not null && _pickKey is not null);
 
+        field.SecretResolver = reference => _keyNames.Describe(reference, Ui.KeyStore.StoredForThisConnection);
         field.EnrollCommand = enroll;
         field.DeleteSecretCommand = delete;
         field.ChooseFromKeyStoreCommand = choose;
@@ -1228,10 +1249,16 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     /// Fills a material field, and the passphrase field that goes with it, from the key store.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// The picker opens whatever the store holds, empty included: it says so and offers Import,
+    /// as 1.4's picker opened either way. Cancel leaves both fields as they were.
+    /// </para>
+    /// <para>
     /// One entry fills both halves: the provider needs the passphrase to open the material, and
     /// the profile requires them together. A password-less certificate or a passphrase-less key
     /// has no passphrase reference, so the companion field is cleared rather than left pointing
     /// at whatever was there before, and a key without one is warned about in the status.
+    /// </para>
     /// </remarks>
     internal async Task ChooseFromKeyStoreAsync(ConnectionFieldModel field, CancellationToken cancellationToken = default)
     {
@@ -1256,18 +1283,17 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
                 return;
             }
 
-            if (listed.Entries.Length == 0)
-            {
-                Status = Ui.ConnectionEditor.NoStoredKeys;
-                return;
-            }
+            foreach (var entry in listed.Entries) _keyNames.Add(entry);
+            RefreshSecretDisplays();
 
             // Not busy while the picker is open: it is modal, and a dimmed editor behind a modal
             // reads as broken rather than as waiting.
             IsBusy = false;
-            var chosen = await _pickKey(listed.Entries).ConfigureAwait(true);
+            var chosen = await _pickKey(kind, listed.Entries).ConfigureAwait(true);
             if (chosen is null) return;
 
+            // The picker may have imported it, so it is named here before the field shows it.
+            _keyNames.Add(chosen);
             field.Value = chosen.MaterialReference;
             if (ConnectionSecretFields.CompanionPassphrase(field.Key) is { } companionKey &&
                 Field(companionKey) is { } passphrase)
@@ -1290,6 +1316,44 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         finally
         {
             IsBusy = false;
+        }
+    }
+
+    /// <summary>
+    /// Reads the whole Key Store again, so every secret field names the entry it holds, and one
+    /// whose entry has since been deleted says it is missing.
+    /// </summary>
+    /// <remarks>
+    /// Quiet: a store that cannot be read leaves the fields as they were, saying "Vault" for
+    /// what it cannot name, which is true as far as it goes. Nothing here is worth a footer
+    /// message over a field the person has not touched.
+    /// </remarks>
+    internal async Task RefreshKeyStoreNamesAsync(CancellationToken cancellationToken = default)
+    {
+        if (_keyStore is null) return;
+        try
+        {
+            await using var client = _keyStore();
+            var listed = await client.ListAsync(
+                new KeyStoreListRequest(KeyStoreIpcContract.CurrentVersion, Limit: KeyStoreIpcLimits.MaximumEntriesPerPage),
+                cancellationToken).ConfigureAwait(true);
+            if (listed.Failure is not null) return;
+            _keyNames.Replace(listed.Entries);
+            RefreshSecretDisplays();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception error) when (IsAgentFailure(error) || error is UnauthorizedAccessException or InvalidDataException)
+        {
+        }
+    }
+
+    private void RefreshSecretDisplays()
+    {
+        foreach (var field in Sections.SelectMany(static section => section.Fields).Where(static field => field.IsSecret))
+        {
+            field.RefreshSecretDisplay();
         }
     }
 

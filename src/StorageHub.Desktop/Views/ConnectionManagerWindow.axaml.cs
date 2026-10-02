@@ -61,7 +61,13 @@ public partial class ConnectionManagerWindow : Window
             ShellServices.Dialogs,
             ShellServices.FilePicker,
             static () => new NamedPipeKeyStoreAgentClient(),
-            entries => KeyStorePickerWindow.ChooseAsync(window, entries),
+            (kind, entries) => KeyStorePickerWindow.ChooseAsync(
+                window,
+                kind,
+                entries,
+                new KeyStoreController(
+                    static () => new NamedPipeKeyStoreAgentClient(),
+                    static () => new NamedPipeRemoteSecretVaultClient())),
             (current, title) => IconPickerWindow.AskAsync(window, current, title),
             preferences?.ConnectionDefaults,
             preferences?.SshHostKeyDiscovery ?? SshHostKeyDiscoveryMode.AskBeforeFetching)
@@ -71,6 +77,11 @@ public partial class ConnectionManagerWindow : Window
         var lifetime = new CancellationTokenSource();
         window.DataContext = model;
         window.Opened += (_, _) => _ = model.OpenAsync(connectionId, initialProvider, lifetime.Token);
+
+        // The secret fields name the Key Store entries they hold, read when the window comes
+        // forward: on opening, and again on coming back to it, which is when the Key Store may
+        // have changed underneath it.
+        window.Activated += (_, _) => _ = model.Editor.RefreshKeyStoreNamesAsync(lifetime.Token);
 
         // Settings' host-key discovery is applied as the Trust tab comes forward, as 1.x's
         // SettingsTabSelected applied it.

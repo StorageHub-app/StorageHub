@@ -45,14 +45,14 @@
                  PlaceholderText="{Binding Placeholder}"
                  AutomationProperties.Name="{Binding Label}"/>
 
-        <!-- A secret is never typed here. The box shows the vault's opaque reference and cannot
-             be edited; the buttons are how it changes. -->
+        <!-- A secret is never typed here. The box says where it came from, a Key Store entry
+             by name or a secret stored for this connection, with the opaque reference in its
+             tooltip, and cannot be edited; the buttons are how it changes. -->
         <StackPanel Grid.Row="0" Grid.Column="1" IsVisible="{Binding IsSecret}"
                     Spacing="{StaticResource SpaceXs}">
-          <TextBox IsReadOnly="True" Text="{Binding Value}"
-                   PlaceholderText="{Binding Placeholder}"
-                   AutomationProperties.Name="{Binding Label}"
-                   AutomationProperties.HelpText="{Binding SecretHint}"/>
+          <vm:SecretReferenceBox Display="{Binding SecretDisplay}" Label="{Binding Label}"
+                                 PlaceholderText="{Binding Placeholder}"
+                                 AutomationProperties.HelpText="{Binding SecretHint}"/>
           <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
             <Button Content="{Binding EnrollLabel}" Command="{Binding EnrollCommand}"/>
             <Button Content="{Binding DeleteSecretLabel}" Command="{Binding DeleteSecretCommand}"/>

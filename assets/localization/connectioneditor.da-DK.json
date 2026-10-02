@@ -50,7 +50,6 @@
   "secretFileInvalid": "Den valgte hemmelighedsfil er tom eller større end 16 MiB.",
   "vaultSecretDeleted": "Hemmeligheden i boksen er slettet. Gem profilen for at fjerne dens gamle reference.",
   "keyStoreUnreadable": "Nøglelageret kunne ikke læses.",
-  "noStoredKeys": "Der er endnu ingen matchende nøgler gemt. Importér en fra Forbindelser > Nøglelager.",
   "enrollFieldFormat": "Tilmeld {0}",
   "vaultReferenceReadyFormat": "Reference til boksen er klar (version {0}).",
   "usingStoredKeyFormat": "Bruger '{0}' fra nøglelageret.",

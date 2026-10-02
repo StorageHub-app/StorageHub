@@ -137,9 +137,6 @@ internal sealed class ConnectionEditorStrings : LocalizationModelBase
 
     public string KeyStoreUnreadable { get; set; } = "The key store could not be read.";
 
-    public string NoStoredKeys { get; set; } =
-        "No matching keys are stored yet. Import one from Connections > Key Store.";
-
     /// <summary>{0} = the field's label.</summary>
     public string EnrollFieldFormat { get; set; } = "Enroll {0}";
 

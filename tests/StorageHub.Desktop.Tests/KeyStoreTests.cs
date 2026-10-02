@@ -279,6 +279,57 @@ public class KeyStoreTests
     }
 
     /// <summary>
+    /// An empty store's picker says so, and its Import adds the entry and selects it, with the
+    /// Key Store's warning for a key that has no passphrase.
+    /// </summary>
+    /// <remarks>
+    /// With nothing to choose, Use is dim. The import
+    /// goes through the same controller as the Key Store window's, and the list is read again
+    /// afterwards, so what is selected is what the agent holds.
+    /// </remarks>
+    [AvaloniaFact]
+    public async Task ThePickerImportsIntoAnEmptyStoreAndSelectsTheEntry()
+    {
+        var agent = new StubKeyStoreAgent();
+        var vault = new StubVault();
+        var file = Path.Combine(Path.GetTempPath(), "storagehub-pick-" + Guid.NewGuid().ToString("N"));
+        await File.WriteAllTextAsync(file, "key", TestContext.Current.CancellationToken);
+        try
+        {
+            var model = new KeyStorePickerModel(
+                [],
+                KeyStoreMaterialKind.SshPrivateKey,
+                new KeyStoreController(() => agent, () => vault),
+                kind => Task.FromResult<KeyStoreImportDraft?>(new KeyStoreImportDraft(
+                    kind, file, "deploy-key", string.Empty, KeyStorePrivateKeyFormat.OpenSsh)));
+
+            Assert.Empty(model.Entries);
+            Assert.True(model.IsEmpty);
+            Assert.Equal(Ui.KeyStore.NoSshKeysYet, model.EmptyMessage);
+            Assert.Null(model.SelectedRow);
+            Assert.False(model.UseCommand.CanExecute(null));
+            Assert.Equal(Ui.KeyStore.ImportSSHKey, model.ImportLabel);
+
+            await model.ImportAsync(TestContext.Current.CancellationToken);
+
+            Assert.Equal(KeyStoreMaterialKind.SshPrivateKey, agent.Created!.Kind);
+            var row = Assert.Single(model.Entries);
+            Assert.False(model.IsEmpty);
+            Assert.Equal("deploy-key", row.Name);
+            Assert.Same(row, model.SelectedRow);
+            Assert.True(model.Status.IsWarning);
+            Assert.Contains(Ui.KeyStore.KeyHasNoPassphraseWarning, model.Status.Text, StringComparison.Ordinal);
+
+            model.UseCommand.Execute(null);
+            Assert.Equal("deploy-key", model.Chosen!.DisplayName);
+        }
+        finally
+        {
+            File.Delete(file);
+        }
+    }
+
+    /// <summary>
     /// Photographs the store and its two dialogs, for a human to look at.
     /// </summary>
     /// <remarks>
@@ -316,7 +367,26 @@ public class KeyStoreTests
             560, 460, $"key-store-import-{Tone(dark)}");
         Photograph(
             new KeyStorePickerWindow { DataContext = new KeyStorePickerModel(agent.Entries) },
-            720, 400, $"key-store-picker-{Tone(dark)}");
+            820, 420, $"key-store-picker-{Tone(dark)}");
+
+        // And the picker a connection's key field opens: its SSH keys with Import beside them,
+        // then an empty store's, which says so where the entries would be.
+        var controller = new KeyStoreController(() => agent, () => new StubVault());
+        Photograph(
+            new KeyStorePickerWindow
+            {
+                DataContext = new KeyStorePickerModel(
+                    [.. agent.Entries.Where(entry => entry.Kind == KeyStoreMaterialKind.SshPrivateKey)],
+                    KeyStoreMaterialKind.SshPrivateKey, controller, _ => Task.FromResult<KeyStoreImportDraft?>(null))
+            },
+            820, 420, $"keystore-shots/picker-ssh-{Tone(dark)}");
+        Photograph(
+            new KeyStorePickerWindow
+            {
+                DataContext = new KeyStorePickerModel(
+                    [], KeyStoreMaterialKind.SshPrivateKey, controller, _ => Task.FromResult<KeyStoreImportDraft?>(null))
+            },
+            820, 420, $"keystore-shots/picker-empty-{Tone(dark)}");
     }
 
     private static string Tone(bool dark) => dark ? "dark" : "light";
@@ -334,8 +404,9 @@ public class KeyStoreTests
         var directory = Environment.GetEnvironmentVariable("STORAGEHUB_SHOT_DIR");
         if (string.IsNullOrWhiteSpace(directory)) return;
 
-        Directory.CreateDirectory(directory);
-        using var stream = File.Create(Path.Combine(directory, name + ".png"));
+        var path = Path.Combine(directory, name + ".png");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        using var stream = File.Create(path);
         frame!.Save(stream, new PngBitmapEncoderOptions());
     }
 
