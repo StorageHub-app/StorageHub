@@ -2,6 +2,7 @@ using StorageHub.Domain.Capabilities;
 using StorageHub.Domain.Identifiers;
 using StorageHub.Domain.Storage;
 using StorageHub.Storage.Abstractions;
+using StorageHub.Sync.Persistence;
 
 namespace StorageHub.Sync.Tests;
 
@@ -342,6 +343,63 @@ public sealed class SyncPlanBuilderTests
         Assert.Equal("sync.plan.path_collision", result.Error.Code);
     }
 
+    /// <summary>
+    /// A local folder synced one way to SFTP, run three times: the first run copies everything, the
+    /// second copies nothing, and after one file changes the third copies only that file.
+    /// </summary>
+    /// <remarks>
+    /// The local provider tags every file from its times and length, so the scan does not hash it;
+    /// SFTP has no tag, so the scan hashes that side only. Neither run can compare the two kinds of
+    /// evidence with each other, so before the baseline was consulted every file was copied on every
+    /// run. Each side is now proven unchanged by its own evidence against the last verified run.
+    /// </remarks>
+    [Fact]
+    public void One_way_sync_copies_only_what_changed_since_the_last_verified_run()
+    {
+        var shaA = new string('a', 64);
+        var shaB = new string('b', 64);
+        var leftId = ConnectionProfileId.New();
+        var rightId = ConnectionProfileId.New();
+        var profile = new SyncProfile(
+            SyncProfileId.New(), "Local to SFTP", leftId, string.Empty, rightId, string.Empty,
+            SyncDirection.LeftToRight, SyncDeletionMode.Disabled, SyncConflictPolicy.Block,
+            DeletionSafetyPolicy.Default, new StorageHub.Transfers.TransferExecutionOptions(Overwrite: true),
+            true, 1, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
+        SnapshotSeed[] local = [File("a.txt", 10, null, entityTag: "W/\"a1\""), File("b.txt", 20, null, entityTag: "W/\"b1\"")];
+        SnapshotSeed[] sftp = [File("a.txt", 10, null, portableSha256: shaA), File("b.txt", 20, null, portableSha256: shaB)];
+
+        // First run: nothing at the destination, so both files are copied and the fresh scans
+        // afterwards become the verified baseline.
+        var empty = new SyncBaselineSnapshot(
+            profile.ProfileId, 0, 0, new Dictionary<string, SyncBaselineObservation>(), string.Empty, DateTimeOffset.UnixEpoch);
+        var first = Fixture.Create(local, [], leftProfileId: leftId, rightProfileId: rightId);
+        var firstPlan = SyncPlanBuilder.Build(first.Request(SyncDirection.LeftToRight, SyncDeletionMode.Disabled, profileId: profile.ProfileId, baselineGeneration: 0)).Value.Plan;
+        Assert.Equal(2, firstPlan.Operations.Length);
+        var after = Fixture.Create(local, sftp, leftProfileId: leftId, rightProfileId: rightId);
+        var verified = VerifiedSyncBaselineBuilder.Build(profile, firstPlan, empty, after.Left, after.Right);
+        Assert.True(verified.IsSuccess, verified.IsFailure ? verified.Error.Message : null);
+
+        // Second run, nothing touched: nothing to copy, and the run still proves its baseline.
+        var known = new SyncBaselineSnapshot(profile.ProfileId, 1, 1, verified.Value, string.Empty, DateTimeOffset.UnixEpoch);
+        var second = Fixture.Create(local, sftp, verified.Value, leftId, rightId);
+        var secondPlan = SyncPlanBuilder.Build(second.Request(SyncDirection.LeftToRight, SyncDeletionMode.Disabled, profileId: profile.ProfileId)).Value.Plan;
+        Assert.Empty(secondPlan.Operations);
+        var reverified = VerifiedSyncBaselineBuilder.Build(profile, secondPlan, known, second.Left, second.Right);
+        Assert.True(reverified.IsSuccess, reverified.IsFailure ? reverified.Error.Message : null);
+
+        // Third run, a.txt saved again at the same length: only it is copied.
+        SnapshotSeed[] edited = [File("a.txt", 10, null, entityTag: "W/\"a2\""), local[1]];
+        var third = Fixture.Create(edited, sftp, reverified.Value, leftId, rightId);
+        var thirdPlan = SyncPlanBuilder.Build(third.Request(SyncDirection.LeftToRight, SyncDeletionMode.Disabled, profileId: profile.ProfileId)).Value.Plan;
+        Assert.Equal("a.txt", Assert.Single(thirdPlan.Operations).SourceOrTarget.CanonicalRelativePath);
+
+        // And a change at the destination alone is never taken for unchanged.
+        SnapshotSeed[] tampered = [sftp[0], File("b.txt", 20, null, portableSha256: new string('c', 64))];
+        var fourth = Fixture.Create(local, tampered, reverified.Value, leftId, rightId);
+        var fourthPlan = SyncPlanBuilder.Build(fourth.Request(SyncDirection.LeftToRight, SyncDeletionMode.Disabled, profileId: profile.ProfileId)).Value.Plan;
+        Assert.Equal("b.txt", Assert.Single(fourthPlan.Operations).SourceOrTarget.CanonicalRelativePath);
+    }
+
     private static SnapshotSeed File(
         string path,
         long length,
@@ -378,20 +436,22 @@ public sealed class SyncPlanBuilderTests
             IReadOnlyList<SnapshotSeed> left,
             IReadOnlyList<SnapshotSeed> right,
             IReadOnlyDictionary<string, SyncBaselineObservation>? baseline = null,
+            ConnectionProfileId? leftProfileId = null,
+            ConnectionProfileId? rightProfileId = null,
             StorageCaseSensitivity leftCaseSensitivity = StorageCaseSensitivity.Sensitive,
             StorageCaseSensitivity rightCaseSensitivity = StorageCaseSensitivity.Sensitive)
         {
-            var leftProfileId = ConnectionProfileId.New();
-            var rightProfileId = ConnectionProfileId.New();
-            var leftRoot = SyncTestEntries.Address(leftProfileId, "left-root", string.Empty);
-            var rightRoot = SyncTestEntries.Address(rightProfileId, "right-root", string.Empty);
+            var leftId = leftProfileId ?? ConnectionProfileId.New();
+            var rightId = rightProfileId ?? ConnectionProfileId.New();
+            var leftRoot = SyncTestEntries.Address(leftId, "left-root", string.Empty);
+            var rightRoot = SyncTestEntries.Address(rightId, "right-root", string.Empty);
             return new Fixture(
-                leftProfileId,
-                rightProfileId,
+                leftId,
+                rightId,
                 leftRoot,
                 rightRoot,
-                Snapshot(leftProfileId, "left-root", left, leftCaseSensitivity),
-                Snapshot(rightProfileId, "right-root", right, rightCaseSensitivity),
+                Snapshot(leftId, "left-root", left, leftCaseSensitivity),
+                Snapshot(rightId, "right-root", right, rightCaseSensitivity),
                 baseline ?? new Dictionary<string, SyncBaselineObservation>());
         }
 
@@ -400,10 +460,12 @@ public sealed class SyncPlanBuilderTests
             SyncDeletionMode deletionMode,
             SyncBehavior? behavior = null,
             SyncPathFilterPolicy? filterPolicy = null,
-            SyncConflictPolicy conflictPolicy = SyncConflictPolicy.Block) => new(
+            SyncConflictPolicy conflictPolicy = SyncConflictPolicy.Block,
+            SyncProfileId? profileId = null,
+            long baselineGeneration = 1) => new(
             OperationPlanId.New(),
-            SyncProfileId.New(),
-            baselineGeneration: 1,
+            profileId ?? SyncProfileId.New(),
+            baselineGeneration,
             LeftRoot,
             RightRoot,
             Left,

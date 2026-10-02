@@ -122,10 +122,13 @@ public static class VerifiedSyncBaselineBuilder
 
             var portableEquality = leftDigest is not null && leftDigest == rightDigest;
             _ = previous.TryGetValue(path, out var oldObservation);
+
+            // Each side unchanged by its own evidence: a version or ETag for a side that reports
+            // one, the content hash for a side that does not (SFTP, FTP).
             var unchangedFromKnownBaseline = oldObservation is { Exists: true } &&
-                oldObservation.Length == leftEntry.Size.Value &&
-                SideVersionMatches(oldObservation.LeftVersionId, Version(leftEntry)) &&
-                SideVersionMatches(oldObservation.RightVersionId, Version(rightEntry));
+                !leftEntry.IsContainer &&
+                SyncBaselineEvidence.SideUnchanged(oldObservation, oldObservation.LeftVersionId, leftEntry, leftDigest) &&
+                SyncBaselineEvidence.SideUnchanged(oldObservation, oldObservation.RightVersionId, rightEntry, rightDigest);
             if (!copiedAndVerified && !unchangedFromKnownBaseline && !portableEquality)
             {
                 return Fail(
@@ -133,11 +136,15 @@ public static class VerifiedSyncBaselineBuilder
                     "File equality could not be proven by successful copy verification or unchanged side-local versions.");
             }
 
+            // The pair is proven equal, so a hash of either side is the hash of both. Keeping the
+            // one side that was hashed lets the next run prove that side unchanged, which a side
+            // without a version or ETag has no other way to do.
+            var pairDigest = leftDigest ?? rightDigest;
             observations.Add(path, SyncBaselineObservation.Present(
                 leftEntry.Size.Value,
-                portableEquality
-                    ? new ContentDigest(leftDigest!.AlgorithmName, leftDigest.Value)
-                    : null,
+                pairDigest is null
+                    ? null
+                    : new ContentDigest(pairDigest.AlgorithmName, pairDigest.Value),
                 Version(leftEntry),
                 Version(rightEntry)));
         }
@@ -170,9 +177,6 @@ public static class VerifiedSyncBaselineBuilder
 
     private static string? Version(StorageEntry entry) =>
         entry.Address.VersionId ?? entry.Address.EntityTag ?? entry.ETag;
-
-    private static bool SideVersionMatches(string? baseline, string? current) =>
-        baseline is not null && current is not null && StringComparer.Ordinal.Equals(baseline, current);
 
     private static bool IsSupported(StorageEntry entry) => entry.Kind is
         StorageEntryKind.File or StorageEntryKind.Directory or StorageEntryKind.Prefix;

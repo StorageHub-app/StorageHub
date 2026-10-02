@@ -205,6 +205,7 @@ public static class SyncPlanBuilder
                 request,
                 leftEntries,
                 rightEntries,
+                baseline,
                 comparer,
                 operations,
                 conflicts);
@@ -285,6 +286,7 @@ public static class SyncPlanBuilder
         SyncPlanBuildRequest request,
         IReadOnlyDictionary<string, StorageEntry> leftEntries,
         IReadOnlyDictionary<string, StorageEntry> rightEntries,
+        Dictionary<string, SyncBaselineObservation> baseline,
         StringComparer comparer,
         List<PendingOperation> operations,
         List<SyncPlanningConflict> conflicts)
@@ -370,7 +372,15 @@ public static class SyncPlanBuilder
 
             var sourceDigest = GetDigest(sourceDigests, path);
             var destinationDigest = GetDigest(destinationDigests, path);
-            if (!FilesAreKnownEqual(sourceEntry, destinationEntry, sourceDigest, destinationDigest))
+            var leftToRight = request.Direction == SyncDirection.LeftToRight;
+            if (!FilesAreKnownEqual(sourceEntry, destinationEntry, sourceDigest, destinationDigest) &&
+                !(baseline.TryGetValue(path, out var known) &&
+                  PairUnchangedSinceBaseline(
+                      known,
+                      leftToRight ? sourceEntry : destinationEntry,
+                      leftToRight ? sourceDigest : destinationDigest,
+                      leftToRight ? destinationEntry : sourceEntry,
+                      leftToRight ? destinationDigest : sourceDigest)))
             {
                 operations.Add(PendingOperation.Copy(
                     sourceEntry,
@@ -692,6 +702,30 @@ public static class SyncPlanBuilder
                rightDigest is not null &&
                leftDigest == rightDigest;
     }
+
+    /// <summary>
+    /// Whether a pair the last verified run left equal is still that pair: each side proven
+    /// unchanged since, by its own version, ETag or content hash.
+    /// </summary>
+    /// <remarks>
+    /// The common case this covers is a local folder synced to SFTP. The local provider reports a
+    /// tag (from the file's times and length), so the scan does not hash it, and SFTP reports none,
+    /// so the scan hashes only that side. Without the baseline neither kind of evidence can be set
+    /// against the other, and every file was copied again on every run. A side with no evidence
+    /// that it is unchanged is treated as changed, so this never skips a file whose content could
+    /// differ from what was verified equal.
+    /// </remarks>
+    private static bool PairUnchangedSinceBaseline(
+        SyncBaselineObservation baseline,
+        StorageEntry left,
+        PortableContentDigest? leftDigest,
+        StorageEntry right,
+        PortableContentDigest? rightDigest) =>
+        baseline.Exists &&
+        left.Kind == StorageEntryKind.File &&
+        right.Kind == StorageEntryKind.File &&
+        SyncBaselineEvidence.SideUnchanged(baseline, baseline.LeftVersionId, left, leftDigest) &&
+        SyncBaselineEvidence.SideUnchanged(baseline, baseline.RightVersionId, right, rightDigest);
 
     private static bool KindsAreCompatible(StorageEntry left, StorageEntry right) =>
         left.IsContainer == right.IsContainer &&
