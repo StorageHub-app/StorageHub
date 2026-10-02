@@ -69,9 +69,27 @@
       <GridSplitter Grid.Column="1" Width="{StaticResource SplitterThickness}"/>
 
       <DockPanel Grid.Column="2" Margin="{StaticResource PaddingLg}">
+        <!--
+          The heading has a column of its own, so nothing under it runs beneath the buttons: the run
+          by its short id, as the history list writes it, with the whole id on its tip and behind
+          the copy button; then its phase and revision, muted; then what that means.
+        -->
         <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto">
           <StackPanel Grid.Column="0">
-            <TextBlock Classes="title" Text="{Binding PlanTitle}" TextWrapping="Wrap"/>
+            <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceSm}">
+              <TextBlock Classes="title" Text="{Binding PlanTitle}" ToolTip.Tip="{Binding PlanRunId}"
+                         TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+              <Button Classes="tool" Command="{Binding CopyRunIdCommand}"
+                      IsVisible="{Binding PlanRunId, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      ToolTip.Tip="{Binding CopyRunIdLabel}"
+                      AutomationProperties.Name="{Binding CopyRunIdLabel}"
+                      VerticalAlignment="Center">
+                <LucideIcon Kind="Copy" Size="{StaticResource IconSizeSm}"/>
+              </Button>
+            </StackPanel>
+            <TextBlock Classes="caption" Text="{Binding PlanSubtitle}"
+                       IsVisible="{Binding PlanSubtitle, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                       TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding PlanSubtitle}"/>
             <TextBlock Classes="status"
                        Classes.primary="{Binding PlanStatus.IsPrimary}"
                        Classes.success="{Binding PlanStatus.IsSuccess}"

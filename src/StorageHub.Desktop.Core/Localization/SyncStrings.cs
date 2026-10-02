@@ -476,8 +476,13 @@ internal sealed class SyncStrings : LocalizationModelBase
     public string RunPhaseFormat { get; set; } =
         "Run phase: {0}. No provider execution completion is inferred from this status.";
 
-    /// <summary>{0} = the run id, {1} = its phase, {2} = its revision.</summary>
-    public string RunHeaderFormat { get; set; } = "Run {0:D} · {1} · revision {2}";
+    /// <summary>{0} = the run id's first eight characters, as the history list shows it.</summary>
+    public string RunTitleFormat { get; set; } = "Run {0}";
+
+    /// <summary>{0} = the run's phase, {1} = its revision.</summary>
+    public string RunSubtitleFormat { get; set; } = "{0} · revision {1}";
+
+    public string CopyRunId { get; set; } = "Copy run ID";
 
     // ------------------------------------------------------------ run history
     public string RunsAccessibleName { get; set; } = "Synchronization history and run review";

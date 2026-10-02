@@ -72,6 +72,7 @@ internal sealed class SyncRunHistoryModel : INotifyPropertyChanged, IDisposable
 {
     private readonly SyncRunReviewController? _controller;
     private readonly IDialogService? _dialogs;
+    private readonly IClipboardService? _clipboard;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private int _waiting;
     private SyncRunReview _review = SyncRunReview.Empty;
@@ -81,6 +82,7 @@ internal sealed class SyncRunHistoryModel : INotifyPropertyChanged, IDisposable
     private StatusLine _historyStatus = StatusLine.Muted(Ui.Sync.EnterRunId);
     private StatusLine _planStatus = StatusLine.Muted(Ui.Sync.ChooseReviewAndRun);
     private string _planTitle = Ui.Sync.NoPlanLoaded;
+    private string _planSubtitle = string.Empty;
     private SyncRunRow? _selectedRun;
     private bool _isBusy;
     private bool _historyLoaded;
@@ -94,12 +96,15 @@ internal sealed class SyncRunHistoryModel : INotifyPropertyChanged, IDisposable
     /// Where the approval confirmation goes. Null refuses to approve rather than approving without
     /// asking: an unconfirmed dispatch is the one outcome this screen must not produce by accident.
     /// </param>
+    /// <param name="clipboard">Where Copy run ID puts the whole id. Null leaves it unavailable.</param>
     internal SyncRunHistoryModel(
         SyncRunReviewController? controller = null,
-        IDialogService? dialogs = null)
+        IDialogService? dialogs = null,
+        IClipboardService? clipboard = null)
     {
         _controller = controller;
         _dialogs = dialogs;
+        _clipboard = clipboard;
 
         LoadRunCommand = new RelayCommand(
             _ => _ = LoadRunAsync(), _ => Live && !IsBusy);
@@ -115,6 +120,8 @@ internal sealed class SyncRunHistoryModel : INotifyPropertyChanged, IDisposable
             _ => _ = LoadMoreAsync(operations: true), _ => Live && !IsBusy && CanLoadMoreOperations);
         LoadMoreConflictsCommand = new RelayCommand(
             _ => _ = LoadMoreAsync(operations: false), _ => Live && !IsBusy && CanLoadMoreConflicts);
+        CopyRunIdCommand = new RelayCommand(
+            _ => _ = _clipboard!.SetTextAsync(PlanRunId!), _ => _clipboard is not null && PlanRunId is not null);
     }
 
     /// <summary>A screen with nothing behind it, for a preview or a layout test.</summary>
@@ -123,8 +130,9 @@ internal sealed class SyncRunHistoryModel : INotifyPropertyChanged, IDisposable
     /// <summary>And one that will ask the agent.</summary>
     internal static SyncRunHistoryModel Create(
         Func<ISyncManagementAgentClient> clients,
-        IDialogService? dialogs = null) =>
-        new(new SyncRunReviewController(clients), dialogs);
+        IDialogService? dialogs = null,
+        IClipboardService? clipboard = null) =>
+        new(new SyncRunReviewController(clients), dialogs, clipboard);
 
     public ObservableCollection<SyncRunRow> Runs { get; } = [];
 
@@ -168,12 +176,29 @@ internal sealed class SyncRunHistoryModel : INotifyPropertyChanged, IDisposable
         private set => Set(ref _historyStatus, value);
     }
 
-    /// <summary>The heading over the plan: which run, its phase and its revision.</summary>
+    /// <summary>
+    /// The heading over the plan: which run, by the eight characters the history list knows it by.
+    /// </summary>
+    /// <remarks>
+    /// The whole id, its phase and its revision on one bold line was wider than the room beside the
+    /// two buttons, so it wrapped and left the revision number alone on a line of its own. The
+    /// whole id is on the heading's tip and behind Copy run ID instead.
+    /// </remarks>
     public string PlanTitle
     {
         get => _planTitle;
         private set => Set(ref _planTitle, value);
     }
+
+    /// <summary>The loaded run's phase and revision, under the heading. Empty with no run.</summary>
+    public string PlanSubtitle
+    {
+        get => _planSubtitle;
+        private set => Set(ref _planSubtitle, value);
+    }
+
+    /// <summary>The loaded run's whole id, or null with no run.</summary>
+    public string? PlanRunId => _review.Run?.SyncRunId.ToString("D", CultureInfo.InvariantCulture);
 
     public StatusLine PlanStatus
     {
@@ -211,6 +236,8 @@ internal sealed class SyncRunHistoryModel : INotifyPropertyChanged, IDisposable
     public ICommand LoadMoreOperationsCommand { get; }
 
     public ICommand LoadMoreConflictsCommand { get; }
+
+    public ICommand CopyRunIdCommand { get; }
 
     /// <summary>
     /// Loads the history the first time the screen is shown, and not again.
@@ -412,7 +439,8 @@ internal sealed class SyncRunHistoryModel : INotifyPropertyChanged, IDisposable
 
         if (review.Run is { } run)
         {
-            PlanTitle = Ui.Format(Ui.Sync.RunHeaderFormat, run.SyncRunId, UiEnumNames.Describe(run.Phase), run.Revision);
+            PlanTitle = Ui.Format(Ui.Sync.RunTitleFormat, ShortId(run.SyncRunId));
+            PlanSubtitle = Ui.Format(Ui.Sync.RunSubtitleFormat, UiEnumNames.Describe(run.Phase), run.Revision);
             PlanStatus = review.Failed
                 ? new StatusLine(review.ErrorMessage!, MetricTone.Danger)
                 : Narrate(run);
@@ -420,6 +448,7 @@ internal sealed class SyncRunHistoryModel : INotifyPropertyChanged, IDisposable
         else
         {
             PlanTitle = Ui.Sync.NoPlanLoaded;
+            PlanSubtitle = string.Empty;
             PlanStatus = review.Failed
                 ? new StatusLine(review.ErrorMessage!, MetricTone.Danger)
                 : StatusLine.Muted(Ui.Sync.ChooseReviewAndRun);
@@ -430,6 +459,7 @@ internal sealed class SyncRunHistoryModel : INotifyPropertyChanged, IDisposable
         if (replacing || review.Operations.Count != Plan.Count) ShowPlan(review.Operations);
         if (replacing || review.Conflicts.Count != Conflicts.Count) ShowConflicts(review.Conflicts);
 
+        Raise(nameof(PlanRunId));
         Raise(nameof(CanApprove));
         Raise(nameof(CanLoadMoreOperations));
         Raise(nameof(CanLoadMoreConflicts));
@@ -494,7 +524,7 @@ internal sealed class SyncRunHistoryModel : INotifyPropertyChanged, IDisposable
             Runs.Add(new SyncRunRow(
                 run.SyncRunId,
                 Moment(run.UpdatedUtc),
-                run.SyncRunId.ToString("N", CultureInfo.InvariantCulture)[..8],
+                ShortId(run.SyncRunId),
                 UiEnumNames.Describe(run.Phase),
                 UiEnumNames.Describe(run.DispatchState),
                 run.ConflictCount.ToString(CultureInfo.CurrentCulture)));
@@ -625,6 +655,10 @@ internal sealed class SyncRunHistoryModel : INotifyPropertyChanged, IDisposable
     private static string Moment(DateTimeOffset value) =>
         value.ToLocalTime().ToString("g", CultureInfo.CurrentCulture);
 
+    /// <summary>A run id as the history list and the heading write it: its first eight characters.</summary>
+    private static string ShortId(Guid syncRunId) =>
+        syncRunId.ToString("N", CultureInfo.InvariantCulture)[..8];
+
     private bool Live => _controller is not null;
 
     private void RefreshCommands()
@@ -636,6 +670,7 @@ internal sealed class SyncRunHistoryModel : INotifyPropertyChanged, IDisposable
         Refresh(ApproveCommand);
         Refresh(LoadMoreOperationsCommand);
         Refresh(LoadMoreConflictsCommand);
+        Refresh(CopyRunIdCommand);
     }
 
     private static void Refresh(ICommand command) =>
@@ -658,6 +693,8 @@ internal sealed class SyncRunHistoryModel : INotifyPropertyChanged, IDisposable
     public static string ApproveLabel => Ui.Sync.ApproveAndDispatch;
 
     public static string ApproveAccessibleDescription => Ui.Sync.ApproveHint;
+
+    public static string CopyRunIdLabel => Ui.Sync.CopyRunId;
 
     public static string PlanTabLabel => Ui.Sync.PlanTab;
 

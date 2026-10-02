@@ -128,6 +128,14 @@ public class SyncRunHistoryTests
         Assert.Equal("Studio · <root>", operation.From);
         Assert.Equal($"{planned.DestinationConnectionId:D} · right/1", operation.To);
 
+        // The heading names the run as the history list does, the phase and revision under it,
+        // and keeps the whole id for its tip and for Copy run ID.
+        Assert.Equal(Ui.Format(Ui.Sync.RunTitleFormat, run.SyncRunId.ToString("N")[..8]), model.PlanTitle);
+        Assert.Equal(
+            Ui.Format(Ui.Sync.RunSubtitleFormat, Ui.Sync.RunPhaseAwaitingApproval, run.Revision),
+            model.PlanSubtitle);
+        Assert.Equal(run.SyncRunId.ToString("D"), model.PlanRunId);
+
         var conflict = Assert.Single(model.Conflicts);
         Assert.Equal("photos/a.jpg", conflict.Path);
         Assert.Equal(Ui.Sync.ConflictStateUnresolved, conflict.State);
@@ -350,48 +358,79 @@ public class SyncRunHistoryTests
     /// buttons and two more tables under a tab strip on the right. It is exactly the sort of layout
     /// that goes wrong without failing anything, and the empty version that was here before could
     /// never have shown it. Set STORAGEHUB_SHOT_DIR to keep the files.
+    ///
+    /// At 1875, the width of the screenshot that showed every column truncated, and at 1280, about
+    /// what 1875 pixels at 125% leave beside the connections panel. Dates in a Danish shape, which is the widest the
+    /// history's Updated column is given, and connections named, as the shell names them.
     /// </remarks>
     [AvaloniaTheory]
-    [InlineData(true, 0)]
-    [InlineData(false, 0)]
-    [InlineData(false, 1)]
-    public async Task TheScreenCanBePhotographedWithARunOnIt(bool dark, int tab)
+    [InlineData(true, 0, 1875)]
+    [InlineData(false, 0, 1875)]
+    [InlineData(true, 0, 1280)]
+    [InlineData(false, 0, 1280)]
+    [InlineData(false, 1, 1500)]
+    public async Task TheScreenCanBePhotographedWithARunOnIt(bool dark, int tab, int width)
     {
         ColorSchemeApplier.Apply(
             global::Avalonia.Application.Current!,
             ColorSchemeCatalog.Resolve(id: null, preferDark: dark));
+        var culture = System.Globalization.CultureInfo.CurrentCulture;
+        System.Globalization.CultureInfo.CurrentCulture = new System.Globalization.CultureInfo("da-DK");
+        try
+        {
+            await PhotographAsync(dark, tab, width);
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentCulture = culture;
+        }
+    }
 
-        var run = Run(SyncIpcRunPhase.AwaitingApproval);
+    private static async Task PhotographAsync(bool dark, int tab, int width)
+    {
+        var lastWeek = DateTimeOffset.UtcNow.AddDays(-6);
+        var run = Run(SyncIpcRunPhase.AwaitingApproval) with { Revision = 3 };
         var agent = new StubReviewAgent { Status = run };
         agent.HistoryPage(
             [
                 run,
                 Run(SyncIpcRunPhase.Completed) with
                 {
-                    DispatchState = SyncIpcDispatchState.DurablyDispatched
+                    DispatchState = SyncIpcDispatchState.DurablyDispatched,
+                    UpdatedUtc = lastWeek
                 },
                 Run(SyncIpcRunPhase.Failed) with
                 {
                     DispatchState = SyncIpcDispatchState.DurablyDispatched,
-                    ConflictCount = 2
+                    ConflictCount = 2,
+                    UpdatedUtc = lastWeek.AddHours(-3)
                 }
             ],
             "50");
+        var local = Guid.NewGuid();
+        var lab = Guid.NewGuid();
         agent.PlanPage(
             run,
-            [.. Enumerable.Range(1, 12).Select(index => Operation(index, destructive: index % 4 == 0))],
+            [.. Enumerable.Range(1, 12).Select(index => Operation(index, destructive: index % 4 == 0) with
+            {
+                SourceConnectionId = local,
+                SourcePath = $"sync2/Documents/Reports/2026/report-{index:00}.xlsx",
+                DestinationConnectionId = lab,
+                DestinationPath = $"srv/sync2/Documents/Reports/2026/report-{index:00}.xlsx"
+            })],
             null);
         agent.ConflictPage([Conflict("photos/2019/IMG_0042.jpg"), Conflict("notes/todo.md")], null);
 
         using var model = SyncRunHistoryModel.Create(() => agent, new RecordingDialogs());
+        model.ConnectionName = id => id == local ? "Local sync2" : id == lab ? "Lab SFTP sync2" : null;
         await model.RefreshHistoryAsync(null, TestContext.Current.CancellationToken);
         await model.LoadRunAsync(run.SyncRunId, TestContext.Current.CancellationToken);
 
         var view = new SyncRunHistoryView { DataContext = model };
-        var window = new Window { Content = view, Width = 1500, Height = 860 };
+        var window = new Window { Content = view, Width = width, Height = 860 };
         window.Show();
-        window.Measure(new Size(1500, 860));
-        window.Arrange(new Rect(0, 0, 1500, 860));
+        window.Measure(new Size(width, 860));
+        window.Arrange(new Rect(0, 0, width, 860));
         window.UpdateLayout();
 
         // Selecting a tab queues its content to be templated, so the conflicts table does not exist
@@ -409,7 +448,7 @@ public class SyncRunHistoryTests
         var name = tab == 0 ? "plan" : "conflicts";
         Directory.CreateDirectory(directory);
         using var stream = File.Create(
-            Path.Combine(directory, $"sync-run-history-{name}-{(dark ? "dark" : "light")}.png"));
+            Path.Combine(directory, $"sync-run-history-{name}-{width}-{(dark ? "dark" : "light")}.png"));
         frame!.Save(stream, new PngBitmapEncoderOptions());
     }
 

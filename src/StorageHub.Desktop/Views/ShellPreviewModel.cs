@@ -1626,7 +1626,8 @@ internal static class ShellPreview
         model.Workspaces.Add(new WorkspaceTab(Ui.Shell.TabWelcome, LucideIconKind.House, overview));
         // The review names each side of a planned operation from the connections panel, as the
         // queue does, so the plan shows which files it will change rather than connection ids.
-        var runReview = SyncRunHistoryModel.Create(syncAgent, Services.ShellServices.Dialogs);
+        var runReview = SyncRunHistoryModel.Create(
+            syncAgent, Services.ShellServices.Dialogs, Services.ShellServices.Clipboard);
         runReview.ConnectionName = model.Sidebar.NameOf;
         var syncPage = new TabbedPageModel(
             [
