@@ -530,7 +530,9 @@ internal sealed class OverviewModel : INotifyPropertyChanged
             .Take(MaximumListRows)
             .Select(static value => new RecentConnectionRow(
                 value.DisplayName,
-                value.Provider.ToString(),
+                // The provider's name as the editor and the cards write it, "SFTP", not the
+                // enum's "Sftp".
+                ConnectionProviderCatalog.Get(ConnectionCardFactory.MapProvider(value.Provider)).DisplayName,
                 value.IsFavorite ? Ui.Overview.ConnectionFavorite : value.FolderPath ?? string.Empty))
             .ToArray();
         RecentConnections = rows.Length > 0

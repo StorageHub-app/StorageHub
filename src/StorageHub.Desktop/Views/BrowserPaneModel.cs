@@ -457,7 +457,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             var count = HasFilter && _index is not null
                 ? Ui.Format(Ui.Pane.ItemCountFilteredFormat, shown,
                     _index.CreateView(_sortColumn, _sortAscending, null).Count)
-                : Ui.Format(Ui.Pane.ItemCountFormat, shown);
+                : shown == 1 ? Ui.Pane.ItemCountOne : Ui.Format(Ui.Pane.ItemCountFormat, shown);
             return !_hasMore ? count
                 : _loadingMore is not null ? count + Ui.Pane.IndexingNextPageSuffix
                 : count + Ui.Pane.MoreAvailableSuffix;

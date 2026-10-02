@@ -332,6 +332,9 @@ internal sealed class PaneStrings : LocalizationModelBase
 
     public string ItemCountEmpty { get; set; } = "0 items";
 
+    /// <summary>One item, which "{0} items" read as "1 items".</summary>
+    public string ItemCountOne { get; set; } = "1 item";
+
     /// <summary>{0} = how many items the pane is showing.</summary>
     public string ItemCountFormat { get; set; } = "{0:N0} items";
 

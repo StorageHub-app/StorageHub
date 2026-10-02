@@ -119,6 +119,7 @@
   "stateChooseConnection": "○ Vælg en gemt forbindelse",
   "stateLocationUnavailable": "⚠ Placeringen er ikke tilgængelig",
   "itemCountEmpty": "0 elementer",
+  "itemCountOne": "1 element",
   "itemSummaryAccessibleNameFormat": "Elementoversigt for {0}",
   "paneHeaderAccessibleNameFormat": "Overskrift for {0}",
   "paneBrowserAccessibleNameFormat": "Filrude for {0}",

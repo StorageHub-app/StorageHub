@@ -119,6 +119,7 @@
   "stateChooseConnection": "○ Gespeicherte Verbindung wählen",
   "stateLocationUnavailable": "⚠ Speicherort nicht verfügbar",
   "itemCountEmpty": "0 Elemente",
+  "itemCountOne": "1 Element",
   "itemSummaryAccessibleNameFormat": "Elementübersicht für {0}",
   "paneHeaderAccessibleNameFormat": "Kopfzeile von {0}",
   "paneBrowserAccessibleNameFormat": "Dateibereich von {0}",
