@@ -60,6 +60,15 @@ public class BrowserPaneTests
         // reads the same in both shells.
         Assert.Equal(Ui.Pane.Folder, pane.Rows[0].Type);
         Assert.False(string.IsNullOrWhiteSpace(pane.Rows[1].Size));
+
+        // One saved after the pane read its list opens too, under its own name, rather than as a
+        // nameless location that is "no longer available".
+        var savedSince = Connection("Saved Since", StorageConnectionProvider.Sftp);
+        agent.Connections.Add(savedSince);
+        await pane.OpenConnectionAsync(savedSince.ConnectionId, TestContext.Current.CancellationToken);
+
+        Assert.Equal("Saved Since", pane.Title);
+        Assert.False(pane.HasStatus, pane.Status);
     }
 
     /// <summary>

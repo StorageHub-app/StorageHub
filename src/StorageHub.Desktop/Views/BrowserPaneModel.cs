@@ -1482,11 +1482,22 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     }
 
     /// <summary>Opens a saved connection by id, for a caller that has one rather than a choice.</summary>
-    internal Task OpenConnectionAsync(Guid connectionId, CancellationToken cancellationToken = default)
+    internal async Task OpenConnectionAsync(Guid connectionId, CancellationToken cancellationToken = default)
     {
-        var choice = Connections.FirstOrDefault(candidate => candidate.Id == connectionId)
-            ?? new PaneConnection(connectionId, string.Empty, LucideIconKind.Cloud);
-        return PointAtAsync(choice, cancellationToken);
+        var known = Connections.FirstOrDefault(candidate => candidate.Id == connectionId);
+
+        // A connection saved after this pane read its list is not in it: opened from its card
+        // straight after saving, the pane showed it with no name, as a local location, and could
+        // say it was no longer available. So the list is read again first. One still on its way
+        // is waited for by PointAtAsync, and names the connection when it arrives.
+        if (known is null && _connectionsLoad is null or { IsCompleted: true })
+        {
+            await LoadConnectionsAsync(cancellationToken).ConfigureAwait(true);
+            known = Connections.FirstOrDefault(candidate => candidate.Id == connectionId);
+        }
+
+        var choice = known ?? new PaneConnection(connectionId, string.Empty, LucideIconKind.Cloud);
+        await PointAtAsync(choice, cancellationToken).ConfigureAwait(true);
     }
 
     /// <summary>
