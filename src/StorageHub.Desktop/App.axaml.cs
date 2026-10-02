@@ -26,6 +26,9 @@ public partial class App : global::Avalonia.Application
         // And an empty table's "No workspaces yet" is a message, not a row anybody can select.
         PlaceholderRows.Install();
 
+        // And every button, tab, row and menu entry is named for a screen reader by what it shows.
+        AccessibleNames.Install();
+
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             // The splash first, as 1.x opened: settings, the framework and the language, then the

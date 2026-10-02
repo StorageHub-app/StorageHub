@@ -80,15 +80,15 @@
                 folder and health, and its tags as chips. The selected card takes the
                 accent border and shows edit and delete beside it.
               -->
-              <Border Classes="card connection-row" Classes.disabled="{Binding !IsEnabled}"
-                      Classes.selected="{Binding IsSelected}"
-                      ToolTip.Tip="{Binding OpenHint}">
+              <vm:ConnectionCard Classes="card connection-row" Classes.disabled="{Binding !IsEnabled}"
+                                 Classes.selected="{Binding IsSelected}"
+                                 ToolTip.Tip="{Binding OpenHint}">
                 <!-- There from the start and filled as it opens, as the pane's list is. A menu
                      first given to the card by the right-click that should open it is not opened
                      by that right-click. -->
-                <Border.ContextMenu>
+                <vm:ConnectionCard.ContextMenu>
                   <ContextMenu/>
-                </Border.ContextMenu>
+                </vm:ConnectionCard.ContextMenu>
                 <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource SpaceMd}">
                   <Border Grid.Column="0" Classes="icon-tile" Background="{Binding AccentBrush}"
                           VerticalAlignment="Top">
@@ -131,7 +131,7 @@
                     </Button>
                   </StackPanel>
                 </Grid>
-              </Border>
+              </vm:ConnectionCard>
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>

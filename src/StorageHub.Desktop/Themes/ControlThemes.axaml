@@ -605,6 +605,10 @@
     <Setter Property="Background" Value="{DynamicResource SelectionBrush}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
   </Style>
+  <!-- A card reached with Tab shows where the keyboard is, as a focused row does. -->
+  <Style Selector="Border.card.connection-row:focus-visible">
+    <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
+  </Style>
   <Style Selector="Border.icon-tile">
     <Setter Property="Width" Value="34"/>
     <Setter Property="Height" Value="34"/>
