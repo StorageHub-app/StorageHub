@@ -308,6 +308,7 @@ internal sealed class SyncRunHistoryModel : INotifyPropertyChanged, IDisposable
             _nextHistoryToken = page.NextPageToken;
             Raise(nameof(CanPageForward));
             Show(page.Runs);
+            SelectLoadedRun();
             HistoryStatus = page.Runs.Count == 0
                 ? StatusLine.Muted(Ui.Sync.NoRunsYet)
                 : new StatusLine(
@@ -342,6 +343,23 @@ internal sealed class SyncRunHistoryModel : INotifyPropertyChanged, IDisposable
                 ? new StatusLine(Ui.Sync.RunLoadFailed, MetricTone.Danger)
                 : new StatusLine(Ui.Sync.RunLoaded, MetricTone.Success);
         }, cancellationToken).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Shows a run the editor has just made, and reads the history again so it is in the list.
+    /// </summary>
+    /// <remarks>
+    /// The history is read once, as the screen is first shown, so a run made after that was loaded
+    /// beside a list that did not have it until Refresh history. A history not read yet is left to
+    /// that first read, which will find the run anyway.
+    /// </remarks>
+    internal Task ReviewNewRunAsync(Guid syncRunId, CancellationToken cancellationToken = default)
+    {
+        var run = LoadRunAsync(syncRunId, cancellationToken);
+        var history = _historyLoaded
+            ? RefreshHistoryAsync(null, cancellationToken)
+            : Task.CompletedTask;
+        return Task.WhenAll(run, history);
     }
 
     /// <summary>Re-reads the loaded run's phase, keeping the plan where it is.</summary>
@@ -488,6 +506,7 @@ internal sealed class SyncRunHistoryModel : INotifyPropertyChanged, IDisposable
 
         // The tables are only rebuilt when they could have changed. A poll every half second that
         // cleared and refilled a thousand-row plan would take the reviewer's place in it with it.
+        if (replacing) SelectLoadedRun();
         if (replacing || review.Operations.Count != Plan.Count) ShowPlan(review.Operations);
         if (replacing || review.Conflicts.Count != Conflicts.Count) ShowConflicts(review.Conflicts);
 
@@ -563,6 +582,13 @@ internal sealed class SyncRunHistoryModel : INotifyPropertyChanged, IDisposable
                 run.ConflictCount.ToString(CultureInfo.CurrentCulture),
                 run.UpdatedUtc.ToLocalTime().ToString("f", CultureInfo.CurrentCulture)));
         }
+    }
+
+    /// <summary>Marks the loaded run's row in the history, when it is on the page.</summary>
+    private void SelectLoadedRun()
+    {
+        if (_review.Run is not { } run) return;
+        if (Runs.FirstOrDefault(row => row.SyncRunId == run.SyncRunId) is { } row) SelectedRun = row;
     }
 
     private void ShowPlan(IReadOnlyList<SyncPlanOperationSummary> operations)

@@ -280,7 +280,8 @@ public class SyncRunHistoryTests
     }
 
     /// <summary>
-    /// The history loads once when the screen is first shown, not on every visit.
+    /// The history loads once when the screen is first shown, not on every visit, and again when
+    /// the editor makes a run.
     /// </summary>
     /// <remarks>
     /// A table saying "no runs yet" when there are runs answers the question wrongly, which is
@@ -299,6 +300,18 @@ public class SyncRunHistoryTests
 
         Assert.Equal(1, agent.HistoryRequests);
         Assert.Single(model.Runs);
+
+        // A run the editor then makes is loaded with the history read again, so it is in the list,
+        // and marked there, rather than missing until Refresh history.
+        var made = Run(SyncIpcRunPhase.AwaitingApproval);
+        agent.Status = made;
+        agent.HistoryPage([made, Run(SyncIpcRunPhase.Completed)], null);
+        agent.PlanPage(made, [Operation(1)], null);
+        await model.ReviewNewRunAsync(made.SyncRunId, TestContext.Current.CancellationToken);
+
+        Assert.Equal(2, agent.HistoryRequests);
+        Assert.Equal(made.SyncRunId, model.SelectedRun?.SyncRunId);
+        Assert.Single(model.Plan);
     }
 
     /// <summary>

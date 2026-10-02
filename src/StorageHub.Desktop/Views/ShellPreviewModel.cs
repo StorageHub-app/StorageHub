@@ -1302,7 +1302,7 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
             .Select(static (tab, index) => (tab, index))
             .FirstOrDefault(entry => ReferenceEquals(entry.tab.Page, page)).index;
         page.SelectedIndex = 1;
-        _ = history.LoadRunAsync(syncRunId);
+        _ = history.ReviewNewRunAsync(syncRunId);
     }
 
     /// <summary>
