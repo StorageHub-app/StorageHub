@@ -549,6 +549,29 @@
   <Style Selector="Button.tool:pointerover LucideIcon">
     <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
   </Style>
+  <!--
+    A tool button in a colour of its own, hover included: the connections panel's New in the
+    accent, so it reads as the thing to press without being a filled pill, and Delete under the
+    details in the danger colour, as text and icon rather than a red box.
+  -->
+  <Style Selector="Button.tool.emphasis LucideIcon">
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}"/>
+  </Style>
+  <Style Selector="Button.tool.emphasis TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+  </Style>
+  <Style Selector="Button.tool.danger LucideIcon">
+    <Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/>
+  </Style>
+  <Style Selector="Button.tool.danger TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/>
+  </Style>
+  <!-- The connection details' actions once the panel is too narrow for their labels: icons, each
+       with its label as a tooltip, all four alike. -->
+  <Style Selector="DockPanel.detail-actions.compact Button.tool TextBlock">
+    <Setter Property="IsVisible" Value="False"/>
+  </Style>
 
   <!--
     A group in the connections panel: a quiet heading, and rows that sit under it.

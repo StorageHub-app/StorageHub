@@ -727,6 +727,10 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
 
     public string NewLabel => Ui.Connections.NewConnection;
 
+    public string NewTooltip => Ui.Connections.NewConnectionTooltip;
+
+    public string NewAccessibleName => Ui.Connections.NewConnectionAccessibleName;
+
     public string MoreLabel => Ui.Connections.PanelOptions;
 
     public string SearchPlaceholder => Ui.Connections.SearchPlaceholder;

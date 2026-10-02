@@ -234,7 +234,8 @@ public class ConnectionGroupPanelTests
     /// </summary>
     /// <remarks>
     /// The panel with Favorites over groups that have an icon, a colour, both or neither, an empty
-    /// group, and Ungrouped; narrow and wide. Set STORAGEHUB_SHOT_DIR to keep the files.
+    /// group, and Ungrouped; narrow, where the details' actions are icons, and wide, where they are
+    /// labelled. Set STORAGEHUB_SHOT_DIR to keep the files.
     /// </remarks>
     [AvaloniaTheory]
     [InlineData(true)]
@@ -267,10 +268,14 @@ public class ConnectionGroupPanelTests
         sidebar.Select(sidebar.Favorites!.Connections.First(static row => row.Name == "Lab SFTP sync2"));
         window.UpdateLayout();
 
-        // The empty group says so on one line.
+        // The empty group says so on one line, and the details' actions drop their labels together
+        // where the panel is too narrow for them.
         var empty = window.GetVisualDescendants().OfType<TextBlock>()
             .Single(static text => text.Classes.Contains("group-empty") && text.IsEffectivelyVisible);
         Assert.Equal(Ui.Connections.GroupEmpty, empty.Text);
+        var actions = window.GetVisualDescendants().OfType<DockPanel>()
+            .Single(static panel => panel.Classes.Contains("detail-actions"));
+        Assert.Contains("compact", actions.Classes);
 
         var frame = window.CaptureRenderedFrame();
         Assert.NotNull(frame);
@@ -280,6 +285,9 @@ public class ConnectionGroupPanelTests
         Save(frame!, $"connections-{theme}.png");
 
         var wide = Show(sidebar, 340, 1180);
+        var labelled = wide.GetVisualDescendants().OfType<DockPanel>()
+            .Single(static panel => panel.Classes.Contains("detail-actions"));
+        Assert.DoesNotContain("compact", labelled.Classes);
         Save(wide.CaptureRenderedFrame()!, $"connections-wide-{theme}.png");
 
         // And the editor's General tab, on a new connection in the group the panel suggests.

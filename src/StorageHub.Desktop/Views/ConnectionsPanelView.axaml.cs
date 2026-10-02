@@ -23,6 +23,45 @@ public partial class ConnectionsPanelView : UserControl
         AddHandler(DoubleTappedEvent, OnDoubleTapped, RoutingStrategies.Bubble);
         AddHandler(TappedEvent, OnTapped, RoutingStrategies.Bubble);
         AddHandler(ContextRequestedEvent, OnContextRequested, RoutingStrategies.Tunnel);
+        if (this.FindControl<DockPanel>("PART_DetailActions") is { } actions)
+        {
+            actions.SizeChanged += (_, _) => FitDetailActions(actions);
+        }
+    }
+
+    /// <summary>What the details' actions need with their labels, measured while they had them.</summary>
+    private double _labelledActionsWidth;
+
+    /// <summary>
+    /// Drops the labels from the details' actions, all four together, while the panel is too
+    /// narrow for them, and gives them back once it is wide enough again.
+    /// </summary>
+    /// <remarks>
+    /// Icons alone rather than a second row: the four are one row of tools wherever they are, as
+    /// the pane's FILES row is, and each keeps its label as a tooltip and accessible name. The
+    /// labelled width is measured while the labels show, because it cannot be measured once they
+    /// are hidden.
+    /// </remarks>
+    private void FitDetailActions(DockPanel actions)
+    {
+        if (actions.Bounds.Width <= 0) return;
+        var compact = actions.Classes.Contains("compact");
+        if (!compact)
+        {
+            var natural = 0d;
+            foreach (var child in actions.Children)
+            {
+                child.Measure(Size.Infinity);
+                natural += child.DesiredSize.Width;
+            }
+
+            _labelledActionsWidth = natural;
+        }
+
+        var fits = _labelledActionsWidth <= actions.Bounds.Width;
+        if (fits == !compact) return;
+        actions.Classes.Set("compact", !fits);
+        actions.InvalidateMeasure();
     }
 
     /// <summary>

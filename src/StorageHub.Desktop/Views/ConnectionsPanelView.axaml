@@ -188,7 +188,10 @@
             Margin="{StaticResource PaddingLg}">
         <TextBlock Classes="title" Text="{Binding Title}" VerticalAlignment="Center"
                    TextTrimming="CharacterEllipsis"/>
-        <Button Grid.Column="1" Classes="primary" Command="{Binding NewCommand}">
+        <!-- New is a tool button like the menu beside it and the pane's FILES row, in the accent so
+             it reads as the thing to press, rather than a filled pill twice their height. -->
+        <Button Grid.Column="1" Classes="tool emphasis" Command="{Binding NewCommand}"
+                ToolTip.Tip="{Binding NewTooltip}" AutomationProperties.Name="{Binding NewAccessibleName}">
           <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
             <LucideIcon Kind="Plus" Size="{StaticResource IconSizeSm}"/>
             <TextBlock Text="{Binding NewLabel}"/>
@@ -282,32 +285,46 @@
                          TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
             </StackPanel>
 
-            <WrapPanel DockPanel.Dock="Bottom" ItemSpacing="6" LineSpacing="6" Margin="0,8,0,0">
-              <Button Command="{Binding OpenSelectedCommand}">
-                <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
-                  <LucideIcon Kind="FolderOpen" Size="{StaticResource IconSizeSm}"/>
-                  <TextBlock Text="{Binding OpenLabel}"/>
-                </StackPanel>
-              </Button>
-              <Button Command="{Binding TestSelectedCommand}">
-                <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
-                  <LucideIcon Kind="CircleCheck" Size="{StaticResource IconSizeSm}"/>
-                  <TextBlock Text="{Binding TestLabel}"/>
-                </StackPanel>
-              </Button>
-              <Button Command="{Binding EditSelectedCommand}">
-                <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
-                  <LucideIcon Kind="Pencil" Size="{StaticResource IconSizeSm}"/>
-                  <TextBlock Text="{Binding EditLabel}"/>
-                </StackPanel>
-              </Button>
-              <Button Classes="danger" Command="{Binding DeleteSelectedCommand}">
+            <!--
+              The connection's actions as the pane's FILES row draws its own: dense tool buttons,
+              an icon and a label, flat until hovered, on one row. Delete is last, past a rule,
+              in the danger colour as text and icon. Where the panel is too narrow for the labels,
+              all four drop them together and keep them as tooltips (ConnectionsPanelView).
+            -->
+            <DockPanel x:Name="PART_DetailActions" DockPanel.Dock="Bottom" Classes="detail-actions"
+                       Margin="{StaticResource DetailActionsMargin}">
+              <Button DockPanel.Dock="Right" Classes="tool danger" Command="{Binding DeleteSelectedCommand}"
+                      ToolTip.Tip="{Binding DeleteLabel}" AutomationProperties.Name="{Binding DeleteLabel}">
                 <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
                   <LucideIcon Kind="Trash" Size="{StaticResource IconSizeSm}"/>
                   <TextBlock Text="{Binding DeleteLabel}"/>
                 </StackPanel>
               </Button>
-            </WrapPanel>
+              <Border DockPanel.Dock="Right" Classes="toolbar-separator"/>
+              <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+                <Button Classes="tool" Command="{Binding OpenSelectedCommand}"
+                        ToolTip.Tip="{Binding OpenLabel}" AutomationProperties.Name="{Binding OpenLabel}">
+                  <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+                    <LucideIcon Kind="FolderOpen" Size="{StaticResource IconSizeSm}"/>
+                    <TextBlock Text="{Binding OpenLabel}"/>
+                  </StackPanel>
+                </Button>
+                <Button Classes="tool" Command="{Binding TestSelectedCommand}"
+                        ToolTip.Tip="{Binding TestLabel}" AutomationProperties.Name="{Binding TestLabel}">
+                  <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+                    <LucideIcon Kind="CircleCheck" Size="{StaticResource IconSizeSm}"/>
+                    <TextBlock Text="{Binding TestLabel}"/>
+                  </StackPanel>
+                </Button>
+                <Button Classes="tool" Command="{Binding EditSelectedCommand}"
+                        ToolTip.Tip="{Binding EditLabel}" AutomationProperties.Name="{Binding EditLabel}">
+                  <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+                    <LucideIcon Kind="Pencil" Size="{StaticResource IconSizeSm}"/>
+                    <TextBlock Text="{Binding EditLabel}"/>
+                  </StackPanel>
+                </Button>
+              </StackPanel>
+            </DockPanel>
 
             <!-- Above the actions, in the warning colour, as 1.x's was: "Fix credentials…" or
                  "Review trust…" when the last check found one, opening the editor on the tab

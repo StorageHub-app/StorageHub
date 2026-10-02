@@ -84,6 +84,11 @@ a wish; each one below names the test that fails when it is broken. The target i
   empty group says "No connections" on one caption line under its name (`GroupEmptyMargin`), never a
   blank block.
   _Test:_ `ConnectionGroupPanelTests.ThePanelCanBePhotographed`, compared by eye in both appearances.
+- **The panel's buttons are tools.** New is a dense tool button (`Button.tool.emphasis`: accent icon
+  and text, flat until hovered), like the menu beside it. The details' Open, Test and Edit are one row
+  of tool buttons with Delete last, past a separator, in the danger colour as text and icon. Where
+  the panel is too narrow for their labels, all four drop them together and keep them as tooltips.
+  _Test:_ `ConnectionGroupPanelTests.ThePanelCanBePhotographed` (narrow and wide).
 
 ## Markup
 

@@ -11,7 +11,7 @@ using Xunit;
 namespace StorageHub.Desktop.Tests;
 
 /// <summary>
-/// Text and icons drawn on a filled button take the fill's contrast colour, in both appearances.
+/// Text and icons on the sidebar's New take the scheme's colour for them, in both appearances.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -42,17 +42,18 @@ public class FilledButtonContrastTests
                 window.Show();
                 window.UpdateLayout();
 
+                // New is a flat tool button now, drawn in the accent rather than on it: the
+                // same failure would be a label in the muted default instead of the accent.
                 var button = window.GetVisualDescendants()
                     .OfType<Button>()
-                    .First(candidate => candidate.Classes.Contains("primary"));
+                    .First(candidate => candidate.Classes.Contains("emphasis"));
 
                 // Everything the button draws, not just the label: the icon has its own muted
                 // default, which is exactly what made the plus sign invisible too.
-                // Whatever the active scheme says belongs on its accent, not a literal white:
-                // half the shipped schemes have a pastel accent that only a dark label sits on.
+                // Whatever the active scheme says its accent is, not a literal blue.
                 var expected = ColorSchemeApplier.Resolve(
                     global::Avalonia.Application.Current!,
-                    ColorTokens.OnPrimary);
+                    ColorTokens.Primary);
 
                 foreach (var text in button.GetVisualDescendants().OfType<TextBlock>())
                 {

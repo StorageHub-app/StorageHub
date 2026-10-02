@@ -249,6 +249,8 @@
   <!-- "No connections" under an open empty group, starting under its name: the disclosure (18),
        the glyph (GroupGlyphSize), the two column gaps and GroupTitleMargin. Change them together. -->
   <Thickness x:Key="GroupEmptyMargin">48,0,0,0</Thickness>
+  <!-- The connection details' row of actions, a step below the facts above it. -->
+  <Thickness x:Key="DetailActionsMargin">0,8,0,0</Thickness>
   <sys:Double x:Key="SplitterThickness">4</sys:Double>
 
   <!--
