@@ -4,8 +4,10 @@
         x:Class="StorageHub.Desktop.Views.PromptWindow"
         x:DataType="vm:PromptModel"
         Title="{Binding Title}"
-        Width="420" SizeToContent="Height"
+        Width="{StaticResource DialogPromptWidth}" SizeToContent="Height"
         CanResize="False"
+        ShowInTaskbar="False"
+        Background="{DynamicResource SurfaceBrush}"
         WindowStartupLocation="CenterOwner">
 
   <!--
@@ -14,8 +16,18 @@
     made them do the work twice.
   -->
 
-  <Border Classes="surface" Padding="{StaticResource PaddingLg}">
-    <StackPanel Spacing="{StaticResource SpaceSm}">
+  <DockPanel>
+    <!-- The same footer band as the message box, with the buttons in Windows' order. -->
+    <Border DockPanel.Dock="Bottom" Classes="dialog-footer">
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                  Spacing="{StaticResource SpaceMd}">
+        <Button Classes="dialog primary" Content="{Binding Accept}"
+                IsDefault="True" Command="{Binding AcceptCommand}"/>
+        <Button Classes="dialog" Content="{Binding CancelLabel}" Command="{Binding CancelCommand}"/>
+      </StackPanel>
+    </Border>
+
+    <StackPanel Margin="{StaticResource DialogContentPadding}" Spacing="{StaticResource SpaceSm}">
       <TextBlock Text="{Binding Label}"/>
       <TextBox x:Name="PART_Value"
                Text="{Binding Value, Mode=TwoWay}"
@@ -25,12 +37,6 @@
                  IsVisible="{Binding HasError}"
                  Text="{Binding Error}"
                  TextWrapping="Wrap"/>
-      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
-                  Spacing="{StaticResource SpaceSm}" Margin="0,8,0,0">
-        <Button Content="{Binding CancelLabel}" Command="{Binding CancelCommand}"/>
-        <Button Classes="primary" Content="{Binding Accept}"
-                IsDefault="True" Command="{Binding AcceptCommand}"/>
-      </StackPanel>
     </StackPanel>
-  </Border>
+  </DockPanel>
 </Window>

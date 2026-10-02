@@ -1,60 +1,65 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="StorageHub.Desktop.Views.DialogWindow"
-        SizeToContent="Height"
-        Width="460"
-        MinHeight="150"
+        SizeToContent="WidthAndHeight"
         CanResize="False"
+        CanMinimize="False"
+        CanMaximize="False"
         ShowInTaskbar="False"
+        Background="{DynamicResource SurfaceBrush}"
         WindowStartupLocation="CenterOwner">
 
   <!--
-    StorageHub's message box. Avalonia ships none, which is the usual complaint about it and is
-    actually the right call: a platform message box cannot be themed, cannot show the shell's own
-    icons, and looks like a different application beside them. This is forty lines and takes the
-    same tokens as every other surface.
+    StorageHub's message box, laid out as the Windows one is, which is what 1.4 showed: the title
+    in the title bar, a 32 px icon beside the message on the window's own background, and a band
+    along the foot holding the buttons on the right in the order Windows uses (OK Cancel, Yes No
+    Cancel), with a checkbox such as "Don't show this again" on the left of that band.
 
-    Height follows the content because the detail line is a path or an exception message, and there
-    is no fixed height at which both a one-line question and a wrapped stack of text look right.
+    The window takes the width of its text between a minimum and a maximum, and wraps at the
+    maximum, because the detail line is a path or an exception message and no fixed size suits
+    both a one-line question and a paragraph.
   -->
 
-  <Border Background="{DynamicResource CanvasBrush}">
-    <DockPanel>
+  <!-- The width limits sit on the content rather than the window: a window sized to its content
+       takes the content's size and does not apply its own minimum on every platform. -->
+  <DockPanel MinWidth="{StaticResource DialogMinWidth}" MaxWidth="{StaticResource DialogMaxWidth}">
 
-      <!-- Actions first: a docked child claims its edge before the body fills what is left, so the
-           buttons stay on screen however tall the message grows. -->
-      <Border DockPanel.Dock="Bottom"
-              Background="{DynamicResource SurfaceMutedBrush}"
-              BorderBrush="{DynamicResource BorderBrush}"
-              BorderThickness="0,1,0,0"
-              Padding="{StaticResource PaddingLg}">
+    <!-- Docked first: a docked child claims its edge before the body fills what is left, so the
+         buttons stay on screen however tall the message grows. -->
+    <Border DockPanel.Dock="Bottom" Classes="dialog-footer">
+      <DockPanel>
         <StackPanel Name="PART_Actions"
+                    DockPanel.Dock="Right"
                     Orientation="Horizontal"
                     HorizontalAlignment="Right"
                     Spacing="{StaticResource SpaceMd}"/>
-      </Border>
+        <CheckBox Name="PART_CheckBox"
+                  IsVisible="False"
+                  Margin="{StaticResource DialogFooterCheckBoxMargin}"/>
+      </DockPanel>
+    </Border>
 
-      <Grid Margin="{StaticResource PagePadding}"
-            ColumnDefinitions="Auto,*"
-            ColumnSpacing="{StaticResource SpaceLg}">
+    <Grid Margin="{StaticResource DialogContentPadding}"
+          ColumnDefinitions="Auto,*"
+          ColumnSpacing="{StaticResource SpaceLg}">
 
-        <LucideIcon Name="PART_Icon"
-                    Grid.Column="0"
-                    Size="{StaticResource IconSizeXl}"
-                    VerticalAlignment="Top"/>
+      <LucideIcon Name="PART_Icon"
+                  Grid.Column="0"
+                  Size="{StaticResource DialogIconSize}"
+                  VerticalAlignment="Top"/>
 
-        <StackPanel Grid.Column="1" Spacing="{StaticResource SpaceSm}">
-          <TextBlock Name="PART_Message"
-                     Classes="heading"
-                     TextWrapping="Wrap"/>
-          <TextBlock Name="PART_Detail"
-                     Classes="muted"
-                     TextWrapping="Wrap"
-                     IsVisible="False"/>
-          <CheckBox Name="PART_CheckBox" IsVisible="False" Margin="0,6,0,0"/>
-        </StackPanel>
-      </Grid>
+      <!-- Selectable, as a Windows message box's text can be copied: the detail is often a path or
+           an error somebody needs to paste somewhere. -->
+      <StackPanel Grid.Column="1" VerticalAlignment="Center">
+        <SelectableTextBlock Name="PART_Message"
+                             FontSize="{StaticResource FontSizeSubtitle}"
+                             TextWrapping="Wrap"/>
+        <SelectableTextBlock Name="PART_Detail"
+                             Margin="{StaticResource DialogDetailMargin}"
+                             TextWrapping="Wrap"
+                             IsVisible="False"/>
+      </StackPanel>
+    </Grid>
 
-    </DockPanel>
-  </Border>
+  </DockPanel>
 </Window>

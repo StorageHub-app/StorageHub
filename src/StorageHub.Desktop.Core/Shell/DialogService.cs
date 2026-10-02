@@ -68,7 +68,8 @@ internal sealed record DialogRequest
     public DialogButtons Buttons { get; init; } = DialogButtons.Ok;
 
     /// <summary>
-    /// The choice a dismissed dialog reports, and the button that starts focused.
+    /// The choice a dismissed dialog reports and, when given, the button that starts focused and
+    /// that Enter presses.
     /// </summary>
     /// <remarks>
     /// Null means the safe one for the button set: Ok for <see cref="DialogButtons.Ok"/>, Cancel

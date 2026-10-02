@@ -137,9 +137,17 @@ public class DialogWindowTests
         var window = DialogWindow.For(Request(DialogButtons.YesNo, DialogChoice.No));
         window.Show();
 
-        // Enter presses Yes, but nothing was pressed, so the standing answer is still No.
-        Assert.True(Button(window, Ui.Dialogs.ButtonYes).IsDefault);
+        // No is the default button, as MB_DEFBUTTON2 made it: Enter presses No, it is the accented
+        // one, and the standing answer is No too.
+        Assert.True(Button(window, Ui.Dialogs.ButtonNo).IsDefault);
+        Assert.False(Button(window, Ui.Dialogs.ButtonYes).IsDefault);
+        Assert.Contains("primary", Button(window, Ui.Dialogs.ButtonNo).Classes);
         Assert.Equal(DialogChoice.No, window.Result);
+
+        // Without one, Enter answers yes.
+        var plain = DialogWindow.For(Request(DialogButtons.YesNoCancel));
+        plain.Show();
+        Assert.True(Button(plain, Ui.Dialogs.ButtonYes).IsDefault);
     }
 
     [AvaloniaFact]
@@ -186,13 +194,30 @@ public class DialogWindowTests
     [AvaloniaFact]
     public void TheDialogCanBePhotographedInBothAppearances()
     {
-        (DialogSeverity Severity, DialogButtons Buttons, string? Detail)[] cases =
+        (string Name, DialogRequest Request)[] cases =
         [
-            (DialogSeverity.Question, DialogButtons.YesNoCancel, null),
-            (DialogSeverity.Warning, DialogButtons.OkCancel, "3 transfers are still running."),
-            (DialogSeverity.Error, DialogButtons.Ok,
-                "The agent refused the connection: the named pipe was not found."),
-            (DialogSeverity.Information, DialogButtons.Ok, null)
+            ("question", Request(DialogButtons.YesNoCancel) with { Severity = DialogSeverity.Question }),
+            ("warning", Request(DialogButtons.OkCancel) with
+            {
+                Severity = DialogSeverity.Warning,
+                Detail = "3 transfers are still running.",
+                CheckBoxLabel = Ui.Dialogs.DontShowWarningAgain
+            }),
+            ("error", Request(DialogButtons.Ok) with
+            {
+                Severity = DialogSeverity.Error,
+                Detail = "The agent refused the connection: the named pipe was not found."
+            }),
+            ("information", Request(DialogButtons.Ok) with { Title = "Saved", Message = "Saved." }),
+            ("hostkey", new DialogRequest
+            {
+                Title = Ui.Dialogs.VerifyHostKeyCaption,
+                Message = Ui.Format(Ui.Dialogs.VerifyHostKeyPromptFormat, "ssh-ed25519",
+                    "SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8"),
+                Severity = DialogSeverity.Warning,
+                Buttons = DialogButtons.YesNo,
+                Default = DialogChoice.No
+            })
         ];
 
         try
@@ -200,9 +225,9 @@ public class DialogWindowTests
             foreach (var variant in (ThemeVariant[])[ThemeVariant.Dark, ThemeVariant.Light])
             {
                 global::Avalonia.Application.Current!.RequestedThemeVariant = variant;
-                foreach (var (severity, buttons, detail) in cases)
+                foreach (var (name, request) in cases)
                 {
-                    Photograph(severity, buttons, detail, variant);
+                    Photograph(name, request, variant);
                 }
             }
         }
@@ -212,16 +237,23 @@ public class DialogWindowTests
         }
     }
 
-    private static void Photograph(
-        DialogSeverity severity,
-        DialogButtons buttons,
-        string? detail,
-        ThemeVariant variant)
+    /// <summary>
+    /// Shows one request and checks it is drawn as a Windows message box is: as wide as its text
+    /// between 360 and 520, and dense buttons at least 80 wide.
+    /// </summary>
+    private static void Photograph(string name, DialogRequest request, ThemeVariant variant)
     {
-        var window = DialogWindow.For(Request(buttons) with { Severity = severity, Detail = detail });
+        var window = DialogWindow.For(request);
         window.Show();
-        window.Measure(new Size(460, 400));
-        window.Arrange(new Rect(0, 0, 460, window.DesiredSize.Height));
+        window.UpdateLayout();
+
+        var width = window.ClientSize.Width;
+        Assert.InRange(width, 360, 520);
+        foreach (var button in Actions(window).Children.OfType<Button>())
+        {
+            Assert.InRange(button.Bounds.Height, 22, 28);
+            Assert.True(button.Bounds.Width >= 80, $"{button.Content} is {button.Bounds.Width} wide");
+        }
 
         var frame = window.CaptureRenderedFrame();
         Assert.NotNull(frame);
@@ -234,9 +266,7 @@ public class DialogWindowTests
 
         Directory.CreateDirectory(directory);
         var appearance = variant == ThemeVariant.Light ? "light" : "dark";
-        using var stream = File.Create(Path.Combine(
-            directory,
-            $"dialog-{appearance}-{severity.ToString().ToLowerInvariant()}.png"));
+        using var stream = File.Create(Path.Combine(directory, $"dialog-{appearance}-{name}.png"));
         frame!.Save(stream, new global::Avalonia.Media.Imaging.PngBitmapEncoderOptions());
     }
 

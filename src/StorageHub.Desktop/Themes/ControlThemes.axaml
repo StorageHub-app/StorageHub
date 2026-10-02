@@ -240,6 +240,29 @@
     <Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/>
   </Style>
 
+  <!--
+    A dialog's own buttons: OK, Cancel, Yes, No, Apply. The standard Windows size rather than
+    Fluent's, which is drawn for touch and made every message box look like a form.
+  -->
+  <Style Selector="Button.dialog">
+    <Setter Property="MinWidth" Value="{StaticResource DialogButtonMinWidth}"/>
+    <Setter Property="MinHeight" Value="0"/>
+    <Setter Property="Padding" Value="{StaticResource DialogButtonPadding}"/>
+    <Setter Property="HorizontalContentAlignment" Value="Center"/>
+    <Setter Property="VerticalContentAlignment" Value="Center"/>
+  </Style>
+  <!-- The band along a dialog's foot that holds its buttons, a shade off the content above it. -->
+  <Style Selector="Border.dialog-footer">
+    <Setter Property="Background" Value="{DynamicResource CanvasBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+    <Setter Property="BorderThickness" Value="0,1,0,0"/>
+    <Setter Property="Padding" Value="{StaticResource DialogFooterPadding}"/>
+  </Style>
+  <Style Selector="Border.dialog-footer CheckBox">
+    <Setter Property="MinHeight" Value="0"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+  </Style>
+
   <!-- The dense variant, for anything hosted in the toolbar. -->
   <Style Selector="Button.tool">
     <Setter Property="Background" Value="Transparent"/>

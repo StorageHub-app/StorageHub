@@ -56,32 +56,57 @@ public partial class DialogWindow : Window
         icon.Foreground = BrushFor(request.Severity);
 
         var actions = this.GetControl<StackPanel>("PART_Actions");
+        var enter = EnterFor(request);
         foreach (var choice in DialogDefaults.Choices(request.Buttons))
         {
-            var primary = choice == PrimaryFor(request.Buttons);
-            var named = primary && !string.IsNullOrWhiteSpace(request.Accept);
+            var affirmative = choice == PrimaryFor(request.Buttons);
+            var named = affirmative && !string.IsNullOrWhiteSpace(request.Accept);
             var button = new Button
             {
                 Content = named ? request.Accept : LabelFor(choice),
-                MinWidth = 88,
-                IsDefault = primary,
+                IsDefault = choice == enter,
                 IsCancel = choice == fallback && choice is DialogChoice.Cancel or DialogChoice.No
             };
+            button.Classes.Add("dialog");
 
             // Captured rather than read from the sender, so a caller that restyles the button
             // cannot change what it answers.
             button.Click += (_, _) => Close(choice);
 
-            // A button that says what it does is the one the dialog is for, and 1.x drew those
-            // primary whatever the severity: Delete, Clear history.
-            if (primary && (named || request.Severity == DialogSeverity.Question))
+            // The button Enter presses is the accented one, as Windows draws its default button,
+            // and it starts focused so the ring and the accent agree on where Enter goes.
+            if (choice == enter)
             {
                 button.Classes.Add("primary");
+                _defaultButton = button;
             }
 
             actions.Children.Add(button);
         }
     }
+
+    private Button? _defaultButton;
+
+    /// <summary>Focuses the default button once the window can take focus.</summary>
+    protected override void OnOpened(EventArgs e)
+    {
+        base.OnOpened(e);
+        _defaultButton?.Focus();
+    }
+
+    /// <summary>
+    /// The button Enter presses: the one the caller named as the default, or else the affirmative
+    /// one.
+    /// </summary>
+    /// <remarks>
+    /// A caller names a default to keep a stray Enter off the destructive answer, which is what
+    /// MB_DEFBUTTON2 did for 1.4's message boxes; "trust this host key" with No as its default must
+    /// not be agreed to by Enter.
+    /// </remarks>
+    private static DialogChoice EnterFor(DialogRequest request) =>
+        request.Default is { } named && DialogDefaults.Choices(request.Buttons).Contains(named)
+            ? named
+            : PrimaryFor(request.Buttons);
 
     /// <summary>
     /// Escape answers with the safe choice rather than nothing.
@@ -115,7 +140,7 @@ public partial class DialogWindow : Window
         Close();
     }
 
-    /// <summary>The button Enter presses: the affirmative one, never the destructive one.</summary>
+    /// <summary>The affirmative answer of a button set: the one an Accept label renames.</summary>
     private static DialogChoice PrimaryFor(DialogButtons buttons) => buttons switch
     {
         DialogButtons.YesNo or DialogButtons.YesNoCancel => DialogChoice.Yes,

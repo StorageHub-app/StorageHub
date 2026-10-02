@@ -130,10 +130,6 @@
     <Style Selector="NumericUpDown.settings">
       <Setter Property="Padding" Value="{StaticResource SettingsNumberPadding}"/>
     </Style>
-    <Style Selector="Button.dialog">
-      <Setter Property="MinWidth" Value="{StaticResource DialogButtonMinWidth}"/>
-      <Setter Property="HorizontalContentAlignment" Value="Center"/>
-    </Style>
   </Window.Styles>
 
   <DockPanel>
