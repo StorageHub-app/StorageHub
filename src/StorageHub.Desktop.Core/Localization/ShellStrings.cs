@@ -86,6 +86,14 @@ internal sealed class ShellStrings : LocalizationModelBase
 
     public string AgentNotConnected { get; set; } = "Agent: not connected";
 
+    /// <summary>
+    /// What a screen reader calls a number box's two arrows. Their content is an icon, which was
+    /// read out as "PathIcon".
+    /// </summary>
+    public string SpinIncrease { get; set; } = "Increase";
+
+    public string SpinDecrease { get; set; } = "Decrease";
+
     /// <summary>The status bar while a reconnect is in flight.</summary>
     public string AgentReconnectingStatus { get; set; } = "Agent: reconnecting";
 

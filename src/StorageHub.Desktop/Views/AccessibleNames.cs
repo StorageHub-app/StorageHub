@@ -59,6 +59,13 @@ internal static class AccessibleNames
         Detach(control);
         if (HasOwnName(control)) return;
 
+        // A number box's arrows draw an icon and nothing else, and have no tooltip to fall back on.
+        if (SpinnerName(control) is { } spin)
+        {
+            AutomationProperties.SetName(control, spin);
+            return;
+        }
+
         var watch = new Watch(control, Texts(control));
         control.SetValue(WatchProperty, watch);
         watch.Update();
@@ -71,6 +78,17 @@ internal static class AccessibleNames
         control.ClearValue(WatchProperty);
         control.ClearValue(AutomationProperties.NameProperty);
     }
+
+    /// <summary>Increase or Decrease, for the arrows of a ButtonSpinner (a NumericUpDown's).</summary>
+    private static string? SpinnerName(Control control) =>
+        control is RepeatButton { TemplatedParent: ButtonSpinner } spin
+            ? spin.Name switch
+            {
+                "PART_IncreaseButton" => Localization.Ui.Shell.SpinIncrease,
+                "PART_DecreaseButton" => Localization.Ui.Shell.SpinDecrease,
+                _ => null
+            }
+            : null;
 
     /// <summary>
     /// A name somebody set, or content Avalonia already names the control after. The one given

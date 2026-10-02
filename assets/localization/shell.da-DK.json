@@ -30,6 +30,8 @@
   "agentConnected": "Agent: forbundet",
   "agentRecoveryMode": "Agent: gendannelsestilstand",
   "agentNotConnected": "Agent: ikke forbundet",
+  "spinIncrease": "Forøg",
+  "spinDecrease": "Formindsk",
   "statusSettingsImported": "Indstillinger importeret.",
   "statusIndexingDestination": "Indekserer destinationsmappen til konfliktgennemgang…",
   "statusClipboardCleared": "StorageHubs udklipsholder er ryddet.",

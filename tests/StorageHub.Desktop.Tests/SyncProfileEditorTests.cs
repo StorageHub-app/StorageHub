@@ -383,6 +383,11 @@ public class SyncProfileEditorTests
             .RaiseEvent(new SpinEventArgs(Spinner.SpinEvent, SpinDirection.Decrease));
         Assert.Equal(0.25m, model.MaximumDeletionPercentage);
 
+        // Its arrows are named for a screen reader by what they do, not after their icon.
+        Assert.Equal(
+            [Ui.Shell.SpinIncrease, Ui.Shell.SpinDecrease],
+            percentage.GetVisualDescendants().OfType<RepeatButton>().Select(AutomationProperties.GetName));
+
         var directory = Environment.GetEnvironmentVariable("STORAGEHUB_SHOT_DIR");
         if (string.IsNullOrWhiteSpace(directory)) return;
 

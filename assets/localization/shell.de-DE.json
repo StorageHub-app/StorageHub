@@ -30,6 +30,8 @@
   "agentConnected": "Agent: verbunden",
   "agentRecoveryMode": "Agent: Wiederherstellungsmodus",
   "agentNotConnected": "Agent: nicht verbunden",
+  "spinIncrease": "Erhöhen",
+  "spinDecrease": "Verringern",
   "statusSettingsImported": "Einstellungen importiert.",
   "statusIndexingDestination": "Der Zielordner wird für die Konfliktprüfung indiziert…",
   "statusClipboardCleared": "Die Zwischenablage von StorageHub wurde geleert.",
