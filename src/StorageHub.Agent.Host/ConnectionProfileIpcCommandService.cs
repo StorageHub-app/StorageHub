@@ -552,7 +552,8 @@ internal static class ConnectionProfileIpcMapper
         new ConnectionDefaultPaths(value.HomePath, value.UploadPath, value.DownloadPath),
         value.IconKey,
         value.AccentColor,
-        notes);
+        notes,
+        value.GroupId);
 
     private static ConnectionProfileMetadataDocument ToMetadataDocument(ConnectionProfileMetadata value) => new(
         value.DisplayName,
@@ -563,7 +564,8 @@ internal static class ConnectionProfileIpcMapper
         value.DefaultPaths.UploadPath,
         value.DefaultPaths.DownloadPath,
         value.IconKey,
-        value.AccentColor);
+        value.AccentColor,
+        value.GroupId);
 
     private static ConnectionEndpoint ToEndpoint(ConnectionEndpointDocument value)
     {

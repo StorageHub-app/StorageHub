@@ -419,7 +419,8 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDi
         profile.Type == StorageHub.Application.Connections.ConnectionProfileType.Client
             ? StorageHub.Contracts.Ipc.ConnectionProfileType.Client
             : StorageHub.Contracts.Ipc.ConnectionProfileType.Storage,
-        health);
+        health,
+        profile.Metadata.GroupId);
     }
 
     private static StorageListItem MapEntry(StorageEntry entry, bool includeStableIdentities) => new(

@@ -122,7 +122,8 @@ public sealed record ConnectionSummary(
     string? AccentColor,
     long Version,
     ConnectionProfileType Type = ConnectionProfileType.Storage,
-    ConnectionHealthSnapshot? Health = null);
+    ConnectionHealthSnapshot? Health = null,
+    Guid? GroupId = null);
 
 [JsonConverter(typeof(JsonStringEnumConverter<ConnectionHealthState>))]
 public enum ConnectionHealthState

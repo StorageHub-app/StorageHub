@@ -193,6 +193,7 @@ await using var storageCommands = new StorageIpcCommandService(
         Libraries.Get<StorageLibrary>() ??
         throw new InvalidOperationException("CL.Storage is not configured.")));
 var profileCommands = new ConnectionProfileIpcCommandService(databaseOptions);
+var groupCommands = new ConnectionGroupIpcCommandService(databaseOptions);
 var keyStoreCommands = new KeyStoreIpcCommandService(
     new SqliteKeyStoreRepository(databaseOptions),
     () => vaultSubsystem.Vault);
@@ -273,6 +274,7 @@ var requestHandler = new AgentIpcRequestHandler(
     BuildCommandHandlers(
         storageCommands,
         profileCommands,
+        groupCommands,
         keyStoreCommands,
         trustCommands,
         transferCommands,

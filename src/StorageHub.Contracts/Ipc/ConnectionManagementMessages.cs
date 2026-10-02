@@ -141,9 +141,11 @@ public sealed record ConnectionProfileMetadataDocument(
     string? UploadPath = null,
     string? DownloadPath = null,
     string? IconKey = null,
-    string? AccentColor = null)
+    string? AccentColor = null,
+    Guid? GroupId = null)
 {
     public bool HasValidBounds =>
+        GroupId != Guid.Empty &&
         IsSafeText(DisplayName, ConnectionProfileIpcLimits.MaximumDisplayNameLength, required: true) &&
         IsSafeText(FolderPath, ConnectionProfileIpcLimits.MaximumFolderPathLength) &&
         Tags is not null && Tags.Length <= ConnectionProfileIpcLimits.MaximumTagCount &&
@@ -166,7 +168,7 @@ public sealed record ConnectionProfileMetadataDocument(
         (value is null || !value.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries)
             .Any(static segment => segment == ".."));
 
-    private static bool IsValidAccentColor(string? value) => value is null ||
+    internal static bool IsValidAccentColor(string? value) => value is null ||
         value.Length == 7 && value[0] == '#' && value.AsSpan(1).ToArray().All(Uri.IsHexDigit);
 
 }

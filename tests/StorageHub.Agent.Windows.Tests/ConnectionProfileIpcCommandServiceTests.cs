@@ -154,7 +154,7 @@ public sealed class ConnectionProfileIpcCommandServiceTests
     }
 
     [WindowsOnlyFact]
-    public async Task CrudRoundTripsThroughAuthoritativeSqliteRepository()
+    public async Task CrudRoundTripsThroughAuthoritativeSqliteRepositoryAndKeepsItsGroup()
     {
         var root = Path.Combine(Path.GetTempPath(), "storagehub-profile-ipc-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
@@ -182,26 +182,56 @@ public sealed class ConnectionProfileIpcCommandServiceTests
                     createdProfile.ConnectionId)));
             var readPayload = read.Payload.Deserialize<ConnectionProfileGetResponse>();
 
+            // A group from the same database, which the update files the connection in.
+            var groups = new ConnectionGroupIpcCommandService(new SqliteDatabaseOptions(Path.Combine(root, "storagehub.db")));
+            var team = Assert.IsType<ConnectionGroupDocument>((await groups.HandleAsync(IpcEnvelope.Create(
+                ConnectionGroupIpcMessageTypes.CreateRequest,
+                Guid.NewGuid(),
+                3,
+                new ConnectionGroupCreateRequest(ConnectionProfileIpcContract.CurrentVersion, "Team", "layers", "#16a34a"))))
+                .Payload.Deserialize<ConnectionGroupWriteResponse>()?.Group);
+            Assert.Equal("#16A34A", team.ColorKey);
+            var renamed = LocalDraft("Renamed", "C:\\Data");
+
             var updated = await service.HandleAsync(IpcEnvelope.Create(
                 ConnectionProfileIpcMessageTypes.UpdateRequest,
                 Guid.NewGuid(),
-                3,
+                4,
                 new ConnectionProfileUpdateRequest(
                     ConnectionProfileIpcContract.CurrentVersion,
                     createdProfile.ConnectionId,
                     createdProfile.Version,
-                    LocalDraft("Renamed", "C:\\Data"))));
+                    renamed with { Metadata = renamed.Metadata with { GroupId = team.GroupId } })));
             var updatedProfile = Assert.IsType<ConnectionProfileDocument>(
                 updated.Payload.Deserialize<ConnectionProfileWriteResponse>()?.Profile);
+            Assert.Equal(team.GroupId, updatedProfile.Draft.Metadata.GroupId);
+
+            // Removing the group keeps the connection, Ungrouped, at a new version.
+            var removed = (await groups.HandleAsync(IpcEnvelope.Create(
+                ConnectionGroupIpcMessageTypes.DeleteRequest,
+                Guid.NewGuid(),
+                5,
+                new ConnectionGroupDeleteRequest(ConnectionProfileIpcContract.CurrentVersion, team.GroupId))))
+                .Payload.Deserialize<ConnectionGroupWriteResponse>();
+            Assert.Equal(StorageHub.Contracts.Ipc.ConnectionGroupWriteStatus.Succeeded, removed?.Status);
+            Assert.Empty(removed!.Groups!);
+            var ungrouped = Assert.IsType<ConnectionProfileDocument>((await service.HandleAsync(IpcEnvelope.Create(
+                ConnectionProfileIpcMessageTypes.GetRequest,
+                Guid.NewGuid(),
+                6,
+                new ConnectionProfileGetRequest(ConnectionProfileIpcContract.CurrentVersion, createdProfile.ConnectionId))))
+                .Payload.Deserialize<ConnectionProfileGetResponse>()?.Profile);
+            Assert.Null(ungrouped.Draft.Metadata.GroupId);
+            Assert.Equal(3, ungrouped.Version);
 
             var deleted = await service.HandleAsync(IpcEnvelope.Create(
                 ConnectionProfileIpcMessageTypes.DeleteRequest,
                 Guid.NewGuid(),
-                4,
+                7,
                 new ConnectionProfileDeleteRequest(
                     ConnectionProfileIpcContract.CurrentVersion,
-                    updatedProfile.ConnectionId,
-                    updatedProfile.Version)));
+                    ungrouped.ConnectionId,
+                    ungrouped.Version)));
 
             Assert.Equal("Local", readPayload?.Profile?.Draft.Metadata.DisplayName);
             Assert.Equal(2, updatedProfile.Version);

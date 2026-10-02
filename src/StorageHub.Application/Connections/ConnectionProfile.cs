@@ -117,7 +117,8 @@ public sealed record ConnectionProfileMetadata
         ConnectionDefaultPaths? defaultPaths = null,
         string? iconKey = null,
         string? accentColor = null,
-        string? notes = null)
+        string? notes = null,
+        Guid? groupId = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
         var normalizedName = displayName.Trim();
@@ -138,6 +139,7 @@ public sealed record ConnectionProfileMetadata
         IconKey = NormalizeOptional(iconKey, 64, nameof(iconKey));
         AccentColor = NormalizeAccentColor(accentColor);
         Notes = NormalizeOptional(notes, 4_096, nameof(notes), allowLayoutControls: true);
+        GroupId = groupId == Guid.Empty ? null : groupId;
     }
 
     public string DisplayName { get; }
@@ -148,6 +150,13 @@ public sealed record ConnectionProfileMetadata
     public string? IconKey { get; }
     public string? AccentColor { get; }
     public string? Notes { get; }
+
+    /// <summary>
+    /// The connection group it is filed in, or null for Ungrouped. The group is the agent's own
+    /// record (<see cref="ConnectionGroup"/>), so this is a reference and nothing more: a group that
+    /// is deleted takes its connections back to Ungrouped rather than taking them with it.
+    /// </summary>
+    public Guid? GroupId { get; init; }
 
     private static ImmutableArray<string> NormalizeTags(IEnumerable<string>? tags)
     {

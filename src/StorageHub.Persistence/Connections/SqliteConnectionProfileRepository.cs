@@ -88,7 +88,8 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
         await using var command = connection.CreateCommand();
         command.CommandText = """
             SELECT profile_id, provider, metadata_json, endpoint_json, authentication_json,
-                   operational_options_json, is_enabled, version, created_utc, updated_utc, deleted_utc
+                   operational_options_json, is_enabled, version, created_utc, updated_utc, deleted_utc,
+                   group_id
             FROM connection_profiles AS profiles
             WHERE ($include_deleted = 1 OR deleted_utc IS NULL)
               AND ($include_disabled = 1 OR is_enabled = 1)
@@ -262,11 +263,11 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
             INSERT INTO connection_profiles
             (profile_id, provider, display_name, folder_path, tags_json, metadata_json, endpoint_json,
              authentication_json, operational_options_json, is_favorite, is_enabled, version,
-             created_utc, updated_utc, deleted_utc)
+             created_utc, updated_utc, deleted_utc, group_id)
             VALUES
             ($id, $provider, $display_name, $folder_path, $tags, $metadata, $endpoint,
              $authentication, $options, $favorite, $enabled, $version,
-             $created, $updated, $deleted);
+             $created, $updated, $deleted, (SELECT group_id FROM connection_groups WHERE group_id = $group_id));
             """;
         BindProfile(command, profile);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -293,7 +294,8 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
                 is_enabled = $enabled,
                 version = $version,
                 updated_utc = $updated,
-                deleted_utc = $deleted
+                deleted_utc = $deleted,
+                group_id = (SELECT group_id FROM connection_groups WHERE group_id = $group_id)
             WHERE profile_id = $id AND version = $expected_version;
             """;
         BindProfile(command, profile);
@@ -321,6 +323,13 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
         command.Parameters.AddWithValue("$deleted", profile.DeletedUtc is { } deleted
             ? FormatTimestamp(deleted)
             : DBNull.Value);
+
+        // A group named by a draft but removed in the meantime files the connection as Ungrouped
+        // rather than failing the save on the foreign key: the statements look the id up rather
+        // than writing it blind.
+        command.Parameters.AddWithValue("$group_id", profile.Metadata.GroupId is { } group
+            ? group.ToString("D")
+            : DBNull.Value);
     }
 
     private static async ValueTask<ConnectionProfile?> ReadByIdAsync(
@@ -332,7 +341,8 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
         await using var command = connection.CreateCommand();
         command.CommandText = """
             SELECT profile_id, provider, metadata_json, endpoint_json, authentication_json,
-                   operational_options_json, is_enabled, version, created_utc, updated_utc, deleted_utc
+                   operational_options_json, is_enabled, version, created_utc, updated_utc, deleted_utc,
+                   group_id
             FROM connection_profiles
             WHERE profile_id = $id AND ($include_deleted = 1 OR deleted_utc IS NULL);
             """;
@@ -347,7 +357,10 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
     private static ConnectionProfile ReadProfile(SqliteDataReader reader)
     {
         var id = ConnectionProfileId.Parse(reader.GetString(0));
-        var metadata = DeserializeMetadata(reader.GetString(2));
+        var metadata = DeserializeMetadata(reader.GetString(2)) with
+        {
+            GroupId = reader.IsDBNull(11) ? null : Guid.Parse(reader.GetString(11))
+        };
         var endpoint = DeserializeEndpoint(reader.GetString(3));
         var provider = endpoint.Provider;
         var authentication = DeserializeAuthentication(reader.GetString(4));

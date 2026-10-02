@@ -18,7 +18,7 @@ public sealed class DatabaseFoundationTests : IDisposable
         var result = await new StorageHubDatabaseInitializer(options).InitializeAsync();
 
         Assert.True(result.IsReady, result.Message);
-        Assert.Equal(OptionalSshKeyPassphraseSchemaMigration.SchemaVersion, result.SchemaVersion);
+        Assert.Equal(ConnectionGroupsSchemaMigration.SchemaVersion, result.SchemaVersion);
 
         await using var connection = new SqliteConnection(new SqliteConnectionStringBuilder
         {
@@ -32,7 +32,7 @@ public sealed class DatabaseFoundationTests : IDisposable
         Assert.Equal("wal", await ScalarTextAsync(connection, "PRAGMA journal_mode;"));
         Assert.Equal(1L, await ScalarInt64Async(connection, "PRAGMA foreign_keys;"));
         Assert.Equal(2L, await ScalarInt64Async(connection, "PRAGMA synchronous;"));
-        Assert.Equal(OptionalSshKeyPassphraseSchemaMigration.SchemaVersion, await ScalarInt64Async(connection, "PRAGMA user_version;"));
+        Assert.Equal(ConnectionGroupsSchemaMigration.SchemaVersion, await ScalarInt64Async(connection, "PRAGMA user_version;"));
 
         var requiredTables = new[]
         {
@@ -40,7 +40,7 @@ public sealed class DatabaseFoundationTests : IDisposable
             "trust_records", "transfer_jobs", "transfer_attempts", "transfer_checkpoints", "sync_profiles",
             "sync_schedules", "sync_schedule_completions", "sync_runs", "sync_operations",
             "sync_item_state", "sync_plans", "sync_plan_operations", "conflict_records",
-            "audit_events", "outbox_events"
+            "audit_events", "outbox_events", "connection_groups"
         };
         foreach (var table in requiredTables)
         {
@@ -61,7 +61,7 @@ public sealed class DatabaseFoundationTests : IDisposable
         Assert.True((await initializer.InitializeAsync()).IsReady);
 
         await using var connection = await OpenConfiguredAsync(options.DatabasePath);
-        Assert.Equal(15L, await ScalarInt64Async(connection, "SELECT COUNT(*) FROM schema_migrations;"));
+        Assert.Equal(16L, await ScalarInt64Async(connection, "SELECT COUNT(*) FROM schema_migrations;"));
     }
 
     [Fact]
@@ -77,11 +77,11 @@ public sealed class DatabaseFoundationTests : IDisposable
         Assert.All(results, result =>
         {
             Assert.True(result.IsReady, result.Message);
-            Assert.Equal(OptionalSshKeyPassphraseSchemaMigration.SchemaVersion, result.SchemaVersion);
+            Assert.Equal(ConnectionGroupsSchemaMigration.SchemaVersion, result.SchemaVersion);
         });
         await using var connection = await OpenConfiguredAsync(options.DatabasePath);
-        Assert.Equal(15L, await ScalarInt64Async(connection, "SELECT COUNT(*) FROM schema_migrations;"));
-        Assert.Equal(15L, await ScalarInt64Async(connection, "PRAGMA user_version;"));
+        Assert.Equal(16L, await ScalarInt64Async(connection, "SELECT COUNT(*) FROM schema_migrations;"));
+        Assert.Equal(16L, await ScalarInt64Async(connection, "PRAGMA user_version;"));
     }
 
     [Fact]
@@ -152,7 +152,7 @@ public sealed class DatabaseFoundationTests : IDisposable
         var upgraded = await new StorageHubDatabaseInitializer(options).InitializeAsync();
 
         Assert.True(upgraded.IsReady, upgraded.Message);
-        Assert.Equal(OptionalSshKeyPassphraseSchemaMigration.SchemaVersion, upgraded.SchemaVersion);
+        Assert.Equal(ConnectionGroupsSchemaMigration.SchemaVersion, upgraded.SchemaVersion);
         await using var connection = await OpenConfiguredAsync(options.DatabasePath);
         Assert.Equal(1L, await ScalarInt64Async(
             connection,
@@ -177,7 +177,7 @@ public sealed class DatabaseFoundationTests : IDisposable
         var result = await new StorageHubDatabaseInitializer(options).InitializeAsync();
 
         Assert.True(result.IsReady, result.Message);
-        Assert.Equal(OptionalSshKeyPassphraseSchemaMigration.SchemaVersion, result.SchemaVersion);
+        Assert.Equal(ConnectionGroupsSchemaMigration.SchemaVersion, result.SchemaVersion);
         await using var connection = await OpenConfiguredAsync(options.DatabasePath);
         Assert.Equal(1L, await ScalarInt64Async(
             connection,
@@ -188,7 +188,7 @@ public sealed class DatabaseFoundationTests : IDisposable
         Assert.Equal(1L, await ScalarInt64Async(
             connection,
             "SELECT COUNT(*) FROM sqlite_schema WHERE type = 'table' AND name = 'connection_profiles';"));
-        Assert.Equal(15L, await ScalarInt64Async(connection, "SELECT COUNT(*) FROM schema_migrations;"));
+        Assert.Equal(16L, await ScalarInt64Async(connection, "SELECT COUNT(*) FROM schema_migrations;"));
 
         var repository = new SqliteConnectionProfileRepository(options);
         var profile = ConnectionProfile.Create(
