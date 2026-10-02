@@ -51,11 +51,9 @@ public class LiveObjectInspectorTests
             editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.S3);
             editor.Field("profileName")!.Value = ConnectionName;
             editor.Field("s3ServiceType")!.Value = "Other S3-compatible";
-            // The lab's MinIO speaks plain HTTP, which the editor refuses on purpose: it offers no
-            // way to allow an insecure S3 endpoint. The draft is built with an https placeholder
-            // and rewritten below, through the contract's own flag, before it reaches the agent.
-            var labEndpoint = new Uri(Lab("STORAGEHUB_MINIO_ENDPOINT"));
-            editor.Field("endpoint")!.Value = "https://" + labEndpoint.Authority + "/";
+            // The lab's MinIO speaks plain HTTP, which the editor takes only once it is allowed.
+            editor.Field("endpoint")!.Value = Lab("STORAGEHUB_MINIO_ENDPOINT");
+            editor.Field("acknowledgePlaintext")!.Value = "true";
             editor.Field("region")!.Value = "us-east-1";
             editor.Field("bucket")!.Value = Lab("STORAGEHUB_MINIO_BUCKET");
             editor.Field("addressingStyle")!.Value = "Path-style";
@@ -73,14 +71,6 @@ public class LiveObjectInspectorTests
                 StorageProviderKind.S3,
                 editor.Sections.SelectMany(static section => section.Fields)
                     .ToDictionary(static field => field.Key, static field => field.Value, StringComparer.Ordinal));
-            draft = draft with
-            {
-                Endpoint = draft.Endpoint with
-                {
-                    ServiceEndpoint = labEndpoint.ToString(),
-                    AllowInsecureTransport = labEndpoint.Scheme == Uri.UriSchemeHttp
-                }
-            };
             var saved = await Controller().SaveAsync(draft, null, token);
             Assert.True(saved.Profile is not null, $"The agent did not store the connection: {saved.Failure?.Message}");
             var connectionId = saved.Profile!.ConnectionId;

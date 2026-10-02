@@ -84,7 +84,8 @@ public sealed class PresentationModelTests
         Assert.Equal(["rootPath"], local.GeneralFields.Select(field => field.Key));
         Assert.Empty(local.AuthenticationFields);
         Assert.Empty(local.SecurityFields);
-        Assert.Empty(s3.SecurityFields);
+        // The one S3 trust option is plain HTTP, which the profile carries as AllowInsecureHttp.
+        Assert.Equal(["acknowledgePlaintext"], s3.SecurityFields.Select(field => field.Key));
         Assert.DoesNotContain(ftp.GeneralFields, field => field.Key == "passiveMode");
         Assert.DoesNotContain(ftps.GeneralFields, field => field.Key == "passiveMode");
         Assert.DoesNotContain(sftp.GeneralFields, field => field.Key == "keepAliveSeconds");

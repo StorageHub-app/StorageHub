@@ -371,10 +371,14 @@ public static class ConnectionEditorDraftFactory
 
     private static ConnectionEndpointDocument BuildS3Endpoint(IReadOnlyDictionary<string, string> values)
     {
+        // Plain HTTP is for an endpoint somebody runs themselves, such as a local MinIO, and only
+        // once they have said so on the trust tab: the request is signed, but the data is not
+        // encrypted on the way.
+        var allowHttp = ParseBoolean(values, "acknowledgePlaintext");
         var endpoint = NormalizeS3ServiceEndpoint(Require(
             values,
             "endpoint",
-            Ui.Validation.AnHTTPSS3ServiceEndpointIsRequired));
+            Ui.Validation.AnHTTPSS3ServiceEndpointIsRequired), allowHttp);
         var serviceType = Get(values, "s3ServiceType") ?? AmazonS3ServiceType;
         var isCloudflareR2 = string.Equals(
                 serviceType,
@@ -401,7 +405,8 @@ public static class ConnectionEditorDraftFactory
             ForcePathStyle: isCloudflareR2 || string.Equals(
                 Get(values, "addressingStyle"),
                 "Path-style",
-                StringComparison.Ordinal));
+                StringComparison.Ordinal),
+            AllowInsecureTransport: endpoint.StartsWith("http://", StringComparison.OrdinalIgnoreCase));
     }
 
     internal static bool IsCloudflareR2Endpoint(string? endpoint)
@@ -419,7 +424,7 @@ public static class ConnectionEditorDraftFactory
                 uri.IdnHost.EndsWith(".r2.cloudflarestorage.com", StringComparison.OrdinalIgnoreCase));
     }
 
-    private static string NormalizeS3ServiceEndpoint(string value)
+    private static string NormalizeS3ServiceEndpoint(string value, bool allowHttp)
     {
         var candidate = value.Contains("://", StringComparison.Ordinal)
             ? value
@@ -432,7 +437,8 @@ public static class ConnectionEditorDraftFactory
                 nameof(value));
         }
 
-        if (!string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) &&
+            !(allowHttp && string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)))
         {
             throw new ArgumentException(
                 Ui.Validation.TheS3ServiceEndpointMustUseHTTPS,

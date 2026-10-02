@@ -37,6 +37,8 @@
   "plainFTPIsUnencryptedUseFTPSOr": "Almindelig FTP er ukrypteret; brug FTPS eller SFTP, medmindre kompatibilitet kræver andet.",
   "portMustBeBetween1And65535": "Porten skal være mellem 1 og 65535.",
   "privateKeyPassphraseReference": "Reference til privatnøglens kodeord",
+  "allowPlainHTTPEndpoint": "Tillad et ukrypteret HTTP-endepunkt",
+  "forAnEndpointYouRunYourselfSuchAs": "Til et endepunkt, du selv driver, fx en lokal MinIO. Forespørgsler signeres, men data krypteres ikke undervejs.",
   "requiredBeforeThisConnectionCanBeEnabled": "Påkrævet, før denne forbindelse kan aktiveres.",
   "requiredForImportedPFX": "Påkrævet for importeret PFX",
   "requiredVaultEntry": "Påkrævet post i boksen",

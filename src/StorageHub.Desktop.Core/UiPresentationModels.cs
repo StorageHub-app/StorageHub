@@ -169,7 +169,9 @@ public static class ConnectionProviderCatalog
                 Field("secretAccessKeyReference", Ui.Providers.SecretAccessKeyReference, ConnectionFieldKind.SecretReference, placeholder: Ui.Providers.SelectAVaultEntry),
                 Field("sessionTokenReference", Ui.Providers.SessionTokenReference, ConnectionFieldKind.SecretReference, placeholder: Ui.Providers.OptionalVaultEntry)
             ],
-            []),
+            [
+                Field("acknowledgePlaintext", Ui.Providers.AllowPlainHTTPEndpoint, ConnectionFieldKind.Toggle, defaultValue: "false", help: Ui.Providers.ForAnEndpointYouRunYourselfSuchAs)
+            ]),
         new(
             StorageProviderKind.Ftp,
             "FTP",

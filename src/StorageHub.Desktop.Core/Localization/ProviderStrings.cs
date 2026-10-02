@@ -91,6 +91,10 @@ internal sealed class ProviderStrings : LocalizationModelBase
 
     public string PrivateKeyPassphraseReference { get; set; } = "Private-key passphrase reference";
 
+    public string AllowPlainHTTPEndpoint { get; set; } = "Allow a plain HTTP endpoint";
+
+    public string ForAnEndpointYouRunYourselfSuchAs { get; set; } = "For an endpoint you run yourself, such as a local MinIO. Requests are signed, but data is not encrypted on the way.";
+
     public string RequiredBeforeThisConnectionCanBeEnabled { get; set; } = "Required before this connection can be enabled.";
 
     public string RequiredForImportedPFX { get; set; } = "Required for imported PFX";

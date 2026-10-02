@@ -83,7 +83,7 @@
   "theExplorerDropRequestIsOutsideThe": "Anmodningen om slip fra Stifinder ligger uden for de aftalte IPC-kontraktgrænser.",
   "theS3BucketNameMustBe3": "S3-bucket-navnet skal være på 3-255 tegn uden mellemrum eller skråstreger.",
   "theS3ServiceEndpointMustBeA": "S3-tjenesteendepunktet skal være et gyldigt værtsnavn eller en absolut HTTPS-URL.",
-  "theS3ServiceEndpointMustUseHTTPS": "S3-tjenesteendepunktet skal bruge HTTPS; usikre HTTP-endepunkter er ikke aktiveret.",
+  "theS3ServiceEndpointMustUseHTTPS": "S3-tjenesteendepunktet skal bruge HTTPS, medmindre ukrypteret HTTP er tilladt på fanen TLS / SSH-tillid.",
   "theAddressIsNotAValidFolder": "Adressen er ikke en gyldig mappesti.",
   "theBackgroundAgentCouldNotEnqueueThe": "Baggrundsagenten kunne ikke sætte overførslen i kø.",
   "theBackgroundAgentDidNotConfirmWhether": "Baggrundsagenten bekræftede ikke, om overførslen blev sat vedvarende i kø.",

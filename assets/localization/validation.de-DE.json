@@ -83,7 +83,7 @@
   "theExplorerDropRequestIsOutsideThe": "Die Anforderung des Explorer-Ablegevorgangs liegt außerhalb der vereinbarten IPC-Vertragsgrenzen.",
   "theS3BucketNameMustBe3": "Der S3-Bucket-Name muss 3-255 Zeichen ohne Leerzeichen oder Schrägstriche umfassen.",
   "theS3ServiceEndpointMustBeA": "Der S3-Dienstendpunkt muss ein gültiger Hostname oder eine absolute HTTPS-URL sein.",
-  "theS3ServiceEndpointMustUseHTTPS": "Der S3-Dienstendpunkt muss HTTPS verwenden; unsichere HTTP-Endpunkte sind nicht aktiviert.",
+  "theS3ServiceEndpointMustUseHTTPS": "Der S3-Dienstendpunkt muss HTTPS verwenden, sofern unverschlüsseltes HTTP nicht auf der Registerkarte TLS / SSH-Vertrauen zugelassen ist.",
   "theAddressIsNotAValidFolder": "Die Adresse ist kein gültiger Ordnerpfad.",
   "theBackgroundAgentCouldNotEnqueueThe": "Der Hintergrundagent konnte die Übertragung nicht in die Warteschlange stellen.",
   "theBackgroundAgentDidNotConfirmWhether": "Der Hintergrundagent hat nicht bestätigt, ob die Übertragung dauerhaft eingereiht wurde.",

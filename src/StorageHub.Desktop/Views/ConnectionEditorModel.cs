@@ -632,6 +632,24 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         .All(static row => !row.Required || row.Value.Trim().Length > 0);
 
     /// <summary>
+    /// The sentence a validation error carries, without the "(Parameter 'value')" the runtime
+    /// appends for whoever reads a stack trace. The suffix is taken from the runtime itself, so it
+    /// is removed in whichever language the runtime wrote it.
+    /// </summary>
+    internal static string SentenceOf(ArgumentException error)
+    {
+        if (string.IsNullOrEmpty(error.ParamName))
+        {
+            return error.Message;
+        }
+
+        var suffix = new ArgumentException(string.Empty, error.ParamName).Message;
+        return error.Message.EndsWith(suffix, StringComparison.Ordinal)
+            ? error.Message[..^suffix.Length]
+            : error.Message;
+    }
+
+    /// <summary>
     /// Builds a draft from the fields and writes it.
     /// </summary>
     /// <remarks>
@@ -662,7 +680,7 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         }
         catch (ArgumentException error)
         {
-            Status = error.Message;
+            Status = SentenceOf(error);
             return;
         }
 
@@ -1130,7 +1148,7 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         }
         catch (ArgumentException error)
         {
-            Status = error.Message;
+            Status = SentenceOf(error);
         }
         catch (Exception error) when (IsAgentFailure(error) || error is UnauthorizedAccessException)
         {

@@ -37,6 +37,8 @@
   "plainFTPIsUnencryptedUseFTPSOr": "Einfaches FTP ist unverschlüsselt; verwenden Sie FTPS oder SFTP, sofern die Kompatibilität nichts anderes erfordert.",
   "portMustBeBetween1And65535": "Der Port muss zwischen 1 und 65535 liegen.",
   "privateKeyPassphraseReference": "Verweis auf den Kennsatz des privaten Schlüssels",
+  "allowPlainHTTPEndpoint": "Unverschlüsselten HTTP-Endpunkt zulassen",
+  "forAnEndpointYouRunYourselfSuchAs": "Für einen Endpunkt, den Sie selbst betreiben, etwa ein lokales MinIO. Anfragen werden signiert, die Daten aber unverschlüsselt übertragen.",
   "requiredBeforeThisConnectionCanBeEnabled": "Erforderlich, bevor diese Verbindung aktiviert werden kann.",
   "requiredForImportedPFX": "Erforderlich für importiertes PFX",
   "requiredVaultEntry": "Erforderlicher Tresoreintrag",

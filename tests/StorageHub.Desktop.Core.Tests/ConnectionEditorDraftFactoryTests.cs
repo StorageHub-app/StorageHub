@@ -305,6 +305,25 @@ public sealed class ConnectionEditorDraftFactoryTests
         Assert.Contains("acknowledgement", error.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void APlainHttpS3EndpointIsAcceptedOnlyOnceAllowedOnTheTrustTab()
+    {
+        var values = ValidValues(StorageProviderKind.S3);
+        values["endpoint"] = "http://127.0.0.1:9000";
+
+        var error = Assert.Throws<ArgumentException>(() => ConnectionEditorDraftFactory.Build(StorageProviderKind.S3, values));
+        Assert.StartsWith(Ui.Validation.TheS3ServiceEndpointMustUseHTTPS, error.Message, StringComparison.Ordinal);
+
+        values["acknowledgePlaintext"] = "true";
+        var endpoint = ConnectionEditorDraftFactory.Build(StorageProviderKind.S3, values).Endpoint;
+        Assert.Equal("http://127.0.0.1:9000", endpoint.ServiceEndpoint);
+        Assert.True(endpoint.AllowInsecureTransport);
+
+        // The allowance means nothing for an HTTPS endpoint, so none is stored for one.
+        values["endpoint"] = "https://s3.amazonaws.com";
+        Assert.False(ConnectionEditorDraftFactory.Build(StorageProviderKind.S3, values).Endpoint.AllowInsecureTransport);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("MD5:unsafe")]

@@ -203,7 +203,7 @@ internal sealed class ValidationStrings : LocalizationModelBase
 
     public string TheS3ServiceEndpointMustBeA { get; set; } = "The S3 service endpoint must be a valid hostname or absolute HTTPS URL.";
 
-    public string TheS3ServiceEndpointMustUseHTTPS { get; set; } = "The S3 service endpoint must use HTTPS; insecure HTTP endpoints are not enabled.";
+    public string TheS3ServiceEndpointMustUseHTTPS { get; set; } = "The S3 service endpoint must use HTTPS, unless plain HTTP is allowed on the TLS / SSH Trust tab.";
 
     public string TheAddressIsNotAValidFolder { get; set; } = "The address is not a valid folder path.";
 
