@@ -71,7 +71,8 @@
             <!-- Stretched to its maximum rather than sized to its content: a box that grows as
                  you type starts the width of the word in it, which reads as a disabled field. -->
             <TextBox Text="{Binding Name, Mode=TwoWay}" Width="520"
-                     HorizontalAlignment="Left"/>
+                     HorizontalAlignment="Left"
+                     AutomationProperties.Name="{Binding ProfileNameLabel}"/>
             <TextBlock Classes="status danger" Text="{Binding NameProblem}"
                        IsVisible="{Binding HasNameProblem}" TextWrapping="Wrap"/>
             <TextBlock Classes="muted" Text="{Binding ProfileNameHint}"/>

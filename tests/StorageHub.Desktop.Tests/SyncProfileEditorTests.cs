@@ -30,7 +30,13 @@ public class SyncProfileEditorTests
         var agent = new StubEditorAgent
         {
             Profiles = [Profile("Nightly photos"), Profile("Archive")],
-            Connections = [Connection("Studio"), Connection("Backups")]
+            Connections =
+            [
+                Connection("Studio"),
+                Connection("Backups"),
+                Connection("Zeta") with { IsFavorite = true },
+                Connection("Build box") with { Provider = StorageConnectionProvider.Ssh, Type = ConnectionProfileType.Client }
+            ]
         };
         var model = SyncProfileEditorModel.Create(() => agent, () => agent);
 
@@ -40,7 +46,9 @@ public class SyncProfileEditorTests
         Assert.Equal(
             [Ui.Sync.CreateNewProfile, "Archive", "Nightly photos"],
             model.Profiles.Select(static choice => choice.DisplayName));
-        Assert.Equal(["Backups", "Studio"], model.Connections.Select(static c => c.DisplayName));
+
+        // Storage only, favourites first, as 1.4 listed them: an SSH client has nothing to sync.
+        Assert.Equal(["Zeta", "Backups", "Studio"], model.Connections.Select(static c => c.DisplayName));
     }
 
     /// <summary>

@@ -620,8 +620,13 @@ internal sealed class SyncProfileEditorModel : INotifyPropertyChanged, IDisposab
     private void Show(SyncProfileWorkspace workspace)
     {
         Connections.Clear();
-        foreach (var connection in workspace.Connections.OrderBy(
-            static connection => connection.DisplayName, StringComparer.CurrentCultureIgnoreCase))
+
+        // Storage only, favourites first, as 1.4's PopulateConnections listed them. An SSH client
+        // has nothing to synchronize, and offering it gave a profile that failed at the scan.
+        foreach (var connection in workspace.Connections
+                     .Where(static connection => connection.Type == ConnectionProfileType.Storage)
+                     .OrderByDescending(static connection => connection.IsFavorite)
+                     .ThenBy(static connection => connection.DisplayName, StringComparer.CurrentCultureIgnoreCase))
         {
             Connections.Add(new ConnectionChoice(
                 connection.ConnectionId,
