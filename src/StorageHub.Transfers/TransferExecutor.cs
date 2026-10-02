@@ -66,6 +66,29 @@ public static class TransferExecutor
             options);
         var nonAtomicDestinationWrite = UsesNonAtomicDestinationWrite(destinationSession, options);
 
+        // A non-atomic create is written as an overwrite, because the endpoint has no create-only
+        // write. So it looks first, and refuses anything already there: checked before commit,
+        // which is as much as such an endpoint can offer, rather than replacing a file nobody
+        // agreed to replace.
+        if (nonAtomicDestinationWrite && !options.Overwrite)
+        {
+            var existing = await destinationSession
+                .GetEntryAsync(intent.Destination, cancellationToken)
+                .ConfigureAwait(false);
+            if (existing.IsSuccess)
+            {
+                return Fail(
+                    "transfer.destination.exists",
+                    StorageFailureKind.Conflict,
+                    "Something already exists at the destination, and this endpoint cannot replace it safely.");
+            }
+
+            if (existing.Error.Kind != StorageFailureKind.NotFound)
+            {
+                return StorageResult<TransferExecutionReport>.Fail(existing.Error);
+            }
+        }
+
         if (options.Overwrite)
         {
             var destinationInfo = await destinationSession

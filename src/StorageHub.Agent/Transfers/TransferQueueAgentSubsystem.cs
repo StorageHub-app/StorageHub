@@ -478,10 +478,16 @@ public sealed class TransferQueueAgentSubsystem
                         context.Job.Intent,
                         sourceConnection.Session,
                         destinationConnection.Session,
+                        // Non-atomic writes are allowed, as a sync profile can allow them: the
+                        // person confirmed this copy, and the executor still looks before it
+                        // writes. Without it nothing could be uploaded to SFTP or FTP at all,
+                        // since neither can create a file atomically. An endpoint that can is
+                        // written atomically as before.
                         new TransferExecutionOptions(
                             Overwrite: context.Job.Intent.ExpectedDestinationVersionId is not null ||
                                        context.Job.Intent.ExpectedDestinationEntityTag is not null,
-                            BufferSize: _options.BufferSize),
+                            BufferSize: _options.BufferSize,
+                            AllowNonAtomicDestinationWrites: true),
                         progress,
                         executionLifetime.Token).ConfigureAwait(false);
                 }
@@ -655,7 +661,7 @@ public sealed class TransferQueueAgentSubsystem
             return;
         }
 
-        await RetryOrFailAsync(context, failure.IsTransient).ConfigureAwait(false);
+        await RetryOrFailAsync(context, failure).ConfigureAwait(false);
     }
 
     private async Task HandleExecutionFailureAsync(ClaimContext context, StorageFailure failure)
@@ -670,12 +676,12 @@ public sealed class TransferQueueAgentSubsystem
             return;
         }
 
-        await RetryOrFailAsync(context, failure.IsTransient).ConfigureAwait(false);
+        await RetryOrFailAsync(context, failure).ConfigureAwait(false);
     }
 
-    private async Task RetryOrFailAsync(ClaimContext context, bool transient)
+    private async Task RetryOrFailAsync(ClaimContext context, StorageFailure failure)
     {
-        if (transient && context.Lease.Attempt < _options.MaximumAttempts)
+        if (failure.IsTransient && context.Lease.Attempt < _options.MaximumAttempts)
         {
             var now = NextTransitionTime(context.Job.State);
             var retryAt = now.Add(CalculateRetryDelay(context.Lease.Attempt));
@@ -700,7 +706,7 @@ public sealed class TransferQueueAgentSubsystem
                 context,
                 TransferState.Failed,
                 TransferStatusCode.ProviderFailure,
-                SafeError("transfer.provider.failed", "The transfer could not be completed safely."))
+                SafeError("transfer.provider.failed", DescribeFailure(failure)))
                 .ConfigureAwait(false))
         {
             _ = Interlocked.Increment(ref _failed);
@@ -984,6 +990,24 @@ public sealed class TransferQueueAgentSubsystem
     }
 
     private static TransferSafeError SafeError(string code, string summary) => new(code, summary);
+
+    /// <summary>
+    /// Why a transfer failed, in the words of the endpoint that refused it.
+    /// </summary>
+    /// <remarks>
+    /// Every failure used to be stored as "The transfer could not be completed safely." and nothing
+    /// else, so the queue, the job and the log all said the same and nobody could tell a refused
+    /// write from a missing folder. A storage failure's message is safe to show by contract, so it
+    /// goes after the sentence, as 1.x showed the server's reason.
+    /// </remarks>
+    internal static string DescribeFailure(StorageFailure failure)
+    {
+        const string Generic = "The transfer could not be completed safely.";
+        var reason = new string(failure.Message.Where(static character => !char.IsControl(character)).ToArray()).Trim();
+        if (reason.Length == 0) return Generic;
+        var summary = $"{Generic} {reason}";
+        return summary.Length <= 1_024 ? summary : summary[..1_021] + "...";
+    }
 
     private sealed class ClaimContext(TransferJobClaim claim)
     {

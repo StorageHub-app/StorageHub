@@ -366,6 +366,22 @@ public sealed class TransferExecutorTests
         Assert.Equal(StorageWriteMode.Overwrite, fixture.Destination.LastWriteRequest!.Mode);
         Assert.Equal(fixture.Intent.Destination, fixture.Destination.LastWriteRequest.Destination);
         Assert.Equal(new byte[] { 1, 2, 3 }, fixture.Destination.WrittenBytes);
+
+        // Written as an overwrite, it looks first: a file that is already there is refused, not
+        // replaced.
+        var occupied = CreateFixture([4, 5, 6]);
+        occupied.Destination.Capabilities = Capabilities(StorageFeature.WriteStream);
+        occupied.Destination.Entry = CreateEntry(occupied.Intent.Destination, 1);
+
+        var refused = await TransferExecutor.ExecuteAsync(
+            occupied.Intent,
+            occupied.Source,
+            occupied.Destination,
+            new TransferExecutionOptions(AllowNonAtomicDestinationWrites: true));
+
+        Assert.True(refused.IsFailure);
+        Assert.Equal("transfer.destination.exists", refused.Error.Code);
+        Assert.Null(occupied.Destination.LastWriteRequest);
     }
 
     [Fact]

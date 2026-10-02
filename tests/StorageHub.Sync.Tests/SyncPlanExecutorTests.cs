@@ -236,6 +236,8 @@ public sealed class SyncPlanExecutorTests
     {
         var fixture = CreateFixture();
         fixture.Right.Capabilities = Capabilities(StorageFeature.WriteStream);
+        // A new file: the executor looks before a non-atomic create, and finds nothing there.
+        fixture.Right.GetEntryFailure = new StorageFailure("storage.not_found", StorageFailureKind.NotFound, "Not found.");
         var plan = CreatePlan(SyncPlanOperation.Copy(
             0,
             fixture.LeftAddress("source.bin"),
