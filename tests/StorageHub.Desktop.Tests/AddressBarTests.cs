@@ -30,6 +30,19 @@ public class AddressBarTests
             pane.Address = Ui.Pane.ThisPc;
             await pane.GoToAddressAsync(TestContext.Current.CancellationToken);
             Assert.Equal(Ui.Pane.ThisPc, pane.Path);
+
+            // From Connections Home, which has no folders, something that is not a folder here is
+            // told to choose a connection, and a folder here is opened on This PC.
+            pane.Connection = pane.Connections.Single(static c => c.Kind == PaneContentKind.ConnectionsHome);
+            pane.Address = "photos";
+            await pane.GoToAddressAsync(TestContext.Current.CancellationToken);
+            Assert.Equal(Ui.Pane.ChooseConnection, pane.Status);
+            Assert.Equal(PaneContentKind.ConnectionsHome, pane.Connection?.Kind);
+
+            pane.Address = folder.FullName;
+            await pane.GoToAddressAsync(TestContext.Current.CancellationToken);
+            Assert.Equal(PaneContentKind.ThisPc, pane.Connection?.Kind);
+            Assert.Contains(pane.Rows, static row => row.Name == "a.txt");
         }
         finally
         {

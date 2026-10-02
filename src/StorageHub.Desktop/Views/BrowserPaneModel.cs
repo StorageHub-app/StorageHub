@@ -308,6 +308,30 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         var typed = _address.Trim();
         if (typed.Length == 0 || string.Equals(typed, _path, StringComparison.Ordinal)) return;
 
+        // Connections Home lists connections, not folders, so it has no path to go to. A folder
+        // on this computer is taken to This PC and opened there; anything else is told to choose
+        // a connection, as 1.4's read-only box at Connections Home said, rather than ignored.
+        if (_source is ConnectionsHomeSource)
+        {
+            var local = System.IO.Path.IsPathFullyQualified(typed);
+            if ((local || string.Equals(typed, Ui.Pane.ThisPc, StringComparison.OrdinalIgnoreCase)) &&
+                Connections.FirstOrDefault(static candidate => candidate.Kind == PaneContentKind.ThisPc) is { } thisPc)
+            {
+                _connection = thisPc;
+                _failed = false;
+                Raise(nameof(Connection));
+                Raise(nameof(Title));
+                Raise(nameof(ConnectionIcon));
+                RaiseConnectionState();
+                await OpenAsync(thisPc, cancellationToken).ConfigureAwait(true);
+                if (local && _source is LocalPaneSource) await NavigateAsync(typed, cancellationToken).ConfigureAwait(true);
+                return;
+            }
+
+            Status = Ui.Pane.ChooseConnection;
+            return;
+        }
+
         // This PC's own name goes back to the drive list, as it did in 1.x.
         await NavigateAsync(
             string.Equals(typed, Ui.Pane.ThisPc, StringComparison.OrdinalIgnoreCase) && _source is LocalPaneSource
