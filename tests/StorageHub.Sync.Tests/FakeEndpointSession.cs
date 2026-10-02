@@ -64,11 +64,19 @@ internal sealed class FakeEndpointSession : IStorageEndpointSession, IStoragePor
             : StorageResult<StorageEntry>.Success(entry));
     }
 
+    /// <summary>Folders that list as not found, as a folder nobody has made does.</summary>
+    public ISet<string> MissingDirectories { get; } = new HashSet<string>(StringComparer.Ordinal);
+
     public ValueTask<StorageResult<StoragePage>> ListAsync(
         StorageAddress address,
         StorageListRequest? request = null,
         CancellationToken cancellationToken = default)
     {
+        if (MissingDirectories.Contains(address.CanonicalRelativePath))
+        {
+            return ValueTask.FromResult(StorageResult<StoragePage>.Fail(NotFound()));
+        }
+
         request ??= new StorageListRequest();
         var children = _entries
             .Where(entry => _returnEntriesOutsideRequestedDirectory ||

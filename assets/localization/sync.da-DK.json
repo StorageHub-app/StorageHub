@@ -274,6 +274,8 @@
   "endpointUnauthorized": "En gemt forbindelse afviste sine loginoplysninger. Åbn den i forbindelsesstyringen, og test den.",
   "endpointUnreachable": "En gemt forbindelse kunne ikke nås. Test begge forbindelser, og prøv igen.",
   "locationMissing": "En mappe valgt til denne profil findes ikke længere på sin forbindelse. Vælg den igen med Gennemse.",
+  "locationAMissing": "Mappen for placering A findes ikke på sin forbindelse. Opret den, eller vælg en anden med Gennemse, og vælg derefter Gennemse og kør igen.",
+  "locationBMissing": "Mappen for placering B findes ikke på sin forbindelse. Opret den, eller vælg en anden med Gennemse, og vælg derefter Gennemse og kør igen.",
   "agentFailureWithCodeFormat": "{0} ({1})",
   "previewedWhileDisabled": "Planen er klar, men denne profil er deaktiveret og kan ikke køre. Sæt flueben i Aktiveret for at køre eller planlægge den.",
   "previewWarningFormat": "{0} Luk for at se kørslen under Kørselshistorik og gennemsyn.",

@@ -204,6 +204,13 @@ internal sealed class SyncStrings : LocalizationModelBase
     public string LocationMissing { get; set; } =
         "A folder chosen for this profile no longer exists on its connection. Pick it again with Browse.";
 
+    /// <summary>The scan found no folder at Location A's path. Nothing is created for the operator.</summary>
+    public string LocationAMissing { get; set; } =
+        "Location A's folder does not exist on its connection. Create it, or choose another with Browse, then Review & run again.";
+
+    public string LocationBMissing { get; set; } =
+        "Location B's folder does not exist on its connection. Create it, or choose another with Browse, then Review & run again.";
+
     /// <summary>{0} = the agent's failure code.</summary>
     public string AgentFailureWithCodeFormat { get; set; } = "{0} ({1})";
 

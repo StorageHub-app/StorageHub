@@ -12,6 +12,12 @@ namespace StorageHub.Sync;
 /// </summary>
 public sealed class SyncOrchestrationService : ISyncOrchestrationService
 {
+    /// <summary>Location A's folder does not exist on its connection.</summary>
+    public const string LocationARootNotFoundCode = "sync.scan.location_a_not_found";
+
+    /// <summary>Location B's folder does not exist on its connection.</summary>
+    public const string LocationBRootNotFoundCode = "sync.scan.location_b_not_found";
+
     private readonly ISyncProfileRepository _profiles;
     private readonly ISyncBaselineStore _baselines;
     private readonly ISyncPlanStore _plans;
@@ -181,12 +187,14 @@ public sealed class SyncOrchestrationService : ISyncOrchestrationService
         }
         if (leftScan.IsFailure)
         {
-            return StorageResult<SyncPreviewResult>.Fail(leftScan.Error);
+            return StorageResult<SyncPreviewResult>.Fail(
+                NameMissingRoot(leftScan.Error, LocationARootNotFoundCode));
         }
 
         if (rightScan.IsFailure)
         {
-            return StorageResult<SyncPreviewResult>.Fail(rightScan.Error);
+            return StorageResult<SyncPreviewResult>.Fail(
+                NameMissingRoot(rightScan.Error, LocationBRootNotFoundCode));
         }
 
         // Re-read to prove the policy did not move under the scan. Enabled is only part of that
@@ -527,6 +535,26 @@ public sealed class SyncOrchestrationService : ISyncOrchestrationService
         session.ProfileId,
         session.RootIdentity,
         relativeRoot);
+
+    /// <summary>
+    /// Says which side's folder is missing, when that is what a scan failed on.
+    /// </summary>
+    /// <remarks>
+    /// The scanner does not know which location it is scanning, and the agent replaces every
+    /// message with its category's ("the requested sync profile or run was not found"), so the
+    /// code is the only thing that reaches the operator. Naming the side in it lets them be told
+    /// which folder to create or choose again.
+    /// </remarks>
+    private static StorageFailure NameMissingRoot(StorageFailure failure, string sideCode) =>
+        failure.Code == SyncSnapshotScanner.RootNotFoundCode
+            ? new StorageFailure(
+                sideCode,
+                failure.Kind,
+                failure.Message,
+                failure.IsTransient,
+                failure.ProviderCode,
+                failure.DiagnosticId)
+            : failure;
 
     private static StorageResult<T> Fail<T>(
         string code,

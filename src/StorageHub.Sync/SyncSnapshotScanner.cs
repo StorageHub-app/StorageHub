@@ -90,6 +90,9 @@ public sealed record SyncSnapshotScanOptions
 /// </summary>
 public static class SyncSnapshotScanner
 {
+    /// <summary>The scanned root folder does not exist on its endpoint.</summary>
+    public const string RootNotFoundCode = "sync.scan.root_not_found";
+
     public static async ValueTask<StorageResult<SyncEndpointSnapshot>> ScanAsync(
         IStorageEndpointSession session,
         StorageAddress root,
@@ -147,6 +150,24 @@ public static class SyncSnapshotScanner
                         cancellationToken).ConfigureAwait(false);
                     if (listed.IsFailure)
                     {
+                        // The folder the profile names is not there at all. Said apart from a list
+                        // that failed partway, because the fix is the operator's (create the folder,
+                        // or choose another) rather than a retry, and "not found" alone reads as
+                        // the profile or the run having gone. Nothing is created here: a missing
+                        // root may as well be an unmounted disk as a folder not made yet, and
+                        // planning against it as empty would plan to delete the other side.
+                        if (listed.Error.Kind == StorageFailureKind.NotFound &&
+                            ReferenceEquals(directory, root))
+                        {
+                            return Failure(new StorageFailure(
+                                RootNotFoundCode,
+                                StorageFailureKind.NotFound,
+                                "The folder to synchronize does not exist on the endpoint.",
+                                isTransient: false,
+                                listed.Error.ProviderCode,
+                                listed.Error.DiagnosticId));
+                        }
+
                         return Failure(new StorageFailure(
                             "sync.scan.list_failed",
                             listed.Error.Kind,

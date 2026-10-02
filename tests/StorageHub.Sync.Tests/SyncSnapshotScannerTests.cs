@@ -35,6 +35,35 @@ public sealed class SyncSnapshotScannerTests
         Assert.Equal(4, result.Value.Completeness.TotalItemCount);
     }
 
+    /// <summary>
+    /// A root folder that is not there says so, apart from a folder under it that went missing
+    /// mid-scan, which is a listing that failed partway.
+    /// </summary>
+    [Fact]
+    public async Task Scan_says_when_the_root_folder_does_not_exist()
+    {
+        var profileId = ConnectionProfileId.New();
+        const string rootIdentity = "fake-root";
+        await using var session = new FakeEndpointSession(
+            profileId,
+            rootIdentity,
+            [SyncTestEntries.Directory(profileId, rootIdentity, "base/folder")]);
+        session.MissingDirectories.Add("missing");
+        session.MissingDirectories.Add("base/folder");
+
+        var missingRoot = await SyncSnapshotScanner.ScanAsync(
+            session, SyncTestEntries.Address(profileId, rootIdentity, "missing"));
+        var missingChild = await SyncSnapshotScanner.ScanAsync(
+            session, SyncTestEntries.Address(profileId, rootIdentity, "base"));
+
+        Assert.True(missingRoot.IsFailure);
+        Assert.True(missingChild.IsFailure);
+        Assert.Equal(
+            (SyncSnapshotScanner.RootNotFoundCode, StorageFailureKind.NotFound),
+            (missingRoot.Error.Code, missingRoot.Error.Kind));
+        Assert.Equal("sync.scan.list_failed", missingChild.Error.Code);
+    }
+
     [Fact]
     public async Task Scan_rejects_a_repeated_continuation_token()
     {

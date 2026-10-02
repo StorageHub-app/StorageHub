@@ -274,6 +274,8 @@
   "endpointUnauthorized": "Eine gespeicherte Verbindung hat ihre Anmeldedaten abgelehnt. Öffnen Sie sie in der Verbindungsverwaltung und testen Sie sie.",
   "endpointUnreachable": "Eine gespeicherte Verbindung war nicht erreichbar. Testen Sie beide Verbindungen und versuchen Sie es erneut.",
   "locationMissing": "Ein für dieses Profil gewählter Ordner existiert auf seiner Verbindung nicht mehr. Wählen Sie ihn erneut über Durchsuchen.",
+  "locationAMissing": "Der Ordner von Ort A existiert auf seiner Verbindung nicht. Legen Sie ihn an oder wählen Sie über Durchsuchen einen anderen, und wählen Sie dann erneut Prüfen und ausführen.",
+  "locationBMissing": "Der Ordner von Ort B existiert auf seiner Verbindung nicht. Legen Sie ihn an oder wählen Sie über Durchsuchen einen anderen, und wählen Sie dann erneut Prüfen und ausführen.",
   "agentFailureWithCodeFormat": "{0} ({1})",
   "previewedWhileDisabled": "Plan bereit, aber dieses Profil ist deaktiviert und kann nicht laufen. Aktivieren Sie es, um es auszuführen oder zu planen.",
   "previewWarningFormat": "{0} Schließen, um den Lauf unter Ausführungsverlauf und Prüfung zu sehen.",
