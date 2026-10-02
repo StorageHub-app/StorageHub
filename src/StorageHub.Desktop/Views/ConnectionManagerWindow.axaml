@@ -79,6 +79,13 @@
                   ItemsSource="{Binding Choices}"
                   SelectedItem="{Binding Value, Mode=TwoWay}"
                   AutomationProperties.Name="{Binding Label}"/>
+        <!-- The group it is filed in, from the agent's groups in the panel's order, then
+             Ungrouped and New group. The editor holds the choice rather than the field. -->
+        <ComboBox Grid.Row="0" Grid.Column="1" IsVisible="{Binding IsGroup}"
+                  HorizontalAlignment="Stretch"
+                  ItemsSource="{Binding Editor.GroupChoices}"
+                  SelectedItem="{Binding Editor.SelectedGroup, Mode=TwoWay}"
+                  AutomationProperties.Name="{Binding Label}"/>
         <CheckBox Grid.Row="0" Grid.Column="1" IsVisible="{Binding IsToggle}"
                   IsChecked="{Binding IsOn, Mode=TwoWay}"
                   AutomationProperties.Name="{Binding Label}"/>

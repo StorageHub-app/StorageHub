@@ -554,12 +554,47 @@
     A group in the connections panel: a quiet heading, and rows that sit under it.
   -->
   <Style Selector="Grid.group-header">
+    <Setter Property="Height" Value="{StaticResource GroupHeaderHeight}"/>
     <Setter Property="Margin" Value="0,0,0,4"/>
   </Style>
 
   <Style Selector="TextBlock.group-title">
     <Setter Property="FontWeight" Value="SemiBold"/>
     <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+    <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+  </Style>
+
+  <!-- How many connections a group holds, quieter than its name. -->
+  <Style Selector="TextBlock.group-count">
+    <Setter Property="FontSize" Value="{StaticResource FontSizeCaption}"/>
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+    <Setter Property="Margin" Value="{StaticResource GroupCountMargin}"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+  </Style>
+
+  <Style Selector="Panel.group-glyph">
+    <Setter Property="Width" Value="{StaticResource GroupGlyphSize}"/>
+    <Setter Property="Height" Value="{StaticResource GroupGlyphSize}"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+  </Style>
+
+  <!-- A group's colour: a small tile behind its icon, as a card wears its colour, white glyph and
+       all, so a dark colour reads on a dark scheme as well as a light one. -->
+  <Style Selector="Border.group-tile">
+    <Setter Property="CornerRadius" Value="{StaticResource DenseFieldRadius}"/>
+  </Style>
+  <Style Selector="Border.group-tile LucideIcon">
+    <Setter Property="Foreground" Value="White"/>
+    <Setter Property="HorizontalAlignment" Value="Center"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+  </Style>
+
+  <!-- An open group with nothing in it: one quiet line under its name, not a blank block. -->
+  <Style Selector="TextBlock.group-empty">
+    <Setter Property="FontSize" Value="{StaticResource FontSizeCaption}"/>
+    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
+    <Setter Property="Margin" Value="{StaticResource GroupEmptyMargin}"/>
   </Style>
 
   <!--
@@ -812,6 +847,11 @@
   </Style>
   <Style Selector="Button.swatch:pointerover /template/ ContentPresenter">
     <Setter Property="Background" Value="{Binding $parent[Button].Background}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource TextBrush}"/>
+    <Setter Property="BorderThickness" Value="2"/>
+  </Style>
+  <!-- The colour a picker has chosen wears the ring a hovered swatch does, so it can be found. -->
+  <Style Selector="Button.swatch.chosen /template/ ContentPresenter">
     <Setter Property="BorderBrush" Value="{DynamicResource TextBrush}"/>
     <Setter Property="BorderThickness" Value="2"/>
   </Style>

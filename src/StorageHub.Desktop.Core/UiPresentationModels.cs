@@ -27,7 +27,10 @@ public enum ConnectionFieldKind
     Fingerprint,
 
     /// <summary>One of the built-in icons, chosen from a grid rather than typed.</summary>
-    Icon
+    Icon,
+
+    /// <summary>The connection group it is filed in, chosen from the agent's groups rather than typed.</summary>
+    Group
 }
 
 public sealed record ConnectionFieldDescriptor(
@@ -372,7 +375,9 @@ public sealed record ConnectionCardModel(
     string? FolderPath = null,
     string[]? Tags = null,
     // Appended, so every existing positional construction is untouched.
-    string? IconKey = null)
+    string? IconKey = null,
+    // The connection group it is filed in, or null for Ungrouped.
+    Guid? GroupId = null)
 {
     public ConnectionProviderDescriptor Descriptor => ConnectionProviderCatalog.Get(Provider);
 

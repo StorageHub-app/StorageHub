@@ -484,4 +484,42 @@ internal sealed class ConnectionStrings : LocalizationModelBase
 
     public string TerminalCouldNotSendInput { get; set; } =
         "Could not send input to the background agent.";
+
+    // ------------------------------------------------------------- agent groups
+    /// <summary>The section for connections filed in no group, shown only while it has any.</summary>
+    public string Ungrouped { get; set; } = "Ungrouped";
+
+    /// <summary>What an open group with nothing in it says, on one quiet line.</summary>
+    public string GroupEmpty { get; set; } = "No connections";
+
+    public string GroupIconAndColor { get; set; } = "Icon and colour…";
+
+    public string MoveGroupUp { get; set; } = "Move up";
+
+    public string MoveGroupDown { get; set; } = "Move down";
+
+    public string RemoveGroupTitle { get; set; } = "Remove group";
+
+    /// <summary>{0} = the group's name.</summary>
+    public string RemoveGroupPromptFormat { get; set; } = "Remove the group “{0}”? Its connections move to Ungrouped.";
+
+    public string GroupWriteFailed { get; set; } = "The group could not be changed.";
+
+    /// <summary>{0} = how many connections are in the group.</summary>
+    public string GroupCountAccessibleFormat { get; set; } = "{0:N0} connection(s)";
+
+    public string FieldGroup { get; set; } = "Group";
+
+    public string GroupHint { get; set; } = "Where it is listed in the connections panel.";
+
+    public string GroupOptions { get; set; } = "Group options";
+
+    public string NewGroupChoice { get; set; } = "New group…";
+
+    public string IconPickerColor { get; set; } = "Colour";
+
+    public string IconPickerNoColor { get; set; } = "No colour";
+
+    /// <summary>{0} = the group's name.</summary>
+    public string IconPickerGroupTitleFormat { get; set; } = "Icon and colour for {0}";
 }

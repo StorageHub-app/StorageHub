@@ -35,6 +35,31 @@
         </ListBox.ItemTemplate>
       </ListBox>
 
+      <!-- A group's colour, from the twelve a connection can wear, or none. Shown for a group
+           only: a connection chooses its colour beside its icon in the editor. -->
+      <StackPanel IsVisible="{Binding ShowsColors}" Spacing="{StaticResource SpaceSm}">
+        <TextBlock Classes="muted" Text="{Binding ColorLabel}"/>
+        <WrapPanel ItemSpacing="{StaticResource SpaceMd}" LineSpacing="{StaticResource SpaceMd}">
+          <ItemsControl ItemsSource="{Binding Colors}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel ItemSpacing="{StaticResource SpaceMd}" LineSpacing="{StaticResource SpaceMd}"/>
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate DataType="vm:ColorChoiceModel">
+                <Button Classes="swatch" Classes.chosen="{Binding IsChosen}"
+                        Background="{Binding Brush}"
+                        ToolTip.Tip="{Binding Hex}" AutomationProperties.Name="{Binding Hex}"
+                        Command="{Binding $parent[Window].((vm:IconPickerModel)DataContext).ChooseColorCommand}"
+                        CommandParameter="{Binding Hex}"/>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <Button Classes="tool" Content="{Binding NoColorLabel}" Command="{Binding NoColorCommand}"/>
+        </WrapPanel>
+      </StackPanel>
+
       <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="{StaticResource SpaceSm}">
         <!-- The way back to the provider's own icon, which is what every connection shows until
              somebody chooses otherwise. -->

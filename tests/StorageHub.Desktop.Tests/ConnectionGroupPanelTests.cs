@@ -15,26 +15,52 @@ using Xunit;
 namespace StorageHub.Desktop.Tests;
 
 /// <summary>
-/// The connections panel as it is drawn: groups, and a badge on every row.
+/// The connections panel as it is drawn: the agent's groups, Ungrouped, and a badge on every row.
 /// </summary>
 /// <remarks>
-/// <see cref="ConnectionGrouping"/> is tested in Desktop.Core, where the arrangement is a value
-/// and every rule about it can be asserted. What is left here is that the arrangement reaches the
-/// panel, that rearranging it is remembered, and that the badge somebody reads at a glance is the
-/// one the connection actually warrants.
+/// The groups are the agent's, so every test here runs against <see cref="GroupAgent"/>, which
+/// keeps connections and groups the way the agent's database does: a connection names its group,
+/// a write moves it to a new version, and the old arrangement is brought in once.
 /// </remarks>
 public class ConnectionGroupPanelTests
 {
+    /// <summary>
+    /// The arrangement the settings file kept is brought across once, empty groups, icons and folder
+    /// groups included, and from then on the panel shows the agent's groups, then Ungrouped.
+    /// </summary>
     [AvaloniaFact]
-    public async Task ConnectionsArriveInTheGroupTheirFolderNames()
+    public async Task TheOldArrangementIsBroughtAcrossOnceAndTheAgentsGroupsAreShown()
     {
-        var saved = new List<ConnectionGroupEntry>();
-        var sidebar = Sidebar(saved, Summary("Studio Assets", "Team"), Summary("Scratch"));
+        var cancellation = TestContext.Current.CancellationToken;
+        var studio = Summary("Studio Assets", "Team");
+        var renders = Summary("Renders");
+        var scratch = Summary("Scratch");
+        var agent = new GroupAgent(studio, renders, scratch);
+        var saved = new List<ConnectionGroupEntry> { new("Archive", []), new("Live", [renders.ConnectionId]) };
+        ConnectionsSidebar Panel() => new(
+            new RelayCommand(static _ => { }),
+            () => agent,
+            legacyGroups: () => saved,
+            legacyIcons: static () => new Dictionary<string, string> { ["Live"] = "layers" },
+            profiles: () => agent);
 
-        await sidebar.RefreshAsync(TestContext.Current.CancellationToken);
+        var sidebar = Panel();
+        await sidebar.RefreshAsync(cancellation);
 
-        Assert.Equal(["Team", ConnectionGrouping.DefaultGroupName], sidebar.Groups.Select(g => g.Name));
-        Assert.Equal(["Studio Assets"], sidebar.Groups[0].Connections.Select(r => r.Name));
+        Assert.Equal(["Archive", "Live", "Team", Ui.Connections.Ungrouped], sidebar.Groups.Select(static g => g.Name));
+        Assert.True(sidebar.Groups[0].ShowsEmptyLine);
+        Assert.Equal(["Renders"], sidebar.Groups[1].Connections.Select(static r => r.Name));
+        Assert.NotEqual(LucideIconKind.Folder, sidebar.Groups[1].Icon);
+        Assert.Equal(["Studio Assets"], sidebar.Groups[2].Connections.Select(static r => r.Name));
+        Assert.True(sidebar.Groups[3].IsUngrouped);
+        Assert.Equal(["Scratch"], sidebar.Groups[3].Connections.Select(static r => r.Name));
+
+        // Once: a later arrangement, from this panel or another desktop's, changes nothing.
+        saved.Add(new ConnectionGroupEntry("Later", [scratch.ConnectionId]));
+        await Panel().RefreshAsync(cancellation);
+        await sidebar.RefreshAsync(cancellation);
+        Assert.Equal(1, agent.ImportsApplied);
+        Assert.DoesNotContain(sidebar.Groups, static g => g.Name == "Later");
     }
 
     /// <summary>The badge is what is left of the Storage and Clients split, on the row.</summary>
@@ -42,9 +68,9 @@ public class ConnectionGroupPanelTests
     public async Task EveryRowSaysWhetherItIsStorageOrAClient()
     {
         var sidebar = Sidebar(
-            [],
-            Summary("Studio Assets"),
-            Summary("build-box", provider: StorageConnectionProvider.Ssh, client: true));
+            new GroupAgent(
+                Summary("Studio Assets"),
+                Summary("build-box", provider: StorageConnectionProvider.Ssh, client: true)));
 
         await sidebar.RefreshAsync(TestContext.Current.CancellationToken);
 
@@ -54,126 +80,92 @@ public class ConnectionGroupPanelTests
         Assert.True(rows.Single(r => r.Name == "build-box").IsClient);
     }
 
-    /// <summary>Filing a connection somewhere else is remembered straight away.</summary>
+    /// <summary>
+    /// Dropping a connection on a group files it there in the agent, and on Ungrouped takes it out;
+    /// within a group the connections are in name order, wherever they were dropped.
+    /// </summary>
     [AvaloniaFact]
-    public async Task MovingAConnectionIsSavedAtOnce()
+    public async Task DroppingAConnectionOnAGroupFilesItThereInTheAgent()
     {
-        var saved = new List<ConnectionGroupEntry>();
-        var first = Summary("Studio Assets");
-        var sidebar = Sidebar(saved, first, Summary("Scratch"));
-        await sidebar.RefreshAsync(TestContext.Current.CancellationToken);
+        var cancellation = TestContext.Current.CancellationToken;
+        var studio = Summary("Studio Assets");
+        var agent = new GroupAgent(studio, Summary("Scratch"));
+        var archive = agent.AddGroup("Archive");
+        agent.File(Summary("Annex"), archive.GroupId);
+        var sidebar = Sidebar(agent);
+        await sidebar.RefreshAsync(cancellation);
 
-        sidebar.Move(first.ConnectionId, "Archive", 0);
+        await sidebar.MoveToGroupAsync(studio.ConnectionId, sidebar.Groups.Single(static g => g.Name == "Archive"), cancellation);
 
-        Assert.Equal("Archive", sidebar.Groups[^1].Name);
-        Assert.Equal(["Studio Assets"], sidebar.Groups[^1].Connections.Select(r => r.Name));
+        Assert.Equal(["Annex", "Studio Assets"], sidebar.Groups[0].Connections.Select(static r => r.Name));
+        Assert.Equal(2, agent.Connections.Single(c => c.ConnectionId == studio.ConnectionId).Version);
 
-        // Saved on every rearrangement, so a shell that does not close cleanly still reopens the
-        // way it was left.
-        Assert.Contains(saved, group => group.Name == "Archive" && group.Members.Count == 1);
+        await sidebar.MoveToGroupAsync(studio.ConnectionId, sidebar.Groups.Single(static g => g.IsUngrouped), cancellation);
+        Assert.Equal(["Scratch", "Studio Assets"], sidebar.Groups.Single(static g => g.IsUngrouped).Connections.Select(static r => r.Name));
     }
 
-    /// <summary>A saved arrangement is what the panel comes back as.</summary>
+    /// <summary>
+    /// A group's menu: rename, icon and colour, move up and down, and remove, which asks first and
+    /// sends its connections to Ungrouped rather than deleting them.
+    /// </summary>
     [AvaloniaFact]
-    public async Task ASavedArrangementIsRestored()
+    public async Task AGroupCanBeRenamedRecolouredMovedAndRemovedWithoutLosingAConnection()
     {
-        var first = Summary("Studio Assets");
-        var second = Summary("Scratch");
-        var saved = new List<ConnectionGroupEntry>
-        {
-            new("Archive", [second.ConnectionId]),
-            new("Live", [first.ConnectionId])
-        };
-        var sidebar = Sidebar(saved, first, second);
-
-        await sidebar.RefreshAsync(TestContext.Current.CancellationToken);
-
-        Assert.Equal(["Archive", "Live"], sidebar.Groups.Select(g => g.Name));
-        Assert.Equal(["Scratch"], sidebar.Groups[0].Connections.Select(r => r.Name));
-    }
-
-    /// <summary>Removing a group tidies the panel and never loses a connection.</summary>
-    [AvaloniaFact]
-    public async Task RemovingAGroupKeepsItsConnections()
-    {
-        var first = Summary("Studio Assets", "Team");
-        var sidebar = Sidebar([], first, Summary("Scratch"));
-        await sidebar.RefreshAsync(TestContext.Current.CancellationToken);
-
-        sidebar.RemoveGroup("Team");
-
-        var remaining = Assert.Single(sidebar.Groups);
-        Assert.Equal(["Scratch", "Studio Assets"], remaining.Connections.Select(r => r.Name));
-    }
-
-    /// <summary>A group's icon is drawn on its heading and remembered at once.</summary>
-    [AvaloniaFact]
-    public async Task AGroupIconIsShownAndSaved()
-    {
-        IReadOnlyDictionary<string, string>? savedIcons = null;
-        var sidebar = IconSidebar(
-            icons => savedIcons = icons,
-            (_, _) => Task.FromResult(new IconChoice(true, "layers")),
-            [Summary("Studio Assets", "Team")]);
-        await sidebar.RefreshAsync(TestContext.Current.CancellationToken);
+        var cancellation = TestContext.Current.CancellationToken;
+        var agent = new GroupAgent();
+        var team = agent.AddGroup("Team");
+        agent.AddGroup("Lab");
+        agent.File(Summary("Studio Assets"), team.GroupId);
+        var dialogs = new AnswerDialogs("Crew");
+        var choice = new IconChoice(true, "layers", "#16A34A");
+        var sidebar = new ConnectionsSidebar(
+            new RelayCommand(static _ => { }),
+            () => agent,
+            dialogs,
+            pickIcon: (_, _, _) => Task.FromResult(choice),
+            profiles: () => agent);
+        await sidebar.RefreshAsync(cancellation);
         Assert.Equal(LucideIconKind.Folder, sidebar.Groups[0].Icon);
+        Assert.False(sidebar.Groups[0].HasColor);
+        Assert.False(sidebar.Groups[0].MoveUpCommand!.CanExecute(null));
 
-        await sidebar.ChangeGroupIconAsync("Team");
-
-        Assert.Equal("layers", savedIcons?["Team"]);
+        await sidebar.ChangeGroupIconAsync(team.GroupId, cancellation);
+        await sidebar.RenameGroupAsync(team.GroupId, cancellation);
+        Assert.Equal(("Crew", "layers", "#16A34A"), (agent.Groups[0].Name, agent.Groups[0].IconKey, agent.Groups[0].ColorKey));
         Assert.NotEqual(LucideIconKind.Folder, sidebar.Groups[0].Icon);
-    }
+        Assert.True(sidebar.Groups[0].HasColor);
 
-    /// <summary>An icon goes with its group when renamed, and away with it when removed.</summary>
-    [AvaloniaFact]
-    public async Task AGroupIconFollowsRenameAndRemove()
-    {
-        IReadOnlyDictionary<string, string>? savedIcons = null;
-        var sidebar = IconSidebar(
-            icons => savedIcons = icons,
-            (_, _) => Task.FromResult(new IconChoice(true, "layers")),
-            [Summary("Studio Assets", "Team"), Summary("Scratch")],
-            dialogs: new AnswerDialogs("Crew"));
-        await sidebar.RefreshAsync(TestContext.Current.CancellationToken);
-        await sidebar.ChangeGroupIconAsync("Team");
+        await sidebar.MoveGroupAsync(team.GroupId, 1, cancellation);
+        Assert.Equal(["Lab", "Crew"], sidebar.Groups.Select(static g => g.Name));
 
-        await sidebar.RenameGroupAsync("Team", TestContext.Current.CancellationToken);
-        Assert.Equal(["Crew"], savedIcons!.Keys);
+        // Choosing the defaults clears both back to a plain folder.
+        choice = new IconChoice(true, null, null);
+        await sidebar.ChangeGroupIconAsync(team.GroupId, cancellation);
+        Assert.Equal(LucideIconKind.Folder, sidebar.Groups[1].Icon);
+        Assert.False(sidebar.Groups[1].HasColor);
 
-        sidebar.RemoveGroup("Crew");
-        Assert.Empty(savedIcons!);
-    }
+        dialogs.Confirm = DialogChoice.No;
+        await sidebar.RemoveGroupAsync(team.GroupId, cancellation);
+        Assert.Equal(2, agent.Groups.Count);
 
-    /// <summary>Choosing the default clears the group back to a folder.</summary>
-    [AvaloniaFact]
-    public async Task AGroupIconCanBeCleared()
-    {
-        IReadOnlyDictionary<string, string>? savedIcons = null;
-        var sidebar = IconSidebar(
-            icons => savedIcons = icons,
-            (_, _) => Task.FromResult(new IconChoice(true, null)),
-            [Summary("Studio Assets", "Team")],
-            loaded: new Dictionary<string, string> { ["Team"] = "layers" });
-        await sidebar.RefreshAsync(TestContext.Current.CancellationToken);
-        Assert.NotEqual(LucideIconKind.Folder, sidebar.Groups[0].Icon);
-
-        await sidebar.ChangeGroupIconAsync("Team");
-
-        Assert.Empty(savedIcons!);
-        Assert.Equal(LucideIconKind.Folder, sidebar.Groups[0].Icon);
+        dialogs.Confirm = DialogChoice.Yes;
+        await sidebar.RemoveGroupAsync(team.GroupId, cancellation);
+        Assert.Equal(["Lab", Ui.Connections.Ungrouped], sidebar.Groups.Select(static g => g.Name));
+        Assert.Equal(["Studio Assets"], sidebar.Groups[1].Connections.Select(static r => r.Name));
     }
 
     /// <summary>
     /// Every connection reaches the panel as 1.x's card: a tile in its colour, and a line saying
-    /// what it is -- which is where a client and a bucket now tell themselves apart.
+    /// what it is, and which group it is in.
     /// </summary>
     [AvaloniaFact]
     public async Task EveryConnectionIsDrawnWithItsTile()
     {
-        var window = await PanelAsync(
-            Summary("Studio Assets", "Team"),
-            Summary("build-box", "Team", StorageConnectionProvider.Ssh, client: true),
-            Summary("Scratch"));
+        var agent = new GroupAgent(Summary("Scratch"));
+        var team = agent.AddGroup("Team");
+        agent.File(Summary("Studio Assets"), team.GroupId);
+        agent.File(Summary("build-box", provider: StorageConnectionProvider.Ssh, client: true), team.GroupId);
+        var window = await PanelAsync(agent);
 
         var tiles = window.GetVisualDescendants().OfType<Border>()
             .Where(border => border.Classes.Contains("icon-tile"))
@@ -184,17 +176,65 @@ public class ConnectionGroupPanelTests
         Assert.All(tiles, static tile => Assert.IsType<global::Avalonia.Media.SolidColorBrush>(tile.Background));
         Assert.Single(rows, static row => row.IsClient);
         Assert.StartsWith(
-            ConnectionProviderCatalog.Get(StorageProviderKind.Ssh).DisplayName,
+            ConnectionProviderCatalog.Get(StorageProviderKind.Ssh).DisplayName + " · Team",
             rows.Single(static row => row.IsClient).Subtitle,
             StringComparison.Ordinal);
     }
 
     /// <summary>
-    /// Photographs the panel in both appearances, for a human to look at.
+    /// A new connection starts in the group open in the panel, and the editor's Group field lists
+    /// the agent's groups in the panel's order, Ungrouped, and New group, which makes one there.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task ANewConnectionStartsInTheGroupOpenInThePanelAndCanStartANewOne()
+    {
+        var cancellation = TestContext.Current.CancellationToken;
+        var agent = new GroupAgent(Summary("Scratch"));
+        agent.AddGroup("Team");
+        var lab = agent.AddGroup("Lab");
+        var sidebar = Sidebar(agent);
+        await sidebar.RefreshAsync(cancellation);
+        Assert.Null(sidebar.SuggestedGroupId);
+
+        var opened = sidebar.Groups.Single(static g => g.Name == "Lab");
+        opened.IsExpanded = false;
+        opened.IsExpanded = true;
+        Assert.Equal(lab.GroupId, sidebar.SuggestedGroupId);
+
+        // A selected card wins: its group, here none.
+        sidebar.Select(sidebar.Groups.Single(static g => g.IsUngrouped).Connections[0]);
+        Assert.Null(sidebar.SuggestedGroupId);
+        sidebar.Select(null);
+
+        var manager = new ConnectionManagerModel(
+            () => new ConnectionManagerController(agent, new NoVault()),
+            dialogs: new AnswerDialogs("Clients"));
+        await manager.OpenAsync(null, StorageProviderKind.Local, sidebar.SuggestedGroupId, cancellation);
+        var editor = manager.Editor;
+        Assert.Equal(
+            ["Team", "Lab", Ui.Connections.Ungrouped, Ui.Connections.NewGroupChoice],
+            editor.GroupChoices.Select(static c => c.Label));
+        Assert.Equal("Lab", editor.SelectedGroup?.Label);
+
+        await editor.CreateGroupAsync(cancellation);
+        Assert.Equal("Clients", editor.SelectedGroup?.Label);
+        Assert.Equal(["Team", "Lab", "Clients"], agent.Groups.Select(static g => g.Name));
+
+        foreach (var field in editor.Sections.SelectMany(static s => s.Fields))
+        {
+            if (field.Required && field.Value.Trim().Length == 0) field.Value = "sample";
+        }
+
+        await editor.SaveAsync(cancellation);
+        Assert.Equal(agent.Groups[2].GroupId, agent.LastDraft?.Metadata.GroupId);
+    }
+
+    /// <summary>
+    /// Photographs the panel and the editor's General tab in both appearances, for a human to look at.
     /// </summary>
     /// <remarks>
-    /// The badge is new paint in two states, and the group heading is new paint in one. Set
-    /// STORAGEHUB_SHOT_DIR to keep the files.
+    /// The panel with Favorites over groups that have an icon, a colour, both or neither, an empty
+    /// group, and Ungrouped; narrow and wide. Set STORAGEHUB_SHOT_DIR to keep the files.
     /// </remarks>
     [AvaloniaTheory]
     [InlineData(true)]
@@ -208,13 +248,16 @@ public class ConnectionGroupPanelTests
         // Studio Assets is a favourite, as in ui-reference 09, so Favorites is over the groups.
         // Lab SFTP sync2 is one too, and first, so the selected card is one whose name has to
         // share its line with edit and delete.
-        var window = await PanelAsync(
-            Summary("Studio Assets", "Team") with { IsFavorite = true },
-            Summary("Lab SFTP sync2", "Lab", StorageConnectionProvider.Sftp) with { IsFavorite = true },
-            Summary("Renders", "Team"),
-            Summary("build-box", "Team", StorageConnectionProvider.Ssh, client: true),
-            Summary("Site Backups"),
-            Summary("Old NAS"));
+        var agent = new GroupAgent(Summary("Site Backups"), Summary("Old NAS"));
+        var team = agent.AddGroup("Team", "layers", "#2563EB");
+        var lab = agent.AddGroup("Lab", colorKey: "#16A34A");
+        agent.AddGroup("Archive");
+        var clients = agent.AddGroup("Clients", "server");
+        agent.File(Summary("Studio Assets") with { IsFavorite = true }, team.GroupId);
+        agent.File(Summary("Renders"), team.GroupId);
+        agent.File(Summary("build-box", provider: StorageConnectionProvider.Ssh, client: true), clients.GroupId);
+        agent.File(Summary("Lab SFTP sync2", provider: StorageConnectionProvider.Sftp) with { IsFavorite = true }, lab.GroupId);
+        var window = await PanelAsync(agent, height: 1180);
 
         // With one card selected, so the photograph shows its border, its edit and delete, and a
         // details panel with something in it.
@@ -224,91 +267,67 @@ public class ConnectionGroupPanelTests
         sidebar.Select(sidebar.Favorites!.Connections.First(static row => row.Name == "Lab SFTP sync2"));
         window.UpdateLayout();
 
+        // The empty group says so on one line.
+        var empty = window.GetVisualDescendants().OfType<TextBlock>()
+            .Single(static text => text.Classes.Contains("group-empty") && text.IsEffectivelyVisible);
+        Assert.Equal(Ui.Connections.GroupEmpty, empty.Text);
+
         var frame = window.CaptureRenderedFrame();
         Assert.NotNull(frame);
 
         var directory = Environment.GetEnvironmentVariable("STORAGEHUB_SHOT_DIR");
-        if (string.IsNullOrWhiteSpace(directory)) return;
+        var theme = dark ? "dark" : "light";
+        Save(frame!, $"connections-{theme}.png");
 
-        Directory.CreateDirectory(directory);
-        using var stream = File.Create(
-            Path.Combine(directory, $"connections-{(dark ? "dark" : "light")}.png"));
-        frame!.Save(stream, new PngBitmapEncoderOptions());
-    }
+        var wide = Show(sidebar, 340, 1180);
+        Save(wide.CaptureRenderedFrame()!, $"connections-wide-{theme}.png");
 
-    /// <summary>
-    /// The panel on its own, with connections in it, 240 wide: narrower than it opens, which is
-    /// where a selected card's name has to make room for edit and delete.
-    /// </summary>
-    private static async Task<Window> PanelAsync(params ConnectionSummary[] connections)
-    {
-        // "Team" carries a chosen icon, so the photograph shows a heading with one and one without.
-        var sidebar = new ConnectionsSidebar(
-            new RelayCommand(static _ => { }),
-            () => new FixedAgent(connections),
-            loadIcons: () => new Dictionary<string, string> { ["Team"] = "layers" });
-        await sidebar.RefreshAsync(TestContext.Current.CancellationToken);
+        // And the editor's General tab, on a new connection in the group the panel suggests.
+        sidebar.Select(null);
+        var opened = sidebar.Groups.Single(static g => g.Name == "Lab");
+        opened.IsExpanded = false;
+        opened.IsExpanded = true;
+        var manager = new ConnectionManagerModel(() => new ConnectionManagerController(agent, new NoVault()));
+        await manager.OpenAsync(null, StorageProviderKind.S3, sidebar.SuggestedGroupId, TestContext.Current.CancellationToken);
+        var editor = new ConnectionManagerWindow { DataContext = manager };
+        editor.Show();
+        editor.UpdateLayout();
+        Assert.Equal("Lab", manager.Editor.SelectedGroup?.Label);
+        Save(editor.CaptureRenderedFrame()!, $"connection-editor-group-{theme}.png");
 
-        var window = new Window
+        void Save(WriteableBitmap shot, string name)
         {
-            Content = new ConnectionsPanelView { DataContext = sidebar },
-            Width = 240,
-            Height = 620
-        };
-        window.Show();
-        window.Measure(new Size(240, 620));
-        window.Arrange(new Rect(0, 0, 240, 620));
-        window.UpdateLayout();
-        return window;
-    }
-
-    /// <summary>A sidebar that keeps group icons, answering the picker as told.</summary>
-    private static ConnectionsSidebar IconSidebar(
-        Action<IReadOnlyDictionary<string, string>> saveIcons,
-        Func<string?, string, Task<IconChoice>> pickIcon,
-        ConnectionSummary[] connections,
-        IDialogService? dialogs = null,
-        IReadOnlyDictionary<string, string>? loaded = null) =>
-        new(
-            new RelayCommand(static _ => { }),
-            () => new FixedAgent(connections),
-            dialogs,
-            loadIcons: () => loaded,
-            saveIcons: saveIcons,
-            pickIcon: pickIcon);
-
-    /// <summary>Answers every prompt with the same text.</summary>
-    private sealed class AnswerDialogs(string answer) : IDialogService
-    {
-        public Task ShowAsync(DialogRequest request, CancellationToken cancellationToken = default) => Task.CompletedTask;
-
-        public Task<DialogChoice> ConfirmAsync(DialogRequest request, CancellationToken cancellationToken = default) =>
-            Task.FromResult(DialogChoice.Cancel);
-
-        public Task<string?> PromptAsync(DialogPromptRequest request, CancellationToken cancellationToken = default) =>
-            Task.FromResult<string?>(answer);
+            if (string.IsNullOrWhiteSpace(directory)) return;
+            Directory.CreateDirectory(directory);
+            using var stream = File.Create(Path.Combine(directory, name));
+            shot.Save(stream, new PngBitmapEncoderOptions());
+        }
     }
 
     /// <summary>
-    /// Clicking a card selects it and fills the details panel, as 1.x's sidebar did (ui-reference 09).
+    /// Clicking a card selects it and fills the details panel, as 1.x's sidebar did (ui-reference 09),
+    /// with the group it is in among its facts.
     /// </summary>
     [AvaloniaFact]
     public async Task SelectingACardFillsTheDetailsAndKeepsItAcrossASearch()
     {
-        var saved = new List<ConnectionGroupEntry>();
-        var sidebar = Sidebar(saved, Summary("Studio Assets", "Team"), Summary("Scratch"));
+        var agent = new GroupAgent(Summary("Scratch"));
+        agent.File(Summary("Studio Assets"), agent.AddGroup("Team").GroupId);
+        var sidebar = Sidebar(agent);
         await sidebar.RefreshAsync(TestContext.Current.CancellationToken);
         var row = sidebar.Groups[0].Connections[0];
 
         sidebar.Select(row);
 
         Assert.True(row.IsSelected);
-        Assert.Contains(sidebar.Details, detail => detail.Value == "Team");
+        Assert.Contains(new ConnectionDetailRow(Ui.Connections.FieldGroup, "Team"), sidebar.Details);
 
-        // A search that still shows the card keeps it selected, on the new row object.
+        // A search that still shows the card keeps it selected, on the new row object, and shows
+        // only the groups it found something in.
         sidebar.Search = "Studio";
         Assert.Equal(row.Id, sidebar.Selected?.Id);
         Assert.True(sidebar.Selected!.IsSelected);
+        Assert.Equal(["Team"], sidebar.Groups.Select(static g => g.Name));
 
         // One that hides it lets the selection go, rather than describing something off screen.
         sidebar.Search = "Scratch";
@@ -319,8 +338,7 @@ public class ConnectionGroupPanelTests
     [AvaloniaFact]
     public async Task EditAndDeleteNameTheConnectionTheyAreFor()
     {
-        var saved = new List<ConnectionGroupEntry>();
-        var sidebar = Sidebar(saved, Summary("Studio Assets", "Team"));
+        var sidebar = Sidebar(new GroupAgent(Summary("Studio Assets")));
         await sidebar.RefreshAsync(TestContext.Current.CancellationToken);
         var row = sidebar.Groups[0].Connections[0];
         Guid? edited = null;
@@ -340,20 +358,52 @@ public class ConnectionGroupPanelTests
         Assert.Equal(row.Id, deleted);
     }
 
-    /// <summary>A sidebar over a fixed set of connections, saving into a list.</summary>
-    private static ConnectionsSidebar Sidebar(
-        List<ConnectionGroupEntry> saved,
-        params ConnectionSummary[] connections) =>
-        new(
-            new RelayCommand(static _ => { }),
-            () => new FixedAgent(connections),
-            dialogs: null,
-            load: () => saved,
-            save: groups =>
-            {
-                saved.Clear();
-                saved.AddRange(groups);
-            });
+    /// <summary>
+    /// The panel on its own, with connections in it, 240 wide: narrower than it opens, which is
+    /// where a selected card's name has to make room for edit and delete.
+    /// </summary>
+    private static async Task<Window> PanelAsync(GroupAgent agent, double height = 620)
+    {
+        var sidebar = Sidebar(agent);
+        await sidebar.RefreshAsync(TestContext.Current.CancellationToken);
+        return Show(sidebar, 240, height);
+    }
+
+    private static Window Show(ConnectionsSidebar sidebar, double width, double height)
+    {
+        var window = new Window
+        {
+            Content = new ConnectionsPanelView { DataContext = sidebar },
+            Width = width,
+            Height = height
+        };
+        window.Show();
+        window.Measure(new Size(width, height));
+        window.Arrange(new Rect(0, 0, width, height));
+        window.UpdateLayout();
+        window.UpdateLayout();
+        return window;
+    }
+
+    /// <summary>A sidebar over an agent that keeps groups, with no old arrangement to bring in.</summary>
+    private static ConnectionsSidebar Sidebar(GroupAgent agent) => new(
+        new RelayCommand(static _ => { }),
+        () => agent,
+        profiles: () => agent);
+
+    /// <summary>Answers every prompt with the same text, and every question as told.</summary>
+    private sealed class AnswerDialogs(string answer) : IDialogService
+    {
+        internal DialogChoice Confirm { get; set; } = DialogChoice.Yes;
+
+        public Task ShowAsync(DialogRequest request, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task<DialogChoice> ConfirmAsync(DialogRequest request, CancellationToken cancellationToken = default) =>
+            Task.FromResult(Confirm);
+
+        public Task<string?> PromptAsync(DialogPromptRequest request, CancellationToken cancellationToken = default) =>
+            Task.FromResult<string?>(answer);
+    }
 
     private static ConnectionSummary Summary(
         string name,
@@ -373,12 +423,188 @@ public class ConnectionGroupPanelTests
             Version: 1,
             client ? ConnectionProfileType.Client : ConnectionProfileType.Storage);
 
-    private sealed class FixedAgent(ConnectionSummary[] connections) : IRemoteStorageAgentClient
+    private sealed class NoVault : IRemoteSecretVaultClient
     {
+        public Task<SecretVaultResponse> EnrollAsync(
+            SecretMaterialPurpose purpose,
+            ReadOnlyMemory<byte> secret,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<SecretVaultResponse> UpdateAsync(
+            string reference,
+            SecretMaterialPurpose purpose,
+            ReadOnlyMemory<byte> secret,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<SecretVaultResponse> DeleteAsync(
+            string reference,
+            SecretMaterialPurpose purpose,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    /// <summary>
+    /// The agent's connections and groups, kept as its database keeps them: a connection names its
+    /// group, every change to that moves it to a new version, removing a group sends its
+    /// connections to Ungrouped, and the old arrangement is brought in once.
+    /// </summary>
+    private sealed class GroupAgent(params ConnectionSummary[] connections) : IRemoteStorageAgentClient, IRemoteConnectionProfileClient
+    {
+        private bool _imported;
+
+        internal List<ConnectionSummary> Connections { get; } = [.. connections];
+
+        internal List<ConnectionGroupDocument> Groups { get; } = [];
+
+        internal int ImportsApplied { get; private set; }
+
+        internal ConnectionProfileDraft? LastDraft { get; private set; }
+
+        internal ConnectionGroupDocument AddGroup(string name, string? iconKey = null, string? colorKey = null)
+        {
+            var group = new ConnectionGroupDocument(
+                Guid.NewGuid(), name, Groups.Count, iconKey, colorKey, 1, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
+            Groups.Add(group);
+            return group;
+        }
+
+        internal void File(ConnectionSummary connection, Guid groupId) => Connections.Add(connection with { GroupId = groupId });
+
         public Task<ConnectionListResponse> ListConnectionsAsync(
             ConnectionListRequest request,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ConnectionListResponse(StorageIpcContract.CurrentVersion, connections));
+            Task.FromResult(new ConnectionListResponse(StorageIpcContract.CurrentVersion, [.. Connections]));
+
+        public Task<ConnectionGroupListResponse> ListGroupsAsync(
+            ConnectionGroupListRequest request,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ConnectionGroupListResponse(request.ContractVersion, [.. Ordered()]));
+
+        public Task<ConnectionGroupWriteResponse> CreateGroupAsync(
+            ConnectionGroupCreateRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            if (Groups.Any(group => string.Equals(group.Name, request.Name, StringComparison.OrdinalIgnoreCase)))
+            {
+                return Answer(ConnectionGroupWriteStatus.NameConflict);
+            }
+
+            var created = AddGroup(request.Name, request.IconKey, request.ColorKey);
+            return Answer(ConnectionGroupWriteStatus.Succeeded, created);
+        }
+
+        public Task<ConnectionGroupWriteResponse> UpdateGroupAsync(
+            ConnectionGroupUpdateRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            var index = Groups.FindIndex(group => group.GroupId == request.GroupId);
+            Groups[index] = Groups[index] with
+            {
+                Name = request.Name,
+                IconKey = request.IconKey,
+                ColorKey = request.ColorKey,
+                Version = Groups[index].Version + 1
+            };
+            return Answer(ConnectionGroupWriteStatus.Succeeded, Groups[index]);
+        }
+
+        public Task<ConnectionGroupWriteResponse> MoveGroupAsync(
+            ConnectionGroupMoveRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            var ordered = Ordered().ToList();
+            var moved = ordered.Single(group => group.GroupId == request.GroupId);
+            ordered.Remove(moved);
+            ordered.Insert(request.Index, moved);
+            Groups.Clear();
+            Groups.AddRange(ordered.Select(static (group, index) => group with { SortOrder = index }));
+            return Answer(ConnectionGroupWriteStatus.Succeeded);
+        }
+
+        public Task<ConnectionGroupWriteResponse> DeleteGroupAsync(
+            ConnectionGroupDeleteRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            Groups.RemoveAll(group => group.GroupId == request.GroupId);
+            for (var index = 0; index < Connections.Count; index++)
+            {
+                if (Connections[index].GroupId != request.GroupId) continue;
+                Connections[index] = Connections[index] with { GroupId = null, Version = Connections[index].Version + 1 };
+            }
+
+            return Answer(ConnectionGroupWriteStatus.Succeeded);
+        }
+
+        public Task<ConnectionGroupWriteResponse> AssignGroupAsync(
+            ConnectionGroupAssignRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            var index = Connections.FindIndex(connection => connection.ConnectionId == request.ConnectionId);
+            Connections[index] = Connections[index] with { GroupId = request.GroupId, Version = Connections[index].Version + 1 };
+            return Task.FromResult(new ConnectionGroupWriteResponse(
+                request.ContractVersion, ConnectionGroupWriteStatus.Succeeded, Groups: [.. Ordered()],
+                ConnectionVersion: Connections[index].Version));
+        }
+
+        public Task<ConnectionGroupWriteResponse> ImportGroupsAsync(
+            ConnectionGroupImportRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            if (_imported) return Answer(ConnectionGroupWriteStatus.AlreadyImported);
+            _imported = true;
+            ImportsApplied++;
+            foreach (var entry in request.Groups)
+            {
+                var group = Groups.FirstOrDefault(candidate =>
+                    string.Equals(candidate.Name, entry.Name, StringComparison.OrdinalIgnoreCase))
+                    ?? AddGroup(entry.Name, entry.IconKey, entry.ColorKey);
+                for (var index = 0; index < Connections.Count; index++)
+                {
+                    if (!entry.Members.Contains(Connections[index].ConnectionId) || Connections[index].GroupId is not null) continue;
+                    Connections[index] = Connections[index] with { GroupId = group.GroupId, Version = Connections[index].Version + 1 };
+                }
+            }
+
+            return Answer(ConnectionGroupWriteStatus.Succeeded);
+        }
+
+        public Task<ConnectionProfileWriteResponse> CreateAsync(
+            ConnectionProfileCreateRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            LastDraft = request.Draft;
+            var id = Guid.NewGuid();
+            return Task.FromResult(new ConnectionProfileWriteResponse(
+                request.ContractVersion,
+                ConnectionProfileWriteStatus.Succeeded,
+                new ConnectionProfileDocument(id, 1, request.Draft, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch),
+                ActualVersion: 1));
+        }
+
+        public Task<ConnectionProfileGetResponse> GetAsync(
+            ConnectionProfileGetRequest request,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<ConnectionProfileWriteResponse> UpdateAsync(
+            ConnectionProfileUpdateRequest request,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<ConnectionProfileWriteResponse> DeleteAsync(
+            ConnectionProfileDeleteRequest request,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<ConnectionTrustGetResponse> GetTrustAsync(
+            ConnectionTrustGetRequest request,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<ConnectionTrustMutationResponse> DecideTrustAsync(
+            ConnectionTrustDecisionRequest request,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<ConnectionTrustMutationResponse> RolloverTrustAsync(
+            ConnectionTrustRolloverRequest request,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
         public Task<ConnectionTestResponse> TestConnectionAsync(
             ConnectionTestRequest request,
@@ -389,5 +615,19 @@ public class ConnectionGroupPanelTests
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+        private IEnumerable<ConnectionGroupDocument> Ordered() => Groups.OrderBy(static group => group.SortOrder);
+
+        private Task<ConnectionGroupWriteResponse> Answer(
+            ConnectionGroupWriteStatus status,
+            ConnectionGroupDocument? group = null) =>
+            Task.FromResult(new ConnectionGroupWriteResponse(
+                ConnectionProfileIpcContract.CurrentVersion,
+                status,
+                group,
+                [.. Ordered()],
+                Failure: status == ConnectionGroupWriteStatus.Succeeded || status == ConnectionGroupWriteStatus.AlreadyImported
+                    ? null
+                    : new StorageIpcFailure("test.refused", StorageIpcFailureCategory.Conflict, "Refused.", false)));
     }
 }

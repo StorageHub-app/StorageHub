@@ -22,6 +22,19 @@ public sealed class ConnectionManagerController
         new ConnectionProfileGetRequest(ConnectionProfileIpcContract.CurrentVersion, connectionId),
         cancellationToken);
 
+    /// <summary>The connection groups, in the panel's order, for the editor's Group field.</summary>
+    public Task<ConnectionGroupListResponse> ListGroupsAsync(CancellationToken cancellationToken = default) =>
+        _profiles.ListGroupsAsync(
+            new ConnectionGroupListRequest(ConnectionProfileIpcContract.CurrentVersion),
+            cancellationToken);
+
+    /// <summary>Makes a group, after the others, for the editor's "New group…".</summary>
+    public Task<ConnectionGroupWriteResponse> CreateGroupAsync(
+        string name,
+        CancellationToken cancellationToken = default) => _profiles.CreateGroupAsync(
+        new ConnectionGroupCreateRequest(ConnectionProfileIpcContract.CurrentVersion, name),
+        cancellationToken);
+
     public Task<ConnectionProfileWriteResponse> SaveAsync(
         ConnectionProfileDraft draft,
         ConnectionProfileDocument? current,

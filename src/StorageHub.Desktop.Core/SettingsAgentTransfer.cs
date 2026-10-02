@@ -65,7 +65,11 @@ internal static class SettingsAgentTransfer
 
         if (selected.Contains(SettingsSectionId.Connections))
         {
-            document = document with { Connections = await CaptureConnectionsAsync(clients, cancellationToken).ConfigureAwait(false) };
+            document = document with
+            {
+                Connections = await CaptureConnectionsAsync(clients, cancellationToken).ConfigureAwait(false),
+                ConnectionGroups = await CaptureGroupsAsync(clients, cancellationToken).ConfigureAwait(false)
+            };
         }
 
         if (selected.Contains(SettingsSectionId.SyncProfiles))
@@ -105,6 +109,19 @@ internal static class SettingsAgentTransfer
         }
 
         return captured;
+    }
+
+    /// <summary>The connection groups, in the panel's order, so imported connections land in theirs.</summary>
+    private static async Task<List<ConnectionGroupExportEntry>> CaptureGroupsAsync(
+        SettingsAgentClients clients,
+        CancellationToken cancellationToken)
+    {
+        var listed = await clients.Profiles.ListGroupsAsync(
+            new ConnectionGroupListRequest(ConnectionProfileIpcContract.CurrentVersion),
+            cancellationToken).ConfigureAwait(false);
+        ThrowIfFailed(listed.Failure);
+        return [.. listed.Groups.Select(static group =>
+            new ConnectionGroupExportEntry(group.GroupId, group.Name, group.IconKey, group.ColorKey))];
     }
 
     private static async Task<List<SyncProfileExportEntry>> CaptureSyncProfilesAsync(
@@ -168,7 +185,10 @@ internal static class SettingsAgentTransfer
 
         var map = new SettingsImportIdMap();
         var connections = selected.Contains(SettingsSectionId.Connections) && document.Connections is { } imported
-            ? await ApplyConnectionsAsync(imported, clients, policy, sameMachine, map, cancellationToken).ConfigureAwait(false)
+            ? await ApplyConnectionsAsync(
+                imported,
+                await ApplyGroupsAsync(document.ConnectionGroups, clients, cancellationToken).ConfigureAwait(false),
+                clients, policy, sameMachine, map, cancellationToken).ConfigureAwait(false)
             : [];
         var syncProfiles = selected.Contains(SettingsSectionId.SyncProfiles) && document.SyncProfiles is { } syncs
             ? await ApplySyncProfilesAsync(syncs, clients, policy, map, cancellationToken).ConfigureAwait(false)
@@ -180,8 +200,53 @@ internal static class SettingsAgentTransfer
         return new SettingsAgentImportResult(connections, syncProfiles, schedules);
     }
 
+    /// <summary>
+    /// Makes the file's groups here, matching one already here by name, and answers where each of
+    /// the file's group ids now points.
+    /// </summary>
+    /// <remarks>
+    /// A group is never replaced or copied, whatever the policy for connections: a group is only a
+    /// name to file under, and two groups called "Team" would be the one thing groups exist to stop.
+    /// A file without groups, or an agent that would not make one, leaves the connections Ungrouped.
+    /// </remarks>
+    private static async Task<Dictionary<Guid, Guid>> ApplyGroupsAsync(
+        IReadOnlyList<ConnectionGroupExportEntry>? groups,
+        SettingsAgentClients clients,
+        CancellationToken cancellationToken)
+    {
+        var map = new Dictionary<Guid, Guid>();
+        if (groups is not { Count: > 0 }) return map;
+
+        var listed = await clients.Profiles.ListGroupsAsync(
+            new ConnectionGroupListRequest(ConnectionProfileIpcContract.CurrentVersion),
+            cancellationToken).ConfigureAwait(false);
+        var here = listed.Groups.ToList();
+        foreach (var group in groups)
+        {
+            if (here.FirstOrDefault(candidate =>
+                    string.Equals(candidate.Name, group.Name?.Trim(), StringComparison.OrdinalIgnoreCase)) is { } existing)
+            {
+                map[group.GroupId] = existing.GroupId;
+                continue;
+            }
+
+            var request = new ConnectionGroupCreateRequest(
+                ConnectionProfileIpcContract.CurrentVersion, group.Name?.Trim() ?? string.Empty, group.IconKey, group.ColorKey);
+            if (!request.HasValidBounds) continue;
+            var created = await clients.Profiles.CreateGroupAsync(request, cancellationToken).ConfigureAwait(false);
+            if (created is { Status: ConnectionGroupWriteStatus.Succeeded, Group: { } made })
+            {
+                map[group.GroupId] = made.GroupId;
+                here.Add(made);
+            }
+        }
+
+        return map;
+    }
+
     private static async Task<List<SettingsItemOutcome>> ApplyConnectionsAsync(
         IReadOnlyList<ConnectionExportEntry> imported,
+        Dictionary<Guid, Guid> groups,
         SettingsAgentClients clients,
         SettingsConflictPolicy policy,
         bool sameMachine,
@@ -200,6 +265,17 @@ internal static class SettingsAgentTransfer
         foreach (var entry in imported)
         {
             var draft = PrepareConnection(entry.Draft, sameMachine, out var needsCredentials);
+
+            // The group the file named, as it is called here; one the file did not carry is none.
+            draft = draft with
+            {
+                Metadata = draft.Metadata with
+                {
+                    GroupId = draft.Metadata.GroupId is { } group && groups.TryGetValue(group, out var mapped)
+                        ? mapped
+                        : null
+                }
+            };
             var name = draft.Metadata.DisplayName;
             var match = existing.FirstOrDefault(candidate =>
                 string.Equals(candidate.DisplayName, name, StringComparison.OrdinalIgnoreCase));

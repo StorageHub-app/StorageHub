@@ -54,10 +54,12 @@ public class ConnectionsSidebarTests
 
         Assert.False(sidebar.IsEmpty);
 
-        // In a group now rather than in a flat list. With nothing arranged there is one group, so
-        // this also says that an unarranged panel is one group and not one per connection.
+        // In a group now rather than in a flat list. With no groups there is Ungrouped alone, so
+        // this also says that an unarranged panel is one section and not one per connection, and
+        // that connections in it are in name order.
         var group = Assert.Single(sidebar.Groups);
-        Assert.Equal(["Studio Assets", "Site Backups"], group.Connections.Select(row => row.Name));
+        Assert.True(group.IsUngrouped);
+        Assert.Equal(["Site Backups", "Studio Assets"], group.Connections.Select(row => row.Name));
 
         // The projection is ConnectionCardFactory's, so the second line reads the same here as it
         // does everywhere else the same connections are listed.

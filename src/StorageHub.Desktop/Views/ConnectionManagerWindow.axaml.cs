@@ -46,10 +46,14 @@ public partial class ConnectionManagerWindow : Window
     /// <param name="initialProvider">
     /// The provider a new connection starts on: S3, as 1.x's did, unless a caller names one.
     /// </param>
+    /// <param name="initialGroup">
+    /// The group a new connection starts in: what the connections panel suggests, or Ungrouped.
+    /// </param>
     internal static ConnectionManagerWindow ForCurrentAgent(
         Guid? connectionId = null,
         ConnectionEditorTab tab = ConnectionEditorTab.General,
-        StorageProviderKind initialProvider = StorageProviderKind.S3)
+        StorageProviderKind initialProvider = StorageProviderKind.S3,
+        Guid? initialGroup = null)
     {
         var window = new ConnectionManagerWindow();
         var preferences = LoadPreferences();
@@ -76,7 +80,7 @@ public partial class ConnectionManagerWindow : Window
         };
         var lifetime = new CancellationTokenSource();
         window.DataContext = model;
-        window.Opened += (_, _) => _ = model.OpenAsync(connectionId, initialProvider, lifetime.Token);
+        window.Opened += (_, _) => _ = model.OpenAsync(connectionId, initialProvider, initialGroup, lifetime.Token);
 
         // The secret fields name the Key Store entries they hold, read when the window comes
         // forward: on opening, and again on coming back to it, which is when the Key Store may

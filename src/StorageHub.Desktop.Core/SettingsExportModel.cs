@@ -65,6 +65,12 @@ internal sealed record MachineSpecificSection(
 /// </summary>
 internal sealed record ConnectionExportEntry(Guid ConnectionId, ConnectionProfileDraft Draft);
 
+/// <summary>
+/// One connection group, carried with the connections so they land in the groups they were in.
+/// The list is in the panel's order; the id is only what the connections' drafts refer to.
+/// </summary>
+internal sealed record ConnectionGroupExportEntry(Guid GroupId, string Name, string? IconKey, string? ColorKey);
+
 internal sealed record SyncProfileExportEntry(Guid ProfileId, SyncProfileDraftDocument Draft);
 
 internal sealed record ScheduleExportEntry(Guid ScheduleId, ScheduleDraftDocument Draft);
@@ -95,7 +101,9 @@ internal sealed record SettingsExportDocument(
     MachineSpecificSection? MachineSpecific = null,
     IReadOnlyList<ConnectionExportEntry>? Connections = null,
     IReadOnlyList<SyncProfileExportEntry>? SyncProfiles = null,
-    IReadOnlyList<ScheduleExportEntry>? Schedules = null)
+    IReadOnlyList<ScheduleExportEntry>? Schedules = null,
+    /// <summary>The connection groups, with the Connections section; absent from files written before groups were the agent's.</summary>
+    IReadOnlyList<ConnectionGroupExportEntry>? ConnectionGroups = null)
 {
     /// <summary>Which sections this document actually carries.</summary>
     internal IReadOnlySet<SettingsSectionId> PresentSections()
@@ -243,6 +251,7 @@ internal static class SettingsExportSerializer
         // Cardinality before any per-item work, so an inflated file cannot cost a round trip per
         // claimed item.
         if (document.Connections?.Count > MaximumConnections ||
+            document.ConnectionGroups?.Count > ConnectionGroupIpcLimits.MaximumGroups ||
             document.SyncProfiles?.Count > SyncManagementIpcLimits.MaximumProfileResults ||
             document.Schedules?.Count > ScheduleManagementIpcLimits.MaximumScheduleResults)
         {

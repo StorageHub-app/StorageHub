@@ -63,21 +63,20 @@ internal static class ConnectionDragHandler
         panel.AddHandler(DragDrop.DropEvent, (_, e) =>
         {
             if (sidebar() is not { } model || Target(e, model) is not { } target) return;
-            model.Move(target.Id, target.Group, target.Index);
+            _ = model.MoveToGroupAsync(target.Id, target.Group);
             e.Handled = true;
         });
     }
 
     /// <summary>
-    /// Where a drag would land: which group, and at what position in it.
+    /// Where a drag would land: which group.
     /// </summary>
     /// <remarks>
-    /// Above or below the row under the pointer, decided by which half of it the pointer is in,
-    /// which is what makes it possible to drop something at the very top of a group. Dropping on a
-    /// group's heading or on the space beside its rows appends, so an empty group can still be the
-    /// first place something is filed.
+    /// Anywhere in a group's part of the panel, its heading, its cards or its "No connections"
+    /// line, so an empty group can still be the first place something is filed. Within a group the
+    /// connections are in name order, so where among them it is dropped does not matter.
     /// </remarks>
-    private static (Guid Id, string Group, int Index)? Target(DragEventArgs e, ConnectionsSidebar? sidebar)
+    private static (Guid Id, ConnectionGroupModel Group)? Target(DragEventArgs e, ConnectionsSidebar? sidebar)
     {
         if (sidebar is null ||
             e.DataTransfer?.TryGetValue(Format) is not { } text ||
@@ -88,19 +87,8 @@ internal static class ConnectionDragHandler
             return null;
         }
 
-        // Favorites is made by marking a connection, not by filing it. A drop there would file the
-        // connection into a new group of that name, so a drag lands nowhere over it.
-        if (group.IsFavorites) return null;
-
-        if (RowAt(e.Source) is { } row &&
-            group.Connections.IndexOf(row) is var index and >= 0 &&
-            RowControl(source) is { } control)
-        {
-            var below = e.GetPosition(control).Y > control.Bounds.Height / 2;
-            return (id, group.Name, below ? index + 1 : index);
-        }
-
-        return (id, group.Name, group.Connections.Count);
+        // Favorites is made by marking a connection, not by filing it, so a drag lands nowhere over it.
+        return group.IsFavorites ? null : (id, group);
     }
 
     /// <summary>The group whose part of the panel a visual sits in.</summary>
@@ -109,17 +97,6 @@ internal static class ConnectionDragHandler
 
     private static ConnectionRowModel? RowAt(object? source) =>
         source is Visual visual ? Nearest<ConnectionRowModel>(visual) : null;
-
-    /// <summary>The control drawing the row under the pointer, for measuring which half of it.</summary>
-    private static Visual? RowControl(Visual source)
-    {
-        for (Visual? step = source; step is not null; step = step.GetVisualParent())
-        {
-            if (step is StyledElement { DataContext: ConnectionRowModel }) return step;
-        }
-
-        return null;
-    }
 
     private static T? Nearest<T>(Visual source) where T : class
     {

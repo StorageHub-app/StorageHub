@@ -34,12 +34,12 @@ public class ConnectionManagerTests
         var descriptor = ConnectionProviderCatalog.All[0];
 
         // Laid out on 1.x's three tabs (ui-reference 08). General opens on the endpoint: the
-        // profile's own fields -- name, folder, labels, icon -- then the provider's general ones.
+        // profile's own fields -- name, group, labels, icon -- then the provider's general ones.
         var endpoint = editor.GeneralSections.First();
         Assert.Equal(Ui.ConnectionEditor.TabEndpoint, endpoint.Title);
         Assert.Equal(descriptor.EndpointExample, endpoint.Hint);
         Assert.Equal(
-            ["profileName", "folder", "labels", "iconKey", .. descriptor.GeneralFields.Select(static f => f.Key)],
+            ["profileName", "group", "labels", "iconKey", .. descriptor.GeneralFields.Select(static f => f.Key)],
             endpoint.Fields.Select(static f => f.Key));
 
         Assert.Equal(
@@ -168,10 +168,10 @@ public class ConnectionManagerTests
             Assert.NotEmpty(editor.Sections);
             Assert.All(editor.Sections.SelectMany(static s => s.Fields), field =>
             {
-                // Exactly one of the six editors applies to each field, whatever its kind.
+                // Exactly one of the seven editors applies to each field, whatever its kind.
                 var drawn = (field.IsText ? 1 : 0) + (field.IsChoice ? 1 : 0) +
                     (field.IsToggle ? 1 : 0) + (field.IsSecret ? 1 : 0) + (field.IsIcon ? 1 : 0) +
-                    (field.IsFingerprint ? 1 : 0);
+                    (field.IsFingerprint ? 1 : 0) + (field.IsGroup ? 1 : 0);
                 Assert.Equal(1, drawn);
                 Assert.False(string.IsNullOrWhiteSpace(field.Label), $"{provider.Kind}/{field.Key}");
             });
@@ -534,7 +534,7 @@ public class ConnectionManagerTests
         // together, the details say so, and its menu offers the toggle.
         var favourite = Assert.Single(sidebar.Favorites!.Connections);
         Assert.Equal(saved, favourite.Id);
-        Assert.Contains(sidebar.Groups.Single(static g => g.Name == "Team").Connections, row => row.Id == saved);
+        Assert.Contains(sidebar.Groups.Single(static g => g.IsUngrouped).Connections, row => row.Id == saved);
         sidebar.Select(favourite);
         Assert.All(
             sidebar.Groups.SelectMany(static g => g.Connections).Where(row => row.Id == saved),

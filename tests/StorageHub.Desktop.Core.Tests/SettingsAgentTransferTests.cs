@@ -14,11 +14,13 @@ public sealed class SettingsAgentTransferTests
         var agent = Agent();
         agent.Storage.Add("Bucket");
         agent.Storage.Add("Archive");
+        await agent.Profiles.CreateGroupAsync(new ConnectionGroupCreateRequest(ConnectionProfileIpcContract.CurrentVersion, "Team"));
 
         var document = await SettingsAgentTransfer.CaptureAsync(
             Document(), [.. Enum.GetValues<SettingsSectionId>()], agent.Clients, default);
 
         Assert.Equal(2, document.Connections!.Count);
+        Assert.Equal("Team", Assert.Single(document.ConnectionGroups!).Name);
         Assert.NotNull(document.SyncProfiles);
         Assert.NotNull(document.Schedules);
     }
@@ -41,11 +43,17 @@ public sealed class SettingsAgentTransferTests
     public async Task AConnectionFromThisMachineKeepsItsCredentialsAndStaysEnabled()
     {
         // Restoring a backup in place: the vault references still resolve, so the connection is
-        // usable the moment it lands.
+        // usable the moment it lands, in its group: one already here by that name, not a second.
         var agent = Agent();
+        var here = (await agent.Profiles.CreateGroupAsync(
+            new ConnectionGroupCreateRequest(ConnectionProfileIpcContract.CurrentVersion, "team"))).Group!;
+        var exported = Guid.NewGuid();
+        var server = SftpDraft("Server");
         var document = Document() with
         {
-            Connections = [new ConnectionExportEntry(Guid.NewGuid(), SftpDraft("Server"))]
+            ConnectionGroups = [new ConnectionGroupExportEntry(exported, "Team", "layers", null)],
+            Connections = [new ConnectionExportEntry(
+                Guid.NewGuid(), server with { Metadata = server.Metadata with { GroupId = exported } })]
         };
 
         var result = await SettingsAgentTransfer.ApplyAsync(
@@ -57,6 +65,8 @@ public sealed class SettingsAgentTransferTests
         var created = Assert.Single(agent.Profiles.Created);
         Assert.True(created.IsEnabled);
         Assert.DoesNotContain(SettingsAgentTransfer.NeedsCredentialsTag, created.Metadata.Tags ?? []);
+        Assert.Equal(here.GroupId, created.Metadata.GroupId);
+        Assert.Single(agent.Profiles.Groups);
     }
 
     [Fact]

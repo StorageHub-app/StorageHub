@@ -41,7 +41,8 @@ internal static class ConnectionCardFactory
             connection.AccentColor,
             connection.FolderPath,
             connection.Tags,
-            connection.IconKey);
+            connection.IconKey,
+            connection.GroupId);
     }
 
     /// <summary>

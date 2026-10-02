@@ -324,7 +324,12 @@ public partial class App : global::Avalonia.Application
         Guid? connectionId = null,
         Views.ConnectionEditorTab tab = Views.ConnectionEditorTab.General)
     {
-        var window = Views.ConnectionManagerWindow.ForCurrentAgent(connectionId, tab);
+        // A new connection starts in the group selected or last opened in the panel, as somebody
+        // who opened Team and pressed New means it to go there.
+        var window = Views.ConnectionManagerWindow.ForCurrentAgent(
+            connectionId,
+            tab,
+            initialGroup: connectionId is null ? model.Sidebar.SuggestedGroupId : null);
         if (window.DataContext is Views.ConnectionManagerModel editor)
         {
             editor.ProfilesChanged += (_, _) =>

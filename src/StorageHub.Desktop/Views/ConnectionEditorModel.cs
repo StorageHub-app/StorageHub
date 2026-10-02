@@ -72,7 +72,13 @@ internal sealed class ConnectionFieldModel(ConnectionFieldDescriptor descriptor,
     /// <summary>
     /// Everything that is typed into a box with nothing beside it, which is every other kind.
     /// </summary>
-    public bool IsText => !IsChoice && !IsToggle && !IsSecret && !IsIcon && !IsFingerprint;
+    public bool IsText => !IsChoice && !IsToggle && !IsSecret && !IsIcon && !IsFingerprint && !IsGroup;
+
+    /// <summary>
+    /// The group it is filed in: a drop-down of the agent's groups, in the panel's order, then
+    /// Ungrouped and "New group…". The editor holds the choice; the field only draws it.
+    /// </summary>
+    public bool IsGroup => Kind == ConnectionFieldKind.Group;
 
     /// <summary>
     /// A host key or certificate fingerprint: typed, with 1.x's Reject beside it, and Fetch from
@@ -213,6 +219,14 @@ internal sealed record AccentSwatch(string Hex)
             : Avalonia.Media.Brushes.Gray;
 }
 
+/// <summary>
+/// One entry in the Group drop-down: a group the agent keeps, Ungrouped, or "New group…".
+/// </summary>
+internal sealed record ConnectionGroupChoice(Guid? GroupId, string Label, bool IsNew = false)
+{
+    public override string ToString() => Label;
+}
+
 /// <summary>A choice in the Type drop-down: storage, or a client such as an SSH terminal.</summary>
 internal sealed record ConnectionTypeChoice(ConnectionProfileType Type, string Label)
 {
@@ -265,6 +279,15 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     private ConnectionProfileDocument? _current;
     private ConnectionProviderDescriptor _provider;
     private readonly SshHostKeyDiscoveryMode _hostKeyDiscovery;
+
+    /// <summary>The group the connection is filed in, or null for Ungrouped.</summary>
+    private Guid? _groupId;
+
+    /// <summary>The agent's groups, in the panel's order, as last read; empty when it keeps none.</summary>
+    private IReadOnlyList<ConnectionGroupDocument> _knownGroups = [];
+
+    /// <summary>Whether the agent answered with its groups, so a new one can be made from here.</summary>
+    private bool _groupsListed;
     private string _status = string.Empty;
     private bool _isBusy;
     private bool _isDirty;
@@ -468,6 +491,131 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
 
     public bool HasTrustNotice => _provider.TrustNotice.Length > 0;
 
+    /// <summary>
+    /// The Group drop-down: the agent's groups in the panel's order, then Ungrouped, then
+    /// "New group…" when groups can be made from here.
+    /// </summary>
+    public IReadOnlyList<ConnectionGroupChoice> GroupChoices =>
+    [
+        .. _knownGroups
+            .OrderBy(static group => group.SortOrder)
+            .Select(static group => new ConnectionGroupChoice(group.GroupId, group.Name)),
+        new ConnectionGroupChoice(null, Ui.Connections.Ungrouped),
+        .. _groupsListed && _dialogs is not null
+            ? [new ConnectionGroupChoice(null, Ui.Connections.NewGroupChoice, IsNew: true)]
+            : Array.Empty<ConnectionGroupChoice>()
+    ];
+
+    /// <summary>
+    /// The group chosen. A group the agent no longer has reads as Ungrouped, which is where the
+    /// agent files a connection naming one. Choosing "New group…" asks for a name and files the
+    /// connection in the group it makes, or leaves the choice as it was when nothing is made.
+    /// </summary>
+    public ConnectionGroupChoice? SelectedGroup
+    {
+        get => GroupChoices.FirstOrDefault(choice => !choice.IsNew && choice.GroupId == KnownGroupId);
+        set
+        {
+            if (value is null) return;
+            if (value.IsNew)
+            {
+                _ = CreateGroupAsync();
+                return;
+            }
+
+            if (value.GroupId == KnownGroupId) return;
+            _groupId = value.GroupId;
+            IsDirty = true;
+            Raise(nameof(SelectedGroup));
+        }
+    }
+
+    /// <summary>The chosen group if the agent has it, else null for Ungrouped.</summary>
+    private Guid? KnownGroupId =>
+        _groupId is { } id && _knownGroups.Any(group => group.GroupId == id) ? id : null;
+
+    /// <summary>The group a save files the connection in, or null for Ungrouped.</summary>
+    internal Guid? GroupId => _groupId;
+
+    /// <summary>
+    /// Reads the agent's groups for the drop-down. An agent that keeps none, or does not answer,
+    /// leaves Ungrouped alone in it, and the connection where it was.
+    /// </summary>
+    internal async Task LoadGroupsAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var listed = await _controller().ListGroupsAsync(cancellationToken).ConfigureAwait(true);
+            if (listed.Failure is not null) return;
+            _knownGroups = listed.Groups;
+            _groupsListed = true;
+        }
+        catch (Exception error) when (error is NotSupportedException || IsAgentFailure(error))
+        {
+            return;
+        }
+
+        Raise(nameof(GroupChoices));
+        Raise(nameof(SelectedGroup));
+    }
+
+    /// <summary>
+    /// "New group…": asks for a name, makes the group after the others, and files the connection
+    /// in it. Nothing is saved until the connection is: only the group exists at once, as it does
+    /// when made from the connections panel.
+    /// </summary>
+    internal async Task CreateGroupAsync(CancellationToken cancellationToken = default)
+    {
+        string? name = null;
+        if (_dialogs is not null)
+        {
+            name = await _dialogs.PromptAsync(
+                new DialogPromptRequest
+                {
+                    Title = Ui.Connections.NewGroup,
+                    Label = Ui.Connections.GroupName,
+                    Accept = Ui.Shell.Create,
+                    Validate = candidate =>
+                        string.IsNullOrWhiteSpace(candidate)
+                            ? Ui.Validation.AGroupNameIsRequired
+                            : _knownGroups.Any(group =>
+                                string.Equals(group.Name, candidate.Trim(), StringComparison.OrdinalIgnoreCase))
+                                ? Ui.Shell.NameAlreadyExists
+                                : null
+                },
+                cancellationToken).ConfigureAwait(true);
+        }
+
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            try
+            {
+                var created = await _controller().CreateGroupAsync(name.Trim(), cancellationToken).ConfigureAwait(true);
+                if (created.Groups is { } groups) _knownGroups = groups;
+                if (created is { Status: ConnectionGroupWriteStatus.Succeeded, Group: { } group })
+                {
+                    _groupId = group.GroupId;
+                    IsDirty = true;
+                }
+                else
+                {
+                    Status = created.Failure?.Message ?? Ui.Connections.GroupWriteFailed;
+                }
+            }
+            catch (Exception error) when (IsAgentFailure(error))
+            {
+                Status = Ui.Shell.AgentNotConnected;
+            }
+        }
+
+        // Raised whatever happened, so a drop-down left showing "New group…" goes back to the
+        // group the connection is in.
+        Raise(nameof(GroupChoices));
+        Raise(nameof(SelectedGroup));
+    }
+
+    public static string GroupLabel => Ui.Connections.FieldGroup;
+
     /// <summary>Whether this is a connection that does not exist yet.</summary>
     public bool IsNew => _current is null;
 
@@ -528,9 +676,14 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     /// S3 because 1.x's dialog opened on it from every New: most connections are object storage,
     /// and a caller that knows better, such as Settings' "Create a … connection", names its own.
     /// </remarks>
-    internal void StartNew(StorageProviderKind initialProvider = StorageProviderKind.S3)
+    /// <param name="groupId">
+    /// The group it starts in: the one selected or last opened in the connections panel, or null
+    /// for Ungrouped.
+    /// </param>
+    internal void StartNew(StorageProviderKind initialProvider = StorageProviderKind.S3, Guid? groupId = null)
     {
         _current = null;
+        _groupId = groupId;
         _values.Clear();
         _provider = ConnectionProviderCatalog.Get(initialProvider);
         Rebuild();
@@ -579,6 +732,7 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
                 .ConfigureAwait(true);
 
             _current = profile;
+            _groupId = profile.Draft.Metadata.GroupId;
             _values.Clear();
             foreach (var (key, value) in values)
             {
@@ -707,6 +861,9 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
             return;
         }
 
+        // The group is the drop-down's, which the draft factory knows nothing of.
+        draft = draft with { Metadata = draft.Metadata with { GroupId = _groupId } };
+
         // The editor has no field for these, and the draft is built from its fields, so a save
         // would reset them: a favourite stopped being one every time it was edited, as it did in
         // 1.x, and a disabled connection came back enabled. An edit keeps what the profile had.
@@ -755,6 +912,7 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
                     ? typed.Trim()
                     : null;
             _current = written;
+            _groupId = written.Draft.Metadata.GroupId;
             _values.Clear();
             foreach (var (key, value) in ConnectionEditorDraftFactory.ToEditorValues(written))
             {
@@ -860,8 +1018,11 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     [
         new("profileName", Ui.Connections.FieldConnectionName, ConnectionFieldKind.Text,
             Required: true, HelpText: Ui.Connections.ConnectionNameHint),
-        new("folder", Ui.Connections.FieldFolder, ConnectionFieldKind.Text,
-            HelpText: Ui.Connections.FolderHint),
+        // The group it is filed in, chosen from the agent's groups. It took the place of 1.x's
+        // typed Folder, which filed a connection under whatever was typed, so a typo made a group.
+        // A folder path a connection already has is kept through every save, unshown.
+        new("group", Ui.Connections.FieldGroup, ConnectionFieldKind.Group,
+            HelpText: Ui.Connections.GroupHint),
         new("labels", Ui.Connections.FieldTags, ConnectionFieldKind.Text,
             HelpText: Ui.Connections.TagsHint),
 
@@ -1680,6 +1841,8 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     private void RaiseAll()
     {
         Raise(nameof(IsNew));
+        Raise(nameof(GroupChoices));
+        Raise(nameof(SelectedGroup));
         Raise(nameof(Provider));
         Raise(nameof(Type));
         Raise(nameof(ProvidersForType));

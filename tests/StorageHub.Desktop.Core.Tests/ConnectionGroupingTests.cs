@@ -6,7 +6,8 @@ using Xunit;
 namespace StorageHub.Desktop.Tests;
 
 /// <summary>
-/// Groups somebody made, instead of the Storage and Clients split.
+/// The arrangement the desktop kept before groups were the agent's, read so it can be brought
+/// across, and the badge on a row.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -103,144 +104,35 @@ public class ConnectionGroupingTests
         Assert.Empty(groups[1].Members);
     }
 
-    /// <summary>An empty arrangement still has somewhere for the next connection to land.</summary>
+    /// <summary>
+    /// What is brought across to the agent once: the saved groups in their order, empty ones and
+    /// icons included, then the folder groups nobody had filed elsewhere. The default group is left
+    /// out, because Ungrouped is what it was.
+    /// </summary>
     [Fact]
-    public void AnArrangementIsNeverEmpty()
+    public void TheOldArrangementIsBroughtAcrossWithoutItsDefaultGroup()
     {
-        var groups = ConnectionGrouping.Arrange(saved: null, []);
+        var live = Card("One");
+        var loose = Card("Two");
+        var arrived = Card("Three", folder: "Team");
+        var saved = new ConnectionGroupEntry[]
+        {
+            new("Archive", []),
+            new("Live", [live.ConnectionId!.Value]),
+            new(ConnectionGrouping.DefaultGroupName, [loose.ConnectionId!.Value])
+        };
 
-        Assert.Equal(ConnectionGrouping.DefaultGroupName, Assert.Single(groups).Name);
-    }
+        var entries = ConnectionGrouping.LegacyImport(
+            saved,
+            new Dictionary<string, string> { ["Live"] = "layers" },
+            [live, loose, arrived]);
 
-    [Fact]
-    public void MovingAConnectionTakesItOutOfWhereItWas()
-    {
-        var card = Card("One");
-        var id = card.ConnectionId!.Value;
-        var groups = ConnectionGrouping.Arrange(null, [card]);
-        groups = ConnectionGrouping.Add(groups, "Archive");
-
-        groups = ConnectionGrouping.Move(groups, id, "Archive", 0);
-
-        Assert.Empty(groups[0].Members);
-        Assert.Equal([id], groups[1].Members);
-    }
-
-    /// <summary>Dropping onto a group that does not exist yet makes it.</summary>
-    [Fact]
-    public void MovingIntoAnUnknownGroupCreatesIt()
-    {
-        var card = Card("One");
-        var groups = ConnectionGrouping.Arrange(null, [card]);
-
-        groups = ConnectionGrouping.Move(groups, card.ConnectionId!.Value, "Archive", 0);
-
-        Assert.Equal("Archive", groups[^1].Name);
-        Assert.Equal([card.ConnectionId!.Value], groups[^1].Members);
-    }
-
-    /// <summary>Dropping between two rows puts it between them.</summary>
-    [Fact]
-    public void MovingWithinAGroupReordersIt()
-    {
-        var one = Card("One");
-        var two = Card("Two");
-        var three = Card("Three");
-        var groups = ConnectionGrouping.Arrange(null, [one, two, three]);
-        var name = groups[0].Name;
-
-        groups = ConnectionGrouping.Move(groups, three.ConnectionId!.Value, name, 0);
-
-        Assert.Equal(
-            [three.ConnectionId!.Value, one.ConnectionId!.Value, two.ConnectionId!.Value],
-            groups[0].Members);
-    }
-
-    /// <summary>An index past the end lands at the end rather than throwing.</summary>
-    [Fact]
-    public void MovingPastTheEndLandsAtTheEnd()
-    {
-        var one = Card("One");
-        var two = Card("Two");
-        var groups = ConnectionGrouping.Arrange(null, [one, two]);
-        var name = groups[0].Name;
-
-        groups = ConnectionGrouping.Move(groups, one.ConnectionId!.Value, name, 99);
-
-        Assert.Equal([two.ConnectionId!.Value, one.ConnectionId!.Value], groups[0].Members);
-    }
-
-    [Fact]
-    public void AddingAGroupThatAlreadyExistsChangesNothing()
-    {
-        var groups = ConnectionGrouping.Arrange(null, []);
-        groups = ConnectionGrouping.Add(groups, "Archive");
-
-        var again = ConnectionGrouping.Add(groups, "archive");
-
-        Assert.Equal(2, again.Count);
-    }
-
-    [Fact]
-    public void RenamingKeepsThePlaceAndTheContents()
-    {
-        var card = Card("One");
-        var groups = ConnectionGrouping.Arrange(null, [card]);
-        groups = ConnectionGrouping.Add(groups, "Archive");
-
-        groups = ConnectionGrouping.Rename(groups, groups[0].Name, "Live");
-
-        Assert.Equal(["Live", "Archive"], groups.Select(g => g.Name));
-        Assert.Equal([card.ConnectionId!.Value], groups[0].Members);
-    }
-
-    /// <summary>Two groups with one name is a state nothing else here can represent.</summary>
-    [Fact]
-    public void RenamingOntoAnExistingNameIsRefused()
-    {
-        var groups = ConnectionGrouping.Arrange(null, []);
-        groups = ConnectionGrouping.Add(groups, "Archive");
-
-        var after = ConnectionGrouping.Rename(groups, "Archive", groups[0].Name);
-
-        Assert.Equal(groups.Select(g => g.Name), after.Select(g => g.Name));
-    }
-
-    /// <summary>Removing a group tidies the panel and never loses a connection.</summary>
-    [Fact]
-    public void RemovingAGroupKeepsWhatWasInIt()
-    {
-        var card = Card("One");
-        var groups = ConnectionGrouping.Arrange(null, [card]);
-        groups = ConnectionGrouping.Add(groups, "Archive");
-        groups = ConnectionGrouping.Move(groups, card.ConnectionId!.Value, "Archive", 0);
-
-        groups = ConnectionGrouping.Remove(groups, "Archive");
-
-        var remaining = Assert.Single(groups);
-        Assert.Equal([card.ConnectionId!.Value], remaining.Members);
-    }
-
-    /// <summary>The last group stays, because then there would be nowhere for anything to be.</summary>
-    [Fact]
-    public void TheLastGroupCannotBeRemoved()
-    {
-        var groups = ConnectionGrouping.Arrange(null, []);
-
-        var after = ConnectionGrouping.Remove(groups, groups[0].Name);
-
-        Assert.Single(after);
-    }
-
-    [Fact]
-    public void AGroupCanBeMovedUpThePanel()
-    {
-        var groups = ConnectionGrouping.Arrange(null, []);
-        groups = ConnectionGrouping.Add(groups, "Archive");
-
-        groups = ConnectionGrouping.Reorder(groups, "Archive", 0);
-
-        Assert.Equal("Archive", groups[0].Name);
+        Assert.Equal(["Archive", "Live", "Team"], entries.Select(static entry => entry.Name));
+        Assert.Empty(entries[0].Members);
+        Assert.Equal("layers", entries[1].IconKey);
+        Assert.Equal([arrived.ConnectionId!.Value], entries[2].Members);
+        Assert.DoesNotContain(entries, entry => entry.Members.Contains(loose.ConnectionId!.Value));
+        Assert.Empty(ConnectionGrouping.LegacyImport(saved: null, icons: null, []));
     }
 
     /// <summary>The badge is what is left of the Storage and Clients split, on the row.</summary>

@@ -3,50 +3,37 @@ using StorageHub.Desktop.Localization;
 
 namespace StorageHub.Desktop;
 
-/// <summary>One group in the connections panel: a name somebody chose, and what is in it.</summary>
-/// <param name="Members">
-/// Connection ids, in the order they are shown. Ids rather than cards, because the agent is the
-/// authority on which connections exist and this is only an arrangement of them.
-/// </param>
+/// <summary>
+/// One group of the arrangement the desktop kept in its settings file before groups were the
+/// agent's: a name somebody chose, and what was in it.
+/// </summary>
+/// <param name="Members">Connection ids, in the order they were shown.</param>
 public sealed record ConnectionGroupEntry(string Name, IReadOnlyList<Guid> Members);
 
 /// <summary>
-/// How the connections panel is organised: groups somebody made, in the order they put them.
+/// What is left of the desktop's own grouping, now the agent keeps the groups: reading the old
+/// arrangement so it can be brought across once, and the badge on a row.
 /// </summary>
 /// <remarks>
 /// <para>
-/// This replaces the fixed Storage and Clients split. That split was the provider's classification
-/// showing through as an organising principle, and it is not one: somebody with four buckets and
-/// two shells for the same project wants those six things together, and no amount of sorting
-/// inside two fixed lists gives them that.
-/// </para>
-/// <para>
-/// A connection is in exactly one group. Groups hold ids, so a connection that is deleted simply
-/// stops appearing, and one that is new lands in the group named by its folder path -- which is
-/// what carried the old organisation and so is what an existing installation should reappear as.
-/// </para>
-/// <para>
-/// Every method returns a new arrangement rather than changing one. There is at most a handful of
-/// groups and a few dozen connections, so nothing here is worth the bugs that in-place reordering
-/// during a drag would cost.
+/// The panel's groups were an arrangement in the settings file, made by dragging, with a
+/// connection's typed folder path deciding where a new one landed. They are the agent's now
+/// (<see cref="ConnectionGroupDocument"/>), and a connection names its group by id. The first time
+/// a desktop meets an agent that has not had an arrangement brought in, it sends this one, so
+/// nobody's groups, order or members are lost in the move.
 /// </para>
 /// </remarks>
 public static class ConnectionGrouping
 {
-    /// <summary>The group that holds anything not put somewhere else.</summary>
-    /// <remarks>
-    /// Named rather than a null group, so it can be reordered, renamed and dragged out of like any
-    /// other. What makes it special is only that unplaced connections land in it.
-    /// </remarks>
+    /// <summary>The old arrangement's catch-all group, which Ungrouped replaces.</summary>
     public static string DefaultGroupName => Ui.Connections.DefaultGroup;
 
     /// <summary>
-    /// The groups to show: the saved arrangement, reconciled with what the agent actually has.
+    /// The groups the old panel showed: the saved arrangement, reconciled with what the agent has.
     /// </summary>
     /// <remarks>
     /// Members that no longer exist are dropped, and connections in no group are appended to the
-    /// group their folder path names -- so a connection added from the Connection Manager appears
-    /// where somebody would look for it rather than at the bottom of everything.
+    /// group their folder path names, which is where the old panel showed them.
     /// </remarks>
     public static IReadOnlyList<ConnectionGroupEntry> Arrange(
         IReadOnlyList<ConnectionGroupEntry>? saved,
@@ -80,111 +67,41 @@ public static class ConnectionGrouping
     }
 
     /// <summary>
-    /// Moves a connection into a group, at a position.
+    /// The arrangement the desktop kept before groups were the agent's, as the groups to bring in.
     /// </summary>
     /// <remarks>
-    /// Removed from wherever it was first, because a connection is in exactly one group and a drag
-    /// that left a copy behind would be the kind of bug somebody only notices later, once they are
-    /// counting on the panel to tell them what they have.
+    /// <para>
+    /// The saved groups, in their order and with their members, then a group for each folder path
+    /// nobody had filed anywhere else, as the panel used to show them. The default group is left
+    /// out: it was where anything not put somewhere landed, which is what Ungrouped is now.
+    /// </para>
+    /// <para>
+    /// Whatever the agent could not keep is dropped rather than refusing the whole arrangement: a
+    /// name it cannot store, an icon key too long to be one, members beyond what one group carries.
+    /// </para>
     /// </remarks>
-    public static IReadOnlyList<ConnectionGroupEntry> Move(
-        IReadOnlyList<ConnectionGroupEntry> groups,
-        Guid connectionId,
-        string groupName,
-        int index)
+    public static IReadOnlyList<ConnectionGroupImportEntry> LegacyImport(
+        IReadOnlyList<ConnectionGroupEntry>? saved,
+        IReadOnlyDictionary<string, string>? icons,
+        IReadOnlyList<ConnectionCardModel> connections)
     {
-        ArgumentNullException.ThrowIfNull(groups);
-        if (connectionId == Guid.Empty || string.IsNullOrWhiteSpace(groupName)) return groups;
-
-        var moved = groups
-            .Select(group => group with { Members = [.. group.Members.Where(id => id != connectionId)] })
-            .ToList();
-
-        var target = moved.FindIndex(group => Same(group.Name, groupName));
-        if (target < 0)
+        ArgumentNullException.ThrowIfNull(connections);
+        var entries = new List<ConnectionGroupImportEntry>();
+        foreach (var group in Arrange(saved, connections))
         {
-            moved.Add(new ConnectionGroupEntry(groupName.Trim(), [connectionId]));
-            return moved;
+            var name = group.Name.Trim();
+            if (Same(name, DefaultGroupName)) continue;
+
+            var icon = icons?.GetValueOrDefault(group.Name);
+            var entry = new ConnectionGroupImportEntry(
+                name,
+                icon is { Length: > 0 and <= ConnectionProfileIpcLimits.MaximumIconKeyLength } ? icon : null,
+                ColorKey: null,
+                [.. group.Members.Take(ConnectionGroupIpcLimits.MaximumMembersPerImportedGroup)]);
+            if (entry.HasValidBounds && entries.Count < ConnectionGroupIpcLimits.MaximumGroups) entries.Add(entry);
         }
 
-        var members = moved[target].Members.ToList();
-        members.Insert(Math.Clamp(index, 0, members.Count), connectionId);
-        moved[target] = moved[target] with { Members = members };
-        return moved;
-    }
-
-    /// <summary>Adds an empty group, or leaves the arrangement alone if that name is taken.</summary>
-    public static IReadOnlyList<ConnectionGroupEntry> Add(
-        IReadOnlyList<ConnectionGroupEntry> groups,
-        string name)
-    {
-        ArgumentNullException.ThrowIfNull(groups);
-        var trimmed = name?.Trim() ?? string.Empty;
-        return trimmed.Length == 0 || groups.Any(group => Same(group.Name, trimmed))
-            ? groups
-            : [.. groups, new ConnectionGroupEntry(trimmed, [])];
-    }
-
-    /// <summary>Renames a group, keeping its place and its contents.</summary>
-    public static IReadOnlyList<ConnectionGroupEntry> Rename(
-        IReadOnlyList<ConnectionGroupEntry> groups,
-        string from,
-        string to)
-    {
-        ArgumentNullException.ThrowIfNull(groups);
-        var trimmed = to?.Trim() ?? string.Empty;
-        if (trimmed.Length == 0 || Same(from, trimmed)) return groups;
-
-        // Refused rather than merged: two groups with one name is a state nothing else here can
-        // represent, and merging silently would move connections somebody did not ask to move.
-        if (groups.Any(group => Same(group.Name, trimmed))) return groups;
-
-        return [.. groups.Select(group => Same(group.Name, from) ? group with { Name = trimmed } : group)];
-    }
-
-    /// <summary>
-    /// Removes a group, keeping everything that was in it.
-    /// </summary>
-    /// <remarks>
-    /// Its connections go to the first group left, so removing a group is a way to tidy the panel
-    /// and never a way to lose track of a connection. The last group cannot be removed, because
-    /// then there would be nowhere for anything to be.
-    /// </remarks>
-    public static IReadOnlyList<ConnectionGroupEntry> Remove(
-        IReadOnlyList<ConnectionGroupEntry> groups,
-        string name)
-    {
-        ArgumentNullException.ThrowIfNull(groups);
-        if (groups.Count <= 1) return groups;
-
-        var index = IndexOf(groups, name);
-        if (index < 0) return groups;
-
-        var orphans = groups[index].Members;
-        var kept = groups.Where((_, position) => position != index).ToList();
-        var destination = index == 0 ? 0 : index - 1;
-        kept[destination] = kept[destination] with
-        {
-            Members = [.. kept[destination].Members, .. orphans]
-        };
-        return kept;
-    }
-
-    /// <summary>Moves a whole group up or down the panel.</summary>
-    public static IReadOnlyList<ConnectionGroupEntry> Reorder(
-        IReadOnlyList<ConnectionGroupEntry> groups,
-        string name,
-        int index)
-    {
-        ArgumentNullException.ThrowIfNull(groups);
-        var from = IndexOf(groups, name);
-        if (from < 0) return groups;
-
-        var moved = groups.ToList();
-        var group = moved[from];
-        moved.RemoveAt(from);
-        moved.Insert(Math.Clamp(index, 0, moved.Count), group);
-        return moved;
+        return entries;
     }
 
     /// <summary>
@@ -233,7 +150,7 @@ public static class ConnectionGrouping
         groups[index] = groups[index] with { Members = [.. groups[index].Members, id] };
     }
 
-    private static int IndexOf(IReadOnlyList<ConnectionGroupEntry> groups, string name)
+    private static int IndexOf(List<ConnectionGroupEntry> groups, string name)
     {
         for (var index = 0; index < groups.Count; index++)
         {

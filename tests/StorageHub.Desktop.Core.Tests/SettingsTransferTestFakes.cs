@@ -134,6 +134,26 @@ internal sealed class FakeSettingsProfileClient(FakeSettingsStorageClient storag
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("Trust decisions are never imported.");
 
+    /// <summary>The connection groups, in order, as the agent would keep them.</summary>
+    internal List<ConnectionGroupDocument> Groups { get; } = [];
+
+    public Task<ConnectionGroupListResponse> ListGroupsAsync(
+        ConnectionGroupListRequest request,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult(new ConnectionGroupListResponse(request.ContractVersion, [.. Groups]));
+
+    public Task<ConnectionGroupWriteResponse> CreateGroupAsync(
+        ConnectionGroupCreateRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var group = new ConnectionGroupDocument(
+            Guid.NewGuid(), request.Name, Groups.Count, request.IconKey, request.ColorKey, 1,
+            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
+        Groups.Add(group);
+        return Task.FromResult(new ConnectionGroupWriteResponse(
+            request.ContractVersion, ConnectionGroupWriteStatus.Succeeded, group, [.. Groups]));
+    }
+
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }
 

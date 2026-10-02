@@ -14,7 +14,8 @@ namespace StorageHub.Desktop.Views;
 /// client and an SFTP connection to the same host look identical without it -- and it is not a
 /// reason to organise the whole panel around.
 /// </remarks>
-internal sealed class ConnectionRowModel(ConnectionCardModel card) : INotifyPropertyChanged
+/// <param name="groupName">The name of the group it is filed in, for its subtitle; null when Ungrouped.</param>
+internal sealed class ConnectionRowModel(ConnectionCardModel card, string? groupName = null) : INotifyPropertyChanged
 {
     private bool _isSelected;
 
@@ -49,10 +50,13 @@ internal sealed class ConnectionRowModel(ConnectionCardModel card) : INotifyProp
 
     public Avalonia.Media.IBrush AccentBrush => AccentSwatch.BrushFor(Card.AccentHex);
 
-    /// <summary>"Local / UNC · Studio · Not tested": provider, folder and health on one muted line.</summary>
+    /// <summary>
+    /// "Local / UNC · Studio · Not tested": provider, group and health on one muted line, where 1.x
+    /// put the folder that was its group.
+    /// </summary>
     public string Subtitle => string.Join(
         " · ",
-        new[] { Card.Descriptor.DisplayName, Card.FolderPath, Card.State }
+        new[] { Card.Descriptor.DisplayName, groupName, Card.State }
             .Where(static part => !string.IsNullOrWhiteSpace(part)));
 
     public IReadOnlyList<string> Tags => Card.DisplayTags;
@@ -74,55 +78,94 @@ internal sealed class ConnectionRowModel(ConnectionCardModel card) : INotifyProp
     public event PropertyChangedEventHandler? PropertyChanged;
 }
 
+/// <summary>What a section of the connections panel is.</summary>
+internal enum ConnectionGroupKind
+{
+    /// <summary>A group the agent keeps, which somebody made and can rename, recolour and remove.</summary>
+    Group,
+
+    /// <summary>The connections filed in no group, last, and only while there are any.</summary>
+    Ungrouped,
+
+    /// <summary>The favourites, above the groups: a state rather than a place, so nothing is filed in it.</summary>
+    Favorites
+}
+
 /// <summary>
-/// One group in the connections panel, and what can be done to it.
+/// One section of the connections panel, and what can be done to it.
 /// </summary>
 /// <remarks>
-/// Built fresh whenever the arrangement changes rather than updated in place. There are at most a
+/// Built fresh whenever the panel is drawn again rather than updated in place. There are at most a
 /// handful of groups and a few dozen connections, and a drag that rebuilds is a great deal easier
 /// to be sure of than one that reorders two observable collections while a pointer is down.
 /// </remarks>
-internal sealed class ConnectionGroupModel(
-    string name,
-    IReadOnlyList<ConnectionRowModel> connections,
-    ICommand renameCommand,
-    ICommand removeCommand,
-    ICommand? changeIconCommand = null,
-    string? iconKey = null,
-    bool isFavorites = false) : INotifyPropertyChanged
+internal sealed class ConnectionGroupModel : INotifyPropertyChanged
 {
-    /// <summary>
-    /// The group's icon: the one chosen for it, or a folder.
-    /// </summary>
-    /// <remarks>
-    /// 1.x let a folder of connections have an icon of its own and kept the choices in the settings
-    /// file, which 2.0 went on saving and never showed. They are shown again. Favorites draws 1.x's
-    /// filled star in its place, which is the panel's to draw rather than a Lucide glyph.
-    /// </remarks>
-    public Lucide.Avalonia.LucideIconKind Icon =>
-        (ConnectionIconCatalog.Resolve(iconKey) is { } glyph ? Themes.IconCatalog.Resolve(glyph) : null)
-        ?? Lucide.Avalonia.LucideIconKind.Folder;
-
-    /// <summary>
-    /// The Favorites group at the top of the panel, rather than one somebody made.
-    /// </summary>
-    /// <remarks>
-    /// Its members are the connections marked as favourites, so it has nothing to rename, remove
-    /// or drop a connection into: the panel leaves its menu out and a drag lands elsewhere.
-    /// </remarks>
-    public bool IsFavorites { get; } = isFavorites;
-
-    public ICommand? ChangeIconCommand { get; } = changeIconCommand;
-
-    public static string ChangeIconLabel => Ui.Connections.ChooseIcon;
-
     private bool _isExpanded = true;
 
-    public string Name { get; } = name;
+    internal ConnectionGroupModel(
+        string name,
+        IReadOnlyList<ConnectionRowModel> connections,
+        ConnectionGroupKind kind = ConnectionGroupKind.Group,
+        Guid? groupId = null,
+        string? iconKey = null,
+        string? colorKey = null)
+    {
+        Name = name;
+        Kind = kind;
+        GroupId = kind == ConnectionGroupKind.Group ? groupId : null;
+        IconKey = iconKey;
+        ColorKey = Avalonia.Media.Color.TryParse(colorKey, out _) ? colorKey : null;
+        Connections = [.. connections];
+    }
 
-    public ObservableCollection<ConnectionRowModel> Connections { get; } = [.. connections];
+    public string Name { get; }
+
+    public ConnectionGroupKind Kind { get; }
+
+    /// <summary>The agent's id for the group, or null for Ungrouped and Favorites.</summary>
+    public Guid? GroupId { get; }
+
+    public string? IconKey { get; }
+
+    /// <summary>The group's colour as #RRGGBB, or null for none.</summary>
+    public string? ColorKey { get; }
+
+    public bool IsFavorites => Kind == ConnectionGroupKind.Favorites;
+
+    public bool IsUngrouped => Kind == ConnectionGroupKind.Ungrouped;
+
+    /// <summary>Whether it has a menu: only a group somebody made can be renamed, moved or removed.</summary>
+    public bool HasMenu => Kind == ConnectionGroupKind.Group;
+
+    /// <summary>
+    /// The group's icon: the one chosen for it, or a folder; an inbox for Ungrouped.
+    /// </summary>
+    /// <remarks>
+    /// Favorites draws 1.x's filled star in its place, which is the panel's to draw rather than a
+    /// Lucide glyph.
+    /// </remarks>
+    public Lucide.Avalonia.LucideIconKind Icon => Kind == ConnectionGroupKind.Ungrouped
+        ? Lucide.Avalonia.LucideIconKind.Inbox
+        : (ConnectionIconCatalog.Resolve(IconKey) is { } glyph ? Themes.IconCatalog.Resolve(glyph) : null)
+            ?? Lucide.Avalonia.LucideIconKind.Folder;
+
+    /// <summary>Whether the group wears a colour, drawn as a small tile behind its icon as a card's is.</summary>
+    public bool HasColor => ColorKey is not null && Kind == ConnectionGroupKind.Group;
+
+    /// <summary>The icon on its own, muted, for a group without a colour.</summary>
+    public bool ShowsPlainIcon => !HasColor && !IsFavorites;
+
+    public Avalonia.Media.IBrush ColorBrush => AccentSwatch.BrushFor(ColorKey ?? string.Empty);
+
+    public ObservableCollection<ConnectionRowModel> Connections { get; }
 
     public bool IsEmpty => Connections.Count == 0;
+
+    /// <summary>How many connections are in it, after its name.</summary>
+    public string Count => Connections.Count.ToString("N0", System.Globalization.CultureInfo.CurrentCulture);
+
+    public string CountAccessibleName => Ui.Format(Ui.Connections.GroupCountAccessibleFormat, Connections.Count);
 
     /// <summary>"Team, 4 connection(s)", for a reader who cannot see the panel.</summary>
     public string AccessibleName =>
@@ -145,16 +188,40 @@ internal sealed class ConnectionGroupModel(
             if (_isExpanded == value) return;
             _isExpanded = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsExpanded)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowsEmptyLine)));
         }
     }
 
-    public ICommand RenameCommand { get; } = renameCommand;
+    /// <summary>
+    /// "No connections", on one quiet line under an open empty group, rather than a blank block.
+    /// The line is the group's too, so a connection can still be dropped on it.
+    /// </summary>
+    public bool ShowsEmptyLine => _isExpanded && IsEmpty;
 
-    public ICommand RemoveCommand { get; } = removeCommand;
+    public ICommand? RenameCommand { get; init; }
+
+    /// <summary>Opens the picker for the group's icon and colour; also what right-clicking its heading does.</summary>
+    public ICommand? ChangeIconCommand { get; init; }
+
+    public ICommand? MoveUpCommand { get; init; }
+
+    public ICommand? MoveDownCommand { get; init; }
+
+    public ICommand? RemoveCommand { get; init; }
 
     public static string RenameLabel => Ui.Connections.RenameGroup;
 
     public static string RemoveLabel => Ui.Connections.RemoveGroup;
+
+    public static string ChangeIconLabel => Ui.Connections.GroupIconAndColor;
+
+    public static string MoveUpLabel => Ui.Connections.MoveGroupUp;
+
+    public static string MoveDownLabel => Ui.Connections.MoveGroupDown;
+
+    public static string EmptyLabel => Ui.Connections.GroupEmpty;
+
+    public static string MenuLabel => Ui.Connections.GroupOptions;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 }

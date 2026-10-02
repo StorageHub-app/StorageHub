@@ -85,13 +85,22 @@ internal sealed class ConnectionManagerModel
     /// Loads the connection to edit, or starts a new one when there is none, on S3 unless a
     /// provider is named, as 1.x's dialog did.
     /// </summary>
-    internal Task OpenAsync(
+    /// <param name="initialGroup">The group a new connection starts in; null is Ungrouped.</param>
+    internal async Task OpenAsync(
         Guid? connectionId,
         StorageProviderKind initialProvider = StorageProviderKind.S3,
+        Guid? initialGroup = null,
         CancellationToken cancellationToken = default)
     {
-        if (connectionId is { } id) return Editor.OpenAsync(id, cancellationToken);
-        Editor.StartNew(initialProvider);
-        return Task.CompletedTask;
+        if (connectionId is { } id)
+        {
+            await Editor.OpenAsync(id, cancellationToken).ConfigureAwait(true);
+        }
+        else
+        {
+            Editor.StartNew(initialProvider, initialGroup);
+        }
+
+        await Editor.LoadGroupsAsync(cancellationToken).ConfigureAwait(true);
     }
 }

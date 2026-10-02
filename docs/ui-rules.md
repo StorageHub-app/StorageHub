@@ -70,6 +70,21 @@ a wish; each one below names the test that fails when it is broken. The target i
   says so and offers the Key Store's own Import, which selects what it imported.
   _Test:_ `KeyStoreTests.ThePickerImportsIntoAnEmptyStoreAndSelectsTheEntry`.
 
+## Connections panel
+
+- **Groups are the agent's.** The panel shows the agent's groups in their sort order (Move up and
+  Move down in a group's menu), then Ungrouped, which appears only while something is in it.
+  Connections within a group are in name order. A connection is filed from the editor's Group
+  field or by dropping it on a group; nothing is typed.
+  _Test:_ `ConnectionGroupPanelTests.DroppingAConnectionOnAGroupFilesItThereInTheAgent`.
+- **Headings are one height and line up.** Every heading, with a menu or without, is
+  `GroupHeaderHeight` tall. Its glyph sits in a `GroupGlyphSize` square (a muted icon, the star, or
+  a tile in the group's colour with a white icon, as a card's tile), the name is `SpaceMd` from it
+  (`SpaceSm` column gap plus `GroupTitleMargin`), and the count follows the name, muted. An open
+  empty group says "No connections" on one caption line under its name (`GroupEmptyMargin`), never a
+  blank block.
+  _Test:_ `ConnectionGroupPanelTests.ThePanelCanBePhotographed`, compared by eye in both appearances.
+
 ## Markup
 
 - **No `--` inside an XML comment.** The build refuses the file, and the error names the parser,

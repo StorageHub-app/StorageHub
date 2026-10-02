@@ -40,6 +40,36 @@ public interface IRemoteConnectionProfileClient : IAsyncDisposable
     Task<ConnectionTrustMutationResponse> RolloverTrustAsync(
         ConnectionTrustRolloverRequest request,
         CancellationToken cancellationToken = default);
+
+    // The connections panel's groups. Default bodies so a client that only reads and writes
+    // profiles, as most test doubles do, need not pretend to keep groups.
+    Task<ConnectionGroupListResponse> ListGroupsAsync(
+        ConnectionGroupListRequest request,
+        CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+    Task<ConnectionGroupWriteResponse> CreateGroupAsync(
+        ConnectionGroupCreateRequest request,
+        CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+    Task<ConnectionGroupWriteResponse> UpdateGroupAsync(
+        ConnectionGroupUpdateRequest request,
+        CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+    Task<ConnectionGroupWriteResponse> MoveGroupAsync(
+        ConnectionGroupMoveRequest request,
+        CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+    Task<ConnectionGroupWriteResponse> DeleteGroupAsync(
+        ConnectionGroupDeleteRequest request,
+        CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+    Task<ConnectionGroupWriteResponse> AssignGroupAsync(
+        ConnectionGroupAssignRequest request,
+        CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+    Task<ConnectionGroupWriteResponse> ImportGroupsAsync(
+        ConnectionGroupImportRequest request,
+        CancellationToken cancellationToken = default) => throw new NotSupportedException();
 }
 
 public sealed class NamedPipeRemoteConnectionProfileClient : IRemoteConnectionProfileClient
@@ -188,6 +218,100 @@ public sealed class NamedPipeRemoteConnectionProfileClient : IRemoteConnectionPr
                 request.ExpectedProfileVersion,
                 response),
             cancellationToken);
+    }
+
+    public Task<ConnectionGroupListResponse> ListGroupsAsync(
+        ConnectionGroupListRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        EnsureRequest(request.ContractVersion, request.HasValidBounds, nameof(request));
+        return ExecuteAsync<ConnectionGroupListRequest, ConnectionGroupListResponse>(
+            ConnectionGroupIpcMessageTypes.ListRequest,
+            ConnectionGroupIpcMessageTypes.ListResponse,
+            request,
+            ValidateGroupListResponse,
+            cancellationToken);
+    }
+
+    public Task<ConnectionGroupWriteResponse> CreateGroupAsync(
+        ConnectionGroupCreateRequest request,
+        CancellationToken cancellationToken = default) => GroupWriteAsync(
+        ConnectionGroupIpcMessageTypes.CreateRequest, ConnectionGroupIpcMessageTypes.CreateResponse,
+        request, request?.ContractVersion ?? 0, request?.HasValidBounds == true, cancellationToken);
+
+    public Task<ConnectionGroupWriteResponse> UpdateGroupAsync(
+        ConnectionGroupUpdateRequest request,
+        CancellationToken cancellationToken = default) => GroupWriteAsync(
+        ConnectionGroupIpcMessageTypes.UpdateRequest, ConnectionGroupIpcMessageTypes.UpdateResponse,
+        request, request?.ContractVersion ?? 0, request?.HasValidBounds == true, cancellationToken);
+
+    public Task<ConnectionGroupWriteResponse> MoveGroupAsync(
+        ConnectionGroupMoveRequest request,
+        CancellationToken cancellationToken = default) => GroupWriteAsync(
+        ConnectionGroupIpcMessageTypes.MoveRequest, ConnectionGroupIpcMessageTypes.MoveResponse,
+        request, request?.ContractVersion ?? 0, request?.HasValidBounds == true, cancellationToken);
+
+    public Task<ConnectionGroupWriteResponse> DeleteGroupAsync(
+        ConnectionGroupDeleteRequest request,
+        CancellationToken cancellationToken = default) => GroupWriteAsync(
+        ConnectionGroupIpcMessageTypes.DeleteRequest, ConnectionGroupIpcMessageTypes.DeleteResponse,
+        request, request?.ContractVersion ?? 0, request?.HasValidBounds == true, cancellationToken);
+
+    public Task<ConnectionGroupWriteResponse> AssignGroupAsync(
+        ConnectionGroupAssignRequest request,
+        CancellationToken cancellationToken = default) => GroupWriteAsync(
+        ConnectionGroupIpcMessageTypes.AssignRequest, ConnectionGroupIpcMessageTypes.AssignResponse,
+        request, request?.ContractVersion ?? 0, request?.HasValidBounds == true, cancellationToken);
+
+    public Task<ConnectionGroupWriteResponse> ImportGroupsAsync(
+        ConnectionGroupImportRequest request,
+        CancellationToken cancellationToken = default) => GroupWriteAsync(
+        ConnectionGroupIpcMessageTypes.ImportRequest, ConnectionGroupIpcMessageTypes.ImportResponse,
+        request, request?.ContractVersion ?? 0, request?.HasValidBounds == true, cancellationToken);
+
+    private Task<ConnectionGroupWriteResponse> GroupWriteAsync<TRequest>(
+        string requestType,
+        string responseType,
+        TRequest? request,
+        int contractVersion,
+        bool withinBounds,
+        CancellationToken cancellationToken)
+        where TRequest : class
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        EnsureRequest(contractVersion, withinBounds, nameof(request));
+        return ExecuteAsync<TRequest, ConnectionGroupWriteResponse>(
+            requestType,
+            responseType,
+            request,
+            ValidateGroupWriteResponse,
+            cancellationToken);
+    }
+
+    private static void ValidateGroupListResponse(ConnectionGroupListResponse response)
+    {
+        ValidateContract(response.ContractVersion);
+        if (!IsValidFailure(response.Failure) ||
+            response.Groups is not { Length: <= ConnectionGroupIpcLimits.MaximumGroups } groups ||
+            groups.Any(static group => group is not { HasValidBounds: true }))
+        {
+            throw InvalidResponse();
+        }
+    }
+
+    private static void ValidateGroupWriteResponse(ConnectionGroupWriteResponse response)
+    {
+        ValidateContract(response.ContractVersion);
+        if (!Enum.IsDefined(response.Status) ||
+            !IsValidFailure(response.Failure) ||
+            response.Group is { HasValidBounds: false } ||
+            response.Groups is { Length: > ConnectionGroupIpcLimits.MaximumGroups } ||
+            response.Groups?.Any(static group => group is not { HasValidBounds: true }) == true ||
+            response.ConnectionVersion is <= 0)
+        {
+            throw InvalidResponse();
+        }
     }
 
     public async ValueTask DisposeAsync()

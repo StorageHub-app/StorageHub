@@ -21,7 +21,8 @@ internal static class ConnectionDetailFacts
         ConnectionCardModel card,
         ConnectionSummary? summary,
         ConnectionProfileDocument? profile,
-        SecretReferenceNames? keyNames = null)
+        SecretReferenceNames? keyNames = null,
+        string? groupName = null)
     {
         ArgumentNullException.ThrowIfNull(card);
         var rows = new List<ConnectionDetailRow>();
@@ -105,7 +106,7 @@ internal static class ConnectionDetailFacts
         }
 
         Section(Ui.Connections.SectionOrganisation);
-        Fact(Ui.Connections.FieldFolder, card.FolderPath);
+        Fact(Ui.Connections.FieldGroup, groupName);
         Fact(Ui.Connections.FieldTags, string.Join(", ", card.DisplayTags));
         Fact(Ui.Connections.FieldFavorite, card.IsFavorite ? Ui.Connections.DetailYes : Ui.Connections.DetailNo);
 

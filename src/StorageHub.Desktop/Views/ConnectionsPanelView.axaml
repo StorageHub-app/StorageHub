@@ -33,40 +33,78 @@
       <StackPanel AutomationProperties.Name="{Binding AccessibleName}">
 
         <!-- Painted, if only with nothing, so a right-click anywhere along the heading reaches it
-             and opens the icon picker, as 1.x's heading did, not only one on its name. -->
+             and opens the icon and colour picker, as 1.x's heading did, not only one on its name.
+             The glyph sits in a square of its own, so the names line up whichever glyph a heading
+             has, and the name is a step further on from it than the glyph is from the arrow. -->
         <Grid ColumnDefinitions="Auto,Auto,*,Auto" Classes="group-header"
               Background="Transparent"
-              ColumnSpacing="{StaticResource SpaceXs}">
+              ColumnSpacing="{StaticResource SpaceSm}">
           <ToggleButton Grid.Column="0" Classes="disclosure"
                         IsChecked="{Binding IsExpanded, Mode=TwoWay}"/>
-          <LucideIcon Grid.Column="1" Kind="{Binding Icon}" Size="{StaticResource IconSizeSm}"
-                      VerticalAlignment="Center" IsVisible="{Binding !IsFavorites}"/>
-          <PathIcon Grid.Column="1" Data="{StaticResource FavoriteMark}"
-                    Width="{StaticResource IconSizeSm}" Height="{StaticResource IconSizeSm}"
-                    Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center"
-                    IsVisible="{Binding IsFavorites}"/>
-          <TextBlock Grid.Column="2" Classes="group-title" VerticalAlignment="Center"
-                     Text="{Binding Name}"/>
-          <Button Grid.Column="3" Classes="tool" IsVisible="{Binding !IsFavorites}"
-                  ToolTip.Tip="{Binding RenameLabel}">
+          <Panel Grid.Column="1" Classes="group-glyph">
+            <LucideIcon Kind="{Binding Icon}" Size="{StaticResource IconSizeSm}"
+                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                        IsVisible="{Binding ShowsPlainIcon}"/>
+            <Border Classes="group-tile" Background="{Binding ColorBrush}" IsVisible="{Binding HasColor}">
+              <LucideIcon Kind="{Binding Icon}" Size="{StaticResource GroupTileIconSize}"/>
+            </Border>
+            <PathIcon Data="{StaticResource FavoriteMark}"
+                      Width="{StaticResource IconSizeSm}" Height="{StaticResource IconSizeSm}"
+                      Foreground="{DynamicResource TextMutedBrush}"
+                      HorizontalAlignment="Center" VerticalAlignment="Center"
+                      IsVisible="{Binding IsFavorites}"/>
+          </Panel>
+          <!-- The name, then how many are in it, straight after the name; a long name gives way. -->
+          <DockPanel Grid.Column="2" HorizontalAlignment="Left" Margin="{StaticResource GroupTitleMargin}">
+            <TextBlock DockPanel.Dock="Right" Classes="group-count" Text="{Binding Count}"
+                       AutomationProperties.Name="{Binding CountAccessibleName}"/>
+            <TextBlock Classes="group-title" Text="{Binding Name}" ToolTip.Tip="{Binding Name}"/>
+          </DockPanel>
+          <Button Grid.Column="3" Classes="tool" IsVisible="{Binding HasMenu}"
+                  ToolTip.Tip="{Binding MenuLabel}" AutomationProperties.Name="{Binding MenuLabel}">
             <LucideIcon Kind="Ellipsis" Size="{StaticResource IconSizeSm}"/>
             <Button.Flyout>
               <MenuFlyout>
-                <MenuItem Header="{Binding RenameLabel}" Command="{Binding RenameCommand}"/>
-                <MenuItem Header="{Binding ChangeIconLabel}" Command="{Binding ChangeIconCommand}"/>
-                <MenuItem Header="{Binding RemoveLabel}" Command="{Binding RemoveCommand}"/>
+                <MenuItem Header="{Binding RenameLabel}" Command="{Binding RenameCommand}">
+                  <MenuItem.Icon>
+                    <LucideIcon Kind="Pencil" Size="{StaticResource IconSizeSm}"/>
+                  </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="{Binding ChangeIconLabel}" Command="{Binding ChangeIconCommand}">
+                  <MenuItem.Icon>
+                    <LucideIcon Kind="Palette" Size="{StaticResource IconSizeSm}"/>
+                  </MenuItem.Icon>
+                </MenuItem>
+                <Separator/>
+                <MenuItem Header="{Binding MoveUpLabel}" Command="{Binding MoveUpCommand}">
+                  <MenuItem.Icon>
+                    <LucideIcon Kind="ArrowUp" Size="{StaticResource IconSizeSm}"/>
+                  </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="{Binding MoveDownLabel}" Command="{Binding MoveDownCommand}">
+                  <MenuItem.Icon>
+                    <LucideIcon Kind="ArrowDown" Size="{StaticResource IconSizeSm}"/>
+                  </MenuItem.Icon>
+                </MenuItem>
+                <Separator/>
+                <MenuItem Header="{Binding RemoveLabel}" Command="{Binding RemoveCommand}">
+                  <MenuItem.Icon>
+                    <LucideIcon Kind="Trash" Size="{StaticResource IconSizeSm}" Classes="danger"/>
+                  </MenuItem.Icon>
+                </MenuItem>
               </MenuFlyout>
             </Button.Flyout>
           </Button>
         </Grid>
 
         <!--
-          The drop target is the whole group, including an empty one: a group you
-          cannot drag the first connection into is a group you cannot start using.
+          The drop target is the whole group, including an empty one: a group you cannot drag the
+          first connection into is a group you cannot start using. An empty one says so on one
+          quiet line under its name, which is part of the group and so takes a drop too.
         -->
+        <TextBlock Classes="group-empty" Text="{Binding EmptyLabel}" IsVisible="{Binding ShowsEmptyLine}"/>
         <ItemsControl ItemsSource="{Binding Connections}"
-                      IsVisible="{Binding IsExpanded}"
-                      MinHeight="24">
+                      IsVisible="{Binding IsExpanded}">
           <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate>
               <StackPanel Spacing="{StaticResource SpaceXs}"/>

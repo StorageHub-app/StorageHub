@@ -40,22 +40,34 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
 {
     private readonly Func<IRemoteStorageAgentClient>? _client;
     private readonly IDialogService? _dialogs;
-    private readonly Func<IReadOnlyList<ConnectionGroupEntry>?>? _load;
-    private readonly Action<IReadOnlyList<ConnectionGroupEntry>>? _save;
-    private readonly Action<IReadOnlyDictionary<string, string>>? _saveIcons;
-    private readonly Func<string?, string, Task<IconChoice>>? _pickIcon;
+    private readonly Func<IReadOnlyList<ConnectionGroupEntry>?>? _legacyGroups;
+    private readonly Func<IReadOnlyDictionary<string, string>?>? _legacyIcons;
+    private readonly Func<string?, string?, string, Task<IconChoice>>? _pickIcon;
     private readonly Func<IRemoteConnectionProfileClient>? _profiles;
     private readonly Func<IKeyStoreAgentClient>? _keyStore;
 
     /// <summary>The Key Store's entries by reference, so the details can name the key a connection uses.</summary>
     private readonly SecretReferenceNames _keyNames = new();
-    private Dictionary<string, string> _icons = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// The groups closed by hand, by name, so a listing or a search that draws them again draws
+    /// The groups closed by hand, by id, so a listing or a search that draws them again draws
     /// them closed, as 1.x's <c>_collapsedGroups</c> kept them. For the session only, as 1.x's was.
+    /// Ungrouped is <see cref="Guid.Empty"/>.
     /// </summary>
-    private readonly HashSet<string> _collapsed = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<Guid> _collapsed = [];
+
+    /// <summary>The groups the agent keeps, in the panel's order, from its last answer.</summary>
+    private IReadOnlyList<ConnectionGroupDocument> _groups = [];
+
+    /// <summary>
+    /// Whether the agent has been offered the arrangement this desktop kept before groups were the
+    /// agent's, and answered, this session. It keeps the first one it is sent, so asking again
+    /// would change nothing; this only saves the round trip.
+    /// </summary>
+    private volatile bool _legacyOffered;
+
+    /// <summary>The group last opened, for a new connection when no card is selected.</summary>
+    private Guid? _openedGroup;
 
     /// <summary>Whether Favorites was closed, kept apart because a group of one's own may share its name.</summary>
     private bool _favoritesCollapsed;
@@ -83,7 +95,6 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     /// and rebuilding for a keystroke has no business deciding which one is true.
     /// </remarks>
     private string _listingStatus = string.Empty;
-    private IReadOnlyList<ConnectionGroupEntry> _arrangement = [];
     private string _status = string.Empty;
     private bool _isEmpty = true;
     private ConnectionRowModel? _selected;
@@ -101,11 +112,12 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     /// </remarks>
     private long? _testedVersion;
 
-    /// <param name="load">Where the saved arrangement comes from. Null means nothing is remembered.</param>
-    /// <param name="save">
-    /// Where a rearrangement goes. Called on every drag, which is cheap: the file is small and the
-    /// alternative is losing an arrangement to a shell that did not close cleanly.
+    /// <param name="legacyGroups">
+    /// The arrangement this desktop kept in its settings file before groups were the agent's, read
+    /// once to bring it across. Null means there is none.
     /// </param>
+    /// <param name="legacyIcons">The icons chosen for those groups, by name.</param>
+    /// <param name="pickIcon">Asks for a group's icon and colour: the current icon, colour and a title.</param>
     /// <param name="profiles">
     /// Reads and writes a whole profile, which is what marking a favourite takes. A factory for the
     /// same reason <paramref name="client"/> is one: each toggle opens a connection and closes it.
@@ -119,11 +131,9 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         ICommand newCommand,
         Func<IRemoteStorageAgentClient>? client = null,
         IDialogService? dialogs = null,
-        Func<IReadOnlyList<ConnectionGroupEntry>?>? load = null,
-        Action<IReadOnlyList<ConnectionGroupEntry>>? save = null,
-        Func<IReadOnlyDictionary<string, string>?>? loadIcons = null,
-        Action<IReadOnlyDictionary<string, string>>? saveIcons = null,
-        Func<string?, string, Task<IconChoice>>? pickIcon = null,
+        Func<IReadOnlyList<ConnectionGroupEntry>?>? legacyGroups = null,
+        Func<IReadOnlyDictionary<string, string>?>? legacyIcons = null,
+        Func<string?, string?, string, Task<IconChoice>>? pickIcon = null,
         Func<IRemoteConnectionProfileClient>? profiles = null,
         Func<IKeyStoreAgentClient>? keyStore = null)
     {
@@ -131,17 +141,12 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         NewCommand = newCommand;
         _client = client;
         _dialogs = dialogs;
-        _load = load;
-        _save = save;
-        _saveIcons = saveIcons;
+        _legacyGroups = legacyGroups;
+        _legacyIcons = legacyIcons;
         _pickIcon = pickIcon;
         _profiles = profiles;
-        if (loadIcons?.Invoke() is { } icons)
-        {
-            _icons = new Dictionary<string, string>(icons, StringComparer.OrdinalIgnoreCase);
-        }
         Status = Ui.Connections.SidebarEmpty;
-        NewGroupCommand = new RelayCommand(_ => _ = AddGroupAsync(), _ => _dialogs is not null);
+        NewGroupCommand = new RelayCommand(_ => _ = AddGroupAsync(), _ => _dialogs is not null && _profiles is not null);
         ClearSearchCommand = new RelayCommand(_ => Search = string.Empty);
         RefreshCommand = new RelayCommand(_ => _ = RefreshAsync());
 
@@ -232,7 +237,8 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
             card,
             Connections.FirstOrDefault(listed => listed.ConnectionId == row.Id),
             _profile is { } profile && profile.ConnectionId == row.Id ? profile : null,
-            _keyNames);
+            _keyNames,
+            GroupNameOf(card.GroupId) ?? Ui.Connections.Ungrouped);
 
     /// <summary>
     /// The selected connection's saved profile, which the Server, Authentication, Security and
@@ -578,13 +584,13 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
 
     /// <summary>
-    /// The panel's groups, in the order they are shown.
+    /// The panel's groups: the agent's, in their order, then Ungrouped while anything is in it.
     /// </summary>
     /// <remarks>
-    /// This replaced a flat list, which replaced nothing -- the WinForms sidebar split the panel
-    /// into Storage and Clients, which is the provider's classification standing in for an
-    /// organising principle. Somebody with four buckets and two shells for one project wants those
-    /// six things together, and no amount of sorting inside two fixed lists gives them that.
+    /// Groups rather than the Storage and Clients split 1.x had, which was the provider's
+    /// classification standing in for an organising principle: somebody with four buckets and two
+    /// shells for one project wants those six things together. The agent keeps the groups, so a
+    /// new connection is filed in one from the editor, from a list, rather than by typing a folder.
     /// </remarks>
     public ObservableCollection<ConnectionGroupModel> Groups { get; } = [];
 
@@ -799,7 +805,23 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
                 return;
             }
 
-            Apply(response.Connections, Ui.Connections.SidebarEmpty, listed: true);
+            // The old arrangement first, so the listing drawn is one with it in; a connection it
+            // filed is at a new version, so the connections are listed again once it is in.
+            if (!_legacyOffered && await OfferLegacyArrangementAsync(response.Connections, cancellationToken)
+                    .ConfigureAwait(false))
+            {
+                response = await client
+                    .ListConnectionsAsync(new ConnectionListRequest(IncludeDisabled: true), cancellationToken)
+                    .ConfigureAwait(false);
+                if (response.Failure is { } relisted)
+                {
+                    Apply([], relisted.Message);
+                    return;
+                }
+            }
+
+            var groups = await ReadGroupsAsync(cancellationToken).ConfigureAwait(false);
+            Apply(response.Connections, Ui.Connections.SidebarEmpty, listed: true, groups);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -808,31 +830,136 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     }
 
     /// <summary>
-    /// Files a connection into a group, at a position, and remembers it.
+    /// Brings the arrangement this desktop kept before groups were the agent's into the agent, if
+    /// it has not had one.
+    /// </summary>
+    /// <returns>Whether connections may have been filed, so the listing is out of date.</returns>
+    /// <remarks>
+    /// The saved groups, their order, members and icons, and a group for each folder path nobody
+    /// had filed elsewhere, as the panel used to show them. The agent keeps the first arrangement
+    /// it is sent and answers every later one with AlreadyImported, so a second desktop, or this
+    /// one after a failure, changes nothing. A failure leaves it to be offered at the next listing.
+    /// </remarks>
+    private async Task<bool> OfferLegacyArrangementAsync(
+        IReadOnlyList<ConnectionSummary> connections,
+        CancellationToken cancellationToken)
+    {
+        if (_profiles is null) return false;
+        try
+        {
+            IReadOnlyList<ConnectionCardModel> cards = [.. connections.Select(ConnectionCardFactory.Create)];
+            var entries = ConnectionGrouping.LegacyImport(_legacyGroups?.Invoke(), _legacyIcons?.Invoke(), cards);
+            await using var profiles = _profiles();
+            var response = await profiles
+                .ImportGroupsAsync(
+                    new ConnectionGroupImportRequest(ConnectionProfileIpcContract.CurrentVersion, [.. entries]),
+                    cancellationToken)
+                .ConfigureAwait(false);
+            if (response.Status is not (ConnectionGroupWriteStatus.Succeeded or ConnectionGroupWriteStatus.AlreadyImported))
+            {
+                return false;
+            }
+
+            _legacyOffered = true;
+            return response.Status == ConnectionGroupWriteStatus.Succeeded;
+        }
+        catch (NotSupportedException)
+        {
+            // A profile client that keeps no groups, as in a test of something else.
+            _legacyOffered = true;
+            return false;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>The agent's groups, or null when they could not be read, which keeps the last ones known.</summary>
+    private async Task<IReadOnlyList<ConnectionGroupDocument>?> ReadGroupsAsync(CancellationToken cancellationToken)
+    {
+        if (_profiles is null) return null;
+        try
+        {
+            await using var profiles = _profiles();
+            var listed = await profiles
+                .ListGroupsAsync(new ConnectionGroupListRequest(ConnectionProfileIpcContract.CurrentVersion), cancellationToken)
+                .ConfigureAwait(false);
+            return listed.Failure is null ? listed.Groups : null;
+        }
+        catch (NotSupportedException)
+        {
+            return null;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>The name of a group the agent keeps, or null for none or one it no longer has.</summary>
+    internal string? GroupNameOf(Guid? groupId) =>
+        groupId is { } id ? _groups.FirstOrDefault(group => group.GroupId == id)?.Name : null;
+
+    /// <summary>The groups the agent keeps, in the panel's order, for the connection editor.</summary>
+    internal IReadOnlyList<ConnectionGroupDocument> KnownGroups => _groups;
+
+    /// <summary>
+    /// The group a new connection starts in: the selected card's, or else the group last opened,
+    /// or else none, which is Ungrouped.
+    /// </summary>
+    internal Guid? SuggestedGroupId
+    {
+        get
+        {
+            var candidate = _selected is { } row ? row.Card.GroupId : _openedGroup;
+            return GroupNameOf(candidate) is null ? null : candidate;
+        }
+    }
+
+    /// <summary>
+    /// Files a connection in a group, or in Ungrouped, as dropping it there does.
     /// </summary>
     /// <remarks>
-    /// The arrangement is recomputed and the groups rebuilt rather than the two collections being
-    /// edited, because a drag can cross groups and a rebuild cannot leave a copy behind.
+    /// The agent moves the connection to a new version, so the panel lists again rather than
+    /// guessing; one already in that group is left alone. Favorites is not somewhere to file
+    /// anything, so a drop there does nothing.
     /// </remarks>
-    internal void Move(Guid connectionId, string groupName, int index)
+    internal async Task MoveToGroupAsync(Guid connectionId, ConnectionGroupModel target, CancellationToken cancellationToken = default)
     {
-        _arrangement = ConnectionGrouping.Move(_arrangement, connectionId, groupName, index);
-        Persist();
-        Rebuild();
+        ArgumentNullException.ThrowIfNull(target);
+        if (target.IsFavorites || connectionId == Guid.Empty) return;
+        var card = _cards.FirstOrDefault(candidate => candidate.ConnectionId == connectionId);
+        if (card is null || card.GroupId == target.GroupId && GroupNameOf(card.GroupId) is not null) return;
+        if (card.GroupId is null && target.IsUngrouped) return;
+
+        if (await WriteGroupsAsync(
+                profiles => profiles.AssignGroupAsync(
+                    new ConnectionGroupAssignRequest(ConnectionProfileIpcContract.CurrentVersion, connectionId, target.GroupId),
+                    cancellationToken),
+                cancellationToken).ConfigureAwait(true))
+        {
+            await RefreshAsync(cancellationToken).ConfigureAwait(true);
+            ConnectionsChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
-    /// <summary>Moves a whole group up or down the panel.</summary>
-    internal void ReorderGroup(string name, int index)
+    /// <summary>Moves a whole group up or down the panel, by one place.</summary>
+    internal Task MoveGroupAsync(Guid groupId, int step, CancellationToken cancellationToken = default)
     {
-        _arrangement = ConnectionGrouping.Reorder(_arrangement, name, index);
-        Persist();
-        Rebuild();
+        var index = _groups.ToList().FindIndex(group => group.GroupId == groupId);
+        if (index < 0 || index + step < 0 || index + step >= _groups.Count) return Task.CompletedTask;
+        return WriteGroupsAsync(
+            profiles => profiles.MoveGroupAsync(
+                new ConnectionGroupMoveRequest(ConnectionProfileIpcContract.CurrentVersion, groupId, index + step),
+                cancellationToken),
+            cancellationToken);
     }
 
-    /// <summary>Asks for a name and adds an empty group to file things into.</summary>
+    /// <summary>Asks for a name and adds an empty group, after the others, to file things into.</summary>
     internal async Task AddGroupAsync(CancellationToken cancellationToken = default)
     {
-        if (_dialogs is null) return;
+        if (_dialogs is null || _profiles is null) return;
         var name = await _dialogs.PromptAsync(
             new DialogPromptRequest
             {
@@ -844,75 +971,147 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
             cancellationToken).ConfigureAwait(true);
         if (string.IsNullOrWhiteSpace(name)) return;
 
-        _arrangement = ConnectionGrouping.Add(_arrangement, name);
-        Persist();
-        Rebuild();
+        await WriteGroupsAsync(
+            profiles => profiles.CreateGroupAsync(
+                new ConnectionGroupCreateRequest(ConnectionProfileIpcContract.CurrentVersion, name.Trim()),
+                cancellationToken),
+            cancellationToken).ConfigureAwait(true);
     }
 
-    internal async Task RenameGroupAsync(string from, CancellationToken cancellationToken = default)
+    internal async Task RenameGroupAsync(Guid groupId, CancellationToken cancellationToken = default)
     {
-        if (_dialogs is null) return;
+        if (_dialogs is null || _groups.FirstOrDefault(group => group.GroupId == groupId) is not { } current) return;
         var name = await _dialogs.PromptAsync(
             new DialogPromptRequest
             {
                 Title = Ui.Connections.RenameGroup,
                 Label = Ui.Connections.GroupName,
-                Value = from,
+                Value = current.Name,
                 Accept = Ui.Shell.RenameWorkspaceAccept,
-                Validate = candidate => Taken(candidate, from)
+                Validate = candidate => Taken(candidate, groupId)
             },
             cancellationToken).ConfigureAwait(true);
-        if (string.IsNullOrWhiteSpace(name)) return;
+        if (string.IsNullOrWhiteSpace(name) || string.Equals(name.Trim(), current.Name, StringComparison.Ordinal)) return;
 
-        _arrangement = ConnectionGrouping.Rename(_arrangement, from, name);
-
-        // The icon goes with the group; left behind, it would come back on the next group given
-        // the old name.
-        if (_icons.Remove(from, out var icon)) _icons[name.Trim()] = icon;
-        if (_collapsed.Remove(from)) _collapsed.Add(name.Trim());
-        PersistIcons();
-        Persist();
-        Rebuild();
-    }
-
-    /// <summary>Removes a group, keeping everything that was filed in it.</summary>
-    internal void RemoveGroup(string name)
-    {
-        _arrangement = ConnectionGrouping.Remove(_arrangement, name);
-        _collapsed.Remove(name);
-        if (_icons.Remove(name)) PersistIcons();
-        Persist();
-        Rebuild();
+        await WriteGroupsAsync(
+            profiles => profiles.UpdateGroupAsync(
+                new ConnectionGroupUpdateRequest(
+                    ConnectionProfileIpcContract.CurrentVersion, groupId, name.Trim(), current.IconKey, current.ColorKey),
+                cancellationToken),
+            cancellationToken).ConfigureAwait(true);
     }
 
     /// <summary>
-    /// Chooses a group's icon, or clears it back to a folder.
+    /// Removes a group once somebody has said yes, keeping everything that was filed in it.
     /// </summary>
-    internal async Task ChangeGroupIconAsync(string name)
+    /// <remarks>
+    /// Asked first, because the connections it held would have to be filed again one by one to
+    /// put it back. They go to Ungrouped, each at a new version, so the panel lists again.
+    /// </remarks>
+    internal async Task RemoveGroupAsync(Guid groupId, CancellationToken cancellationToken = default)
     {
-        if (_pickIcon is null) return;
-        var choice = await _pickIcon(
-            _icons.GetValueOrDefault(name),
-            Ui.Format(Ui.Connections.IconPickerFolderTitleFormat, name)).ConfigureAwait(true);
-        if (!choice.Chosen) return;
+        if (_groups.FirstOrDefault(group => group.GroupId == groupId) is not { } current) return;
+        if (_dialogs is not null)
+        {
+            var choice = await _dialogs.ConfirmAsync(
+                new DialogRequest
+                {
+                    Title = Ui.Connections.RemoveGroupTitle,
+                    Message = Ui.Format(Ui.Connections.RemoveGroupPromptFormat, current.Name),
+                    Severity = DialogSeverity.Warning,
+                    Buttons = DialogButtons.YesNo
+                },
+                cancellationToken).ConfigureAwait(true);
+            if (choice != DialogChoice.Yes) return;
+        }
 
-        // Cleared rather than stored as empty, so the map only ever holds real choices.
-        if (choice.Key is { } key) _icons[name] = key;
-        else _icons.Remove(name);
-        PersistIcons();
-        Rebuild();
+        if (await WriteGroupsAsync(
+                profiles => profiles.DeleteGroupAsync(
+                    new ConnectionGroupDeleteRequest(ConnectionProfileIpcContract.CurrentVersion, groupId),
+                    cancellationToken),
+                cancellationToken).ConfigureAwait(true))
+        {
+            _collapsed.Remove(groupId);
+            await RefreshAsync(cancellationToken).ConfigureAwait(true);
+            ConnectionsChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
-    private void PersistIcons() => _saveIcons?.Invoke(new Dictionary<string, string>(_icons, StringComparer.OrdinalIgnoreCase));
+    /// <summary>
+    /// Chooses a group's icon and colour, or clears either back to a plain folder.
+    /// </summary>
+    internal async Task ChangeGroupIconAsync(Guid groupId, CancellationToken cancellationToken = default)
+    {
+        if (_pickIcon is null || _groups.FirstOrDefault(group => group.GroupId == groupId) is not { } current) return;
+        var choice = await _pickIcon(
+            current.IconKey,
+            current.ColorKey,
+            Ui.Format(Ui.Connections.IconPickerGroupTitleFormat, current.Name)).ConfigureAwait(true);
+        if (!choice.Chosen) return;
+
+        await WriteGroupsAsync(
+            profiles => profiles.UpdateGroupAsync(
+                new ConnectionGroupUpdateRequest(
+                    ConnectionProfileIpcContract.CurrentVersion, groupId, current.Name, choice.Key, choice.Color),
+                cancellationToken),
+            cancellationToken).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Sends one change to the groups, and draws the groups the agent answers with.
+    /// </summary>
+    /// <returns>Whether the agent made the change.</returns>
+    /// <remarks>
+    /// A refusal is said in a dialog, because nothing in the panel may be selected to say it
+    /// under, and the groups are drawn as the agent has them either way.
+    /// </remarks>
+    private async Task<bool> WriteGroupsAsync(
+        Func<IRemoteConnectionProfileClient, Task<ConnectionGroupWriteResponse>> write,
+        CancellationToken cancellationToken)
+    {
+        if (_profiles is null) return false;
+        string? refusal;
+        try
+        {
+            ConnectionGroupWriteResponse response;
+            await using (var profiles = _profiles())
+            {
+                response = await write(profiles).ConfigureAwait(true);
+            }
+
+            if (response.Groups is { } groups) _groups = groups;
+            Rebuild();
+            if (response.Status == ConnectionGroupWriteStatus.Succeeded) return true;
+            refusal = response.Failure?.Message ?? Ui.Connections.GroupWriteFailed;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            refusal = Ui.Connections.GroupWriteFailed;
+        }
+
+        if (_dialogs is not null)
+        {
+            await _dialogs.ShowAsync(
+                new DialogRequest
+                {
+                    Title = Ui.Connections.PanelTitle,
+                    Message = refusal,
+                    Severity = DialogSeverity.Warning
+                },
+                cancellationToken).ConfigureAwait(true);
+        }
+
+        return false;
+    }
 
     /// <summary>Why a group cannot be called this, or nothing.</summary>
-    private string? Taken(string candidate, string? except = null)
+    private string? Taken(string candidate, Guid? except = null)
     {
         var trimmed = candidate?.Trim() ?? string.Empty;
         if (trimmed.Length == 0) return Ui.Validation.AGroupNameIsRequired;
 
-        var clashes = _arrangement.Any(group =>
-            !string.Equals(group.Name, except, StringComparison.OrdinalIgnoreCase) &&
+        var clashes = _groups.Any(group =>
+            group.GroupId != except &&
             string.Equals(group.Name, trimmed, StringComparison.OrdinalIgnoreCase));
         return clashes ? Ui.Shell.NameAlreadyExists : null;
     }
@@ -921,14 +1120,19 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     /// The agent answered with this list, rather than a failure leaving it empty; only then are
     /// the names replaced.
     /// </param>
-    private void Apply(IReadOnlyList<ConnectionSummary> connections, string status, bool listed = false)
+    /// <param name="groups">The agent's groups as just read, or null to keep the last ones known.</param>
+    private void Apply(
+        IReadOnlyList<ConnectionSummary> connections,
+        string status,
+        bool listed = false,
+        IReadOnlyList<ConnectionGroupDocument>? groups = null)
     {
         void Update()
         {
             IReadOnlyList<ConnectionCardModel> cards = [.. connections.Select(ConnectionCardFactory.Create)];
             Connections = connections;
             _cards = cards;
-            _arrangement = ConnectionGrouping.Arrange(_arrangement.Count > 0 ? _arrangement : _load?.Invoke(), cards);
+            if (groups is not null) _groups = groups;
             _listingStatus = status;
             if (listed)
             {
@@ -954,9 +1158,6 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     private void Rebuild()
     {
         var chosen = _selected?.Id;
-        var byId = _cards
-            .Where(static card => card.ConnectionId is not null)
-            .ToDictionary(static card => card.ConnectionId!.Value);
 
         // Favourites first, as 1.x listed them: the enabled ones, by name. A disabled favourite
         // stays only in its group, where a connection that cannot be opened is shown dimmed.
@@ -964,11 +1165,11 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
             .Where(static card => card is { IsEnabled: true, IsFavorite: true, ConnectionId: not null })
             .Where(card => ConnectionPickerFilter.Matches(card, _search))
             .OrderBy(static card => card.Name, StringComparer.CurrentCultureIgnoreCase)
-            .Select(static card => new ConnectionRowModel(card))
+            .Select(card => new ConnectionRowModel(card, GroupNameOf(card.GroupId)))
             .ToArray();
         Favorites = favorites.Length == 0
             ? null
-            : new ConnectionGroupModel(Ui.Connections.GroupFavorites, favorites, Inert, Inert, isFavorites: true)
+            : new ConnectionGroupModel(Ui.Connections.GroupFavorites, favorites, ConnectionGroupKind.Favorites)
             {
                 IsExpanded = !_favoritesCollapsed
             };
@@ -980,36 +1181,56 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
             };
         }
 
+        // In a group, by name: the agent keeps which group, and a name is what somebody looks for.
+        ConnectionRowModel[] RowsFor(Func<ConnectionCardModel, bool> filed, string? groupName) => [.. _cards
+            .Where(static card => card.ConnectionId is not null)
+            .Where(filed)
+            .Where(card => _showFavoritesInTheirFolders || card is not { IsEnabled: true, IsFavorite: true })
+            .Where(card => ConnectionPickerFilter.Matches(card, _search))
+            .OrderBy(static card => card.Name, StringComparer.CurrentCultureIgnoreCase)
+            .Select(card => new ConnectionRowModel(card, groupName))];
+
         Groups.Clear();
         var matched = favorites.Length;
-        foreach (var group in _arrangement)
+        var ordered = _groups.OrderBy(static group => group.SortOrder).ToArray();
+        for (var position = 0; position < ordered.Length; position++)
         {
-            var name = group.Name;
-            var rows = group.Members
-                .Where(byId.ContainsKey)
-                .Select(id => byId[id])
-                .Where(card => _showFavoritesInTheirFolders || card is not { IsEnabled: true, IsFavorite: true })
-                .Where(card => ConnectionPickerFilter.Matches(card, _search))
-                .Select(card => new ConnectionRowModel(card))
-                .ToArray();
+            var group = ordered[position];
+            var id = group.GroupId;
+            var rows = RowsFor(card => card.GroupId == id, group.Name);
             matched += rows.Length;
-            var drawn = new ConnectionGroupModel(
-                name,
-                rows,
-                new RelayCommand(_ => _ = RenameGroupAsync(name), _ => _dialogs is not null),
-                new RelayCommand(_ => RemoveGroup(name), _ => _arrangement.Count > 1),
-                new RelayCommand(_ => _ = ChangeGroupIconAsync(name), _ => _pickIcon is not null),
-                _icons.GetValueOrDefault(name))
+
+            // A search shows where it found something, not every group it found nothing in.
+            if (HasSearch && rows.Length == 0) continue;
+
+            var first = position == 0;
+            var last = position == ordered.Length - 1;
+            var drawn = new ConnectionGroupModel(group.Name, rows, ConnectionGroupKind.Group, id, group.IconKey, group.ColorKey)
             {
-                IsExpanded = !_collapsed.Contains(name)
+                IsExpanded = !_collapsed.Contains(id),
+                RenameCommand = new RelayCommand(_ => _ = RenameGroupAsync(id), _ => _dialogs is not null),
+                ChangeIconCommand = new RelayCommand(_ => _ = ChangeGroupIconAsync(id), _ => _pickIcon is not null),
+                MoveUpCommand = new RelayCommand(_ => _ = MoveGroupAsync(id, -1), _ => !first),
+                MoveDownCommand = new RelayCommand(_ => _ = MoveGroupAsync(id, 1), _ => !last),
+                RemoveCommand = new RelayCommand(_ => _ = RemoveGroupAsync(id))
             };
-            drawn.PropertyChanged += (_, e) =>
-            {
-                if (e.PropertyName != nameof(ConnectionGroupModel.IsExpanded)) return;
-                if (drawn.IsExpanded) _collapsed.Remove(name);
-                else _collapsed.Add(name);
-            };
+            Track(drawn, id);
             Groups.Add(drawn);
+        }
+
+        // Ungrouped last, and only while something is in it: a connection in no group, or in one
+        // the agent no longer has.
+        var known = ordered.Select(static group => group.GroupId).ToHashSet();
+        var loose = RowsFor(card => card.GroupId is not { } group || !known.Contains(group), null);
+        matched += loose.Length;
+        if (loose.Length > 0)
+        {
+            var ungrouped = new ConnectionGroupModel(Ui.Connections.Ungrouped, loose, ConnectionGroupKind.Ungrouped)
+            {
+                IsExpanded = !_collapsed.Contains(Guid.Empty)
+            };
+            Track(ungrouped, Guid.Empty);
+            Groups.Add(ungrouped);
         }
 
         // The same connection stays selected on its new row, and one that has gone, deleted or
@@ -1036,12 +1257,28 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         Status = searchFoundNothing ? Ui.Connections.NoMatches : _listingStatus;
     }
 
+    /// <summary>Remembers a group being closed or opened, and an opened one as where a new connection goes.</summary>
+    private void Track(ConnectionGroupModel drawn, Guid key)
+    {
+        drawn.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(ConnectionGroupModel.IsExpanded)) return;
+            if (drawn.IsExpanded)
+            {
+                _collapsed.Remove(key);
+                _openedGroup = drawn.GroupId;
+            }
+            else
+            {
+                _collapsed.Add(key);
+            }
+        };
+    }
+
     /// <summary>Every card on the panel, Favorites' first, a favourite's two copies both included.</summary>
     private IEnumerable<ConnectionRowModel> Rows() =>
         (Favorites?.Connections ?? Enumerable.Empty<ConnectionRowModel>())
             .Concat(Groups.SelectMany(static group => group.Connections));
-
-    private void Persist() => _save?.Invoke(_arrangement);
 
     private void Set<T>(ref T field, T value, string name)
     {

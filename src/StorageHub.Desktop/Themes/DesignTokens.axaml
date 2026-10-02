@@ -235,6 +235,20 @@
        220 to 640 (DesktopUpdatePreferences), which at high scaling is narrower than the panel's
        header: its title, New and its menu fit from about this width, which is the floor. -->
   <sys:Double x:Key="SidebarMinWidth">220</sys:Double>
+  <!-- A group's heading in the connections panel: one height whether or not it has a menu, so
+       Favorites, a group and Ungrouped sit evenly apart. The height of a tool button. -->
+  <sys:Double x:Key="GroupHeaderHeight">24</sys:Double>
+  <!-- The square a group's glyph sits in: a muted icon, the star, or a small tile in the group's
+       colour with a white icon, as a card's tile is, so the names line up whichever it has. -->
+  <sys:Double x:Key="GroupGlyphSize">18</sys:Double>
+  <sys:Double x:Key="GroupTileIconSize">12</sys:Double>
+  <!-- Between the glyph and the name, on top of the heading's column spacing (SpaceSm): SpaceMd
+       in all. Then the count, a little after the name. -->
+  <Thickness x:Key="GroupTitleMargin">4,0,0,0</Thickness>
+  <Thickness x:Key="GroupCountMargin">6,0,0,0</Thickness>
+  <!-- "No connections" under an open empty group, starting under its name: the disclosure (18),
+       the glyph (GroupGlyphSize), the two column gaps and GroupTitleMargin. Change them together. -->
+  <Thickness x:Key="GroupEmptyMargin">48,0,0,0</Thickness>
   <sys:Double x:Key="SplitterThickness">4</sys:Double>
 
   <!--
