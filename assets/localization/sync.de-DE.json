@@ -277,7 +277,7 @@
   "locationAMissing": "Der Ordner von Ort A existiert auf seiner Verbindung nicht. Legen Sie ihn an oder wählen Sie über Durchsuchen einen anderen, und wählen Sie dann erneut Prüfen und ausführen.",
   "locationBMissing": "Der Ordner von Ort B existiert auf seiner Verbindung nicht. Legen Sie ihn an oder wählen Sie über Durchsuchen einen anderen, und wählen Sie dann erneut Prüfen und ausführen.",
   "agentFailureWithCodeFormat": "{0} ({1})",
-  "previewedWhileDisabled": "Plan bereit, aber dieses Profil ist deaktiviert und kann nicht laufen. Aktivieren Sie es, um es auszuführen oder zu planen.",
+  "previewedWhileDisabled": "Plan bereit, aber dieses Profil ist deaktiviert, daher kann der Plan nicht laufen. Um ihn auszuführen, aktivieren Sie Aktiviert unter dem Profilnamen und wählen Sie dann erneut Prüfen und ausführen.",
   "previewWarningFormat": "{0} Schließen, um den Lauf unter Ausführungsverlauf und Prüfung zu sehen.",
   "approvalBlockedByDisabledProfile": "Dieses Profil ist deaktiviert, sein Plan kann daher nicht gesendet werden. Aktivieren Sie es und prüfen Sie erneut.",
   "dispatchNotDispatched": "Nicht gesendet",

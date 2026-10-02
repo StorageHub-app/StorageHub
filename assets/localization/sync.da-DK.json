@@ -277,7 +277,7 @@
   "locationAMissing": "Mappen for placering A findes ikke på sin forbindelse. Opret den, eller vælg en anden med Gennemse, og vælg derefter Gennemse og kør igen.",
   "locationBMissing": "Mappen for placering B findes ikke på sin forbindelse. Opret den, eller vælg en anden med Gennemse, og vælg derefter Gennemse og kør igen.",
   "agentFailureWithCodeFormat": "{0} ({1})",
-  "previewedWhileDisabled": "Planen er klar, men denne profil er deaktiveret og kan ikke køre. Sæt flueben i Aktiveret for at køre eller planlægge den.",
+  "previewedWhileDisabled": "Planen er klar, men denne profil er deaktiveret, så planen kan ikke køre. Sæt flueben i Aktiveret under profilens navn for at køre den, og vælg derefter Gennemse og kør igen.",
   "previewWarningFormat": "{0} Luk for at se kørslen under Kørselshistorik og gennemsyn.",
   "approvalBlockedByDisabledProfile": "Denne profil er deaktiveret, så dens plan kan ikke afsendes. Sæt flueben i Aktiveret, og gennemse igen.",
   "dispatchNotDispatched": "Ikke afsendt",

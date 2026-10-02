@@ -218,8 +218,13 @@ internal sealed class SyncStrings : LocalizationModelBase
     /// Warning shown after previewing a profile that is saved as disabled. The preview itself is
     /// allowed, so without this the operator would have no hint that nothing will ever run.
     /// </summary>
+    /// <summary>
+    /// A new profile starts disabled, as 1.4's did, so this is what its first preview says. Ticking
+    /// Enabled is not the whole of it: the plan was made from the disabled profile and cannot be
+    /// approved, so it has to be planned again once the profile is enabled.
+    /// </summary>
     public string PreviewedWhileDisabled { get; set; } =
-        "Plan ready, but this profile is disabled and cannot run. Tick Enabled to run or schedule it.";
+        "Plan ready, but this profile is disabled, so the plan cannot run. To run it, tick Enabled under the profile's name, then choose Review & run again.";
 
     /// <summary>
     /// {0} = a warning after a preview. The editor stays open so it is read, with the run already
