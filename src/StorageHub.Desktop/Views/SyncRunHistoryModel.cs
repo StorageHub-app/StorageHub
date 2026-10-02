@@ -595,9 +595,25 @@ internal sealed class SyncRunHistoryModel : INotifyPropertyChanged, IDisposable
     /// hand this screen the lookup the queue names connections with (P.4.5): 1.4's review printed
     /// the id.
     /// </remarks>
-    private static string Endpoint(Guid connectionId, string path) =>
-        $"{connectionId.ToString("D", CultureInfo.InvariantCulture)} · " +
-        $"{(path.Length == 0 ? "<root>" : path)}";
+    /// <summary>
+    /// One side of a planned operation: the connection's name and the path, as the transfer queue
+    /// writes it.
+    /// </summary>
+    /// <remarks>
+    /// 1.4 wrote the connection's full id, which filled the column, so the path, the part a
+    /// reviewer needs before approving, was cut off behind it. The id is still what is written
+    /// for a connection whose name is not known.
+    /// </remarks>
+    private string Endpoint(Guid connectionId, string path)
+    {
+        var connection = ConnectionName?.Invoke(connectionId) is { Length: > 0 } name
+            ? name
+            : connectionId.ToString("D", CultureInfo.InvariantCulture);
+        return $"{connection} · {(path.Length == 0 ? "<root>" : path)}";
+    }
+
+    /// <summary>Names a connection by its id, from the connections panel, when the shell has one.</summary>
+    internal Func<Guid, string?>? ConnectionName { get; set; }
 
     /// <summary>
     /// A timestamp in the reader's own zone.

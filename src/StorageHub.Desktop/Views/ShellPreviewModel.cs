@@ -1624,6 +1624,10 @@ internal static class ShellPreview
         overview.CopyWorkspacePath = path => Services.ShellServices.Clipboard.SetTextAsync(path);
         model.Overview = overview;
         model.Workspaces.Add(new WorkspaceTab(Ui.Shell.TabWelcome, LucideIconKind.House, overview));
+        // The review names each side of a planned operation from the connections panel, as the
+        // queue does, so the plan shows which files it will change rather than connection ids.
+        var runReview = SyncRunHistoryModel.Create(syncAgent, Services.ShellServices.Dialogs);
+        runReview.ConnectionName = model.Sidebar.NameOf;
         var syncPage = new TabbedPageModel(
             [
                 // The tasks screen asks the agent for the saved profiles and the runs behind them.
@@ -1636,7 +1640,7 @@ internal static class ShellPreview
                 // agent to delete files without naming them, and it confirms before it does.
                 new PageTab(
                     Ui.Sync.RunHistoryAndReview,
-                    SyncRunHistoryModel.Create(syncAgent, Services.ShellServices.Dialogs)),
+                    runReview),
             ]);
         model.SyncPage = syncPage;
         var syncTab = new WorkspaceTab(Ui.Shell.TabSyncTasks, LucideIconKind.ArrowLeftRight, syncPage);

@@ -115,14 +115,17 @@ public class SyncRunHistoryTests
         agent.ConflictPage([Conflict("photos/a.jpg")], null);
         using var model = SyncRunHistoryModel.Create(() => agent);
 
+        // A connection the panel knows is named, as the queue names it; one it does not is still
+        // its whole id, as 1.4's review wrote every one.
+        model.ConnectionName = id => id == planned.SourceConnectionId ? "Studio" : null;
+
         await model.LoadRunAsync(run.SyncRunId, TestContext.Current.CancellationToken);
 
         var operation = Assert.Single(model.Plan);
         Assert.Equal(Ui.Sync.PlanOperationCopy, operation.Action);
         Assert.Equal(Ui.Sync.DestructiveApprovalRequired, operation.Approval);
 
-        // 1.4's review named a connection by its whole id and its top folder "<root>".
-        Assert.Equal("3fa2b1c4-5d6e-4f70-8192-a3b4c5d6e7f8 · <root>", operation.From);
+        Assert.Equal("Studio · <root>", operation.From);
         Assert.Equal($"{planned.DestinationConnectionId:D} · right/1", operation.To);
 
         var conflict = Assert.Single(model.Conflicts);
