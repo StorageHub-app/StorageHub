@@ -126,7 +126,15 @@
         </Border>
 
         <Border Grid.Column="1" Classes="pane-chip">
-          <Grid ColumnDefinitions="*,280" ColumnSpacing="{StaticResource SpaceMd}">
+          <!-- The state and the picker share the room, the picker at 280 when there is space for
+               it and down to 140 when there is not. The picker was a fixed 280, so in a two-pane
+               workspace with a long connection name the state was squeezed to "● R…", and the
+               state is the one thing in this bar that changes. -->
+          <Grid ColumnSpacing="{StaticResource SpaceMd}">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="*" MinWidth="140" MaxWidth="280"/>
+            </Grid.ColumnDefinitions>
             <TextBlock Grid.Column="0" Classes="pane-state" VerticalAlignment="Center"
                        TextTrimming="CharacterEllipsis"
                        Text="{Binding ConnectionState}"
