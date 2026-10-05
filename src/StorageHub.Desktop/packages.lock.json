@@ -47,9 +47,9 @@
       },
       "Lucide.Avalonia": {
         "type": "Direct",
-        "requested": "[0.2.23, )",
-        "resolved": "0.2.23",
-        "contentHash": "+sHMP+iyjSAQXI3bgquaiC2e150OU1qiPyrxnhMlvbt8xy7icGjagmrFc0/Y2XLAfWSiAVPVE/mwOJmhSjSpUA==",
+        "requested": "[0.2.25, )",
+        "resolved": "0.2.25",
+        "contentHash": "l35qpQ2ui+RKoG9pZzHMbtRJY9Jma0lvVrdZIrNVbWqBQYDZDjMf47bfpShnxAdSvRkGXSn130cHbadMW5/mkA==",
         "dependencies": {
           "Avalonia": "11.3.17"
         }
