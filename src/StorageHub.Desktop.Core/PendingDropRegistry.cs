@@ -77,8 +77,19 @@ public sealed record PendingDropEntry(
 /// </summary>
 public sealed class PendingDropRegistry
 {
-    /// <summary>Terminal entries linger briefly so an outcome can be read, then clear themselves.</summary>
+    /// <summary>
+    /// A failure or a cancellation lingers long enough to be read, then clears itself. The reason is
+    /// the one thing the row has that nothing else will show.
+    /// </summary>
     public static readonly TimeSpan TerminalLifetime = TimeSpan.FromMinutes(1);
+
+    /// <summary>
+    /// A drop handed to the agent clears sooner. Its row only said that the agent had it; the
+    /// transfers take over from there, and they have their own rows. Left for a minute it sat in
+    /// Active saying "Queued" with no progress long after the file had arrived, which read as a
+    /// transfer that never started.
+    /// </summary>
+    public static readonly TimeSpan QueuedLifetime = TimeSpan.FromSeconds(8);
 
     private const int MaximumEntries = 32;
 
@@ -274,7 +285,8 @@ public sealed class PendingDropRegistry
         List<string>? expired = null;
         foreach (var entry in _entries.Values)
         {
-            if (entry.IsTerminal && now - entry.UpdatedUtc >= TerminalLifetime)
+            var lifetime = entry.State == PendingDropState.Queued ? QueuedLifetime : TerminalLifetime;
+            if (entry.IsTerminal && now - entry.UpdatedUtc >= lifetime)
             {
                 (expired ??= []).Add(entry.Token);
             }

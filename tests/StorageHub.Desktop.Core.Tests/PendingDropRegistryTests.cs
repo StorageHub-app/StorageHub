@@ -75,9 +75,20 @@ public sealed class PendingDropRegistryTests
         var time = new FixedTimeProvider(Start);
         var registry = new PendingDropRegistry(time);
         registry.Begin("settled", "reports", 1);
+        registry.Begin("failed", "photos", 1);
         registry.Begin("live", "archive", 1);
         registry.MarkQueued("settled", @"C:\Drop");
+        registry.MarkFailed("failed", "Could not list the folder.");
 
+        // A drop handed to the agent clears first: the transfers have rows of their own, and a row
+        // saying "Queued" for a minute after the file arrived read as a transfer that never began.
+        time.Now = Start + PendingDropRegistry.QueuedLifetime - TimeSpan.FromSeconds(1);
+        Assert.Equal(3, registry.Snapshot().Count);
+
+        time.Now = Start + PendingDropRegistry.QueuedLifetime;
+        Assert.Equal(["live", "failed"], registry.Snapshot().Select(static entry => entry.Token).Order().Reverse().ToArray());
+
+        // A failure stays long enough to read, and a live one never goes.
         time.Now = Start + PendingDropRegistry.TerminalLifetime - TimeSpan.FromSeconds(1);
         Assert.Equal(2, registry.Snapshot().Count);
 

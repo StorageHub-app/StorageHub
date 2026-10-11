@@ -36,6 +36,11 @@ already there. A pane's own selection can be dropped onto one of its folders too
 folder that is being dragged or is inside one. A drag also starts on the first press of a row, where
 it used to need a second try once the first click had selected it.
 
+**Dragging a file from a connection to Explorer.** The row that says a drag out was handed to the agent
+stayed in the queue's Active tab as "Queued", with no progress, for a minute after the file had
+arrived, which read as a transfer that never started. It now clears after a few seconds, since the
+transfers have rows of their own; a drag that failed or was cancelled still stays long enough to read.
+
 **Saving a connection with no host key pinned.** In the Edit Connection window Save stayed grey for any
 SFTP or SSH connection that had no host key pinned yet, whatever was changed, until Test connection
 happened to fetch one. Save now lights up as soon as something has changed, and clicking it fetches
