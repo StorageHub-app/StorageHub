@@ -13,6 +13,7 @@ public sealed class ConnectionEditorDraftFactoryTests
     [InlineData(StorageProviderKind.Ssh, 30, 0)]
     [InlineData(StorageProviderKind.WebDav, 600, 0)]
     [InlineData(StorageProviderKind.AzureBlob, 30, 3)]
+    [InlineData(StorageProviderKind.OpenStackSwift, 600, 0)]
     public void RemoteDraftsUseOnlyOperationalDefaultsTheirProviderCanEnforce(
         StorageProviderKind provider,
         int operationTimeoutSeconds,
@@ -597,6 +598,95 @@ public sealed class ConnectionEditorDraftFactoryTests
             .Endpoint.AllowInsecureTransport);
     }
 
+    /// <summary>
+    /// Each Swift sign-in carries only the fields it uses, reopens as itself, and saving it again
+    /// unchanged gives the same draft: Keystone with its scope and region, TempAuth without either,
+    /// and a token with the storage URL alone.
+    /// </summary>
+    [Theory]
+    [InlineData("Keystone v3", ConnectionAuthenticationKind.KeystonePassword)]
+    [InlineData("TempAuth", ConnectionAuthenticationKind.UsernamePassword)]
+    [InlineData("Pre-issued token", ConnectionAuthenticationKind.BearerToken)]
+    public void EachSwiftSignInBuildsOnlyItsOwnFieldsAndSurvivesAnEdit(string mode, ConnectionAuthenticationKind kind)
+    {
+        var values = ValidValues(StorageProviderKind.OpenStackSwift);
+        values["authenticationMode"] = mode;
+        values["storageUrl"] = "swift.example.test/v1/AUTH_project";
+        values["region"] = "RegionOne";
+        values["prefix"] = "/team/";
+        values["userDomainName"] = "Users";
+        values["bearerTokenReference"] = "shs_BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
+        values[ConnectionEditorDraftFactory.ReadTimeoutKey] = "1200";
+
+        var draft = ConnectionEditorDraftFactory.Build(StorageProviderKind.OpenStackSwift, values);
+        var reopened = ConnectionEditorDraftFactory.ToEditorValues(
+            new ConnectionProfileDocument(Guid.NewGuid(), 1, draft, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch));
+
+        Assert.True(draft.HasValidBounds);
+        Assert.Equal(kind, draft.Authentication.Kind);
+        Assert.Equal("archive", draft.Endpoint.Bucket);
+        Assert.Equal("team", draft.Endpoint.RootPath);
+        Assert.Equal("https://swift.example.test/v1/AUTH_project", draft.Endpoint.StorageUrl);
+        Assert.Equal(1200, draft.OperationalOptions.OperationTimeoutSeconds);
+        Assert.Equal(
+            kind == ConnectionAuthenticationKind.BearerToken ? null : "https://keystone.example.test/v3",
+            draft.Endpoint.ServiceEndpoint);
+        Assert.Equal(kind == ConnectionAuthenticationKind.KeystonePassword ? "RegionOne" : null, draft.Endpoint.Region);
+        Assert.Equal(
+            kind == ConnectionAuthenticationKind.KeystonePassword
+                ? new ConnectionKeystoneDocument("project", "Users", "Default")
+                : null,
+            draft.Authentication.Keystone);
+        Assert.Equal(kind == ConnectionAuthenticationKind.BearerToken ? null : "operator", draft.Authentication.Username);
+        Assert.Equal(
+            kind == ConnectionAuthenticationKind.BearerToken ? "shs_BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB" : null,
+            draft.Authentication.SessionTokenReference);
+
+        Assert.Equal(mode, reopened["authenticationMode"]);
+        Assert.Equal("archive", reopened["container"]);
+        Assert.False(reopened.ContainsKey("bucket"));
+        Assert.Equal(draft, ConnectionEditorDraftFactory.Build(StorageProviderKind.OpenStackSwift, reopened) with
+        {
+            Metadata = draft.Metadata
+        });
+    }
+
+    /// <summary>What Swift needs is said beside the field: the container, the URL each sign-in uses, and plain HTTP allowed.</summary>
+    [Fact]
+    public void SwiftChecksItsUrlsAndContainerBesideTheFields()
+    {
+        var values = ValidValues(StorageProviderKind.OpenStackSwift);
+        foreach (var (key, value, message) in new[]
+        {
+            ("container", "", Ui.Validation.ASwiftContainerIsRequired),
+            ("container", "a/b", Ui.Validation.TheSwiftContainerNameIsInvalid),
+            ("authenticationUrl", "", Ui.Validation.AnAuthenticationUrlIsRequired),
+            ("authenticationUrl", "http://127.0.0.1:8080/auth/v1.0", Ui.Validation.ServiceUrlPlainHttpNotAllowed),
+            ("authenticationUrl", "https://keystone.example.test/v3?token=1", Ui.Validation.TheSwiftUrlIsInvalid),
+            ("storageUrl", "http://swift.example.test/v1/AUTH_p", Ui.Validation.ServiceUrlPlainHttpNotAllowed),
+            ("projectName", "", Ui.Validation.AKeystoneProjectIsRequired),
+            ("username", "", Ui.Validation.AUsernameIsRequired)
+        })
+        {
+            var attempt = new Dictionary<string, string>(values, StringComparer.Ordinal) { [key] = value };
+            var error = Assert.Throws<ArgumentException>(() =>
+                ConnectionEditorDraftFactory.Build(StorageProviderKind.OpenStackSwift, attempt));
+            Assert.StartsWith(message, error.Message, StringComparison.Ordinal);
+        }
+
+        values["authenticationMode"] = "Pre-issued token";
+        values["bearerTokenReference"] = "shs_BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
+        var noStorage = Assert.Throws<ArgumentException>(() =>
+            ConnectionEditorDraftFactory.Build(StorageProviderKind.OpenStackSwift, values));
+        Assert.StartsWith(Ui.Validation.AStorageUrlIsRequiredForAToken, noStorage.Message, StringComparison.Ordinal);
+
+        values["authenticationMode"] = "TempAuth";
+        values["authenticationUrl"] = "http://127.0.0.1:8080/auth/v1.0";
+        values["acknowledgePlaintext"] = "true";
+        var saio = ConnectionEditorDraftFactory.Build(StorageProviderKind.OpenStackSwift, values);
+        Assert.True(saio.Endpoint.AllowInsecureTransport);
+    }
+
     /// <summary>A pinned FTPS connection reopened for editing keeps its pin, rather than reverting to system trust.</summary>
     [Fact]
     public void APinnedFtpsConnectionKeepsItsTrustModeWhenEdited()
@@ -813,6 +903,16 @@ public sealed class ConnectionEditorDraftFactoryTests
             ["bucket"] = "archive",
             ["authenticationMode"] = "Service-account key",
             ["serviceAccountKeyReference"] = "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        },
+        StorageProviderKind.OpenStackSwift => new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["profileName"] = "Swift",
+            ["container"] = "archive",
+            ["authenticationUrl"] = "https://keystone.example.test/v3",
+            ["authenticationMode"] = "Keystone v3",
+            ["username"] = "operator",
+            ["passwordReference"] = "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            ["projectName"] = "project"
         },
         _ => throw new ArgumentOutOfRangeException(nameof(provider))
     };

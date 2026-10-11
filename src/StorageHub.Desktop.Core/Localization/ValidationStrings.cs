@@ -111,6 +111,23 @@ internal sealed class ValidationStrings : LocalizationModelBase
     public string AServiceAccountKeyIsRequired { get; set; } =
         "A service-account key is required for service-account sign-in.";
 
+    public string ASwiftContainerIsRequired { get; set; } = "A Swift container is required.";
+
+    public string TheSwiftContainerNameIsInvalid { get; set; } =
+        "The container name must be at most 256 characters, with no slash.";
+
+    public string AnAuthenticationUrlIsRequired { get; set; } =
+        "An authentication URL is required for Keystone or TempAuth sign-in.";
+
+    public string AStorageUrlIsRequiredForAToken { get; set; } = "A storage URL is required for a pre-issued token.";
+
+    public string TheSwiftUrlIsInvalid { get; set; } =
+        "A Swift URL must be an http:// or https:// address with no user name, query or fragment.";
+
+    public string AKeystoneProjectIsRequired { get; set; } = "A Keystone project is required.";
+
+    public string ASwiftTokenIsRequired { get; set; } = "A token is required for pre-issued token sign-in.";
+
     public string AnHTTPSS3ServiceEndpointIsRequired { get; set; } = "An HTTPS S3 service endpoint is required.";
 
     public string AnS3BucketIsRequired { get; set; } = "An S3 bucket is required.";

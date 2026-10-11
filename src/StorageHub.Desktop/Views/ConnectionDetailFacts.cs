@@ -56,12 +56,18 @@ internal static class ConnectionDetailFacts
             Fact(Ui.Connections.FieldHost, endpoint.Host);
             Fact(Ui.Connections.FieldPort, endpoint.Port?.ToString(CultureInfo.CurrentCulture));
             Fact(
-                endpoint.Provider == StorageConnectionProvider.AzureBlob
+                endpoint.Provider is StorageConnectionProvider.AzureBlob or StorageConnectionProvider.OpenStackSwift
                     ? Ui.Connections.FieldContainer
                     : Ui.Connections.FieldBucket,
                 endpoint.Bucket);
             Fact(Ui.Connections.FieldRegion, endpoint.Region);
-            Fact(Ui.Connections.FieldService, endpoint.ServiceEndpoint);
+            // Swift signs in at one URL and keeps its objects at another; the service is the first.
+            Fact(
+                endpoint.Provider == StorageConnectionProvider.OpenStackSwift
+                    ? Ui.Connections.FieldAuthenticationUrl
+                    : Ui.Connections.FieldService,
+                endpoint.ServiceEndpoint);
+            Fact(Ui.Connections.FieldStorageUrl, endpoint.StorageUrl);
             Fact(Ui.Connections.FieldPathStyle, endpoint.ForcePathStyle ? Ui.Connections.DetailForced : null);
             Fact(Ui.Connections.FieldPath, endpoint.RootPath);
         }
@@ -79,6 +85,7 @@ internal static class ConnectionDetailFacts
                     ? Ui.Connections.FieldStorageAccount
                     : Ui.Connections.FieldUsername,
                 auth.Username);
+            Fact(Ui.Connections.FieldProject, auth.Keystone?.ProjectName);
             Fact(
                 Ui.Connections.FieldKeyFormatLabel,
                 auth.Kind is ConnectionAuthenticationKind.SftpPrivateKey or ConnectionAuthenticationKind.SshPrivateKeyPassword
@@ -100,6 +107,8 @@ internal static class ConnectionDetailFacts
             Secret(
                 auth.Kind switch
                 {
+                    ConnectionAuthenticationKind.BearerToken when endpoint?.Provider == StorageConnectionProvider.OpenStackSwift =>
+                        Ui.Connections.FieldSwiftToken,
                     ConnectionAuthenticationKind.BearerToken => Ui.Connections.AuthBearerToken,
                     ConnectionAuthenticationKind.AzureSasToken => Ui.Connections.FieldSasToken,
                     _ => Ui.Connections.FieldSessionToken
@@ -221,7 +230,8 @@ internal static class ConnectionDetailFacts
             case StorageConnectionProvider.S3:
                 rows.Add((Ui.Connections.FieldTls, DescribeTls(endpoint.TlsPolicy)));
                 break;
-            case StorageConnectionProvider.AzureBlob or StorageConnectionProvider.GoogleCloudStorage
+            case StorageConnectionProvider.AzureBlob or StorageConnectionProvider.GoogleCloudStorage or
+                StorageConnectionProvider.OpenStackSwift
                 when !endpoint.AllowInsecureTransport:
                 rows.Add((Ui.Connections.FieldTls, DescribeTls(endpoint.TlsPolicy)));
                 break;
@@ -273,6 +283,7 @@ internal static class ConnectionDetailFacts
         ConnectionAuthenticationKind.AzureSasToken => Ui.Connections.AuthAzureSasToken,
         ConnectionAuthenticationKind.AzureConnectionString => Ui.Connections.AuthAzureConnectionString,
         ConnectionAuthenticationKind.GoogleServiceAccount => Ui.Connections.AuthGoogleServiceAccount,
+        ConnectionAuthenticationKind.KeystonePassword => Ui.Connections.AuthKeystonePassword,
         _ => kind.ToString()
     };
 

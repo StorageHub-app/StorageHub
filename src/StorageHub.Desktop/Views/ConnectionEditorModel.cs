@@ -1290,10 +1290,10 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     /// section sits last and every field starts at what it would be anyway.
     /// </summary>
     /// <summary>
-    /// WebDAV's one timeout, which bounds each whole request: an upload's file is sent inside it, so
-    /// it is what somebody sending large files over a slow line has to raise.
+    /// WebDAV's and Swift's one timeout, which bounds each whole request: an upload's file is sent
+    /// inside it, so it is what somebody sending large files over a slow line has to raise.
     /// </summary>
-    private IReadOnlyList<ConnectionFieldDescriptor> WebDavAdvancedFields()
+    private IReadOnlyList<ConnectionFieldDescriptor> RequestTimeoutAdvancedFields()
     {
         var defaults = ConnectionDefaultSettings.Get(_provider.Kind, _connectionDefaults);
         return
@@ -1544,9 +1544,9 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
             Add(Ui.Connections.SectionAdvanced, SftpAdvancedFields(), ConnectionEditorTab.General);
         }
 
-        if (_provider.Kind == StorageProviderKind.WebDav)
+        if (_provider.Kind is StorageProviderKind.WebDav or StorageProviderKind.OpenStackSwift)
         {
-            Add(Ui.Connections.SectionAdvanced, WebDavAdvancedFields(), ConnectionEditorTab.General);
+            Add(Ui.Connections.SectionAdvanced, RequestTimeoutAdvancedFields(), ConnectionEditorTab.General);
         }
 
         // Drawn even for a provider with nothing to authenticate, as 1.x's page was: its heading and
@@ -2209,6 +2209,7 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         StorageConnectionProvider.WebDav => StorageProviderKind.WebDav,
         StorageConnectionProvider.AzureBlob => StorageProviderKind.AzureBlob,
         StorageConnectionProvider.GoogleCloudStorage => StorageProviderKind.GoogleCloudStorage,
+        StorageConnectionProvider.OpenStackSwift => StorageProviderKind.OpenStackSwift,
         _ => StorageProviderKind.S3
     };
 

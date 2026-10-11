@@ -143,6 +143,8 @@ public sealed class CodeLogicStorageSessionFactory(StorageLibrary library)
                 profileId, rootIdentity, azure, cancellationToken, runtimeResources),
             GoogleCloudConnectionConfig gcs => RegisterCoreAsync(
                 profileId, rootIdentity, gcs, cancellationToken, runtimeResources),
+            SwiftConnectionConfig swift => RegisterCoreAsync(
+                profileId, rootIdentity, swift, cancellationToken, runtimeResources),
             WebDavConnectionConfig webDav => RegisterCoreAsync(
                 profileId, rootIdentity, webDav, cancellationToken, runtimeResources),
             _ => ValueTask.FromResult(StorageResult<RuntimeStorageConnection>.Fail(new StorageFailure(

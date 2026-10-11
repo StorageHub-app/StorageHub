@@ -314,6 +314,83 @@ public sealed class IpcContractTests
     }
 
     [Fact]
+    public void Swift_draft_carries_keystones_scope_beside_the_password_and_a_token_only_with_a_storage_url()
+    {
+        const string reference = "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+        var endpoint = new ConnectionEndpointDocument(
+            StorageConnectionProvider.OpenStackSwift,
+            RootPath: "team",
+            Bucket: "archive",
+            Region: "RegionOne",
+            ServiceEndpoint: "https://keystone.example.test/v3");
+        var keystone = new ConnectionAuthenticationDocument(
+            ConnectionAuthenticationKind.KeystonePassword,
+            Username: "operator",
+            PasswordReference: reference,
+            Keystone: new ConnectionKeystoneDocument("project", "Users", "Projects"));
+        var draft = new ConnectionProfileDraft(
+            new ConnectionProfileMetadataDocument("Archive", Tags: []),
+            endpoint,
+            keystone,
+            new ConnectionOperationalOptionsDocument(30, 600, 0));
+
+        Assert.True(draft.HasValidBounds);
+        var read = JsonSerializer.Deserialize<ConnectionProfileDraft>(JsonSerializer.Serialize(draft))!;
+        Assert.Equal(draft.Endpoint, read.Endpoint);
+        Assert.Equal(draft.Authentication, read.Authentication);
+
+        // The scope is Keystone's alone, and Keystone needs it.
+        Assert.False((keystone with { Keystone = null }).HasValidBounds);
+        Assert.False((keystone with { Keystone = new ConnectionKeystoneDocument(" ") }).HasValidBounds);
+        Assert.False(new ConnectionAuthenticationDocument(
+            ConnectionAuthenticationKind.UsernamePassword,
+            Username: "test:tester",
+            PasswordReference: reference,
+            Keystone: new ConnectionKeystoneDocument("project")).HasValidBounds);
+
+        var tempAuth = new ConnectionAuthenticationDocument(
+            ConnectionAuthenticationKind.UsernamePassword, Username: "test:tester", PasswordReference: reference);
+        Assert.False((draft with { Authentication = tempAuth }).HasValidBounds);
+        Assert.True((draft with { Endpoint = endpoint with { Region = null }, Authentication = tempAuth }).HasValidBounds);
+
+        var token = new ConnectionAuthenticationDocument(ConnectionAuthenticationKind.BearerToken, SessionTokenReference: reference);
+        Assert.False((draft with { Authentication = token }).HasValidBounds);
+        Assert.True((draft with
+        {
+            Endpoint = endpoint with
+            {
+                Region = null,
+                ServiceEndpoint = null,
+                StorageUrl = "https://swift.example.test/v1/AUTH_project"
+            },
+            Authentication = token
+        }).HasValidBounds);
+    }
+
+    [Fact]
+    public void Swift_endpoint_has_a_container_a_url_and_a_storage_url_only_swift_may_carry()
+    {
+        var endpoint = new ConnectionEndpointDocument(
+            StorageConnectionProvider.OpenStackSwift,
+            Bucket: "archive",
+            ServiceEndpoint: "https://keystone.example.test/v3");
+
+        Assert.True(endpoint.HasValidBounds);
+        Assert.True((endpoint with { Bucket = new string('a', 256) }).HasValidBounds);
+        Assert.False((endpoint with { Bucket = null }).HasValidBounds);
+        Assert.False((endpoint with { ServiceEndpoint = null }).HasValidBounds);
+        Assert.False((endpoint with { Host = "swift.example.test" }).HasValidBounds);
+        Assert.False((endpoint with { Port = 443 }).HasValidBounds);
+        Assert.False((endpoint with { ForcePathStyle = true }).HasValidBounds);
+        Assert.False((endpoint with { TlsPolicy = ConnectionTlsCertificatePolicy.Pinned }).HasValidBounds);
+        Assert.False(new ConnectionEndpointDocument(
+            StorageConnectionProvider.S3,
+            Bucket: "archive",
+            Region: "eu-north-1",
+            StorageUrl: "https://swift.example.test/v1/AUTH_project").HasValidBounds);
+    }
+
+    [Fact]
     public void WebDav_endpoint_has_a_url_and_nothing_that_belongs_to_another_provider()
     {
         var endpoint = new ConnectionEndpointDocument(

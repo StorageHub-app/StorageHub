@@ -190,6 +190,47 @@ Without Docker, `go install github.com/fsouza/fake-gcs-server@v1.56.1` and
 `fake-gcs-server -scheme http -host 127.0.0.1 -port 4443 -backend memory -public-host 127.0.0.1:4443 -external-url http://127.0.0.1:4443`
 is what the fixture was first run against.
 
+### OpenStack Swift
+
+The OpenStack project's all-in-one Swift (`openstackswift/saio:py3`, pinned by digest because the
+image has had no release tag since 2020) on 8080, in plain HTTP, signing in with TempAuth and its
+built-in `test:tester` account, password `testing`.
+
+| Service | Port | TLS |
+|---|---|---|
+| `swift` | 8080 | none |
+
+`SwiftProviderIntegrationTests` reads:
+
+| Variable | Meaning |
+|---|---|
+| `STORAGEHUB_REQUIRE_SWIFT` | `1` makes a missing or malformed setting a failure instead of a skip |
+| `STORAGEHUB_SWIFT_AUTH_URL` | TempAuth's address, ending `/auth/v1.0` |
+| `STORAGEHUB_SWIFT_USERNAME` | the TempAuth user, as `account:user` |
+| `STORAGEHUB_SWIFT_PASSWORD` | its key |
+| `STORAGEHUB_SWIFT_CONTAINER` | the container to work in; the fixture creates it |
+
+Set, it runs the conformance pass signed in with TempAuth, then a saved profile through the real
+connector with the password in a vault, then a second one that has only a storage URL and a token
+from the vault, the way a pre-issued token is used. Then the failures: a wrong password and a
+forged token are each refused as unauthorized without either being repeated back, and a plain-HTTP
+URL nobody acknowledged cannot be saved and is refused by the library too.
+
+TempAuth answers with a storage URL made from the `Host` the request came in on, which is why the
+port is the same on both sides of the mapping: change `STORAGEHUB_SWIFT_PORT` and the URLs follow.
+
+Keystone v3 is not in the lab. No Keystone image is small enough to be worth it here, so that sign-in
+is covered by the unit tests, down to the configuration handed to the library, and not against a
+server.
+
+Without Docker, `pip install swift` (the fixture was first run against 2.38.2) and a running
+`memcached`, then the usual one-node configuration: account, container and object servers on
+loopback with one-device rings, and a proxy whose pipeline is
+`catch_errors proxy-logging cache tempauth proxy-logging proxy-server` with
+`user_test_tester = testing .admin`, `account_autocreate = true` and `user = root` in each server's
+`[DEFAULT]` when there is no `swift` user to drop to. Point `STORAGEHUB_SWIFT_AUTH_URL` at that
+proxy's `/auth/v1.0`.
+
 ### Proxy
 
 gost, pinned, as an HTTP proxy on 13128 and a SOCKS5 proxy on 11080 that wants the user name and

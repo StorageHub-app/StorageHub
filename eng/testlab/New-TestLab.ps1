@@ -239,6 +239,15 @@ $settings = [ordered] @{
     STORAGEHUB_GCS_SERVICE_URL           = 'http://127.0.0.1:4443/'
     STORAGEHUB_GCS_BUCKET                = 'storagehub-testlab'
 
+    # The all-in-one Swift with TempAuth in plain HTTP. test:tester and testing are the image's
+    # own account, written into it, so they are no more secret than the rest.
+    STORAGEHUB_REQUIRE_SWIFT             = '1'
+    STORAGEHUB_SWIFT_PORT                = '8080'
+    STORAGEHUB_SWIFT_AUTH_URL            = 'http://127.0.0.1:8080/auth/v1.0'
+    STORAGEHUB_SWIFT_USERNAME            = 'test:tester'
+    STORAGEHUB_SWIFT_PASSWORD            = 'testing'
+    STORAGEHUB_SWIFT_CONTAINER           = 'storagehub-testlab'
+
     # A proxy in front of the servers above. The tests reach MinIO through it by its service name,
     # which is why these name the proxy and not the servers behind it.
     STORAGEHUB_REQUIRE_PROXY             = '1'
@@ -307,6 +316,7 @@ Write-Host ('  WebDAV (HTTPS)  {0}' -f $settings.STORAGEHUB_WEBDAV_TLS_URL)
 Write-Host  '  MinIO (S3)      127.0.0.1:9000, console on 9001'
 Write-Host ('  Azurite (Azure) 127.0.0.1:{0}' -f $settings.STORAGEHUB_AZURITE_PORT)
 Write-Host ('  fake-gcs (GCS)  {0}' -f $settings.STORAGEHUB_GCS_SERVICE_URL)
+Write-Host ('  Swift           {0}' -f $settings.STORAGEHUB_SWIFT_AUTH_URL)
 Write-Host ('  Proxy           HTTP 127.0.0.1:{0}, SOCKS5 127.0.0.1:{1}' -f $settings.STORAGEHUB_PROXY_HTTP_PORT, $settings.STORAGEHUB_PROXY_SOCKS5_PORT)
 Write-Host ''
 Write-Host 'Point a shell at it with:' -ForegroundColor Cyan

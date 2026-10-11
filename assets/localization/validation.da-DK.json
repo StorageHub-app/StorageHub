@@ -270,5 +270,12 @@
   "theCloudStorageServiceUrlIsInvalid": "Tjeneste-URL'en skal være en http://- eller https://-adresse uden brugernavn, forespørgsel eller fragment.",
   "serviceUrlPlainHttpNotAllowed": "Denne tjeneste-URL bruger almindelig HTTP. Tillad almindelig HTTP på fanen Tillid, eller brug https://.",
   "aServiceAccountKeyIsRequired": "En nøgle til tjenestekontoen er påkrævet ved login med tjenestekonto.",
+  "aSwiftContainerIsRequired": "En Swift-container er påkrævet.",
+  "theSwiftContainerNameIsInvalid": "Containernavnet må højst være 256 tegn og må ikke indeholde skråstreg.",
+  "anAuthenticationUrlIsRequired": "En godkendelses-URL er påkrævet ved login med Keystone eller TempAuth.",
+  "aStorageUrlIsRequiredForAToken": "En lager-URL er påkrævet til et udstedt token.",
+  "theSwiftUrlIsInvalid": "En Swift-URL skal være en http://- eller https://-adresse uden brugernavn, forespørgsel eller fragment.",
+  "aKeystoneProjectIsRequired": "Et Keystone-projekt er påkrævet.",
+  "aSwiftTokenIsRequired": "Et token er påkrævet ved login med udstedt token.",
   "culture": "da-DK"
 }

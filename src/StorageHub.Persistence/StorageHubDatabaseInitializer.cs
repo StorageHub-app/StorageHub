@@ -39,7 +39,8 @@ public sealed class StorageHubDatabaseInitializer
                 new ConnectionGroupsSchemaMigration(),
                 new WebDavProviderSchemaMigration(),
                 new AzureBlobProviderSchemaMigration(),
-                new GoogleCloudStorageProviderSchemaMigration()
+                new GoogleCloudStorageProviderSchemaMigration(),
+                new SwiftProviderSchemaMigration()
             ],
             timeProvider);
     }

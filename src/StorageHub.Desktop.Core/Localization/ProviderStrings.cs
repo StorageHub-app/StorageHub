@@ -225,4 +225,47 @@ internal sealed class ProviderStrings : LocalizationModelBase
 
     public string GcsPlainHttpHelp { get; set; } =
         "For an emulator on your own computer. Nothing is encrypted, a service-account sign-in included.";
+
+    public string OpenStackSwift { get; set; } = "OpenStack Swift";
+
+    public string SwiftSummary { get; set; } =
+        "Files in an OpenStack Swift container, signed in to with Keystone, TempAuth or a token.";
+
+    public string SwiftTrustNotice { get; set; } =
+        "The Swift and Keystone certificates must pass system validation. A password or a token is only sent over HTTPS unless you allow plain HTTP for a test cluster.";
+
+    public string SwiftContainerHelp { get; set; } = "Up to 256 characters, with no slash.";
+
+    public string AuthenticationUrl { get; set; } = "Authentication URL";
+
+    public string SwiftAuthenticationUrlHelp { get; set; } =
+        "Keystone's URL, such as https://keystone.example.com/v3, or TempAuth's, such as https://swift.example.com/auth/v1.0. Not used with a pre-issued token.";
+
+    public string StorageUrl { get; set; } = "Storage URL";
+
+    public string SwiftStorageUrlHelp { get; set; } =
+        "The account's object-store URL, such as https://swift.example.com/v1/AUTH_project. Leave empty to take the one sign-in returns; a pre-issued token needs it.";
+
+    public string SwiftRegion { get; set; } = "Region";
+
+    public string SwiftRegionHelp { get; set; } =
+        "The Keystone catalog region to use, when the cloud has more than one.";
+
+    public string SwiftAuthenticationHelp { get; set; } =
+        "Keystone v3 signs in with a user, a password and a project. TempAuth takes account:user and its key. A pre-issued token is sent as it is to the storage URL.";
+
+    public string KeystoneProject { get; set; } = "Project";
+
+    public string KeystoneUserDomain { get; set; } = "User domain";
+
+    public string KeystoneProjectDomain { get; set; } = "Project domain";
+
+    public string OnlyForKeystoneSignIn { get; set; } = "Only for Keystone sign-in";
+
+    public string SwiftTokenReference { get; set; } = "Auth token reference";
+
+    public string OnlyForTokenSignIn { get; set; } = "Only for a pre-issued token";
+
+    public string SwiftPlainHttpHelp { get; set; } =
+        "For a test cluster on a network you trust. The password or token travels unencrypted.";
 }

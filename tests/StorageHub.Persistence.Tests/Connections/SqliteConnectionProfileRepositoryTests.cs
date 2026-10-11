@@ -122,7 +122,19 @@ public sealed class SqliteConnectionProfileRepositoryTests : IDisposable
                 new AmbientCredentialAuthentication(), OptionsForConnection(), now),
             ConnectionProfile.Create(ConnectionProfileId.New(), new ConnectionProfileMetadata("fake-gcs-server"),
                 new GoogleCloudStorageEndpoint("archive", new Uri("http://127.0.0.1:4443/"), allowInsecureHttp: true),
-                new NoAuthentication(), OptionsForConnection(), now)
+                new NoAuthentication(), OptionsForConnection(), now),
+            ConnectionProfile.Create(ConnectionProfileId.New(), new ConnectionProfileMetadata("Swift Keystone"),
+                new SwiftEndpoint("archive", new Uri("https://keystone.example.test/v3"), region: "RegionOne",
+                    rootPrefix: "team"),
+                new KeystonePasswordAuthentication("operator", SecretReference.Create(), "project"),
+                OptionsForConnection(), now),
+            ConnectionProfile.Create(ConnectionProfileId.New(), new ConnectionProfileMetadata("Swift TempAuth"),
+                new SwiftEndpoint("archive", new Uri("http://127.0.0.1:8080/auth/v1.0"),
+                    new Uri("http://127.0.0.1:8080/v1/AUTH_test"), allowInsecureHttp: true),
+                new UsernamePasswordAuthentication("test:tester", SecretReference.Create()), OptionsForConnection(), now),
+            ConnectionProfile.Create(ConnectionProfileId.New(), new ConnectionProfileMetadata("Swift token"),
+                new SwiftEndpoint("archive", null, new Uri("https://swift.example.test/v1/AUTH_project")),
+                new BearerTokenAuthentication(SecretReference.Create()), OptionsForConnection(), now)
         };
 
         foreach (var profile in profiles)

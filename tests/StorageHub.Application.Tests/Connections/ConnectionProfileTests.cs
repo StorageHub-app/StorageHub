@@ -500,6 +500,70 @@ public sealed class ConnectionProfileTests
     }
 
     [Fact]
+    public void Swift_needs_somewhere_to_sign_in_or_to_send_a_token_and_plain_http_acknowledged()
+    {
+        var endpoint = new SwiftEndpoint(
+            " archive 2026 ",
+            new Uri("https://keystone.example.test/v3"),
+            new Uri("https://swift.example.test/v1/AUTH_project"),
+            region: " RegionOne ",
+            rootPrefix: "/team/reports/");
+        Assert.Equal(ConnectionProviderKind.OpenStackSwift, endpoint.Provider);
+        Assert.Equal("archive 2026", endpoint.Container);
+        Assert.Equal("RegionOne", endpoint.Region);
+        Assert.Equal("team/reports", endpoint.RootPrefix);
+        Assert.False(endpoint.AllowInsecureHttp);
+
+        var saio = new SwiftEndpoint("archive", new Uri("http://127.0.0.1:8080/auth/v1.0"), allowInsecureHttp: true);
+        Assert.True(saio.AllowInsecureHttp);
+        // Either URL being plain is enough to need the acknowledgement.
+        Assert.ThrowsAny<ArgumentException>(() => new SwiftEndpoint(
+            "archive", new Uri("https://keystone.example.test/v3"), new Uri("http://swift.example.test/v1/AUTH_p")));
+        Assert.ThrowsAny<ArgumentException>(() => new SwiftEndpoint("archive", new Uri("http://127.0.0.1:8080/auth/v1.0")));
+        Assert.ThrowsAny<ArgumentException>(() => new SwiftEndpoint("archive", null));
+        Assert.ThrowsAny<ArgumentException>(() => new SwiftEndpoint("a/b", new Uri("https://keystone.example.test/v3")));
+        Assert.ThrowsAny<ArgumentException>(() => new SwiftEndpoint(new string('a', 257), new Uri("https://keystone.example.test/v3")));
+        Assert.ThrowsAny<ArgumentException>(() => new SwiftEndpoint(
+            "archive", new Uri("https://user:secret@keystone.example.test/v3")));
+        Assert.ThrowsAny<ArgumentException>(() => new SwiftEndpoint(
+            "archive", new Uri("https://keystone.example.test/v3"), region: " "));
+    }
+
+    [Fact]
+    public void Swift_signs_in_with_keystone_or_tempauth_at_its_url_and_sends_a_token_to_the_storage_url()
+    {
+        var keystoneUrl = new Uri("https://keystone.example.test/v3");
+        var storageUrl = new Uri("https://swift.example.test/v1/AUTH_project");
+        var keystone = new KeystonePasswordAuthentication(" operator ", Password, " project ");
+        Assert.Equal("operator", keystone.Username);
+        Assert.Equal("project", keystone.ProjectName);
+        Assert.Equal("Default", keystone.UserDomainName);
+        Assert.Equal("Default", keystone.ProjectDomainName);
+
+        Assert.IsType<KeystonePasswordAuthentication>(
+            Create(new SwiftEndpoint("archive", keystoneUrl, region: "RegionOne"), keystone).Authentication);
+        Assert.IsType<UsernamePasswordAuthentication>(
+            Create(new SwiftEndpoint("archive", keystoneUrl), new UsernamePasswordAuthentication("test:tester", Password)).Authentication);
+        Assert.IsType<BearerTokenAuthentication>(
+            Create(new SwiftEndpoint("archive", null, storageUrl), new BearerTokenAuthentication(SecretReference.Create())).Authentication);
+
+        // A token has nowhere to sign in and no catalog; TempAuth has no catalog either.
+        Assert.Throws<ArgumentException>(() => Create(
+            new SwiftEndpoint("archive", keystoneUrl, storageUrl), new BearerTokenAuthentication(SecretReference.Create())));
+        Assert.Throws<ArgumentException>(() => Create(
+            new SwiftEndpoint("archive", null, storageUrl), keystone));
+        Assert.Throws<ArgumentException>(() => Create(
+            new SwiftEndpoint("archive", keystoneUrl, region: "RegionOne"), new UsernamePasswordAuthentication("test:tester", Password)));
+        Assert.Throws<ArgumentException>(() => Create(new SwiftEndpoint("archive", keystoneUrl), new NoAuthentication()));
+        Assert.ThrowsAny<ArgumentException>(() => new KeystonePasswordAuthentication("operator", Password, " "));
+        Assert.ThrowsAny<ArgumentException>(() => new KeystonePasswordAuthentication("operator", default, "project"));
+
+        static ConnectionProfile Create(SwiftEndpoint endpoint, ConnectionAuthentication authentication) =>
+            ConnectionProfile.Create(ConnectionProfileId.New(), Metadata("Swift"), endpoint, authentication,
+                OperationalOptions(), DateTimeOffset.UtcNow);
+    }
+
+    [Fact]
     public void Provider_and_endpoint_must_match()
     {
         Assert.Throws<ArgumentException>(() => ConnectionProfile.Create(
@@ -544,6 +608,9 @@ public sealed class ConnectionProfileTests
             ConnectionProfile.Create(ConnectionProfileId.New(), Metadata("Cloud Storage"),
                 new GoogleCloudStorageEndpoint("archive"),
                 new GoogleServiceAccountAuthentication(SecretReference.Create()), OperationalOptions(), now),
+            ConnectionProfile.Create(ConnectionProfileId.New(), Metadata("Swift"),
+                new SwiftEndpoint("archive", new Uri("https://keystone.example.test/v3")),
+                new KeystonePasswordAuthentication("operator", Password, "project"), OperationalOptions(), now),
             ConnectionProfile.Create(ConnectionProfileId.New(), Metadata("SSH"),
                 new SshClientEndpoint("ssh.example.test", 22, SshHostKeyPolicy.Pinned),
                 new UsernamePasswordAuthentication("operator", Password), OperationalOptions(), now)

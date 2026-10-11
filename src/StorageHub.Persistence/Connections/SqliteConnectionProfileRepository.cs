@@ -477,6 +477,10 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
             GoogleCloudStorageEndpoint gcs => new PersistedEndpoint(
                 "gcs", RootPath: gcs.RootPrefix, Bucket: gcs.Bucket,
                 ServiceEndpoint: gcs.ServiceUri?.AbsoluteUri, AllowInsecureHttp: gcs.AllowInsecureHttp),
+            SwiftEndpoint swift => new PersistedEndpoint(
+                "swift", RootPath: swift.RootPrefix, Bucket: swift.Container, Region: swift.Region,
+                ServiceEndpoint: swift.AuthenticationUrl?.AbsoluteUri, AllowInsecureHttp: swift.AllowInsecureHttp,
+                StorageUrl: swift.StorageUrl?.AbsoluteUri),
             _ => throw new NotSupportedException($"Endpoint type {endpoint.GetType().Name} is not supported.")
         };
         return JsonSerializer.Serialize(value, JsonOptions);
@@ -532,6 +536,13 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
                 value.ServiceEndpoint is null ? null : new Uri(value.ServiceEndpoint, UriKind.Absolute),
                 value.AllowInsecureHttp,
                 value.RootPath),
+            "swift" => new SwiftEndpoint(
+                Required(value.Bucket, "Swift container"),
+                value.ServiceEndpoint is null ? null : new Uri(value.ServiceEndpoint, UriKind.Absolute),
+                value.StorageUrl is null ? null : new Uri(value.StorageUrl, UriKind.Absolute),
+                value.Region,
+                value.AllowInsecureHttp,
+                value.RootPath),
             "gcs" => new GoogleCloudStorageEndpoint(
                 Required(value.Bucket, "Cloud Storage bucket"),
                 value.ServiceEndpoint is null ? null : new Uri(value.ServiceEndpoint, UriKind.Absolute),
@@ -570,6 +581,10 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
                 "azure-connection-string", SecretKeyReference: connectionString.ConnectionStringReference.Value),
             GoogleServiceAccountAuthentication serviceAccount => new PersistedAuthentication(
                 "gcs-service-account", SecretKeyReference: serviceAccount.ServiceAccountJsonReference.Value),
+            KeystonePasswordAuthentication keystone => new PersistedAuthentication(
+                "keystone-password", keystone.Username, PasswordReference: keystone.PasswordReference.Value,
+                ProjectName: keystone.ProjectName, UserDomainName: keystone.UserDomainName,
+                ProjectDomainName: keystone.ProjectDomainName),
             SshPrivateKeyPasswordAuthentication mfa => new PersistedAuthentication(
                 "ssh-key-password",
                 mfa.Username,
@@ -616,6 +631,12 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
                 SecretReference.Parse(Required(value.SecretKeyReference, "Azure connection-string reference"))),
             "gcs-service-account" => new GoogleServiceAccountAuthentication(
                 SecretReference.Parse(Required(value.SecretKeyReference, "service-account reference"))),
+            "keystone-password" => new KeystonePasswordAuthentication(
+                Required(value.Username, "username"),
+                SecretReference.Parse(Required(value.PasswordReference, "password reference")),
+                Required(value.ProjectName, "Keystone project"),
+                Required(value.UserDomainName, "Keystone user domain"),
+                Required(value.ProjectDomainName, "Keystone project domain")),
             "ssh-key-password" => new SshPrivateKeyPasswordAuthentication(
                 Required(value.Username, "username"),
                 SecretReference.Parse(Required(value.PasswordReference, "password reference")),
@@ -694,6 +715,8 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
         ConnectionProviderKind.AzureBlob => "azureblob",
         // Allowed in the column from schema v19 (GoogleCloudStorageProviderSchemaMigration).
         ConnectionProviderKind.GoogleCloudStorage => "gcs",
+        // Allowed in the column from schema v20 (SwiftProviderSchemaMigration).
+        ConnectionProviderKind.OpenStackSwift => "swift",
         _ => throw new ArgumentOutOfRangeException(nameof(provider))
     };
 
@@ -707,6 +730,7 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
         "webdav" => ConnectionProviderKind.WebDav,
         "azureblob" => ConnectionProviderKind.AzureBlob,
         "gcs" => ConnectionProviderKind.GoogleCloudStorage,
+        "swift" => ConnectionProviderKind.OpenStackSwift,
         _ => throw new InvalidDataException("The stored connection provider is unknown.")
     };
 
@@ -770,7 +794,8 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
         SshHostKeyPolicy? HostKeyPolicy = null,
         PersistedFtpOptions? Ftp = null,
         PersistedSftpOptions? Sftp = null,
-        HttpCredentialScheme? CredentialScheme = null);
+        HttpCredentialScheme? CredentialScheme = null,
+        string? StorageUrl = null);
 
     /// <summary>An FTP server's options; absent from rows written before they existed, which read as the defaults.</summary>
     private sealed record PersistedFtpOptions(
@@ -844,7 +869,10 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
         string? PrivateKeyReference = null,
         string? PassphraseReference = null,
         SftpPrivateKeyFormat? KeyFormat = null,
-        string? TokenReference = null);
+        string? TokenReference = null,
+        string? ProjectName = null,
+        string? UserDomainName = null,
+        string? ProjectDomainName = null);
 
     private sealed record PersistedOperationalOptions(
         long ConnectTimeoutTicks,

@@ -271,5 +271,10 @@
   "fieldAccountKey": "Kontoschlüssel",
   "fieldSasToken": "SAS-Token",
   "authGoogleServiceAccount": "Dienstkontoschlüssel",
+  "authKeystonePassword": "Keystone-Passwort",
+  "fieldProject": "Projekt",
+  "fieldStorageUrl": "Speicher-URL",
+  "fieldAuthenticationUrl": "Authentifizierungs-URL",
+  "fieldSwiftToken": "Authentifizierungstoken",
   "culture": "de-DE"
 }

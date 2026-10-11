@@ -129,10 +129,10 @@ internal static class ConnectionDefaultSettings
 
     /// <summary>
     /// Whether the operation timeout is set apart from the connection timeout: on this computer, and
-    /// on WebDAV, whose one HTTP timeout bounds each whole request, an upload's body included.
+    /// on WebDAV and Swift, whose one HTTP timeout bounds each whole request, an upload's body included.
     /// </summary>
     internal static bool HasOwnOperationTimeout(StorageProviderKind provider) =>
-        provider is StorageProviderKind.Local or StorageProviderKind.WebDav;
+        provider is StorageProviderKind.Local or StorageProviderKind.WebDav or StorageProviderKind.OpenStackSwift;
 
     /// <summary>
     /// Whether StorageHub can hand the provider a timeout at all. Google's Cloud Storage client
@@ -157,6 +157,8 @@ internal static class ConnectionDefaultSettings
         StorageProviderKind.AzureBlob => new(30, 30, 3, new Dictionary<string, string>()),
         // What Google's client does on its own: a hundred seconds a request, and its own retries.
         StorageProviderKind.GoogleCloudStorage => new(100, 100, 0, new Dictionary<string, string>()),
+        // Ten minutes a request, as WebDAV's, for the same reason.
+        StorageProviderKind.OpenStackSwift => new(30, 600, 0, new Dictionary<string, string>()),
         _ => throw new ArgumentOutOfRangeException(nameof(provider))
     };
 

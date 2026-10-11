@@ -354,6 +354,104 @@ public sealed class ConnectionProfileIpcCommandServiceTests
         }
     }
 
+    /// <summary>
+    /// A Swift draft becomes a Swift profile for each sign-in, Keystone's project and domains with
+    /// it, and comes back out as the draft it went in as.
+    /// </summary>
+    [Fact]
+    public async Task CreateMapsSwiftDraftsBothWaysForEachSignIn()
+    {
+        const string reference = "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+        var keystone = new ConnectionEndpointDocument(
+            StorageConnectionProvider.OpenStackSwift,
+            RootPath: "team",
+            Bucket: "archive",
+            Region: "RegionOne",
+            ServiceEndpoint: "https://keystone.example.test/v3",
+            StorageUrl: "https://swift.example.test/v1/AUTH_project");
+        var saio = new ConnectionEndpointDocument(
+            StorageConnectionProvider.OpenStackSwift,
+            RootPath: string.Empty,
+            Bucket: "archive",
+            ServiceEndpoint: "http://127.0.0.1:8080/auth/v1.0",
+            AllowInsecureTransport: true);
+        var token = new ConnectionEndpointDocument(
+            StorageConnectionProvider.OpenStackSwift,
+            RootPath: string.Empty,
+            Bucket: "archive",
+            StorageUrl: "https://swift.example.test/v1/AUTH_project");
+        var drafts = new[]
+        {
+            (keystone, new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.KeystonePassword,
+                Username: "operator",
+                PasswordReference: reference,
+                Keystone: new ConnectionKeystoneDocument("project", "Users", "Projects")),
+                typeof(KeystonePasswordAuthentication)),
+            (saio, new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.UsernamePassword, Username: "test:tester", PasswordReference: reference),
+                typeof(UsernamePasswordAuthentication)),
+            (token, new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.BearerToken, SessionTokenReference: reference),
+                typeof(BearerTokenAuthentication))
+        };
+
+        foreach (var (endpoint, authentication, expected) in drafts)
+        {
+            var repository = new RecordingProfileRepository();
+            var result = await new ConnectionProfileIpcCommandService(repository, new FixedTimeProvider(Now)).HandleAsync(
+                IpcEnvelope.Create(
+                    ConnectionProfileIpcMessageTypes.CreateRequest,
+                    Guid.NewGuid(),
+                    1,
+                    new ConnectionProfileCreateRequest(
+                        ConnectionProfileIpcContract.CurrentVersion,
+                        new ConnectionProfileDraft(
+                            new ConnectionProfileMetadataDocument("Archive", Tags: []),
+                            endpoint,
+                            authentication,
+                            new ConnectionOperationalOptionsDocument(30, 600, 0)))));
+            var response = result.Payload.Deserialize<ConnectionProfileWriteResponse>();
+
+            Assert.Equal(ContractWriteStatus.Succeeded, response?.Status);
+            Assert.Equal(ConnectionProviderKind.OpenStackSwift, repository.Created?.Provider);
+            Assert.IsType(expected, repository.Created?.Authentication);
+            Assert.Equal("archive", Assert.IsType<SwiftEndpoint>(repository.Created?.Endpoint).Container);
+            Assert.Equal(endpoint, response!.Profile!.Draft.Endpoint);
+            Assert.Equal(authentication, response.Profile.Draft.Authentication);
+        }
+    }
+
+    /// <summary>A Keystone sign-in without its project never reaches the repository.</summary>
+    [Fact]
+    public async Task CreateRefusesAKeystoneSignInWithoutItsProject()
+    {
+        var repository = new RecordingProfileRepository();
+        var draft = new ConnectionProfileDraft(
+            new ConnectionProfileMetadataDocument("Archive", Tags: []),
+            new ConnectionEndpointDocument(
+                StorageConnectionProvider.OpenStackSwift,
+                Bucket: "archive",
+                ServiceEndpoint: "https://keystone.example.test/v3"),
+            new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.KeystonePassword,
+                Username: "operator",
+                PasswordReference: "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"),
+            new ConnectionOperationalOptionsDocument());
+
+        var result = await new ConnectionProfileIpcCommandService(repository, new FixedTimeProvider(Now)).HandleAsync(
+            IpcEnvelope.Create(
+                ConnectionProfileIpcMessageTypes.CreateRequest,
+                Guid.NewGuid(),
+                1,
+                new ConnectionProfileCreateRequest(ConnectionProfileIpcContract.CurrentVersion, draft)));
+
+        Assert.Equal(
+            ContractWriteStatus.ValidationFailed,
+            result.Payload.Deserialize<ConnectionProfileWriteResponse>()?.Status);
+        Assert.Null(repository.Created);
+    }
+
     /// <summary>A plain-HTTP Cloud Storage endpoint nobody acknowledged never reaches the repository.</summary>
     [Fact]
     public async Task CreateRefusesUnacknowledgedPlainHttpCloudStorage()

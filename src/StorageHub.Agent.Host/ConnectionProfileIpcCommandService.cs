@@ -669,6 +669,13 @@ internal static class ConnectionProfileIpcMapper
                 ParseOptionalAbsoluteUri(value.ServiceEndpoint),
                 value.AllowInsecureTransport,
                 value.RootPath),
+            StorageConnectionProvider.OpenStackSwift => new SwiftEndpoint(
+                value.Bucket!,
+                ParseOptionalAbsoluteUri(value.ServiceEndpoint),
+                ParseOptionalAbsoluteUri(value.StorageUrl),
+                string.IsNullOrEmpty(value.Region) ? null : value.Region,
+                value.AllowInsecureTransport,
+                value.RootPath),
             _ => throw new ArgumentOutOfRangeException(nameof(value), "The provider is invalid.")
         };
     }
@@ -737,6 +744,14 @@ internal static class ConnectionProfileIpcMapper
             Bucket: endpoint.Bucket,
             ServiceEndpoint: endpoint.ServiceUri?.AbsoluteUri,
             AllowInsecureTransport: endpoint.AllowInsecureHttp),
+        SwiftEndpoint endpoint => new(
+            StorageConnectionProvider.OpenStackSwift,
+            RootPath: endpoint.RootPrefix,
+            Bucket: endpoint.Container,
+            Region: endpoint.Region,
+            ServiceEndpoint: endpoint.AuthenticationUrl?.AbsoluteUri,
+            AllowInsecureTransport: endpoint.AllowInsecureHttp,
+            StorageUrl: endpoint.StorageUrl?.AbsoluteUri),
         _ => throw new NotSupportedException("The connection endpoint type is not supported by IPC.")
     };
 
@@ -771,6 +786,12 @@ internal static class ConnectionProfileIpcMapper
                 SecretReference.Parse(value.SecretKeyReference!)),
             ConnectionAuthenticationKind.GoogleServiceAccount => new GoogleServiceAccountAuthentication(
                 SecretReference.Parse(value.SecretKeyReference!)),
+            ConnectionAuthenticationKind.KeystonePassword => new KeystonePasswordAuthentication(
+                value.Username!,
+                SecretReference.Parse(value.PasswordReference!),
+                value.Keystone!.ProjectName,
+                value.Keystone.UserDomainName,
+                value.Keystone.ProjectDomainName),
             ConnectionAuthenticationKind.SshPrivateKeyPassword => new SshPrivateKeyPasswordAuthentication(
                 value.Username!,
                 SecretReference.Parse(value.PasswordReference!),
@@ -820,6 +841,14 @@ internal static class ConnectionProfileIpcMapper
         GoogleServiceAccountAuthentication authentication => new(
             ConnectionAuthenticationKind.GoogleServiceAccount,
             SecretKeyReference: authentication.ServiceAccountJsonReference.Value),
+        KeystonePasswordAuthentication authentication => new(
+            ConnectionAuthenticationKind.KeystonePassword,
+            Username: authentication.Username,
+            PasswordReference: authentication.PasswordReference.Value,
+            Keystone: new ConnectionKeystoneDocument(
+                authentication.ProjectName,
+                authentication.UserDomainName,
+                authentication.ProjectDomainName)),
         SshPrivateKeyPasswordAuthentication authentication => new(
             ConnectionAuthenticationKind.SshPrivateKeyPassword,
             Username: authentication.Username,
@@ -981,6 +1010,14 @@ internal static class ConnectionProfileIpcMapper
                 value.TlsPolicy == ConnectionTlsCertificatePolicy.SystemTrust &&
                 value.FtpsTlsMode == ConnectionFtpsTlsMode.Explicit &&
                 value.SshHostKeyPolicy == ConnectionSshHostKeyPolicy.Pinned,
+            // Somewhere to sign in, somewhere to send a token, or both.
+            StorageConnectionProvider.OpenStackSwift =>
+                Present(value.Bucket) && Empty(value.Host) && value.Port is null && !value.ForcePathStyle &&
+                (Present(value.ServiceEndpoint) || Present(value.StorageUrl)) &&
+                Empty(value.ClientCertificatePfxReference) && Empty(value.ClientCertificatePasswordReference) &&
+                value.TlsPolicy == ConnectionTlsCertificatePolicy.SystemTrust &&
+                value.FtpsTlsMode == ConnectionFtpsTlsMode.Explicit &&
+                value.SshHostKeyPolicy == ConnectionSshHostKeyPolicy.Pinned,
             // Plain HTTP is a property of a service URL, so it means nothing without one.
             StorageConnectionProvider.GoogleCloudStorage =>
                 Present(value.Bucket) && Empty(value.Host) && value.Port is null && Empty(value.Region) &&
@@ -993,6 +1030,7 @@ internal static class ConnectionProfileIpcMapper
         };
         valid &= value.HttpCredentialScheme == ConnectionHttpCredentialScheme.Basic ||
             value.Provider == StorageConnectionProvider.WebDav;
+        valid &= Empty(value.StorageUrl) || value.Provider == StorageConnectionProvider.OpenStackSwift;
         if (!valid)
         {
             throw new ArgumentException(
@@ -1025,7 +1063,7 @@ internal static class ConnectionProfileIpcMapper
             ConnectionAuthenticationKind.CredentialReference =>
                 !hasUsername && hasCredential && !hasPassword && !hasAccess && !hasSecret &&
                 !hasToken && !hasKey && !hasPassphrase,
-            ConnectionAuthenticationKind.UsernamePassword =>
+            ConnectionAuthenticationKind.UsernamePassword or ConnectionAuthenticationKind.KeystonePassword =>
                 hasUsername && !hasCredential && hasPassword && !hasAccess && !hasSecret &&
                 !hasToken && !hasKey && !hasPassphrase,
             ConnectionAuthenticationKind.S3AccessKey =>
@@ -1042,6 +1080,10 @@ internal static class ConnectionProfileIpcMapper
                 hasToken && !hasKey && !hasPassphrase,
             _ => false
         };
+        // The project and domains belong to Keystone and to nothing else.
+        valid &= value.Keystone is null
+            ? value.Kind != ConnectionAuthenticationKind.KeystonePassword
+            : value.Kind == ConnectionAuthenticationKind.KeystonePassword && value.Keystone.HasValidBounds;
         if (!valid)
         {
             throw new ArgumentException(
@@ -1072,6 +1114,7 @@ internal static class ConnectionProfileIpcMapper
         StorageConnectionProvider.WebDav => ConnectionProviderKind.WebDav,
         StorageConnectionProvider.AzureBlob => ConnectionProviderKind.AzureBlob,
         StorageConnectionProvider.GoogleCloudStorage => ConnectionProviderKind.GoogleCloudStorage,
+        StorageConnectionProvider.OpenStackSwift => ConnectionProviderKind.OpenStackSwift,
         _ => throw new ArgumentOutOfRangeException(nameof(value), value, "The provider is invalid.")
     };
 

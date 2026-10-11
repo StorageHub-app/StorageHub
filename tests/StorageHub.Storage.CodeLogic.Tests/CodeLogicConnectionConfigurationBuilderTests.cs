@@ -975,6 +975,99 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
         Assert.Equal(4, identities.Distinct(StringComparer.Ordinal).Count());
     }
 
+    /// <summary>
+    /// Each Swift sign-in reaches CL.Storage as its own mode with its secret from the vault, the
+    /// operation timeout as the request timeout, as WebDAV's is, and the secrets let go afterwards.
+    /// </summary>
+    [Fact]
+    public async Task Swift_hands_each_sign_in_over_in_its_own_mode_and_lets_the_secrets_go()
+    {
+        var password = await StoreTextAsync("keystone-password");
+        var token = await StoreTextAsync("AUTH_tk0123456789");
+        var keystoneUrl = new Uri("https://keystone.example.test/v3");
+        var storageUrl = new Uri("https://swift.example.test/v1/AUTH_project");
+        var options = new ConnectionOperationalOptions(
+            TimeSpan.FromSeconds(30),
+            TimeSpan.FromMinutes(10),
+            new ConnectionRetryPolicy(0, TimeSpan.Zero, TimeSpan.Zero),
+            new ConnectionProxy(new Uri("socks5://proxy.example.test:1080")),
+            new ConnectionBandwidthLimits(1_000_000, 2_000_000),
+            "utf-8");
+
+        var prepared = (await CreateBuilder().BuildAsync(CreateProfile(
+            new SwiftEndpoint("archive", keystoneUrl, region: "RegionOne", rootPrefix: "team"),
+            new KeystonePasswordAuthentication("operator", password, "project", "Users", "Projects"),
+            operationalOptions: options))).Value;
+        var configuration = Assert.IsType<SwiftConnectionConfig>(prepared.Configuration);
+        Assert.Equal("archive", configuration.Container);
+        Assert.Equal("team", configuration.Prefix);
+        Assert.Equal(SwiftAuthenticationMode.KeystoneV3Password, configuration.AuthenticationMode);
+        Assert.Equal("https://keystone.example.test/v3", configuration.AuthenticationUrl);
+        Assert.Null(configuration.StorageUrl);
+        Assert.Equal("RegionOne", configuration.Region);
+        Assert.Equal("operator", configuration.Username);
+        Assert.Equal("keystone-password", configuration.Password);
+        Assert.Equal("project", configuration.ProjectName);
+        Assert.Equal("Users", configuration.UserDomainName);
+        Assert.Equal("Projects", configuration.ProjectDomainName);
+        Assert.Equal(600, configuration.TimeoutSeconds);
+        Assert.False(configuration.AllowInsecureHttp);
+        Assert.Equal(StorageProxyType.Socks5, configuration.Proxy.Type);
+        Assert.Equal(2_000_000, configuration.TransferLimits.MaxDownloadBytesPerSecond);
+        await prepared.DisposeAsync();
+        Assert.Null(configuration.Password);
+
+        await using (var tempAuth = (await CreateBuilder().BuildAsync(CreateProfile(
+            new SwiftEndpoint("archive", new Uri("http://127.0.0.1:8080/auth/v1.0"), allowInsecureHttp: true),
+            new UsernamePasswordAuthentication("test:tester", password)))).Value)
+        {
+            var built = Assert.IsType<SwiftConnectionConfig>(tempAuth.Configuration);
+            Assert.Equal(SwiftAuthenticationMode.TempAuthV1, built.AuthenticationMode);
+            Assert.Equal("test:tester", built.Username);
+            Assert.True(built.AllowInsecureHttp);
+            Assert.Null(built.ProjectName);
+        }
+
+        var fromToken = (await CreateBuilder().BuildAsync(CreateProfile(
+            new SwiftEndpoint("archive", null, storageUrl), new BearerTokenAuthentication(token)))).Value;
+        var tokenConfiguration = Assert.IsType<SwiftConnectionConfig>(fromToken.Configuration);
+        Assert.Equal(SwiftAuthenticationMode.StaticToken, tokenConfiguration.AuthenticationMode);
+        Assert.Equal("https://swift.example.test/v1/AUTH_project", tokenConfiguration.StorageUrl);
+        Assert.Equal("AUTH_tk0123456789", tokenConfiguration.Token);
+        Assert.Null(tokenConfiguration.AuthenticationUrl);
+        await fromToken.DisposeAsync();
+        Assert.Null(tokenConfiguration.Token);
+    }
+
+    /// <summary>A Swift root is where it signs in, where it stores, the container, the prefix and the project.</summary>
+    [Fact]
+    public async Task Swift_root_identity_follows_the_urls_the_container_the_prefix_and_the_project()
+    {
+        var password = await StoreTextAsync("keystone-password");
+        var keystoneUrl = new Uri("https://keystone.example.test/v3");
+        var first = CreateProfile(
+            new SwiftEndpoint("archive", keystoneUrl),
+            new KeystonePasswordAuthentication("operator", password, "project"));
+        var others = new[]
+        {
+            first with { Endpoint = new SwiftEndpoint("archive", new Uri("https://other.example.test/v3")) },
+            first with { Endpoint = new SwiftEndpoint("archive", keystoneUrl, new Uri("https://swift.example.test/v1/AUTH_x")) },
+            first with { Endpoint = new SwiftEndpoint("archive", keystoneUrl, region: "RegionTwo") },
+            first with { Endpoint = new SwiftEndpoint("other", keystoneUrl) },
+            first with { Endpoint = new SwiftEndpoint("archive", keystoneUrl, rootPrefix: "inner") },
+            first with { Authentication = new KeystonePasswordAuthentication("operator", password, "elsewhere") }
+        };
+
+        var identities = new List<string>();
+        foreach (var profile in others.Prepend(first))
+        {
+            await using var prepared = (await CreateBuilder().BuildAsync(profile)).Value;
+            identities.Add(prepared.RootIdentity);
+        }
+
+        Assert.Equal(7, identities.Distinct(StringComparer.Ordinal).Count());
+    }
+
     [Fact]
     public async Task Tofu_and_s3_pinning_fail_closed_when_provider_cannot_capture_or_enforce_them()
     {

@@ -270,5 +270,12 @@
   "theCloudStorageServiceUrlIsInvalid": "Die Dienst-URL muss eine http://- oder https://-Adresse ohne Benutzernamen, Abfrage oder Fragment sein.",
   "serviceUrlPlainHttpNotAllowed": "Diese Dienst-URL verwendet unverschlüsseltes HTTP. Lassen Sie unverschlüsseltes HTTP auf der Registerkarte Vertrauen zu, oder verwenden Sie https://.",
   "aServiceAccountKeyIsRequired": "Für die Anmeldung mit Dienstkonto ist ein Dienstkontoschlüssel erforderlich.",
+  "aSwiftContainerIsRequired": "Ein Swift-Container ist erforderlich.",
+  "theSwiftContainerNameIsInvalid": "Der Containername darf höchstens 256 Zeichen lang sein und keinen Schrägstrich enthalten.",
+  "anAuthenticationUrlIsRequired": "Für die Anmeldung mit Keystone oder TempAuth ist eine Authentifizierungs-URL erforderlich.",
+  "aStorageUrlIsRequiredForAToken": "Für ein vorab ausgestelltes Token ist eine Speicher-URL erforderlich.",
+  "theSwiftUrlIsInvalid": "Eine Swift-URL muss eine http://- oder https://-Adresse ohne Benutzernamen, Abfrage oder Fragment sein.",
+  "aKeystoneProjectIsRequired": "Ein Keystone-Projekt ist erforderlich.",
+  "aSwiftTokenIsRequired": "Für die Anmeldung mit vorab ausgestelltem Token ist ein Token erforderlich.",
   "culture": "de-DE"
 }

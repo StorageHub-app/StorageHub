@@ -23,7 +23,8 @@ public enum ConnectionProviderKind
     Ssh = 6,
     WebDav = 7,
     AzureBlob = 8,
-    GoogleCloudStorage = 9
+    GoogleCloudStorage = 9,
+    OpenStackSwift = 10
 }
 
 public enum TlsCertificatePolicy
@@ -1141,6 +1142,102 @@ public sealed record GoogleCloudStorageEndpoint : ConnectionEndpoint
     }
 }
 
+/// <summary>
+/// An OpenStack Swift container: its name, where the connection signs in, where its objects are
+/// kept, and a prefix below the container that the connection treats as its root.
+/// </summary>
+/// <remarks>
+/// Keystone and TempAuth sign in at the authentication URL and are told the storage URL in return,
+/// from Keystone's catalog (in the region, when one is named) or TempAuth's reply; a storage URL
+/// given here overrides it. A pre-issued token has nowhere to sign in, so it needs the storage URL.
+/// Plain HTTP on either URL is refused unless acknowledged, since a password or a token goes with it.
+/// </remarks>
+public sealed record SwiftEndpoint : ConnectionEndpoint
+{
+    public SwiftEndpoint(
+        string container,
+        Uri? authenticationUrl,
+        Uri? storageUrl = null,
+        string? region = null,
+        bool allowInsecureHttp = false,
+        string? rootPrefix = null)
+        : base(ConnectionProviderKind.OpenStackSwift)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(container);
+        var name = container.Trim();
+        if (name.Length > 256 || name.Contains('/', StringComparison.Ordinal) || name.Any(char.IsControl))
+        {
+            throw new ArgumentException(
+                "The Swift container name must be at most 256 characters, with no slash.", nameof(container));
+        }
+
+        if (authenticationUrl is null && storageUrl is null)
+        {
+            throw new ArgumentException(
+                "A Swift connection needs an authentication URL, a storage URL, or both.", nameof(authenticationUrl));
+        }
+
+        var plainHttp = ValidateUrl(authenticationUrl, nameof(authenticationUrl)) |
+            ValidateUrl(storageUrl, nameof(storageUrl));
+        if (plainHttp && !allowInsecureHttp)
+        {
+            throw new ArgumentException(
+                "A plain-HTTP Swift endpoint is insecure and requires explicit acknowledgement.",
+                nameof(allowInsecureHttp));
+        }
+
+        if (region is not null && (string.IsNullOrWhiteSpace(region) || region.Length > 64 || region.Any(char.IsControl)))
+        {
+            throw new ArgumentException("The Swift region is invalid.", nameof(region));
+        }
+
+        Container = name;
+        AuthenticationUrl = authenticationUrl;
+        StorageUrl = storageUrl;
+        Region = region?.Trim();
+        AllowInsecureHttp = plainHttp;
+        RootPrefix = NormalizeProviderRoot(rootPrefix, nameof(rootPrefix));
+    }
+
+    public string Container { get; }
+
+    /// <summary>Keystone's or TempAuth's URL, such as <c>https://keystone.example.com/v3</c>.</summary>
+    public Uri? AuthenticationUrl { get; }
+
+    /// <summary>The object-store URL, account and all; null to take the one sign-in returns.</summary>
+    public Uri? StorageUrl { get; }
+
+    /// <summary>The Keystone catalog region to take the storage URL from, or null for the first.</summary>
+    public string? Region { get; }
+
+    /// <summary>Whether a URL is plain HTTP, which was acknowledged when it was given.</summary>
+    public bool AllowInsecureHttp { get; }
+
+    public string RootPrefix { get; }
+
+    private static bool ValidateUrl(Uri? url, string parameterName)
+    {
+        if (url is null)
+        {
+            return false;
+        }
+
+        if (!url.IsAbsoluteUri || (url.Scheme != Uri.UriSchemeHttp && url.Scheme != Uri.UriSchemeHttps) ||
+            string.IsNullOrEmpty(url.Host))
+        {
+            throw new ArgumentException("A Swift URL must be an absolute HTTP or HTTPS URL.", parameterName);
+        }
+
+        RejectCredentialBearingUri(url, parameterName);
+        if (url.AbsoluteUri.Length > 2_048)
+        {
+            throw new ArgumentOutOfRangeException(parameterName, "A Swift URL cannot exceed 2,048 characters.");
+        }
+
+        return url.Scheme == Uri.UriSchemeHttp;
+    }
+}
+
 public abstract record ConnectionAuthentication;
 
 public sealed record NoAuthentication : ConnectionAuthentication;
@@ -1215,6 +1312,49 @@ public sealed record BearerTokenAuthentication : ConnectionAuthentication
 /// identity, or the Azure CLI's sign-in); for Google Cloud, Application Default Credentials.
 /// </summary>
 public sealed record AmbientCredentialAuthentication : ConnectionAuthentication;
+
+/// <summary>
+/// An OpenStack Keystone v3 password sign-in: the user, the project the token is scoped to, and the
+/// domains each belongs to, with the password kept in the vault.
+/// </summary>
+public sealed record KeystonePasswordAuthentication : ConnectionAuthentication
+{
+    public KeystonePasswordAuthentication(
+        string username,
+        SecretReference passwordReference,
+        string projectName,
+        string userDomainName = "Default",
+        string projectDomainName = "Default")
+    {
+        Username = Name(username, nameof(username));
+        if (!SecretReference.TryParse(passwordReference.Value, out _))
+        {
+            throw new ArgumentException("The password secret reference is invalid.", nameof(passwordReference));
+        }
+
+        PasswordReference = passwordReference;
+        ProjectName = Name(projectName, nameof(projectName));
+        UserDomainName = Name(userDomainName, nameof(userDomainName));
+        ProjectDomainName = Name(projectDomainName, nameof(projectDomainName));
+    }
+
+    public string Username { get; }
+    public SecretReference PasswordReference { get; }
+    public string ProjectName { get; }
+    public string UserDomainName { get; }
+    public string ProjectDomainName { get; }
+
+    private static string Name(string value, string parameterName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value, parameterName);
+        if (value.Length > 255 || value.Any(char.IsControl))
+        {
+            throw new ArgumentException("The Keystone name is invalid.", parameterName);
+        }
+
+        return value.Trim();
+    }
+}
 
 /// <summary>
 /// A Google Cloud service-account key, the JSON file Google hands out, kept whole in the vault:
@@ -1592,6 +1732,16 @@ public sealed record ConnectionProfile
             // No sign-in at all reads a public bucket, or an emulator that checks nothing.
             ConnectionProviderKind.GoogleCloudStorage => Authentication is
                 GoogleServiceAccountAuthentication or AmbientCredentialAuthentication or NoAuthentication,
+            // Keystone and TempAuth (a user name and password) sign in at the authentication URL; a
+            // pre-issued token goes straight to the storage URL. Only Keystone has a catalog with regions.
+            ConnectionProviderKind.OpenStackSwift => Endpoint is SwiftEndpoint swift && Authentication switch
+            {
+                KeystonePasswordAuthentication => swift.AuthenticationUrl is not null,
+                UsernamePasswordAuthentication => swift.AuthenticationUrl is not null && swift.Region is null,
+                BearerTokenAuthentication => swift.StorageUrl is not null && swift.AuthenticationUrl is null &&
+                    swift.Region is null,
+                _ => false
+            },
             _ => false
         };
         if (!valid)

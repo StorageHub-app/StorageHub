@@ -15,7 +15,8 @@ public enum StorageProviderKind
     Ssh,
     WebDav,
     AzureBlob,
-    GoogleCloudStorage
+    GoogleCloudStorage,
+    OpenStackSwift
 }
 
 public enum ConnectionFieldKind
@@ -122,6 +123,16 @@ public static class ConnectionProviderCatalog
             ConnectionEditorDraftFactory.GcsServiceAccount,
             ConnectionEditorDraftFactory.GcsApplicationDefault,
             ConnectionEditorDraftFactory.GcsAnonymous
+        });
+
+    // Swift's sign-ins: Keystone first, as every OpenStack cloud has it; TempAuth for a SAIO or a
+    // small cluster; a token issued elsewhere last.
+    private static readonly ReadOnlyCollection<string> SwiftAuthenticationModes =
+        Array.AsReadOnly(new[]
+        {
+            ConnectionEditorDraftFactory.SwiftKeystone,
+            ConnectionEditorDraftFactory.SwiftTempAuth,
+            ConnectionEditorDraftFactory.SwiftToken
         });
 
     private static readonly ReadOnlyCollection<string> SshClientAuthenticationModes =
@@ -353,6 +364,35 @@ public static class ConnectionProviderCatalog
             ],
             [
                 Field("acknowledgePlaintext", Ui.Providers.AllowPlainHTTPEndpoint, ConnectionFieldKind.Toggle, defaultValue: "false", help: Ui.Providers.GcsPlainHttpHelp)
+            ]),
+        new(
+            StorageProviderKind.OpenStackSwift,
+            Ui.Providers.OpenStackSwift,
+            "SWIFT",
+            "#ED1944",
+            443,
+            true,
+            Ui.Providers.SwiftSummary,
+            "https://keystone.example.com/v3",
+            Ui.Providers.SwiftTrustNotice,
+            [
+                Field(ConnectionEditorDraftFactory.ContainerKey, Ui.Providers.Container, ConnectionFieldKind.Text, required: true, placeholder: "documents", help: Ui.Providers.SwiftContainerHelp),
+                Field(ConnectionEditorDraftFactory.AuthenticationUrlKey, Ui.Providers.AuthenticationUrl, ConnectionFieldKind.Text, placeholder: "https://keystone.example.com/v3", help: Ui.Providers.SwiftAuthenticationUrlHelp),
+                Field(ConnectionEditorDraftFactory.StorageUrlKey, Ui.Providers.StorageUrl, ConnectionFieldKind.Text, placeholder: "https://swift.example.com/v1/AUTH_project", help: Ui.Providers.SwiftStorageUrlHelp),
+                Field("region", Ui.Providers.SwiftRegion, ConnectionFieldKind.Text, placeholder: "RegionOne", help: Ui.Providers.SwiftRegionHelp),
+                Field("prefix", Ui.Providers.InitialPrefix, ConnectionFieldKind.Text, placeholder: "team/archive/")
+            ],
+            [
+                Field("authenticationMode", Ui.Providers.Authentication, ConnectionFieldKind.Choice, defaultValue: SwiftAuthenticationModes[0], choices: SwiftAuthenticationModes, help: Ui.Providers.SwiftAuthenticationHelp),
+                Field("username", "Username", ConnectionFieldKind.Text),
+                Field("passwordReference", "Password reference", ConnectionFieldKind.SecretReference, placeholder: Ui.Providers.SelectAVaultEntry),
+                Field(ConnectionEditorDraftFactory.ProjectKey, Ui.Providers.KeystoneProject, ConnectionFieldKind.Text, placeholder: Ui.Providers.OnlyForKeystoneSignIn),
+                Field(ConnectionEditorDraftFactory.UserDomainKey, Ui.Providers.KeystoneUserDomain, ConnectionFieldKind.Text, defaultValue: "Default"),
+                Field(ConnectionEditorDraftFactory.ProjectDomainKey, Ui.Providers.KeystoneProjectDomain, ConnectionFieldKind.Text, defaultValue: "Default"),
+                Field(ConnectionEditorDraftFactory.BearerTokenKey, Ui.Providers.SwiftTokenReference, ConnectionFieldKind.SecretReference, placeholder: Ui.Providers.OnlyForTokenSignIn)
+            ],
+            [
+                Field("acknowledgePlaintext", Ui.Providers.AllowPlainHTTPEndpoint, ConnectionFieldKind.Toggle, defaultValue: "false", help: Ui.Providers.SwiftPlainHttpHelp)
             ]),
         new(
             StorageProviderKind.Ssh,

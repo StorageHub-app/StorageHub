@@ -431,6 +431,16 @@ internal sealed class ConnectionStrings : LocalizationModelBase
 
     public string AuthGoogleServiceAccount { get; set; } = "Service-account key";
 
+    public string AuthKeystonePassword { get; set; } = "Keystone password";
+
+    public string FieldProject { get; set; } = "Project";
+
+    public string FieldStorageUrl { get; set; } = "Storage URL";
+
+    public string FieldAuthenticationUrl { get; set; } = "Authentication URL";
+
+    public string FieldSwiftToken { get; set; } = "Auth token";
+
     public string FieldHttpSignIn { get; set; } = "HTTP sign-in";
 
     public string FieldRequestTimeout { get; set; } = "Request timeout";

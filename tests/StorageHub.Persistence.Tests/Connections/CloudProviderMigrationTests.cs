@@ -21,7 +21,7 @@ public sealed class CloudProviderMigrationTests : IDisposable
     private readonly string _directory = Path.Combine(
         Path.GetTempPath(), $"storagehub-cloud-migration-{Guid.NewGuid():N}");
 
-    public static TheoryData<string> Providers() => ["azureblob", "gcs"];
+    public static TheoryData<string> Providers() => ["azureblob", "gcs", "swift"];
 
     [Theory]
     [MemberData(nameof(Providers))]
@@ -72,6 +72,16 @@ public sealed class CloudProviderMigrationTests : IDisposable
             Profile(
                 new GoogleCloudStorageEndpoint("archive", new Uri("http://127.0.0.1:4443/"), allowInsecureHttp: true),
                 new GoogleServiceAccountAuthentication(SecretReference.Create()))),
+        "swift" => (
+            [.. UpToWebDav(), new AzureBlobProviderSchemaMigration(), new GoogleCloudStorageProviderSchemaMigration()],
+            Profile(
+                new SwiftEndpoint(
+                    "archive",
+                    new Uri("https://keystone.example.test/v3"),
+                    new Uri("https://swift.example.test/v1/AUTH_project"),
+                    region: "RegionOne",
+                    rootPrefix: "team"),
+                new KeystonePasswordAuthentication("operator", SecretReference.Create(), "project", "Users", "Projects"))),
         _ => throw new ArgumentOutOfRangeException(nameof(provider))
     };
 

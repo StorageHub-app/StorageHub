@@ -271,5 +271,10 @@
   "fieldAccountKey": "Kontonøgle",
   "fieldSasToken": "SAS-token",
   "authGoogleServiceAccount": "Nøgle til tjenestekonto",
+  "authKeystonePassword": "Keystone-adgangskode",
+  "fieldProject": "Projekt",
+  "fieldStorageUrl": "Lager-URL",
+  "fieldAuthenticationUrl": "Godkendelses-URL",
+  "fieldSwiftToken": "Godkendelsestoken",
   "culture": "da-DK"
 }
