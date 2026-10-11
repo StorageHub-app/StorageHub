@@ -805,11 +805,11 @@ icon, da/de text), settings and import/export, and a lab container with a confor
 
 - [ ] 6.1 A full pass of the real app against the lab, with screenshots of every changed window.
 - [ ] 6.2 The Linux .deb installed and checked in WSL.
-- [ ] 6.3 Release notes and the 1.x upgrade path.
+- [x] 6.3 Release notes and the 1.x upgrade path.
       Written: `docs/release-notes-2.0.md` (the user-facing notes) and `docs/upgrading-from-1.x.md`,
       checked against `v1.4.5` and `main`. Preferences, shortcuts, the pinned and recent lists and
       `.shw` files carry over in place under `%LOCALAPPDATA%\StorageHub\Desktop`; the agent's
       database, vault, key store, trust, sync tasks and schedules do not (no reader for the old root,
       a vault mark 2.0 refuses, and format-1 exports refused). Uninstall 1.4 before installing 2.0
-      (shared sign-in entry, pipes and lock). Open: whether 2.0 imports 1.4's connections and
-      secrets, which DPAPI would allow for the same Windows user.
+      (shared sign-in entry, pipes and lock). By decision there is no importer: 1.4 users set up
+      their connections, secrets, sync tasks and schedules again, as the guide says.
