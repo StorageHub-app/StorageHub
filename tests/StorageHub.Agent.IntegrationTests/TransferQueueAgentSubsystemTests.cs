@@ -156,7 +156,10 @@ public sealed class TransferQueueAgentSubsystemTests : IDisposable
             [source.ProfileId] = () => new FakeConnection(source),
             [destination.ProfileId] = () => new FakeConnection(destination)
         });
-        await using var worker = CreateWorker(fixture.Store, connector);
+        // Told when somebody stops it on purpose, because that drops the session it was on and a
+        // connection card must not read it as the connection failing.
+        var interrupted = new List<ConnectionProfileId>();
+        await using var worker = CreateWorker(fixture.Store, connector, onInterrupted: interrupted.Add);
         await worker.InitializeAsync(CancellationToken.None);
 
         var execution = worker.RunClaimOnceAsync().AsTask();
@@ -169,11 +172,15 @@ public sealed class TransferQueueAgentSubsystemTests : IDisposable
             worker.TryRequestActiveCancellation(
                 fixture.Intent.TransferJobId,
                 active.State.Revision - 1));
+        Assert.Empty(interrupted);
         Assert.Equal(
             ActiveTransferCancellationResult.Accepted,
             worker.TryRequestActiveCancellation(
                 fixture.Intent.TransferJobId,
                 active.State.Revision));
+        Assert.Equal(
+            [fixture.Intent.Source.ProfileId, fixture.Intent.Destination.ProfileId],
+            interrupted.Take(2));
         Assert.Equal(
             ActiveTransferCancellationResult.AlreadyRequested,
             worker.TryRequestActiveCancellation(
@@ -645,12 +652,14 @@ public sealed class TransferQueueAgentSubsystemTests : IDisposable
         ITransferJobStore store,
         ITransferEndpointConnector connector,
         TransferQueueWorkerOptions? options = null,
-        TimeProvider? timeProvider = null) => new(
+        TimeProvider? timeProvider = null,
+        Action<ConnectionProfileId>? onInterrupted = null) => new(
         store,
         connector,
         options ?? Options(),
         timeProvider,
-        ownerId: $"test-worker-{Guid.NewGuid():N}");
+        ownerId: $"test-worker-{Guid.NewGuid():N}",
+        onInterrupted: onInterrupted);
 
     private static TransferQueueWorkerOptions Options() => new()
     {

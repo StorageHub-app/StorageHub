@@ -197,7 +197,8 @@ await using var transferQueueSubsystem = new TransferQueueAgentSubsystem(
         MinimumConcurrency = transferConfiguration.Minimum,
         MaximumConcurrency = transferConfiguration.MaximumTransfers,
         PerConnectionConcurrency = transferConfiguration.PerConnection
-    });
+    },
+    onInterrupted: profile => connectionLinks.Interrupted(profile, DateTimeOffset.UtcNow));
 await using var storageCommands = new StorageIpcCommandService(
     databaseOptions,
     () => vaultSubsystem.Vault,

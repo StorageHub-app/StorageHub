@@ -36,6 +36,13 @@ already there. A pane's own selection can be dropped onto one of its folders too
 folder that is being dragged or is inside one. A drag also starts on the first press of a row, where
 it used to need a second try once the first click had selected it.
 
+**"Connected again" after cancelling a copy.** Cancelling or pausing a transfer that was reading from an
+SFTP server made the connection's card say it had been lost and then "Connected again" a second
+later, though the connection never stopped answering. Stopping a read part way makes the storage
+library drop that session and open another, and it reported the drop as a lost link. The agent now
+says when a transfer is being stopped on purpose, and a loss reported in the few seconds after it, on
+that connection, is not recorded; a connection that really drops still is.
+
 **Dragging a file from a connection to Explorer.** The row that says a drag out was handed to the agent
 stayed in the queue's Active tab as "Queued", with no progress, for a minute after the file had
 arrived, which read as a transfer that never started. It now goes as soon as the agent's own transfers

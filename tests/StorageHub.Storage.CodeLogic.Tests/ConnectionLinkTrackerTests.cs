@@ -37,6 +37,37 @@ public sealed class ConnectionLinkTrackerTests
         Assert.All(changes, change => Assert.Equal(profile, change.ProfileId));
     }
 
+    /// <summary>
+    /// Cancelling a transfer makes the library drop its session and reopen one a second later, and
+    /// that is not the connection failing: the card said "Connected again" for pressing Cancel. A loss
+    /// reported just after the interruption, on that connection, is not recorded; one on another
+    /// connection, or well after, still is.
+    /// </summary>
+    [Fact]
+    public void ASessionDroppedByCancellingATransferIsNotTheLinkFailing()
+    {
+        var tracker = new ConnectionLinkTracker();
+        var changes = new List<ConnectionLinkChange>();
+        tracker.Changed += changes.Add;
+        var cancelled = ConnectionProfileId.New();
+        var other = ConnectionProfileId.New();
+
+        tracker.Reached(cancelled, At);
+        tracker.Interrupted(cancelled, At);
+        tracker.Lost(cancelled, "storage.connection_lost", At.AddSeconds(1));
+        tracker.Reached(cancelled, At.AddSeconds(2));
+        Assert.Empty(changes);
+
+        // Another connection was not cancelled, so it is a real loss.
+        tracker.Lost(other, "storage.connection_lost", At.AddSeconds(1));
+        Assert.Equal(ConnectionLinkState.Lost, Assert.Single(changes).State);
+
+        // And the same connection, long after, is a real loss too.
+        tracker.Lost(cancelled, "storage.connection_lost", At.Add(ConnectionLinkTracker.InterruptionWindow).AddSeconds(5));
+        Assert.Equal(2, changes.Count);
+        Assert.Equal(cancelled, changes[1].ProfileId);
+    }
+
     [Fact]
     public void OnlyAFailureToReachTheServerIsAboutTheLink()
     {

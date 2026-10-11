@@ -21,6 +21,13 @@ public sealed class TransferQueueAgentSubsystem
     private readonly string _ownerId;
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     private readonly SemaphoreSlim _claimGate = new(1, 1);
+
+    /// <summary>
+    /// Told, for each connection a transfer uses, when somebody cancels or pauses it while it runs.
+    /// Stopping a read part way drops the session it was on, and whoever watches the connection
+    /// needs to know that was asked for, or it reads as the connection failing.
+    /// </summary>
+    private readonly Action<Domain.Identifiers.ConnectionProfileId>? _onInterrupted;
     private readonly AdaptiveConcurrencyController _adaptiveConcurrency;
     private readonly ConcurrentDictionary<Domain.Identifiers.ConnectionProfileId, SemaphoreSlim> _connectionSlots = new();
     private readonly ConcurrentDictionary<Domain.Identifiers.TransferJobId, ActiveExecutionControl> _activeExecutions = new();
@@ -45,8 +52,10 @@ public sealed class TransferQueueAgentSubsystem
         ITransferEndpointConnector connector,
         TransferQueueWorkerOptions? options = null,
         TimeProvider? timeProvider = null,
-        string? ownerId = null)
+        string? ownerId = null,
+        Action<Domain.Identifiers.ConnectionProfileId>? onInterrupted = null)
     {
+        _onInterrupted = onInterrupted;
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _connector = connector ?? throw new ArgumentNullException(nameof(connector));
         _options = options ?? new TransferQueueWorkerOptions();
@@ -129,6 +138,8 @@ public sealed class TransferQueueAgentSubsystem
             return ActiveTransferCancellationResult.RevisionConflict;
         }
 
+        // Said before the transfer is stopped: the session it is on is dropped as it stops.
+        Interrupt(active);
         return active.RequestCancellation()
             ? ActiveTransferCancellationResult.Accepted
             : ActiveTransferCancellationResult.AlreadyRequested;
@@ -158,9 +169,26 @@ public sealed class TransferQueueAgentSubsystem
             return ActiveTransferCancellationResult.RevisionConflict;
         }
 
+        Interrupt(active);
         return active.RequestPause()
             ? ActiveTransferCancellationResult.Accepted
             : ActiveTransferCancellationResult.AlreadyRequested;
+    }
+
+    /// <summary>Tells whoever watches the connections that this transfer is about to be stopped on purpose.</summary>
+    private void Interrupt(ActiveExecutionControl active)
+    {
+        foreach (var profile in active.Profiles)
+        {
+            try
+            {
+                _onInterrupted?.Invoke(profile);
+            }
+            catch (Exception)
+            {
+                // A courtesy to the connection cards; stopping the transfer does not depend on it.
+            }
+        }
     }
 
     public async Task<SubsystemInitializationResult> InitializeAsync(CancellationToken cancellationToken)
@@ -516,7 +544,10 @@ public sealed class TransferQueueAgentSubsystem
             }
 
             using var executionLifetime = CancellationTokenSource.CreateLinkedTokenSource(hostCancellationToken);
-            var activeControl = new ActiveExecutionControl(context.Job.State.Revision, executionLifetime);
+            var activeControl = new ActiveExecutionControl(context.Job.State.Revision, executionLifetime)
+            {
+                Profiles = [context.Job.Intent.Source.ProfileId, context.Job.Intent.Destination.ProfileId],
+            };
             if (!_activeExecutions.TryAdd(context.Lease.TransferJobId, activeControl))
             {
                 throw new InvalidOperationException("The transfer already has an active local execution.");
@@ -1170,6 +1201,9 @@ public sealed class TransferQueueAgentSubsystem
     {
         private int _cancellationRequestedByUser;
         private int _pauseRequestedByUser;
+
+        /// <summary>The connections this execution reads from and writes to.</summary>
+        public Domain.Identifiers.ConnectionProfileId[] Profiles { get; init; } = [];
 
         public long ExpectedRevision { get; } = expectedRevision;
 

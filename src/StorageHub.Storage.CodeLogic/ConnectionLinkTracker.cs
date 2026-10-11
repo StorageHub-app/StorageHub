@@ -63,11 +63,44 @@ public sealed class ConnectionLinkTracker
     /// <summary>More connections than anybody saves; past it, the quietest are forgotten.</summary>
     private const int MaximumTracked = 512;
 
+    /// <summary>
+    /// How long after somebody interrupts a transfer that a dropped session is taken to be theirs.
+    /// The library drops the session when a read is cancelled and opens another a moment later, so
+    /// it is over within a second or two; this leaves room for a slow server.
+    /// </summary>
+    internal static readonly TimeSpan InterruptionWindow = TimeSpan.FromSeconds(10);
+
     private readonly object _gate = new();
     private readonly Dictionary<ConnectionProfileId, (ConnectionLinkState State, DateTimeOffset At)> _states = [];
+    private readonly Dictionary<ConnectionProfileId, DateTimeOffset> _interrupted = [];
 
     /// <summary>Raised outside the lock, once per change, in the order the changes happened.</summary>
     public event Action<ConnectionLinkChange>? Changed;
+
+    /// <summary>
+    /// Somebody has cancelled or paused a transfer on this connection, so the session it was using
+    /// is about to be dropped by the library, and that is not the connection failing.
+    /// </summary>
+    /// <remarks>
+    /// Cancelling a read part way through leaves an SFTP session in no state to be reused, so the
+    /// library retires it and reports a lost connection, then opens another a moment later. Left
+    /// alone that read as "Lost" and then "Connected again" on the card of a connection that never
+    /// stopped answering, for nothing more than pressing Cancel. A loss reported just after this is
+    /// taken to be that, and is not recorded; one reported at any other time still is.
+    /// </remarks>
+    public void Interrupted(ConnectionProfileId profile, DateTimeOffset at)
+    {
+        if (profile.IsEmpty) return;
+        lock (_gate)
+        {
+            _interrupted[profile] = at;
+            if (_interrupted.Count > MaximumTracked)
+            {
+                var oldest = _interrupted.MinBy(static pair => pair.Value).Key;
+                _interrupted.Remove(oldest);
+            }
+        }
+    }
 
     /// <summary>The library is about to try an operation again.</summary>
     public void Retrying(ConnectionProfileId profile, int attempt, string? errorCode, DateTimeOffset at) =>
@@ -117,6 +150,15 @@ public sealed class ConnectionLinkTracker
         {
             var known = _states.TryGetValue(profile, out var current);
             if (from is not null && (!known || !from.Contains(current.State))) return;
+
+            // A session dropped because a transfer on it was cancelled is not the link failing.
+            if (state == ConnectionLinkState.Lost &&
+                _interrupted.TryGetValue(profile, out var interruptedAt) &&
+                at >= interruptedAt - TimeSpan.FromSeconds(1) &&
+                at <= interruptedAt + InterruptionWindow)
+            {
+                return;
+            }
             if (known && current.State == state) return;
 
             // Retrying after it was already lost is still lost: the retry is the library working
