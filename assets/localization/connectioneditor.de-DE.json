@@ -144,5 +144,7 @@
   "testConnectTimedOut": "Der Server hat nicht rechtzeitig geantwortet.",
   "testConnectFailed": "Der Server war nicht erreichbar. Prüfen Sie Host, Port und einen etwaigen Proxy.",
   "testBrowseFailed": "Verbunden, aber der Startordner konnte nicht aufgelistet werden. Prüfen Sie den Pfad und die Rechte des Kontos.",
+  "selectServiceAccountKey": "Google Cloud-Dienstkontoschlüssel auswählen",
+  "serviceAccountKeyFiles": "Dienstkontoschlüssel",
   "culture": "de-DE"
 }

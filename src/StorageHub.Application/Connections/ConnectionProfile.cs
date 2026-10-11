@@ -21,7 +21,10 @@ public enum ConnectionProviderKind
     Ftps = 4,
     Sftp = 5,
     Ssh = 6,
-    WebDav = 7
+    WebDav = 7,
+    AzureBlob = 8,
+    GoogleCloudStorage = 9,
+    OpenStackSwift = 10
 }
 
 public enum TlsCertificatePolicy
@@ -970,6 +973,271 @@ public sealed record WebDavEndpoint : ConnectionEndpoint
     }
 }
 
+/// <summary>
+/// An Azure Blob Storage container: its name, the Blob service it lives in, and a prefix below it
+/// that the connection treats as its root.
+/// </summary>
+/// <remarks>
+/// The service URL is absent exactly when the connection signs in with a connection string, which
+/// names its own endpoint. Otherwise it is an HTTPS URL such as
+/// <c>https://account.blob.core.windows.net/</c>: CL.Storage sends a shared key, a SAS token or an
+/// Azure identity only over HTTPS. Plain HTTP can therefore only come from a connection string,
+/// such as an Azurite emulator's, and has to be acknowledged here before the connector lets one
+/// through.
+/// </remarks>
+public sealed record AzureBlobEndpoint : ConnectionEndpoint
+{
+    public AzureBlobEndpoint(
+        string container,
+        Uri? serviceUri = null,
+        bool allowInsecureHttp = false,
+        string? rootPrefix = null)
+        : base(ConnectionProviderKind.AzureBlob)
+    {
+        Container = ValidateContainer(container);
+        if (serviceUri is not null)
+        {
+            if (!serviceUri.IsAbsoluteUri || serviceUri.Scheme != Uri.UriSchemeHttps ||
+                string.IsNullOrEmpty(serviceUri.Host))
+            {
+                throw new ArgumentException("The Azure Blob service URL must be an absolute HTTPS URL.", nameof(serviceUri));
+            }
+
+            RejectCredentialBearingUri(serviceUri, nameof(serviceUri));
+            if (serviceUri.AbsoluteUri.Length > 2_048)
+            {
+                throw new ArgumentOutOfRangeException(nameof(serviceUri), "The Azure Blob service URL cannot exceed 2,048 characters.");
+            }
+
+            if (allowInsecureHttp)
+            {
+                throw new ArgumentException(
+                    "Plain HTTP can only come from a connection string; a service URL is always HTTPS.",
+                    nameof(allowInsecureHttp));
+            }
+        }
+
+        ServiceUri = serviceUri;
+        AllowInsecureHttp = allowInsecureHttp;
+        RootPrefix = NormalizeProviderRoot(rootPrefix, nameof(rootPrefix));
+    }
+
+    /// <summary>The container, named as Azure requires: 3 to 63 lower-case letters, digits and single hyphens.</summary>
+    public string Container { get; }
+
+    /// <summary>The Blob service URL, or null when a connection string supplies it.</summary>
+    public Uri? ServiceUri { get; }
+
+    /// <summary>Whether a connection string may name a plain-HTTP endpoint, as a local emulator's does.</summary>
+    public bool AllowInsecureHttp { get; }
+
+    public string RootPrefix { get; }
+
+    private static string ValidateContainer(string container)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(container);
+        var value = container.Trim();
+        if (value.Length is < 3 or > 63 ||
+            !value.All(static character => char.IsAsciiLetterLower(character) || char.IsAsciiDigit(character) || character == '-') ||
+            value[0] == '-' || value[^1] == '-' ||
+            value.Contains("--", StringComparison.Ordinal))
+        {
+            throw new ArgumentException(
+                "The Azure container name must be 3 to 63 lower-case letters, digits and single hyphens.",
+                nameof(container));
+        }
+
+        return value;
+    }
+}
+
+/// <summary>
+/// A Google Cloud Storage bucket: its name, an optional JSON API endpoint other than Google's, and a
+/// prefix below the bucket that the connection treats as its root.
+/// </summary>
+/// <remarks>
+/// With no service URL the connection talks to <c>https://storage.googleapis.com</c>. One is given
+/// for a private endpoint or an emulator such as fake-gcs-server; CL.Storage appends the
+/// <c>storage/v1/</c> path itself. Plain HTTP is refused unless acknowledged, as WebDAV's is.
+/// </remarks>
+public sealed record GoogleCloudStorageEndpoint : ConnectionEndpoint
+{
+    public GoogleCloudStorageEndpoint(
+        string bucket,
+        Uri? serviceUri = null,
+        bool allowInsecureHttp = false,
+        string? rootPrefix = null)
+        : base(ConnectionProviderKind.GoogleCloudStorage)
+    {
+        Bucket = ValidateBucket(bucket);
+        var isHttp = false;
+        if (serviceUri is not null)
+        {
+            if (!serviceUri.IsAbsoluteUri ||
+                (serviceUri.Scheme != Uri.UriSchemeHttp && serviceUri.Scheme != Uri.UriSchemeHttps) ||
+                string.IsNullOrEmpty(serviceUri.Host))
+            {
+                throw new ArgumentException(
+                    "The Cloud Storage service URL must be an absolute HTTP or HTTPS URL.", nameof(serviceUri));
+            }
+
+            RejectCredentialBearingUri(serviceUri, nameof(serviceUri));
+            if (serviceUri.AbsoluteUri.Length > 2_048)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(serviceUri), "The Cloud Storage service URL cannot exceed 2,048 characters.");
+            }
+
+            isHttp = serviceUri.Scheme == Uri.UriSchemeHttp;
+            if (isHttp && !allowInsecureHttp)
+            {
+                throw new ArgumentException(
+                    "A plain-HTTP Cloud Storage endpoint is insecure and requires explicit acknowledgement.",
+                    nameof(allowInsecureHttp));
+            }
+        }
+
+        ServiceUri = serviceUri;
+        AllowInsecureHttp = isHttp;
+        RootPrefix = NormalizeProviderRoot(rootPrefix, nameof(rootPrefix));
+    }
+
+    /// <summary>The bucket, named as Google requires.</summary>
+    public string Bucket { get; }
+
+    /// <summary>The JSON API endpoint, or null for Google's own.</summary>
+    public Uri? ServiceUri { get; }
+
+    /// <summary>Whether the service URL is plain HTTP, which was acknowledged when it was given.</summary>
+    public bool AllowInsecureHttp { get; }
+
+    public string RootPrefix { get; }
+
+    /// <summary>
+    /// Google's bucket naming rules: 3 to 63 lower-case letters, digits, hyphens and underscores,
+    /// starting and ending with a letter or digit; with dots, up to 222 characters in parts of at
+    /// most 63; and never beginning with "goog".
+    /// </summary>
+    public static bool IsValidBucketName(string value) =>
+        value.Length is >= 3 and <= 222 &&
+        (value.Contains('.', StringComparison.Ordinal) || value.Length <= 63) &&
+        value.All(static character => char.IsAsciiLetterLower(character) || char.IsAsciiDigit(character) ||
+            character is '-' or '_' or '.') &&
+        char.IsAsciiLetterOrDigit(value[0]) && char.IsAsciiLetterOrDigit(value[^1]) &&
+        value.Split('.').All(static part => part.Length is >= 1 and <= 63) &&
+        !value.StartsWith("goog", StringComparison.Ordinal);
+
+    private static string ValidateBucket(string bucket)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(bucket);
+        var value = bucket.Trim();
+        if (!IsValidBucketName(value))
+        {
+            throw new ArgumentException(
+                "The Cloud Storage bucket name must be 3 to 63 lower-case letters, digits, hyphens and underscores (222 with dots).",
+                nameof(bucket));
+        }
+
+        return value;
+    }
+}
+
+/// <summary>
+/// An OpenStack Swift container: its name, where the connection signs in, where its objects are
+/// kept, and a prefix below the container that the connection treats as its root.
+/// </summary>
+/// <remarks>
+/// Keystone and TempAuth sign in at the authentication URL and are told the storage URL in return,
+/// from Keystone's catalog (in the region, when one is named) or TempAuth's reply; a storage URL
+/// given here overrides it. A pre-issued token has nowhere to sign in, so it needs the storage URL.
+/// Plain HTTP on either URL is refused unless acknowledged, since a password or a token goes with it.
+/// </remarks>
+public sealed record SwiftEndpoint : ConnectionEndpoint
+{
+    public SwiftEndpoint(
+        string container,
+        Uri? authenticationUrl,
+        Uri? storageUrl = null,
+        string? region = null,
+        bool allowInsecureHttp = false,
+        string? rootPrefix = null)
+        : base(ConnectionProviderKind.OpenStackSwift)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(container);
+        var name = container.Trim();
+        if (name.Length > 256 || name.Contains('/', StringComparison.Ordinal) || name.Any(char.IsControl))
+        {
+            throw new ArgumentException(
+                "The Swift container name must be at most 256 characters, with no slash.", nameof(container));
+        }
+
+        if (authenticationUrl is null && storageUrl is null)
+        {
+            throw new ArgumentException(
+                "A Swift connection needs an authentication URL, a storage URL, or both.", nameof(authenticationUrl));
+        }
+
+        var plainHttp = ValidateUrl(authenticationUrl, nameof(authenticationUrl)) |
+            ValidateUrl(storageUrl, nameof(storageUrl));
+        if (plainHttp && !allowInsecureHttp)
+        {
+            throw new ArgumentException(
+                "A plain-HTTP Swift endpoint is insecure and requires explicit acknowledgement.",
+                nameof(allowInsecureHttp));
+        }
+
+        if (region is not null && (string.IsNullOrWhiteSpace(region) || region.Length > 64 || region.Any(char.IsControl)))
+        {
+            throw new ArgumentException("The Swift region is invalid.", nameof(region));
+        }
+
+        Container = name;
+        AuthenticationUrl = authenticationUrl;
+        StorageUrl = storageUrl;
+        Region = region?.Trim();
+        AllowInsecureHttp = plainHttp;
+        RootPrefix = NormalizeProviderRoot(rootPrefix, nameof(rootPrefix));
+    }
+
+    public string Container { get; }
+
+    /// <summary>Keystone's or TempAuth's URL, such as <c>https://keystone.example.com/v3</c>.</summary>
+    public Uri? AuthenticationUrl { get; }
+
+    /// <summary>The object-store URL, account and all; null to take the one sign-in returns.</summary>
+    public Uri? StorageUrl { get; }
+
+    /// <summary>The Keystone catalog region to take the storage URL from, or null for the first.</summary>
+    public string? Region { get; }
+
+    /// <summary>Whether a URL is plain HTTP, which was acknowledged when it was given.</summary>
+    public bool AllowInsecureHttp { get; }
+
+    public string RootPrefix { get; }
+
+    private static bool ValidateUrl(Uri? url, string parameterName)
+    {
+        if (url is null)
+        {
+            return false;
+        }
+
+        if (!url.IsAbsoluteUri || (url.Scheme != Uri.UriSchemeHttp && url.Scheme != Uri.UriSchemeHttps) ||
+            string.IsNullOrEmpty(url.Host))
+        {
+            throw new ArgumentException("A Swift URL must be an absolute HTTP or HTTPS URL.", parameterName);
+        }
+
+        RejectCredentialBearingUri(url, parameterName);
+        if (url.AbsoluteUri.Length > 2_048)
+        {
+            throw new ArgumentOutOfRangeException(parameterName, "A Swift URL cannot exceed 2,048 characters.");
+        }
+
+        return url.Scheme == Uri.UriSchemeHttp;
+    }
+}
+
 public abstract record ConnectionAuthentication;
 
 public sealed record NoAuthentication : ConnectionAuthentication;
@@ -1036,6 +1304,145 @@ public sealed record BearerTokenAuthentication : ConnectionAuthentication
     }
 
     public SecretReference TokenReference { get; }
+}
+
+/// <summary>
+/// The agent's own identity on a cloud platform, with nothing stored in the profile: for Azure,
+/// the Azure identity chain (a service principal in the environment, a managed or workload
+/// identity, or the Azure CLI's sign-in); for Google Cloud, Application Default Credentials.
+/// </summary>
+public sealed record AmbientCredentialAuthentication : ConnectionAuthentication;
+
+/// <summary>
+/// An OpenStack Keystone v3 password sign-in: the user, the project the token is scoped to, and the
+/// domains each belongs to, with the password kept in the vault.
+/// </summary>
+public sealed record KeystonePasswordAuthentication : ConnectionAuthentication
+{
+    public KeystonePasswordAuthentication(
+        string username,
+        SecretReference passwordReference,
+        string projectName,
+        string userDomainName = "Default",
+        string projectDomainName = "Default")
+    {
+        Username = Name(username, nameof(username));
+        if (!SecretReference.TryParse(passwordReference.Value, out _))
+        {
+            throw new ArgumentException("The password secret reference is invalid.", nameof(passwordReference));
+        }
+
+        PasswordReference = passwordReference;
+        ProjectName = Name(projectName, nameof(projectName));
+        UserDomainName = Name(userDomainName, nameof(userDomainName));
+        ProjectDomainName = Name(projectDomainName, nameof(projectDomainName));
+    }
+
+    public string Username { get; }
+    public SecretReference PasswordReference { get; }
+    public string ProjectName { get; }
+    public string UserDomainName { get; }
+    public string ProjectDomainName { get; }
+
+    private static string Name(string value, string parameterName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value, parameterName);
+        if (value.Length > 255 || value.Any(char.IsControl))
+        {
+            throw new ArgumentException("The Keystone name is invalid.", parameterName);
+        }
+
+        return value.Trim();
+    }
+}
+
+/// <summary>
+/// A Google Cloud service-account key, the JSON file Google hands out, kept whole in the vault:
+/// it carries the account's private key.
+/// </summary>
+public sealed record GoogleServiceAccountAuthentication : ConnectionAuthentication
+{
+    public GoogleServiceAccountAuthentication(SecretReference serviceAccountJsonReference)
+    {
+        if (!SecretReference.TryParse(serviceAccountJsonReference.Value, out _))
+        {
+            throw new ArgumentException(
+                "The service-account secret reference is invalid.",
+                nameof(serviceAccountJsonReference));
+        }
+
+        ServiceAccountJsonReference = serviceAccountJsonReference;
+    }
+
+    public SecretReference ServiceAccountJsonReference { get; }
+}
+
+/// <summary>An Azure storage account's name and one of its shared keys, the key kept in the vault.</summary>
+public sealed record AzureSharedKeyAuthentication : ConnectionAuthentication
+{
+    public AzureSharedKeyAuthentication(string accountName, SecretReference accountKeyReference)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(accountName);
+        var name = accountName.Trim();
+        if (name.Length is < 3 or > 24 ||
+            !name.All(static character => char.IsAsciiLetterLower(character) || char.IsAsciiDigit(character)))
+        {
+            throw new ArgumentException(
+                "The Azure storage account name must be 3 to 24 lower-case letters and digits.",
+                nameof(accountName));
+        }
+
+        if (!SecretReference.TryParse(accountKeyReference.Value, out _))
+        {
+            throw new ArgumentException("The account-key secret reference is invalid.", nameof(accountKeyReference));
+        }
+
+        AccountName = name;
+        AccountKeyReference = accountKeyReference;
+    }
+
+    public string AccountName { get; }
+    public SecretReference AccountKeyReference { get; }
+}
+
+/// <summary>
+/// An Azure shared access signature, the query string that grants access to the container, kept
+/// in the vault: anyone holding it has whatever it grants until it expires.
+/// </summary>
+public sealed record AzureSasTokenAuthentication : ConnectionAuthentication
+{
+    public AzureSasTokenAuthentication(SecretReference sasTokenReference)
+    {
+        if (!SecretReference.TryParse(sasTokenReference.Value, out _))
+        {
+            throw new ArgumentException("The SAS-token secret reference is invalid.", nameof(sasTokenReference));
+        }
+
+        SasTokenReference = sasTokenReference;
+    }
+
+    public SecretReference SasTokenReference { get; }
+}
+
+/// <summary>
+/// An Azure Storage connection string, kept whole in the vault because it carries the account key.
+/// It names its own endpoint, so an endpoint signed in to with one has no service URL.
+/// </summary>
+public sealed record AzureConnectionStringAuthentication : ConnectionAuthentication
+{
+    public AzureConnectionStringAuthentication(SecretReference connectionStringReference)
+    {
+        if (!SecretReference.TryParse(connectionStringReference.Value, out _))
+        {
+            throw new ArgumentException(
+                "The connection-string secret reference is invalid.",
+                nameof(connectionStringReference));
+        }
+
+        ConnectionStringReference = connectionStringReference;
+    }
+
+    public SecretReference ConnectionStringReference { get; }
 }
 
 public sealed record S3AccessKeyAuthentication : ConnectionAuthentication
@@ -1315,6 +1722,26 @@ public sealed record ConnectionProfile
                 Authentication is UsernamePasswordAuthentication ||
                 (Authentication is NoAuthentication or BearerTokenAuthentication &&
                     Endpoint is WebDavEndpoint { CredentialScheme: HttpCredentialScheme.Basic }),
+            // A connection string names its own endpoint, so it comes without a service URL, and
+            // every other sign-in needs one; plain HTTP can only come from a connection string.
+            ConnectionProviderKind.AzureBlob => Endpoint is AzureBlobEndpoint azure &&
+                (Authentication is AzureConnectionStringAuthentication
+                    ? azure.ServiceUri is null
+                    : Authentication is AzureSharedKeyAuthentication or AzureSasTokenAuthentication or
+                        AmbientCredentialAuthentication && azure.ServiceUri is not null),
+            // No sign-in at all reads a public bucket, or an emulator that checks nothing.
+            ConnectionProviderKind.GoogleCloudStorage => Authentication is
+                GoogleServiceAccountAuthentication or AmbientCredentialAuthentication or NoAuthentication,
+            // Keystone and TempAuth (a user name and password) sign in at the authentication URL; a
+            // pre-issued token goes straight to the storage URL. Only Keystone has a catalog with regions.
+            ConnectionProviderKind.OpenStackSwift => Endpoint is SwiftEndpoint swift && Authentication switch
+            {
+                KeystonePasswordAuthentication => swift.AuthenticationUrl is not null,
+                UsernamePasswordAuthentication => swift.AuthenticationUrl is not null && swift.Region is null,
+                BearerTokenAuthentication => swift.StorageUrl is not null && swift.AuthenticationUrl is null &&
+                    swift.Region is null,
+                _ => false
+            },
             _ => false
         };
         if (!valid)

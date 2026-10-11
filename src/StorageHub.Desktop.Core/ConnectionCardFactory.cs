@@ -69,6 +69,9 @@ internal static class ConnectionCardFactory
         StorageConnectionProvider.Ftp => StorageProviderKind.Ftp,
         StorageConnectionProvider.Ftps => StorageProviderKind.Ftps,
         StorageConnectionProvider.WebDav => StorageProviderKind.WebDav,
+        StorageConnectionProvider.AzureBlob => StorageProviderKind.AzureBlob,
+        StorageConnectionProvider.GoogleCloudStorage => StorageProviderKind.GoogleCloudStorage,
+        StorageConnectionProvider.OpenStackSwift => StorageProviderKind.OpenStackSwift,
         StorageConnectionProvider.Sftp => StorageProviderKind.Sftp,
         StorageConnectionProvider.Ssh => StorageProviderKind.Ssh,
         _ => throw new ArgumentOutOfRangeException(nameof(provider))

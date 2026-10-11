@@ -998,6 +998,9 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDi
         StorageConnectionProvider.Ftp => ConnectionProviderKind.Ftp,
         StorageConnectionProvider.Ftps => ConnectionProviderKind.Ftps,
         StorageConnectionProvider.WebDav => ConnectionProviderKind.WebDav,
+        StorageConnectionProvider.AzureBlob => ConnectionProviderKind.AzureBlob,
+        StorageConnectionProvider.GoogleCloudStorage => ConnectionProviderKind.GoogleCloudStorage,
+        StorageConnectionProvider.OpenStackSwift => ConnectionProviderKind.OpenStackSwift,
         StorageConnectionProvider.Sftp => ConnectionProviderKind.Sftp,
         StorageConnectionProvider.Ssh => ConnectionProviderKind.Ssh,
         _ => throw new InvalidDataException("The connection provider is invalid.")
@@ -1010,6 +1013,9 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDi
         ConnectionProviderKind.Ftp => StorageConnectionProvider.Ftp,
         ConnectionProviderKind.Ftps => StorageConnectionProvider.Ftps,
         ConnectionProviderKind.WebDav => StorageConnectionProvider.WebDav,
+        ConnectionProviderKind.AzureBlob => StorageConnectionProvider.AzureBlob,
+        ConnectionProviderKind.GoogleCloudStorage => StorageConnectionProvider.GoogleCloudStorage,
+        ConnectionProviderKind.OpenStackSwift => StorageConnectionProvider.OpenStackSwift,
         ConnectionProviderKind.Sftp => StorageConnectionProvider.Sftp,
         ConnectionProviderKind.Ssh => StorageConnectionProvider.Ssh,
         _ => throw new InvalidDataException("The saved connection provider is invalid.")

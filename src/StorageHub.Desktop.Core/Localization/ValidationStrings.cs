@@ -70,6 +70,64 @@ internal sealed class ValidationStrings : LocalizationModelBase
 
     public string ABearerTokenIsRequired { get; set; } = "A bearer token is required for bearer-token sign-in.";
 
+    public string AnAzureContainerIsRequired { get; set; } = "An Azure container is required.";
+
+    public string TheAzureContainerNameIsInvalid { get; set; } =
+        "The container name must be 3 to 63 lower-case letters, digits and single hyphens, starting and ending with a letter or digit.";
+
+    public string AnAzureServiceUrlIsRequired { get; set; } =
+        "A Blob service URL is required for SAS-token and Azure-identity sign-in.";
+
+    public string TheAzureServiceUrlIsInvalid { get; set; } =
+        "The Blob service URL must be an https:// address without a user name, query or fragment.";
+
+    public string AzurePlainHttpNeedsConnectionString { get; set; } =
+        "Plain HTTP is only for a connection string, such as Azurite's; a Blob service URL must be https://.";
+
+    public string AnAzureAccountNameIsRequired { get; set; } =
+        "A storage account name is required for shared-key sign-in.";
+
+    public string TheAzureAccountNameIsInvalid { get; set; } =
+        "The storage account name must be 3 to 24 lower-case letters and digits.";
+
+    public string AnAzureAccountKeyIsRequired { get; set; } = "An account key is required for shared-key sign-in.";
+
+    public string AnAzureSasTokenIsRequired { get; set; } = "A SAS token is required for SAS-token sign-in.";
+
+    public string AnAzureConnectionStringIsRequired { get; set; } =
+        "A connection string is required for connection-string sign-in.";
+
+    public string ACloudStorageBucketIsRequired { get; set; } = "A Cloud Storage bucket is required.";
+
+    public string TheCloudStorageBucketNameIsInvalid { get; set; } =
+        "The bucket name must be 3 to 63 lower-case letters, digits, hyphens and underscores (222 with dots), starting and ending with a letter or digit.";
+
+    public string TheCloudStorageServiceUrlIsInvalid { get; set; } =
+        "The service URL must be an http:// or https:// address with no user name, query or fragment.";
+
+    public string ServiceUrlPlainHttpNotAllowed { get; set; } =
+        "This service URL is plain HTTP. Allow plain HTTP on the trust tab, or use https://.";
+
+    public string AServiceAccountKeyIsRequired { get; set; } =
+        "A service-account key is required for service-account sign-in.";
+
+    public string ASwiftContainerIsRequired { get; set; } = "A Swift container is required.";
+
+    public string TheSwiftContainerNameIsInvalid { get; set; } =
+        "The container name must be at most 256 characters, with no slash.";
+
+    public string AnAuthenticationUrlIsRequired { get; set; } =
+        "An authentication URL is required for Keystone or TempAuth sign-in.";
+
+    public string AStorageUrlIsRequiredForAToken { get; set; } = "A storage URL is required for a pre-issued token.";
+
+    public string TheSwiftUrlIsInvalid { get; set; } =
+        "A Swift URL must be an http:// or https:// address with no user name, query or fragment.";
+
+    public string AKeystoneProjectIsRequired { get; set; } = "A Keystone project is required.";
+
+    public string ASwiftTokenIsRequired { get; set; } = "A token is required for pre-issued token sign-in.";
+
     public string AnHTTPSS3ServiceEndpointIsRequired { get; set; } = "An HTTPS S3 service endpoint is required.";
 
     public string AnS3BucketIsRequired { get; set; } = "An S3 bucket is required.";

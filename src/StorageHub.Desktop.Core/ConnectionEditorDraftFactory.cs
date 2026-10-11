@@ -26,6 +26,47 @@ public static class ConnectionEditorDraftFactory
     internal const string WebDavBearerToken = "Bearer token";
     internal const string WebDavAnonymous = "Anonymous";
 
+    /// <summary>Azure's fields: the container, and the account name and secrets of each sign-in.</summary>
+    internal const string ContainerKey = "container";
+
+    internal const string AccountNameKey = "accountName";
+
+    internal const string AccountKeyKey = "accountKeyReference";
+
+    internal const string SasTokenKey = "sasTokenReference";
+
+    internal const string ConnectionStringKey = "connectionStringReference";
+
+    // Azure's sign-in choices, matched below as written.
+    internal const string AzureSharedKey = "Shared key";
+    internal const string AzureSasToken = "SAS token";
+    internal const string AzureConnectionString = "Connection string";
+    internal const string AzureIdentity = "Azure identity";
+
+    /// <summary>Cloud Storage's service-account key, the JSON file's vault reference.</summary>
+    internal const string ServiceAccountKey = "serviceAccountKeyReference";
+
+    // Cloud Storage's sign-in choices, matched below as written.
+    internal const string GcsServiceAccount = "Service-account key";
+    internal const string GcsApplicationDefault = "Application Default Credentials";
+    internal const string GcsAnonymous = "Anonymous";
+
+    /// <summary>Swift's fields beyond the container: where it signs in, where its objects are, and Keystone's scope.</summary>
+    internal const string AuthenticationUrlKey = "authenticationUrl";
+
+    internal const string StorageUrlKey = "storageUrl";
+
+    internal const string ProjectKey = "projectName";
+
+    internal const string UserDomainKey = "userDomainName";
+
+    internal const string ProjectDomainKey = "projectDomainName";
+
+    // Swift's sign-in choices, matched below as written.
+    internal const string SwiftKeystone = "Keystone v3";
+    internal const string SwiftTempAuth = "TempAuth";
+    internal const string SwiftToken = "Pre-issued token";
+
     private const string PinnedTrustMode = "System trust + certificate pin";
     private const string HostnameTrustMode = "System trust + hostname";
 
@@ -141,8 +182,8 @@ public static class ConnectionEditorDraftFactory
     {
         defaults ??= ConnectionDefaultSettings.Get(provider, stored: null);
         var isFtp = provider is StorageProviderKind.Ftp or StorageProviderKind.Ftps;
-        // WebDAV has one timeout, for each whole request, so its editor offers that one only.
-        var hasRequestTimeout = isFtp || provider == StorageProviderKind.WebDav;
+        // WebDAV and Swift have one timeout, for each whole request, so their editors offer that one only.
+        var hasRequestTimeout = isFtp || provider is StorageProviderKind.WebDav or StorageProviderKind.OpenStackSwift;
         return new ConnectionOperationalOptionsDocument(
             // Only FTP keeps a connect and a read timeout apart, so only its editor offers them.
             ConnectTimeoutSeconds: isFtp ? ParseSeconds(values, ConnectTimeoutKey, 600, defaults.ConnectTimeoutSeconds) : defaults.ConnectTimeoutSeconds,
@@ -431,6 +472,80 @@ public static class ConnectionEditorDraftFactory
             values.Remove("sessionTokenReference");
         }
 
+        if (profile.Draft.Endpoint.Provider == StorageConnectionProvider.AzureBlob)
+        {
+            // The IPC draft's generic slots, put back in the fields each Azure sign-in has.
+            var authentication = profile.Draft.Authentication;
+            values[ContainerKey] = profile.Draft.Endpoint.Bucket ?? string.Empty;
+            values["authenticationMode"] = authentication.Kind switch
+            {
+                ConnectionAuthenticationKind.AzureSasToken => AzureSasToken,
+                ConnectionAuthenticationKind.AzureConnectionString => AzureConnectionString,
+                ConnectionAuthenticationKind.AmbientCredential => AzureIdentity,
+                _ => AzureSharedKey
+            };
+            values[AccountNameKey] = authentication.Kind == ConnectionAuthenticationKind.AzureSharedKey
+                ? authentication.Username ?? string.Empty
+                : string.Empty;
+            values[AccountKeyKey] = authentication.Kind == ConnectionAuthenticationKind.AzureSharedKey
+                ? authentication.SecretKeyReference ?? string.Empty
+                : string.Empty;
+            values[SasTokenKey] = authentication.Kind == ConnectionAuthenticationKind.AzureSasToken
+                ? authentication.SessionTokenReference ?? string.Empty
+                : string.Empty;
+            values[ConnectionStringKey] = authentication.Kind == ConnectionAuthenticationKind.AzureConnectionString
+                ? authentication.SecretKeyReference ?? string.Empty
+                : string.Empty;
+            values.Remove("bucket");
+            values.Remove("username");
+            values.Remove("secretAccessKeyReference");
+            values.Remove("sessionTokenReference");
+        }
+
+        if (profile.Draft.Endpoint.Provider == StorageConnectionProvider.OpenStackSwift)
+        {
+            // The IPC draft's generic slots, put back in the fields Swift's editor has.
+            var endpoint = profile.Draft.Endpoint;
+            var authentication = profile.Draft.Authentication;
+            values[ReadTimeoutKey] = profile.Draft.OperationalOptions.OperationTimeoutSeconds
+                .ToString(CultureInfo.InvariantCulture);
+            values[ContainerKey] = endpoint.Bucket ?? string.Empty;
+            values[AuthenticationUrlKey] = endpoint.ServiceEndpoint ?? string.Empty;
+            values[StorageUrlKey] = endpoint.StorageUrl ?? string.Empty;
+            values["region"] = endpoint.Region ?? string.Empty;
+            values["authenticationMode"] = authentication.Kind switch
+            {
+                ConnectionAuthenticationKind.UsernamePassword => SwiftTempAuth,
+                ConnectionAuthenticationKind.BearerToken => SwiftToken,
+                _ => SwiftKeystone
+            };
+            values[ProjectKey] = authentication.Keystone?.ProjectName ?? string.Empty;
+            values[UserDomainKey] = authentication.Keystone?.UserDomainName ?? "Default";
+            values[ProjectDomainKey] = authentication.Keystone?.ProjectDomainName ?? "Default";
+            values[BearerTokenKey] = authentication.Kind == ConnectionAuthenticationKind.BearerToken
+                ? authentication.SessionTokenReference ?? string.Empty
+                : string.Empty;
+            values.Remove("bucket");
+            values.Remove("endpoint");
+            values.Remove("sessionTokenReference");
+        }
+
+        if (profile.Draft.Endpoint.Provider == StorageConnectionProvider.GoogleCloudStorage)
+        {
+            var authentication = profile.Draft.Authentication;
+            values["authenticationMode"] = authentication.Kind switch
+            {
+                ConnectionAuthenticationKind.AmbientCredential => GcsApplicationDefault,
+                ConnectionAuthenticationKind.None => GcsAnonymous,
+                _ => GcsServiceAccount
+            };
+            values[ServiceAccountKey] = authentication.Kind == ConnectionAuthenticationKind.GoogleServiceAccount
+                ? authentication.SecretKeyReference ?? string.Empty
+                : string.Empty;
+            values["endpoint"] = profile.Draft.Endpoint.ServiceEndpoint ?? string.Empty;
+            values.Remove("secretAccessKeyReference");
+        }
+
         values[ProxyAddressKey] = profile.Draft.OperationalOptions.ProxyEndpoint?.TrimEnd('/') ?? string.Empty;
         values[ProxyUsernameKey] = profile.Draft.OperationalOptions.ProxyUsername ?? string.Empty;
         values[ProxyPasswordKey] = profile.Draft.OperationalOptions.ProxyPasswordReference ?? string.Empty;
@@ -452,7 +567,260 @@ public static class ConnectionEditorDraftFactory
             StorageProviderKind.Sftp => BuildSftpEndpoint(values),
             StorageProviderKind.Ssh => BuildSshEndpoint(values),
             StorageProviderKind.WebDav => BuildWebDavEndpoint(values),
+            StorageProviderKind.AzureBlob => BuildAzureBlobEndpoint(values),
+            StorageProviderKind.GoogleCloudStorage => BuildGoogleCloudStorageEndpoint(values),
+            StorageProviderKind.OpenStackSwift => BuildSwiftEndpoint(values),
             _ => throw new ArgumentOutOfRangeException(nameof(provider))
+        };
+
+    /// <summary>
+    /// An Azure container and the Blob service it is in, checked here so a mistake is said beside
+    /// the field rather than refused by the agent.
+    /// </summary>
+    /// <remarks>
+    /// A connection string names its own endpoint, so with one the service URL is left out, and
+    /// plain HTTP, which only a connection string can lead to, is allowed only with one. A shared
+    /// key with no service URL gets the account's public one; a host name alone is taken as https://.
+    /// </remarks>
+    private static ConnectionEndpointDocument BuildAzureBlobEndpoint(IReadOnlyDictionary<string, string> values)
+    {
+        var container = Require(values, ContainerKey, Ui.Validation.AnAzureContainerIsRequired);
+        if (container.Length is < 3 or > 63 ||
+            !container.All(static character => char.IsAsciiLetterLower(character) || char.IsAsciiDigit(character) || character == '-') ||
+            container[0] == '-' || container[^1] == '-' ||
+            container.Contains("--", StringComparison.Ordinal))
+        {
+            throw new ArgumentException(Ui.Validation.TheAzureContainerNameIsInvalid, nameof(values));
+        }
+
+        var mode = Get(values, "authenticationMode") ?? AzureSharedKey;
+        var allowHttp = ParseBoolean(values, "acknowledgePlaintext");
+        string? serviceUrl = null;
+        if (mode == AzureConnectionString)
+        {
+            // The string names the endpoint; whatever was left in the URL field is not used.
+        }
+        else if (allowHttp)
+        {
+            throw new ArgumentException(Ui.Validation.AzurePlainHttpNeedsConnectionString, nameof(values));
+        }
+        else if (Get(values, "endpoint") is { } text)
+        {
+            var candidate = text.Contains("://", StringComparison.Ordinal) ? text : "https://" + text;
+            if (!Uri.TryCreate(candidate, UriKind.Absolute, out var url) ||
+                url.Scheme != Uri.UriSchemeHttps ||
+                string.IsNullOrWhiteSpace(url.Host) ||
+                !string.IsNullOrEmpty(url.UserInfo) ||
+                !string.IsNullOrEmpty(url.Query) ||
+                !string.IsNullOrEmpty(url.Fragment))
+            {
+                throw new ArgumentException(
+                    url?.Scheme == Uri.UriSchemeHttp
+                        ? Ui.Validation.AzurePlainHttpNeedsConnectionString
+                        : Ui.Validation.TheAzureServiceUrlIsInvalid,
+                    nameof(values));
+            }
+
+            serviceUrl = url.AbsoluteUri;
+        }
+        else if (mode == AzureSharedKey)
+        {
+            serviceUrl = $"https://{ValidAccountName(values)}.blob.core.windows.net/";
+        }
+        else
+        {
+            throw new ArgumentException(Ui.Validation.AnAzureServiceUrlIsRequired, nameof(values));
+        }
+
+        return new ConnectionEndpointDocument(
+            StorageConnectionProvider.AzureBlob,
+            RootPath: NormalizeProviderRoot(Get(values, "prefix")),
+            Bucket: container,
+            ServiceEndpoint: serviceUrl,
+            AllowInsecureTransport: mode == AzureConnectionString && allowHttp);
+    }
+
+    private static string ValidAccountName(IReadOnlyDictionary<string, string> values)
+    {
+        var name = Require(values, AccountNameKey, Ui.Validation.AnAzureAccountNameIsRequired);
+        return name.Length is >= 3 and <= 24 &&
+            name.All(static character => char.IsAsciiLetterLower(character) || char.IsAsciiDigit(character))
+                ? name
+                : throw new ArgumentException(Ui.Validation.TheAzureAccountNameIsInvalid, nameof(values));
+    }
+
+    /// <summary>Azure's sign-in; the fields of the modes not chosen are left out of the draft.</summary>
+    private static ConnectionAuthenticationDocument BuildAzureAuthentication(
+        IReadOnlyDictionary<string, string> values) => (Get(values, "authenticationMode") ?? AzureSharedKey) switch
+        {
+            AzureSasToken => new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.AzureSasToken,
+                SessionTokenReference: Require(values, SasTokenKey, Ui.Validation.AnAzureSasTokenIsRequired)),
+            AzureConnectionString => new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.AzureConnectionString,
+                SecretKeyReference: Require(values, ConnectionStringKey, Ui.Validation.AnAzureConnectionStringIsRequired)),
+            AzureIdentity => new ConnectionAuthenticationDocument(ConnectionAuthenticationKind.AmbientCredential),
+            _ => new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.AzureSharedKey,
+                Username: ValidAccountName(values),
+                SecretKeyReference: Require(values, AccountKeyKey, Ui.Validation.AnAzureAccountKeyIsRequired))
+        };
+
+    /// <summary>
+    /// A Cloud Storage bucket and, for a private endpoint or an emulator, the service it is in,
+    /// checked here so a mistake is said beside the field rather than refused by the agent.
+    /// </summary>
+    /// <remarks>
+    /// No service URL is Google's own. A host name alone is taken as https://, and plain HTTP has
+    /// to be allowed on the trust tab, as WebDAV's does; allowing it with no plain-HTTP URL to
+    /// apply to means nothing and is left off.
+    /// </remarks>
+    private static ConnectionEndpointDocument BuildGoogleCloudStorageEndpoint(IReadOnlyDictionary<string, string> values)
+    {
+        var bucket = Require(values, "bucket", Ui.Validation.ACloudStorageBucketIsRequired);
+        if (!IsValidCloudStorageBucket(bucket))
+        {
+            throw new ArgumentException(Ui.Validation.TheCloudStorageBucketNameIsInvalid, nameof(values));
+        }
+
+        string? serviceUrl = null;
+        var plainHttp = false;
+        if (Get(values, "endpoint") is { } text)
+        {
+            var candidate = text.Contains("://", StringComparison.Ordinal) ? text : "https://" + text;
+            if (!Uri.TryCreate(candidate, UriKind.Absolute, out var url) ||
+                (url.Scheme != Uri.UriSchemeHttps && url.Scheme != Uri.UriSchemeHttp) ||
+                string.IsNullOrWhiteSpace(url.Host) ||
+                !string.IsNullOrEmpty(url.UserInfo) ||
+                !string.IsNullOrEmpty(url.Query) ||
+                !string.IsNullOrEmpty(url.Fragment))
+            {
+                throw new ArgumentException(Ui.Validation.TheCloudStorageServiceUrlIsInvalid, nameof(values));
+            }
+
+            plainHttp = url.Scheme == Uri.UriSchemeHttp;
+            if (plainHttp && !ParseBoolean(values, "acknowledgePlaintext"))
+            {
+                throw new ArgumentException(Ui.Validation.ServiceUrlPlainHttpNotAllowed, nameof(values));
+            }
+
+            serviceUrl = url.AbsoluteUri;
+        }
+
+        return new ConnectionEndpointDocument(
+            StorageConnectionProvider.GoogleCloudStorage,
+            RootPath: NormalizeProviderRoot(Get(values, "prefix")),
+            Bucket: bucket,
+            ServiceEndpoint: serviceUrl,
+            AllowInsecureTransport: plainHttp);
+    }
+
+    /// <summary>Google's bucket naming rules, as the agent checks them.</summary>
+    private static bool IsValidCloudStorageBucket(string value) =>
+        value.Length is >= 3 and <= 222 &&
+        (value.Contains('.', StringComparison.Ordinal) || value.Length <= 63) &&
+        value.All(static character => char.IsAsciiLetterLower(character) || char.IsAsciiDigit(character) ||
+            character is '-' or '_' or '.') &&
+        char.IsAsciiLetterOrDigit(value[0]) && char.IsAsciiLetterOrDigit(value[^1]) &&
+        value.Split('.').All(static part => part.Length is >= 1 and <= 63) &&
+        !value.StartsWith("goog", StringComparison.Ordinal);
+
+    /// <summary>Cloud Storage's sign-in; the key is left out of the draft unless it is the one chosen.</summary>
+    private static ConnectionAuthenticationDocument BuildGoogleCloudStorageAuthentication(
+        IReadOnlyDictionary<string, string> values) => (Get(values, "authenticationMode") ?? GcsServiceAccount) switch
+        {
+            GcsApplicationDefault => new ConnectionAuthenticationDocument(ConnectionAuthenticationKind.AmbientCredential),
+            GcsAnonymous => new ConnectionAuthenticationDocument(ConnectionAuthenticationKind.None),
+            _ => new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.GoogleServiceAccount,
+                SecretKeyReference: Require(values, ServiceAccountKey, Ui.Validation.AServiceAccountKeyIsRequired))
+        };
+
+    /// <summary>
+    /// A Swift container and where it is reached, checked here so a mistake is said beside the
+    /// field rather than refused by the agent.
+    /// </summary>
+    /// <remarks>
+    /// Keystone and TempAuth need the authentication URL and may override the storage URL; a
+    /// pre-issued token needs the storage URL and has nowhere else to go, so the other fields are
+    /// left out of its draft, as the region is of everything but Keystone. A host name alone is
+    /// taken as https://, and plain HTTP has to be allowed on the trust tab.
+    /// </remarks>
+    private static ConnectionEndpointDocument BuildSwiftEndpoint(IReadOnlyDictionary<string, string> values)
+    {
+        var container = Require(values, ContainerKey, Ui.Validation.ASwiftContainerIsRequired);
+        if (container.Length > 256 || container.Contains('/', StringComparison.Ordinal))
+        {
+            throw new ArgumentException(Ui.Validation.TheSwiftContainerNameIsInvalid, nameof(values));
+        }
+
+        var mode = Get(values, "authenticationMode") ?? SwiftKeystone;
+        var allowHttp = ParseBoolean(values, "acknowledgePlaintext");
+        var plainHttp = false;
+        string? authenticationUrl = null;
+        string? storageUrl;
+        if (mode == SwiftToken)
+        {
+            storageUrl = SwiftUrl(Require(values, StorageUrlKey, Ui.Validation.AStorageUrlIsRequiredForAToken));
+        }
+        else
+        {
+            authenticationUrl = SwiftUrl(Require(values, AuthenticationUrlKey, Ui.Validation.AnAuthenticationUrlIsRequired));
+            storageUrl = Get(values, StorageUrlKey) is { } text ? SwiftUrl(text) : null;
+        }
+
+        return new ConnectionEndpointDocument(
+            StorageConnectionProvider.OpenStackSwift,
+            RootPath: NormalizeProviderRoot(Get(values, "prefix")),
+            Bucket: container,
+            Region: mode == SwiftKeystone ? Get(values, "region") : null,
+            ServiceEndpoint: authenticationUrl,
+            AllowInsecureTransport: plainHttp,
+            StorageUrl: storageUrl);
+
+        string SwiftUrl(string text)
+        {
+            var candidate = text.Contains("://", StringComparison.Ordinal) ? text : "https://" + text;
+            if (!Uri.TryCreate(candidate, UriKind.Absolute, out var url) ||
+                (url.Scheme != Uri.UriSchemeHttps && url.Scheme != Uri.UriSchemeHttp) ||
+                string.IsNullOrWhiteSpace(url.Host) ||
+                !string.IsNullOrEmpty(url.UserInfo) ||
+                !string.IsNullOrEmpty(url.Query) ||
+                !string.IsNullOrEmpty(url.Fragment))
+            {
+                throw new ArgumentException(Ui.Validation.TheSwiftUrlIsInvalid, nameof(values));
+            }
+
+            if (url.Scheme == Uri.UriSchemeHttp)
+            {
+                plainHttp = allowHttp
+                    ? true
+                    : throw new ArgumentException(Ui.Validation.ServiceUrlPlainHttpNotAllowed, nameof(values));
+            }
+
+            return url.AbsoluteUri;
+        }
+    }
+
+    /// <summary>Swift's sign-in; the fields of the modes not chosen are left out of the draft.</summary>
+    private static ConnectionAuthenticationDocument BuildSwiftAuthentication(
+        IReadOnlyDictionary<string, string> values) => (Get(values, "authenticationMode") ?? SwiftKeystone) switch
+        {
+            SwiftTempAuth => new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.UsernamePassword,
+                Username: Require(values, "username", Ui.Validation.AUsernameIsRequired),
+                PasswordReference: Require(values, "passwordReference", Ui.Validation.AVaultPasswordReferenceIsRequired)),
+            SwiftToken => new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.BearerToken,
+                SessionTokenReference: Require(values, BearerTokenKey, Ui.Validation.ASwiftTokenIsRequired)),
+            _ => new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.KeystonePassword,
+                Username: Require(values, "username", Ui.Validation.AUsernameIsRequired),
+                PasswordReference: Require(values, "passwordReference", Ui.Validation.AVaultPasswordReferenceIsRequired),
+                Keystone: new ConnectionKeystoneDocument(
+                    Require(values, ProjectKey, Ui.Validation.AKeystoneProjectIsRequired),
+                    Get(values, UserDomainKey) ?? "Default",
+                    Get(values, ProjectDomainKey) ?? "Default"))
         };
 
     /// <summary>
@@ -727,6 +1095,9 @@ public static class ConnectionEditorDraftFactory
                     PasswordReference: Require(values, "passwordReference", Ui.Validation.AVaultPasswordReferenceIsRequired)),
             StorageProviderKind.Sftp or StorageProviderKind.Ssh => BuildSshAuthentication(values),
             StorageProviderKind.WebDav => BuildWebDavAuthentication(values),
+            StorageProviderKind.AzureBlob => BuildAzureAuthentication(values),
+            StorageProviderKind.GoogleCloudStorage => BuildGoogleCloudStorageAuthentication(values),
+            StorageProviderKind.OpenStackSwift => BuildSwiftAuthentication(values),
             _ => throw new ArgumentOutOfRangeException(nameof(provider))
         };
 
@@ -819,7 +1190,10 @@ public static class ConnectionEditorDraftFactory
                 ? endpoint.RootPath
                 : null);
         Add(values, WebDavUrlKey, endpoint.Provider == StorageConnectionProvider.WebDav ? endpoint.ServiceEndpoint : null);
-        Add(values, "prefix", endpoint.Provider == StorageConnectionProvider.S3 ? endpoint.RootPath : null);
+        Add(values, "prefix", endpoint.Provider is StorageConnectionProvider.S3 or StorageConnectionProvider.AzureBlob or
+            StorageConnectionProvider.GoogleCloudStorage or StorageConnectionProvider.OpenStackSwift
+            ? endpoint.RootPath
+            : null);
         Add(values, "host", endpoint.Host);
         Add(values, "port", endpoint.Port?.ToString(CultureInfo.InvariantCulture));
         Add(values, "bucket", endpoint.Bucket);

@@ -159,4 +159,113 @@ internal sealed class ProviderStrings : LocalizationModelBase
 
     public string WebDavPlainHttpHelp { get; set; } =
         "For a server you run yourself on your own network. The password and the files travel unencrypted.";
+
+    public string AzureBlobStorage { get; set; } = "Azure Blob Storage";
+
+    public string AzureBlobSummary { get; set; } =
+        "Files in an Azure Blob Storage container, or in the Azurite emulator.";
+
+    public string AzureBlobTrustNotice { get; set; } =
+        "The Blob service's certificate must pass system validation. A shared key, a SAS token or an Azure identity is only ever sent over HTTPS.";
+
+    public string Container { get; set; } = "Container";
+
+    public string AzureContainerHelp { get; set; } =
+        "3 to 63 lower-case letters, digits and single hyphens, as Azure names it.";
+
+    public string BlobServiceUrl { get; set; } = "Blob service URL";
+
+    public string AzureServiceUrlHelp { get; set; } =
+        "For a shared key it defaults to https://account.blob.core.windows.net/. A connection string names its own, so this is left out with one.";
+
+    public string AzureAuthenticationHelp { get; set; } =
+        "A shared key needs the account name; Azure identity uses the agent's own sign-in (an environment service principal, a managed identity or the Azure CLI).";
+
+    public string StorageAccountName { get; set; } = "Storage account name";
+
+    public string AccountKeyReference { get; set; } = "Account key reference";
+
+    public string SasTokenReference { get; set; } = "SAS token reference";
+
+    public string ConnectionStringReference { get; set; } = "Connection string reference";
+
+    public string OnlyForSharedKeySignIn { get; set; } = "Only for shared-key sign-in";
+
+    public string OnlyForSasSignIn { get; set; } = "Only for SAS-token sign-in";
+
+    public string OnlyForConnectionStringSignIn { get; set; } = "Only for connection-string sign-in";
+
+    public string AllowPlainHttpConnectionString { get; set; } = "Allow a plain-HTTP connection string";
+
+    public string AzurePlainHttpHelp { get; set; } =
+        "For the Azurite emulator on your own computer. Requests are still signed, but the files travel unencrypted.";
+
+    public string GoogleCloudStorage { get; set; } = "Google Cloud Storage";
+
+    public string GoogleCloudStorageSummary { get; set; } =
+        "Files in a Google Cloud Storage bucket, or in an emulator such as fake-gcs-server.";
+
+    public string GoogleCloudStorageTrustNotice { get; set; } =
+        "Google's certificate must pass system validation. A service-account key or Application Default Credentials are only sent over HTTPS unless you allow plain HTTP for an emulator.";
+
+    public string GcsBucketHelp { get; set; } =
+        "3 to 63 lower-case letters, digits, hyphens and underscores, as Google names it; up to 222 with dots.";
+
+    public string GcsServiceUrl { get; set; } = "Service URL";
+
+    public string GcsServiceUrlHelp { get; set; } =
+        "Leave empty for Google itself. For a private endpoint or an emulator, give its address; /storage/v1/ is added for you.";
+
+    public string GcsAuthenticationHelp { get; set; } =
+        "A service-account key is the JSON file Google gives you, kept in the vault. Application Default Credentials use the agent's own sign-in (GOOGLE_APPLICATION_CREDENTIALS, gcloud or the metadata server). Anonymous reads public buckets.";
+
+    public string ServiceAccountKeyReference { get; set; } = "Service-account key reference";
+
+    public string OnlyForServiceAccountSignIn { get; set; } = "Only for service-account sign-in";
+
+    public string GcsPlainHttpHelp { get; set; } =
+        "For an emulator on your own computer. Nothing is encrypted, a service-account sign-in included.";
+
+    public string OpenStackSwift { get; set; } = "OpenStack Swift";
+
+    public string SwiftSummary { get; set; } =
+        "Files in an OpenStack Swift container, signed in to with Keystone, TempAuth or a token.";
+
+    public string SwiftTrustNotice { get; set; } =
+        "The Swift and Keystone certificates must pass system validation. A password or a token is only sent over HTTPS unless you allow plain HTTP for a test cluster.";
+
+    public string SwiftContainerHelp { get; set; } = "Up to 256 characters, with no slash.";
+
+    public string AuthenticationUrl { get; set; } = "Authentication URL";
+
+    public string SwiftAuthenticationUrlHelp { get; set; } =
+        "Keystone's URL, such as https://keystone.example.com/v3, or TempAuth's, such as https://swift.example.com/auth/v1.0. Not used with a pre-issued token.";
+
+    public string StorageUrl { get; set; } = "Storage URL";
+
+    public string SwiftStorageUrlHelp { get; set; } =
+        "The account's object-store URL, such as https://swift.example.com/v1/AUTH_project. Leave empty to take the one sign-in returns; a pre-issued token needs it.";
+
+    public string SwiftRegion { get; set; } = "Region";
+
+    public string SwiftRegionHelp { get; set; } =
+        "The Keystone catalog region to use, when the cloud has more than one.";
+
+    public string SwiftAuthenticationHelp { get; set; } =
+        "Keystone v3 signs in with a user, a password and a project. TempAuth takes account:user and its key. A pre-issued token is sent as it is to the storage URL.";
+
+    public string KeystoneProject { get; set; } = "Project";
+
+    public string KeystoneUserDomain { get; set; } = "User domain";
+
+    public string KeystoneProjectDomain { get; set; } = "Project domain";
+
+    public string OnlyForKeystoneSignIn { get; set; } = "Only for Keystone sign-in";
+
+    public string SwiftTokenReference { get; set; } = "Auth token reference";
+
+    public string OnlyForTokenSignIn { get; set; } = "Only for a pre-issued token";
+
+    public string SwiftPlainHttpHelp { get; set; } =
+        "For a test cluster on a network you trust. The password or token travels unencrypted.";
 }

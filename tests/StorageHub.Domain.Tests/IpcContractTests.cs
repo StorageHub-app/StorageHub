@@ -180,6 +180,217 @@ public sealed class IpcContractTests
     }
 
     [Fact]
+    public void Azure_draft_carries_its_container_and_each_sign_in_only_as_opaque_references()
+    {
+        const string reference = "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+        var endpoint = new ConnectionEndpointDocument(
+            StorageConnectionProvider.AzureBlob,
+            RootPath: "team",
+            Bucket: "archive",
+            ServiceEndpoint: "https://account.blob.core.windows.net/");
+        var sharedKey = new ConnectionAuthenticationDocument(
+            ConnectionAuthenticationKind.AzureSharedKey,
+            Username: "account",
+            SecretKeyReference: reference);
+        var draft = new ConnectionProfileDraft(
+            new ConnectionProfileMetadataDocument("Archive", Tags: []),
+            endpoint,
+            sharedKey,
+            new ConnectionOperationalOptionsDocument());
+
+        Assert.True(draft.HasValidBounds);
+        var read = JsonSerializer.Deserialize<ConnectionProfileDraft>(JsonSerializer.Serialize(draft))!;
+        Assert.Equal(draft.Endpoint, read.Endpoint);
+        Assert.Equal(draft.Authentication, read.Authentication);
+        Assert.True((draft with
+        {
+            Authentication = new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.AzureSasToken, SessionTokenReference: reference)
+        }).HasValidBounds);
+        Assert.True((draft with
+        {
+            Authentication = new ConnectionAuthenticationDocument(ConnectionAuthenticationKind.AmbientCredential)
+        }).HasValidBounds);
+
+        // A connection string names its own endpoint, and only it may lead to plain HTTP.
+        var connectionString = new ConnectionAuthenticationDocument(
+            ConnectionAuthenticationKind.AzureConnectionString, SecretKeyReference: reference);
+        Assert.False((draft with { Authentication = connectionString }).HasValidBounds);
+        Assert.True((draft with
+        {
+            Endpoint = endpoint with { ServiceEndpoint = null, AllowInsecureTransport = true },
+            Authentication = connectionString
+        }).HasValidBounds);
+        Assert.False((draft with { Endpoint = endpoint with { ServiceEndpoint = null } }).HasValidBounds);
+        Assert.False((endpoint with { AllowInsecureTransport = true }).HasValidBounds);
+
+        // Secrets are references and nothing else, each in its own kind's slot.
+        Assert.False((sharedKey with { SecretKeyReference = "raw-account-key" }).HasValidBounds);
+        Assert.False((sharedKey with { Username = null }).HasValidBounds);
+        Assert.False((sharedKey with { PasswordReference = reference }).HasValidBounds);
+        Assert.False((connectionString with { Username = "account" }).HasValidBounds);
+        Assert.False(new ConnectionAuthenticationDocument(
+            ConnectionAuthenticationKind.AmbientCredential, SecretKeyReference: reference).HasValidBounds);
+        Assert.False((draft with
+        {
+            Authentication = new ConnectionAuthenticationDocument(ConnectionAuthenticationKind.S3DefaultCredentialChain)
+        }).HasValidBounds);
+    }
+
+    [Fact]
+    public void Azure_endpoint_has_a_container_and_nothing_that_belongs_to_another_provider()
+    {
+        var endpoint = new ConnectionEndpointDocument(StorageConnectionProvider.AzureBlob, Bucket: "archive");
+
+        Assert.True(endpoint.HasValidBounds);
+        Assert.False((endpoint with { Bucket = null }).HasValidBounds);
+        Assert.False((endpoint with { Host = "account.blob.core.windows.net" }).HasValidBounds);
+        Assert.False((endpoint with { Port = 443 }).HasValidBounds);
+        Assert.False((endpoint with { Region = "westeurope" }).HasValidBounds);
+        Assert.False((endpoint with { ForcePathStyle = true }).HasValidBounds);
+        Assert.False((endpoint with { TlsPolicy = ConnectionTlsCertificatePolicy.Pinned }).HasValidBounds);
+        Assert.False((endpoint with { ClientCertificatePfxReference = "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" }).HasValidBounds);
+    }
+
+    [Fact]
+    public void Cloud_storage_draft_takes_a_key_reference_the_agents_identity_or_no_sign_in()
+    {
+        const string reference = "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+        var endpoint = new ConnectionEndpointDocument(
+            StorageConnectionProvider.GoogleCloudStorage, RootPath: "team", Bucket: "archive");
+        var key = new ConnectionAuthenticationDocument(
+            ConnectionAuthenticationKind.GoogleServiceAccount, SecretKeyReference: reference);
+        var draft = new ConnectionProfileDraft(
+            new ConnectionProfileMetadataDocument("Archive", Tags: []),
+            endpoint,
+            key,
+            new ConnectionOperationalOptionsDocument());
+
+        Assert.True(draft.HasValidBounds);
+        var read = JsonSerializer.Deserialize<ConnectionProfileDraft>(JsonSerializer.Serialize(draft))!;
+        Assert.Equal(draft.Endpoint, read.Endpoint);
+        Assert.Equal(draft.Authentication, read.Authentication);
+        Assert.True((draft with
+        {
+            Authentication = new ConnectionAuthenticationDocument(ConnectionAuthenticationKind.AmbientCredential)
+        }).HasValidBounds);
+        Assert.True((draft with
+        {
+            Endpoint = endpoint with { ServiceEndpoint = "http://127.0.0.1:4443/", AllowInsecureTransport = true },
+            Authentication = new ConnectionAuthenticationDocument(ConnectionAuthenticationKind.None)
+        }).HasValidBounds);
+
+        // The key is a reference in its own slot and nothing else; S3's and Azure's sign-ins are not this one's.
+        Assert.False((key with { SecretKeyReference = "{\"type\":\"service_account\"}" }).HasValidBounds);
+        Assert.False((key with { SecretKeyReference = null }).HasValidBounds);
+        Assert.False((key with { Username = "fixture@example.iam.gserviceaccount.com" }).HasValidBounds);
+        Assert.False((key with { SessionTokenReference = reference }).HasValidBounds);
+        Assert.False((draft with
+        {
+            Authentication = new ConnectionAuthenticationDocument(ConnectionAuthenticationKind.S3DefaultCredentialChain)
+        }).HasValidBounds);
+        Assert.False((draft with
+        {
+            Authentication = new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.AzureConnectionString, SecretKeyReference: reference)
+        }).HasValidBounds);
+    }
+
+    [Fact]
+    public void Cloud_storage_endpoint_has_a_bucket_and_plain_http_only_with_a_service_url()
+    {
+        var endpoint = new ConnectionEndpointDocument(StorageConnectionProvider.GoogleCloudStorage, Bucket: "archive");
+
+        Assert.True(endpoint.HasValidBounds);
+        Assert.True((endpoint with { ServiceEndpoint = "https://storage.example.test/" }).HasValidBounds);
+        Assert.False((endpoint with { AllowInsecureTransport = true }).HasValidBounds);
+        Assert.False((endpoint with { Bucket = null }).HasValidBounds);
+        Assert.False((endpoint with { Host = "storage.googleapis.com" }).HasValidBounds);
+        Assert.False((endpoint with { Port = 443 }).HasValidBounds);
+        Assert.False((endpoint with { Region = "europe-north1" }).HasValidBounds);
+        Assert.False((endpoint with { ForcePathStyle = true }).HasValidBounds);
+        Assert.False((endpoint with { TlsPolicy = ConnectionTlsCertificatePolicy.Pinned }).HasValidBounds);
+        Assert.False((endpoint with { ClientCertificatePfxReference = "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" }).HasValidBounds);
+    }
+
+    [Fact]
+    public void Swift_draft_carries_keystones_scope_beside_the_password_and_a_token_only_with_a_storage_url()
+    {
+        const string reference = "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+        var endpoint = new ConnectionEndpointDocument(
+            StorageConnectionProvider.OpenStackSwift,
+            RootPath: "team",
+            Bucket: "archive",
+            Region: "RegionOne",
+            ServiceEndpoint: "https://keystone.example.test/v3");
+        var keystone = new ConnectionAuthenticationDocument(
+            ConnectionAuthenticationKind.KeystonePassword,
+            Username: "operator",
+            PasswordReference: reference,
+            Keystone: new ConnectionKeystoneDocument("project", "Users", "Projects"));
+        var draft = new ConnectionProfileDraft(
+            new ConnectionProfileMetadataDocument("Archive", Tags: []),
+            endpoint,
+            keystone,
+            new ConnectionOperationalOptionsDocument(30, 600, 0));
+
+        Assert.True(draft.HasValidBounds);
+        var read = JsonSerializer.Deserialize<ConnectionProfileDraft>(JsonSerializer.Serialize(draft))!;
+        Assert.Equal(draft.Endpoint, read.Endpoint);
+        Assert.Equal(draft.Authentication, read.Authentication);
+
+        // The scope is Keystone's alone, and Keystone needs it.
+        Assert.False((keystone with { Keystone = null }).HasValidBounds);
+        Assert.False((keystone with { Keystone = new ConnectionKeystoneDocument(" ") }).HasValidBounds);
+        Assert.False(new ConnectionAuthenticationDocument(
+            ConnectionAuthenticationKind.UsernamePassword,
+            Username: "test:tester",
+            PasswordReference: reference,
+            Keystone: new ConnectionKeystoneDocument("project")).HasValidBounds);
+
+        var tempAuth = new ConnectionAuthenticationDocument(
+            ConnectionAuthenticationKind.UsernamePassword, Username: "test:tester", PasswordReference: reference);
+        Assert.False((draft with { Authentication = tempAuth }).HasValidBounds);
+        Assert.True((draft with { Endpoint = endpoint with { Region = null }, Authentication = tempAuth }).HasValidBounds);
+
+        var token = new ConnectionAuthenticationDocument(ConnectionAuthenticationKind.BearerToken, SessionTokenReference: reference);
+        Assert.False((draft with { Authentication = token }).HasValidBounds);
+        Assert.True((draft with
+        {
+            Endpoint = endpoint with
+            {
+                Region = null,
+                ServiceEndpoint = null,
+                StorageUrl = "https://swift.example.test/v1/AUTH_project"
+            },
+            Authentication = token
+        }).HasValidBounds);
+    }
+
+    [Fact]
+    public void Swift_endpoint_has_a_container_a_url_and_a_storage_url_only_swift_may_carry()
+    {
+        var endpoint = new ConnectionEndpointDocument(
+            StorageConnectionProvider.OpenStackSwift,
+            Bucket: "archive",
+            ServiceEndpoint: "https://keystone.example.test/v3");
+
+        Assert.True(endpoint.HasValidBounds);
+        Assert.True((endpoint with { Bucket = new string('a', 256) }).HasValidBounds);
+        Assert.False((endpoint with { Bucket = null }).HasValidBounds);
+        Assert.False((endpoint with { ServiceEndpoint = null }).HasValidBounds);
+        Assert.False((endpoint with { Host = "swift.example.test" }).HasValidBounds);
+        Assert.False((endpoint with { Port = 443 }).HasValidBounds);
+        Assert.False((endpoint with { ForcePathStyle = true }).HasValidBounds);
+        Assert.False((endpoint with { TlsPolicy = ConnectionTlsCertificatePolicy.Pinned }).HasValidBounds);
+        Assert.False(new ConnectionEndpointDocument(
+            StorageConnectionProvider.S3,
+            Bucket: "archive",
+            Region: "eu-north-1",
+            StorageUrl: "https://swift.example.test/v1/AUTH_project").HasValidBounds);
+    }
+
+    [Fact]
     public void WebDav_endpoint_has_a_url_and_nothing_that_belongs_to_another_provider()
     {
         var endpoint = new ConnectionEndpointDocument(

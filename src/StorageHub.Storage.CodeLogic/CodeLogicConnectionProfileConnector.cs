@@ -321,9 +321,9 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
                 "The connection profile is disabled or deleted.");
         }
 
-        // FTP takes a connect and a read timeout of its own; S3 and SFTP have one timeout for both.
+        // FTP takes a connect and a read timeout of its own; S3, SFTP and Azure have one timeout for both.
         var usesHistoricalEditorDefaults = UsesHistoricalEditorDefaults(profile.OperationalOptions);
-        if (profile.Provider is ConnectionProviderKind.S3 or ConnectionProviderKind.Sftp &&
+        if (profile.Provider is ConnectionProviderKind.S3 or ConnectionProviderKind.Sftp or ConnectionProviderKind.AzureBlob &&
             profile.OperationalOptions.ConnectTimeout != profile.OperationalOptions.OperationTimeout &&
             !usesHistoricalEditorDefaults)
         {
@@ -365,6 +365,12 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
                     .ConfigureAwait(false),
                 WebDavEndpoint webDav => await BuildWebDavAsync(
                     profile, webDav, rootIdentityEvidence, cancellationToken).ConfigureAwait(false),
+                AzureBlobEndpoint azure => await BuildAzureBlobAsync(
+                    profile, azure, rootIdentityEvidence, cancellationToken).ConfigureAwait(false),
+                GoogleCloudStorageEndpoint gcs => await BuildGoogleCloudStorageAsync(
+                    profile, gcs, rootIdentityEvidence, cancellationToken).ConfigureAwait(false),
+                SwiftEndpoint swift => await BuildSwiftAsync(
+                    profile, swift, rootIdentityEvidence, cancellationToken).ConfigureAwait(false),
                 _ => throw new UnsupportedProfileException("The connection provider is not supported by this adapter.")
             };
 
@@ -891,6 +897,235 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
         return configuration;
     }
 
+    /// <summary>
+    /// An Azure Blob container, signed in to with a shared key, a SAS token, a connection string or
+    /// the agent's Azure identity, every secret read from the vault just before it is handed over.
+    /// </summary>
+    /// <remarks>
+    /// CL.Storage sends a key, a token or an identity only to an HTTPS service URL, which the
+    /// endpoint already insists on. A connection string names its own endpoint, so whether it is
+    /// plain HTTP, as an Azurite emulator's is, can only be seen here, once it is open: one that is
+    /// and was not acknowledged on the connection is refused before anything is sent.
+    /// </remarks>
+    private async ValueTask<AzureBlobConnectionConfig> BuildAzureBlobAsync(
+        ConnectionProfile profile,
+        AzureBlobEndpoint endpoint,
+        RootIdentityEvidence rootIdentityEvidence,
+        CancellationToken cancellationToken)
+    {
+        var configuration = new AzureBlobConnectionConfig
+        {
+            Enabled = true,
+            Container = endpoint.Container,
+            Prefix = endpoint.RootPrefix,
+            ServiceUri = endpoint.ServiceUri?.AbsoluteUri,
+            // The Azure SDK's network timeout bounds each read and write, not a whole transfer, so
+            // it is the connection timeout, as S3's is; its retries count after the first try.
+            TimeoutSeconds = TimeoutSeconds(profile),
+            MaxRetries = Math.Max(0, profile.OperationalOptions.Retry.MaximumAttempts - 1)
+        };
+
+        switch (profile.Authentication)
+        {
+            case AmbientCredentialAuthentication:
+                configuration.AuthenticationMode = AzureBlobAuthenticationMode.DefaultCredential;
+                break;
+            case AzureSharedKeyAuthentication sharedKey:
+                configuration.AuthenticationMode = AzureBlobAuthenticationMode.SharedKey;
+                configuration.AccountName = sharedKey.AccountName;
+                configuration.AccountKey = await OpenTextSecretAsync(
+                    sharedKey.AccountKeyReference,
+                    "azure.account-key",
+                    rootIdentityEvidence,
+                    cancellationToken).ConfigureAwait(false);
+                break;
+            case AzureSasTokenAuthentication sas:
+                configuration.AuthenticationMode = AzureBlobAuthenticationMode.SasToken;
+                configuration.SasToken = await OpenTextSecretAsync(
+                    sas.SasTokenReference,
+                    "azure.sas-token",
+                    rootIdentityEvidence,
+                    cancellationToken).ConfigureAwait(false);
+                break;
+            case AzureConnectionStringAuthentication connectionString:
+                configuration.AuthenticationMode = AzureBlobAuthenticationMode.ConnectionString;
+                configuration.ConnectionString = await OpenTextSecretAsync(
+                    connectionString.ConnectionStringReference,
+                    "azure.connection-string",
+                    rootIdentityEvidence,
+                    cancellationToken).ConfigureAwait(false);
+                if (!endpoint.AllowInsecureHttp && AzureConnectionStringNamesPlainHttp(configuration.ConnectionString))
+                {
+                    configuration.ConnectionString = null;
+                    throw new UnsupportedProfileException(
+                        "The connection string names a plain-HTTP endpoint, which the connection does not allow. Allow plain HTTP on it, or use an https endpoint.");
+                }
+
+                break;
+            default:
+                throw new UnsupportedProfileException("The selected Azure Blob authentication mode is unsupported.");
+        }
+
+        return configuration;
+    }
+
+    /// <summary>
+    /// A Google Cloud Storage bucket, signed in to with a service-account key from the vault, with
+    /// the agent's Application Default Credentials, or not at all for a public bucket or an emulator.
+    /// </summary>
+    /// <remarks>
+    /// The key goes over inline, never as a path: CL.Storage reads the JSON from the configuration,
+    /// so nothing is written to disk. Google's client keeps its own request timeout and retry
+    /// policy, which CL.Storage does not expose, so the profile's are not handed over; the editor
+    /// and Settings keep them at what the client does.
+    /// </remarks>
+    private async ValueTask<GoogleCloudConnectionConfig> BuildGoogleCloudStorageAsync(
+        ConnectionProfile profile,
+        GoogleCloudStorageEndpoint endpoint,
+        RootIdentityEvidence rootIdentityEvidence,
+        CancellationToken cancellationToken)
+    {
+        var configuration = new GoogleCloudConnectionConfig
+        {
+            Enabled = true,
+            Bucket = endpoint.Bucket,
+            Prefix = endpoint.RootPrefix,
+            ServiceUrl = endpoint.ServiceUri?.AbsoluteUri,
+            AllowInsecureHttp = endpoint.AllowInsecureHttp
+        };
+
+        switch (profile.Authentication)
+        {
+            case NoAuthentication:
+                configuration.AuthenticationMode = GoogleCloudAuthenticationMode.Anonymous;
+                break;
+            case AmbientCredentialAuthentication:
+                configuration.AuthenticationMode = GoogleCloudAuthenticationMode.ApplicationDefaultCredentials;
+                break;
+            case GoogleServiceAccountAuthentication serviceAccount:
+                configuration.AuthenticationMode = GoogleCloudAuthenticationMode.ServiceAccountJson;
+                configuration.CredentialsJson = await OpenTextSecretAsync(
+                    serviceAccount.ServiceAccountJsonReference,
+                    "gcs.service-account",
+                    rootIdentityEvidence,
+                    cancellationToken).ConfigureAwait(false);
+                break;
+            default:
+                throw new UnsupportedProfileException("The selected Cloud Storage authentication mode is unsupported.");
+        }
+
+        return configuration;
+    }
+
+    /// <summary>
+    /// An OpenStack Swift container, signed in to with a Keystone v3 password, a TempAuth user name
+    /// and password, or a pre-issued token, each secret read from the vault just before it is
+    /// handed over.
+    /// </summary>
+    /// <remarks>
+    /// CL.Storage gives Swift one HTTP timeout, for each whole request, an upload's body included,
+    /// so it is the operation timeout, as WebDAV's is. It does not retry, and it trusts the system's
+    /// certificate authorities only.
+    /// </remarks>
+    private async ValueTask<SwiftConnectionConfig> BuildSwiftAsync(
+        ConnectionProfile profile,
+        SwiftEndpoint endpoint,
+        RootIdentityEvidence rootIdentityEvidence,
+        CancellationToken cancellationToken)
+    {
+        var configuration = new SwiftConnectionConfig
+        {
+            Enabled = true,
+            Container = endpoint.Container,
+            Prefix = endpoint.RootPrefix,
+            AuthenticationUrl = endpoint.AuthenticationUrl?.AbsoluteUri,
+            StorageUrl = endpoint.StorageUrl?.AbsoluteUri,
+            Region = endpoint.Region,
+            AllowInsecureHttp = endpoint.AllowInsecureHttp,
+            TimeoutSeconds = OperationTimeoutSeconds(profile)
+        };
+
+        switch (profile.Authentication)
+        {
+            case KeystonePasswordAuthentication keystone:
+                configuration.AuthenticationMode = SwiftAuthenticationMode.KeystoneV3Password;
+                configuration.Username = keystone.Username;
+                configuration.ProjectName = keystone.ProjectName;
+                configuration.UserDomainName = keystone.UserDomainName;
+                configuration.ProjectDomainName = keystone.ProjectDomainName;
+                configuration.Password = await OpenTextSecretAsync(
+                    keystone.PasswordReference,
+                    "swift.password",
+                    rootIdentityEvidence,
+                    cancellationToken).ConfigureAwait(false);
+                break;
+            case UsernamePasswordAuthentication tempAuth:
+                configuration.AuthenticationMode = SwiftAuthenticationMode.TempAuthV1;
+                configuration.Username = tempAuth.Username;
+                configuration.Password = await OpenTextSecretAsync(
+                    tempAuth.PasswordReference,
+                    "swift.password",
+                    rootIdentityEvidence,
+                    cancellationToken).ConfigureAwait(false);
+                break;
+            case BearerTokenAuthentication token:
+                configuration.AuthenticationMode = SwiftAuthenticationMode.StaticToken;
+                configuration.Token = await OpenTextSecretAsync(
+                    token.TokenReference,
+                    "swift.token",
+                    rootIdentityEvidence,
+                    cancellationToken).ConfigureAwait(false);
+                break;
+            default:
+                throw new UnsupportedProfileException("The selected Swift authentication mode is unsupported.");
+        }
+
+        return configuration;
+    }
+
+    /// <summary>
+    /// Whether an Azure Storage connection string sends its blob requests in plain HTTP: an
+    /// explicit <c>BlobEndpoint</c> that is not https, the development-storage shortcut (Azurite on
+    /// loopback), or <c>DefaultEndpointsProtocol=http</c>. A blob endpoint that cannot be read
+    /// counts as plain, so a malformed string is refused rather than trusted.
+    /// </summary>
+    internal static bool AzureConnectionStringNamesPlainHttp(string connectionString)
+    {
+        string? blobEndpoint = null;
+        string? protocol = null;
+        var development = false;
+        foreach (var part in connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var separator = part.IndexOf('=', StringComparison.Ordinal);
+            if (separator <= 0)
+            {
+                continue;
+            }
+
+            var key = part[..separator].Trim();
+            var value = part[(separator + 1)..].Trim();
+            if (key.Equals("BlobEndpoint", StringComparison.OrdinalIgnoreCase))
+            {
+                blobEndpoint = value;
+            }
+            else if (key.Equals("DefaultEndpointsProtocol", StringComparison.OrdinalIgnoreCase))
+            {
+                protocol = value;
+            }
+            else if (key.Equals("UseDevelopmentStorage", StringComparison.OrdinalIgnoreCase))
+            {
+                development = value.Equals("true", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        if (blobEndpoint is not null)
+        {
+            return !(Uri.TryCreate(blobEndpoint, UriKind.Absolute, out var url) && url.Scheme == Uri.UriSchemeHttps);
+        }
+
+        return development || string.Equals(protocol, "http", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static FtpConnectionConfig BuildFtpBase(
         ConnectionProfile profile,
         string host,
@@ -1075,6 +1310,9 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
             FtpConnectionConfig ftp => ftp.Proxy,
             SftpConnectionConfig sftp => sftp.Proxy,
             WebDavConnectionConfig webDav => webDav.Proxy,
+            AzureBlobConnectionConfig azure => azure.Proxy,
+            GoogleCloudConnectionConfig gcs => gcs.Proxy,
+            SwiftConnectionConfig swift => swift.Proxy,
             _ => throw new UnsupportedProfileException("A local connection cannot use a proxy.")
         };
 
@@ -1157,6 +1395,25 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
                 AppendIdentityValue(hash, webDav.ServerUrl.AbsoluteUri);
                 AppendIdentityValue(hash, webDav.RootPath);
                 break;
+            case AzureBlobEndpoint azure:
+                // A connection string's endpoint is inside the secret, whose revision is evidence below.
+                AppendIdentityValue(hash, azure.ServiceUri?.AbsoluteUri);
+                AppendIdentityValue(hash, azure.Container);
+                AppendIdentityValue(hash, azure.RootPrefix);
+                break;
+            case GoogleCloudStorageEndpoint gcs:
+                AppendIdentityValue(hash, gcs.ServiceUri?.AbsoluteUri);
+                AppendIdentityValue(hash, gcs.Bucket);
+                AppendIdentityValue(hash, gcs.RootPrefix);
+                break;
+            case SwiftEndpoint swift:
+                // Keystone's catalog names the account from the project, which is part of the sign-in below.
+                AppendIdentityValue(hash, swift.AuthenticationUrl?.AbsoluteUri);
+                AppendIdentityValue(hash, swift.StorageUrl?.AbsoluteUri);
+                AppendIdentityValue(hash, swift.Region);
+                AppendIdentityValue(hash, swift.Container);
+                AppendIdentityValue(hash, swift.RootPrefix);
+                break;
         }
 
         switch (profile.Authentication)
@@ -1180,6 +1437,29 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
                 break;
             case BearerTokenAuthentication:
                 AppendIdentityValue(hash, "bearer-token");
+                break;
+            case AmbientCredentialAuthentication:
+                AppendIdentityValue(hash, "ambient-credential");
+                break;
+            case AzureSharedKeyAuthentication sharedKey:
+                AppendIdentityValue(hash, "azure-shared-key");
+                AppendIdentityValue(hash, sharedKey.AccountName);
+                break;
+            case AzureSasTokenAuthentication:
+                AppendIdentityValue(hash, "azure-sas-token");
+                break;
+            case AzureConnectionStringAuthentication:
+                AppendIdentityValue(hash, "azure-connection-string");
+                break;
+            case GoogleServiceAccountAuthentication:
+                AppendIdentityValue(hash, "gcs-service-account");
+                break;
+            case KeystonePasswordAuthentication keystone:
+                AppendIdentityValue(hash, "keystone-password");
+                AppendIdentityValue(hash, keystone.Username);
+                AppendIdentityValue(hash, keystone.UserDomainName);
+                AppendIdentityValue(hash, keystone.ProjectName);
+                AppendIdentityValue(hash, keystone.ProjectDomainName);
                 break;
             case SftpPrivateKeyAuthentication privateKey:
                 AppendIdentityValue(hash, "sftp-private-key");
@@ -1353,6 +1633,18 @@ internal sealed class PreparedCodeLogicConnection(
                     webDav.ClientCertificateContent = null;
                 }
 
+                break;
+            case AzureBlobConnectionConfig azure:
+                azure.AccountKey = null;
+                azure.SasToken = null;
+                azure.ConnectionString = null;
+                break;
+            case GoogleCloudConnectionConfig gcs:
+                gcs.CredentialsJson = null;
+                break;
+            case SwiftConnectionConfig swift:
+                swift.Password = null;
+                swift.Token = null;
                 break;
         }
     }

@@ -216,6 +216,7 @@
   "cleanupSelectFirst": "Wählen Sie die zu entfernenden Dateien aus. Dateien in Gebrauch können nicht entfernt werden.",
   "cleanupRemovedFormat": "{0} Dateien entfernt und {1} freigegeben.",
   "cleanupKeptFormat": "{0} wurden nicht entfernt: {1}",
+  "timeoutKeptByProvider": "Der eigene Client dieses Anbieters legt das Zeitlimit fest, etwa 100 Sekunden pro Anfrage.",
   "categoryAgent": "Hintergrund-Agent",
   "pageAgentDescription": "Der Agent führt Übertragungen und geplante Synchronisierungen aus. Wählen Sie, ob er bei der Anmeldung startet oder nur läuft, während StorageHub geöffnet ist.",
   "agentModeSection": "Hintergrund-Agent",

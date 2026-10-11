@@ -47,7 +47,7 @@ public sealed class WebDavProviderMigrationTests : IDisposable
 
         var upgraded = await new StorageHubDatabaseInitializer(options).InitializeAsync();
         Assert.True(upgraded.IsReady, upgraded.Message);
-        Assert.Equal(WebDavProviderSchemaMigration.SchemaVersion, upgraded.SchemaVersion);
+        Assert.Equal(SwiftProviderSchemaMigration.SchemaVersion, upgraded.SchemaVersion);
 
         // The table was not rebuilt, so the cascading trust record is still there.
         Assert.Equal(1L, await ScalarAsync(options, "SELECT count(*) FROM trust_records;"));

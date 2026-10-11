@@ -131,10 +131,11 @@ public class ConnectionManagerTests
 
     /// <summary>
     /// FTP and FTPS have an Advanced section, starting at the provider's own timeouts; SFTP has
-    /// one too, for its jump host, sessions and algorithms, every field starting empty.
+    /// one too, for its jump host, sessions and algorithms, every field starting empty; WebDAV and
+    /// Swift have their request timeout.
     /// </summary>
     [AvaloniaFact]
-    public void OnlyFtpSftpAndWebDavHaveAdvancedSettings()
+    public void OnlyFtpSftpWebDavAndSwiftHaveAdvancedSettings()
     {
         var editor = new ConnectionEditorModel(() => Controller(new FakeProfiles()));
 
@@ -158,9 +159,9 @@ public class ConnectionManagerTests
                     advanced.Fields.Where(f => f.Key != ConnectionEditorModel.JumpHostKey),
                     f => Assert.Equal(string.Empty, f.Value));
             }
-            else if (provider.Kind == StorageProviderKind.WebDav)
+            else if (provider.Kind is StorageProviderKind.WebDav or StorageProviderKind.OpenStackSwift)
             {
-                // WebDAV's one timeout bounds a whole request, so it is all its Advanced section has.
+                // WebDAV's and Swift's one timeout bounds a whole request, so it is all their Advanced section has.
                 var field = Assert.Single(advanced!.Fields);
                 Assert.Equal(ConnectionEditorDraftFactory.ReadTimeoutKey, field.Key);
                 Assert.Equal("600", field.Value);
@@ -1234,6 +1235,103 @@ public class ConnectionManagerTests
             using var stream = File.Create(Path.Combine(directory, $"connection-editor-{name}.png"));
             shot!.Save(stream, new PngBitmapEncoderOptions());
         }
+    }
+
+    /// <summary>
+    /// Photographs the editor with Azure Blob Storage chosen: the container and service URL on
+    /// General, the shared-key sign-in on Authentication, and the plain-HTTP switch on the trust tab.
+    /// </summary>
+    /// <remarks>Set STORAGEHUB_SHOT_DIR to keep the files.</remarks>
+    [AvaloniaFact]
+    public async Task TheAzureBlobEditorCanBePhotographed()
+    {
+        var (manager, window) = await OpenEditorAsync(StorageProviderKind.AzureBlob);
+        Name(manager.Editor, "Archive");
+        Field(manager.Editor, "container").Value = "archive";
+        Field(manager.Editor, "endpoint").Value = "https://studio.blob.core.windows.net/";
+        Field(manager.Editor, "prefix").Value = "team/reports";
+        Field(manager.Editor, "accountName").Value = "studio";
+        Assert.Equal("Shared key", Field(manager.Editor, "authenticationMode").Value);
+
+        ShootEditor(window, ConnectionEditorTab.General, "azure-general", 900);
+        ShootEditor(window, ConnectionEditorTab.Authentication, "azure-authentication", 900);
+        ShootEditor(window, ConnectionEditorTab.Trust, "azure-trust", 760);
+    }
+
+    /// <summary>
+    /// Photographs the editor with Google Cloud Storage chosen: the bucket and service URL on
+    /// General, the service-account key on Authentication, and the plain-HTTP switch on the trust tab.
+    /// </summary>
+    /// <remarks>Set STORAGEHUB_SHOT_DIR to keep the files.</remarks>
+    [AvaloniaFact]
+    public async Task TheCloudStorageEditorCanBePhotographed()
+    {
+        var (manager, window) = await OpenEditorAsync(StorageProviderKind.GoogleCloudStorage);
+        Name(manager.Editor, "Media archive");
+        Field(manager.Editor, "bucket").Value = "media-archive";
+        Field(manager.Editor, "prefix").Value = "2026/";
+        Assert.Equal("Service-account key", Field(manager.Editor, "authenticationMode").Value);
+
+        ShootEditor(window, ConnectionEditorTab.General, "gcs-general", 900);
+        ShootEditor(window, ConnectionEditorTab.Authentication, "gcs-authentication", 760);
+        ShootEditor(window, ConnectionEditorTab.Trust, "gcs-trust", 760);
+    }
+
+    /// <summary>
+    /// Photographs the editor with OpenStack Swift chosen: the container and both URLs on General,
+    /// the Keystone sign-in with its project and domains on Authentication, and the trust tab.
+    /// </summary>
+    /// <remarks>Set STORAGEHUB_SHOT_DIR to keep the files.</remarks>
+    [AvaloniaFact]
+    public async Task TheSwiftEditorCanBePhotographed()
+    {
+        var (manager, window) = await OpenEditorAsync(StorageProviderKind.OpenStackSwift);
+        Name(manager.Editor, "Research data");
+        Field(manager.Editor, "container").Value = "research";
+        Field(manager.Editor, "authenticationUrl").Value = "https://keystone.example.test:5000/v3";
+        Field(manager.Editor, "region").Value = "RegionOne";
+        Field(manager.Editor, "username").Value = "operator";
+        Field(manager.Editor, "projectName").Value = "research";
+        Assert.Equal("Keystone v3", Field(manager.Editor, "authenticationMode").Value);
+        Assert.Equal("600", Field(manager.Editor, ConnectionEditorDraftFactory.ReadTimeoutKey).Value);
+
+        ShootEditor(window, ConnectionEditorTab.General, "swift-general", 1300);
+        ShootEditor(window, ConnectionEditorTab.Authentication, "swift-authentication", 760);
+        ShootEditor(window, ConnectionEditorTab.Trust, "swift-trust", 760);
+    }
+
+    /// <summary>The manager open on a new connection of the given provider, in the light scheme.</summary>
+    private static async Task<(ConnectionManagerModel Manager, ConnectionManagerWindow Window)> OpenEditorAsync(
+        StorageProviderKind provider)
+    {
+        ColorSchemeApplier.Apply(
+            global::Avalonia.Application.Current!,
+            ColorSchemeCatalog.Resolve(id: null, preferDark: false));
+        var manager = new ConnectionManagerModel(
+            () => Controller(new FakeProfiles()),
+            keyStore: () => new KeyStoreTests.StubKeyStoreAgent());
+        await manager.OpenAsync(null, cancellationToken: TestContext.Current.CancellationToken);
+        var window = new ConnectionManagerWindow { DataContext = manager };
+        window.Show();
+        manager.Editor.Provider = ConnectionProviderCatalog.Get(provider);
+        return (manager, window);
+    }
+
+    /// <summary>Renders one editor tab, and keeps it as connection-editor-{name}.png when STORAGEHUB_SHOT_DIR is set.</summary>
+    private static void ShootEditor(ConnectionManagerWindow window, ConnectionEditorTab tab, string name, int height)
+    {
+        window.FindControl<TabControl>("PART_Tabs")!.SelectedIndex = (int)tab;
+        window.Measure(new Size(880, height));
+        window.Arrange(new Rect(0, 0, 880, height));
+        window.UpdateLayout();
+        var shot = window.CaptureRenderedFrame();
+        Assert.NotNull(shot);
+        var directory = Environment.GetEnvironmentVariable("STORAGEHUB_SHOT_DIR");
+        if (string.IsNullOrWhiteSpace(directory)) return;
+
+        Directory.CreateDirectory(directory);
+        using var stream = File.Create(Path.Combine(directory, $"connection-editor-{name}.png"));
+        shot!.Save(stream, new PngBitmapEncoderOptions());
     }
 
     /// <summary>A host key as the agent reports one, which is what a pin is checked against.</summary>

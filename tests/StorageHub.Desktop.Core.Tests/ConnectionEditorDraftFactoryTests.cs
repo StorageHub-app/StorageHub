@@ -12,6 +12,8 @@ public sealed class ConnectionEditorDraftFactoryTests
     [InlineData(StorageProviderKind.Sftp, 30, 0)]
     [InlineData(StorageProviderKind.Ssh, 30, 0)]
     [InlineData(StorageProviderKind.WebDav, 600, 0)]
+    [InlineData(StorageProviderKind.AzureBlob, 30, 3)]
+    [InlineData(StorageProviderKind.OpenStackSwift, 600, 0)]
     public void RemoteDraftsUseOnlyOperationalDefaultsTheirProviderCanEnforce(
         StorageProviderKind provider,
         int operationTimeoutSeconds,
@@ -401,6 +403,290 @@ public sealed class ConnectionEditorDraftFactoryTests
         }
     }
 
+    /// <summary>
+    /// A shared key with no service URL gets the account's public one; each Azure sign-in carries
+    /// only its own secret, reopens as itself, and saving it again unchanged gives the same draft.
+    /// </summary>
+    [Theory]
+    [InlineData("Shared key", ConnectionAuthenticationKind.AzureSharedKey)]
+    [InlineData("SAS token", ConnectionAuthenticationKind.AzureSasToken)]
+    [InlineData("Connection string", ConnectionAuthenticationKind.AzureConnectionString)]
+    [InlineData("Azure identity", ConnectionAuthenticationKind.AmbientCredential)]
+    public void EachAzureSignInBuildsOnlyItsOwnFieldsAndSurvivesAnEdit(string mode, ConnectionAuthenticationKind kind)
+    {
+        var values = ValidValues(StorageProviderKind.AzureBlob);
+        values["authenticationMode"] = mode;
+        values["prefix"] = "/team/reports/";
+        values["sasTokenReference"] = "shs_BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
+        values["connectionStringReference"] = "shs_CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC";
+        if (mode is "SAS token" or "Azure identity")
+        {
+            values["endpoint"] = "account.blob.core.windows.net";
+        }
+
+        var draft = ConnectionEditorDraftFactory.Build(StorageProviderKind.AzureBlob, values);
+        var reopened = ConnectionEditorDraftFactory.ToEditorValues(
+            new ConnectionProfileDocument(Guid.NewGuid(), 1, draft, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch));
+
+        Assert.True(draft.HasValidBounds);
+        Assert.Equal(kind, draft.Authentication.Kind);
+        Assert.Equal("archive", draft.Endpoint.Bucket);
+        Assert.Equal("team/reports", draft.Endpoint.RootPath);
+        Assert.Equal(
+            kind == ConnectionAuthenticationKind.AzureConnectionString ? null : "https://account.blob.core.windows.net/",
+            draft.Endpoint.ServiceEndpoint);
+        Assert.Equal(kind == ConnectionAuthenticationKind.AzureSharedKey ? "account" : null, draft.Authentication.Username);
+        Assert.Equal(
+            kind switch
+            {
+                ConnectionAuthenticationKind.AzureSharedKey => "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+                ConnectionAuthenticationKind.AzureConnectionString => "shs_CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+                _ => null
+            },
+            draft.Authentication.SecretKeyReference);
+        Assert.Equal(
+            kind == ConnectionAuthenticationKind.AzureSasToken ? "shs_BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB" : null,
+            draft.Authentication.SessionTokenReference);
+
+        Assert.Equal(mode, reopened["authenticationMode"]);
+        Assert.Equal("archive", reopened["container"]);
+        Assert.False(reopened.ContainsKey("bucket"));
+        Assert.Equal(draft, ConnectionEditorDraftFactory.Build(StorageProviderKind.AzureBlob, reopened) with
+        {
+            Metadata = draft.Metadata
+        });
+    }
+
+    /// <summary>Plain HTTP comes only with a connection string, and a service URL is only ever HTTPS.</summary>
+    [Fact]
+    public void AzureAllowsPlainHttpOnlyForAConnectionStringAndChecksNamesBesideTheFields()
+    {
+        var values = ValidValues(StorageProviderKind.AzureBlob);
+        values["acknowledgePlaintext"] = "true";
+        var sharedKey = Assert.Throws<ArgumentException>(() =>
+            ConnectionEditorDraftFactory.Build(StorageProviderKind.AzureBlob, values));
+        Assert.StartsWith(Ui.Validation.AzurePlainHttpNeedsConnectionString, sharedKey.Message, StringComparison.Ordinal);
+
+        values["authenticationMode"] = "Connection string";
+        values["connectionStringReference"] = "shs_CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC";
+        values["endpoint"] = "http://127.0.0.1:10000/devstoreaccount1";
+        var emulator = ConnectionEditorDraftFactory.Build(StorageProviderKind.AzureBlob, values);
+        Assert.True(emulator.Endpoint.AllowInsecureTransport);
+        Assert.Null(emulator.Endpoint.ServiceEndpoint);
+
+        values = ValidValues(StorageProviderKind.AzureBlob);
+        foreach (var (key, value, message) in new[]
+        {
+            ("endpoint", "http://account.blob.core.windows.net/", Ui.Validation.AzurePlainHttpNeedsConnectionString),
+            ("endpoint", "https://account.blob.core.windows.net/?sv=1&sig=secret", Ui.Validation.TheAzureServiceUrlIsInvalid),
+            ("container", "Archive", Ui.Validation.TheAzureContainerNameIsInvalid),
+            ("container", "two--hyphens", Ui.Validation.TheAzureContainerNameIsInvalid),
+            ("accountName", "Account_1", Ui.Validation.TheAzureAccountNameIsInvalid),
+            ("accountKeyReference", "", Ui.Validation.AnAzureAccountKeyIsRequired)
+        })
+        {
+            var attempt = new Dictionary<string, string>(values, StringComparer.Ordinal) { [key] = value };
+            var error = Assert.Throws<ArgumentException>(() =>
+                ConnectionEditorDraftFactory.Build(StorageProviderKind.AzureBlob, attempt));
+            Assert.StartsWith(message, error.Message, StringComparison.Ordinal);
+        }
+
+        values["authenticationMode"] = "SAS token";
+        values["sasTokenReference"] = "shs_BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
+        var noUrl = Assert.Throws<ArgumentException>(() =>
+            ConnectionEditorDraftFactory.Build(StorageProviderKind.AzureBlob, values));
+        Assert.StartsWith(Ui.Validation.AnAzureServiceUrlIsRequired, noUrl.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Google's client keeps its own request timeout and retries, which nothing in StorageHub can
+    /// change, so a Cloud Storage draft says what the client does rather than a value it would ignore.
+    /// </summary>
+    [Fact]
+    public void CloudStorageDraftsSayWhatGooglesClientDoes()
+    {
+        var stored = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["GoogleCloudStorage.connectTimeoutSeconds"] = "5"
+        };
+
+        var draft = ConnectionEditorDraftFactory.Build(
+            StorageProviderKind.GoogleCloudStorage,
+            ValidValues(StorageProviderKind.GoogleCloudStorage),
+            ConnectionDefaultSettings.Get(StorageProviderKind.GoogleCloudStorage, stored));
+
+        Assert.Equal(100, draft.OperationalOptions.ConnectTimeoutSeconds);
+        Assert.Equal(100, draft.OperationalOptions.OperationTimeoutSeconds);
+        Assert.Equal(0, draft.OperationalOptions.MaximumRetryAttempts);
+        Assert.False(ConnectionDefaultSettings.HasConfigurableTimeout(StorageProviderKind.GoogleCloudStorage));
+        Assert.True(ConnectionDefaultSettings.HasConfigurableTimeout(StorageProviderKind.AzureBlob));
+    }
+
+    /// <summary>
+    /// Each Cloud Storage sign-in carries only its own field, reopens as itself, and saving it
+    /// again unchanged gives the same draft; a service URL is kept, Google's own is no URL at all.
+    /// </summary>
+    [Theory]
+    [InlineData("Service-account key", ConnectionAuthenticationKind.GoogleServiceAccount, "")]
+    [InlineData("Application Default Credentials", ConnectionAuthenticationKind.AmbientCredential, "storage.example.test")]
+    [InlineData("Anonymous", ConnectionAuthenticationKind.None, "http://127.0.0.1:4443")]
+    public void EachCloudStorageSignInBuildsOnlyItsOwnFieldsAndSurvivesAnEdit(
+        string mode,
+        ConnectionAuthenticationKind kind,
+        string serviceUrl)
+    {
+        var values = ValidValues(StorageProviderKind.GoogleCloudStorage);
+        values["authenticationMode"] = mode;
+        values["prefix"] = "/team/reports/";
+        values["endpoint"] = serviceUrl;
+        values["acknowledgePlaintext"] = serviceUrl.StartsWith("http://", StringComparison.Ordinal) ? "true" : "false";
+
+        var draft = ConnectionEditorDraftFactory.Build(StorageProviderKind.GoogleCloudStorage, values);
+        var reopened = ConnectionEditorDraftFactory.ToEditorValues(
+            new ConnectionProfileDocument(Guid.NewGuid(), 1, draft, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch));
+
+        Assert.True(draft.HasValidBounds);
+        Assert.Equal(kind, draft.Authentication.Kind);
+        Assert.Equal("archive", draft.Endpoint.Bucket);
+        Assert.Equal("team/reports", draft.Endpoint.RootPath);
+        Assert.Equal(
+            serviceUrl switch
+            {
+                "" => null,
+                "storage.example.test" => "https://storage.example.test/",
+                _ => "http://127.0.0.1:4443/"
+            },
+            draft.Endpoint.ServiceEndpoint);
+        Assert.Equal(serviceUrl.StartsWith("http://", StringComparison.Ordinal), draft.Endpoint.AllowInsecureTransport);
+        Assert.Equal(
+            kind == ConnectionAuthenticationKind.GoogleServiceAccount ? "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" : null,
+            draft.Authentication.SecretKeyReference);
+
+        Assert.Equal(mode, reopened["authenticationMode"]);
+        Assert.False(reopened.ContainsKey("secretAccessKeyReference"));
+        Assert.Equal(draft, ConnectionEditorDraftFactory.Build(StorageProviderKind.GoogleCloudStorage, reopened) with
+        {
+            Metadata = draft.Metadata
+        });
+    }
+
+    /// <summary>A bucket is named as Google names one, and plain HTTP has to be allowed before it is used.</summary>
+    [Fact]
+    public void CloudStorageChecksTheBucketAndPlainHttpBesideTheFields()
+    {
+        var values = ValidValues(StorageProviderKind.GoogleCloudStorage);
+        foreach (var (key, value, message) in new[]
+        {
+            ("endpoint", "http://127.0.0.1:4443", Ui.Validation.ServiceUrlPlainHttpNotAllowed),
+            ("endpoint", "https://storage.example.test/?key=secret", Ui.Validation.TheCloudStorageServiceUrlIsInvalid),
+            ("endpoint", "ftp://storage.example.test/", Ui.Validation.TheCloudStorageServiceUrlIsInvalid),
+            ("bucket", "", Ui.Validation.ACloudStorageBucketIsRequired),
+            ("bucket", "Archive", Ui.Validation.TheCloudStorageBucketNameIsInvalid),
+            ("bucket", "goog-archive", Ui.Validation.TheCloudStorageBucketNameIsInvalid),
+            ("serviceAccountKeyReference", "", Ui.Validation.AServiceAccountKeyIsRequired)
+        })
+        {
+            var attempt = new Dictionary<string, string>(values, StringComparer.Ordinal) { [key] = value };
+            var error = Assert.Throws<ArgumentException>(() =>
+                ConnectionEditorDraftFactory.Build(StorageProviderKind.GoogleCloudStorage, attempt));
+            Assert.StartsWith(message, error.Message, StringComparison.Ordinal);
+        }
+
+        // Allowing plain HTTP with nothing plain to apply it to changes nothing.
+        values["acknowledgePlaintext"] = "true";
+        Assert.False(ConnectionEditorDraftFactory.Build(StorageProviderKind.GoogleCloudStorage, values)
+            .Endpoint.AllowInsecureTransport);
+    }
+
+    /// <summary>
+    /// Each Swift sign-in carries only the fields it uses, reopens as itself, and saving it again
+    /// unchanged gives the same draft: Keystone with its scope and region, TempAuth without either,
+    /// and a token with the storage URL alone.
+    /// </summary>
+    [Theory]
+    [InlineData("Keystone v3", ConnectionAuthenticationKind.KeystonePassword)]
+    [InlineData("TempAuth", ConnectionAuthenticationKind.UsernamePassword)]
+    [InlineData("Pre-issued token", ConnectionAuthenticationKind.BearerToken)]
+    public void EachSwiftSignInBuildsOnlyItsOwnFieldsAndSurvivesAnEdit(string mode, ConnectionAuthenticationKind kind)
+    {
+        var values = ValidValues(StorageProviderKind.OpenStackSwift);
+        values["authenticationMode"] = mode;
+        values["storageUrl"] = "swift.example.test/v1/AUTH_project";
+        values["region"] = "RegionOne";
+        values["prefix"] = "/team/";
+        values["userDomainName"] = "Users";
+        values["bearerTokenReference"] = "shs_BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
+        values[ConnectionEditorDraftFactory.ReadTimeoutKey] = "1200";
+
+        var draft = ConnectionEditorDraftFactory.Build(StorageProviderKind.OpenStackSwift, values);
+        var reopened = ConnectionEditorDraftFactory.ToEditorValues(
+            new ConnectionProfileDocument(Guid.NewGuid(), 1, draft, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch));
+
+        Assert.True(draft.HasValidBounds);
+        Assert.Equal(kind, draft.Authentication.Kind);
+        Assert.Equal("archive", draft.Endpoint.Bucket);
+        Assert.Equal("team", draft.Endpoint.RootPath);
+        Assert.Equal("https://swift.example.test/v1/AUTH_project", draft.Endpoint.StorageUrl);
+        Assert.Equal(1200, draft.OperationalOptions.OperationTimeoutSeconds);
+        Assert.Equal(
+            kind == ConnectionAuthenticationKind.BearerToken ? null : "https://keystone.example.test/v3",
+            draft.Endpoint.ServiceEndpoint);
+        Assert.Equal(kind == ConnectionAuthenticationKind.KeystonePassword ? "RegionOne" : null, draft.Endpoint.Region);
+        Assert.Equal(
+            kind == ConnectionAuthenticationKind.KeystonePassword
+                ? new ConnectionKeystoneDocument("project", "Users", "Default")
+                : null,
+            draft.Authentication.Keystone);
+        Assert.Equal(kind == ConnectionAuthenticationKind.BearerToken ? null : "operator", draft.Authentication.Username);
+        Assert.Equal(
+            kind == ConnectionAuthenticationKind.BearerToken ? "shs_BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB" : null,
+            draft.Authentication.SessionTokenReference);
+
+        Assert.Equal(mode, reopened["authenticationMode"]);
+        Assert.Equal("archive", reopened["container"]);
+        Assert.False(reopened.ContainsKey("bucket"));
+        Assert.Equal(draft, ConnectionEditorDraftFactory.Build(StorageProviderKind.OpenStackSwift, reopened) with
+        {
+            Metadata = draft.Metadata
+        });
+    }
+
+    /// <summary>What Swift needs is said beside the field: the container, the URL each sign-in uses, and plain HTTP allowed.</summary>
+    [Fact]
+    public void SwiftChecksItsUrlsAndContainerBesideTheFields()
+    {
+        var values = ValidValues(StorageProviderKind.OpenStackSwift);
+        foreach (var (key, value, message) in new[]
+        {
+            ("container", "", Ui.Validation.ASwiftContainerIsRequired),
+            ("container", "a/b", Ui.Validation.TheSwiftContainerNameIsInvalid),
+            ("authenticationUrl", "", Ui.Validation.AnAuthenticationUrlIsRequired),
+            ("authenticationUrl", "http://127.0.0.1:8080/auth/v1.0", Ui.Validation.ServiceUrlPlainHttpNotAllowed),
+            ("authenticationUrl", "https://keystone.example.test/v3?token=1", Ui.Validation.TheSwiftUrlIsInvalid),
+            ("storageUrl", "http://swift.example.test/v1/AUTH_p", Ui.Validation.ServiceUrlPlainHttpNotAllowed),
+            ("projectName", "", Ui.Validation.AKeystoneProjectIsRequired),
+            ("username", "", Ui.Validation.AUsernameIsRequired)
+        })
+        {
+            var attempt = new Dictionary<string, string>(values, StringComparer.Ordinal) { [key] = value };
+            var error = Assert.Throws<ArgumentException>(() =>
+                ConnectionEditorDraftFactory.Build(StorageProviderKind.OpenStackSwift, attempt));
+            Assert.StartsWith(message, error.Message, StringComparison.Ordinal);
+        }
+
+        values["authenticationMode"] = "Pre-issued token";
+        values["bearerTokenReference"] = "shs_BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
+        var noStorage = Assert.Throws<ArgumentException>(() =>
+            ConnectionEditorDraftFactory.Build(StorageProviderKind.OpenStackSwift, values));
+        Assert.StartsWith(Ui.Validation.AStorageUrlIsRequiredForAToken, noStorage.Message, StringComparison.Ordinal);
+
+        values["authenticationMode"] = "TempAuth";
+        values["authenticationUrl"] = "http://127.0.0.1:8080/auth/v1.0";
+        values["acknowledgePlaintext"] = "true";
+        var saio = ConnectionEditorDraftFactory.Build(StorageProviderKind.OpenStackSwift, values);
+        Assert.True(saio.Endpoint.AllowInsecureTransport);
+    }
+
     /// <summary>A pinned FTPS connection reopened for editing keeps its pin, rather than reverting to system trust.</summary>
     [Fact]
     public void APinnedFtpsConnectionKeepsItsTrustModeWhenEdited()
@@ -602,6 +888,31 @@ public sealed class ConnectionEditorDraftFactoryTests
             ["username"] = "operator",
             ["passwordReference"] = "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
             ["trustMode"] = "System trust + hostname"
+        },
+        StorageProviderKind.AzureBlob => new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["profileName"] = "Azure",
+            ["container"] = "archive",
+            ["authenticationMode"] = "Shared key",
+            ["accountName"] = "account",
+            ["accountKeyReference"] = "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        },
+        StorageProviderKind.GoogleCloudStorage => new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["profileName"] = "Cloud Storage",
+            ["bucket"] = "archive",
+            ["authenticationMode"] = "Service-account key",
+            ["serviceAccountKeyReference"] = "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        },
+        StorageProviderKind.OpenStackSwift => new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["profileName"] = "Swift",
+            ["container"] = "archive",
+            ["authenticationUrl"] = "https://keystone.example.test/v3",
+            ["authenticationMode"] = "Keystone v3",
+            ["username"] = "operator",
+            ["passwordReference"] = "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            ["projectName"] = "project"
         },
         _ => throw new ArgumentOutOfRangeException(nameof(provider))
     };

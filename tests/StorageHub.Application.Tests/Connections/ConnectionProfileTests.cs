@@ -381,6 +381,189 @@ public sealed class ConnectionProfileTests
     }
 
     [Fact]
+    public void Azure_names_its_container_as_azure_does_and_sends_secrets_only_to_https()
+    {
+        var endpoint = new AzureBlobEndpoint(
+            " archive-2026 ",
+            new Uri("https://account.blob.core.windows.net/"),
+            rootPrefix: "/team/reports/");
+
+        Assert.Equal(ConnectionProviderKind.AzureBlob, endpoint.Provider);
+        Assert.Equal("archive-2026", endpoint.Container);
+        Assert.Equal("team/reports", endpoint.RootPrefix);
+        Assert.False(endpoint.AllowInsecureHttp);
+        Assert.True(new AzureBlobEndpoint("emulated", allowInsecureHttp: true).AllowInsecureHttp);
+
+        foreach (var name in new[] { "ab", "Archive", "two--hyphens", "-edge", "edge-", "under_score", new string('a', 64) })
+        {
+            Assert.ThrowsAny<ArgumentException>(() => new AzureBlobEndpoint(name));
+        }
+
+        // A key or a token is only ever sent to HTTPS, so a plain-HTTP service URL is refused, and
+        // plain HTTP can only be acknowledged for a connection string, which has no service URL.
+        Assert.ThrowsAny<ArgumentException>(() => new AzureBlobEndpoint(
+            "archive", new Uri("http://127.0.0.1:10000/devstoreaccount1")));
+        Assert.ThrowsAny<ArgumentException>(() => new AzureBlobEndpoint(
+            "archive", new Uri("https://account.blob.core.windows.net/"), allowInsecureHttp: true));
+        Assert.ThrowsAny<ArgumentException>(() => new AzureBlobEndpoint(
+            "archive", new Uri("https://account.blob.core.windows.net/?sv=2024&sig=secret")));
+        Assert.ThrowsAny<ArgumentException>(() => new AzureBlobEndpoint(
+            "archive", rootPrefix: "team/../other"));
+    }
+
+    [Fact]
+    public void Azure_takes_a_connection_string_without_a_service_url_and_every_other_sign_in_with_one()
+    {
+        var service = new AzureBlobEndpoint("archive", new Uri("https://account.blob.core.windows.net/"));
+        var emulator = new AzureBlobEndpoint("archive", allowInsecureHttp: true);
+        var connectionString = new AzureConnectionStringAuthentication(SecretReference.Create());
+
+        Assert.IsType<AzureConnectionStringAuthentication>(Create(emulator, connectionString).Authentication);
+        Assert.IsType<AzureSharedKeyAuthentication>(
+            Create(service, new AzureSharedKeyAuthentication("account", SecretReference.Create())).Authentication);
+        Assert.IsType<AzureSasTokenAuthentication>(
+            Create(service, new AzureSasTokenAuthentication(SecretReference.Create())).Authentication);
+        Assert.IsType<AmbientCredentialAuthentication>(
+            Create(service, new AmbientCredentialAuthentication()).Authentication);
+
+        Assert.Throws<ArgumentException>(() => Create(service, connectionString));
+        Assert.Throws<ArgumentException>(() => Create(emulator, new AmbientCredentialAuthentication()));
+        Assert.Throws<ArgumentException>(() => Create(service, new NoAuthentication()));
+        Assert.Throws<ArgumentException>(() => Create(service, new S3DefaultCredentialChainAuthentication()));
+        Assert.Throws<ArgumentException>(() => Create(service, new UsernamePasswordAuthentication("account", Password)));
+        Assert.ThrowsAny<ArgumentException>(() => new AzureSharedKeyAuthentication("Account", SecretReference.Create()));
+        Assert.ThrowsAny<ArgumentException>(() => new AzureSharedKeyAuthentication("ab", SecretReference.Create()));
+        Assert.ThrowsAny<ArgumentException>(() => new AzureSasTokenAuthentication(default));
+        Assert.ThrowsAny<ArgumentException>(() => new AzureConnectionStringAuthentication(default));
+
+        static ConnectionProfile Create(AzureBlobEndpoint endpoint, ConnectionAuthentication authentication) =>
+            ConnectionProfile.Create(ConnectionProfileId.New(), Metadata("Azure"), endpoint, authentication,
+                OperationalOptions(), DateTimeOffset.UtcNow);
+    }
+
+    [Fact]
+    public void Cloud_storage_names_its_bucket_as_google_does_and_takes_plain_http_only_when_acknowledged()
+    {
+        var google = new GoogleCloudStorageEndpoint(" archive_2026 ", rootPrefix: "/team/reports/");
+        Assert.Equal(ConnectionProviderKind.GoogleCloudStorage, google.Provider);
+        Assert.Equal("archive_2026", google.Bucket);
+        Assert.Null(google.ServiceUri);
+        Assert.Equal("team/reports", google.RootPrefix);
+        Assert.False(google.AllowInsecureHttp);
+
+        var emulator = new GoogleCloudStorageEndpoint(
+            "archive", new Uri("http://127.0.0.1:4443/"), allowInsecureHttp: true);
+        Assert.True(emulator.AllowInsecureHttp);
+        // An acknowledgement with nothing plain to apply to is not kept.
+        Assert.False(new GoogleCloudStorageEndpoint("archive", allowInsecureHttp: true).AllowInsecureHttp);
+        Assert.Equal(
+            "www.example.com",
+            new GoogleCloudStorageEndpoint("www.example.com").Bucket);
+
+        foreach (var name in new[]
+        {
+            "ab", "Archive", "-edge", "edge-", "goog-bucket", "has space", new string('a', 64),
+            "a..b", string.Join('.', Enumerable.Repeat(new string('a', 63), 4))
+        })
+        {
+            Assert.ThrowsAny<ArgumentException>(() => new GoogleCloudStorageEndpoint(name));
+        }
+
+        Assert.ThrowsAny<ArgumentException>(() => new GoogleCloudStorageEndpoint(
+            "archive", new Uri("http://127.0.0.1:4443/")));
+        Assert.ThrowsAny<ArgumentException>(() => new GoogleCloudStorageEndpoint(
+            "archive", new Uri("https://user:secret@storage.example.test/")));
+        Assert.ThrowsAny<ArgumentException>(() => new GoogleCloudStorageEndpoint(
+            "archive", new Uri("ftp://storage.example.test/")));
+        Assert.ThrowsAny<ArgumentException>(() => new GoogleCloudStorageEndpoint(
+            "archive", rootPrefix: "team/../other"));
+    }
+
+    [Fact]
+    public void Cloud_storage_signs_in_with_a_key_the_agents_identity_or_not_at_all()
+    {
+        var endpoint = new GoogleCloudStorageEndpoint("archive");
+
+        Assert.IsType<GoogleServiceAccountAuthentication>(
+            Create(new GoogleServiceAccountAuthentication(SecretReference.Create())).Authentication);
+        Assert.IsType<AmbientCredentialAuthentication>(Create(new AmbientCredentialAuthentication()).Authentication);
+        Assert.IsType<NoAuthentication>(Create(new NoAuthentication()).Authentication);
+
+        Assert.Throws<ArgumentException>(() => Create(new S3DefaultCredentialChainAuthentication()));
+        Assert.Throws<ArgumentException>(() => Create(new UsernamePasswordAuthentication("account", Password)));
+        Assert.Throws<ArgumentException>(() => Create(new AzureSasTokenAuthentication(SecretReference.Create())));
+        Assert.ThrowsAny<ArgumentException>(() => new GoogleServiceAccountAuthentication(default));
+
+        ConnectionProfile Create(ConnectionAuthentication authentication) =>
+            ConnectionProfile.Create(ConnectionProfileId.New(), Metadata("Cloud Storage"), endpoint, authentication,
+                OperationalOptions(), DateTimeOffset.UtcNow);
+    }
+
+    [Fact]
+    public void Swift_needs_somewhere_to_sign_in_or_to_send_a_token_and_plain_http_acknowledged()
+    {
+        var endpoint = new SwiftEndpoint(
+            " archive 2026 ",
+            new Uri("https://keystone.example.test/v3"),
+            new Uri("https://swift.example.test/v1/AUTH_project"),
+            region: " RegionOne ",
+            rootPrefix: "/team/reports/");
+        Assert.Equal(ConnectionProviderKind.OpenStackSwift, endpoint.Provider);
+        Assert.Equal("archive 2026", endpoint.Container);
+        Assert.Equal("RegionOne", endpoint.Region);
+        Assert.Equal("team/reports", endpoint.RootPrefix);
+        Assert.False(endpoint.AllowInsecureHttp);
+
+        var saio = new SwiftEndpoint("archive", new Uri("http://127.0.0.1:8080/auth/v1.0"), allowInsecureHttp: true);
+        Assert.True(saio.AllowInsecureHttp);
+        // Either URL being plain is enough to need the acknowledgement.
+        Assert.ThrowsAny<ArgumentException>(() => new SwiftEndpoint(
+            "archive", new Uri("https://keystone.example.test/v3"), new Uri("http://swift.example.test/v1/AUTH_p")));
+        Assert.ThrowsAny<ArgumentException>(() => new SwiftEndpoint("archive", new Uri("http://127.0.0.1:8080/auth/v1.0")));
+        Assert.ThrowsAny<ArgumentException>(() => new SwiftEndpoint("archive", null));
+        Assert.ThrowsAny<ArgumentException>(() => new SwiftEndpoint("a/b", new Uri("https://keystone.example.test/v3")));
+        Assert.ThrowsAny<ArgumentException>(() => new SwiftEndpoint(new string('a', 257), new Uri("https://keystone.example.test/v3")));
+        Assert.ThrowsAny<ArgumentException>(() => new SwiftEndpoint(
+            "archive", new Uri("https://user:secret@keystone.example.test/v3")));
+        Assert.ThrowsAny<ArgumentException>(() => new SwiftEndpoint(
+            "archive", new Uri("https://keystone.example.test/v3"), region: " "));
+    }
+
+    [Fact]
+    public void Swift_signs_in_with_keystone_or_tempauth_at_its_url_and_sends_a_token_to_the_storage_url()
+    {
+        var keystoneUrl = new Uri("https://keystone.example.test/v3");
+        var storageUrl = new Uri("https://swift.example.test/v1/AUTH_project");
+        var keystone = new KeystonePasswordAuthentication(" operator ", Password, " project ");
+        Assert.Equal("operator", keystone.Username);
+        Assert.Equal("project", keystone.ProjectName);
+        Assert.Equal("Default", keystone.UserDomainName);
+        Assert.Equal("Default", keystone.ProjectDomainName);
+
+        Assert.IsType<KeystonePasswordAuthentication>(
+            Create(new SwiftEndpoint("archive", keystoneUrl, region: "RegionOne"), keystone).Authentication);
+        Assert.IsType<UsernamePasswordAuthentication>(
+            Create(new SwiftEndpoint("archive", keystoneUrl), new UsernamePasswordAuthentication("test:tester", Password)).Authentication);
+        Assert.IsType<BearerTokenAuthentication>(
+            Create(new SwiftEndpoint("archive", null, storageUrl), new BearerTokenAuthentication(SecretReference.Create())).Authentication);
+
+        // A token has nowhere to sign in and no catalog; TempAuth has no catalog either.
+        Assert.Throws<ArgumentException>(() => Create(
+            new SwiftEndpoint("archive", keystoneUrl, storageUrl), new BearerTokenAuthentication(SecretReference.Create())));
+        Assert.Throws<ArgumentException>(() => Create(
+            new SwiftEndpoint("archive", null, storageUrl), keystone));
+        Assert.Throws<ArgumentException>(() => Create(
+            new SwiftEndpoint("archive", keystoneUrl, region: "RegionOne"), new UsernamePasswordAuthentication("test:tester", Password)));
+        Assert.Throws<ArgumentException>(() => Create(new SwiftEndpoint("archive", keystoneUrl), new NoAuthentication()));
+        Assert.ThrowsAny<ArgumentException>(() => new KeystonePasswordAuthentication("operator", Password, " "));
+        Assert.ThrowsAny<ArgumentException>(() => new KeystonePasswordAuthentication("operator", default, "project"));
+
+        static ConnectionProfile Create(SwiftEndpoint endpoint, ConnectionAuthentication authentication) =>
+            ConnectionProfile.Create(ConnectionProfileId.New(), Metadata("Swift"), endpoint, authentication,
+                OperationalOptions(), DateTimeOffset.UtcNow);
+    }
+
+    [Fact]
     public void Provider_and_endpoint_must_match()
     {
         Assert.Throws<ArgumentException>(() => ConnectionProfile.Create(
@@ -419,6 +602,15 @@ public sealed class ConnectionProfileTests
             ConnectionProfile.Create(ConnectionProfileId.New(), Metadata("WebDAV"),
                 new WebDavEndpoint(new Uri("https://dav.example.test/files/"), TlsCertificatePolicy.SystemTrust),
                 new UsernamePasswordAuthentication("operator", Password), OperationalOptions(), now),
+            ConnectionProfile.Create(ConnectionProfileId.New(), Metadata("Azure"),
+                new AzureBlobEndpoint("archive", new Uri("https://account.blob.core.windows.net/")),
+                new AzureSharedKeyAuthentication("account", SecretReference.Create()), OperationalOptions(), now),
+            ConnectionProfile.Create(ConnectionProfileId.New(), Metadata("Cloud Storage"),
+                new GoogleCloudStorageEndpoint("archive"),
+                new GoogleServiceAccountAuthentication(SecretReference.Create()), OperationalOptions(), now),
+            ConnectionProfile.Create(ConnectionProfileId.New(), Metadata("Swift"),
+                new SwiftEndpoint("archive", new Uri("https://keystone.example.test/v3")),
+                new KeystonePasswordAuthentication("operator", Password, "project"), OperationalOptions(), now),
             ConnectionProfile.Create(ConnectionProfileId.New(), Metadata("SSH"),
                 new SshClientEndpoint("ssh.example.test", 22, SshHostKeyPolicy.Pinned),
                 new UsernamePasswordAuthentication("operator", Password), OperationalOptions(), now)

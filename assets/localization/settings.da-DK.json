@@ -216,6 +216,7 @@
   "cleanupSelectFirst": "Vælg de filer, der skal fjernes. Filer i brug kan ikke fjernes.",
   "cleanupRemovedFormat": "{0} filer fjernet og {1} frigjort.",
   "cleanupKeptFormat": "{0} blev ikke fjernet: {1}",
+  "timeoutKeptByProvider": "Udbyderens egen klient fastsætter tidsgrænsen, cirka 100 sekunder pr. forespørgsel.",
   "categoryAgent": "Baggrundsagent",
   "pageAgentDescription": "Agenten udfører overførsler og planlagte synkroniseringer. Vælg, om den starter, når du logger på, eller kun kører, mens StorageHub er åben.",
   "agentModeSection": "Baggrundsagent",

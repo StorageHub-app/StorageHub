@@ -777,6 +777,297 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
         Assert.Equal(3, new[] { a.RootIdentity, b.RootIdentity, c.RootIdentity }.Distinct(StringComparer.Ordinal).Count());
     }
 
+    /// <summary>
+    /// Each Azure sign-in reaches CL.Storage as its own mode with its secret from the vault, the
+    /// timeout and retries as S3's are, a proxy and speed limits, and every secret let go afterwards.
+    /// </summary>
+    [Fact]
+    public async Task Azure_hands_each_sign_in_over_in_its_own_mode_and_lets_the_secrets_go()
+    {
+        var service = new AzureBlobEndpoint("archive", new Uri("https://account.blob.core.windows.net/"), rootPrefix: "team");
+        var key = await StoreTextAsync("account-key");
+        var sas = await StoreTextAsync("?sv=2024-11-04&sig=signature");
+        var connectionString = await StoreTextAsync(
+            "DefaultEndpointsProtocol=https;AccountName=account;AccountKey=a2V5;EndpointSuffix=core.windows.net");
+
+        var sharedKey = await CreateBuilder().BuildAsync(CreateProfile(
+            service,
+            new AzureSharedKeyAuthentication("account", key),
+            maximumAttempts: 4,
+            proxy: new ConnectionProxy(new Uri("socks5://proxy.example.test:1080")),
+            bandwidth: true));
+        var prepared = sharedKey.Value;
+        var configuration = Assert.IsType<AzureBlobConnectionConfig>(prepared.Configuration);
+        Assert.Equal("archive", configuration.Container);
+        Assert.Equal("team", configuration.Prefix);
+        Assert.Equal("https://account.blob.core.windows.net/", configuration.ServiceUri);
+        Assert.Equal(AzureBlobAuthenticationMode.SharedKey, configuration.AuthenticationMode);
+        Assert.Equal("account", configuration.AccountName);
+        Assert.Equal("account-key", configuration.AccountKey);
+        Assert.Equal(30, configuration.TimeoutSeconds);
+        Assert.Equal(3, configuration.MaxRetries);
+        Assert.Equal(StorageProxyType.Socks5, configuration.Proxy.Type);
+        Assert.Equal(2_000_000, configuration.TransferLimits.MaxDownloadBytesPerSecond);
+        await prepared.DisposeAsync();
+        Assert.Null(configuration.AccountKey);
+
+        await using (var token = (await CreateBuilder().BuildAsync(CreateProfile(
+            service, new AzureSasTokenAuthentication(sas)))).Value)
+        {
+            var built = Assert.IsType<AzureBlobConnectionConfig>(token.Configuration);
+            Assert.Equal(AzureBlobAuthenticationMode.SasToken, built.AuthenticationMode);
+            Assert.Equal("?sv=2024-11-04&sig=signature", built.SasToken);
+        }
+
+        await using (var identity = (await CreateBuilder().BuildAsync(CreateProfile(
+            service, new AmbientCredentialAuthentication()))).Value)
+        {
+            var built = Assert.IsType<AzureBlobConnectionConfig>(identity.Configuration);
+            Assert.Equal(AzureBlobAuthenticationMode.DefaultCredential, built.AuthenticationMode);
+            Assert.Null(built.AccountKey);
+        }
+
+        var fromString = (await CreateBuilder().BuildAsync(CreateProfile(
+            new AzureBlobEndpoint("archive"), new AzureConnectionStringAuthentication(connectionString)))).Value;
+        var stringConfiguration = Assert.IsType<AzureBlobConnectionConfig>(fromString.Configuration);
+        Assert.Equal(AzureBlobAuthenticationMode.ConnectionString, stringConfiguration.AuthenticationMode);
+        Assert.Null(stringConfiguration.ServiceUri);
+        Assert.StartsWith("DefaultEndpointsProtocol=https;", stringConfiguration.ConnectionString, StringComparison.Ordinal);
+        await fromString.DisposeAsync();
+        Assert.Null(stringConfiguration.ConnectionString);
+    }
+
+    /// <summary>
+    /// A connection string that sends blobs in plain HTTP, an emulator's, is refused until the
+    /// connection allows it, and the string is not kept; split timeouts are refused as for S3.
+    /// </summary>
+    [Fact]
+    public async Task Azure_refuses_a_plain_http_connection_string_nobody_allowed_and_split_timeouts()
+    {
+        var azurite = await StoreTextAsync(
+            "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=a2V5;" +
+            "BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;");
+        var refused = await CreateBuilder().BuildAsync(CreateProfile(
+            new AzureBlobEndpoint("archive"), new AzureConnectionStringAuthentication(azurite)));
+        Assert.Equal("storage.profile.unsupported", refused.Error?.Code);
+        Assert.DoesNotContain("a2V5", refused.Error!.Message, StringComparison.Ordinal);
+
+        await using (var allowed = (await CreateBuilder().BuildAsync(CreateProfile(
+            new AzureBlobEndpoint("archive", allowInsecureHttp: true),
+            new AzureConnectionStringAuthentication(azurite)))).Value)
+        {
+            Assert.Equal(
+                AzureBlobAuthenticationMode.ConnectionString,
+                Assert.IsType<AzureBlobConnectionConfig>(allowed.Configuration).AuthenticationMode);
+        }
+
+        var split = await CreateBuilder().BuildAsync(CreateProfile(
+            new AzureBlobEndpoint("archive", new Uri("https://account.blob.core.windows.net/")),
+            new AmbientCredentialAuthentication(),
+            splitTimeouts: true));
+        Assert.Equal("storage.timeout.unsupported", split.Error?.Code);
+    }
+
+    [Theory]
+    [InlineData("DefaultEndpointsProtocol=https;AccountName=a;AccountKey=k;EndpointSuffix=core.windows.net", false)]
+    [InlineData("DefaultEndpointsProtocol=http;AccountName=a;AccountKey=k", true)]
+    [InlineData("AccountName=a;AccountKey=k;BlobEndpoint=https://a.blob.core.windows.net/", false)]
+    [InlineData("DefaultEndpointsProtocol=http;AccountName=a;AccountKey=k;BlobEndpoint=https://a.example.test/", false)]
+    [InlineData("AccountName=a;AccountKey=k;blobendpoint=http://127.0.0.1:10000/a", true)]
+    [InlineData("UseDevelopmentStorage=true", true)]
+    [InlineData("AccountName=a;AccountKey=k;BlobEndpoint=not a url", true)]
+    [InlineData("AccountName=a;AccountKey=k", false)]
+    public void Azure_connection_strings_are_read_for_plain_http_as_the_sdk_reads_them(string value, bool plain) =>
+        Assert.Equal(plain, CodeLogicConnectionConfigurationBuilder.AzureConnectionStringNamesPlainHttp(value));
+
+    /// <summary>An Azure root is the service, the container and the prefix: changing any is a different root.</summary>
+    [Fact]
+    public async Task Azure_root_identity_follows_the_service_the_container_and_the_prefix()
+    {
+        var first = CreateProfile(
+            new AzureBlobEndpoint("archive", new Uri("https://one.blob.core.windows.net/")),
+            new AmbientCredentialAuthentication());
+        var others = new[]
+        {
+            new AzureBlobEndpoint("archive", new Uri("https://two.blob.core.windows.net/")),
+            new AzureBlobEndpoint("other", new Uri("https://one.blob.core.windows.net/")),
+            new AzureBlobEndpoint("archive", new Uri("https://one.blob.core.windows.net/"), rootPrefix: "inner")
+        };
+
+        var identities = new List<string>();
+        foreach (var profile in others.Select(endpoint => first with { Endpoint = endpoint }).Prepend(first))
+        {
+            await using var prepared = (await CreateBuilder().BuildAsync(profile)).Value;
+            identities.Add(prepared.RootIdentity);
+        }
+
+        Assert.Equal(4, identities.Distinct(StringComparer.Ordinal).Count());
+    }
+
+    /// <summary>
+    /// Each Cloud Storage sign-in reaches CL.Storage as its own mode, the key inline from the vault
+    /// (never as a file), the service URL and plain HTTP as given, a proxy, and the key let go afterwards.
+    /// </summary>
+    [Fact]
+    public async Task Cloud_storage_hands_each_sign_in_over_in_its_own_mode_and_lets_the_key_go()
+    {
+        const string json = """{"type":"service_account","client_email":"a@b.iam.gserviceaccount.com"}""";
+        var key = await StoreTextAsync(json);
+
+        var prepared = (await CreateBuilder().BuildAsync(CreateProfile(
+            new GoogleCloudStorageEndpoint("archive", rootPrefix: "team"),
+            new GoogleServiceAccountAuthentication(key),
+            proxy: new ConnectionProxy(new Uri("http://proxy.example.test:3128")),
+            bandwidth: true))).Value;
+        var configuration = Assert.IsType<GoogleCloudConnectionConfig>(prepared.Configuration);
+        Assert.Equal("archive", configuration.Bucket);
+        Assert.Equal("team", configuration.Prefix);
+        Assert.Null(configuration.ServiceUrl);
+        Assert.False(configuration.AllowInsecureHttp);
+        Assert.Equal(GoogleCloudAuthenticationMode.ServiceAccountJson, configuration.AuthenticationMode);
+        Assert.Equal(json, configuration.CredentialsJson);
+        Assert.Null(configuration.CredentialsJsonPath);
+        Assert.Equal(StorageProxyType.Http, configuration.Proxy.Type);
+        Assert.Equal(2_000_000, configuration.TransferLimits.MaxDownloadBytesPerSecond);
+        await prepared.DisposeAsync();
+        Assert.Null(configuration.CredentialsJson);
+
+        await using (var ambient = (await CreateBuilder().BuildAsync(CreateProfile(
+            new GoogleCloudStorageEndpoint("archive", new Uri("https://storage.example.test/")),
+            new AmbientCredentialAuthentication()))).Value)
+        {
+            var built = Assert.IsType<GoogleCloudConnectionConfig>(ambient.Configuration);
+            Assert.Equal(GoogleCloudAuthenticationMode.ApplicationDefaultCredentials, built.AuthenticationMode);
+            Assert.Equal("https://storage.example.test/", built.ServiceUrl);
+            Assert.Null(built.CredentialsJson);
+        }
+
+        await using (var emulator = (await CreateBuilder().BuildAsync(CreateProfile(
+            new GoogleCloudStorageEndpoint("archive", new Uri("http://127.0.0.1:4443/"), allowInsecureHttp: true),
+            new NoAuthentication()))).Value)
+        {
+            var built = Assert.IsType<GoogleCloudConnectionConfig>(emulator.Configuration);
+            Assert.Equal(GoogleCloudAuthenticationMode.Anonymous, built.AuthenticationMode);
+            Assert.Equal("http://127.0.0.1:4443/", built.ServiceUrl);
+            Assert.True(built.AllowInsecureHttp);
+        }
+    }
+
+    /// <summary>A Cloud Storage root is the service, the bucket and the prefix: changing any is a different root.</summary>
+    [Fact]
+    public async Task Cloud_storage_root_identity_follows_the_service_the_bucket_and_the_prefix()
+    {
+        var first = CreateProfile(new GoogleCloudStorageEndpoint("archive"), new AmbientCredentialAuthentication());
+        var others = new[]
+        {
+            new GoogleCloudStorageEndpoint("archive", new Uri("https://storage.example.test/")),
+            new GoogleCloudStorageEndpoint("other"),
+            new GoogleCloudStorageEndpoint("archive", rootPrefix: "inner")
+        };
+
+        var identities = new List<string>();
+        foreach (var profile in others.Select(endpoint => first with { Endpoint = endpoint }).Prepend(first))
+        {
+            await using var prepared = (await CreateBuilder().BuildAsync(profile)).Value;
+            identities.Add(prepared.RootIdentity);
+        }
+
+        Assert.Equal(4, identities.Distinct(StringComparer.Ordinal).Count());
+    }
+
+    /// <summary>
+    /// Each Swift sign-in reaches CL.Storage as its own mode with its secret from the vault, the
+    /// operation timeout as the request timeout, as WebDAV's is, and the secrets let go afterwards.
+    /// </summary>
+    [Fact]
+    public async Task Swift_hands_each_sign_in_over_in_its_own_mode_and_lets_the_secrets_go()
+    {
+        var password = await StoreTextAsync("keystone-password");
+        var token = await StoreTextAsync("AUTH_tk0123456789");
+        var keystoneUrl = new Uri("https://keystone.example.test/v3");
+        var storageUrl = new Uri("https://swift.example.test/v1/AUTH_project");
+        var options = new ConnectionOperationalOptions(
+            TimeSpan.FromSeconds(30),
+            TimeSpan.FromMinutes(10),
+            new ConnectionRetryPolicy(0, TimeSpan.Zero, TimeSpan.Zero),
+            new ConnectionProxy(new Uri("socks5://proxy.example.test:1080")),
+            new ConnectionBandwidthLimits(1_000_000, 2_000_000),
+            "utf-8");
+
+        var prepared = (await CreateBuilder().BuildAsync(CreateProfile(
+            new SwiftEndpoint("archive", keystoneUrl, region: "RegionOne", rootPrefix: "team"),
+            new KeystonePasswordAuthentication("operator", password, "project", "Users", "Projects"),
+            operationalOptions: options))).Value;
+        var configuration = Assert.IsType<SwiftConnectionConfig>(prepared.Configuration);
+        Assert.Equal("archive", configuration.Container);
+        Assert.Equal("team", configuration.Prefix);
+        Assert.Equal(SwiftAuthenticationMode.KeystoneV3Password, configuration.AuthenticationMode);
+        Assert.Equal("https://keystone.example.test/v3", configuration.AuthenticationUrl);
+        Assert.Null(configuration.StorageUrl);
+        Assert.Equal("RegionOne", configuration.Region);
+        Assert.Equal("operator", configuration.Username);
+        Assert.Equal("keystone-password", configuration.Password);
+        Assert.Equal("project", configuration.ProjectName);
+        Assert.Equal("Users", configuration.UserDomainName);
+        Assert.Equal("Projects", configuration.ProjectDomainName);
+        Assert.Equal(600, configuration.TimeoutSeconds);
+        Assert.False(configuration.AllowInsecureHttp);
+        Assert.Equal(StorageProxyType.Socks5, configuration.Proxy.Type);
+        Assert.Equal(2_000_000, configuration.TransferLimits.MaxDownloadBytesPerSecond);
+        await prepared.DisposeAsync();
+        Assert.Null(configuration.Password);
+
+        await using (var tempAuth = (await CreateBuilder().BuildAsync(CreateProfile(
+            new SwiftEndpoint("archive", new Uri("http://127.0.0.1:8080/auth/v1.0"), allowInsecureHttp: true),
+            new UsernamePasswordAuthentication("test:tester", password)))).Value)
+        {
+            var built = Assert.IsType<SwiftConnectionConfig>(tempAuth.Configuration);
+            Assert.Equal(SwiftAuthenticationMode.TempAuthV1, built.AuthenticationMode);
+            Assert.Equal("test:tester", built.Username);
+            Assert.True(built.AllowInsecureHttp);
+            Assert.Null(built.ProjectName);
+        }
+
+        var fromToken = (await CreateBuilder().BuildAsync(CreateProfile(
+            new SwiftEndpoint("archive", null, storageUrl), new BearerTokenAuthentication(token)))).Value;
+        var tokenConfiguration = Assert.IsType<SwiftConnectionConfig>(fromToken.Configuration);
+        Assert.Equal(SwiftAuthenticationMode.StaticToken, tokenConfiguration.AuthenticationMode);
+        Assert.Equal("https://swift.example.test/v1/AUTH_project", tokenConfiguration.StorageUrl);
+        Assert.Equal("AUTH_tk0123456789", tokenConfiguration.Token);
+        Assert.Null(tokenConfiguration.AuthenticationUrl);
+        await fromToken.DisposeAsync();
+        Assert.Null(tokenConfiguration.Token);
+    }
+
+    /// <summary>A Swift root is where it signs in, where it stores, the container, the prefix and the project.</summary>
+    [Fact]
+    public async Task Swift_root_identity_follows_the_urls_the_container_the_prefix_and_the_project()
+    {
+        var password = await StoreTextAsync("keystone-password");
+        var keystoneUrl = new Uri("https://keystone.example.test/v3");
+        var first = CreateProfile(
+            new SwiftEndpoint("archive", keystoneUrl),
+            new KeystonePasswordAuthentication("operator", password, "project"));
+        var others = new[]
+        {
+            first with { Endpoint = new SwiftEndpoint("archive", new Uri("https://other.example.test/v3")) },
+            first with { Endpoint = new SwiftEndpoint("archive", keystoneUrl, new Uri("https://swift.example.test/v1/AUTH_x")) },
+            first with { Endpoint = new SwiftEndpoint("archive", keystoneUrl, region: "RegionTwo") },
+            first with { Endpoint = new SwiftEndpoint("other", keystoneUrl) },
+            first with { Endpoint = new SwiftEndpoint("archive", keystoneUrl, rootPrefix: "inner") },
+            first with { Authentication = new KeystonePasswordAuthentication("operator", password, "elsewhere") }
+        };
+
+        var identities = new List<string>();
+        foreach (var profile in others.Prepend(first))
+        {
+            await using var prepared = (await CreateBuilder().BuildAsync(profile)).Value;
+            identities.Add(prepared.RootIdentity);
+        }
+
+        Assert.Equal(7, identities.Distinct(StringComparer.Ordinal).Count());
+    }
+
     [Fact]
     public async Task Tofu_and_s3_pinning_fail_closed_when_provider_cannot_capture_or_enforce_them()
     {
