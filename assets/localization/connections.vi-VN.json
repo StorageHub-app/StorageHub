@@ -281,5 +281,11 @@
   "iconPickerColor": "Màu sắc",
   "iconPickerNoColor": "Không màu",
   "iconPickerGroupTitleFormat": "Biểu tượng và màu sắc cho {0}",
+  "contextDuplicate": "Nhân bản",
+  "detailDuplicate": "Nhân bản",
+  "copyNameFormat": "{0} (bản sao)",
+  "copyNumberedNameFormat": "{0} (bản sao {1})",
+  "duplicateFailed": "Không thể nhân bản kết nối.",
+  "duplicateFailedThroughAgent": "Không thể nhân bản kết nối qua tác nhân nền.",
   "culture": "vi-VN"
 }

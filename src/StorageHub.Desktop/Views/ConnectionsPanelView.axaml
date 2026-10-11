@@ -183,6 +183,12 @@
                       <LucideIcon Kind="Pencil" Size="{StaticResource IconSizeSm}"/>
                     </Button>
                     <Button Classes="tool" Padding="{StaticResource CardActionPadding}"
+                            Command="{Binding $parent[UserControl].((vm:ConnectionsSidebar)DataContext).DuplicateSelectedCommand}"
+                            CommandParameter="{Binding}"
+                            ToolTip.Tip="{Binding $parent[UserControl].((vm:ConnectionsSidebar)DataContext).DuplicateLabel}">
+                      <LucideIcon Kind="Copy" Size="{StaticResource IconSizeSm}"/>
+                    </Button>
+                    <Button Classes="tool" Padding="{StaticResource CardActionPadding}"
                             Command="{Binding $parent[UserControl].((vm:ConnectionsSidebar)DataContext).DeleteSelectedCommand}"
                             CommandParameter="{Binding}"
                             ToolTip.Tip="{Binding $parent[UserControl].((vm:ConnectionsSidebar)DataContext).DeleteLabel}">

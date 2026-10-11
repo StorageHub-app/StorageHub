@@ -281,5 +281,11 @@
   "iconPickerColor": "रंग",
   "iconPickerNoColor": "कोई रंग नहीं",
   "iconPickerGroupTitleFormat": "{0} के लिए आइकन और रंग",
+  "contextDuplicate": "डुप्लिकेट करें",
+  "detailDuplicate": "डुप्लिकेट करें",
+  "copyNameFormat": "{0} (प्रति)",
+  "copyNumberedNameFormat": "{0} (प्रति {1})",
+  "duplicateFailed": "कनेक्शन की प्रति नहीं बनाई जा सकी।",
+  "duplicateFailedThroughAgent": "बैकग्राउंड एजेंट के माध्यम से कनेक्शन की प्रति नहीं बनाई जा सकी।",
   "culture": "hi-IN"
 }

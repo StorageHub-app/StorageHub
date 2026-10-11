@@ -281,5 +281,11 @@
   "iconPickerColor": "颜色",
   "iconPickerNoColor": "无颜色",
   "iconPickerGroupTitleFormat": "{0} 的图标和颜色",
+  "contextDuplicate": "复制",
+  "detailDuplicate": "复制",
+  "copyNameFormat": "{0}（副本）",
+  "copyNumberedNameFormat": "{0}（副本 {1}）",
+  "duplicateFailed": "无法复制该连接。",
+  "duplicateFailedThroughAgent": "无法通过后台代理程序复制该连接。",
   "culture": "zh-CN"
 }

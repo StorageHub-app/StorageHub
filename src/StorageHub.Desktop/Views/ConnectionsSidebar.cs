@@ -179,6 +179,9 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         AttentionCommand = new RelayCommand(
             _ => { if (_selected is { } row && Attention is { } attention) EditConnection?.Invoke(row.Id, attention.Tab); },
             _ => EditConnection is not null);
+        DuplicateSelectedCommand = new RelayCommand(
+            row => { if ((row as ConnectionRowModel ?? _selected) is { } chosen) _ = DuplicateConnectionAsync(chosen.Id); },
+            _ => _profiles is not null);
         DeleteSelectedCommand = new RelayCommand(
             row => { if ((row as ConnectionRowModel ?? _selected) is { } chosen && DeleteConnection is { } delete) _ = DeleteAndRefreshAsync(delete, chosen.Id); },
             _ => DeleteConnection is not null);
@@ -402,6 +405,9 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
 
     /// <summary>Edit, on the selected card and in the details panel. Its parameter is the row, if any.</summary>
     public ICommand EditSelectedCommand { get; }
+
+    /// <summary>Duplicate, likewise: a copy beside the original, named for it, and selected.</summary>
+    public ICommand DuplicateSelectedCommand { get; }
 
     /// <summary>Delete, likewise. The panel asks first, and lists again after.</summary>
     public ICommand DeleteSelectedCommand { get; }
@@ -654,12 +660,82 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         }
     }
 
+    /// <summary>
+    /// Saves a copy of a connection under a free name and selects it.
+    /// </summary>
+    /// <remarks>
+    /// The copy is the saved profile as it stands, so it carries the same references to the same
+    /// vault secrets and Key Store entries and the same pinned host key, and signs in the same way
+    /// without anything being typed again. It is not a favourite, so Favorites does not list both.
+    /// A name that turns out to be taken after all, because another window saved it since the panel
+    /// listed, is tried again with the next number.
+    /// </remarks>
+    internal async Task DuplicateConnectionAsync(Guid connectionId, CancellationToken cancellationToken = default)
+    {
+        if (_profiles is null) return;
+
+        try
+        {
+            ConnectionProfileWriteResponse? response = null;
+            await using (var profiles = _profiles())
+            {
+                var current = await profiles
+                    .GetAsync(
+                        new ConnectionProfileGetRequest(ConnectionProfileIpcContract.CurrentVersion, connectionId),
+                        cancellationToken)
+                    .ConfigureAwait(true);
+                if (current.Profile is not { } profile)
+                {
+                    Refused(current.Failure?.Message ?? Ui.Connections.LoadFailed);
+                    return;
+                }
+
+                var taken = Connections.Select(static listed => listed.DisplayName).ToList();
+                for (var attempt = 0; attempt < 5; attempt++)
+                {
+                    var name = ConnectionCopyNames.Next(profile.Draft.Metadata.DisplayName, taken);
+                    var draft = profile.Draft with
+                    {
+                        Metadata = profile.Draft.Metadata with { DisplayName = name, IsFavorite = false }
+                    };
+                    response = await profiles
+                        .CreateAsync(
+                            new ConnectionProfileCreateRequest(ConnectionProfileIpcContract.CurrentVersion, draft),
+                            cancellationToken)
+                        .ConfigureAwait(true);
+                    if (response.Status != ConnectionProfileWriteStatus.NameConflict) break;
+                    taken.Add(name);
+                }
+            }
+
+            if (response is not { Status: ConnectionProfileWriteStatus.Succeeded })
+            {
+                Refused(response?.Failure?.Message ?? Ui.Connections.DuplicateFailed);
+                return;
+            }
+
+            await RefreshAsync(cancellationToken).ConfigureAwait(true);
+            if (response.Profile is { } created &&
+                Groups.SelectMany(static group => group.Connections).FirstOrDefault(row => row.Id == created.ConnectionId) is { } copy)
+            {
+                Select(copy);
+            }
+
+            ConnectionsChanged?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            Refused(Ui.Connections.DuplicateFailedThroughAgent);
+        }
+    }
+
     private void RaiseDetailCommands()
     {
         (OpenSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
         (TestSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
         (DescribeSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
         (EditSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        (DuplicateSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
         (DeleteSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
         (AttentionCommand as RelayCommand)?.RaiseCanExecuteChanged();
     }
@@ -808,6 +884,7 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         (CommandEntry.SeparatorLabel, static () => { }, false),
         (Ui.Connections.ContextToggleFavorite, () => _ = ToggleFavoriteAsync(row.Id), _profiles is not null),
         (Ui.Connections.ContextEdit, () => EditConnection?.Invoke(row.Id, ConnectionEditorTab.General), EditConnection is not null),
+        (Ui.Connections.ContextDuplicate, () => _ = DuplicateConnectionAsync(row.Id), _profiles is not null),
         (CommandEntry.SeparatorLabel, static () => { }, false),
         (Ui.Connections.ContextDelete, () => { if (DeleteConnection is { } delete) _ = DeleteAndRefreshAsync(delete, row.Id); }, DeleteConnection is not null),
     ];
@@ -864,6 +941,8 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     public string EditLabel => Ui.Connections.DetailEdit;
 
     public string DeleteLabel => Ui.Connections.DetailDelete;
+
+    public string DuplicateLabel => Ui.Connections.DetailDuplicate;
 #pragma warning restore CA1822
 
     /// <summary>

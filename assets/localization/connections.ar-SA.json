@@ -281,5 +281,11 @@
   "iconPickerColor": "اللون",
   "iconPickerNoColor": "بلا لون",
   "iconPickerGroupTitleFormat": "الأيقونة واللون لـ {0}",
+  "contextDuplicate": "تكرار",
+  "detailDuplicate": "تكرار",
+  "copyNameFormat": "{0} (نسخة)",
+  "copyNumberedNameFormat": "{0} (نسخة {1})",
+  "duplicateFailed": "تعذر تكرار الاتصال.",
+  "duplicateFailedThroughAgent": "تعذر تكرار الاتصال عبر وكيل الخلفية.",
   "culture": "ar-SA"
 }

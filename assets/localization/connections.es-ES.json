@@ -281,5 +281,11 @@
   "iconPickerColor": "Color",
   "iconPickerNoColor": "Sin color",
   "iconPickerGroupTitleFormat": "Icono y color de {0}",
+  "contextDuplicate": "Duplicar",
+  "detailDuplicate": "Duplicar",
+  "copyNameFormat": "{0} (copia)",
+  "copyNumberedNameFormat": "{0} (copia {1})",
+  "duplicateFailed": "No se pudo duplicar la conexión.",
+  "duplicateFailedThroughAgent": "No se pudo duplicar la conexión a través del agente en segundo plano.",
   "culture": "es-ES"
 }

@@ -69,6 +69,8 @@ internal sealed class ConnectionStrings : LocalizationModelBase
 
     public string ContextDelete { get; set; } = "Delete…";
 
+    public string ContextDuplicate { get; set; } = "Duplicate";
+
     public string ContextToggleFavorite { get; set; } = "Toggle favorite";
 
     // ---------------------------------------------------------------- sidebar
@@ -529,6 +531,19 @@ internal sealed class ConnectionStrings : LocalizationModelBase
     public string DetailEdit { get; set; } = "Edit";
 
     public string DetailDelete { get; set; } = "Delete";
+
+    public string DetailDuplicate { get; set; } = "Duplicate";
+
+    /// <summary>{0} = the name of the connection that was copied.</summary>
+    public string CopyNameFormat { get; set; } = "{0} (copy)";
+
+    /// <summary>{0} = the name of the connection that was copied, {1} = which copy this is, from 2.</summary>
+    public string CopyNumberedNameFormat { get; set; } = "{0} (copy {1})";
+
+    public string DuplicateFailed { get; set; } = "The connection could not be duplicated.";
+
+    public string DuplicateFailedThroughAgent { get; set; } =
+        "The connection could not be duplicated through the background agent.";
 
     /// <summary>{0} = the connection name.</summary>
     public string DetailIsFavoriteFormat { get; set; } = "{0} is a favorite. Activate to remove it.";

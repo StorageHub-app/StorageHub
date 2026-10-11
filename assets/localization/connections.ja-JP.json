@@ -281,5 +281,11 @@
   "iconPickerColor": "色",
   "iconPickerNoColor": "色なし",
   "iconPickerGroupTitleFormat": "{0} のアイコンと色",
+  "contextDuplicate": "複製",
+  "detailDuplicate": "複製",
+  "copyNameFormat": "{0} (コピー)",
+  "copyNumberedNameFormat": "{0} (コピー {1})",
+  "duplicateFailed": "接続を複製できませんでした。",
+  "duplicateFailedThroughAgent": "バックグラウンドエージェント経由で接続を複製できませんでした。",
   "culture": "ja-JP"
 }

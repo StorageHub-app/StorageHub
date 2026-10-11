@@ -281,5 +281,11 @@
   "fieldStorageUrl": "Speicher-URL",
   "fieldAuthenticationUrl": "Authentifizierungs-URL",
   "fieldSwiftToken": "Authentifizierungstoken",
+  "contextDuplicate": "Duplizieren",
+  "detailDuplicate": "Duplizieren",
+  "copyNameFormat": "{0} (Kopie)",
+  "copyNumberedNameFormat": "{0} (Kopie {1})",
+  "duplicateFailed": "Die Verbindung konnte nicht dupliziert werden.",
+  "duplicateFailedThroughAgent": "Die Verbindung konnte nicht über den Hintergrundagenten dupliziert werden.",
   "culture": "de-DE"
 }
