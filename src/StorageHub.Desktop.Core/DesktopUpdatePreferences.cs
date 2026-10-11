@@ -184,7 +184,12 @@ internal sealed record DesktopUpdatePreferences(
     /// system, read again each time. Existing schedules keep their own zone, and the times shown
     /// everywhere else follow the system whatever this says.
     /// </summary>
-    string? NewScheduleTimeZone = null)
+    string? NewScheduleTimeZone = null,
+    /// <summary>
+    /// What a transfer does with a file already at its destination; null asks, at the first such
+    /// file of each transfer. Resume is the one that continues what an interrupted attempt staged.
+    /// </summary>
+    TransferConflictChoice? TransferConflictDefault = null)
 {
     /// <summary>16 GiB/s: far past any link, and small enough that KiB * 1024 cannot overflow.</summary>
     internal const long MaximumSpeedLimitBytesPerSecond = 16L * 1024 * 1024 * 1024;

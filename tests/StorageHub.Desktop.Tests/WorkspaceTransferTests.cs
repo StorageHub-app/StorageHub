@@ -40,6 +40,92 @@ public class WorkspaceTransferTests
     }
 
     /// <summary>
+    /// A file already where it is going is asked about, after the review, as one choice from a
+    /// list; the choice made is what the queue gets, and "always" saves it.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task AFileAlreadyThereIsAskedAboutAndTheChoiceIsWhatIsQueued()
+    {
+        var remembered = new List<TransferConflictChoice>();
+        var dialogs = new KeyStoreTests.RecordingDialogs
+        {
+            Choice = DialogChoice.Ok,
+            ChoiceIndex = TransferConflictText.All.ToList().IndexOf(TransferConflictChoice.Rename),
+            CheckBox = true
+        };
+        await using var fixture = await Fixture.CreateAsync(
+            dialogs: dialogs, rememberConflictChoice: remembered.Add, renderAlreadyThere: true);
+
+        fixture.Left.SelectedRows.Add(fixture.Left.Rows.Single(row => row.Name == "render.exr"));
+        await fixture.StageAndPasteAsync(TransferQueueOperation.Copy, fixture.Right);
+
+        var question = dialogs.Questions[^1];
+        Assert.Equal(Ui.Dialogs.TransferConflictCaption, question.Title);
+        Assert.Equal(Ui.Format(Ui.Dialogs.TransferConflictPromptFormat, "render.exr"), question.Message);
+        Assert.Equal(DialogButtons.OkCancel, question.Buttons);
+        Assert.Equal(TransferConflictText.All.Select(TransferConflictText.Label), question.Choices);
+        Assert.Equal(Ui.Dialogs.TransferConflictRemember, question.CheckBoxLabel);
+
+        var request = Assert.Single(fixture.Queue.Enqueued);
+        Assert.Equal("render (1).exr", request.Destination.RelativePath);
+        Assert.Null(request.ExpectedDestinationEntityTag);
+        Assert.Equal([TransferConflictChoice.Rename], remembered);
+        Assert.Equal(Ui.Format(Ui.Transfer.QueuedWithConflictsFormat, 1, 0, 1), fixture.Workspace.Message);
+    }
+
+    /// <summary>
+    /// Cancel at that question queues nothing and is said rather than warned about: it is what
+    /// somebody asked for.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task CancellingTheExistingFileQuestionQueuesNothing()
+    {
+        // OK to the review, then Cancel to the question about the file already there.
+        var dialogs = new KeyStoreTests.RecordingDialogs();
+        var scripted = new ScriptedDialogs(dialogs, new Queue<DialogChoice>([DialogChoice.Ok, DialogChoice.Cancel]));
+        await using var fixture = await Fixture.CreateAsync(dialogs: scripted, renderAlreadyThere: true);
+
+        fixture.Left.SelectedRows.Add(fixture.Left.Rows.Single(row => row.Name == "render.exr"));
+        await fixture.StageAndPasteAsync(TransferQueueOperation.Copy, fixture.Right);
+
+        Assert.Empty(fixture.Queue.Enqueued);
+        Assert.Equal(Ui.Validation.TransferStoppedAtExistingFile, fixture.Workspace.Message);
+        Assert.Equal(Ui.Dialogs.TransferConflictCaption, dialogs.LastRequest?.Title);
+    }
+
+    /// <summary>A choice named in Settings is used without asking.</summary>
+    [AvaloniaFact]
+    public async Task TheSettingsChoiceIsUsedWithoutAsking()
+    {
+        var dialogs = new KeyStoreTests.RecordingDialogs { Choice = DialogChoice.Ok };
+        await using var fixture = await Fixture.CreateAsync(
+            dialogs: dialogs, conflictDefault: static () => TransferConflictChoice.Skip, renderAlreadyThere: true);
+
+        fixture.Left.SelectedRows.Add(fixture.Left.Rows.Single(row => row.Name == "render.exr"));
+        await fixture.StageAndPasteAsync(TransferQueueOperation.Copy, fixture.Right);
+
+        Assert.Equal(1, dialogs.Asked);
+        Assert.Empty(fixture.Queue.Enqueued);
+        Assert.Equal(Ui.Format(Ui.Transfer.QueuedWithConflictsFormat, 0, 1, 0), fixture.Workspace.Message);
+    }
+
+    /// <summary>Answers a script of choices in turn, recording every question in the inner recorder.</summary>
+    private sealed class ScriptedDialogs(KeyStoreTests.RecordingDialogs inner, Queue<DialogChoice> answers) : IDialogService
+    {
+        public Task ShowAsync(DialogRequest request, CancellationToken cancellationToken = default) =>
+            inner.ShowAsync(request, cancellationToken);
+
+        public Task<DialogChoice> ConfirmAsync(DialogRequest request, CancellationToken cancellationToken = default)
+        {
+            inner.Choice = answers.Count > 0 ? answers.Dequeue() : DialogChoice.Cancel;
+            return inner.ConfirmAsync(request, cancellationToken);
+        }
+
+        public Task<string?> PromptAsync(DialogPromptRequest request, CancellationToken cancellationToken = default) =>
+            inner.PromptAsync(request, cancellationToken);
+    }
+
+    /// <summary>
     /// Staging takes from the pane that is active, and pasting puts into the pane that is active.
     /// </summary>
     /// <remarks>
@@ -467,7 +553,10 @@ public class WorkspaceTransferTests
             PendingDropRegistry? drops = null,
             IDialogService? dialogs = null,
             Func<FakeTransferQueue, ExplorerDragOut>? dragOut = null,
-            StorageConnectionProvider destinationProvider = StorageConnectionProvider.S3)
+            StorageConnectionProvider destinationProvider = StorageConnectionProvider.S3,
+            Func<TransferConflictChoice?>? conflictDefault = null,
+            Action<TransferConflictChoice>? rememberConflictChoice = null,
+            bool renderAlreadyThere = false)
         {
             var source = Summary("Studio Assets");
             var destination = Summary("Site Backups", destinationProvider);
@@ -478,7 +567,9 @@ public class WorkspaceTransferTests
             agent.Listings[(source.ConnectionId, "reports")] =
                 new Page([Entry("q1.pdf", 2048, parent: "reports")]);
             agent.Listings[(destination.ConnectionId, "")] =
-                new Page([Entry("archive.zip", 4096)], destinationHasMorePages ? "more" : null);
+                new Page(
+                    renderAlreadyThere ? [Entry("archive.zip", 4096), Entry("render.exr", 512)] : [Entry("archive.zip", 4096)],
+                    destinationHasMorePages ? "more" : null);
 
             var queue = new FakeTransferQueue();
             var workspace = new WorkspaceModel(
@@ -490,7 +581,9 @@ public class WorkspaceTransferTests
                 dialogs: dialogs)
             {
                 PendingDrops = drops,
-                DragOut = dragOut?.Invoke(queue)
+                DragOut = dragOut?.Invoke(queue),
+                ConflictDefault = conflictDefault,
+                RememberConflictChoice = rememberConflictChoice
             };
 
             foreach (var pane in workspace.Panes)

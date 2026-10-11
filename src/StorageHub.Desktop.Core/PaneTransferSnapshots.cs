@@ -69,7 +69,7 @@ internal static class PaneTransferSnapshots
                 return StorageResult<PaneSelectionSnapshot>.Fail(mapped.Error);
             }
 
-            items.Add(mapped.Value);
+            items.Add(Identified(context.Value, mapped.Value));
         }
 
         return PaneSelectionSnapshot.Create(context.Value, items);
@@ -113,11 +113,19 @@ internal static class PaneTransferSnapshots
                 return StorageResult<PaneDestinationSnapshot>.Fail(mapped.Error);
             }
 
-            items.Add(mapped.Value);
+            items.Add(Identified(context.Value, mapped.Value));
         }
 
         return PaneDestinationSnapshot.Create(context.Value, items);
     }
+
+    /// <summary>
+    /// A file on this PC with the identity the agent will find it by, so it can be replaced, or be
+    /// what replaces something, as a file on a connection can. A file on a connection already has
+    /// the provider's.
+    /// </summary>
+    private static PaneTransferItem Identified(PaneTransferContext context, PaneTransferItem item) =>
+        context.Kind == PaneTransferContextKind.ThisPc ? item.WithLocalIdentity() : item;
 
     /// <summary>
     /// One row, as something a transfer can name.
@@ -145,6 +153,7 @@ internal static class PaneTransferSnapshots
             row.Length,
             row.NativeItemId,
             row.VersionId,
-            row.EntityTag);
+            row.EntityTag,
+            row.ModifiedUtc);
     }
 }

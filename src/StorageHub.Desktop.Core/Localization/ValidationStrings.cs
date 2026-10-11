@@ -545,4 +545,14 @@ internal sealed class ValidationStrings : LocalizationModelBase
     /// <summary>{0} = the shortcut, {1} = the command that already uses it.</summary>
     public string IsAlreadyAssignedToClearThatFormat { get; set; } =
         "{0} is already assigned to {1}. Clear that assignment first.";
+
+    public string MovingFromThisPCIsNotSupported { get; set; } =
+        "Files on this PC can be copied to a connection, but not moved.";
+
+    /// <summary>{0} = the file a free name was looked for.</summary>
+    public string NoFreeNameForRenameFormat { get; set; } =
+        "No free name was found for {0} at the destination.";
+
+    public string TransferStoppedAtExistingFile { get; set; } =
+        "The transfer was stopped at a file already at the destination.";
 }

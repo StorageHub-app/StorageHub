@@ -289,6 +289,9 @@ internal static class SettingsPageCatalog
             };
     }
 
+    /// <summary>The Choice value that stands for asking, which no conflict choice is named.</summary>
+    internal const string AskConflictChoice = "ask";
+
     private static SettingsPageDefinition TransfersPage() => new()
     {
         Key = PerformancePageKey,
@@ -371,6 +374,31 @@ internal static class SettingsPageCatalog
                         ? p with { NewScheduleTimeZone = null }
                         : ScheduleTimeZones.Normalize(v) is { } zone
                             ? p with { NewScheduleTimeZone = zone }
+                            : p
+                }
+            ]),
+
+            // New in 2.0 (roadmap 1.6). Only the default: a transfer that meets a file already
+            // there asks once, unless this names the answer, and the answer covers that transfer.
+            new(Ui.Settings.SectionExistingFiles,
+            [
+                new()
+                {
+                    Key = "existing-file-choice",
+                    Label = Ui.Settings.ExistingFileChoice,
+                    Hint = Ui.Settings.ExistingFileChoiceHint,
+                    Kind = SettingsControlKind.Choice,
+                    Choices =
+                    [
+                        new(AskConflictChoice, Ui.Settings.ConflictAsk),
+                        .. TransferConflictText.All.Select(choice =>
+                            new SettingsChoice(choice.ToString(), TransferConflictText.Label(choice)))
+                    ],
+                    Read = p => p.TransferConflictDefault?.ToString() ?? AskConflictChoice,
+                    Write = (p, v) => v == AskConflictChoice
+                        ? p with { TransferConflictDefault = null }
+                        : Enum.TryParse<TransferConflictChoice>(v, out var choice) && Enum.IsDefined(choice)
+                            ? p with { TransferConflictDefault = choice }
                             : p
                 }
             ]),

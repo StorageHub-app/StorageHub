@@ -242,5 +242,8 @@
   "chooseCtrlAltWithAKeyFormat": "Wählen Sie Strg/Alt mit einer Taste, eine Funktionstaste oder Entf für {0}.",
   "isAlreadyAssignedToClearThatFormat": "{0} ist bereits {1} zugewiesen. Heben Sie diese Zuweisung zuerst auf.",
   "aGroupNameIsRequired": "Ein Gruppenname ist erforderlich.",
-  "culture": "de-DE"
+  "culture": "de-DE",
+  "movingFromThisPCIsNotSupported": "Dateien auf diesem PC können in eine Verbindung kopiert, aber nicht verschoben werden.",
+  "noFreeNameForRenameFormat": "Für {0} wurde am Ziel kein freier Name gefunden.",
+  "transferStoppedAtExistingFile": "Die Übertragung wurde bei einer Datei angehalten, die am Ziel bereits vorhanden ist."
 }

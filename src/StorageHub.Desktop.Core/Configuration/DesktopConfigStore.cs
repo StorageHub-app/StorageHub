@@ -295,7 +295,8 @@ internal sealed class DesktopConfigStore
             ConnectionGroups: ReadGroups(general.ConnectionGroups),
             TotalUploadBytesPerSecond: general.TotalUploadBytesPerSecond,
             TotalDownloadBytesPerSecond: general.TotalDownloadBytesPerSecond,
-            NewScheduleTimeZone: general.NewScheduleTimeZone);
+            NewScheduleTimeZone: general.NewScheduleTimeZone,
+            TransferConflictDefault: general.TransferConflictDefault);
     }
 
     /// <summary>
@@ -377,7 +378,8 @@ internal sealed class DesktopConfigStore
                 .ToList(),
             TotalUploadBytesPerSecond = preferences.TotalUploadBytesPerSecond,
             TotalDownloadBytesPerSecond = preferences.TotalDownloadBytesPerSecond,
-            NewScheduleTimeZone = preferences.NewScheduleTimeZone
+            NewScheduleTimeZone = preferences.NewScheduleTimeZone,
+            TransferConflictDefault = preferences.TransferConflictDefault
         };
 
         var shortcuts = new DesktopShortcutsConfig

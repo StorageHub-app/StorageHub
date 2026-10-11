@@ -242,5 +242,8 @@
   "chooseCtrlAltWithAKeyFormat": "Vælg Ctrl/Alt sammen med en tast, en funktionstast eller Delete til {0}.",
   "isAlreadyAssignedToClearThatFormat": "{0} er allerede tildelt {1}. Ryd den tildeling først.",
   "aGroupNameIsRequired": "Et gruppenavn er påkrævet.",
-  "culture": "da-DK"
+  "culture": "da-DK",
+  "movingFromThisPCIsNotSupported": "Filer på denne pc kan kopieres til en forbindelse, men ikke flyttes.",
+  "noFreeNameForRenameFormat": "Der blev ikke fundet et ledigt navn til {0} på destinationen.",
+  "transferStoppedAtExistingFile": "Overførslen blev stoppet ved en fil, der allerede findes på destinationen."
 }

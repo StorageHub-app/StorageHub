@@ -107,6 +107,31 @@ public sealed class DesktopPreferenceSectionMapperTests
                 .Preferences.NewScheduleTimeZone);
     }
 
+    /// <summary>
+    /// Asking is a choice of its own, so an export that asks imports as asking; a choice a newer
+    /// StorageHub has and this one does not leaves the setting as it was.
+    /// </summary>
+    [Fact]
+    public void TheExistingFileChoiceTravelsAndAskingIsAChoice()
+    {
+        var asks = Document() with
+        {
+            DesktopGeneral = DesktopPreferenceSectionMapper.CaptureGeneral(DesktopUpdatePreferences.Defaults)
+        };
+        Assert.Null(asks.DesktopGeneral!.TransferConflictDefault);
+        Assert.Null(DesktopPreferenceSectionMapper.Apply(Customised(), asks, [SettingsSectionId.DesktopGeneral])
+            .Preferences.TransferConflictDefault);
+
+        var newer = asks with
+        {
+            DesktopGeneral = asks.DesktopGeneral with { TransferConflictDefault = (TransferConflictChoice)99 }
+        };
+        Assert.Equal(
+            TransferConflictChoice.OverwriteIfNewer,
+            DesktopPreferenceSectionMapper.Apply(Customised(), newer, [SettingsSectionId.DesktopGeneral])
+                .Preferences.TransferConflictDefault);
+    }
+
     [Fact]
     public void ImportingNothingChangesNothing()
     {
@@ -347,7 +372,8 @@ public sealed class DesktopPreferenceSectionMapperTests
         SshTerminal = new SshTerminalPreferences("screen-256color"),
         TotalUploadBytesPerSecond = 512 * 1024,
         TotalDownloadBytesPerSecond = 2 * 1024 * 1024,
-        NewScheduleTimeZone = ScheduleTimeZones.Normalize("Asia/Tokyo")
+        NewScheduleTimeZone = ScheduleTimeZones.Normalize("Asia/Tokyo"),
+        TransferConflictDefault = TransferConflictChoice.OverwriteIfNewer
     };
 
     private static DesktopUpdatePreferences WithPrivateKey(string reference) =>

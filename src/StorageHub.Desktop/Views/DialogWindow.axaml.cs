@@ -51,6 +51,15 @@ public partial class DialogWindow : Window
         check.IsVisible = !string.IsNullOrWhiteSpace(request.CheckBoxLabel);
         _checkBoxAnswered = request.CheckBoxAnswered;
 
+        var choices = this.GetControl<ComboBox>("PART_Choices");
+        if (request.Choices is { Count: > 0 } entries)
+        {
+            choices.ItemsSource = entries;
+            choices.SelectedIndex = Math.Clamp(request.SelectedChoice, 0, entries.Count - 1);
+            choices.IsVisible = true;
+            _choiceAnswered = request.ChoiceAnswered;
+        }
+
         var icon = this.GetControl<LucideIcon>("PART_Icon");
         icon.Kind = KindFor(request.Severity);
         icon.Foreground = BrushFor(request.Severity);
@@ -129,12 +138,19 @@ public partial class DialogWindow : Window
 
     private Action<bool>? _checkBoxAnswered;
 
+    private Action<int>? _choiceAnswered;
+
     private void Close(DialogChoice choice)
     {
         _result = choice;
         if (choice is not (DialogChoice.Cancel or DialogChoice.No) && _checkBoxAnswered is { } answered)
         {
             answered(this.GetControl<CheckBox>("PART_CheckBox").IsChecked == true);
+        }
+
+        if (choice is not (DialogChoice.Cancel or DialogChoice.No) && _choiceAnswered is { } chose)
+        {
+            chose(Math.Max(0, this.GetControl<ComboBox>("PART_Choices").SelectedIndex));
         }
 
         Close();

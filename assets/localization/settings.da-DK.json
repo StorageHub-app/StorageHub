@@ -238,5 +238,9 @@
   "sectionSchedules": "Tidsplaner",
   "newScheduleTimeZone": "Tidszone for nye tidsplaner",
   "newScheduleTimeZoneHint": "Bestemmer kun, hvad en ny tidsplan starter med; hver tidsplan beholder sin egen zone. Tider vist andre steder følger systemet.",
-  "timeZoneFollowSystem": "Følg systemet (anbefales)"
+  "timeZoneFollowSystem": "Følg systemet (anbefales)",
+  "sectionExistingFiles": "Eksisterende filer",
+  "existingFileChoice": "Når en fil allerede findes",
+  "existingFileChoiceHint": "Spørg viser valget ved den første sådanne fil og gælder for hele overførslen. Genoptag gør en kortere fil færdig og beholder det, et afbrudt forsøg allerede har sendt.",
+  "conflictAsk": "Spørg hver gang"
 }

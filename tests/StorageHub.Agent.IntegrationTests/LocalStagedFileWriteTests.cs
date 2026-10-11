@@ -181,6 +181,42 @@ public sealed class LocalStagedFileWriteTests : IDisposable
         Assert.Empty(Directory.EnumerateFiles(_folder, "*.partial"));
     }
 
+    /// <summary>
+    /// Replacing a file on this PC, as the conflict choices now allow, is held to the identity the
+    /// desktop listed: the file as it was is replaced whole, and one changed since is left alone.
+    /// </summary>
+    [Fact]
+    public async Task AnOverwriteOfALocalFileIsHeldToTheIdentityTheDesktopListed()
+    {
+        var payload = Enumerable.Range(0, 5_000).Select(index => (byte)(index % 13)).ToArray();
+        var remote = new FlakyRemote(payload);
+        var path = Path.Combine(_folder, "big.bin");
+        await File.WriteAllTextAsync(path, "the old one");
+        var listed = new FileInfo(path);
+        var identity = LocalTransferFolder.FileIdentity(new DateTimeOffset(listed.LastWriteTime), listed.Length);
+        var (destination, session) = await OpenAsync("big.bin");
+        var options = new TransferExecutionOptions(Overwrite: true, AllowNonAtomicDestinationWrites: true, Resumable: true);
+        TransferIntent Intent(string expected) => new(
+            TransferJobId.New(),
+            TransferOperationKind.Copy,
+            StorageAddress.Create(remote.ProfileId, remote.RootIdentity, "big.bin", entityTag: "\"v1\"").Value,
+            destination,
+            payload.LongLength,
+            TransferVerificationPolicy.StrongHashWhenAvailable,
+            DateTimeOffset.UtcNow,
+            expectedDestinationEntityTag: expected);
+
+        var stale = await TransferExecutor.ExecuteAsync(Intent("local:1:2"), remote, session, options);
+        Assert.True(stale.IsFailure);
+        Assert.Equal("transfer.destination.changed", stale.Error.Code);
+        Assert.Equal("the old one", await File.ReadAllTextAsync(path));
+
+        var replaced = await TransferExecutor.ExecuteAsync(Intent(identity), remote, session, options);
+        Assert.True(replaced.IsSuccess, replaced.IsFailure ? replaced.Error.Message : null);
+        Assert.Equal(payload, await File.ReadAllBytesAsync(path));
+        Assert.Empty(Directory.EnumerateFiles(_folder, "*.partial"));
+    }
+
     private async Task<(StorageAddress Address, IStorageEndpointSession Session)> OpenAsync(string name)
     {
         var address = LocalUserPathTransferEndpoint.CreateAddress(_folder, name);

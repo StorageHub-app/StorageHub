@@ -307,4 +307,23 @@ internal sealed class TransferStrings : LocalizationModelBase
 
     /// <summary>{0} = the state, {1} = what went wrong.</summary>
     public string StateWithErrorFormat { get; set; } = "{0}: {1}";
+
+    // ------------------------------------------------------- existing files (1.6)
+    // What a transfer does with a file already at its destination: the dialog that asks and the
+    // Settings default share these, so the two always name a choice the same way.
+    public string ConflictOverwrite { get; set; } = "Overwrite";
+
+    public string ConflictSkip { get; set; } = "Skip";
+
+    public string ConflictOverwriteIfNewer { get; set; } = "Overwrite if the source is newer";
+
+    public string ConflictOverwriteIfSizeDiffers { get; set; } = "Overwrite if the size differs";
+
+    public string ConflictRename { get; set; } = "Keep both, renaming the new file";
+
+    public string ConflictResume { get; set; } = "Resume a shorter file";
+
+    /// <summary>{0} = transfers queued, {1} = files skipped, {2} = files queued under a new name.</summary>
+    public string QueuedWithConflictsFormat { get; set; } =
+        "Queued {0:N0} transfer(s). {1:N0} already at the destination skipped, {2:N0} renamed.";
 }

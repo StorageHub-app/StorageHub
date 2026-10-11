@@ -85,6 +85,15 @@ and GitHub's size, and installs it once StorageHub has closed: through
 encrypted in the vault like any other, the library is handed no passphrase for
 it, and importing or choosing one warns that a passphrase is still recommended.
 
+**A file already at the destination is a choice.** A copy or a move that meets
+one asks once, at the first, what to do with it and with the rest: overwrite,
+skip, overwrite if the source is newer or if the sizes differ, keep both by
+naming the new one "name (1).ext", or resume a shorter file. Settings, under
+Transfers & sync, can name the answer instead, and the question can save it
+there. A folder copy asks at the first such file however deep it is. Files on
+this PC can now be replaced by a download and can replace a file on a
+connection, each still checked to be the file that was listed.
+
 **An interrupted transfer continues where it stopped.** A download to this
 PC, and an upload to a Local, FTP or SFTP connection, is written to a hidden
 `.storagehub-….partial` file and renamed into place only when it is whole, so

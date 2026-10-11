@@ -305,4 +305,16 @@ internal sealed class DialogStrings : LocalizationModelBase
     public string UnexpectedErrorFormat { get; set; } =
         "Something went wrong that StorageHub did not expect: {0}\n\n" +
         "StorageHub will keep running. The details were written to {1}.";
+
+    // ------------------------------------------------- a file already there (1.6)
+    public string TransferConflictCaption { get; set; } = "File already exists";
+
+    /// <summary>{0} = the first file the transfer found already at its destination.</summary>
+    public string TransferConflictPromptFormat { get; set; } = "{0} is already at the destination.";
+
+    public string TransferConflictDetail { get; set; } =
+        "Choose what happens to it, and to any other file this transfer finds already there.";
+
+    public string TransferConflictRemember { get; set; } =
+        "Always do this (Settings, Transfers & sync)";
 }

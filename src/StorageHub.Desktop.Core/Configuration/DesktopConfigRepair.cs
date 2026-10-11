@@ -173,7 +173,11 @@ internal static class DesktopConfigRepair
                 : DesktopCulture.AutomaticLanguage,
             // A zone this machine does not know follows the system, which is what a new schedule
             // would have started on anyway; another system's name for a known zone becomes ours.
-            NewScheduleTimeZone = ScheduleTimeZones.Normalize(preferences.NewScheduleTimeZone)
+            NewScheduleTimeZone = ScheduleTimeZones.Normalize(preferences.NewScheduleTimeZone),
+            // A choice this build does not have asks, which cannot replace anything by surprise.
+            TransferConflictDefault = preferences.TransferConflictDefault is { } conflicts && Enum.IsDefined(conflicts)
+                ? conflicts
+                : null
         };
     }
 
@@ -220,6 +224,11 @@ internal static class DesktopConfigRepair
             !string.Equals(ScheduleTimeZones.Normalize(zone), zone, StringComparison.Ordinal))
         {
             return "The time zone for new schedules is not one this computer knows.";
+        }
+
+        if (preferences.TransferConflictDefault is { } conflicts && !Enum.IsDefined(conflicts))
+        {
+            return "The choice for files already at a transfer's destination is not one StorageHub has.";
         }
 
         return !IsValidEditorPath(preferences.ExternalEditorPath) ||

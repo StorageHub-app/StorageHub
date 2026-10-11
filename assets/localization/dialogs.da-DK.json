@@ -91,5 +91,9 @@
   "languageRestartPromptFormat": "StorageHub skal genstarte for at skifte til {0}.\n\nGenstart nu? Overførsler og synkronisering fortsætter i baggrundsagenten.",
   "unexpectedErrorCaption": "StorageHub",
   "unexpectedErrorFormat": "Der skete noget, som StorageHub ikke forventede: {0}\n\nStorageHub kører videre. Detaljerne er skrevet til {1}.",
-  "culture": "da-DK"
+  "culture": "da-DK",
+  "transferConflictCaption": "Filen findes allerede",
+  "transferConflictPromptFormat": "{0} findes allerede på destinationen.",
+  "transferConflictDetail": "Vælg, hvad der skal ske med den og med alle andre filer, som denne overførsel finder på destinationen.",
+  "transferConflictRemember": "Gør altid dette (Indstillinger, Overførsler og sync)"
 }
