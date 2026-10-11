@@ -1203,6 +1203,10 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
     /// <summary>Whether there is anything stopped for Start queue.</summary>
     internal bool CanStartQueue => CountOf(StartableStates) > 0;
 
+    /// <summary>The counts by state, as Tools, Diagnostics reports them.</summary>
+    internal IReadOnlyDictionary<string, int> StateCountsByName =>
+        _stateCounts.ToDictionary(static pair => pair.Key.ToString(), static pair => pair.Value, StringComparer.Ordinal);
+
     /// <summary>Raised when what the queue-wide entries are lit by may have changed.</summary>
     internal event EventHandler? ControlsChanged;
 

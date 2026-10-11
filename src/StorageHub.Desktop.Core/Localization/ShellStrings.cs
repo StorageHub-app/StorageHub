@@ -524,4 +524,156 @@ internal sealed class ShellStrings : LocalizationModelBase
     /// <summary>Shown when the agent answered and refused, which is not a reconnect problem.</summary>
     public string AgentRequestFailed { get; set; } =
         "StorageHub could not complete that request.";
+
+    public string SearchTitle { get; set; } = "Search";
+
+    public string SearchIntroFormat { get; set; } = "Searches {0} and every folder under it for names that match.";
+
+    public string SearchQueryLabel { get; set; } = "Name:";
+
+    public string SearchQueryHint { get; set; } = "Part of a name, or a pattern such as *.jpg";
+
+    public string SearchButton { get; set; } = "Search";
+
+    public string SearchStop { get; set; } = "Stop";
+
+    public string SearchGoTo { get; set; } = "Go to";
+
+    public string SearchColumnName { get; set; } = "Name";
+
+    public string SearchColumnFolder { get; set; } = "Folder";
+
+    public string SearchColumnSize { get; set; } = "Size";
+
+    public string SearchColumnModified { get; set; } = "Modified";
+
+    public string SearchFolderKind { get; set; } = "Folder";
+
+    public string SearchReady { get; set; } = "Type a name and press Search.";
+
+    public string Searching { get; set; } = "Searching…";
+
+    public string SearchingFormat { get; set; } = "Searching… {0:N0} items looked at.";
+
+    public string SearchFoundFormat { get; set; } = "Found {0:N0} in {1:N0} items.";
+
+    public string SearchNothingFormat { get; set; } = "Nothing matches among {0:N0} items.";
+
+    public string SearchLimitFormat { get; set; } =
+        "Found {0:N0} in the first {1:N0} items; the search stopped at its limit. Search a folder further down for the rest.";
+
+    public string SearchStopped { get; set; } = "Search stopped.";
+
+    public string SearchNeedsAName { get; set; } = "Type part of a name to search for.";
+
+    public string SearchNeedsAFolder { get; set; } = "Open a folder in the pane to search it.";
+
+    public string SearchTimedOut { get; set; } = "The agent took too long to list a folder; the search stopped.";
+
+    public string ChecksumsTitle { get; set; } = "Checksums";
+
+    public string ChecksumsIntro { get; set; } =
+        "The SHA-256 of each selected file: the server's own where it keeps one, otherwise read and computed. Paste a checksum below to compare every file with it.";
+
+    public string ChecksumExpected { get; set; } = "Expected:";
+
+    public string ChecksumExpectedHint { get; set; } = "A SHA-256 to compare with, as shown on a download page";
+
+    public string ChecksumCopy { get; set; } = "Copy checksums";
+
+    public string ChecksumColumnSha256 { get; set; } = "SHA-256";
+
+    public string ChecksumColumnSource { get; set; } = "From";
+
+    public string ChecksumColumnMatch { get; set; } = "Comparison";
+
+    public string ChecksumPending { get; set; } = "Waiting…";
+
+    public string ChecksumFromServer { get; set; } = "The server";
+
+    public string ChecksumComputed { get; set; } = "Computed from the file";
+
+    public string ChecksumFilesOnly { get; set; } = "Only a file has a checksum.";
+
+    public string ChecksumTimedOut { get; set; } = "Reading the file took too long.";
+
+    public string ChecksumMatchesExpected { get; set; } = "Matches";
+
+    public string ChecksumDiffersFromExpected { get; set; } = "Differs";
+
+    public string ChecksumSameAsFormat { get; set; } = "Same as {0}";
+
+    public string ChecksumUnique { get; set; } = "Unique";
+
+    public string ChecksumWorking { get; set; } = "Reading checksums…";
+
+    public string ChecksumProgressFormat { get; set; } = "Read {0} of {1}…";
+
+    public string ChecksumReady { get; set; } = "Checksum ready.";
+
+    public string ChecksumAllIdenticalFormat { get; set; } = "All {0} files are identical.";
+
+    public string ChecksumDistinctFormat { get; set; } = "{0} different checksums among {1} files.";
+
+    public string ChecksumExpectedSummaryFormat { get; set; } = "{0} of {1} match the expected checksum.";
+
+    public string ChecksumFailedFormat { get; set; } = "{0} could not be read.";
+
+    public string ChecksumSkippedFormat { get; set; } = "{0} folder(s) or extra item(s) left out.";
+
+    public string ChecksumNoneRead { get; set; } = "No checksum could be read.";
+
+    public string DiagnosticsTitle { get; set; } = "Diagnostics";
+
+    public string DiagnosticsIntro { get; set; } =
+        "This installation in a few lines, to copy into a report, and a support bundle to attach to one.";
+
+    public string DiagnosticsPrivacy { get; set; } =
+        "The bundle holds the version, the system, the agent's state and the error log with your user name, computer name and home folder taken out. No connection, password or key goes in it.";
+
+    public string DiagnosticsVersion { get; set; } = "StorageHub";
+
+    public string DiagnosticsOperatingSystem { get; set; } = "System";
+
+    public string DiagnosticsRuntime { get; set; } = "Runtime";
+
+    public string DiagnosticsLanguage { get; set; } = "Language";
+
+    public string DiagnosticsAgent { get; set; } = "Agent";
+
+    public string DiagnosticsAgentNotHeard { get; set; } = "not heard from yet";
+
+    public string DiagnosticsRunning { get; set; } = "Running";
+
+    public string DiagnosticsRunningFormat { get; set; } = "{0} transfer(s), {1} sync run(s)";
+
+    public string DiagnosticsQueue { get; set; } = "Queue";
+
+    public string DiagnosticsQueueNotRead { get; set; } = "not read yet";
+
+    public string DiagnosticsQueueEmpty { get; set; } = "empty";
+
+    public string DiagnosticsLogFolder { get; set; } = "Logs";
+
+    public string DiagnosticsCollected { get; set; } = "Collected";
+
+    public string DiagnosticsCopy { get; set; } = "Copy report";
+
+    public string DiagnosticsCopied { get; set; } = "The report is on the clipboard.";
+
+    public string DiagnosticsSaveBundle { get; set; } = "Save bundle…";
+
+    public string DiagnosticsBundleFilter { get; set; } = "Support bundle";
+
+    public string DiagnosticsSavedFormat { get; set; } = "Saved {0} with {1} file(s).";
+
+    public string DiagnosticsSaveFailedFormat { get; set; } = "The bundle could not be saved: {0}";
+
+    public string DiagnosticsOpenLogs { get; set; } = "Open logs";
+
+    public string LogsTitle { get; set; } = "Logs";
+
+    public string LogsFolderIsFormat { get; set; } = "The logs are in {0}";
+
+    public string LinkNotOpenedTitle { get; set; } = "Open this address in a browser";
 }

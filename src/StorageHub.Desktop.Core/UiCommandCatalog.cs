@@ -650,7 +650,14 @@ internal static class UiCommandCatalog
         UiCommandIds.TransferStartQueue or
         UiCommandIds.TransferPauseAll or
         UiCommandIds.TransferResumeAll or
-        UiCommandIds.TransferCancelSelected;
+        UiCommandIds.TransferCancelSelected or
+        UiCommandIds.ToolsSearch or
+        UiCommandIds.ToolsChecksums or
+        UiCommandIds.ToolsLogs or
+        UiCommandIds.ToolsDiagnostics or
+        UiCommandIds.HelpKeyboardShortcuts or
+        UiCommandIds.HelpDocumentation or
+        UiCommandIds.HelpReportIssue;
 
     internal static bool IsPaneCommand(UiCommandDefinition command)
     {
