@@ -752,7 +752,18 @@ The profile already stores these; `CodeLogicConnectionProfileConnector.BuildAsyn
 Each goes through the profile model, SQLite, IPC, the connector, capabilities, the editor (fields,
 icon, da/de text), settings and import/export, and a lab container with a conformance run.
 
-- [ ] 5.1 WebDAV (lab: `rclone serve webdav`, plus a TLS variant for pins)
+- [x] 5.1 WebDAV (lab: `rclone serve webdav`, plus a TLS variant for pins)
+      Done through the profile model (`WebDavEndpoint`, `BearerTokenAuthentication`), SQLite (migration
+      v17 widens the provider check in place), IPC (`ConnectionHttpCredentialScheme`, the URL in
+      `ServiceEndpoint`), the agent, the connector, the editor with da/de text, settings, import, and
+      the `webdav`/`webdav-tls` lab services. Sign-in is Basic, Digest, NTLM, Negotiate, bearer token or
+      anonymous. HTTPS is trusted by the system or pinned per host and port as FTPS is, with an
+      optional client certificate from the vault handed over as bytes; plain HTTP needs an explicit
+      acknowledgement. The conformance run passed against a local wsgidav server; the rclone lab
+      services were not run here (Docker Hub refused the pull). Not built: Windows integrated sign-in,
+      custom headers, public-key pins, trust-on-first-use, a mutual-TLS lab server. Reopening a pinned
+      FTPS connection no longer loses its pin, and an imported connection whose only secret is a
+      client certificate now arrives disabled like any other.
 - [ ] 5.2 Azure Blob (Azurite)
 - [ ] 5.3 Google Cloud Storage (fake-gcs-server)
 - [ ] 5.4 Swift (all-in-one container)

@@ -113,6 +113,16 @@ server's system and software, the host key or certificate it presented and
 whether it is trusted, the cipher and key exchange negotiated, the server's
 features, how many sessions are open and the last health check.
 
+**WebDAV connections.** StorageHub now connects to WebDAV servers such as
+Nextcloud, ownCloud, SharePoint and NAS boxes. Enter the folder's URL and sign
+in with Basic, Digest, NTLM, Negotiate, a bearer token or no sign-in at all. The
+server's HTTPS certificate is trusted by the system or pinned the same way as
+for FTPS, and a client certificate from the vault can be added. Plain HTTP works
+only after you allow it on the Trust tab. A request timeout under Advanced can
+be raised for large uploads on slow lines. Reopening a pinned FTPS connection
+for editing no longer loses its pin, and imported connections that rely on a
+client certificate now arrive disabled when that certificate is not available.
+
 **Properties shows permissions, owner and dates, and can change permissions
 and the modified time.** Properties now opens on a folder or a link as well as a
 file, with a General tab listing its kind, size, modified, created and
