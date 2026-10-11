@@ -85,6 +85,18 @@ and GitHub's size, and installs it once StorageHub has closed: through
 encrypted in the vault like any other, the library is handed no passphrase for
 it, and importing or choosing one warns that a passphrase is still recommended.
 
+**An interrupted transfer continues where it stopped.** A download to this
+PC, and an upload to a Local, FTP or SFTP connection, is written to a hidden
+`.storagehub-….partial` file and renamed into place only when it is whole, so
+the destination never holds half a file. When the connection drops, the agent
+restarts or the transfer is paused, the bytes that arrived stay, and the retry
+or the next queueing of the same file reads only the rest. The staged part is
+used only for the same version of the same source to the same place: a source
+that changed since, or staged bytes that no longer match it, start again from
+the beginning, and a checksum the transfer was planned with still covers the
+whole file. Cancelling a transfer removes what it staged. S3 has no append, so
+uploads to it still start again.
+
 **Smaller things that are new.** A pane's FILES bar can be hidden from Pane
 actions and is saved with the workspace, now that the list's right-click menu
 offers everything the bar does. The SSH terminal passes the mouse to a program

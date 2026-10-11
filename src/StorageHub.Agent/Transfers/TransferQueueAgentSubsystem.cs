@@ -483,11 +483,22 @@ public sealed class TransferQueueAgentSubsystem
                         // writes. Without it nothing could be uploaded to SFTP or FTP at all,
                         // since neither can create a file atomically. An endpoint that can is
                         // written atomically as before.
+                        //
+                        // Resumable wherever both ends can: an interruption keeps what was
+                        // staged and the retry sends the rest, unless somebody cancelled the
+                        // transfer, whose staged bytes nobody will continue.
                         new TransferExecutionOptions(
                             Overwrite: context.Job.Intent.ExpectedDestinationVersionId is not null ||
                                        context.Job.Intent.ExpectedDestinationEntityTag is not null,
                             BufferSize: _options.BufferSize,
-                            AllowNonAtomicDestinationWrites: true),
+                            AllowNonAtomicDestinationWrites: true,
+                            Resumable: true,
+                            DiscardStagedOnCancellation: () => activeControl.IsCancellationRequestedByUser,
+                            ResumeReady: point =>
+                            {
+                                context.ResumePoint = point;
+                                progress.StartFrom(point.ResumedBytes);
+                            }),
                         progress,
                         executionLifetime.Token).ConfigureAwait(false);
                 }
@@ -918,20 +929,24 @@ public sealed class TransferQueueAgentSubsystem
             bytesTransferred = Math.Min(bytesTransferred, length);
         }
 
+        // A resumable transfer records where its staged bytes are, as the source looked when they
+        // were read. The next attempt does not depend on it -- the endpoint measures what is
+        // staged -- but it says what an interrupted transfer has to continue from.
+        var resume = context.ResumePoint;
         var checkpoint = TransferCheckpoint.Create(
             context.Lease.TransferJobId,
             context.Lease.Attempt,
             Math.Max(0, bytesTransferred),
             expectedLength,
-            context.Job.Intent.Source,
+            resume?.Source ?? context.Job.Intent.Source,
             CreateCheckpointDestination(context.Job.Intent),
-            TransferResumeMode.None,
+            resume is null ? TransferResumeMode.None : TransferResumeMode.Offset,
             sourceDigest: context.Job.Intent.ExpectedSourceDigest is null
                 ? null
                 : new TransferContentDigest(
                     context.Job.Intent.ExpectedSourceDigest.AlgorithmName,
                     context.Job.Intent.ExpectedSourceDigest.Value),
-            providerResumeId: null,
+            providerResumeId: resume?.ResumeToken,
             completedParts: [],
             NextTransitionTime(context.Job.State));
         var saved = await _store.TrySaveCheckpointAsync(
@@ -1014,6 +1029,9 @@ public sealed class TransferQueueAgentSubsystem
         public TransferJobLease Lease { get; } = claim.Lease;
         public DurableTransferJob Job { get; set; } = claim.Job;
         public long? CheckpointVersion { get; set; }
+
+        /// <summary>Where a resumable execution stages its bytes, once the executor has said.</summary>
+        public TransferResumePoint? ResumePoint { get; set; }
     }
 
     private sealed class LatestTransferProgress(TimeProvider timeProvider) : IProgress<TransferProgress>
@@ -1024,6 +1042,21 @@ public sealed class TransferQueueAgentSubsystem
         public long BytesTransferred => Interlocked.Read(ref _bytesTransferred);
 
         public long? BytesPerSecond() => _rate.BytesPerSecond();
+
+        /// <summary>
+        /// Counts from what an earlier attempt staged, which this one does not send again, and
+        /// measures the speed from there.
+        /// </summary>
+        public void StartFrom(long resumedBytes)
+        {
+            if (resumedBytes <= 0)
+            {
+                return;
+            }
+
+            _rate.Restart(resumedBytes);
+            Report(new TransferProgress(resumedBytes, null));
+        }
 
         public void Report(TransferProgress value)
         {

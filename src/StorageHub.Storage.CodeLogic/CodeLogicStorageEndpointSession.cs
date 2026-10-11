@@ -335,7 +335,19 @@ public sealed class CodeLogicStorageEndpointSession :
         {
             return ValueTask.FromResult(StorageResult<IStorageWriteHandle>.Fail(CodeLogicStorageMapper.Unsupported(
                 "storage.resume_upload.unsupported",
-                "StorageHub's streaming handle does not yet expose CL.Storage resume tokens.")));
+                "Resume is requested with a resume key on a create-new or overwrite write.")));
+        }
+
+        if (request.ResumeKey is not null)
+        {
+            if (Capabilities[DomainStorageFeature.ResumeUpload].Level != FeatureSupportLevel.Native)
+            {
+                return ValueTask.FromResult(StorageResult<IStorageWriteHandle>.Fail(CodeLogicStorageMapper.Unsupported(
+                    "storage.resume_upload.unsupported",
+                    "This provider cannot append to a staged object, so the write cannot be resumed.")));
+            }
+
+            return OpenResumableWriteAsync(request, cancellationToken);
         }
 
         try
@@ -347,6 +359,25 @@ public sealed class CodeLogicStorageEndpointSession :
         {
             return ValueTask.FromResult(StorageResult<IStorageWriteHandle>.Fail(
                 CodeLogicStorageMapper.Unexpected("write initialization")));
+        }
+    }
+
+    private async ValueTask<StorageResult<IStorageWriteHandle>> OpenResumableWriteAsync(
+        StorageWriteRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await CodeLogicResumableWriteHandle.OpenAsync(
+                _storage, request, ProfileId, RootIdentity, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return StorageResult<IStorageWriteHandle>.Fail(CodeLogicStorageMapper.Unexpected("write initialization"));
         }
     }
 

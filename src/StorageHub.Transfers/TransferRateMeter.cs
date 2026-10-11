@@ -53,6 +53,22 @@ public sealed class TransferRateMeter
     }
 
     /// <summary>Bytes per second over the last <see cref="Window"/>, or null while too little time has passed.</summary>
+    /// <summary>
+    /// Starts measuring again from <paramref name="baseBytes"/>, which were not moved now: what a
+    /// resumed transfer had already staged would otherwise count as speed.
+    /// </summary>
+    public void Restart(long baseBytes)
+    {
+        lock (_gate)
+        {
+            var now = _timeProvider.GetTimestamp();
+            _samples.Clear();
+            _samples.Enqueue((now, baseBytes));
+            _latestBytes = baseBytes;
+            _lastSampleTimestamp = now;
+        }
+    }
+
     public long? BytesPerSecond()
     {
         lock (_gate)

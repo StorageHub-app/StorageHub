@@ -10,7 +10,10 @@ public enum StorageWriteHandleState
     Committed,
     Aborting,
     Aborted,
-    Faulted
+    Faulted,
+
+    /// <summary>Closed with its staged bytes kept for a later write with the same resume key.</summary>
+    Suspended
 }
 
 /// <summary>
@@ -27,10 +30,16 @@ public interface IStorageWriteHandle : IAsyncDisposable
     /// </summary>
     Stream Content { get; }
 
-    /// <summary>The provider-confirmed starting offset for this handle.</summary>
+    /// <summary>
+    /// The provider-confirmed starting offset for this handle: how many bytes an earlier write
+    /// with the same resume key had already staged, which the caller must not write again.
+    /// </summary>
     long AcceptedOffset { get; }
 
-    /// <summary>An opaque checkpoint that may be persisted when resume upload is supported.</summary>
+    /// <summary>
+    /// A non-secret name for the staged bytes, which may be persisted with a checkpoint when the
+    /// write was opened with a resume key; null otherwise.
+    /// </summary>
     string? ResumeToken { get; }
 
     StorageWriteHandleState State { get; }
@@ -40,4 +49,28 @@ public interface IStorageWriteHandle : IAsyncDisposable
 
     /// <summary>Removes staged content when possible. Implementations permit at most one terminal transition.</summary>
     ValueTask<StorageResult> AbortAsync(CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// A write opened with a resume key, whose staged bytes can outlive the handle.
+/// </summary>
+/// <remarks>
+/// <see cref="IStorageWriteHandle.AbortAsync"/> still discards everything: it is what a failure
+/// that makes the bytes worthless calls, such as a source that changed or failed verification.
+/// <see cref="SuspendAsync"/> is for an interruption -- a cancelled worker, a dropped connection --
+/// and keeps what was written so far for the next write with the same key to continue.
+/// </remarks>
+public interface IResumableStorageWriteHandle : IStorageWriteHandle
+{
+    /// <summary>
+    /// Reads back the <see cref="IStorageWriteHandle.AcceptedOffset"/> bytes already staged, so a
+    /// caller that verifies a digest can account for the bytes it is not sending again.
+    /// </summary>
+    ValueTask<StorageResult<Stream>> OpenAcceptedContentAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Closes the content and keeps the bytes written so far staged, unpublished, for a later
+    /// write with the same resume key. Implementations permit at most one terminal transition.
+    /// </summary>
+    ValueTask<StorageResult> SuspendAsync(CancellationToken cancellationToken = default);
 }
