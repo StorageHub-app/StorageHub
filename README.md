@@ -20,9 +20,9 @@ adapts the all-in-one `CL.Storage` (`CodeLogic.Storage`) provider library behind
 a provider-neutral contract.
 
 > [!IMPORTANT]
-> `main` is StorageHub 2.0, which ships as pre-releases until 2.0.0 is tagged.
-> StorageHub 1.4.5 is still the current stable release, marked Latest on the
-> releases page; the 1.4 source is kept on the
+> StorageHub 2.0.0 is the current stable release, marked Latest on the releases
+> page; `main` carries the next version and publishes pre-releases between
+> releases. The 1.4 source is kept on the
 > [`1.x-archive`](https://github.com/StorageHub-app/StorageHub/tree/1.x-archive)
 > branch. Release binaries are not yet code-signed, so Windows SmartScreen may
 > warn on first run; verify downloads against the published `SHA256SUMS`. As
@@ -123,7 +123,7 @@ reached parity with 1.4, screen by screen, is in the
 ## Install
 
 Download from [GitHub Releases](https://github.com/StorageHub-app/StorageHub/releases).
-1.4.5 is the release marked Latest; 2.0 builds are the newest pre-releases.
+2.0.0 is the release marked Latest; builds between releases are published as pre-releases.
 
 | | x64 (Intel and AMD) | ARM64 |
 | --- | --- | --- |

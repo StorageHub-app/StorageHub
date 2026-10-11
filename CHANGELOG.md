@@ -18,10 +18,14 @@ chosen is written down in [Versioning and merges](docs/versioning.md).
 
 ## Unreleased
 
-What follows is StorageHub 2.0, published as release candidates until 2.0.0 is
-tagged: `2.0.0-rc.1` by hand, then one for every push to `main`. 1.4.5 stays the
-release marked Latest until then, and the 1.4 source is kept on the
-`1.x-archive` branch.
+---
+
+## 2.0.0 — 2026-10-11
+
+The first stable StorageHub 2.0, released after a run of release candidates
+(`2.0.0-rc.1` by hand, then one for every push to `main`). It replaces 1.4.5 as
+the release marked Latest, and the 1.4 source is kept on the `1.x-archive`
+branch.
 
 **Duplicate a connection.** A connection's menu and its selected card have a
 Duplicate action: it saves a copy named "(copy)", then "(copy 2)" and on, with the same

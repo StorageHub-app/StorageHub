@@ -4,9 +4,9 @@ What is left before 2.0 ships, in order. Each numbered item is one commit (or a 
 lands. The Avalonia port's screens 1–9 are done; this picks up from there.
 
 2.0 is now `main`, and 1.4 is kept on the `1.x-archive` branch. Sections P (behaviour) and L (look) are
-ticked through, and 2.0 ships as pre-releases until `v2.0.0` is tagged: `2.0.0-rc.1` by hand, x64 only,
-then a CI candidate for every push, for Windows and Linux on x64 and ARM64. 1.4.5 stays the Latest
-release until then.
+ticked through, and 2.0 was released as `v2.0.0` after a run of candidates: `2.0.0-rc.1` by hand, x64 only,
+then a CI candidate for every push, for Windows and Linux on x64 and ARM64. `v2.0.0` is the Latest
+release.
 
 **Ground rules**
 
