@@ -1403,6 +1403,7 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
             or nameof(BrowserPaneModel.SortAscending)
             or nameof(BrowserPaneModel.ShowConnectionBar)
             or nameof(BrowserPaneModel.ShowFilesBar)
+            or nameof(BrowserPaneModel.ShowTree)
             or nameof(BrowserPaneModel.IsActive))
         {
             Recheck();

@@ -56,7 +56,7 @@ internal sealed record PaneMoveOption(string Title, ICommand Command);
 /// agent, which is the thing the WinForms pane could never be tested for.
 /// </para>
 /// </remarks>
-internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposable
+internal sealed partial class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposable
 {
     private readonly RemoteBrowserController _controller;
     private readonly Func<ILocalFileBrowserDataSource?> _localSource;
@@ -535,7 +535,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             var shown = Rows.Count(static row => !row.IsParentNavigation);
             var count = HasFilter && _index is not null
                 ? Ui.Format(Ui.Pane.ItemCountFilteredFormat, shown,
-                    _index.CreateView(_sortColumn, _sortAscending, null).Count)
+                    _index.CreateView(_sortColumn, _sortAscending, null, _showHidden).Count)
                 : shown == 1 ? Ui.Pane.ItemCountOne : Ui.Format(Ui.Pane.ItemCountFormat, shown);
             return !_hasMore ? count
                 : _loadingMore is not null ? count + Ui.Pane.IndexingNextPageSuffix
@@ -1418,7 +1418,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
 
         var target = new List<BrowserListItem>();
         if (!_isAtRoot) target.Add(BrowserParentNavigation.Item);
-        target.AddRange(Index.CreateView(_sortColumn, _sortAscending, NullIfEmpty(_filter)));
+        target.AddRange(Index.CreateView(_sortColumn, _sortAscending, NullIfEmpty(_filter), _showHidden));
         var wanted = target.ToHashSet();
 
         for (var index = Rows.Count - 1; index >= 0; index--)
@@ -1767,7 +1767,8 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             _sortColumn,
             _sortAscending,
             HeaderHidden: !_showConnectionBar,
-            FilesBarHidden: !_showFilesBar);
+            FilesBarHidden: !_showFilesBar,
+            TreeHidden: !_showTree);
     }
 
     /// <summary>
@@ -1803,6 +1804,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         RaiseHeaders();
         ShowConnectionBar = !state.HeaderHidden;
         ShowFilesBar = !state.FilesBarHidden;
+        ShowTree = !state.TreeHidden;
 
         _restoring = true;
         try
@@ -2385,6 +2387,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         ApplyView();
         Raise(nameof(Title));
         FollowTree(listing.Rows, append: false);
+        RecordVisit();
         if (_source is { } source) _ = ReadSpaceAsync(navigation, source);
         FollowFolder(readSettings: true);
     }
@@ -2426,7 +2429,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             local ? Ui.Pane.ThisPc : Title,
             local,
             here.RelativePath,
-            rows,
+            _showHidden ? rows : [.. rows.Where(static row => !row.IsHidden)],
             append);
     }
 
@@ -2469,7 +2472,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         }
 
         var matched = 0;
-        foreach (var row in Index.CreateView(_sortColumn, _sortAscending, NullIfEmpty(_filter)))
+        foreach (var row in Index.CreateView(_sortColumn, _sortAscending, NullIfEmpty(_filter), _showHidden))
         {
             Rows.Add(row);
             matched++;

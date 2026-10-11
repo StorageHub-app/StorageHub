@@ -72,7 +72,7 @@
   "connectionsKeyStore": "Nøglelager...",
   "connectionsKeyStoreDescription": "Importér og administrér de certifikater og private nøgler, som gemte forbindelser deler.",
   "connectionsQuickConnect": "Hurtig forbindelse...",
-  "connectionsQuickConnectDescription": "Åbn en midlertidig forbindelse uden at gemme loginoplysninger i profilen.",
+  "connectionsQuickConnectDescription": "Find en gemt forbindelse efter navn, og åbn den i den aktive rude.",
   "connectionsReconnect": "Forbind igen",
   "connectionsReconnectDescription": "Åbn den aktive rudes forbindelse igen.",
   "connectionsDisconnect": "Afbryd forbindelse",

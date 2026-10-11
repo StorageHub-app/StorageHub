@@ -226,6 +226,18 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     internal void Select(ConnectionRowModel? row) => Selected = row;
 
     /// <summary>
+    /// Selects a connection's card by its id, for Connections > Test Connection on the connection
+    /// the active pane has open, so its result lands under that card as the panel's own Test does.
+    /// </summary>
+    /// <returns>False when the panel does not list it.</returns>
+    internal bool SelectConnection(Guid connectionId)
+    {
+        if (Rows().FirstOrDefault(row => row.Id == connectionId) is not { } found) return false;
+        Selected = found;
+        return true;
+    }
+
+    /// <summary>
     /// A saved connection's name, from the list the agent last gave, or null when it is not on it.
     /// </summary>
     /// <remarks>

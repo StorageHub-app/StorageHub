@@ -192,5 +192,14 @@
   "deleteItemsDetail": "Elementerne fjernes fra det lager, de ligger på. Dette kan ikke fortrydes.",
   "deletedItemsFormat": "Slettede {0:N0} element(er).",
   "commandNotBuiltFormat": "{0} er ikke bygget endnu.",
+  "showDirectoryTree": "Vis mappetræ",
+  "noOtherLocationsVisited": "Ingen andre placeringer besøgt endnu",
+  "historyHint": "Mapper, som denne rude har vist i denne session, nyeste først.",
+  "themeNowFormat": "Tema: {0}",
+  "hiddenFilesShown": "Skjulte filer vises.",
+  "hiddenFilesNotShown": "Skjulte filer vises ikke.",
+  "disconnectedFromFormat": "Afbrudt fra {0}.",
+  "testingConnectionFormat": "Tester {0}…",
+  "testedConnectionFormat": "{0}: {1}",
   "culture": "da-DK"
 }

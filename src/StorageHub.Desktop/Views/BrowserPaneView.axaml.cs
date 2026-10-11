@@ -3,6 +3,7 @@ using System.Windows.Input;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
@@ -196,6 +197,8 @@ public partial class BrowserPaneView : UserControl
         {
             _bound.PropertyChanged -= OnModelChanged;
             _bound.FocusAddressRequested -= OnFocusAddress;
+            _bound.ChoicesRequested -= OnChoicesRequested;
+            _bound.ConnectionPickerRequested -= OnConnectionPickerRequested;
         }
 
         _bound = model;
@@ -203,9 +206,90 @@ public partial class BrowserPaneView : UserControl
         {
             _bound.PropertyChanged += OnModelChanged;
             _bound.FocusAddressRequested += OnFocusAddress;
+            _bound.ChoicesRequested += OnChoicesRequested;
+            _bound.ConnectionPickerRequested += OnConnectionPickerRequested;
         }
 
         RefreshHeadings();
+        ArrangeTree();
+    }
+
+    /// <summary>The width the tree was dragged to, given back when it is shown again.</summary>
+    private GridLength _treeWidth = new(185);
+
+    /// <summary>
+    /// Shows or hides the folder tree with its splitter, as View > Directory Tree and the pane's
+    /// menu ask.
+    /// </summary>
+    /// <remarks>
+    /// The column is sized to nothing rather than the tree merely hidden, because a hidden child
+    /// leaves its column's width behind; the list then takes the room.
+    /// </remarks>
+    private void ArrangeTree()
+    {
+        if (Model is not { } model || this.FindControl<Grid>("PART_Listing") is not { } listing) return;
+
+        var column = listing.ColumnDefinitions[0];
+        if (model.ShowTree)
+        {
+            if (column.Width.IsAbsolute && column.Width.Value == 0) column.Width = _treeWidth;
+        }
+        else if (!column.Width.IsAbsolute || column.Width.Value > 0)
+        {
+            _treeWidth = column.Width;
+            column.Width = new GridLength(0);
+        }
+
+        if (this.FindControl<TreeView>("PART_Tree") is { } tree) tree.IsVisible = model.ShowTree;
+        if (this.FindControl<GridSplitter>("PART_TreeSplitter") is { } splitter) splitter.IsVisible = model.ShowTree;
+    }
+
+    /// <summary>
+    /// Go > History's and Go > Favorites' list, under the address bar, as a menu: the arrow keys
+    /// and Enter choose from it, and Escape leaves it.
+    /// </summary>
+    private void OnChoicesRequested(object? sender, PaneChoices choices)
+    {
+        var flyout = new MenuFlyout { Placement = PlacementMode.BottomEdgeAlignedLeft };
+        var heading = new MenuItem { Header = choices.Heading, IsEnabled = false };
+        heading.Classes.Add("heading");
+        flyout.Items.Add(heading);
+        flyout.Items.Add(new Separator());
+        foreach (var choice in choices.Items.Count > 0 ? choices.Items : [choices.Empty])
+        {
+            var item = new MenuItem
+            {
+                // An underscore marks an access key, so a folder's own is doubled to show as typed.
+                Header = choice.Label.Replace("_", "__", StringComparison.Ordinal),
+                IsEnabled = choice.Go is not null,
+                Command = choice.Go is { } go ? new RelayCommand(_ => _ = go()) : null,
+            };
+            ToolTip.SetTip(item, choice.Detail.Length > 0 ? choice.Detail : null);
+            ToolTip.SetShowOnDisabled(item, true);
+            flyout.Items.Add(item);
+        }
+
+        LastChoices = flyout;
+        flyout.ShowAt(this.FindControl<Control>("PART_AddressRow") is { IsEffectivelyVisible: true } row ? row : this);
+    }
+
+    /// <summary>The list <see cref="OnChoicesRequested"/> last showed, for a test to read.</summary>
+    internal MenuFlyout? LastChoices { get; private set; }
+
+    /// <summary>
+    /// Quick Connect: the connection picker opened from the keyboard, its search box focused, as
+    /// a click on the connection button opens it.
+    /// </summary>
+    /// <remarks>
+    /// From the pane's title bar when the connection bar is hidden, since the button is not there
+    /// to open from.
+    /// </remarks>
+    private void OnConnectionPickerRequested(object? sender, EventArgs e)
+    {
+        if (this.FindControl<Button>("PART_ConnectionButton") is not { Flyout: Flyout flyout } button) return;
+        flyout.ShowAt(button.IsEffectivelyVisible
+            ? button
+            : this.FindControl<Control>("PART_Header") ?? this);
     }
 
     private void OnFocusAddress(object? sender, EventArgs e)
@@ -218,6 +302,7 @@ public partial class BrowserPaneView : UserControl
     private void OnModelChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName?.EndsWith("Header", StringComparison.Ordinal) == true) RefreshHeadings();
+        if (e.PropertyName == nameof(BrowserPaneModel.ShowTree)) ArrangeTree();
     }
 
     private void RefreshHeadings()

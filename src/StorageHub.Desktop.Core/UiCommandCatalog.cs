@@ -634,6 +634,19 @@ internal static class UiCommandCatalog
         UiCommandIds.GoNextPane or
         UiCommandIds.ConnectionsNewConnection or
         UiCommandIds.ConnectionsKeyStore or
+        // The View, Go and Connections entries 1.4 declared and never wired (ShellViewCommands).
+        UiCommandIds.ViewDirectoryTree or
+        UiCommandIds.ViewTransferQueue or
+        UiCommandIds.ViewSessionLog or
+        UiCommandIds.ViewHiddenFiles or
+        UiCommandIds.ViewTheme or
+        UiCommandIds.GoHome or
+        UiCommandIds.GoHistory or
+        UiCommandIds.GoFavorites or
+        UiCommandIds.ConnectionsQuickConnect or
+        UiCommandIds.ConnectionsReconnect or
+        UiCommandIds.ConnectionsDisconnect or
+        UiCommandIds.ConnectionsTestConnection or
         UiCommandIds.ToolsBackgroundAgent or
         UiCommandIds.ToolsCleanUpLeftovers or
         UiCommandIds.SyncReviewRun or

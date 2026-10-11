@@ -699,6 +699,7 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         Router.UseShortcuts(saved.Shortcuts);
         ArrangeToolbar(saved.ToolbarItems, saved.ToolbarLabels);
         ConnectionsPanel.FollowSettings(saved);
+        ViewToggles.FollowSettings(saved);
         Sidebar.ShowFavoritesInTheirFolders = saved.ShowFavoritesInTheirFolders;
     }
 
@@ -1001,6 +1002,9 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
 
     /// <summary>Where the connections panel is docked, how wide, and whether it is showing.</summary>
     internal ConnectionsPanelLayout ConnectionsPanel { get; init; } = new();
+
+    /// <summary>The queue, the session log, hidden files and the theme, which the View menu turns on and off.</summary>
+    internal ShellViewToggles ViewToggles { get; init; } = new();
 
     /// <summary>What a pane's right-click menu offers after its own Open and Edit.</summary>
     internal IReadOnlyList<object> PaneContextEntries { get; init; } = [];
@@ -1560,9 +1564,17 @@ internal static class ShellPreview
         // Built before the menus, which tick View > Connections Panel while it shows, and the
         // toolbar, which draws that button pressed.
         var panel = new ConnectionsPanelLayout();
+
+        // And the View toggles 1.4 declared and never wired: the active pane's tree, the queue, its
+        // log and hidden files, ticked the same way.
+        var toggles = new ShellViewToggles();
         var checks = new Dictionary<string, CommandCheck>(StringComparer.Ordinal)
         {
             [UiCommandIds.ViewConnectionsPanel] = panel.Check,
+            [UiCommandIds.ViewDirectoryTree] = toggles.TreeCheck,
+            [UiCommandIds.ViewTransferQueue] = toggles.QueueCheck,
+            [UiCommandIds.ViewSessionLog] = toggles.LogCheck,
+            [UiCommandIds.ViewHiddenFiles] = toggles.HiddenCheck,
         };
         // The shell the workspaces belong to, for a pane to reach the connections panel's editor:
         // read when a pane asks, by which time it is there.
@@ -1575,6 +1587,7 @@ internal static class ShellPreview
             SelectedWorkspace = selectedWorkspace,
             Sidebar = BuildSidebar(router),
             ConnectionsPanel = panel,
+            ViewToggles = toggles,
             NewWorkspaceCommand = router.For(UiCommandIds.WorkspaceNewWorkspace),
             NewWorkspaceLabel = Ui.Commands.WorkspaceNewWorkspace,
             Queue = queue,
@@ -1734,6 +1747,19 @@ internal static class ShellPreview
         router.Handle(UiCommandIds.ViewMoveConnectionsPanel, panel.MoveToOtherSide);
         model.Sidebar.MoveToOtherSideCommand = router.For(UiCommandIds.ViewMoveConnectionsPanel);
         model.Sidebar.HidePanelCommand = new RelayCommand(_ => panel.SetVisible(false));
+
+        // The rest of View, and Go and Connections: the queue and hidden files as they were left,
+        // and the theme put on screen as Settings puts it. Live only, as the panel's are: a
+        // preview has no settings file, and its colours are what the photographs compare.
+        if (live)
+        {
+            toggles.Restore(saved);
+            toggles.Persist = UpdatePreferences;
+            toggles.ApplyAppearance = static appearance => SettingsWindow.ApplyScheme(
+                (ReadPreferences() ?? DesktopUpdatePreferences.Defaults) with { Appearance = appearance });
+        }
+
+        ShellViewCommands.Wire(model, toggles);
 
         // Live, the panel opens the way it was left and every change is saved as it happens. It
         // reads the connections again when it comes back, as 1.x did: they may have changed while
