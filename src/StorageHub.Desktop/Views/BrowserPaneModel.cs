@@ -808,6 +808,7 @@ internal sealed partial class BrowserPaneModel : INotifyPropertyChanged, IAsyncD
     public bool HasMoveTargets => MoveTargets.Count > 0;
 
     public static string PaneActionsLabel => Ui.Shell.PaneActions;
+    public static string DragPaneHeadersHint => Ui.Shell.DragPaneHeadersHint;
 
     public static string SplitRightLabel => Ui.Shell.SplitRight;
 

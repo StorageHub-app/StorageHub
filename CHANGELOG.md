@@ -247,6 +247,12 @@ connection, log in or out, change TLS or set something for the session (LIST,
 RETR, STOR, USER, PASS, AUTH, CWD, TYPE and the like) are not sent, and the
 console says why. The saved password stays in the agent.
 
+**More room for the panes.** The bar above the panes that said "Drag pane headers
+to swap or dock panes" beside an empty clipboard is only drawn while something is
+staged for a paste; the hint is now the tooltip on a pane's header. The frame
+round each pane is two pixels wide instead of three, the active pane still
+marked by its colour.
+
 The 1.4 line's last unreleased fixes, to updating and repairing a
 service-hosted agent, stay in `1.x-archive`'s changelog. 2.0 has no service for
 them to apply to.

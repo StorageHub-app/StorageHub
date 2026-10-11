@@ -25,7 +25,7 @@
         an arrangement is settled once and then wants the width back.
       -->
       <Border x:Name="PART_Header" DockPanel.Dock="Top" Classes="pane-header"
-              Cursor="SizeAll">
+              Cursor="SizeAll" ToolTip.Tip="{Binding DragPaneHeadersHint}">
         <Grid ColumnDefinitions="*,Auto">
           <TextBlock Grid.Column="0" VerticalAlignment="Center"
                      FontWeight="SemiBold" Text="{Binding PaneHeading}"/>
