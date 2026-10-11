@@ -99,6 +99,25 @@ internal sealed record DialogRequest
     /// Cancel or No -- a warning dismissed is not a warning agreed to never see again.
     /// </summary>
     public Action<bool>? CheckBoxAnswered { get; init; }
+
+    /// <summary>
+    /// A drop-down under the message, for a question with more answers than buttons -- what to do
+    /// with a file already at a transfer's destination. Null draws none.
+    /// </summary>
+    /// <remarks>
+    /// The buttons still answer the dialog: OK takes the entry shown, Cancel takes nothing. Six
+    /// buttons in a row would be read as six different dialogs' worth of question.
+    /// </remarks>
+    public IReadOnlyList<string>? Choices { get; init; }
+
+    /// <summary>The entry of <see cref="Choices"/> shown first.</summary>
+    public int SelectedChoice { get; init; }
+
+    /// <summary>
+    /// Told which entry of <see cref="Choices"/> was shown when the dialog was answered with
+    /// anything but Cancel or No, as <see cref="CheckBoxAnswered"/> is told about its box.
+    /// </summary>
+    public Action<int>? ChoiceAnswered { get; init; }
 }
 
 /// <summary>

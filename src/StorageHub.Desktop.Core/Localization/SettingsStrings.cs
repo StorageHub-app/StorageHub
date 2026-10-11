@@ -630,4 +630,14 @@ internal sealed class SettingsStrings : LocalizationModelBase
     public string ImportOpen { get; set; } = "Open";
 
     public string ImportBack { get; set; } = "Back";
+
+    // ------------------------------------------------- existing files (1.6)
+    public string SectionExistingFiles { get; set; } = "Existing files";
+
+    public string ExistingFileChoice { get; set; } = "When a file is already there";
+
+    public string ExistingFileChoiceHint { get; set; } =
+        "Ask shows the choice at the first such file, for the whole transfer. Resume finishes a shorter file and keeps what an interrupted attempt already sent.";
+
+    public string ConflictAsk { get; set; } = "Ask each time";
 }

@@ -238,5 +238,9 @@
   "sectionSchedules": "Zeitpläne",
   "newScheduleTimeZone": "Zeitzone für neue Zeitpläne",
   "newScheduleTimeZoneHint": "Bestimmt nur, womit ein neuer Zeitplan beginnt; jeder Zeitplan behält seine eigene Zone. Andernorts angezeigte Zeiten folgen dem System.",
-  "timeZoneFollowSystem": "Dem System folgen (empfohlen)"
+  "timeZoneFollowSystem": "Dem System folgen (empfohlen)",
+  "sectionExistingFiles": "Vorhandene Dateien",
+  "existingFileChoice": "Wenn eine Datei bereits vorhanden ist",
+  "existingFileChoiceHint": "Fragen zeigt die Auswahl bei der ersten solchen Datei, für die ganze Übertragung. Fortsetzen vervollständigt eine kürzere Datei und behält, was ein unterbrochener Versuch bereits gesendet hat.",
+  "conflictAsk": "Jedes Mal fragen"
 }

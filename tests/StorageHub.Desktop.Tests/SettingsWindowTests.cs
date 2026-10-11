@@ -88,7 +88,7 @@ public sealed class SettingsWindowTests : IDisposable
         Assert.Equal(
             [
                 Ui.Settings.SectionConcurrency, Ui.Settings.SectionSpeedLimits, Ui.Settings.SectionSchedules,
-                Ui.Settings.SectionConfirmations
+                Ui.Settings.SectionExistingFiles, Ui.Settings.SectionConfirmations
             ],
             transfers.Groups.Select(group => group.Caption),
             StringComparer.OrdinalIgnoreCase);
@@ -101,6 +101,18 @@ public sealed class SettingsWindowTests : IDisposable
         Assert.Equal(zone, model.Working.NewScheduleTimeZone);
         Row(model, "new-schedule-time-zone").SelectedChoice = 0;
         Assert.Null(model.Working.NewScheduleTimeZone);
+
+        // A file already at a transfer's destination is asked about until a choice is named here,
+        // and asking again stores none.
+        var existing = Row(model, "existing-file-choice");
+        Assert.Equal(0, existing.SelectedChoice);
+        Assert.Equal(
+            [Ui.Settings.ConflictAsk, .. TransferConflictText.All.Select(TransferConflictText.Label)],
+            existing.Definition.Choices.Select(static choice => choice.Label));
+        existing.SelectedChoice = IndexOf(model, "existing-file-choice", nameof(TransferConflictChoice.Resume));
+        Assert.Equal(TransferConflictChoice.Resume, model.Working.TransferConflictDefault);
+        existing.SelectedChoice = 0;
+        Assert.Null(model.Working.TransferConflictDefault);
 
         var startWith = Row(model, "start-with");
         Row(model, "adaptive-concurrency").IsOn = false;

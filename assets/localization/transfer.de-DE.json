@@ -119,5 +119,12 @@
   "reconcileMarkFailed": "Als fehlgeschlagen markieren",
   "reconcileCancel": "Abbrechen",
   "stateWithErrorFormat": "{0}: {1}",
-  "culture": "de-DE"
+  "culture": "de-DE",
+  "conflictOverwrite": "Überschreiben",
+  "conflictSkip": "Überspringen",
+  "conflictOverwriteIfNewer": "Überschreiben, wenn die Quelle neuer ist",
+  "conflictOverwriteIfSizeDiffers": "Überschreiben, wenn die Größe abweicht",
+  "conflictRename": "Beide behalten, neue Datei umbenennen",
+  "conflictResume": "Kürzere Datei fortsetzen",
+  "queuedWithConflictsFormat": "{0:N0} Übertragung(en) eingereiht. {1:N0} bereits am Ziel vorhanden übersprungen, {2:N0} umbenannt."
 }

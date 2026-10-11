@@ -618,8 +618,31 @@ The profile already stores these; `CodeLogicConnectionProfileConnector.BuildAsyn
       limit and keep-alive are there too, empty by default.
       Left open: several keys. The library offers further keys only as file paths and shares one
       passphrase across all of them, so it would bring back the key files this item removed.
-- [ ] 1.6 Conflict choices on transfers: overwrite, skip, if newer, if size differs, rename, resume.
-- [ ] 1.7 Resume: real resume for uploads and downloads in place of the `ResumeToken => null` stubs.
+- [x] 1.6 Conflict choices on transfers: overwrite, skip, if newer, if size differs, rename, resume.
+      Decided in the desktop at plan time (`TransferConflictRules`, `TransferConflictPolicy`), with
+      no change to IPC or the queue: skip leaves the file out, rename queues a create to the first
+      free "name (n).ext", and the others replace under the same identity check as before. If
+      newer allows two seconds; a size or time the listing lacks counts as different. Resume
+      replaces a shorter file, continuing what the agent staged (1.7), and skips one as long or
+      longer. The first file found already there, at any depth of a folder copy, asks once in the
+      dialog (a drop-down, OK or Cancel, and "always do this"), unless Settings, Transfers & sync,
+      Existing files names the answer. Files on this PC now carry a time-and-length identity, so
+      they can be replaced and can replace; moving them stays refused. Left open: a choice per
+      file, appending in place to a partial file StorageHub did not stage, and a source with no
+      version or entity tag, which still cannot replace anything.
+- [x] 1.7 Resume: real resume for uploads and downloads in place of the `ResumeToken => null` stubs.
+      A write can carry a resume key (`TransferResumeKey`: the source's identity, version, size and
+      time, and the destination), and a destination that supports `ResumeUpload` stages it in a
+      partial named from that key: `LocalStagedFileWriteHandle` beside the file on this PC and in
+      Explorer staging, and `CodeLogicResumableWriteHandle` on Local, FTP and SFTP through
+      CL.Storage's `AppendAsync` and a move onto the destination (no change upstream). An
+      interruption or a pause suspends the handle and keeps the partial; the executor reopens it,
+      reads the source from `AcceptedOffset`, and re-hashes the staged prefix when a digest is
+      needed, discarding it when it is longer than the source or cannot be read back. A user's
+      cancel, a changed source and an integrity failure remove it. The checkpoint records the
+      offset and the partial's name. Left open: S3 uploads (no append in CL.Storage), a source with
+      only a size, appending to a foreign partial the way FileZilla does, and partials left by a
+      job that is cancelled while it is not running, which go with 4.6.
 - [ ] 1.8 Server checksums (`PreferServer`): verify without re-downloading; the inspector shows where a
       checksum came from; the sync scanner uses them.
 - [ ] 1.9 Certificate pins for S3.

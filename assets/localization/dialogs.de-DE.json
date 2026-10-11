@@ -91,5 +91,9 @@
   "languageRestartPromptFormat": "StorageHub muss neu gestartet werden, um zu {0} zu wechseln.\n\nJetzt neu starten? Übertragungen und Synchronisierung laufen im Hintergrundagenten weiter.",
   "unexpectedErrorCaption": "StorageHub",
   "unexpectedErrorFormat": "Es ist etwas passiert, womit StorageHub nicht gerechnet hat: {0}\n\nStorageHub läuft weiter. Die Details wurden in {1} geschrieben.",
-  "culture": "de-DE"
+  "culture": "de-DE",
+  "transferConflictCaption": "Datei bereits vorhanden",
+  "transferConflictPromptFormat": "{0} ist am Ziel bereits vorhanden.",
+  "transferConflictDetail": "Wählen Sie, was mit ihr und mit jeder weiteren Datei geschieht, die diese Übertragung am Ziel vorfindet.",
+  "transferConflictRemember": "Immer so verfahren (Einstellungen, Übertragung & Sync)"
 }

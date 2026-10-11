@@ -113,6 +113,27 @@ server's system and software, the host key or certificate it presented and
 whether it is trusted, the cipher and key exchange negotiated, the server's
 features, how many sessions are open and the last health check.
 
+**A file already at the destination is a choice.** A copy or a move that meets
+one asks once, at the first, what to do with it and with the rest: overwrite,
+skip, overwrite if the source is newer or if the sizes differ, keep both by
+naming the new one "name (1).ext", or resume a shorter file. Settings, under
+Transfers & sync, can name the answer instead, and the question can save it
+there. A folder copy asks at the first such file however deep it is. Files on
+this PC can now be replaced by a download and can replace a file on a
+connection, each still checked to be the file that was listed.
+
+**An interrupted transfer continues where it stopped.** A download to this
+PC, and an upload to a Local, FTP or SFTP connection, is written to a hidden
+`.storagehub-….partial` file and renamed into place only when it is whole, so
+the destination never holds half a file. When the connection drops, the agent
+restarts or the transfer is paused, the bytes that arrived stay, and the retry
+or the next queueing of the same file reads only the rest. The staged part is
+used only for the same version of the same source to the same place: a source
+that changed since, or staged bytes that no longer match it, start again from
+the beginning, and a checksum the transfer was planned with still covers the
+whole file. Cancelling a transfer removes what it staged. S3 has no append, so
+uploads to it still start again.
+
 **Smaller things that are new.** A pane's FILES bar can be hidden from Pane
 actions and is saved with the workspace, now that the list's right-click menu
 offers everything the bar does. The SSH terminal passes the mouse to a program

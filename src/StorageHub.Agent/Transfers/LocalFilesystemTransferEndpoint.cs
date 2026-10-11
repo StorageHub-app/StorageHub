@@ -98,6 +98,7 @@ public sealed class LocalFilesystemTransferEndpoint
         public string RootIdentity { get; } = rootIdentity;
         public EffectiveStorageCapabilities Capabilities { get; } = new([
             new KeyValuePair<StorageFeature, FeatureSupport>(StorageFeature.ReadStream, FeatureSupport.Native()),
+            new KeyValuePair<StorageFeature, FeatureSupport>(StorageFeature.ResumeDownload, FeatureSupport.Native()),
             new KeyValuePair<StorageFeature, FeatureSupport>(StorageFeature.List, FeatureSupport.Native())]);
 
         public ValueTask<StorageResult> CheckHealthAsync(CancellationToken cancellationToken = default) =>

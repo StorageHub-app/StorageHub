@@ -1586,6 +1586,15 @@ internal static class ShellPreview
             {
                 PendingDrops = drops,
 
+                // What a transfer does with a file already where it is going, from Settings, read
+                // at each transfer; and "always do this" in the question saves its answer there.
+                // Only the application's own: a preview asks, as a fresh install does.
+                ConflictDefault = live ? static () => ReadPreferences()?.TransferConflictDefault : null,
+                RememberConflictChoice = live
+                    ? static choice => UpdatePreferences(preferences =>
+                        preferences with { TransferConflictDefault = choice })
+                    : null,
+
                 // A connection's rows dragged out to Explorer go through the drop broker the boot
                 // registered, and wait on the queue's Active tab for where they landed, as 1.x's
                 // did. Only the application's own shell: a preview's agent is a test's.
