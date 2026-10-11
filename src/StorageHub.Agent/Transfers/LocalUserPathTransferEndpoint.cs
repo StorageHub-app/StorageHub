@@ -205,7 +205,7 @@ public static class LocalUserPathTransferEndpoint
         }
     }
 
-    private static bool TryDecodeRoot(StorageAddress address, out string root)
+    internal static bool TryDecodeRoot(StorageAddress address, out string root)
     {
         root = string.Empty;
         if (LocalTransferFolder.TryReadFolder(address.RootIdentity) is not { } folder)

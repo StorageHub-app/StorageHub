@@ -630,6 +630,7 @@ internal static class UiCommandCatalog
         UiCommandIds.SyncReviewRun or
         UiCommandIds.SyncSyncProfiles or
         UiCommandIds.SyncSchedules or
+        UiCommandIds.SyncComparePanes or
         UiCommandIds.ToolsSettings or
         UiCommandIds.TransferSpeedLimits or
         UiCommandIds.ToolsExportSettings or

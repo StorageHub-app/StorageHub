@@ -864,7 +864,7 @@ public sealed class ManualTransferController : IAsyncDisposable
     /// rather than approximated. The agent enforces the same rule, because a local path arrives
     /// from the UI rather than from a profile it already trusts.
     /// </summary>
-    private static StorageFailure? RequireQueueableEndpoints(
+    internal static StorageFailure? RequireQueueableEndpoints(
         PaneTransferContext source,
         PaneTransferContext destination)
     {
@@ -922,7 +922,7 @@ public sealed class ManualTransferController : IAsyncDisposable
     /// Builds the wire address for one side. A This PC pane has no saved profile, so its folder is
     /// carried in the root identity and its id derived from that folder.
     /// </summary>
-    private static TransferQueueAddress CreateAddress(
+    internal static TransferQueueAddress CreateAddress(
         PaneTransferContext context,
         string relativePath,
         string? nativeItemId,

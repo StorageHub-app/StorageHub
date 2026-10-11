@@ -139,6 +139,9 @@ public partial class App : global::Avalonia.Application
         // And the schedule manager, which is what turns a profile into something that runs
         // without anybody present.
         model.Router.Handle(UiCommandIds.SyncSchedules, () => ShowSchedules(desktop, model));
+        // Compare Panes: the active pane's folder and its neighbour's, side by side, with the
+        // differences copied either way through the queue.
+        model.Router.Handle(UiCommandIds.SyncComparePanes, () => ShowFolderCompare(desktop, model));
 
         // Settings out to a file and back in again. Import is the one that can change what
         // the agent holds, so the shell refreshes itself when it reports that it did.
@@ -422,6 +425,18 @@ public partial class App : global::Avalonia.Application
     {
         var window = Views.UpdateCheckerWindow.For(updater);
         if (desktop.MainWindow is { } owner) _ = window.ShowDialog(owner);
+        else window.Show();
+    }
+
+    /// <summary>
+    /// Opens Compare Folders beside the main window rather than over it, so the panes stay usable
+    /// and the transfer conflict question, which is asked over the main window, is not hidden.
+    /// </summary>
+    private static void ShowFolderCompare(IClassicDesktopStyleApplicationLifetime desktop, ShellPreviewModel model)
+    {
+        if (model.CompareActivePanes() is not { } compare) return;
+        var window = Views.FolderCompareWindow.For(compare);
+        if (desktop.MainWindow is { } owner) window.Show(owner);
         else window.Show();
     }
 

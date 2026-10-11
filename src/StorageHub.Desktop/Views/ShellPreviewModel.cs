@@ -428,6 +428,23 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         Say(Ui.Shell.StatusEditedFileUploaded);
     }
 
+    /// <summary>
+    /// Compare Folders for the workspace on screen: its active pane and the one beside it. Null,
+    /// with the reason said in the status bar, when there is nothing to compare.
+    /// </summary>
+    internal FolderCompareModel? CompareActivePanes()
+    {
+        if (ActiveWorkspace() is not { } workspace)
+        {
+            Say(Ui.Sync.CompareNeedsTwoPanes);
+            return null;
+        }
+
+        var compare = workspace.CreateFolderCompare(out var refusal);
+        if (refusal is not null) Say(refusal);
+        return compare;
+    }
+
     internal BrowserPaneModel? ActivePane() =>
         ActiveWorkspace() is { Panes.Count: > 0 } workspace ? workspace.Active : null;
 

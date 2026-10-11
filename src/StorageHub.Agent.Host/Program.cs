@@ -263,6 +263,9 @@ var syncCommands = new SyncManagementIpcCommandService(
     syncConflicts);
 var scheduleCommands = new ScheduleManagementIpcCommandService(scheduleManagementRepository);
 var objectInspectorCommands = new ObjectInspectorIpcCommandService(syncConnector);
+// Compare folders, from the panes: a saved connection opened as sync opens it, or a folder on this
+// PC approved as a transfer's would be.
+await using var folderCompareCommands = new FolderCompareIpcCommandService(syncConnector);
 await using var sshTerminalCommands = new SshTerminalIpcCommandService(
     transferProfiles,
     () => vaultSubsystem.Vault,
@@ -283,6 +286,7 @@ var requestHandler = new AgentIpcRequestHandler(
         syncCommands,
         scheduleCommands,
         objectInspectorCommands,
+        folderCompareCommands,
         sshTerminalCommands,
         new AgentControlIpcCommandService(
             () => shutdown.TrySetResult(),

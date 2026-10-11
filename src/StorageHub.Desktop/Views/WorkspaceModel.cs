@@ -907,6 +907,124 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
     }
 
     /// <summary>
+    /// The agent's folder comparison, opened for one comparison and closed after it. Replaceable so
+    /// a headless test compares without a socket.
+    /// </summary>
+    internal Func<IFolderCompareAgentClient> FolderCompareClient { get; init; } =
+        static () => new NamedPipeFolderCompareAgentClient();
+
+    /// <summary>
+    /// Compare Folders for the active pane and the one beside it: the next in the layout, or the
+    /// one before when the active pane is the last. The earlier of the two is the left, as they
+    /// are read. Null, with the reason, when there is no second pane or either has no folder.
+    /// </summary>
+    internal FolderCompareModel? CreateFolderCompare(out string? refusal)
+    {
+        refusal = null;
+        if (Panes.Count < 2)
+        {
+            refusal = Ui.Sync.CompareNeedsTwoPanes;
+            return null;
+        }
+
+        var active = Panes.IndexOf(Active);
+        var other = active + 1 < Panes.Count ? active + 1 : active - 1;
+        var (leftPane, rightPane) = (Panes[Math.Min(active, other)], Panes[Math.Max(active, other)]);
+        var left = PaneTransferSnapshots.ContextFor(leftPane.Source);
+        var right = PaneTransferSnapshots.ContextFor(rightPane.Source);
+        if (left.IsFailure || right.IsFailure ||
+            FolderCompareController.AddressFor(left.Value) is null ||
+            FolderCompareController.AddressFor(right.Value) is null)
+        {
+            refusal = Ui.Validation.FolderComparisonNeedsAFolder;
+            return null;
+        }
+
+        return new FolderCompareModel(
+            Describe(leftPane),
+            Describe(rightPane),
+            (contents, cancellationToken) => CompareFoldersAsync(left.Value, right.Value, contents, cancellationToken),
+            CopyComparedAsync);
+
+        static string Describe(BrowserPaneModel pane) => pane.Title + " — " + pane.Path;
+    }
+
+    private async Task<StorageResult<FolderCompareOutcome>> CompareFoldersAsync(
+        PaneTransferContext left,
+        PaneTransferContext right,
+        bool compareContents,
+        CancellationToken cancellationToken)
+    {
+        await using var controller = new FolderCompareController(FolderCompareClient(), ownsClient: true);
+        return await controller.CompareAsync(left, right, compareContents, cancellationToken).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Copies compared differences through the queue, as a paste does: the same conflict question,
+    /// the same identity checks, and the queue refreshed once it holds them.
+    /// </summary>
+    private async Task<FolderCompareCopyResult> CopyComparedAsync(
+        FolderCompareOutcome compared,
+        IReadOnlyList<FolderCompareEntry> selected,
+        FolderCompareDirection direction,
+        CancellationToken cancellationToken)
+    {
+        var destination = direction == FolderCompareDirection.LeftToRight ? compared.Right : compared.Left;
+        FolderCompareCopyResult result;
+        try
+        {
+            await using var transfers = new ManualTransferController(_queue(), ownsClient: true);
+            await using var folders = _mutations();
+            result = await FolderCompareController.CopyAsync(
+                compared,
+                selected,
+                direction,
+                transfers,
+                (path, token) => EnsureFolderAsync(folders, destination, path, token),
+                ConflictPolicy(),
+                cancellationToken).ConfigureAwait(true);
+        }
+        catch (Exception error) when (error is IOException or TimeoutException or
+            InvalidOperationException or ObjectDisposedException or InvalidDataException)
+        {
+            return new FolderCompareCopyResult(
+                null, 0, 0, 0, 0,
+                new StorageFailure("compare.agent_unavailable", StorageFailureKind.Unavailable, Ui.Shell.AgentCannotEnqueue));
+        }
+
+        if (_queueChanged is not null && result.Queued > 0)
+        {
+            await _queueChanged().ConfigureAwait(true);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Creates one folder a copy needs: through the agent on a saved connection, which holds its
+    /// credentials, or here on this PC, inside the compared folder.
+    /// </summary>
+    private static async Task<StorageFailure?> EnsureFolderAsync(
+        IObjectInspectorAgentClient folders,
+        PaneTransferContext destination,
+        string relativePath,
+        CancellationToken cancellationToken)
+    {
+        if (destination.Kind == PaneTransferContextKind.ThisPc)
+        {
+            return FolderCompareController.EnsureLocalFolder(destination.RelativePath, relativePath);
+        }
+
+        var path = destination.RelativePath.Length == 0 ? relativePath : destination.RelativePath + "/" + relativePath;
+        var ensured = await folders.EnsureDirectoryAsync(
+            new StorageDirectoryEnsureRequest(
+                EditableFileIpcContract.CurrentVersion,
+                new ObjectInspectorAddress(destination.ConnectionId!.Value, destination.RootIdentity!, path)),
+            cancellationToken).ConfigureAwait(true);
+        return ensured.Failure is { } failure ? RecursiveTransferController.MapFailure(failure) : null;
+    }
+
+    /// <summary>
     /// Shows why a transfer was refused, in the "Transfer queue" warning 1.x's
     /// <c>ShowManualTransferFailure</c> put up.
     /// </summary>

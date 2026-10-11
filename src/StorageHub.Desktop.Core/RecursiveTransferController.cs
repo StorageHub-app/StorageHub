@@ -832,7 +832,7 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
     private static ManualTransferEnqueueResult Failure(string code, string message, bool isTransient = false) =>
         new([], [], new StorageFailure(code, StorageFailureKind.Validation, message, isTransient));
 
-    private static StorageFailure MapFailure(StorageIpcFailure failure) => new(
+    internal static StorageFailure MapFailure(StorageIpcFailure failure) => new(
         failure.Code,
         failure.Category switch
         {
