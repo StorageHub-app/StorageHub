@@ -43,6 +43,14 @@ public static class ConnectionEditorDraftFactory
     internal const string AzureConnectionString = "Connection string";
     internal const string AzureIdentity = "Azure identity";
 
+    /// <summary>Cloud Storage's service-account key, the JSON file's vault reference.</summary>
+    internal const string ServiceAccountKey = "serviceAccountKeyReference";
+
+    // Cloud Storage's sign-in choices, matched below as written.
+    internal const string GcsServiceAccount = "Service-account key";
+    internal const string GcsApplicationDefault = "Application Default Credentials";
+    internal const string GcsAnonymous = "Anonymous";
+
     private const string PinnedTrustMode = "System trust + certificate pin";
     private const string HostnameTrustMode = "System trust + hostname";
 
@@ -478,6 +486,22 @@ public static class ConnectionEditorDraftFactory
             values.Remove("sessionTokenReference");
         }
 
+        if (profile.Draft.Endpoint.Provider == StorageConnectionProvider.GoogleCloudStorage)
+        {
+            var authentication = profile.Draft.Authentication;
+            values["authenticationMode"] = authentication.Kind switch
+            {
+                ConnectionAuthenticationKind.AmbientCredential => GcsApplicationDefault,
+                ConnectionAuthenticationKind.None => GcsAnonymous,
+                _ => GcsServiceAccount
+            };
+            values[ServiceAccountKey] = authentication.Kind == ConnectionAuthenticationKind.GoogleServiceAccount
+                ? authentication.SecretKeyReference ?? string.Empty
+                : string.Empty;
+            values["endpoint"] = profile.Draft.Endpoint.ServiceEndpoint ?? string.Empty;
+            values.Remove("secretAccessKeyReference");
+        }
+
         values[ProxyAddressKey] = profile.Draft.OperationalOptions.ProxyEndpoint?.TrimEnd('/') ?? string.Empty;
         values[ProxyUsernameKey] = profile.Draft.OperationalOptions.ProxyUsername ?? string.Empty;
         values[ProxyPasswordKey] = profile.Draft.OperationalOptions.ProxyPasswordReference ?? string.Empty;
@@ -500,6 +524,7 @@ public static class ConnectionEditorDraftFactory
             StorageProviderKind.Ssh => BuildSshEndpoint(values),
             StorageProviderKind.WebDav => BuildWebDavEndpoint(values),
             StorageProviderKind.AzureBlob => BuildAzureBlobEndpoint(values),
+            StorageProviderKind.GoogleCloudStorage => BuildGoogleCloudStorageEndpoint(values),
             _ => throw new ArgumentOutOfRangeException(nameof(provider))
         };
 
@@ -594,6 +619,76 @@ public static class ConnectionEditorDraftFactory
                 ConnectionAuthenticationKind.AzureSharedKey,
                 Username: ValidAccountName(values),
                 SecretKeyReference: Require(values, AccountKeyKey, Ui.Validation.AnAzureAccountKeyIsRequired))
+        };
+
+    /// <summary>
+    /// A Cloud Storage bucket and, for a private endpoint or an emulator, the service it is in,
+    /// checked here so a mistake is said beside the field rather than refused by the agent.
+    /// </summary>
+    /// <remarks>
+    /// No service URL is Google's own. A host name alone is taken as https://, and plain HTTP has
+    /// to be allowed on the trust tab, as WebDAV's does; allowing it with no plain-HTTP URL to
+    /// apply to means nothing and is left off.
+    /// </remarks>
+    private static ConnectionEndpointDocument BuildGoogleCloudStorageEndpoint(IReadOnlyDictionary<string, string> values)
+    {
+        var bucket = Require(values, "bucket", Ui.Validation.ACloudStorageBucketIsRequired);
+        if (!IsValidCloudStorageBucket(bucket))
+        {
+            throw new ArgumentException(Ui.Validation.TheCloudStorageBucketNameIsInvalid, nameof(values));
+        }
+
+        string? serviceUrl = null;
+        var plainHttp = false;
+        if (Get(values, "endpoint") is { } text)
+        {
+            var candidate = text.Contains("://", StringComparison.Ordinal) ? text : "https://" + text;
+            if (!Uri.TryCreate(candidate, UriKind.Absolute, out var url) ||
+                (url.Scheme != Uri.UriSchemeHttps && url.Scheme != Uri.UriSchemeHttp) ||
+                string.IsNullOrWhiteSpace(url.Host) ||
+                !string.IsNullOrEmpty(url.UserInfo) ||
+                !string.IsNullOrEmpty(url.Query) ||
+                !string.IsNullOrEmpty(url.Fragment))
+            {
+                throw new ArgumentException(Ui.Validation.TheCloudStorageServiceUrlIsInvalid, nameof(values));
+            }
+
+            plainHttp = url.Scheme == Uri.UriSchemeHttp;
+            if (plainHttp && !ParseBoolean(values, "acknowledgePlaintext"))
+            {
+                throw new ArgumentException(Ui.Validation.ServiceUrlPlainHttpNotAllowed, nameof(values));
+            }
+
+            serviceUrl = url.AbsoluteUri;
+        }
+
+        return new ConnectionEndpointDocument(
+            StorageConnectionProvider.GoogleCloudStorage,
+            RootPath: NormalizeProviderRoot(Get(values, "prefix")),
+            Bucket: bucket,
+            ServiceEndpoint: serviceUrl,
+            AllowInsecureTransport: plainHttp);
+    }
+
+    /// <summary>Google's bucket naming rules, as the agent checks them.</summary>
+    private static bool IsValidCloudStorageBucket(string value) =>
+        value.Length is >= 3 and <= 222 &&
+        (value.Contains('.', StringComparison.Ordinal) || value.Length <= 63) &&
+        value.All(static character => char.IsAsciiLetterLower(character) || char.IsAsciiDigit(character) ||
+            character is '-' or '_' or '.') &&
+        char.IsAsciiLetterOrDigit(value[0]) && char.IsAsciiLetterOrDigit(value[^1]) &&
+        value.Split('.').All(static part => part.Length is >= 1 and <= 63) &&
+        !value.StartsWith("goog", StringComparison.Ordinal);
+
+    /// <summary>Cloud Storage's sign-in; the key is left out of the draft unless it is the one chosen.</summary>
+    private static ConnectionAuthenticationDocument BuildGoogleCloudStorageAuthentication(
+        IReadOnlyDictionary<string, string> values) => (Get(values, "authenticationMode") ?? GcsServiceAccount) switch
+        {
+            GcsApplicationDefault => new ConnectionAuthenticationDocument(ConnectionAuthenticationKind.AmbientCredential),
+            GcsAnonymous => new ConnectionAuthenticationDocument(ConnectionAuthenticationKind.None),
+            _ => new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.GoogleServiceAccount,
+                SecretKeyReference: Require(values, ServiceAccountKey, Ui.Validation.AServiceAccountKeyIsRequired))
         };
 
     /// <summary>
@@ -869,6 +964,7 @@ public static class ConnectionEditorDraftFactory
             StorageProviderKind.Sftp or StorageProviderKind.Ssh => BuildSshAuthentication(values),
             StorageProviderKind.WebDav => BuildWebDavAuthentication(values),
             StorageProviderKind.AzureBlob => BuildAzureAuthentication(values),
+            StorageProviderKind.GoogleCloudStorage => BuildGoogleCloudStorageAuthentication(values),
             _ => throw new ArgumentOutOfRangeException(nameof(provider))
         };
 
@@ -961,7 +1057,8 @@ public static class ConnectionEditorDraftFactory
                 ? endpoint.RootPath
                 : null);
         Add(values, WebDavUrlKey, endpoint.Provider == StorageConnectionProvider.WebDav ? endpoint.ServiceEndpoint : null);
-        Add(values, "prefix", endpoint.Provider is StorageConnectionProvider.S3 or StorageConnectionProvider.AzureBlob
+        Add(values, "prefix", endpoint.Provider is StorageConnectionProvider.S3 or StorageConnectionProvider.AzureBlob or
+            StorageConnectionProvider.GoogleCloudStorage
             ? endpoint.RootPath
             : null);
         Add(values, "host", endpoint.Host);

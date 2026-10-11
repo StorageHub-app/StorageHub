@@ -38,7 +38,8 @@ public sealed class StorageHubDatabaseInitializer
                 new OptionalSshKeyPassphraseSchemaMigration(),
                 new ConnectionGroupsSchemaMigration(),
                 new WebDavProviderSchemaMigration(),
-                new AzureBlobProviderSchemaMigration()
+                new AzureBlobProviderSchemaMigration(),
+                new GoogleCloudStorageProviderSchemaMigration()
             ],
             timeProvider);
     }

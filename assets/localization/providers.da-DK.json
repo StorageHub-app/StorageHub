@@ -86,5 +86,15 @@
   "onlyForConnectionStringSignIn": "Kun ved login med forbindelsesstreng",
   "allowPlainHttpConnectionString": "Tillad en forbindelsesstreng med almindelig HTTP",
   "azurePlainHttpHelp": "Til Azurite-emulatoren på din egen computer. Forespørgslerne signeres stadig, men filerne sendes ukrypteret.",
+  "googleCloudStorage": "Google Cloud Storage",
+  "googleCloudStorageSummary": "Filer i en Google Cloud Storage-bucket eller i en emulator som fake-gcs-server.",
+  "googleCloudStorageTrustNotice": "Googles certifikat skal bestå systemets validering. En nøgle til en tjenestekonto eller Application Default Credentials sendes kun over HTTPS, medmindre du tillader almindelig HTTP til en emulator.",
+  "gcsBucketHelp": "3 til 63 små bogstaver, cifre, bindestreger og understreger, som Google navngiver den; op til 222 med punktummer.",
+  "gcsServiceUrl": "Tjeneste-URL",
+  "gcsServiceUrlHelp": "Lad feltet være tomt for Google selv. Til et privat endpoint eller en emulator angives dens adresse; /storage/v1/ tilføjes automatisk.",
+  "gcsAuthenticationHelp": "En nøgle til en tjenestekonto er den JSON-fil, Google giver dig, og den gemmes i boksen. Application Default Credentials bruger agentens eget login (GOOGLE_APPLICATION_CREDENTIALS, gcloud eller metadataserveren). Anonym læser offentlige buckets.",
+  "serviceAccountKeyReference": "Reference til nøgle for tjenestekonto",
+  "onlyForServiceAccountSignIn": "Kun ved login med tjenestekonto",
+  "gcsPlainHttpHelp": "Til en emulator på din egen computer. Intet krypteres, heller ikke et login med tjenestekonto.",
   "culture": "da-DK"
 }

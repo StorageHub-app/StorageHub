@@ -179,6 +179,7 @@
   "shortcutUnassigned": "Ikke tildelt",
   "importOpen": "Åbn",
   "importBack": "Tilbage",
+  "timeoutKeptByProvider": "Udbyderens egen klient fastsætter tidsgrænsen, cirka 100 sekunder pr. forespørgsel.",
   "culture": "da-DK",
   "categoryAgent": "Baggrundsagent",
   "pageAgentDescription": "Agenten udfører overførsler og planlagte synkroniseringer. Vælg, om den starter, når du logger på, eller kun kører, mens StorageHub er åben.",

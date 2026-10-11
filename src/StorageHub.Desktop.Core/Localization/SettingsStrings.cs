@@ -513,6 +513,9 @@ internal sealed class SettingsStrings : LocalizationModelBase
     public string RetriesUnsupported { get; set; } =
         "Automatic retries are not supported for this provider.";
 
+    public string TimeoutKeptByProvider { get; set; } =
+        "This provider's own client sets its timeout, about 100 seconds a request.";
+
     public string OperationTimeoutHint { get; set; } = "Uses the connection timeout for this provider.";
 
     public string AuthenticationModeHint { get; set; } =

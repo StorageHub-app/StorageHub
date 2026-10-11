@@ -2440,6 +2440,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         StorageConnectionProvider.Ftps => StorageProviderKind.Ftps,
         StorageConnectionProvider.WebDav => StorageProviderKind.WebDav,
         StorageConnectionProvider.AzureBlob => StorageProviderKind.AzureBlob,
+        StorageConnectionProvider.GoogleCloudStorage => StorageProviderKind.GoogleCloudStorage,
         StorageConnectionProvider.Sftp => StorageProviderKind.Sftp,
         StorageConnectionProvider.Ssh => StorageProviderKind.Ssh,
         _ => StorageProviderKind.Local

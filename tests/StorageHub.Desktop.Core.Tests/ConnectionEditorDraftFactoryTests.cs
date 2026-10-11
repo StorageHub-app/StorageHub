@@ -497,6 +497,106 @@ public sealed class ConnectionEditorDraftFactoryTests
         Assert.StartsWith(Ui.Validation.AnAzureServiceUrlIsRequired, noUrl.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Google's client keeps its own request timeout and retries, which nothing in StorageHub can
+    /// change, so a Cloud Storage draft says what the client does rather than a value it would ignore.
+    /// </summary>
+    [Fact]
+    public void CloudStorageDraftsSayWhatGooglesClientDoes()
+    {
+        var stored = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["GoogleCloudStorage.connectTimeoutSeconds"] = "5"
+        };
+
+        var draft = ConnectionEditorDraftFactory.Build(
+            StorageProviderKind.GoogleCloudStorage,
+            ValidValues(StorageProviderKind.GoogleCloudStorage),
+            ConnectionDefaultSettings.Get(StorageProviderKind.GoogleCloudStorage, stored));
+
+        Assert.Equal(100, draft.OperationalOptions.ConnectTimeoutSeconds);
+        Assert.Equal(100, draft.OperationalOptions.OperationTimeoutSeconds);
+        Assert.Equal(0, draft.OperationalOptions.MaximumRetryAttempts);
+        Assert.False(ConnectionDefaultSettings.HasConfigurableTimeout(StorageProviderKind.GoogleCloudStorage));
+        Assert.True(ConnectionDefaultSettings.HasConfigurableTimeout(StorageProviderKind.AzureBlob));
+    }
+
+    /// <summary>
+    /// Each Cloud Storage sign-in carries only its own field, reopens as itself, and saving it
+    /// again unchanged gives the same draft; a service URL is kept, Google's own is no URL at all.
+    /// </summary>
+    [Theory]
+    [InlineData("Service-account key", ConnectionAuthenticationKind.GoogleServiceAccount, "")]
+    [InlineData("Application Default Credentials", ConnectionAuthenticationKind.AmbientCredential, "storage.example.test")]
+    [InlineData("Anonymous", ConnectionAuthenticationKind.None, "http://127.0.0.1:4443")]
+    public void EachCloudStorageSignInBuildsOnlyItsOwnFieldsAndSurvivesAnEdit(
+        string mode,
+        ConnectionAuthenticationKind kind,
+        string serviceUrl)
+    {
+        var values = ValidValues(StorageProviderKind.GoogleCloudStorage);
+        values["authenticationMode"] = mode;
+        values["prefix"] = "/team/reports/";
+        values["endpoint"] = serviceUrl;
+        values["acknowledgePlaintext"] = serviceUrl.StartsWith("http://", StringComparison.Ordinal) ? "true" : "false";
+
+        var draft = ConnectionEditorDraftFactory.Build(StorageProviderKind.GoogleCloudStorage, values);
+        var reopened = ConnectionEditorDraftFactory.ToEditorValues(
+            new ConnectionProfileDocument(Guid.NewGuid(), 1, draft, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch));
+
+        Assert.True(draft.HasValidBounds);
+        Assert.Equal(kind, draft.Authentication.Kind);
+        Assert.Equal("archive", draft.Endpoint.Bucket);
+        Assert.Equal("team/reports", draft.Endpoint.RootPath);
+        Assert.Equal(
+            serviceUrl switch
+            {
+                "" => null,
+                "storage.example.test" => "https://storage.example.test/",
+                _ => "http://127.0.0.1:4443/"
+            },
+            draft.Endpoint.ServiceEndpoint);
+        Assert.Equal(serviceUrl.StartsWith("http://", StringComparison.Ordinal), draft.Endpoint.AllowInsecureTransport);
+        Assert.Equal(
+            kind == ConnectionAuthenticationKind.GoogleServiceAccount ? "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" : null,
+            draft.Authentication.SecretKeyReference);
+
+        Assert.Equal(mode, reopened["authenticationMode"]);
+        Assert.False(reopened.ContainsKey("secretAccessKeyReference"));
+        Assert.Equal(draft, ConnectionEditorDraftFactory.Build(StorageProviderKind.GoogleCloudStorage, reopened) with
+        {
+            Metadata = draft.Metadata
+        });
+    }
+
+    /// <summary>A bucket is named as Google names one, and plain HTTP has to be allowed before it is used.</summary>
+    [Fact]
+    public void CloudStorageChecksTheBucketAndPlainHttpBesideTheFields()
+    {
+        var values = ValidValues(StorageProviderKind.GoogleCloudStorage);
+        foreach (var (key, value, message) in new[]
+        {
+            ("endpoint", "http://127.0.0.1:4443", Ui.Validation.ServiceUrlPlainHttpNotAllowed),
+            ("endpoint", "https://storage.example.test/?key=secret", Ui.Validation.TheCloudStorageServiceUrlIsInvalid),
+            ("endpoint", "ftp://storage.example.test/", Ui.Validation.TheCloudStorageServiceUrlIsInvalid),
+            ("bucket", "", Ui.Validation.ACloudStorageBucketIsRequired),
+            ("bucket", "Archive", Ui.Validation.TheCloudStorageBucketNameIsInvalid),
+            ("bucket", "goog-archive", Ui.Validation.TheCloudStorageBucketNameIsInvalid),
+            ("serviceAccountKeyReference", "", Ui.Validation.AServiceAccountKeyIsRequired)
+        })
+        {
+            var attempt = new Dictionary<string, string>(values, StringComparer.Ordinal) { [key] = value };
+            var error = Assert.Throws<ArgumentException>(() =>
+                ConnectionEditorDraftFactory.Build(StorageProviderKind.GoogleCloudStorage, attempt));
+            Assert.StartsWith(message, error.Message, StringComparison.Ordinal);
+        }
+
+        // Allowing plain HTTP with nothing plain to apply it to changes nothing.
+        values["acknowledgePlaintext"] = "true";
+        Assert.False(ConnectionEditorDraftFactory.Build(StorageProviderKind.GoogleCloudStorage, values)
+            .Endpoint.AllowInsecureTransport);
+    }
+
     /// <summary>A pinned FTPS connection reopened for editing keeps its pin, rather than reverting to system trust.</summary>
     [Fact]
     public void APinnedFtpsConnectionKeepsItsTrustModeWhenEdited()
@@ -706,6 +806,13 @@ public sealed class ConnectionEditorDraftFactoryTests
             ["authenticationMode"] = "Shared key",
             ["accountName"] = "account",
             ["accountKeyReference"] = "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+        },
+        StorageProviderKind.GoogleCloudStorage => new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["profileName"] = "Cloud Storage",
+            ["bucket"] = "archive",
+            ["authenticationMode"] = "Service-account key",
+            ["serviceAccountKeyReference"] = "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
         },
         _ => throw new ArgumentOutOfRangeException(nameof(provider))
     };

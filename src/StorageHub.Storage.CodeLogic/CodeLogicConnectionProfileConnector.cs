@@ -367,6 +367,8 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
                     profile, webDav, rootIdentityEvidence, cancellationToken).ConfigureAwait(false),
                 AzureBlobEndpoint azure => await BuildAzureBlobAsync(
                     profile, azure, rootIdentityEvidence, cancellationToken).ConfigureAwait(false),
+                GoogleCloudStorageEndpoint gcs => await BuildGoogleCloudStorageAsync(
+                    profile, gcs, rootIdentityEvidence, cancellationToken).ConfigureAwait(false),
                 _ => throw new UnsupportedProfileException("The connection provider is not supported by this adapter.")
             };
 
@@ -966,6 +968,54 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
     }
 
     /// <summary>
+    /// A Google Cloud Storage bucket, signed in to with a service-account key from the vault, with
+    /// the agent's Application Default Credentials, or not at all for a public bucket or an emulator.
+    /// </summary>
+    /// <remarks>
+    /// The key goes over inline, never as a path: CL.Storage reads the JSON from the configuration,
+    /// so nothing is written to disk. Google's client keeps its own request timeout and retry
+    /// policy, which CL.Storage does not expose, so the profile's are not handed over; the editor
+    /// and Settings keep them at what the client does.
+    /// </remarks>
+    private async ValueTask<GoogleCloudConnectionConfig> BuildGoogleCloudStorageAsync(
+        ConnectionProfile profile,
+        GoogleCloudStorageEndpoint endpoint,
+        RootIdentityEvidence rootIdentityEvidence,
+        CancellationToken cancellationToken)
+    {
+        var configuration = new GoogleCloudConnectionConfig
+        {
+            Enabled = true,
+            Bucket = endpoint.Bucket,
+            Prefix = endpoint.RootPrefix,
+            ServiceUrl = endpoint.ServiceUri?.AbsoluteUri,
+            AllowInsecureHttp = endpoint.AllowInsecureHttp
+        };
+
+        switch (profile.Authentication)
+        {
+            case NoAuthentication:
+                configuration.AuthenticationMode = GoogleCloudAuthenticationMode.Anonymous;
+                break;
+            case AmbientCredentialAuthentication:
+                configuration.AuthenticationMode = GoogleCloudAuthenticationMode.ApplicationDefaultCredentials;
+                break;
+            case GoogleServiceAccountAuthentication serviceAccount:
+                configuration.AuthenticationMode = GoogleCloudAuthenticationMode.ServiceAccountJson;
+                configuration.CredentialsJson = await OpenTextSecretAsync(
+                    serviceAccount.ServiceAccountJsonReference,
+                    "gcs.service-account",
+                    rootIdentityEvidence,
+                    cancellationToken).ConfigureAwait(false);
+                break;
+            default:
+                throw new UnsupportedProfileException("The selected Cloud Storage authentication mode is unsupported.");
+        }
+
+        return configuration;
+    }
+
+    /// <summary>
     /// Whether an Azure Storage connection string sends its blob requests in plain HTTP: an
     /// explicit <c>BlobEndpoint</c> that is not https, the development-storage shortcut (Azurite on
     /// loopback), or <c>DefaultEndpointsProtocol=http</c>. A blob endpoint that cannot be read
@@ -1193,6 +1243,7 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
             SftpConnectionConfig sftp => sftp.Proxy,
             WebDavConnectionConfig webDav => webDav.Proxy,
             AzureBlobConnectionConfig azure => azure.Proxy,
+            GoogleCloudConnectionConfig gcs => gcs.Proxy,
             _ => throw new UnsupportedProfileException("A local connection cannot use a proxy.")
         };
 
@@ -1281,6 +1332,11 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
                 AppendIdentityValue(hash, azure.Container);
                 AppendIdentityValue(hash, azure.RootPrefix);
                 break;
+            case GoogleCloudStorageEndpoint gcs:
+                AppendIdentityValue(hash, gcs.ServiceUri?.AbsoluteUri);
+                AppendIdentityValue(hash, gcs.Bucket);
+                AppendIdentityValue(hash, gcs.RootPrefix);
+                break;
         }
 
         switch (profile.Authentication)
@@ -1317,6 +1373,9 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
                 break;
             case AzureConnectionStringAuthentication:
                 AppendIdentityValue(hash, "azure-connection-string");
+                break;
+            case GoogleServiceAccountAuthentication:
+                AppendIdentityValue(hash, "gcs-service-account");
                 break;
             case SftpPrivateKeyAuthentication privateKey:
                 AppendIdentityValue(hash, "sftp-private-key");
@@ -1495,6 +1554,9 @@ internal sealed class PreparedCodeLogicConnection(
                 azure.AccountKey = null;
                 azure.SasToken = null;
                 azure.ConnectionString = null;
+                break;
+            case GoogleCloudConnectionConfig gcs:
+                gcs.CredentialsJson = null;
                 break;
         }
     }

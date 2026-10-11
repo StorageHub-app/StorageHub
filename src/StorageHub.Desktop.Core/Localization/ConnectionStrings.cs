@@ -429,6 +429,8 @@ internal sealed class ConnectionStrings : LocalizationModelBase
 
     public string FieldSasToken { get; set; } = "SAS token";
 
+    public string AuthGoogleServiceAccount { get; set; } = "Service-account key";
+
     public string FieldHttpSignIn { get; set; } = "HTTP sign-in";
 
     public string FieldRequestTimeout { get; set; } = "Request timeout";

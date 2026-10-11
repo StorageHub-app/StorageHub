@@ -113,7 +113,16 @@ public sealed class SqliteConnectionProfileRepositoryTests : IDisposable
                 new AmbientCredentialAuthentication(), OptionsForConnection(), now),
             ConnectionProfile.Create(ConnectionProfileId.New(), new ConnectionProfileMetadata("Azurite"),
                 new AzureBlobEndpoint("archive", allowInsecureHttp: true),
-                new AzureConnectionStringAuthentication(SecretReference.Create()), OptionsForConnection(), now)
+                new AzureConnectionStringAuthentication(SecretReference.Create()), OptionsForConnection(), now),
+            ConnectionProfile.Create(ConnectionProfileId.New(), new ConnectionProfileMetadata("Cloud Storage key"),
+                new GoogleCloudStorageEndpoint("archive", rootPrefix: "team"),
+                new GoogleServiceAccountAuthentication(SecretReference.Create()), OptionsForConnection(), now),
+            ConnectionProfile.Create(ConnectionProfileId.New(), new ConnectionProfileMetadata("Cloud Storage ADC"),
+                new GoogleCloudStorageEndpoint("archive", new Uri("https://storage.example.test/")),
+                new AmbientCredentialAuthentication(), OptionsForConnection(), now),
+            ConnectionProfile.Create(ConnectionProfileId.New(), new ConnectionProfileMetadata("fake-gcs-server"),
+                new GoogleCloudStorageEndpoint("archive", new Uri("http://127.0.0.1:4443/"), allowInsecureHttp: true),
+                new NoAuthentication(), OptionsForConnection(), now)
         };
 
         foreach (var profile in profiles)

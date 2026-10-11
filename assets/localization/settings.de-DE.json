@@ -179,6 +179,7 @@
   "shortcutUnassigned": "Nicht zugewiesen",
   "importOpen": "Öffnen",
   "importBack": "Zurück",
+  "timeoutKeptByProvider": "Der eigene Client dieses Anbieters legt das Zeitlimit fest, etwa 100 Sekunden pro Anfrage.",
   "culture": "de-DE",
   "categoryAgent": "Hintergrund-Agent",
   "pageAgentDescription": "Der Agent führt Übertragungen und geplante Synchronisierungen aus. Wählen Sie, ob er bei der Anmeldung startet oder nur läuft, während StorageHub geöffnet ist.",

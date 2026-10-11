@@ -664,6 +664,11 @@ internal static class ConnectionProfileIpcMapper
                 ParseOptionalAbsoluteUri(value.ServiceEndpoint),
                 value.AllowInsecureTransport,
                 value.RootPath),
+            StorageConnectionProvider.GoogleCloudStorage => new GoogleCloudStorageEndpoint(
+                value.Bucket!,
+                ParseOptionalAbsoluteUri(value.ServiceEndpoint),
+                value.AllowInsecureTransport,
+                value.RootPath),
             _ => throw new ArgumentOutOfRangeException(nameof(value), "The provider is invalid.")
         };
     }
@@ -726,6 +731,12 @@ internal static class ConnectionProfileIpcMapper
             Bucket: endpoint.Container,
             ServiceEndpoint: endpoint.ServiceUri?.AbsoluteUri,
             AllowInsecureTransport: endpoint.AllowInsecureHttp),
+        GoogleCloudStorageEndpoint endpoint => new(
+            StorageConnectionProvider.GoogleCloudStorage,
+            RootPath: endpoint.RootPrefix,
+            Bucket: endpoint.Bucket,
+            ServiceEndpoint: endpoint.ServiceUri?.AbsoluteUri,
+            AllowInsecureTransport: endpoint.AllowInsecureHttp),
         _ => throw new NotSupportedException("The connection endpoint type is not supported by IPC.")
     };
 
@@ -757,6 +768,8 @@ internal static class ConnectionProfileIpcMapper
             ConnectionAuthenticationKind.AzureSasToken => new AzureSasTokenAuthentication(
                 SecretReference.Parse(value.SessionTokenReference!)),
             ConnectionAuthenticationKind.AzureConnectionString => new AzureConnectionStringAuthentication(
+                SecretReference.Parse(value.SecretKeyReference!)),
+            ConnectionAuthenticationKind.GoogleServiceAccount => new GoogleServiceAccountAuthentication(
                 SecretReference.Parse(value.SecretKeyReference!)),
             ConnectionAuthenticationKind.SshPrivateKeyPassword => new SshPrivateKeyPasswordAuthentication(
                 value.Username!,
@@ -804,6 +817,9 @@ internal static class ConnectionProfileIpcMapper
         AzureConnectionStringAuthentication authentication => new(
             ConnectionAuthenticationKind.AzureConnectionString,
             SecretKeyReference: authentication.ConnectionStringReference.Value),
+        GoogleServiceAccountAuthentication authentication => new(
+            ConnectionAuthenticationKind.GoogleServiceAccount,
+            SecretKeyReference: authentication.ServiceAccountJsonReference.Value),
         SshPrivateKeyPasswordAuthentication authentication => new(
             ConnectionAuthenticationKind.SshPrivateKeyPassword,
             Username: authentication.Username,
@@ -965,6 +981,14 @@ internal static class ConnectionProfileIpcMapper
                 value.TlsPolicy == ConnectionTlsCertificatePolicy.SystemTrust &&
                 value.FtpsTlsMode == ConnectionFtpsTlsMode.Explicit &&
                 value.SshHostKeyPolicy == ConnectionSshHostKeyPolicy.Pinned,
+            // Plain HTTP is a property of a service URL, so it means nothing without one.
+            StorageConnectionProvider.GoogleCloudStorage =>
+                Present(value.Bucket) && Empty(value.Host) && value.Port is null && Empty(value.Region) &&
+                !value.ForcePathStyle && (!value.AllowInsecureTransport || Present(value.ServiceEndpoint)) &&
+                Empty(value.ClientCertificatePfxReference) && Empty(value.ClientCertificatePasswordReference) &&
+                value.TlsPolicy == ConnectionTlsCertificatePolicy.SystemTrust &&
+                value.FtpsTlsMode == ConnectionFtpsTlsMode.Explicit &&
+                value.SshHostKeyPolicy == ConnectionSshHostKeyPolicy.Pinned,
             _ => false
         };
         valid &= value.HttpCredentialScheme == ConnectionHttpCredentialScheme.Basic ||
@@ -995,7 +1019,7 @@ internal static class ConnectionProfileIpcMapper
             ConnectionAuthenticationKind.AzureSharedKey =>
                 hasUsername && !hasCredential && !hasPassword && !hasAccess && hasSecret &&
                 !hasToken && !hasKey && !hasPassphrase,
-            ConnectionAuthenticationKind.AzureConnectionString =>
+            ConnectionAuthenticationKind.AzureConnectionString or ConnectionAuthenticationKind.GoogleServiceAccount =>
                 !hasUsername && !hasCredential && !hasPassword && !hasAccess && hasSecret &&
                 !hasToken && !hasKey && !hasPassphrase,
             ConnectionAuthenticationKind.CredentialReference =>
@@ -1047,6 +1071,7 @@ internal static class ConnectionProfileIpcMapper
         StorageConnectionProvider.Ssh => ConnectionProviderKind.Ssh,
         StorageConnectionProvider.WebDav => ConnectionProviderKind.WebDav,
         StorageConnectionProvider.AzureBlob => ConnectionProviderKind.AzureBlob,
+        StorageConnectionProvider.GoogleCloudStorage => ConnectionProviderKind.GoogleCloudStorage,
         _ => throw new ArgumentOutOfRangeException(nameof(value), value, "The provider is invalid.")
     };
 

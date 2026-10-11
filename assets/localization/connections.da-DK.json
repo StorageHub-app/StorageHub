@@ -270,5 +270,6 @@
   "fieldStorageAccount": "Lagerkonto",
   "fieldAccountKey": "Kontonøgle",
   "fieldSasToken": "SAS-token",
+  "authGoogleServiceAccount": "Nøgle til tjenestekonto",
   "culture": "da-DK"
 }

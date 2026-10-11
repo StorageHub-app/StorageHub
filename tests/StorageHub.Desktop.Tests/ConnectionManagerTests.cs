@@ -1257,6 +1257,25 @@ public class ConnectionManagerTests
         ShootEditor(window, ConnectionEditorTab.Trust, "azure-trust", 760);
     }
 
+    /// <summary>
+    /// Photographs the editor with Google Cloud Storage chosen: the bucket and service URL on
+    /// General, the service-account key on Authentication, and the plain-HTTP switch on the trust tab.
+    /// </summary>
+    /// <remarks>Set STORAGEHUB_SHOT_DIR to keep the files.</remarks>
+    [AvaloniaFact]
+    public async Task TheCloudStorageEditorCanBePhotographed()
+    {
+        var (manager, window) = await OpenEditorAsync(StorageProviderKind.GoogleCloudStorage);
+        Name(manager.Editor, "Media archive");
+        Field(manager.Editor, "bucket").Value = "media-archive";
+        Field(manager.Editor, "prefix").Value = "2026/";
+        Assert.Equal("Service-account key", Field(manager.Editor, "authenticationMode").Value);
+
+        ShootEditor(window, ConnectionEditorTab.General, "gcs-general", 900);
+        ShootEditor(window, ConnectionEditorTab.Authentication, "gcs-authentication", 760);
+        ShootEditor(window, ConnectionEditorTab.Trust, "gcs-trust", 760);
+    }
+
     /// <summary>The manager open on a new connection of the given provider, in the light scheme.</summary>
     private static async Task<(ConnectionManagerModel Manager, ConnectionManagerWindow Window)> OpenEditorAsync(
         StorageProviderKind provider)

@@ -301,6 +301,86 @@ public sealed class ConnectionProfileIpcCommandServiceTests
         Assert.Null(repository.Created);
     }
 
+    /// <summary>
+    /// A Cloud Storage draft becomes a Cloud Storage profile for each sign-in, the key in its slot,
+    /// and comes back out as the draft it went in as.
+    /// </summary>
+    [Fact]
+    public async Task CreateMapsCloudStorageDraftsBothWaysForEachSignIn()
+    {
+        var google = new ConnectionEndpointDocument(
+            StorageConnectionProvider.GoogleCloudStorage, RootPath: "team", Bucket: "archive");
+        var emulator = new ConnectionEndpointDocument(
+            StorageConnectionProvider.GoogleCloudStorage,
+            RootPath: string.Empty,
+            Bucket: "archive",
+            ServiceEndpoint: "http://127.0.0.1:4443/",
+            AllowInsecureTransport: true);
+        var drafts = new[]
+        {
+            (google, new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.GoogleServiceAccount,
+                SecretKeyReference: "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"),
+                typeof(GoogleServiceAccountAuthentication)),
+            (google, new ConnectionAuthenticationDocument(ConnectionAuthenticationKind.AmbientCredential),
+                typeof(AmbientCredentialAuthentication)),
+            (emulator, new ConnectionAuthenticationDocument(ConnectionAuthenticationKind.None),
+                typeof(NoAuthentication))
+        };
+
+        foreach (var (endpoint, authentication, expected) in drafts)
+        {
+            var repository = new RecordingProfileRepository();
+            var result = await new ConnectionProfileIpcCommandService(repository, new FixedTimeProvider(Now)).HandleAsync(
+                IpcEnvelope.Create(
+                    ConnectionProfileIpcMessageTypes.CreateRequest,
+                    Guid.NewGuid(),
+                    1,
+                    new ConnectionProfileCreateRequest(
+                        ConnectionProfileIpcContract.CurrentVersion,
+                        new ConnectionProfileDraft(
+                            new ConnectionProfileMetadataDocument("Archive", Tags: []),
+                            endpoint,
+                            authentication,
+                            new ConnectionOperationalOptionsDocument(100, 100, 0)))));
+            var response = result.Payload.Deserialize<ConnectionProfileWriteResponse>();
+
+            Assert.Equal(ContractWriteStatus.Succeeded, response?.Status);
+            Assert.Equal(ConnectionProviderKind.GoogleCloudStorage, repository.Created?.Provider);
+            Assert.IsType(expected, repository.Created?.Authentication);
+            Assert.Equal("archive", Assert.IsType<GoogleCloudStorageEndpoint>(repository.Created?.Endpoint).Bucket);
+            Assert.Equal(endpoint, response!.Profile!.Draft.Endpoint);
+            Assert.Equal(authentication, response.Profile.Draft.Authentication);
+        }
+    }
+
+    /// <summary>A plain-HTTP Cloud Storage endpoint nobody acknowledged never reaches the repository.</summary>
+    [Fact]
+    public async Task CreateRefusesUnacknowledgedPlainHttpCloudStorage()
+    {
+        var repository = new RecordingProfileRepository();
+        var draft = new ConnectionProfileDraft(
+            new ConnectionProfileMetadataDocument("Archive", Tags: []),
+            new ConnectionEndpointDocument(
+                StorageConnectionProvider.GoogleCloudStorage,
+                Bucket: "archive",
+                ServiceEndpoint: "http://127.0.0.1:4443/"),
+            new ConnectionAuthenticationDocument(ConnectionAuthenticationKind.None),
+            new ConnectionOperationalOptionsDocument());
+
+        var result = await new ConnectionProfileIpcCommandService(repository, new FixedTimeProvider(Now)).HandleAsync(
+            IpcEnvelope.Create(
+                ConnectionProfileIpcMessageTypes.CreateRequest,
+                Guid.NewGuid(),
+                1,
+                new ConnectionProfileCreateRequest(ConnectionProfileIpcContract.CurrentVersion, draft)));
+
+        Assert.Equal(
+            ContractWriteStatus.ValidationFailed,
+            result.Payload.Deserialize<ConnectionProfileWriteResponse>()?.Status);
+        Assert.Null(repository.Created);
+    }
+
     /// <summary>A plain-HTTP WebDAV URL nobody acknowledged never reaches the repository.</summary>
     [Fact]
     public async Task CreateRefusesUnacknowledgedPlainHttpWebDav()

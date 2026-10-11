@@ -93,6 +93,7 @@ internal static class ConnectionDetailFacts
                 {
                     ConnectionAuthenticationKind.AzureSharedKey => Ui.Connections.FieldAccountKey,
                     ConnectionAuthenticationKind.AzureConnectionString => Ui.Connections.AuthAzureConnectionString,
+                    ConnectionAuthenticationKind.GoogleServiceAccount => Ui.Connections.AuthGoogleServiceAccount,
                     _ => Ui.Connections.FieldSecretKey
                 },
                 auth.SecretKeyReference);
@@ -220,7 +221,8 @@ internal static class ConnectionDetailFacts
             case StorageConnectionProvider.S3:
                 rows.Add((Ui.Connections.FieldTls, DescribeTls(endpoint.TlsPolicy)));
                 break;
-            case StorageConnectionProvider.AzureBlob when !endpoint.AllowInsecureTransport:
+            case StorageConnectionProvider.AzureBlob or StorageConnectionProvider.GoogleCloudStorage
+                when !endpoint.AllowInsecureTransport:
                 rows.Add((Ui.Connections.FieldTls, DescribeTls(endpoint.TlsPolicy)));
                 break;
             case StorageConnectionProvider.WebDav:
@@ -270,6 +272,7 @@ internal static class ConnectionDetailFacts
         ConnectionAuthenticationKind.AzureSharedKey => Ui.Connections.AuthAzureSharedKey,
         ConnectionAuthenticationKind.AzureSasToken => Ui.Connections.AuthAzureSasToken,
         ConnectionAuthenticationKind.AzureConnectionString => Ui.Connections.AuthAzureConnectionString,
+        ConnectionAuthenticationKind.GoogleServiceAccount => Ui.Connections.AuthGoogleServiceAccount,
         _ => kind.ToString()
     };
 

@@ -2147,14 +2147,23 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         {
             if (_files is null) return null;
             var certificate = field.Kind == ConnectionFieldKind.CertificateReference;
+            var serviceAccount = field.Key == ConnectionEditorDraftFactory.ServiceAccountKey;
             var path = await _files.PickFileAsync(
                 new FilePickerRequest
                 {
-                    Title = certificate ? Ui.ConnectionEditor.SelectPfxCertificate : Ui.ConnectionEditor.SelectPrivateKey,
+                    Title = certificate ? Ui.ConnectionEditor.SelectPfxCertificate
+                        : serviceAccount ? Ui.ConnectionEditor.SelectServiceAccountKey
+                        : Ui.ConnectionEditor.SelectPrivateKey,
                     Filters = certificate
                         ?
                         [
                             new FilePickerFilter(Ui.KeyStore.CertificateFiles, ["pfx", "p12"]),
+                            new FilePickerFilter(Ui.KeyStore.AllFiles, ["*"])
+                        ]
+                        : serviceAccount
+                        ?
+                        [
+                            new FilePickerFilter(Ui.ConnectionEditor.ServiceAccountKeyFiles, ["json"]),
                             new FilePickerFilter(Ui.KeyStore.AllFiles, ["*"])
                         ]
                         :
@@ -2199,6 +2208,7 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         StorageConnectionProvider.Ssh => StorageProviderKind.Ssh,
         StorageConnectionProvider.WebDav => StorageProviderKind.WebDav,
         StorageConnectionProvider.AzureBlob => StorageProviderKind.AzureBlob,
+        StorageConnectionProvider.GoogleCloudStorage => StorageProviderKind.GoogleCloudStorage,
         _ => StorageProviderKind.S3
     };
 

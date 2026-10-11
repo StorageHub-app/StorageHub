@@ -2,7 +2,7 @@
 #
 # The fixtures have always been here -- SftpProviderIntegrationTests, SshTerminalIntegrationTests,
 # FtpFtpsProviderIntegrationTests, MinioS3ProviderIntegrationTests, WebDavProviderIntegrationTests and the
-# cloud suites (AzureBlobProviderIntegrationTests and on) all read their endpoints from
+# cloud suites (AzureBlobProviderIntegrationTests, GoogleCloudStorageProviderIntegrationTests) all read their endpoints from
 # STORAGEHUB_* variables and skip when they are unset. What was never here was anything to point
 # them at, so in practice they have always skipped. This is that.
 #
@@ -227,6 +227,21 @@ services:
     command: azurite-blob --blobHost 0.0.0.0 --blobPort 10000 --skipApiVersionCheck --loose
     ports:
       - "127.0.0.1:${STORAGEHUB_AZURITE_PORT}:10000"
+
+  # ---------------------------------------------------------------- Google Cloud Storage
+  # fake-gcs-server, which speaks the Cloud Storage JSON API and checks no credentials. Plain HTTP,
+  # which the fixture's profile acknowledges. The external URL is what it puts in a resumable
+  # upload's Location header, so it has to be the address the fixture reaches it by. The fixture
+  # makes its own bucket, so nothing has to run before it.
+  fake-gcs:
+    image: fsouza/fake-gcs-server:1.56.1
+    restart: unless-stopped
+    command: >
+      -scheme http -port 4443 -backend memory
+      -public-host 127.0.0.1:${STORAGEHUB_FAKE_GCS_PORT}
+      -external-url http://127.0.0.1:${STORAGEHUB_FAKE_GCS_PORT}
+    ports:
+      - "127.0.0.1:${STORAGEHUB_FAKE_GCS_PORT}:4443"
 
   # ---------------------------------------------------------------- proxy
   # An HTTP proxy, and a SOCKS5 one that wants a sign-in. The proxy tests address the servers

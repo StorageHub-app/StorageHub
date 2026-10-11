@@ -64,7 +64,8 @@ public enum StorageConnectionProvider
     Sftp = 5,
     Ssh = 6,
     WebDav = 7,
-    AzureBlob = 8
+    AzureBlob = 8,
+    GoogleCloudStorage = 9
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<StorageIpcFailureCategory>))]

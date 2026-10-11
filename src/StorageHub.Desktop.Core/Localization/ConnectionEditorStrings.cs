@@ -353,6 +353,10 @@ internal sealed class ConnectionEditorStrings : LocalizationModelBase
 
     public string SelectPrivateKey { get; set; } = "Select an encrypted SSH private key";
 
+    public string SelectServiceAccountKey { get; set; } = "Select a Google Cloud service-account key";
+
+    public string ServiceAccountKeyFiles { get; set; } = "Service-account keys";
+
     public string SelectClientProfileFirst { get; set; } =
         "Select a saved SSH client profile before opening a terminal.";
 

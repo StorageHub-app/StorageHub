@@ -253,6 +253,67 @@ public sealed class IpcContractTests
     }
 
     [Fact]
+    public void Cloud_storage_draft_takes_a_key_reference_the_agents_identity_or_no_sign_in()
+    {
+        const string reference = "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+        var endpoint = new ConnectionEndpointDocument(
+            StorageConnectionProvider.GoogleCloudStorage, RootPath: "team", Bucket: "archive");
+        var key = new ConnectionAuthenticationDocument(
+            ConnectionAuthenticationKind.GoogleServiceAccount, SecretKeyReference: reference);
+        var draft = new ConnectionProfileDraft(
+            new ConnectionProfileMetadataDocument("Archive", Tags: []),
+            endpoint,
+            key,
+            new ConnectionOperationalOptionsDocument());
+
+        Assert.True(draft.HasValidBounds);
+        var read = JsonSerializer.Deserialize<ConnectionProfileDraft>(JsonSerializer.Serialize(draft))!;
+        Assert.Equal(draft.Endpoint, read.Endpoint);
+        Assert.Equal(draft.Authentication, read.Authentication);
+        Assert.True((draft with
+        {
+            Authentication = new ConnectionAuthenticationDocument(ConnectionAuthenticationKind.AmbientCredential)
+        }).HasValidBounds);
+        Assert.True((draft with
+        {
+            Endpoint = endpoint with { ServiceEndpoint = "http://127.0.0.1:4443/", AllowInsecureTransport = true },
+            Authentication = new ConnectionAuthenticationDocument(ConnectionAuthenticationKind.None)
+        }).HasValidBounds);
+
+        // The key is a reference in its own slot and nothing else; S3's and Azure's sign-ins are not this one's.
+        Assert.False((key with { SecretKeyReference = "{\"type\":\"service_account\"}" }).HasValidBounds);
+        Assert.False((key with { SecretKeyReference = null }).HasValidBounds);
+        Assert.False((key with { Username = "fixture@example.iam.gserviceaccount.com" }).HasValidBounds);
+        Assert.False((key with { SessionTokenReference = reference }).HasValidBounds);
+        Assert.False((draft with
+        {
+            Authentication = new ConnectionAuthenticationDocument(ConnectionAuthenticationKind.S3DefaultCredentialChain)
+        }).HasValidBounds);
+        Assert.False((draft with
+        {
+            Authentication = new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.AzureConnectionString, SecretKeyReference: reference)
+        }).HasValidBounds);
+    }
+
+    [Fact]
+    public void Cloud_storage_endpoint_has_a_bucket_and_plain_http_only_with_a_service_url()
+    {
+        var endpoint = new ConnectionEndpointDocument(StorageConnectionProvider.GoogleCloudStorage, Bucket: "archive");
+
+        Assert.True(endpoint.HasValidBounds);
+        Assert.True((endpoint with { ServiceEndpoint = "https://storage.example.test/" }).HasValidBounds);
+        Assert.False((endpoint with { AllowInsecureTransport = true }).HasValidBounds);
+        Assert.False((endpoint with { Bucket = null }).HasValidBounds);
+        Assert.False((endpoint with { Host = "storage.googleapis.com" }).HasValidBounds);
+        Assert.False((endpoint with { Port = 443 }).HasValidBounds);
+        Assert.False((endpoint with { Region = "europe-north1" }).HasValidBounds);
+        Assert.False((endpoint with { ForcePathStyle = true }).HasValidBounds);
+        Assert.False((endpoint with { TlsPolicy = ConnectionTlsCertificatePolicy.Pinned }).HasValidBounds);
+        Assert.False((endpoint with { ClientCertificatePfxReference = "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" }).HasValidBounds);
+    }
+
+    [Fact]
     public void WebDav_endpoint_has_a_url_and_nothing_that_belongs_to_another_provider()
     {
         var endpoint = new ConnectionEndpointDocument(

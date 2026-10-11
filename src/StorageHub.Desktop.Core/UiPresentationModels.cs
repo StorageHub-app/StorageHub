@@ -14,7 +14,8 @@ public enum StorageProviderKind
     Sftp,
     Ssh,
     WebDav,
-    AzureBlob
+    AzureBlob,
+    GoogleCloudStorage
 }
 
 public enum ConnectionFieldKind
@@ -112,6 +113,15 @@ public static class ConnectionProviderCatalog
             ConnectionEditorDraftFactory.AzureSasToken,
             ConnectionEditorDraftFactory.AzureConnectionString,
             ConnectionEditorDraftFactory.AzureIdentity
+        });
+
+    // Cloud Storage's sign-ins: a key file first, as the console hands one out; anonymous last.
+    private static readonly ReadOnlyCollection<string> GcsAuthenticationModes =
+        Array.AsReadOnly(new[]
+        {
+            ConnectionEditorDraftFactory.GcsServiceAccount,
+            ConnectionEditorDraftFactory.GcsApplicationDefault,
+            ConnectionEditorDraftFactory.GcsAnonymous
         });
 
     private static readonly ReadOnlyCollection<string> SshClientAuthenticationModes =
@@ -321,6 +331,28 @@ public static class ConnectionProviderCatalog
             ],
             [
                 Field("acknowledgePlaintext", Ui.Providers.AllowPlainHttpConnectionString, ConnectionFieldKind.Toggle, defaultValue: "false", help: Ui.Providers.AzurePlainHttpHelp)
+            ]),
+        new(
+            StorageProviderKind.GoogleCloudStorage,
+            Ui.Providers.GoogleCloudStorage,
+            "GCS",
+            "#4285F4",
+            443,
+            true,
+            Ui.Providers.GoogleCloudStorageSummary,
+            "https://storage.googleapis.com/",
+            Ui.Providers.GoogleCloudStorageTrustNotice,
+            [
+                Field("bucket", "Bucket", ConnectionFieldKind.Text, required: true, placeholder: "my-bucket", help: Ui.Providers.GcsBucketHelp),
+                Field("endpoint", Ui.Providers.GcsServiceUrl, ConnectionFieldKind.Text, placeholder: "https://storage.googleapis.com/", help: Ui.Providers.GcsServiceUrlHelp),
+                Field("prefix", Ui.Providers.InitialPrefix, ConnectionFieldKind.Text, placeholder: "team/archive/")
+            ],
+            [
+                Field("authenticationMode", Ui.Providers.Authentication, ConnectionFieldKind.Choice, defaultValue: GcsAuthenticationModes[0], choices: GcsAuthenticationModes, help: Ui.Providers.GcsAuthenticationHelp),
+                Field(ConnectionEditorDraftFactory.ServiceAccountKey, Ui.Providers.ServiceAccountKeyReference, ConnectionFieldKind.SecretReference, placeholder: Ui.Providers.OnlyForServiceAccountSignIn)
+            ],
+            [
+                Field("acknowledgePlaintext", Ui.Providers.AllowPlainHTTPEndpoint, ConnectionFieldKind.Toggle, defaultValue: "false", help: Ui.Providers.GcsPlainHttpHelp)
             ]),
         new(
             StorageProviderKind.Ssh,

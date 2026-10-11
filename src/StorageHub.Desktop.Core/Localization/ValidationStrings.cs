@@ -97,6 +97,20 @@ internal sealed class ValidationStrings : LocalizationModelBase
     public string AnAzureConnectionStringIsRequired { get; set; } =
         "A connection string is required for connection-string sign-in.";
 
+    public string ACloudStorageBucketIsRequired { get; set; } = "A Cloud Storage bucket is required.";
+
+    public string TheCloudStorageBucketNameIsInvalid { get; set; } =
+        "The bucket name must be 3 to 63 lower-case letters, digits, hyphens and underscores (222 with dots), starting and ending with a letter or digit.";
+
+    public string TheCloudStorageServiceUrlIsInvalid { get; set; } =
+        "The service URL must be an http:// or https:// address with no user name, query or fragment.";
+
+    public string ServiceUrlPlainHttpNotAllowed { get; set; } =
+        "This service URL is plain HTTP. Allow plain HTTP on the trust tab, or use https://.";
+
+    public string AServiceAccountKeyIsRequired { get; set; } =
+        "A service-account key is required for service-account sign-in.";
+
     public string AnHTTPSS3ServiceEndpointIsRequired { get; set; } = "An HTTPS S3 service endpoint is required.";
 
     public string AnS3BucketIsRequired { get; set; } = "An S3 bucket is required.";

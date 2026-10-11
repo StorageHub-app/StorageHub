@@ -86,5 +86,15 @@
   "onlyForConnectionStringSignIn": "Nur für die Anmeldung mit Verbindungszeichenfolge",
   "allowPlainHttpConnectionString": "Verbindungszeichenfolge mit unverschlüsseltem HTTP zulassen",
   "azurePlainHttpHelp": "Für den Azurite-Emulator auf Ihrem eigenen Computer. Anfragen werden weiterhin signiert, aber die Dateien werden unverschlüsselt übertragen.",
+  "googleCloudStorage": "Google Cloud Storage",
+  "googleCloudStorageSummary": "Dateien in einem Google Cloud Storage-Bucket oder in einem Emulator wie fake-gcs-server.",
+  "googleCloudStorageTrustNotice": "Das Zertifikat von Google muss die Systemprüfung bestehen. Ein Dienstkontoschlüssel oder Application Default Credentials werden nur über HTTPS gesendet, es sei denn, Sie lassen unverschlüsseltes HTTP für einen Emulator zu.",
+  "gcsBucketHelp": "3 bis 63 Kleinbuchstaben, Ziffern, Binde- und Unterstriche, wie Google ihn benennt; bis zu 222 mit Punkten.",
+  "gcsServiceUrl": "Dienst-URL",
+  "gcsServiceUrlHelp": "Für Google selbst leer lassen. Für einen privaten Endpunkt oder einen Emulator dessen Adresse angeben; /storage/v1/ wird automatisch ergänzt.",
+  "gcsAuthenticationHelp": "Ein Dienstkontoschlüssel ist die JSON-Datei, die Google Ihnen gibt, und wird im Tresor aufbewahrt. Application Default Credentials verwenden die eigene Anmeldung des Agenten (GOOGLE_APPLICATION_CREDENTIALS, gcloud oder den Metadatenserver). Anonym liest öffentliche Buckets.",
+  "serviceAccountKeyReference": "Referenz auf den Dienstkontoschlüssel",
+  "onlyForServiceAccountSignIn": "Nur für die Anmeldung mit Dienstkonto",
+  "gcsPlainHttpHelp": "Für einen Emulator auf Ihrem eigenen Computer. Nichts wird verschlüsselt, auch keine Anmeldung mit Dienstkonto.",
   "culture": "de-DE"
 }

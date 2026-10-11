@@ -265,5 +265,10 @@
   "anAzureAccountKeyIsRequired": "En kontonøgle er påkrævet ved login med delt nøgle.",
   "anAzureSasTokenIsRequired": "Et SAS-token er påkrævet ved login med SAS-token.",
   "anAzureConnectionStringIsRequired": "En forbindelsesstreng er påkrævet ved login med forbindelsesstreng.",
+  "aCloudStorageBucketIsRequired": "En Cloud Storage-bucket er påkrævet.",
+  "theCloudStorageBucketNameIsInvalid": "Bucket-navnet skal være 3 til 63 små bogstaver, cifre, bindestreger og understreger (222 med punktummer) og starte og slutte med et bogstav eller ciffer.",
+  "theCloudStorageServiceUrlIsInvalid": "Tjeneste-URL'en skal være en http://- eller https://-adresse uden brugernavn, forespørgsel eller fragment.",
+  "serviceUrlPlainHttpNotAllowed": "Denne tjeneste-URL bruger almindelig HTTP. Tillad almindelig HTTP på fanen Tillid, eller brug https://.",
+  "aServiceAccountKeyIsRequired": "En nøgle til tjenestekontoen er påkrævet ved login med tjenestekonto.",
   "culture": "da-DK"
 }

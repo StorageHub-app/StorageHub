@@ -829,10 +829,12 @@ internal static class SettingsPageCatalog
     {
         var ownOperationTimeout = ConnectionDefaultSettings.HasOwnOperationTimeout(provider);
         var retries = ConnectionDefaultSettings.SupportsConfigurableRetries(provider);
+        var timeout = ConnectionDefaultSettings.HasConfigurableTimeout(provider);
 
         yield return ConnectionDefaultNumber(
-            provider, ConnectionDefaultSettings.ConnectTimeoutKey, Ui.Settings.ConnectionTimeout, null, 1, 600,
-            Ui.Settings.UnitSeconds, static defaults => defaults.ConnectTimeoutSeconds, editable: true);
+            provider, ConnectionDefaultSettings.ConnectTimeoutKey, Ui.Settings.ConnectionTimeout,
+            timeout ? null : Ui.Settings.TimeoutKeptByProvider, 1, 600,
+            Ui.Settings.UnitSeconds, static defaults => defaults.ConnectTimeoutSeconds, editable: timeout);
         yield return ConnectionDefaultNumber(
             provider, ConnectionDefaultSettings.OperationTimeoutKey, Ui.Settings.OperationTimeout,
             ownOperationTimeout ? null : Ui.Settings.OperationTimeoutHint, 1, 86_400,

@@ -442,6 +442,64 @@ public sealed class ConnectionProfileTests
     }
 
     [Fact]
+    public void Cloud_storage_names_its_bucket_as_google_does_and_takes_plain_http_only_when_acknowledged()
+    {
+        var google = new GoogleCloudStorageEndpoint(" archive_2026 ", rootPrefix: "/team/reports/");
+        Assert.Equal(ConnectionProviderKind.GoogleCloudStorage, google.Provider);
+        Assert.Equal("archive_2026", google.Bucket);
+        Assert.Null(google.ServiceUri);
+        Assert.Equal("team/reports", google.RootPrefix);
+        Assert.False(google.AllowInsecureHttp);
+
+        var emulator = new GoogleCloudStorageEndpoint(
+            "archive", new Uri("http://127.0.0.1:4443/"), allowInsecureHttp: true);
+        Assert.True(emulator.AllowInsecureHttp);
+        // An acknowledgement with nothing plain to apply to is not kept.
+        Assert.False(new GoogleCloudStorageEndpoint("archive", allowInsecureHttp: true).AllowInsecureHttp);
+        Assert.Equal(
+            "www.example.com",
+            new GoogleCloudStorageEndpoint("www.example.com").Bucket);
+
+        foreach (var name in new[]
+        {
+            "ab", "Archive", "-edge", "edge-", "goog-bucket", "has space", new string('a', 64),
+            "a..b", string.Join('.', Enumerable.Repeat(new string('a', 63), 4))
+        })
+        {
+            Assert.ThrowsAny<ArgumentException>(() => new GoogleCloudStorageEndpoint(name));
+        }
+
+        Assert.ThrowsAny<ArgumentException>(() => new GoogleCloudStorageEndpoint(
+            "archive", new Uri("http://127.0.0.1:4443/")));
+        Assert.ThrowsAny<ArgumentException>(() => new GoogleCloudStorageEndpoint(
+            "archive", new Uri("https://user:secret@storage.example.test/")));
+        Assert.ThrowsAny<ArgumentException>(() => new GoogleCloudStorageEndpoint(
+            "archive", new Uri("ftp://storage.example.test/")));
+        Assert.ThrowsAny<ArgumentException>(() => new GoogleCloudStorageEndpoint(
+            "archive", rootPrefix: "team/../other"));
+    }
+
+    [Fact]
+    public void Cloud_storage_signs_in_with_a_key_the_agents_identity_or_not_at_all()
+    {
+        var endpoint = new GoogleCloudStorageEndpoint("archive");
+
+        Assert.IsType<GoogleServiceAccountAuthentication>(
+            Create(new GoogleServiceAccountAuthentication(SecretReference.Create())).Authentication);
+        Assert.IsType<AmbientCredentialAuthentication>(Create(new AmbientCredentialAuthentication()).Authentication);
+        Assert.IsType<NoAuthentication>(Create(new NoAuthentication()).Authentication);
+
+        Assert.Throws<ArgumentException>(() => Create(new S3DefaultCredentialChainAuthentication()));
+        Assert.Throws<ArgumentException>(() => Create(new UsernamePasswordAuthentication("account", Password)));
+        Assert.Throws<ArgumentException>(() => Create(new AzureSasTokenAuthentication(SecretReference.Create())));
+        Assert.ThrowsAny<ArgumentException>(() => new GoogleServiceAccountAuthentication(default));
+
+        ConnectionProfile Create(ConnectionAuthentication authentication) =>
+            ConnectionProfile.Create(ConnectionProfileId.New(), Metadata("Cloud Storage"), endpoint, authentication,
+                OperationalOptions(), DateTimeOffset.UtcNow);
+    }
+
+    [Fact]
     public void Provider_and_endpoint_must_match()
     {
         Assert.Throws<ArgumentException>(() => ConnectionProfile.Create(
@@ -483,6 +541,9 @@ public sealed class ConnectionProfileTests
             ConnectionProfile.Create(ConnectionProfileId.New(), Metadata("Azure"),
                 new AzureBlobEndpoint("archive", new Uri("https://account.blob.core.windows.net/")),
                 new AzureSharedKeyAuthentication("account", SecretReference.Create()), OperationalOptions(), now),
+            ConnectionProfile.Create(ConnectionProfileId.New(), Metadata("Cloud Storage"),
+                new GoogleCloudStorageEndpoint("archive"),
+                new GoogleServiceAccountAuthentication(SecretReference.Create()), OperationalOptions(), now),
             ConnectionProfile.Create(ConnectionProfileId.New(), Metadata("SSH"),
                 new SshClientEndpoint("ssh.example.test", 22, SshHostKeyPolicy.Pinned),
                 new UsernamePasswordAuthentication("operator", Password), OperationalOptions(), now)

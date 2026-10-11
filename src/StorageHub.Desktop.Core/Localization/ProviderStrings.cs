@@ -199,4 +199,30 @@ internal sealed class ProviderStrings : LocalizationModelBase
 
     public string AzurePlainHttpHelp { get; set; } =
         "For the Azurite emulator on your own computer. Requests are still signed, but the files travel unencrypted.";
+
+    public string GoogleCloudStorage { get; set; } = "Google Cloud Storage";
+
+    public string GoogleCloudStorageSummary { get; set; } =
+        "Files in a Google Cloud Storage bucket, or in an emulator such as fake-gcs-server.";
+
+    public string GoogleCloudStorageTrustNotice { get; set; } =
+        "Google's certificate must pass system validation. A service-account key or Application Default Credentials are only sent over HTTPS unless you allow plain HTTP for an emulator.";
+
+    public string GcsBucketHelp { get; set; } =
+        "3 to 63 lower-case letters, digits, hyphens and underscores, as Google names it; up to 222 with dots.";
+
+    public string GcsServiceUrl { get; set; } = "Service URL";
+
+    public string GcsServiceUrlHelp { get; set; } =
+        "Leave empty for Google itself. For a private endpoint or an emulator, give its address; /storage/v1/ is added for you.";
+
+    public string GcsAuthenticationHelp { get; set; } =
+        "A service-account key is the JSON file Google gives you, kept in the vault. Application Default Credentials use the agent's own sign-in (GOOGLE_APPLICATION_CREDENTIALS, gcloud or the metadata server). Anonymous reads public buckets.";
+
+    public string ServiceAccountKeyReference { get; set; } = "Service-account key reference";
+
+    public string OnlyForServiceAccountSignIn { get; set; } = "Only for service-account sign-in";
+
+    public string GcsPlainHttpHelp { get; set; } =
+        "For an emulator on your own computer. Nothing is encrypted, a service-account sign-in included.";
 }

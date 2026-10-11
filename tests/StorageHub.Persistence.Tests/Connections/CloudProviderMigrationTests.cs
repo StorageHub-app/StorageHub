@@ -21,7 +21,7 @@ public sealed class CloudProviderMigrationTests : IDisposable
     private readonly string _directory = Path.Combine(
         Path.GetTempPath(), $"storagehub-cloud-migration-{Guid.NewGuid():N}");
 
-    public static TheoryData<string> Providers() => ["azureblob"];
+    public static TheoryData<string> Providers() => ["azureblob", "gcs"];
 
     [Theory]
     [MemberData(nameof(Providers))]
@@ -67,6 +67,11 @@ public sealed class CloudProviderMigrationTests : IDisposable
             Profile(
                 new AzureBlobEndpoint("archive", allowInsecureHttp: true, rootPrefix: "team"),
                 new AzureConnectionStringAuthentication(SecretReference.Create()))),
+        "gcs" => (
+            [.. UpToWebDav(), new AzureBlobProviderSchemaMigration()],
+            Profile(
+                new GoogleCloudStorageEndpoint("archive", new Uri("http://127.0.0.1:4443/"), allowInsecureHttp: true),
+                new GoogleServiceAccountAuthentication(SecretReference.Create()))),
         _ => throw new ArgumentOutOfRangeException(nameof(provider))
     };
 

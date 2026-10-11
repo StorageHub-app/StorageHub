@@ -904,6 +904,77 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
         Assert.Equal(4, identities.Distinct(StringComparer.Ordinal).Count());
     }
 
+    /// <summary>
+    /// Each Cloud Storage sign-in reaches CL.Storage as its own mode, the key inline from the vault
+    /// (never as a file), the service URL and plain HTTP as given, a proxy, and the key let go afterwards.
+    /// </summary>
+    [Fact]
+    public async Task Cloud_storage_hands_each_sign_in_over_in_its_own_mode_and_lets_the_key_go()
+    {
+        const string json = """{"type":"service_account","client_email":"a@b.iam.gserviceaccount.com"}""";
+        var key = await StoreTextAsync(json);
+
+        var prepared = (await CreateBuilder().BuildAsync(CreateProfile(
+            new GoogleCloudStorageEndpoint("archive", rootPrefix: "team"),
+            new GoogleServiceAccountAuthentication(key),
+            proxy: new ConnectionProxy(new Uri("http://proxy.example.test:3128")),
+            bandwidth: true))).Value;
+        var configuration = Assert.IsType<GoogleCloudConnectionConfig>(prepared.Configuration);
+        Assert.Equal("archive", configuration.Bucket);
+        Assert.Equal("team", configuration.Prefix);
+        Assert.Null(configuration.ServiceUrl);
+        Assert.False(configuration.AllowInsecureHttp);
+        Assert.Equal(GoogleCloudAuthenticationMode.ServiceAccountJson, configuration.AuthenticationMode);
+        Assert.Equal(json, configuration.CredentialsJson);
+        Assert.Null(configuration.CredentialsJsonPath);
+        Assert.Equal(StorageProxyType.Http, configuration.Proxy.Type);
+        Assert.Equal(2_000_000, configuration.TransferLimits.MaxDownloadBytesPerSecond);
+        await prepared.DisposeAsync();
+        Assert.Null(configuration.CredentialsJson);
+
+        await using (var ambient = (await CreateBuilder().BuildAsync(CreateProfile(
+            new GoogleCloudStorageEndpoint("archive", new Uri("https://storage.example.test/")),
+            new AmbientCredentialAuthentication()))).Value)
+        {
+            var built = Assert.IsType<GoogleCloudConnectionConfig>(ambient.Configuration);
+            Assert.Equal(GoogleCloudAuthenticationMode.ApplicationDefaultCredentials, built.AuthenticationMode);
+            Assert.Equal("https://storage.example.test/", built.ServiceUrl);
+            Assert.Null(built.CredentialsJson);
+        }
+
+        await using (var emulator = (await CreateBuilder().BuildAsync(CreateProfile(
+            new GoogleCloudStorageEndpoint("archive", new Uri("http://127.0.0.1:4443/"), allowInsecureHttp: true),
+            new NoAuthentication()))).Value)
+        {
+            var built = Assert.IsType<GoogleCloudConnectionConfig>(emulator.Configuration);
+            Assert.Equal(GoogleCloudAuthenticationMode.Anonymous, built.AuthenticationMode);
+            Assert.Equal("http://127.0.0.1:4443/", built.ServiceUrl);
+            Assert.True(built.AllowInsecureHttp);
+        }
+    }
+
+    /// <summary>A Cloud Storage root is the service, the bucket and the prefix: changing any is a different root.</summary>
+    [Fact]
+    public async Task Cloud_storage_root_identity_follows_the_service_the_bucket_and_the_prefix()
+    {
+        var first = CreateProfile(new GoogleCloudStorageEndpoint("archive"), new AmbientCredentialAuthentication());
+        var others = new[]
+        {
+            new GoogleCloudStorageEndpoint("archive", new Uri("https://storage.example.test/")),
+            new GoogleCloudStorageEndpoint("other"),
+            new GoogleCloudStorageEndpoint("archive", rootPrefix: "inner")
+        };
+
+        var identities = new List<string>();
+        foreach (var profile in others.Select(endpoint => first with { Endpoint = endpoint }).Prepend(first))
+        {
+            await using var prepared = (await CreateBuilder().BuildAsync(profile)).Value;
+            identities.Add(prepared.RootIdentity);
+        }
+
+        Assert.Equal(4, identities.Distinct(StringComparer.Ordinal).Count());
+    }
+
     [Fact]
     public async Task Tofu_and_s3_pinning_fail_closed_when_provider_cannot_capture_or_enforce_them()
     {

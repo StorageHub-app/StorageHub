@@ -22,7 +22,8 @@ public enum ConnectionProviderKind
     Sftp = 5,
     Ssh = 6,
     WebDav = 7,
-    AzureBlob = 8
+    AzureBlob = 8,
+    GoogleCloudStorage = 9
 }
 
 public enum TlsCertificatePolicy
@@ -1049,6 +1050,97 @@ public sealed record AzureBlobEndpoint : ConnectionEndpoint
     }
 }
 
+/// <summary>
+/// A Google Cloud Storage bucket: its name, an optional JSON API endpoint other than Google's, and a
+/// prefix below the bucket that the connection treats as its root.
+/// </summary>
+/// <remarks>
+/// With no service URL the connection talks to <c>https://storage.googleapis.com</c>. One is given
+/// for a private endpoint or an emulator such as fake-gcs-server; CL.Storage appends the
+/// <c>storage/v1/</c> path itself. Plain HTTP is refused unless acknowledged, as WebDAV's is.
+/// </remarks>
+public sealed record GoogleCloudStorageEndpoint : ConnectionEndpoint
+{
+    public GoogleCloudStorageEndpoint(
+        string bucket,
+        Uri? serviceUri = null,
+        bool allowInsecureHttp = false,
+        string? rootPrefix = null)
+        : base(ConnectionProviderKind.GoogleCloudStorage)
+    {
+        Bucket = ValidateBucket(bucket);
+        var isHttp = false;
+        if (serviceUri is not null)
+        {
+            if (!serviceUri.IsAbsoluteUri ||
+                (serviceUri.Scheme != Uri.UriSchemeHttp && serviceUri.Scheme != Uri.UriSchemeHttps) ||
+                string.IsNullOrEmpty(serviceUri.Host))
+            {
+                throw new ArgumentException(
+                    "The Cloud Storage service URL must be an absolute HTTP or HTTPS URL.", nameof(serviceUri));
+            }
+
+            RejectCredentialBearingUri(serviceUri, nameof(serviceUri));
+            if (serviceUri.AbsoluteUri.Length > 2_048)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(serviceUri), "The Cloud Storage service URL cannot exceed 2,048 characters.");
+            }
+
+            isHttp = serviceUri.Scheme == Uri.UriSchemeHttp;
+            if (isHttp && !allowInsecureHttp)
+            {
+                throw new ArgumentException(
+                    "A plain-HTTP Cloud Storage endpoint is insecure and requires explicit acknowledgement.",
+                    nameof(allowInsecureHttp));
+            }
+        }
+
+        ServiceUri = serviceUri;
+        AllowInsecureHttp = isHttp;
+        RootPrefix = NormalizeProviderRoot(rootPrefix, nameof(rootPrefix));
+    }
+
+    /// <summary>The bucket, named as Google requires.</summary>
+    public string Bucket { get; }
+
+    /// <summary>The JSON API endpoint, or null for Google's own.</summary>
+    public Uri? ServiceUri { get; }
+
+    /// <summary>Whether the service URL is plain HTTP, which was acknowledged when it was given.</summary>
+    public bool AllowInsecureHttp { get; }
+
+    public string RootPrefix { get; }
+
+    /// <summary>
+    /// Google's bucket naming rules: 3 to 63 lower-case letters, digits, hyphens and underscores,
+    /// starting and ending with a letter or digit; with dots, up to 222 characters in parts of at
+    /// most 63; and never beginning with "goog".
+    /// </summary>
+    public static bool IsValidBucketName(string value) =>
+        value.Length is >= 3 and <= 222 &&
+        (value.Contains('.', StringComparison.Ordinal) || value.Length <= 63) &&
+        value.All(static character => char.IsAsciiLetterLower(character) || char.IsAsciiDigit(character) ||
+            character is '-' or '_' or '.') &&
+        char.IsAsciiLetterOrDigit(value[0]) && char.IsAsciiLetterOrDigit(value[^1]) &&
+        value.Split('.').All(static part => part.Length is >= 1 and <= 63) &&
+        !value.StartsWith("goog", StringComparison.Ordinal);
+
+    private static string ValidateBucket(string bucket)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(bucket);
+        var value = bucket.Trim();
+        if (!IsValidBucketName(value))
+        {
+            throw new ArgumentException(
+                "The Cloud Storage bucket name must be 3 to 63 lower-case letters, digits, hyphens and underscores (222 with dots).",
+                nameof(bucket));
+        }
+
+        return value;
+    }
+}
+
 public abstract record ConnectionAuthentication;
 
 public sealed record NoAuthentication : ConnectionAuthentication;
@@ -1120,9 +1212,30 @@ public sealed record BearerTokenAuthentication : ConnectionAuthentication
 /// <summary>
 /// The agent's own identity on a cloud platform, with nothing stored in the profile: for Azure,
 /// the Azure identity chain (a service principal in the environment, a managed or workload
-/// identity, or the Azure CLI's sign-in).
+/// identity, or the Azure CLI's sign-in); for Google Cloud, Application Default Credentials.
 /// </summary>
 public sealed record AmbientCredentialAuthentication : ConnectionAuthentication;
+
+/// <summary>
+/// A Google Cloud service-account key, the JSON file Google hands out, kept whole in the vault:
+/// it carries the account's private key.
+/// </summary>
+public sealed record GoogleServiceAccountAuthentication : ConnectionAuthentication
+{
+    public GoogleServiceAccountAuthentication(SecretReference serviceAccountJsonReference)
+    {
+        if (!SecretReference.TryParse(serviceAccountJsonReference.Value, out _))
+        {
+            throw new ArgumentException(
+                "The service-account secret reference is invalid.",
+                nameof(serviceAccountJsonReference));
+        }
+
+        ServiceAccountJsonReference = serviceAccountJsonReference;
+    }
+
+    public SecretReference ServiceAccountJsonReference { get; }
+}
 
 /// <summary>An Azure storage account's name and one of its shared keys, the key kept in the vault.</summary>
 public sealed record AzureSharedKeyAuthentication : ConnectionAuthentication
@@ -1476,6 +1589,9 @@ public sealed record ConnectionProfile
                     ? azure.ServiceUri is null
                     : Authentication is AzureSharedKeyAuthentication or AzureSasTokenAuthentication or
                         AmbientCredentialAuthentication && azure.ServiceUri is not null),
+            // No sign-in at all reads a public bucket, or an emulator that checks nothing.
+            ConnectionProviderKind.GoogleCloudStorage => Authentication is
+                GoogleServiceAccountAuthentication or AmbientCredentialAuthentication or NoAuthentication,
             _ => false
         };
         if (!valid)

@@ -270,5 +270,6 @@
   "fieldStorageAccount": "Speicherkonto",
   "fieldAccountKey": "Kontoschlüssel",
   "fieldSasToken": "SAS-Token",
+  "authGoogleServiceAccount": "Dienstkontoschlüssel",
   "culture": "de-DE"
 }

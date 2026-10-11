@@ -474,6 +474,9 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
             AzureBlobEndpoint azure => new PersistedEndpoint(
                 "azureblob", RootPath: azure.RootPrefix, Bucket: azure.Container,
                 ServiceEndpoint: azure.ServiceUri?.AbsoluteUri, AllowInsecureHttp: azure.AllowInsecureHttp),
+            GoogleCloudStorageEndpoint gcs => new PersistedEndpoint(
+                "gcs", RootPath: gcs.RootPrefix, Bucket: gcs.Bucket,
+                ServiceEndpoint: gcs.ServiceUri?.AbsoluteUri, AllowInsecureHttp: gcs.AllowInsecureHttp),
             _ => throw new NotSupportedException($"Endpoint type {endpoint.GetType().Name} is not supported.")
         };
         return JsonSerializer.Serialize(value, JsonOptions);
@@ -529,6 +532,11 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
                 value.ServiceEndpoint is null ? null : new Uri(value.ServiceEndpoint, UriKind.Absolute),
                 value.AllowInsecureHttp,
                 value.RootPath),
+            "gcs" => new GoogleCloudStorageEndpoint(
+                Required(value.Bucket, "Cloud Storage bucket"),
+                value.ServiceEndpoint is null ? null : new Uri(value.ServiceEndpoint, UriKind.Absolute),
+                value.AllowInsecureHttp,
+                value.RootPath),
             _ => throw new InvalidDataException("The stored connection endpoint kind is unknown.")
         };
     }
@@ -560,6 +568,8 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
                 "azure-sas", TokenReference: sas.SasTokenReference.Value),
             AzureConnectionStringAuthentication connectionString => new PersistedAuthentication(
                 "azure-connection-string", SecretKeyReference: connectionString.ConnectionStringReference.Value),
+            GoogleServiceAccountAuthentication serviceAccount => new PersistedAuthentication(
+                "gcs-service-account", SecretKeyReference: serviceAccount.ServiceAccountJsonReference.Value),
             SshPrivateKeyPasswordAuthentication mfa => new PersistedAuthentication(
                 "ssh-key-password",
                 mfa.Username,
@@ -604,6 +614,8 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
                 SecretReference.Parse(Required(value.TokenReference, "Azure SAS-token reference"))),
             "azure-connection-string" => new AzureConnectionStringAuthentication(
                 SecretReference.Parse(Required(value.SecretKeyReference, "Azure connection-string reference"))),
+            "gcs-service-account" => new GoogleServiceAccountAuthentication(
+                SecretReference.Parse(Required(value.SecretKeyReference, "service-account reference"))),
             "ssh-key-password" => new SshPrivateKeyPasswordAuthentication(
                 Required(value.Username, "username"),
                 SecretReference.Parse(Required(value.PasswordReference, "password reference")),
@@ -680,6 +692,8 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
         ConnectionProviderKind.WebDav => "webdav",
         // Allowed in the column from schema v18 (AzureBlobProviderSchemaMigration).
         ConnectionProviderKind.AzureBlob => "azureblob",
+        // Allowed in the column from schema v19 (GoogleCloudStorageProviderSchemaMigration).
+        ConnectionProviderKind.GoogleCloudStorage => "gcs",
         _ => throw new ArgumentOutOfRangeException(nameof(provider))
     };
 
@@ -692,6 +706,7 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
         "sftp" => ConnectionProviderKind.Sftp,
         "webdav" => ConnectionProviderKind.WebDav,
         "azureblob" => ConnectionProviderKind.AzureBlob,
+        "gcs" => ConnectionProviderKind.GoogleCloudStorage,
         _ => throw new InvalidDataException("The stored connection provider is unknown.")
     };
 

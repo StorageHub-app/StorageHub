@@ -72,12 +72,14 @@ internal static class ConnectionDefaultSettings
             }
         }
 
-        var connectTimeout = ReadBoundedInteger(
-            stored,
-            Key(providerKind, ConnectTimeoutKey),
-            builtIn.ConnectTimeoutSeconds,
-            1,
-            600);
+        var connectTimeout = HasConfigurableTimeout(providerKind)
+            ? ReadBoundedInteger(
+                stored,
+                Key(providerKind, ConnectTimeoutKey),
+                builtIn.ConnectTimeoutSeconds,
+                1,
+                600)
+            : builtIn.ConnectTimeoutSeconds;
         // CL.Storage exposes one network timeout for remote providers. Keeping the
         // two profile values identical prevents creation of a profile the adapter
         // would later have to reject as unenforceable.
@@ -132,6 +134,13 @@ internal static class ConnectionDefaultSettings
     internal static bool HasOwnOperationTimeout(StorageProviderKind provider) =>
         provider is StorageProviderKind.Local or StorageProviderKind.WebDav;
 
+    /// <summary>
+    /// Whether StorageHub can hand the provider a timeout at all. Google's Cloud Storage client
+    /// keeps its own, which CL.Storage does not expose, so its row shows what the client does.
+    /// </summary>
+    internal static bool HasConfigurableTimeout(StorageProviderKind provider) =>
+        provider != StorageProviderKind.GoogleCloudStorage;
+
     internal static bool SupportsConfigurableRetries(StorageProviderKind provider) => provider is
         StorageProviderKind.Local or StorageProviderKind.S3 or StorageProviderKind.Ssh or StorageProviderKind.AzureBlob;
 
@@ -146,6 +155,8 @@ internal static class ConnectionDefaultSettings
         StorageProviderKind.WebDav => new(30, 600, 0, new Dictionary<string, string>()),
         // The Azure SDK retries on its own and bounds each read or write, as S3's does.
         StorageProviderKind.AzureBlob => new(30, 30, 3, new Dictionary<string, string>()),
+        // What Google's client does on its own: a hundred seconds a request, and its own retries.
+        StorageProviderKind.GoogleCloudStorage => new(100, 100, 0, new Dictionary<string, string>()),
         _ => throw new ArgumentOutOfRangeException(nameof(provider))
     };
 

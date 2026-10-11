@@ -265,5 +265,10 @@
   "anAzureAccountKeyIsRequired": "Für die Anmeldung mit gemeinsamem Schlüssel ist ein Kontoschlüssel erforderlich.",
   "anAzureSasTokenIsRequired": "Für die Anmeldung mit SAS-Token ist ein SAS-Token erforderlich.",
   "anAzureConnectionStringIsRequired": "Für die Anmeldung mit Verbindungszeichenfolge ist eine Verbindungszeichenfolge erforderlich.",
+  "aCloudStorageBucketIsRequired": "Ein Cloud Storage-Bucket ist erforderlich.",
+  "theCloudStorageBucketNameIsInvalid": "Der Bucket-Name muss aus 3 bis 63 Kleinbuchstaben, Ziffern, Binde- und Unterstrichen bestehen (222 mit Punkten) und mit einem Buchstaben oder einer Ziffer beginnen und enden.",
+  "theCloudStorageServiceUrlIsInvalid": "Die Dienst-URL muss eine http://- oder https://-Adresse ohne Benutzernamen, Abfrage oder Fragment sein.",
+  "serviceUrlPlainHttpNotAllowed": "Diese Dienst-URL verwendet unverschlüsseltes HTTP. Lassen Sie unverschlüsseltes HTTP auf der Registerkarte Vertrauen zu, oder verwenden Sie https://.",
+  "aServiceAccountKeyIsRequired": "Für die Anmeldung mit Dienstkonto ist ein Dienstkontoschlüssel erforderlich.",
   "culture": "de-DE"
 }

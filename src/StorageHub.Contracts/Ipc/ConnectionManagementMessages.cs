@@ -152,7 +152,10 @@ public enum ConnectionAuthenticationKind
     /// </summary>
     BearerToken = 8,
 
-    /// <summary>The agent's own platform identity (Azure's identity chain); nothing travels with it.</summary>
+    /// <summary>
+    /// The agent's own platform identity (Azure's identity chain, Google's Application Default
+    /// Credentials); nothing travels with it.
+    /// </summary>
     AmbientCredential = 9,
 
     /// <summary>
@@ -165,7 +168,10 @@ public enum ConnectionAuthenticationKind
     AzureSasToken = 11,
 
     /// <summary>An Azure connection string, its vault reference in the document's secret-key slot.</summary>
-    AzureConnectionString = 12
+    AzureConnectionString = 12,
+
+    /// <summary>A Google Cloud service-account key file, its vault reference in the document's secret-key slot.</summary>
+    GoogleServiceAccount = 13
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<ConnectionSftpPrivateKeyFormat>))]
@@ -238,7 +244,8 @@ public sealed record ConnectionProfileMetadataDocument(
 /// <see cref="AllowInsecureTransport"/>, as S3's do; its certificate trust and client certificate
 /// use the same fields as FTPS. An Azure container travels in <see cref="Bucket"/>, its prefix in
 /// <see cref="RootPath"/> and its Blob service URL, absent for a connection string, in
-/// <see cref="ServiceEndpoint"/>.
+/// <see cref="ServiceEndpoint"/>. A Cloud Storage bucket travels the same way, its service URL
+/// absent for Google's own and plain HTTP, for an emulator, in <see cref="AllowInsecureTransport"/>.
 /// </remarks>
 public sealed record ConnectionEndpointDocument(
     StorageConnectionProvider Provider,
@@ -331,6 +338,12 @@ public sealed record ConnectionEndpointDocument(
             (!AllowInsecureTransport || Empty(ServiceEndpoint)) &&
             Empty(ClientCertificatePfxReference) && Empty(ClientCertificatePasswordReference) &&
             HasDefaultNonProviderPolicies(),
+        // Plain HTTP is a property of a service URL, so it means nothing without one.
+        StorageConnectionProvider.GoogleCloudStorage =>
+            Present(Bucket) && Empty(Host) && Port is null && Empty(Region) && !ForcePathStyle &&
+            (!AllowInsecureTransport || Present(ServiceEndpoint)) &&
+            Empty(ClientCertificatePfxReference) && Empty(ClientCertificatePasswordReference) &&
+            HasDefaultNonProviderPolicies(),
         _ => false
     };
 
@@ -408,7 +421,7 @@ public sealed record ConnectionAuthenticationDocument(
             ConnectionAuthenticationKind.AzureSharedKey =>
                 hasUsername && !hasCredential && !hasPassword && !hasAccess && hasSecret &&
                 !hasToken && !hasKey && !hasPassphrase,
-            ConnectionAuthenticationKind.AzureConnectionString =>
+            ConnectionAuthenticationKind.AzureConnectionString or ConnectionAuthenticationKind.GoogleServiceAccount =>
                 !hasUsername && !hasCredential && !hasPassword && !hasAccess && hasSecret &&
                 !hasToken && !hasKey && !hasPassphrase,
             _ => false
@@ -494,6 +507,10 @@ public sealed record ConnectionProfileDraft(
             : Authentication.Kind is ConnectionAuthenticationKind.AzureSharedKey or
                 ConnectionAuthenticationKind.AzureSasToken or ConnectionAuthenticationKind.AmbientCredential &&
                 !string.IsNullOrWhiteSpace(Endpoint.ServiceEndpoint),
+        // No sign-in reads a public bucket, or an emulator that checks nothing.
+        StorageConnectionProvider.GoogleCloudStorage => Authentication.Kind is
+            ConnectionAuthenticationKind.GoogleServiceAccount or ConnectionAuthenticationKind.AmbientCredential or
+            ConnectionAuthenticationKind.None,
         _ => false
     };
 }

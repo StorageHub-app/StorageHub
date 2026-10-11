@@ -158,6 +158,38 @@ Without Docker, `npm install -g azurite` and
 `azurite-blob --blobHost 127.0.0.1 --blobPort 10000 --skipApiVersionCheck --loose` is what the
 fixture was first run against.
 
+### Google Cloud Storage
+
+fake-gcs-server (`fsouza/fake-gcs-server`, pinned to 1.56.1, the release the fixture was run
+against) on 4443, in plain HTTP, keeping its buckets in memory. It checks no credentials.
+
+| Service | Port | TLS |
+|---|---|---|
+| `fake-gcs` | 4443 | none |
+
+`GoogleCloudStorageProviderIntegrationTests` reads:
+
+| Variable | Meaning |
+|---|---|
+| `STORAGEHUB_REQUIRE_FAKE_GCS` | `1` makes a missing or malformed setting a failure instead of a skip |
+| `STORAGEHUB_GCS_SERVICE_URL` | the emulator's address; `/storage/v1/` is added by the client |
+| `STORAGEHUB_GCS_BUCKET` | the bucket to work in; the fixture creates it |
+
+Set, it runs the conformance pass signed in anonymously, then a saved profile through the real
+connector signed in with a service-account key from a vault. The key is minted by the fixture and
+the connection goes through a small forwarder in the fixture that keeps each request's
+`Authorization` header, so the pass shows that every request was signed with the vaulted key —
+something fake-gcs-server itself never checks. Then the failures: a plain-HTTP service URL nobody
+acknowledged cannot be saved and is refused by the library too, and a key that is not a key is
+refused without being repeated back.
+
+`-external-url` matters: it is where fake-gcs-server sends a resumable upload's next request, and
+without it that is the container's own address, which the host cannot reach.
+
+Without Docker, `go install github.com/fsouza/fake-gcs-server@v1.56.1` and
+`fake-gcs-server -scheme http -host 127.0.0.1 -port 4443 -backend memory -public-host 127.0.0.1:4443 -external-url http://127.0.0.1:4443`
+is what the fixture was first run against.
+
 ### Proxy
 
 gost, pinned, as an HTTP proxy on 13128 and a SOCKS5 proxy on 11080 that wants the user name and
