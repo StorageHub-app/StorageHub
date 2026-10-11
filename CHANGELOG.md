@@ -113,6 +113,18 @@ server's system and software, the host key or certificate it presented and
 whether it is trusted, the cipher and key exchange negotiated, the server's
 features, how many sessions are open and the last health check.
 
+**Free space, connection trouble and folders that refresh themselves.** A
+pane's footer ends with the free space behind the folder it shows: for a folder
+on this PC from the drive, for SFTP and FTP connections from the server, and
+nothing where it is not known. Each connection's card in the connections panel
+says when its link to the server is retrying, has been lost or has come back,
+and each change is a Connection line in the activity log. A new setting under
+Settings, Workspace, "Refresh a folder when it changes", off by default, makes a
+pane show changes by itself: a folder on this PC as soon as something in it
+changes, a connection's folder on an interval you choose from 15 seconds to 5
+minutes. Selection and scroll position stay where they were, and a busy pane
+waits until it is done.
+
 **WebDAV connections.** StorageHub now connects to WebDAV servers such as
 Nextcloud, ownCloud, SharePoint and NAS boxes. Enter the folder's URL and sign
 in with Basic, Digest, NTLM, Negotiate, a bearer token or no sign-in at all. The

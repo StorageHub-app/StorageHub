@@ -726,9 +726,24 @@ The profile already stores these; `CodeLogicConnectionProfileConnector.BuildAsyn
       refusals itself; the window and the active pane reload once a change is made. CL.Storage cannot
       read SFTP link targets, which show "—". Changing owner/group, recursive chmod and This PC are not
       offered.
-- [ ] 4.2 Free space in each pane's status bar.
-- [ ] 4.3 Connection health (retrying, lost, back) on the connection card and in the activity log.
-- [ ] 4.4 Auto-refresh of a folder when it changes (polling for remote connections, off by default).
+- [x] 4.2 Free space in each pane's status bar.
+      Done: a folder on this PC or a Local connection reads its drive (the longest matching mount);
+      SFTP and FTP connections ask the server through the agent (`storage.space`, bounds-checked,
+      `IStorageSpaceSession` over CL.Storage's `IStorageSpaceService` where `SpaceInfo` is advertised).
+      The footer ends with "X free of Y" or "X free", and says nothing where it is unknown, as on S3.
+- [x] 4.3 Connection health (retrying, lost, back) on the connection card and in the activity log.
+      Done: the agent's `CodeLogicConnectionLinkFeed` turns the library's retry, lost, failed, health
+      and success events into one Retrying/Lost/Back change per outage per connection
+      (`ConnectionLinkTracker`), keeps the last 256 in memory (`ConnectionLinkJournal`) and serves them
+      over `connection.link-events`. Cards show the current state, "Connected again" for two minutes,
+      and the activity log lists every change as a Connection line. "Back" is inferred, because the
+      library reports no success event, and S3 never shows Retrying (the library sends it none).
+- [x] 4.4 Auto-refresh of a folder when it changes (polling for remote connections, off by default).
+      Done: Settings, Workspace, "Refresh a folder when it changes" (off) and "Read a connection's folder
+      again" (15 s to 5 min, 30 s by default), through preferences, config, repair, validation and
+      export. Local folders are watched with a `FileSystemWatcher` (1 s settle, 5 s ceiling);
+      connections are read again on the interval. Both use the quiet refresh, so filter, selection and
+      scroll are kept, and a busy pane is caught up on the next tick. 1.4 had no such feature.
 - [ ] 4.5 Compare folders: a two-pane diff from `CompareAsync`; differences copied through our queue.
 - [ ] 4.6 Clean up leftover staging files, as a maintenance action.
 - [ ] 4.7 (Optional) FTP raw command console.
