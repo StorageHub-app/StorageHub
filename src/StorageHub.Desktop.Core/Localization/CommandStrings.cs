@@ -162,7 +162,7 @@ internal sealed class CommandStrings : LocalizationModelBase
 
     public string ConnectionsQuickConnect { get; set; } = "Quick Connect...";
 
-    public string ConnectionsQuickConnectDescription { get; set; } = "Open a temporary connection without saving credentials in the profile.";
+    public string ConnectionsQuickConnectDescription { get; set; } = "Find a saved connection by name and open it in the active pane.";
 
     public string ConnectionsReconnect { get; set; } = "Reconnect";
 

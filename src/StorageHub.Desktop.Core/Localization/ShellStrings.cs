@@ -448,6 +448,24 @@ internal sealed class ShellStrings : LocalizationModelBase
     /// <summary>The pane's FILES row of file commands, which the list's right-click menu repeats.</summary>
     public string ShowFilesBar { get; set; } = "Show files bar";
 
+    public string ShowDirectoryTree { get; set; } = "Show directory tree";
+
+    public string NoOtherLocationsVisited { get; set; } = "No other locations visited yet";
+
+    public string HistoryHint { get; set; } = "Folders this pane has shown in this session, newest first.";
+
+    public string ThemeNowFormat { get; set; } = "Theme: {0}";
+
+    public string HiddenFilesShown { get; set; } = "Hidden files are shown.";
+
+    public string HiddenFilesNotShown { get; set; } = "Hidden files are not shown.";
+
+    public string DisconnectedFromFormat { get; set; } = "Disconnected from {0}.";
+
+    public string TestingConnectionFormat { get; set; } = "Testing {0}…";
+
+    public string TestedConnectionFormat { get; set; } = "{0}: {1}";
+
     public string MoveOrSwapPane { get; set; } = "Move or swap pane";
 
     public string SwapWithPane { get; set; } = "Swap";

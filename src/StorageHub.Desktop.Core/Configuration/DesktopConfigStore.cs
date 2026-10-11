@@ -298,7 +298,9 @@ internal sealed class DesktopConfigStore
             NewScheduleTimeZone: general.NewScheduleTimeZone,
             TransferConflictDefault: general.TransferConflictDefault,
             AutoRefreshFolders: general.AutoRefreshFolders,
-            RemoteRefreshSeconds: general.RemoteRefreshSeconds);
+            RemoteRefreshSeconds: general.RemoteRefreshSeconds,
+            TransferQueueVisible: general.TransferQueueVisible,
+            ShowHiddenFiles: general.ShowHiddenFiles);
     }
 
     /// <summary>
@@ -383,7 +385,9 @@ internal sealed class DesktopConfigStore
             NewScheduleTimeZone = preferences.NewScheduleTimeZone,
             TransferConflictDefault = preferences.TransferConflictDefault,
             AutoRefreshFolders = preferences.AutoRefreshFolders,
-            RemoteRefreshSeconds = preferences.RemoteRefreshSeconds
+            RemoteRefreshSeconds = preferences.RemoteRefreshSeconds,
+            TransferQueueVisible = preferences.TransferQueueVisible,
+            ShowHiddenFiles = preferences.ShowHiddenFiles
         };
 
         var shortcuts = new DesktopShortcutsConfig

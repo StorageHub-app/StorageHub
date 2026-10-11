@@ -192,5 +192,14 @@
   "deleteItemsDetail": "Die Elemente werden aus dem Speicher entfernt, auf dem sie liegen. Das lässt sich nicht rückgängig machen.",
   "deletedItemsFormat": "{0:N0} Element(e) gelöscht.",
   "commandNotBuiltFormat": "{0} ist noch nicht gebaut.",
+  "showDirectoryTree": "Verzeichnisbaum anzeigen",
+  "noOtherLocationsVisited": "Noch keine anderen Orte besucht",
+  "historyHint": "Ordner, die dieser Bereich in dieser Sitzung angezeigt hat, die neuesten zuerst.",
+  "themeNowFormat": "Design: {0}",
+  "hiddenFilesShown": "Versteckte Dateien werden angezeigt.",
+  "hiddenFilesNotShown": "Versteckte Dateien werden nicht angezeigt.",
+  "disconnectedFromFormat": "Verbindung zu {0} getrennt.",
+  "testingConnectionFormat": "{0} wird getestet…",
+  "testedConnectionFormat": "{0}: {1}",
   "culture": "de-DE"
 }
