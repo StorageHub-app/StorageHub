@@ -100,8 +100,12 @@ settings, the server's identity, the credentials, reaching the server and
 listing the starting folder, each passed, failed, not needed or not reached,
 with what to check when one fails. A fingerprint typed or fetched into the
 editor is trusted for the test, so a new SFTP or FTPS connection can be tested
-before it exists. Nothing is saved by a test and a saved connection's status is
-not changed by testing edits to it.
+before it exists, and an SFTP server with no key yet has its key fetched and
+shown to be checked first. A test refused on the host key offers the key the
+server presents. A pane that fails on a server's key or certificate offers
+Review trust there, which opens the connection's trust settings. Nothing is
+saved by a test and a saved connection's status is not changed by testing edits
+to it.
 
 **See what a connection is talking to.** Live details in the connections panel adds
 a Live connection section under the selected connection: how it is secured, the

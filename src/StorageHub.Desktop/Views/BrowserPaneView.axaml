@@ -337,6 +337,17 @@
         </StackPanel>
       </Button>
 
+      <!-- Under a failure on the server's identity: the connection's Trust tab, where the key
+           can be fetched and checked or the certificate pinned, offered where it happened. -->
+      <Button DockPanel.Dock="Top" Classes="tool" HorizontalAlignment="Left"
+              IsVisible="{Binding ShowsReviewTrust}" Command="{Binding ReviewTrustCommand}"
+              AutomationProperties.Name="{Binding ReviewTrustLabel}">
+        <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+          <LucideIcon Kind="ShieldAlert" Size="{StaticResource IconSizeSm}" Classes="warning"/>
+          <TextBlock Classes="warning" Text="{Binding ReviewTrustLabel}"/>
+        </StackPanel>
+      </Button>
+
       <!--
         The body is whichever of the two a pane is: a listing, or a terminal. Both live under the
         same chrome, so pointing a pane at an SSH client and back is the same gesture as switching

@@ -641,7 +641,7 @@ The profile already stores these; `CodeLogicConnectionProfileConnector.BuildAsyn
       rejected), checks health and lists one entry at the root, and closes it all with the lease.
       Each failure is put at its step from its code and category; the editor says what to check
       at that step in en/da/de. An agent that cannot test a draft still tests the saved one.
-- [ ] 2.2 A refused host key or certificate is shown with Trust / Reject (`TrustOrRolloverAsync`,
+- [x] 2.2 A refused host key or certificate is shown with Trust / Reject (`TrustOrRolloverAsync`,
       `RejectAsync`); trust-on-first-use for SFTP and FTPS stops being refused. The editor already
       loads the pinned fingerprint and pins it on save (L.4).
       Done in the editor, which is as far as 1.4 went: 1.4's "Fetch from host…" (an SFTP or SSH
@@ -654,9 +654,15 @@ The profile already stores these; `CodeLogicConnectionProfileConnector.BuildAsyn
       TLS / SSH Trust tab on an SFTP or SSH endpoint with no fingerprint fetches its key, asking
       first ("Ask before fetching", the default) or not ("Fetch automatically"), once per endpoint,
       and "Manual — use Fetch from host" leaves it to the button, as 1.4's SettingsTabSelected did.
-      Left open, past 1.4: a host key or certificate refused while browsing or testing is still
-      only a failure, with no Trust / Reject offered where it happens, and the first connection to
-      an SFTP or FTPS server still needs its fingerprint pinned first.
+      Past 1.4, done: a pane that fails on the server's identity (a `Security` failure or a
+      `storage.trust.*` code) offers "Review trust…" under its banner, which opens that
+      connection's TLS / SSH Trust tab, where Fetch from host, Reject and the pin are. In the
+      editor, Test connection on an SFTP or SSH connection with no host key fetches it and shows
+      it first, and a test refused on the host key offers the key the server presents; one
+      accepted goes in the field and is tested at once. Nothing is trusted until the connection is
+      saved, as before.
+      Not done, on purpose: silent trust-on-first-use. Every first key is still shown to be
+      checked before it is used, which is what the editor's question already does.
 - [x] 2.3 A "Connection details" panel from `GetConnectionDiagnosticsAsync`.
       Done: Live details, under a connection's details in the connections panel, asks the agent
       (`connection.details.request`), which opens the connection as browsing does and reads the

@@ -193,6 +193,9 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
     /// </summary>
     internal ExplorerDragOut? DragOut { get; init; }
 
+    /// <summary>Opens a connection's Trust tab, for a pane that failed on its server's identity.</summary>
+    internal Action<Guid>? ReviewTrust { get; init; }
+
     /// <summary>What is staged and waiting to be pasted, or nothing.</summary>
     internal PaneClipboard? Clipboard
     {
@@ -1145,6 +1148,7 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
         pane.Announce = news => Announced?.Invoke(this, news);
         pane.FilesDropReceiver = (paths, folder) => DropFilesAsync(paths, pane, folder);
         pane.DragOut = selection => DragOut?.Start(selection) ?? ExplorerDrag.Nothing;
+        if (ReviewTrust is { } reviewTrust) pane.ReviewTrust = reviewTrust;
         return pane;
     }
 

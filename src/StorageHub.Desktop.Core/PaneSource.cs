@@ -28,9 +28,12 @@ internal sealed record PaneListing(
     string? Note = null);
 
 /// <summary>A navigation that worked, or the reason it did not.</summary>
-internal sealed record PaneNavigationResult(PaneListing? Listing, string? Error)
+/// <param name="NeedsTrust">
+/// Whether it failed on the server's identity, which the connection's Trust tab can settle.
+/// </param>
+internal sealed record PaneNavigationResult(PaneListing? Listing, string? Error, bool NeedsTrust = false)
 {
-    internal static PaneNavigationResult Failed(string? error) => new(null, error);
+    internal static PaneNavigationResult Failed(string? error, bool needsTrust = false) => new(null, error, needsTrust);
 
     internal static PaneNavigationResult Ok(PaneListing listing) => new(listing, null);
 }
@@ -127,7 +130,7 @@ internal sealed class RemotePaneSource(RemoteBrowserController controller, strin
 
         if (result.Status != RemoteBrowserOperationStatus.Succeeded || result.Snapshot is null)
         {
-            return PaneNavigationResult.Failed(result.ErrorMessage);
+            return PaneNavigationResult.Failed(result.ErrorMessage, result.NeedsTrust);
         }
 
         var snapshot = result.Snapshot;
@@ -144,7 +147,7 @@ internal sealed class RemotePaneSource(RemoteBrowserController controller, strin
         var result = await controller.LoadMoreAsync(cancellationToken).ConfigureAwait(false);
         if (result.Status != RemoteBrowserOperationStatus.Succeeded || result.Snapshot is null)
         {
-            return PaneNavigationResult.Failed(result.ErrorMessage);
+            return PaneNavigationResult.Failed(result.ErrorMessage, result.NeedsTrust);
         }
 
         var snapshot = result.Snapshot;
@@ -170,7 +173,7 @@ internal sealed class RemotePaneSource(RemoteBrowserController controller, strin
                 [.. snapshot.Entries.Select(BrowserRowFactory.FromRemote)],
                 snapshot.RelativePath.Length == 0,
                 snapshot.HasMore))
-            : PaneNavigationResult.Failed(result.ErrorMessage);
+            : PaneNavigationResult.Failed(result.ErrorMessage, result.NeedsTrust);
     }
 
     public ValueTask DisposeAsync() => controller.DisposeAsync();

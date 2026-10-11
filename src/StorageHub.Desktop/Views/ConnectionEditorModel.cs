@@ -863,11 +863,27 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     internal bool CanSave => !_isBusy && _isDirty && HasRequiredFields;
 
     /// <summary>Whether there is enough in the fields to test, saved or not.</summary>
-    internal bool CanTest => !_isBusy && _storage is not null && HasRequiredFields;
+    internal bool CanTest => !_isBusy && _storage is not null && HasRequiredFieldsForTest;
 
-    private bool HasRequiredFields => Sections
+    private bool HasRequiredFields => HasRequiredFieldsBut(null);
+
+    /// <summary>
+    /// A test can fetch an SFTP or SSH host key it has not got, so that one field is not required
+    /// to start one, where there is a way to ask whether the key is the right one.
+    /// </summary>
+    private bool HasRequiredFieldsForTest => HasRequiredFieldsBut(UnfetchedHostKey());
+
+    private bool HasRequiredFieldsBut(ConnectionFieldModel? excused) => Sections
         .SelectMany(static section => section.Fields)
-        .All(static row => !row.Required || row.Value.Trim().Length > 0);
+        .All(row => !row.Required || row.Value.Trim().Length > 0 || ReferenceEquals(row, excused));
+
+    /// <summary>The host-key field when it is empty and its key can be fetched and checked.</summary>
+    private ConnectionFieldModel? UnfetchedHostKey() =>
+        _dialogs is not null &&
+        Field(HostKeyFingerprintKey) is { CanFetchFromHost: true } key &&
+        key.Value.Trim().Length == 0
+            ? key
+            : null;
 
     /// <summary>
     /// The sentence a validation error carries, without the "(Parameter 'value')" the runtime
@@ -1035,13 +1051,40 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     /// </remarks>
     internal async Task TestAsync(CancellationToken cancellationToken = default)
     {
-        if (_storage is null) return;
+        // An SFTP or SSH connection with no host key yet has it fetched and shown first, as Fetch
+        // from host does, rather than the test refusing it: a key accepted is tested, not pinned.
+        if (_storage is not null && UnfetchedHostKey() is { } empty)
+        {
+            await FetchHostKeyAsync(cancellationToken).ConfigureAwait(true);
+            if (empty.Value.Trim().Length == 0) return;
+        }
+
+        if (await TestOnceAsync(cancellationToken).ConfigureAwait(true) is not { } refusedKey) return;
+
+        // A host key refused or not trusted yet is offered where it happened: the key the server
+        // presents is fetched and shown to be checked, as Fetch from host does, and a key accepted
+        // is tested straight away. Nothing is pinned until the connection is saved.
+        var before = refusedKey.Value;
+        await FetchHostKeyAsync(cancellationToken).ConfigureAwait(true);
+        if (!string.Equals(before, refusedKey.Value, StringComparison.Ordinal))
+        {
+            await TestOnceAsync(cancellationToken).ConfigureAwait(true);
+        }
+    }
+
+    /// <returns>
+    /// The host-key field when the test failed on an SFTP or SSH server's identity and a key can
+    /// be fetched to settle it; otherwise nothing.
+    /// </returns>
+    private async Task<ConnectionFieldModel?> TestOnceAsync(CancellationToken cancellationToken)
+    {
+        if (_storage is null) return null;
 
         Capture();
         if (BuildDraft() is not { } draft)
         {
             TestSteps = [];
-            return;
+            return null;
         }
 
         var pinField = PinField(draft.Endpoint);
@@ -1074,7 +1117,7 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
             {
                 TestSteps = [];
                 await TestSavedAsync(client, saved, cancellationToken).ConfigureAwait(true);
-                return;
+                return null;
             }
 
             TestSteps = [.. response.Steps.Select(DescribeStep)];
@@ -1084,11 +1127,19 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
                     is { } failed
                     ? StepFailure(failed)
                     : Ui.ConnectionEditor.ConnectionTestFailed;
+
+            return _dialogs is not null &&
+                pinField == HostKeyFingerprintKey &&
+                response.Steps.Any(static step =>
+                    step is { Kind: ConnectionTestStepKind.ServerIdentity, Outcome: ConnectionTestStepOutcome.Failed })
+                    ? Field(HostKeyFingerprintKey)
+                    : null;
         }
         catch (Exception error) when (IsAgentFailure(error))
         {
             TestSteps = [];
             Status = Ui.Shell.AgentNotConnected;
+            return null;
         }
         finally
         {

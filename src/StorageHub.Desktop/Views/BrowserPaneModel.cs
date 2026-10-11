@@ -100,6 +100,9 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     private string _filter = string.Empty;
     private bool _isAtRoot = true;
     private bool _failed;
+
+    /// <summary>Whether the last failure was the server's identity, which Review trust settles.</summary>
+    private bool _needsTrust;
     private Task<bool>? _loadingMore;
 
     /// <summary>
@@ -406,8 +409,31 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
 
     public static string RetryHint => Ui.Commands.ViewRefresh;
 
+    /// <summary>
+    /// Opens the connection's Trust tab, where its host key can be fetched and checked or its
+    /// certificate pinned. Assigned by the workspace; without it there is nowhere to go.
+    /// </summary>
+    internal Action<Guid>? ReviewTrust { get; set; }
+
+    /// <summary>
+    /// Whether the banner offers Review trust: the connection failed on the server's identity, a
+    /// key or certificate that is not the trusted one or none trusted yet, where it happened.
+    /// </summary>
+    public bool ShowsReviewTrust =>
+        _failed && _needsTrust && _connection?.Id is not null && ReviewTrust is not null;
+
+    public ICommand ReviewTrustCommand => _reviewTrust ??= new RelayCommand(_ =>
+    {
+        if (_connection?.Id is { } id) ReviewTrust?.Invoke(id);
+    });
+
+    private RelayCommand? _reviewTrust;
+
+    public static string ReviewTrustLabel => Ui.Connections.DetailReviewTrust;
+
     private void RaiseListingState()
     {
+        Raise(nameof(ShowsReviewTrust));
         Raise(nameof(EmptyNotice));
         Raise(nameof(HasEmptyNotice));
         Raise(nameof(ShowsLoading));
@@ -2188,6 +2214,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         {
             Status = result.Error ?? Ui.Pane.Disconnected;
             _failed = true;
+            _needsTrust = result.NeedsTrust;
             RaiseConnectionState();
             RaiseListingState();
             RaiseCommands();

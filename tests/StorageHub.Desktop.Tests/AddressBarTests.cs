@@ -138,6 +138,36 @@ public class AddressBarTests
         Assert.True(pane.RetryCommand.CanExecute(null));
     }
 
+    /// <summary>
+    /// A connection refused on its server's identity offers Review trust where it happened, which
+    /// opens that connection's Trust tab; any other failure does not.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task AFailureOnTheServersIdentityOffersReviewTrust()
+    {
+        var cancellation = TestContext.Current.CancellationToken;
+        var connection = WorkspaceFakes.Summary("Files");
+        await using var offline = new BrowserPaneModel(new Refusing(connection)) { ReviewTrust = static _ => { } };
+        await offline.LoadConnectionsAsync(cancellation);
+        await offline.OpenConnectionAsync(connection.ConnectionId, cancellation);
+        Assert.False(offline.ShowsReviewTrust);
+
+        Guid? reviewed = null;
+        await using var pane = new BrowserPaneModel(new Refusing(
+            connection,
+            new StorageIpcFailure("storage.trust.host_key_rejected", StorageIpcFailureCategory.Security, "Rejected.", false)))
+        {
+            ReviewTrust = id => reviewed = id
+        };
+        await pane.LoadConnectionsAsync(cancellation);
+        await pane.OpenConnectionAsync(connection.ConnectionId, cancellation);
+
+        Assert.True(pane.StatusIsWarning);
+        Assert.True(pane.ShowsReviewTrust);
+        pane.ReviewTrustCommand.Execute(null);
+        Assert.Equal(connection.ConnectionId, reviewed);
+    }
+
     /// <summary>The empty and the failed pane, for a human to look at. STORAGEHUB_SHOT_DIR keeps them.</summary>
     [AvaloniaFact]
     public async Task TheEmptyAndTheFailedPaneCanBePhotographed()
@@ -230,8 +260,11 @@ public class AddressBarTests
     }
 
     /// <summary>An agent whose one connection never answers.</summary>
-    private sealed class Refusing(ConnectionSummary connection) : IRemoteStorageAgentClient
+    private sealed class Refusing(ConnectionSummary connection, StorageIpcFailure? failure = null) : IRemoteStorageAgentClient
     {
+        private readonly StorageIpcFailure _failure = failure ??
+            new StorageIpcFailure("storage.unreachable", StorageIpcFailureCategory.Unavailable, "The server did not answer.", true);
+
         public Task<ConnectionListResponse> ListConnectionsAsync(
             ConnectionListRequest request, CancellationToken cancellationToken = default) =>
             Task.FromResult(new ConnectionListResponse(StorageIpcContract.CurrentVersion, [connection]));
@@ -239,14 +272,13 @@ public class AddressBarTests
         public Task<ConnectionTestResponse> TestConnectionAsync(
             ConnectionTestRequest request, CancellationToken cancellationToken = default) =>
             Task.FromResult(new ConnectionTestResponse(
-                StorageIpcContract.CurrentVersion, request.ConnectionId, Succeeded: false, 0,
-                new StorageIpcFailure("storage.unreachable", StorageIpcFailureCategory.Unavailable, "The server did not answer.", true)));
+                StorageIpcContract.CurrentVersion, request.ConnectionId, Succeeded: false, 0, _failure));
 
         public Task<StorageListPageResponse> ListStorageAsync(
             StorageListPageRequest request, CancellationToken cancellationToken = default) =>
             Task.FromResult(new StorageListPageResponse(
                 StorageIpcContract.CurrentVersion, request.ConnectionId, request.RelativePath, [], null,
-                Failure: new StorageIpcFailure("storage.unreachable", StorageIpcFailureCategory.Unavailable, "The server did not answer.", true)));
+                Failure: _failure));
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }

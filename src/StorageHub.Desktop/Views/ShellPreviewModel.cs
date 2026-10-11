@@ -1533,6 +1533,9 @@ internal static class ShellPreview
         {
             [UiCommandIds.ViewConnectionsPanel] = panel.Check,
         };
+        // The shell the workspaces belong to, for a pane to reach the connections panel's editor:
+        // read when a pane asks, by which time it is there.
+        ShellPreviewModel? shell = null;
         var model = new ShellPreviewModel(router)
         {
             Menus = BuildMenus(router, checks),
@@ -1586,6 +1589,10 @@ internal static class ShellPreview
                 // A connection's rows dragged out to Explorer go through the drop broker the boot
                 // registered, and wait on the queue's Active tab for where they landed, as 1.x's
                 // did. Only the application's own shell: a preview's agent is a test's.
+                // A pane that failed on its server's identity offers the connection's Trust tab
+                // there, as the connections panel does once a check has found it.
+                ReviewTrust = id => shell?.Sidebar.EditConnection?.Invoke(id, ConnectionEditorTab.Trust),
+
                 DragOut = live
                     ? new ExplorerDragOut(
                         static () => new NamedPipeTransferQueueAgentClient(),
@@ -1599,6 +1606,7 @@ internal static class ShellPreview
         // listing them again on every poll. At startup the queue's first read can come back before
         // the sidebar's, so the rows are read again as the list comes in, rather than showing
         // short ids until the next poll. A rename shows as the Connection Manager closes, too.
+        shell = model;
         queue.ConnectionName = model.Sidebar.NameOf;
         model.Sidebar.Answered = () => _ = queue.RefreshAsync(background: true);
 

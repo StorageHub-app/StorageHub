@@ -280,6 +280,69 @@ public class ConnectionManagerTests
         Assert.False(editor.TestCommand.CanExecute(null));
     }
 
+    /// <summary>
+    /// A test refused on the server's host key offers the key the server presents, as Fetch from
+    /// host does; a key accepted goes in the field and is tested at once, and nothing is pinned.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task AHostKeyRefusedByATestIsOfferedAndTestedAgain()
+    {
+        var cancellation = TestContext.Current.CancellationToken;
+        var profiles = new FakeProfiles();
+        var dialogs = new YesDialogs();
+        var agent = new ListingAgent([])
+        {
+            DraftAnswer = request =>
+            {
+                var trusted = request.Sha256Fingerprint == HostKey;
+                var failure = trusted ? null : new StorageIpcFailure(
+                    "storage.trust.approval_required", StorageIpcFailureCategory.Security, "Trust needed.", false);
+                return new ConnectionDraftTestResponse(
+                    StorageIpcContract.CurrentVersion,
+                    trusted,
+                    1,
+                    [
+                        new(ConnectionTestStepKind.Settings, ConnectionTestStepOutcome.Passed),
+                        new(
+                            ConnectionTestStepKind.ServerIdentity,
+                            trusted ? ConnectionTestStepOutcome.Passed : ConnectionTestStepOutcome.Failed,
+                            failure)
+                    ],
+                    failure);
+            }
+        };
+        var editor = new ConnectionEditorModel(() => Controller(profiles), () => agent, dialogs);
+        editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Sftp);
+        Field(editor, "authenticationMode").Value = "Password reference";
+        Field(editor, "passwordReference").Value = KeyStoreTests.Reference('p');
+        Fill(editor);
+        var hostKey = Field(editor, "hostKeyFingerprint");
+
+        // With no key yet the test can still start: the key is fetched and shown first, and one
+        // declined is not tested.
+        hostKey.Value = string.Empty;
+        Assert.True(editor.TestCommand.CanExecute(null));
+        dialogs.Choice = Desktop.Shell.DialogChoice.No;
+        await editor.TestAsync(cancellation);
+        Assert.Equal((0, 1, string.Empty), (agent.DraftTests, dialogs.Asked, hostKey.Value));
+
+        // A key typed that the server does not present is refused, and the one it does is offered.
+        var wrong = new string('B', 64);
+        hostKey.Value = wrong;
+        await editor.TestAsync(cancellation);
+        Assert.Equal((1, 2, wrong), (agent.DraftTests, dialogs.Asked, hostKey.Value));
+
+        // Accepted: the key is in the field and the test runs again with it, and passes.
+        dialogs.Choice = Desktop.Shell.DialogChoice.Yes;
+        await editor.TestAsync(cancellation);
+        Assert.Equal(3, agent.DraftTests);
+        Assert.Equal(HostKey, Field(editor, "hostKeyFingerprint").Value);
+        Assert.Equal(HostKey, agent.LastDraftTest?.Sha256Fingerprint);
+        Assert.All(editor.TestSteps, static step => Assert.True(step.IsPassed));
+        Assert.Empty(profiles.Pins);
+        Assert.True(editor.IsNew);
+    }
+
     /// <summary>An agent that cannot test a draft still tests the saved connection, unchanged.</summary>
     [AvaloniaFact]
     public async Task AnAgentThatCannotTestADraftStillTestsTheSavedConnection()
@@ -1436,12 +1499,18 @@ public class ConnectionManagerTests
 
         internal ConnectionDraftTestRequest? LastDraftTest { get; private set; }
 
+        internal int DraftTests { get; private set; }
+
+        /// <summary>Answers each test of a draft from what it carries, ahead of <see cref="DraftTest"/>.</summary>
+        internal Func<ConnectionDraftTestRequest, ConnectionDraftTestResponse?>? DraftAnswer { get; set; }
+
         public Task<ConnectionDraftTestResponse> TestDraftAsync(
             ConnectionDraftTestRequest request,
             CancellationToken cancellationToken = default)
         {
             LastDraftTest = request;
-            return DraftTest is { } response
+            DraftTests++;
+            return (DraftAnswer?.Invoke(request) ?? DraftTest) is { } response
                 ? Task.FromResult(response)
                 : throw new NotSupportedException();
         }
