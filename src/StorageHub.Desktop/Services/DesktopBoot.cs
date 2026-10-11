@@ -33,6 +33,9 @@ internal sealed class DesktopBoot : IDisposable
     /// <summary>After this long on the agent, the splash says that it can take a while.</summary>
     private static readonly TimeSpan PatienceDelay = TimeSpan.FromSeconds(3);
 
+    /// <summary>How long a launched agent that is not answering yet is waited for before it is called failed.</summary>
+    private static readonly TimeSpan AgentStartupPatience = TimeSpan.FromSeconds(90);
+
     private readonly IClassicDesktopStyleApplicationLifetime _desktop;
     private readonly Func<IClassicDesktopStyleApplicationLifetime, MainWindow> _openShell;
     private readonly CancellationTokenSource _lifetime = new();
@@ -135,6 +138,21 @@ internal sealed class DesktopBoot : IDisposable
             });
             patience.Start();
             var agent = await DesktopAgentStartup.EnsureAsync(_lifetime.Token).ConfigureAwait(true);
+
+            // An agent that was launched and has not answered yet is slow, not failed. The first
+            // start after an install or update can take ten seconds or more before the program's
+            // own code runs, while the freshly written files are scanned. Asking again, without
+            // ending it, is what lets it finish; giving up at the first window put "did not
+            // become ready" on screen for an agent that answered a few seconds later.
+            var patientUntil = DateTimeOffset.UtcNow + AgentStartupPatience;
+            while (agent.Status is AgentEnsureStatus.StartupTimedOut or AgentEnsureStatus.Unresponsive &&
+                   DateTimeOffset.UtcNow < patientUntil)
+            {
+                agent = await DesktopAgentStartup
+                    .EnsureAsync(mayTerminateUnresponsive: false, _lifetime.Token)
+                    .ConfigureAwait(true);
+            }
+
             patience.Stop();
             if (!agent.IsReady)
             {

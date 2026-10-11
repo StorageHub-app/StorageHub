@@ -18,6 +18,12 @@ chosen is written down in [Versioning and merges](docs/versioning.md).
 
 ## Unreleased
 
+**Starting after an install or update.** StorageHub waits for a freshly launched background agent
+instead of reporting "did not become ready in time" after eight seconds. The first start after an
+install or update can take ten seconds or more before the agent's own code runs, and it answered a
+few seconds after the message appeared. The splash now keeps waiting, without ending the agent, for
+up to ninety seconds before it offers Retry.
+
 ---
 
 ## 2.0.0 — 2026-10-11
