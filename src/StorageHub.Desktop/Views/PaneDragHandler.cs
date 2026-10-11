@@ -110,17 +110,22 @@ internal static class PaneDragHandler
         // press itself: a drag started on the press would swallow the second click of a
         // double-click on a selected row, which is how a folder is opened.
         PointerPressedEventArgs? pending = null;
+        BrowserListItem? pressedRow = null;
         Point origin = default;
 
         view.AddHandler(InputElement.PointerPressedEvent, (_, e) =>
         {
             pending = null;
-            if (pane() is not { IsTerminal: false } model) return;
+            if (pane() is not { IsTerminal: false }) return;
             if (e.ClickCount != 1 || !e.GetCurrentPoint(view).Properties.IsLeftButtonPressed) return;
             if (RowAt(e.Source) is not { IsParentNavigation: false } row) return;
-            if (!model.SelectedRows.Contains(row)) return;
 
+            // Not required to be selected yet. This runs before the list has handled the press, so a
+            // row pressed for the first time is not selected here, and a drag that began on it never
+            // started: it took a second try, once the first press had selected it. Whether it is
+            // selected is asked when the pointer has moved, which is after the press has selected it.
             pending = e;
+            pressedRow = row;
             origin = e.GetPosition(view);
         }, RoutingStrategies.Tunnel);
 
@@ -136,7 +141,10 @@ internal static class PaneDragHandler
             var moved = e.GetPosition(view) - origin;
             if (Math.Abs(moved.X) < DragThreshold && Math.Abs(moved.Y) < DragThreshold) return;
 
+            // A press that left its row unselected, such as a Ctrl-click that took it out of the
+            // selection, is not the start of a drag.
             pending = null;
+            if (pressedRow is null || !model.SelectedRows.Contains(pressedRow)) return;
             if (Payload(model) is not { } payload) return;
 
             _ = DragAsync(view, press, model, payload);
