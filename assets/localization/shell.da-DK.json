@@ -73,7 +73,7 @@
   "parentFolderUnavailable": "Den overordnede mappe er ikke tilgængelig.",
   "selectOneToRename": "Vælg præcis ét element for at omdøbe.",
   "selectTwoToBatchRename": "Vælg mindst to elementer for at omdøbe flere.",
-  "selectOneToInspect": "Vælg præcis én fil for at inspicere den.",
+  "selectOneToInspect": "Vælg præcis én fil eller mappe for at se dens egenskaber.",
   "operationCancelled": "Handlingen blev annulleret.",
   "emptyDestinationCreated": "Den tomme destinationsmappe blev oprettet.",
   "agentReconnected": "Baggrundsagenten har oprettet forbindelse igen og er klar.",

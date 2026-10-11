@@ -3,7 +3,8 @@ using CodeLogic.Core.Localization;
 namespace StorageHub.Desktop.Localization;
 
 /// <summary>
-/// The read-only object inspector: versions, metadata and tags.
+/// The Properties window: an item's attributes, a file's versions, metadata and tags, and the
+/// permissions dialog.
 /// </summary>
 /// <remarks>
 /// Flat string properties only, and no property may be named <c>Culture</c>. See
@@ -16,9 +17,7 @@ internal sealed class InspectorStrings : LocalizationModelBase
 
     public string DeleteMarker { get; set; } = "Delete marker";
 
-
     public string EntityTag { get; set; } = "Entity tag";
-
 
     public string InspectedObjectPath { get; set; } = "Inspected object path";
 
@@ -54,13 +53,7 @@ internal sealed class InspectorStrings : LocalizationModelBase
 
     public string ObjectVersions { get; set; } = "Object versions";
 
-    public string READONLYVersionPagesMetadataAndTags { get; set; } = "READ ONLY  •  Version pages, metadata, and tags only — no signed links or mutation commands.";
-
-    public string ReadOnlyInspectorSafetyNotice { get; set; } = "Read-only inspector safety notice";
-
     public string ReadOnlyObjectVersionsPortableMetadataAnd { get; set; } = "Read-only object versions, portable metadata, and tags from the background agent.";
-
-
 
     public string StorageObjectInspector { get; set; } = "Storage object inspector";
 
@@ -108,9 +101,6 @@ internal sealed class InspectorStrings : LocalizationModelBase
 
     /// <summary>{0} = how many tags were loaded.</summary>
     public string LoadedTagsFormat { get; set; } = "Loaded {0:N0} tag(s).";
-
-    /// <summary>{0} = the object's path, possibly shortened from the left.</summary>
-    public string WindowTitleFormat { get; set; } = "Object Inspector — {0}";
 
     /// <summary>{0} = versions, {1} = metadata fields, {2} = tags.</summary>
     public string LoadedSummaryFormat { get; set; } =
@@ -160,4 +150,114 @@ internal sealed class InspectorStrings : LocalizationModelBase
     public string ChecksumComputedFormat { get; set; } = "Computed here from the {0:N0} bytes read.";
 
     public string ObjectChecksum { get; set; } = "Object checksum";
+
+    public string TabGeneral { get; set; } = "General";
+
+    public string GeneralHasNotBeenLoaded { get; set; } = "Properties have not been loaded.";
+
+    /// <summary>{0} = the item's path, possibly shortened from the left.</summary>
+    public string PropertiesTitleFormat { get; set; } = "Properties — {0}";
+
+    public string WhatCanBeChangedHere { get; set; } =
+        "Versions, metadata and tags are read-only here. Permissions and the modified time can be changed where the connection allows it.";
+
+    public string WhatCanBeChangedNotice { get; set; } = "What can be changed here";
+
+    public string ItemProperties { get; set; } = "Item properties";
+
+    public string Kind { get; set; } = "Kind";
+
+    public string KindFile { get; set; } = "File";
+
+    public string KindFolder { get; set; } = "Folder";
+
+    public string KindLink { get; set; } = "Symbolic link";
+
+    public string KindOther { get; set; } = "Other";
+
+    public string Created { get; set; } = "Created";
+
+    public string Accessed { get; set; } = "Last accessed";
+
+    public string Permissions { get; set; } = "Permissions";
+
+    public string Owner { get; set; } = "Owner";
+
+    public string Group { get; set; } = "Group";
+
+    public string LinkTarget { get; set; } = "Link target";
+
+    /// <summary>{0} = an owner or group name, {1} = its numeric ID.</summary>
+    public string PrincipalWithIdFormat { get; set; } = "{0} (ID {1})";
+
+    /// <summary>{0} = this computer's offset from UTC, as UTC+02:00.</summary>
+    public string TimesAreLocalFormat { get; set; } = "Times are in this computer's time zone ({0}).";
+
+    public string ChangePermissions { get; set; } = "Change permissions…";
+
+    public string SetModifiedTime { get; set; } = "Set modified time…";
+
+    public string CannotChangePermissions { get; set; } = "This connection cannot change permissions.";
+
+    public string CannotSetModifiedTime { get; set; } = "This connection cannot set the modified time.";
+
+    public string CannotChangeEither { get; set; } =
+        "This connection cannot change permissions or set the modified time.";
+
+    public string ChangingPermissions { get; set; } = "Changing permissions…";
+
+    public string SettingModifiedTime { get; set; } = "Setting the modified time…";
+
+    /// <summary>{0} = the new mode, as rwxr-xr-x (0755).</summary>
+    public string PermissionsChangedFormat { get; set; } = "Permissions changed to {0}.";
+
+    /// <summary>{0} = the new time, in this computer's time zone.</summary>
+    public string ModifiedTimeSetFormat { get; set; } = "Modified time set to {0}.";
+
+    public string LoadingProperties { get; set; } = "Loading properties…";
+
+    public string PropertiesLoaded { get; set; } = "Properties loaded.";
+
+    public string TheAgentCouldNotReadProperties { get; set; } =
+        "The background agent could not read this item's properties.";
+
+    public string SetModifiedTimeTitle { get; set; } = "Set modified time";
+
+    /// <summary>{0} = the item's name, {1} = the offset from UTC, {2} = an example time.</summary>
+    public string SetModifiedTimeLabelFormat { get; set; } =
+        "New modified time for {0} in this computer's time zone ({1}), written as {2}:";
+
+    public string Set { get; set; } = "Set";
+
+    /// <summary>{0} = an example time, as 2026-10-11 14:30:00.</summary>
+    public string ModifiedTimeNotUnderstoodFormat { get; set; } =
+        "Write the time as year-month-day and 24-hour time, for example {0}.";
+
+    public string ModifiedTimeOutOfRange { get; set; } =
+        "The modified time must fall between 1 January 1970 and 7 February 2106.";
+
+    /// <summary>{0} = the item's name.</summary>
+    public string PermissionsTitleFormat { get; set; } = "Permissions — {0}";
+
+    /// <summary>{0} = the item's name.</summary>
+    public string PermissionsIntroFormat { get; set; } = "Who may read, write and execute {0}:";
+
+    public string Others { get; set; } = "Others";
+
+    public string Read { get; set; } = "Read";
+
+    public string Write { get; set; } = "Write";
+
+    public string Execute { get; set; } = "Execute";
+
+    public string Octal { get; set; } = "Octal";
+
+    public string OctalNotUnderstood { get; set; } = "Write one to four octal digits (0–7), for example 755.";
+
+    public string SpecialBitsAreTheFirstDigit { get; set; } =
+        "Set-user-ID, set-group-ID and sticky are the first of four octal digits.";
+
+    public string Apply { get; set; } = "Apply";
+
+    public string PermissionCheckboxes { get; set; } = "Permission checkboxes";
 }

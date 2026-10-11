@@ -7,10 +7,11 @@ namespace StorageHub.Desktop;
 /// Turns what a pane has selected into something the object inspector can be pointed at.
 /// </summary>
 /// <remarks>
-/// Three rules, each with its own sentence: exactly one file, opened through a saved connection
+/// Three rules, each with its own sentence: exactly one item, opened through a saved connection
 /// whose root the agent has identified, and carrying an identity the contract accepts. The pane's
 /// Properties command is enabled by the same rules, so the sentences are for the menu path, where
-/// nothing dims.
+/// nothing dims. Properties takes a folder or a link as well as a file, since permissions, owner
+/// and times belong to all three; external editing asks for a file only.
 /// </remarks>
 internal static class PaneInspection
 {
@@ -19,15 +20,17 @@ internal static class PaneInspection
     /// What to say when the selection is not one file on a saved connection. External editing asks
     /// for exactly the same address as the inspector, and says so in its own sentence.
     /// </param>
+    /// <param name="anyKind">Whether a folder or a link will do, as it does for Properties.</param>
     internal static ObjectInspectorAddress? AddressFor(
         PaneTransferContext? context,
         IReadOnlyList<PaneTransferItem> items,
         out string? problem,
-        string? refusal = null)
+        string? refusal = null,
+        bool anyKind = false)
     {
         ArgumentNullException.ThrowIfNull(items);
 
-        if (items.Count != 1 || items[0].Kind != StorageItemKind.File)
+        if (items.Count != 1 || !anyKind && items[0].Kind != StorageItemKind.File)
         {
             problem = refusal ?? Ui.Shell.SelectOneToInspect;
             return null;
@@ -61,6 +64,9 @@ internal static class PaneInspection
     }
 
     /// <summary>Whether the selection could be inspected at all, for a button to dim on.</summary>
-    internal static bool CanInspect(PaneTransferContext? context, IReadOnlyList<PaneTransferItem> items) =>
-        AddressFor(context, items, out _) is not null;
+    internal static bool CanInspect(
+        PaneTransferContext? context,
+        IReadOnlyList<PaneTransferItem> items,
+        bool anyKind = false) =>
+        AddressFor(context, items, out _, anyKind: anyKind) is not null;
 }

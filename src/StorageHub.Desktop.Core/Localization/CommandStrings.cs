@@ -85,7 +85,8 @@ internal sealed class CommandStrings : LocalizationModelBase
 
     public string EditProperties { get; set; } = "Properties";
 
-    public string EditPropertiesDescription { get; set; } = "Inspect read-only versions, metadata, and tags for one saved-connection file.";
+    public string EditPropertiesDescription { get; set; } =
+        "Show the permissions, owner and times of one item on a saved connection, change its permissions or modified time where the connection allows, and see a file's versions, metadata and tags.";
 
     public string ViewRefresh { get; set; } = "Refresh";
 

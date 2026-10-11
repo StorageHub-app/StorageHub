@@ -90,6 +90,15 @@ internal static class CodeLogicStorageMapper
             [DomainStorageFeature.SymbolicLinks] = capabilities.Supports(ClStorageFeature.Links)
                 ? FeatureSupport.Native()
                 : FeatureSupport.Unsupported("The provider does not advertise link support."),
+
+            // SFTP and FTP set the mode (FTP through SITE CHMOD, which a server may still refuse);
+            // a local folder does outside Windows only, where .NET has no Unix mode to set.
+            [DomainStorageFeature.Permissions] = capabilities.Supports(ClStorageFeature.Permissions)
+                ? FeatureSupport.Native()
+                : FeatureSupport.Unsupported("The provider does not advertise changing permissions."),
+            [DomainStorageFeature.SetModifiedTime] = capabilities.Supports(ClStorageFeature.SetTimestamps)
+                ? FeatureSupport.Native()
+                : FeatureSupport.Unsupported("The provider does not advertise setting the modified time."),
             [DomainStorageFeature.Checksums] = FeatureSupport.Emulated(
                 "StorageHub streams content through CL.Storage's explicit SHA-256 helper."),
             [DomainStorageFeature.ObjectVersioning] = capabilities.Supports(ClStorageFeature.Versioning)

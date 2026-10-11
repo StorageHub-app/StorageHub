@@ -5,6 +5,7 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Media.Imaging;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Localization;
+using StorageHub.Desktop.Shell;
 using StorageHub.Desktop.Themes;
 using StorageHub.Desktop.Views;
 using Xunit;
@@ -140,7 +141,7 @@ public class ObjectInspectorTests
     /// </summary>
     /// <remarks>
     /// The address that reaches the inspector is what the pane listed: the connection, the root the
-    /// agent identified, and the entry's own path and tag. A folder, or nothing, dims the button.
+    /// agent identified, and the entry's own path and tag. Nothing selected dims the button.
     /// </remarks>
     [AvaloniaFact]
     public async Task PropertiesOpensTheInspectorOnTheOneSelectedFile()
@@ -148,9 +149,11 @@ public class ObjectInspectorTests
         var connection = Summary("Studio Assets");
         var agent = new RecordingAgent([connection]);
         ObjectInspectorAddress? opened = null;
-        await using var pane = new BrowserPaneModel(agent, inspect: address =>
+        StorageItemKind? kind = null;
+        await using var pane = new BrowserPaneModel(agent, inspect: (address, itemKind) =>
         {
             opened = address;
+            kind = itemKind;
             return Task.CompletedTask;
         });
         await pane.LoadConnectionsAsync(TestContext.Current.CancellationToken);
@@ -158,15 +161,12 @@ public class ObjectInspectorTests
 
         Assert.False(pane.PropertiesCommand.CanExecute(null));
 
-        pane.SelectedRows.Add(pane.Rows.Single(row => row.Name == "reports"));
-        Assert.False(pane.PropertiesCommand.CanExecute(null));
-
-        pane.SelectedRows.Clear();
         pane.SelectedRows.Add(pane.Rows.Single(row => row.Name == "render.exr"));
         Assert.True(pane.PropertiesCommand.CanExecute(null));
 
         await pane.InspectAsync(TestContext.Current.CancellationToken);
 
+        Assert.Equal(StorageItemKind.File, kind);
         Assert.NotNull(opened);
         Assert.Equal(connection.ConnectionId, opened!.ConnectionId);
         Assert.Equal("root", opened.RootIdentity);
@@ -174,14 +174,41 @@ public class ObjectInspectorTests
         Assert.Equal("etag-render.exr", opened.EntityTag);
     }
 
-    /// <summary>The menu path, where nothing dims, answers with a sentence instead.</summary>
+    /// <summary>
+    /// A folder has properties too, permissions and times, and opens as a folder.
+    /// </summary>
     [AvaloniaFact]
-    public async Task InspectingAFolderSaysWhyNot()
+    public async Task PropertiesOpensOnAFolderAsAFolder()
+    {
+        var connection = Summary("Studio Assets");
+        var agent = new RecordingAgent([connection]);
+        ObjectInspectorAddress? opened = null;
+        StorageItemKind? kind = null;
+        await using var pane = new BrowserPaneModel(agent, inspect: (address, itemKind) =>
+        {
+            opened = address;
+            kind = itemKind;
+            return Task.CompletedTask;
+        });
+        await pane.LoadConnectionsAsync(TestContext.Current.CancellationToken);
+        await pane.OpenConnectionAsync(connection.ConnectionId, TestContext.Current.CancellationToken);
+        pane.SelectedRows.Add(pane.Rows.Single(row => row.Name == "reports"));
+        Assert.True(pane.PropertiesCommand.CanExecute(null));
+
+        await pane.InspectAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal("reports", opened?.RelativePath);
+        Assert.Equal(StorageItemKind.Directory, kind);
+    }
+
+    /// <summary>The menu path, where nothing dims, answers two selected items with a sentence.</summary>
+    [AvaloniaFact]
+    public async Task InspectingTwoItemsSaysWhyNot()
     {
         var connection = Summary("Studio Assets");
         var agent = new RecordingAgent([connection]);
         var opened = false;
-        await using var pane = new BrowserPaneModel(agent, inspect: _ =>
+        await using var pane = new BrowserPaneModel(agent, inspect: (_, _) =>
         {
             opened = true;
             return Task.CompletedTask;
@@ -189,6 +216,7 @@ public class ObjectInspectorTests
         await pane.LoadConnectionsAsync(TestContext.Current.CancellationToken);
         await pane.OpenConnectionAsync(connection.ConnectionId, TestContext.Current.CancellationToken);
         pane.SelectedRows.Add(pane.Rows.Single(row => row.Name == "reports"));
+        pane.SelectedRows.Add(pane.Rows.Single(row => row.Name == "render.exr"));
 
         await pane.InspectAsync(TestContext.Current.CancellationToken);
 
@@ -251,11 +279,13 @@ public class ObjectInspectorTests
         Assert.True(model.ChecksumNotice.IsWarning);
     }
 
-    /// <summary>Photographs the inspector, for a human to look at.</summary>
+    /// <summary>Photographs the inspector on each of its first two tabs, for a human to look at.</summary>
     [AvaloniaTheory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task TheInspectorCanBePhotographed(bool dark)
+    [InlineData(true, 0)]
+    [InlineData(false, 0)]
+    [InlineData(true, 1)]
+    [InlineData(false, 1)]
+    public async Task TheInspectorCanBePhotographed(bool dark, int tab)
     {
         ColorSchemeApplier.Apply(
             global::Avalonia.Application.Current!,
@@ -277,10 +307,16 @@ public class ObjectInspectorTests
             ],
             TagsFailure = new StorageIpcFailure(
                 "storage.tags.unsupported", StorageIpcFailureCategory.Unsupported,
-                "This provider does not report object tags.", false)
+                "This provider does not report object tags.", false),
+            Attributes = SftpFile with { CanSetModifiedTime = false }
         };
-        await using var model = new ObjectInspectorModel(new ObjectInspectorController(agent, Address));
+        await using var model = new ObjectInspectorModel(
+            new ObjectInspectorController(agent, Address),
+            new PromptDialogs(null),
+            static (_, _) => Task.FromResult<int?>(null),
+            TimeZoneInfo.Utc);
         await model.LoadAsync(TestContext.Current.CancellationToken);
+        model.SelectedTab = tab;
 
         var window = new ObjectInspectorWindow { DataContext = model };
         window.Show();
@@ -293,7 +329,7 @@ public class ObjectInspectorTests
 
         agent.ServerChecksum = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
         await model.GetChecksumAsync(preferServer: true, TestContext.Current.CancellationToken);
-        model.SelectedTab = 3;
+        model.SelectedTab = 4;
         window.UpdateLayout();
         var checksumFrame = window.CaptureRenderedFrame();
         Assert.NotNull(checksumFrame);
@@ -303,11 +339,385 @@ public class ObjectInspectorTests
 
         Directory.CreateDirectory(directory);
         using var stream = File.Create(
-            Path.Combine(directory, $"object-inspector-{(dark ? "dark" : "light")}.png"));
+            Path.Combine(directory, $"object-inspector-{(tab == 0 ? "general" : "versions")}-{(dark ? "dark" : "light")}.png"));
         frame!.Save(stream, new PngBitmapEncoderOptions());
         using var checksum = File.Create(
             Path.Combine(directory, $"object-inspector-checksum-{(dark ? "dark" : "light")}.png"));
         checksumFrame!.Save(checksum, new PngBitmapEncoderOptions());
+    }
+
+    /// <summary>
+    /// What an SFTP server reports for a file: mode and numeric owner and group, no creation time.
+    /// </summary>
+    private static readonly ItemAttributes SftpFile = new(
+        StorageItemKind.File,
+        Size: 48_213_990,
+        ModifiedUtc: new DateTimeOffset(2026, 10, 1, 9, 15, 0, TimeSpan.Zero),
+        AccessedUtc: new DateTimeOffset(2026, 10, 9, 18, 2, 41, TimeSpan.Zero),
+        UnixMode: 0x1A4,
+        OwnerId: 1000,
+        GroupId: 100,
+        CanSetPermissions: true,
+        CanSetModifiedTime: true);
+
+    /// <summary>
+    /// The General tab says what the connection reported, in words, and what it did not as not reported.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task GeneralShowsTheAttributesTheConnectionReported()
+    {
+        var agent = new ScriptedInspector { Attributes = SftpFile };
+        await using var model = new ObjectInspectorModel(
+            new ObjectInspectorController(agent, Address), timeZone: TimeZoneInfo.Utc);
+
+        await model.LoadAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, model.SelectedTab);
+        Assert.Equal(Ui.Inspector.KindFile, Row(model, Ui.Inspector.Kind));
+        Assert.Equal(48_213_990.ToString("N0", System.Globalization.CultureInfo.CurrentCulture), Row(model, Ui.Inspector.Size));
+        Assert.Equal("2026-10-01 09:15:00", Row(model, Ui.Inspector.Modified));
+        Assert.Equal(Ui.Inspector.NotReported, Row(model, Ui.Inspector.Created));
+        Assert.Equal("2026-10-09 18:02:41", Row(model, Ui.Inspector.Accessed));
+        Assert.Equal("rw-r--r-- (0644)", Row(model, Ui.Inspector.Permissions));
+        Assert.Equal("1000", Row(model, Ui.Inspector.Owner));
+        Assert.Equal("100", Row(model, Ui.Inspector.Group));
+        Assert.DoesNotContain(model.General, row => row.Name == Ui.Inspector.LinkTarget);
+        Assert.Equal(Ui.Format(Ui.Inspector.TimesAreLocalFormat, "UTC+00:00"), model.GeneralNotice.Text);
+        Assert.True(model.Status.IsSuccess);
+    }
+
+    /// <summary>FTP gives names, SFTP gives IDs; a server that gives both shows both.</summary>
+    [AvaloniaFact]
+    public async Task OwnerAndGroupShowANameAndAnId()
+    {
+        var agent = new ScriptedInspector
+        {
+            Attributes = new ItemAttributes(StorageItemKind.SymbolicLink, Owner: "alice", OwnerId: 1000, Group: "staff",
+                LinkTarget: "../shared/render.exr")
+        };
+        await using var model = new ObjectInspectorModel(new ObjectInspectorController(agent, Address));
+
+        await model.LoadAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(Ui.Format(Ui.Inspector.PrincipalWithIdFormat, "alice", 1000), Row(model, Ui.Inspector.Owner));
+        Assert.Equal("staff", Row(model, Ui.Inspector.Group));
+        Assert.Equal(Ui.Inspector.KindLink, Row(model, Ui.Inspector.Kind));
+        Assert.Equal("../shared/render.exr", Row(model, Ui.Inspector.LinkTarget));
+        Assert.Equal(Ui.Inspector.NotReported, Row(model, Ui.Inspector.Permissions));
+    }
+
+    /// <summary>
+    /// A folder has no versions, metadata or tags to ask for: only General loads, and the rest hide.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task AFolderLoadsOnlyItsAttributes()
+    {
+        var agent = new ScriptedInspector
+        {
+            Attributes = new ItemAttributes(StorageItemKind.Directory, UnixMode: 0x1ED, CanSetPermissions: true)
+        };
+        await using var model = new ObjectInspectorModel(new ObjectInspectorController(
+            agent, Address with { RelativePath = "shots" }, kind: StorageItemKind.Directory));
+
+        await model.LoadAsync(TestContext.Current.CancellationToken);
+
+        Assert.False(model.IsFile);
+        Assert.Equal(0, agent.VersionRequests);
+        Assert.Equal(Ui.Inspector.KindFolder, Row(model, Ui.Inspector.Kind));
+        Assert.DoesNotContain(model.General, row => row.Name == Ui.Inspector.Size);
+        Assert.Equal(Ui.Inspector.PropertiesLoaded, model.Status.Text);
+        Assert.Equal(Ui.Format(Ui.Inspector.PropertiesTitleFormat, "shots"), model.Title);
+    }
+
+    /// <summary>A General tab the agent could not read says why, and the file's other tabs still load.</summary>
+    [AvaloniaFact]
+    public async Task UnreadableAttributesKeepTheOtherSections()
+    {
+        var agent = new ScriptedInspector
+        {
+            Versions = [Version("v1", latest: true)],
+            AttributesFailure = new StorageIpcFailure(
+                "storage.attributes.unavailable", StorageIpcFailureCategory.Unavailable, "Not now.", true)
+        };
+        await using var model = new ObjectInspectorModel(new ObjectInspectorController(agent, Address));
+
+        await model.LoadAsync(TestContext.Current.CancellationToken);
+
+        Assert.Empty(model.General);
+        Assert.Equal("Not now.", model.GeneralNotice.Text);
+        Assert.True(model.GeneralNotice.IsWarning);
+        Assert.Single(model.Versions);
+        Assert.Equal(Ui.Format(Ui.Inspector.LoadedWithFailuresFormat, 1), model.Status.Text);
+        Assert.False(model.ChangePermissionsCommand.CanExecute(null));
+    }
+
+    /// <summary>
+    /// Change permissions starts the dialog from the mode now, sends the one chosen, and shows the
+    /// mode the server then reports.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task ChangingPermissionsSendsTheChosenModeAndShowsTheNewOne()
+    {
+        var agent = new ScriptedInspector { Attributes = SftpFile };
+        (string Name, int Mode)? asked = null;
+        await using var model = new ObjectInspectorModel(
+            new ObjectInspectorController(agent, Address),
+            askPermissions: (name, mode) =>
+            {
+                asked = (name, mode);
+                return Task.FromResult<int?>(0x1ED);
+            });
+        var changed = 0;
+        model.AttributesChanged += (_, _) => changed++;
+        await model.LoadAsync(TestContext.Current.CancellationToken);
+        Assert.True(model.ChangePermissionsCommand.CanExecute(null));
+
+        await model.ChangePermissionsAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(("render.exr", 0x1A4), asked);
+        Assert.Equal(0x1ED, agent.PermissionsSent);
+        Assert.Equal("rwxr-xr-x (0755)", Row(model, Ui.Inspector.Permissions));
+        Assert.Equal(Ui.Format(Ui.Inspector.PermissionsChangedFormat, "rwxr-xr-x (0755)"), model.Status.Text);
+        Assert.True(model.Status.IsSuccess);
+        Assert.Equal(1, changed);
+    }
+
+    /// <summary>A dismissed dialog sends nothing.</summary>
+    [AvaloniaFact]
+    public async Task ADismissedPermissionsDialogChangesNothing()
+    {
+        var agent = new ScriptedInspector { Attributes = SftpFile };
+        await using var model = new ObjectInspectorModel(
+            new ObjectInspectorController(agent, Address),
+            askPermissions: static (_, _) => Task.FromResult<int?>(null));
+        await model.LoadAsync(TestContext.Current.CancellationToken);
+
+        await model.ChangePermissionsAsync(TestContext.Current.CancellationToken);
+
+        Assert.Null(agent.PermissionsSent);
+        Assert.Equal("rw-r--r-- (0644)", Row(model, Ui.Inspector.Permissions));
+    }
+
+    /// <summary>A server that refuses the change says why in the status, and nothing is reloaded.</summary>
+    [AvaloniaFact]
+    public async Task ARefusedChangeSaysWhy()
+    {
+        var agent = new ScriptedInspector
+        {
+            Attributes = SftpFile,
+            ChangeFailure = new StorageIpcFailure(
+                "storage.attributes.unauthorized", StorageIpcFailureCategory.Unauthorized,
+                "The server refused; the account may not own this item or may lack the right to change it.", false)
+        };
+        await using var model = new ObjectInspectorModel(
+            new ObjectInspectorController(agent, Address),
+            askPermissions: static (_, _) => Task.FromResult<int?>(0x1C0));
+        var changed = 0;
+        model.AttributesChanged += (_, _) => changed++;
+        await model.LoadAsync(TestContext.Current.CancellationToken);
+
+        await model.ChangePermissionsAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(agent.ChangeFailure.Message, model.Status.Text);
+        Assert.True(model.Status.IsWarning);
+        Assert.Equal("rw-r--r-- (0644)", Row(model, Ui.Inspector.Permissions));
+        Assert.Equal(0, changed);
+    }
+
+    /// <summary>
+    /// A connection that cannot change either thing dims both buttons and says so; the menu-less
+    /// path refuses with the same sentence rather than asking.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task AConnectionThatCannotChangeDimsAndSaysSo()
+    {
+        var agent = new ScriptedInspector { Attributes = new ItemAttributes(StorageItemKind.File, Size: 10) };
+        var asked = false;
+        await using var model = new ObjectInspectorModel(
+            new ObjectInspectorController(agent, Address),
+            new PromptDialogs("2026-01-01 00:00:00"),
+            (_, _) =>
+            {
+                asked = true;
+                return Task.FromResult<int?>(0x1FF);
+            });
+        await model.LoadAsync(TestContext.Current.CancellationToken);
+
+        Assert.False(model.ChangePermissionsCommand.CanExecute(null));
+        Assert.False(model.SetModifiedTimeCommand.CanExecute(null));
+        Assert.Equal(Ui.Inspector.CannotChangeEither, model.ChangesNotice);
+        Assert.True(model.HasChangesNotice);
+
+        await model.ChangePermissionsAsync(TestContext.Current.CancellationToken);
+        Assert.False(asked);
+        Assert.Equal(Ui.Inspector.CannotChangePermissions, model.Status.Text);
+
+        await model.SetModifiedTimeAsync(TestContext.Current.CancellationToken);
+        Assert.Null(agent.ModifiedSent);
+        Assert.Equal(Ui.Inspector.CannotSetModifiedTime, model.Status.Text);
+    }
+
+    /// <summary>One that can change only one of them names the other.</summary>
+    [AvaloniaFact]
+    public async Task AConnectionThatCanChangeOneNamesTheOther()
+    {
+        var agent = new ScriptedInspector { Attributes = SftpFile with { CanSetPermissions = false } };
+        await using var model = new ObjectInspectorModel(
+            new ObjectInspectorController(agent, Address),
+            new PromptDialogs(null),
+            static (_, _) => Task.FromResult<int?>(null));
+        await model.LoadAsync(TestContext.Current.CancellationToken);
+
+        Assert.False(model.ChangePermissionsCommand.CanExecute(null));
+        Assert.True(model.SetModifiedTimeCommand.CanExecute(null));
+        Assert.Equal(Ui.Inspector.CannotChangePermissions, model.ChangesNotice);
+    }
+
+    /// <summary>
+    /// The modified time is typed in this computer's zone, starting from the time now, and sent in UTC.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task SettingTheModifiedTimeReadsLocalTimeAndSendsUtc()
+    {
+        var zone = TimeZoneInfo.CreateCustomTimeZone("Test+2", TimeSpan.FromHours(2), "Test+2", "Test+2");
+        var agent = new ScriptedInspector { Attributes = SftpFile };
+        var dialogs = new PromptDialogs("2026-10-11 14:30");
+        await using var model = new ObjectInspectorModel(
+            new ObjectInspectorController(agent, Address), dialogs, timeZone: zone);
+        var changed = 0;
+        model.AttributesChanged += (_, _) => changed++;
+        await model.LoadAsync(TestContext.Current.CancellationToken);
+        Assert.Equal("2026-10-01 11:15:00", Row(model, Ui.Inspector.Modified));
+
+        await model.SetModifiedTimeAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal("2026-10-01 11:15:00", dialogs.Asked!.Value);
+        Assert.Contains("UTC+02:00", dialogs.Asked.Label, StringComparison.Ordinal);
+        Assert.NotNull(dialogs.Asked.Validate!("yesterday"));
+        Assert.Null(dialogs.Asked.Validate("2026-10-11 14:30:00"));
+        Assert.Equal(new DateTimeOffset(2026, 10, 11, 12, 30, 0, TimeSpan.Zero), agent.ModifiedSent);
+        Assert.Equal(TimeSpan.Zero, agent.ModifiedSent!.Value.Offset);
+        Assert.Equal("2026-10-11 14:30:00", Row(model, Ui.Inspector.Modified));
+        Assert.Equal(Ui.Format(Ui.Inspector.ModifiedTimeSetFormat, "2026-10-11 14:30:00"), model.Status.Text);
+        Assert.Equal(1, changed);
+    }
+
+    /// <summary>What the prompt accepts: the sortable form, seconds optional, inside the contract's range.</summary>
+    [Fact]
+    public void TypedTimesAreReadStrictly()
+    {
+        Assert.True(ObjectInspectorModel.TryParseModifiedTime(" 2026-10-11 14:30:05 ", TimeZoneInfo.Utc, out var exact, out _));
+        Assert.Equal(new DateTimeOffset(2026, 10, 11, 14, 30, 5, TimeSpan.Zero), exact);
+        Assert.True(ObjectInspectorModel.TryParseModifiedTime("2026-10-11 14:30", TimeZoneInfo.Utc, out _, out _));
+
+        Assert.False(ObjectInspectorModel.TryParseModifiedTime("11/10/2026 14:30", TimeZoneInfo.Utc, out _, out var format));
+        Assert.StartsWith(
+            Ui.Format(Ui.Inspector.ModifiedTimeNotUnderstoodFormat, "|").Split('|')[0], format, StringComparison.Ordinal);
+        Assert.False(ObjectInspectorModel.TryParseModifiedTime(null, TimeZoneInfo.Utc, out _, out _));
+
+        Assert.False(ObjectInspectorModel.TryParseModifiedTime("1969-12-31 23:59:59", TimeZoneInfo.Utc, out _, out var early));
+        Assert.Equal(Ui.Inspector.ModifiedTimeOutOfRange, early);
+        Assert.False(ObjectInspectorModel.TryParseModifiedTime("2106-02-07 06:28:16", TimeZoneInfo.Utc, out _, out var late));
+        Assert.Equal(Ui.Inspector.ModifiedTimeOutOfRange, late);
+        Assert.True(ObjectInspectorModel.TryParseModifiedTime("2106-02-07 06:28:15", TimeZoneInfo.Utc, out _, out _));
+    }
+
+    /// <summary>
+    /// The permissions dialog keeps the boxes and the octal in step, and keeps the special bits.
+    /// </summary>
+    [Fact]
+    public void ThePermissionsDialogKeepsBoxesAndOctalInStep()
+    {
+        var model = new PermissionsModel("deploy.sh", 0x9ED); // 4755: set-user-ID, rwxr-xr-x
+
+        Assert.Equal("4755", model.Octal);
+        Assert.Equal("rwsr-xr-x", model.Symbolic);
+        Assert.True(model.OwnerExecute);
+        Assert.False(model.GroupWrite);
+
+        model.GroupWrite = true;
+        Assert.Equal("4775", model.Octal);
+        Assert.Equal(0x9FD, model.Mode);
+
+        model.Octal = "640";
+        Assert.Equal(0x1A0, model.Mode);
+        Assert.True(model.OwnerRead && model.OwnerWrite && !model.OwnerExecute);
+        Assert.True(model.GroupRead && !model.GroupWrite);
+        Assert.False(model.OthersRead);
+        Assert.Equal("rw-r-----", model.Symbolic);
+
+        model.AcceptCommand.Execute(null);
+        Assert.Equal(0x1A0, model.Answer);
+    }
+
+    /// <summary>Octal that is not octal dims Apply, says why, and a box ticked afterwards recovers it.</summary>
+    [Fact]
+    public void UnreadableOctalDimsApply()
+    {
+        var model = new PermissionsModel("deploy.sh", 0x1ED);
+        var closed = false;
+        model.Closed += (_, _) => closed = true;
+
+        model.Octal = "789";
+        Assert.True(model.HasError);
+        Assert.Equal(Ui.Inspector.OctalNotUnderstood, model.Error);
+        Assert.False(model.AcceptCommand.CanExecute(null));
+
+        model.OthersWrite = true;
+        Assert.False(model.HasError);
+        Assert.Equal("0757", model.Octal);
+        Assert.True(model.AcceptCommand.CanExecute(null));
+
+        model.CancelCommand.Execute(null);
+        Assert.True(closed);
+        Assert.Null(model.Answer);
+    }
+
+    /// <summary>Photographs the permissions dialog, for a human to look at.</summary>
+    [AvaloniaTheory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ThePermissionsDialogCanBePhotographed(bool dark)
+    {
+        ColorSchemeApplier.Apply(
+            global::Avalonia.Application.Current!,
+            ColorSchemeCatalog.Resolve(id: null, preferDark: dark));
+
+        var model = new PermissionsModel("render.exr", 0x1A4) { Octal = "75x" };
+        var window = new PermissionsWindow { DataContext = model };
+        window.Show();
+        window.UpdateLayout();
+
+        var frame = window.CaptureRenderedFrame();
+        Assert.NotNull(frame);
+
+        var directory = Environment.GetEnvironmentVariable("STORAGEHUB_SHOT_DIR");
+        if (string.IsNullOrWhiteSpace(directory)) return;
+
+        Directory.CreateDirectory(directory);
+        using var stream = File.Create(Path.Combine(directory, $"permissions-{(dark ? "dark" : "light")}.png"));
+        frame!.Save(stream, new PngBitmapEncoderOptions());
+    }
+
+    private static string Row(ObjectInspectorModel model, string name) =>
+        model.General.Single(row => row.Name == name).Value;
+
+    /// <summary>Answers a prompt with a fixed text, and keeps what it was asked.</summary>
+    private sealed class PromptDialogs(string? answer) : IDialogService
+    {
+        internal DialogPromptRequest? Asked { get; private set; }
+
+        public Task ShowAsync(DialogRequest request, CancellationToken cancellationToken = default) =>
+            Task.CompletedTask;
+
+        public Task<DialogChoice> ConfirmAsync(DialogRequest request, CancellationToken cancellationToken = default) =>
+            Task.FromResult(DialogChoice.Cancel);
+
+        public Task<string?> PromptAsync(DialogPromptRequest request, CancellationToken cancellationToken = default)
+        {
+            Asked = request;
+            return Task.FromResult(answer);
+        }
     }
 
     private static ObjectVersionSummary Version(
@@ -329,9 +739,51 @@ public class ObjectInspectorTests
 
         internal Exception? Throws { get; set; }
 
+        internal ItemAttributes? Attributes { get; set; } = new(StorageItemKind.File, Size: 2048);
+
+        internal StorageIpcFailure? AttributesFailure { get; set; }
+
+        /// <summary>What a change is answered with; nothing makes it succeed.</summary>
+        internal StorageIpcFailure? ChangeFailure { get; set; }
+
+        internal int VersionRequests { get; private set; }
+
+        internal int? PermissionsSent { get; private set; }
+
+        internal DateTimeOffset? ModifiedSent { get; private set; }
+
+        public Task<ItemAttributesGetResponse> GetItemAttributesAsync(
+            ItemAttributesGetRequest request, CancellationToken cancellationToken = default)
+        {
+            if (Throws is { } error) throw error;
+            return Task.FromResult(AttributesFailure is null
+                ? new ItemAttributesGetResponse(ItemAttributeIpcContract.CurrentVersion, request.Address, Attributes)
+                : new ItemAttributesGetResponse(
+                    ItemAttributeIpcContract.CurrentVersion, request.Address, null, AttributesFailure));
+        }
+
+        public Task<ItemPermissionsSetResponse> SetItemPermissionsAsync(
+            ItemPermissionsSetRequest request, CancellationToken cancellationToken = default)
+        {
+            PermissionsSent = request.UnixMode;
+            if (ChangeFailure is null) Attributes = Attributes! with { UnixMode = request.UnixMode };
+            return Task.FromResult(new ItemPermissionsSetResponse(
+                ItemAttributeIpcContract.CurrentVersion, request.Address, ChangeFailure is null, ChangeFailure));
+        }
+
+        public Task<ItemModifiedTimeSetResponse> SetItemModifiedTimeAsync(
+            ItemModifiedTimeSetRequest request, CancellationToken cancellationToken = default)
+        {
+            ModifiedSent = request.ModifiedUtc;
+            if (ChangeFailure is null) Attributes = Attributes! with { ModifiedUtc = request.ModifiedUtc };
+            return Task.FromResult(new ItemModifiedTimeSetResponse(
+                ItemAttributeIpcContract.CurrentVersion, request.Address, ChangeFailure is null, ChangeFailure));
+        }
+
         public Task<ObjectVersionListResponse> ListVersionsAsync(
             ObjectVersionListRequest request, CancellationToken cancellationToken = default)
         {
+            VersionRequests++;
             if (Throws is { } error) throw error;
             var second = request.ContinuationToken is not null;
             return Task.FromResult(new ObjectVersionListResponse(

@@ -73,7 +73,7 @@
   "parentFolderUnavailable": "Der übergeordnete Ordner ist nicht verfügbar.",
   "selectOneToRename": "Wählen Sie genau ein Element zum Umbenennen aus.",
   "selectTwoToBatchRename": "Wählen Sie mindestens zwei Elemente aus, um mehrere umzubenennen.",
-  "selectOneToInspect": "Wählen Sie genau eine Datei aus, um sie zu untersuchen.",
+  "selectOneToInspect": "Wählen Sie genau eine Datei oder einen Ordner aus, um die Eigenschaften anzuzeigen.",
   "operationCancelled": "Der Vorgang wurde abgebrochen.",
   "emptyDestinationCreated": "Der leere Zielordner wurde erstellt.",
   "agentReconnected": "Der Hintergrundagent hat die Verbindung wiederhergestellt und ist bereit.",

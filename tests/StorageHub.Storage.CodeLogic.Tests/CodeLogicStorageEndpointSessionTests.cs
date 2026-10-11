@@ -794,6 +794,35 @@ public sealed class CodeLogicStorageEndpointSessionTests
         Assert.Equal(FeatureSupportLevel.Unsupported, session.Capabilities[DomainStorageFeature.ResumeUpload].Level);
     }
 
+    /// <summary>
+    /// Changing permissions and the modified time are offered exactly where CL.Storage advertises
+    /// them, and refused before the library is asked where it does not.
+    /// </summary>
+    [Fact]
+    public async Task MapsPermissionAndTimestampFeaturesAndRefusesWhereAbsent()
+    {
+        var sftpLike = new FakeStorageService
+        {
+            Provider = StorageProvider.Sftp,
+            Capabilities = new StorageCapabilities(
+                ClStorageFeature.PhysicalDirectories | ClStorageFeature.Permissions | ClStorageFeature.SetTimestamps)
+        };
+        await using (var session = CreateSession(sftpLike))
+        {
+            Assert.True(session.Capabilities.Supports(DomainStorageFeature.Permissions));
+            Assert.True(session.Capabilities.Supports(DomainStorageFeature.SetModifiedTime));
+        }
+
+        await using var plain = CreateSession(new FakeStorageService { Provider = StorageProvider.S3 });
+        Assert.False(plain.Capabilities.Supports(DomainStorageFeature.Permissions));
+        Assert.False(plain.Capabilities.Supports(DomainStorageFeature.SetModifiedTime));
+        var address = StorageAddress.Create(plain.ProfileId, plain.RootIdentity, "photo.jpg").Value;
+        Assert.Equal(StorageFailureKind.Unsupported, (await plain.SetPermissionsAsync(address, 0x1A4)).Error!.Kind);
+        Assert.Equal(
+            StorageFailureKind.Unsupported,
+            (await plain.SetModifiedTimeAsync(address, DateTimeOffset.UnixEpoch)).Error!.Kind);
+    }
+
     [Fact]
     public async Task StreamingWriteAppliesBackpressureAndCommitsMappedEntry()
     {

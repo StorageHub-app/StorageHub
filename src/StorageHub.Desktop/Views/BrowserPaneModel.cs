@@ -88,7 +88,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     /// </remarks>
     private readonly Func<PaneMutationController>? _mutations;
     private readonly IDialogService? _dialogs;
-    private readonly Func<ObjectInspectorAddress, Task>? _inspect;
+    private readonly Func<ObjectInspectorAddress, StorageItemKind, Task>? _inspect;
     private readonly Func<ObjectInspectorAddress, string, long?, Task>? _edit;
     private readonly Func<IReadOnlyList<string>, IReadOnlyList<string>, Task<IReadOnlyList<BatchRenameLine>?>>? _batchRename;
     private PagedListingIndex? _index;
@@ -155,8 +155,9 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     /// it had no controller to hand.
     /// </param>
     /// <param name="inspect">
-    /// Opens the object inspector for a file. The shell supplies the window; a test supplies a
-    /// recorder. Null leaves Properties unavailable.
+    /// Opens the Properties window for an item, given its kind so a folder or link is not asked for
+    /// a file's versions. The shell supplies the window; a test supplies a recorder. Null leaves
+    /// Properties unavailable.
     /// </param>
     internal BrowserPaneModel(
         IRemoteStorageAgentClient? client = null,
@@ -165,7 +166,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         IDialogService? dialogs = null,
         Func<ISshTerminalAgentClient>? terminals = null,
         Func<IAgentLifecycleController?>? agentLifecycle = null,
-        Func<ObjectInspectorAddress, Task>? inspect = null,
+        Func<ObjectInspectorAddress, StorageItemKind, Task>? inspect = null,
         Func<ObjectInspectorAddress, string, long?, Task>? edit = null,
         Func<IReadOnlyList<string>, IReadOnlyList<string>, Task<IReadOnlyList<BatchRenameLine>?>>? batchRename = null)
     {
@@ -928,7 +929,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
 
     public static string BatchRenameLabel => Ui.Pane.BatchRename;
 
-    /// <summary>Opens the read-only object inspector on the one selected file.</summary>
+    /// <summary>Opens the Properties window on the one selected file, folder or link.</summary>
     public ICommand PropertiesCommand { get; }
 
     /// <summary>Opens the one selected file in the external editor.</summary>
@@ -1084,7 +1085,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     public static string PropertiesLabel => Ui.Commands.EditProperties;
 
     /// <summary>
-    /// Whether the selection is one file on a saved connection, which is what can be inspected.
+    /// Whether the selection is one item on a saved connection, which is what can be inspected.
     /// </summary>
     /// <remarks>
     /// The same rules as <see cref="InspectAsync"/> applies, so the button dims where the menu
@@ -1094,13 +1095,13 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         _inspect is not null &&
         !IsTerminal &&
         PaneTransferSnapshots.SelectionFor(_source, SelectedRows) is { IsSuccess: true } selection &&
-        PaneInspection.CanInspect(Here(), selection.Value.Items);
+        PaneInspection.CanInspect(Here(), selection.Value.Items, anyKind: true);
 
     /// <summary>
-    /// Opens the inspector on the selected file, or says why it cannot.
+    /// Opens the inspector on the selected item, or says why it cannot.
     /// </summary>
     /// <remarks>
-    /// The rules live in <see cref="PaneInspection"/>: exactly one file, on a saved connection the
+    /// The rules live in <see cref="PaneInspection"/>: exactly one item, on a saved connection the
     /// agent has identified, with an identity the contract accepts. Each refusal is a sentence in
     /// the status rather than a dialog, because it answers a menu click, not a question.
     /// </remarks>
@@ -1115,7 +1116,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             return;
         }
 
-        var address = PaneInspection.AddressFor(Here(), selection.Value.Items, out var problem);
+        var address = PaneInspection.AddressFor(Here(), selection.Value.Items, out var problem, anyKind: true);
         if (address is null)
         {
             Status = problem!;
@@ -1123,7 +1124,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        await _inspect(address).ConfigureAwait(true);
+        await _inspect(address, selection.Value.Items[0].Kind).ConfigureAwait(true);
     }
 
     public ICommand UpCommand { get; }

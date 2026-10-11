@@ -73,6 +73,21 @@ public interface IObjectInspectorAgentClient : IAsyncDisposable
         StorageItemDeleteRequest request,
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException(Ui.Validation.ThisInspectorClientDoesNotSupportDeleting);
+
+    Task<ItemAttributesGetResponse> GetItemAttributesAsync(
+        ItemAttributesGetRequest request,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(Ui.Validation.ThisInspectorClientDoesNotSupportAttributes);
+
+    Task<ItemPermissionsSetResponse> SetItemPermissionsAsync(
+        ItemPermissionsSetRequest request,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(Ui.Validation.ThisInspectorClientDoesNotSupportAttributes);
+
+    Task<ItemModifiedTimeSetResponse> SetItemModifiedTimeAsync(
+        ItemModifiedTimeSetRequest request,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(Ui.Validation.ThisInspectorClientDoesNotSupportAttributes);
 }
 
 /// <summary>
@@ -247,6 +262,49 @@ public sealed class NamedPipeObjectInspectorAgentClient : IObjectInspectorAgentC
             EditableFileIpcMessageTypes.DeleteResponse,
             request!,
             response => ValidateDeleteResponse(request!, response),
+            cancellationToken);
+    }
+
+    public Task<ItemAttributesGetResponse> GetItemAttributesAsync(
+        ItemAttributesGetRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateRequest(request, request?.HasValidBounds == true, nameof(request));
+        return ExecuteAsync<ItemAttributesGetRequest, ItemAttributesGetResponse>(
+            ItemAttributeIpcMessageTypes.GetRequest,
+            ItemAttributeIpcMessageTypes.GetResponse,
+            request!,
+            response => ValidateAttributesResponse(request!, response),
+            cancellationToken);
+    }
+
+    public Task<ItemPermissionsSetResponse> SetItemPermissionsAsync(
+        ItemPermissionsSetRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateRequest(request, request?.HasValidBounds == true, nameof(request));
+        return ExecuteAsync<ItemPermissionsSetRequest, ItemPermissionsSetResponse>(
+            ItemAttributeIpcMessageTypes.PermissionsSetRequest,
+            ItemAttributeIpcMessageTypes.PermissionsSetResponse,
+            request!,
+            response => ValidateChangeResponse(
+                request!.ContractVersion, request.Address,
+                response.ContractVersion, response.Address, response.Changed, response.Failure),
+            cancellationToken);
+    }
+
+    public Task<ItemModifiedTimeSetResponse> SetItemModifiedTimeAsync(
+        ItemModifiedTimeSetRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateRequest(request, request?.HasValidBounds == true, nameof(request));
+        return ExecuteAsync<ItemModifiedTimeSetRequest, ItemModifiedTimeSetResponse>(
+            ItemAttributeIpcMessageTypes.ModifiedTimeSetRequest,
+            ItemAttributeIpcMessageTypes.ModifiedTimeSetResponse,
+            request!,
+            response => ValidateChangeResponse(
+                request!.ContractVersion, request.Address,
+                response.ContractVersion, response.Address, response.Changed, response.Failure),
             cancellationToken);
     }
 
@@ -552,6 +610,42 @@ public sealed class NamedPipeObjectInspectorAgentClient : IObjectInspectorAgentC
             response.Address != request.Address ||
             !IsValidFailure(response.Failure) ||
             response.Failure is not null == response.Deleted)
+        {
+            throw InvalidResponse();
+        }
+    }
+
+    /// <summary>
+    /// Attributes for the item asked about, inside the contract's bounds, or a failure and none.
+    /// </summary>
+    private static void ValidateAttributesResponse(
+        ItemAttributesGetRequest request,
+        ItemAttributesGetResponse response)
+    {
+        if (response.ContractVersion != request.ContractVersion ||
+            !ItemAttributeIpcContract.IsSupported(response.ContractVersion) ||
+            response.Address != request.Address ||
+            !IsValidFailure(response.Failure) ||
+            response.Failure is null == response.Attributes is null ||
+            response.Attributes is not null && !response.Attributes.HasValidBounds)
+        {
+            throw InvalidResponse();
+        }
+    }
+
+    /// <summary>A change answered for the item asked about: changed, or a failure saying why not.</summary>
+    private static void ValidateChangeResponse(
+        int requestVersion,
+        ObjectInspectorAddress requestAddress,
+        int responseVersion,
+        ObjectInspectorAddress responseAddress,
+        bool changed,
+        StorageIpcFailure? failure)
+    {
+        if (responseVersion != requestVersion ||
+            responseAddress != requestAddress ||
+            !IsValidFailure(failure) ||
+            failure is not null == changed)
         {
             throw InvalidResponse();
         }

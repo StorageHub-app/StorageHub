@@ -81,7 +81,7 @@ public class LiveObjectInspectorTests
                 Storage(),
                 mutations: static () => new PaneMutationController(static () => new NamedPipeObjectInspectorAgentClient()),
                 dialogs: dialogs,
-                inspect: address =>
+                inspect: (address, _) =>
                 {
                     opened = address;
                     return Task.CompletedTask;
@@ -107,7 +107,7 @@ public class LiveObjectInspectorTests
 
             // 4. The inspector, over the real agent, shows what the provider knows about it.
             await using var inspector = ObjectInspectorModel.Create(
-                opened, static () => new NamedPipeObjectInspectorAgentClient());
+                opened, StorageItemKind.File, static () => new NamedPipeObjectInspectorAgentClient());
             await inspector.LoadAsync(token);
 
             Assert.False(

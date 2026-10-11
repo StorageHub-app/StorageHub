@@ -246,8 +246,9 @@
   "algorithmListIsInvalid": "En algoritmeliste skal være navne som curve25519-sha256, adskilt af kommaer.",
   "sessionLimitIsInvalid": "Flest sessioner skal være et helt tal fra 1 til 64.",
   "keepAliveIsInvalid": "Hold i live skal være et helt antal sekunder fra 1 til 3600.",
-  "culture": "da-DK",
   "movingFromThisPCIsNotSupported": "Filer på denne pc kan kopieres til en forbindelse, men ikke flyttes.",
   "noFreeNameForRenameFormat": "Der blev ikke fundet et ledigt navn til {0} på destinationen.",
-  "transferStoppedAtExistingFile": "Overførslen blev stoppet ved en fil, der allerede findes på destinationen."
+  "transferStoppedAtExistingFile": "Overførslen blev stoppet ved en fil, der allerede findes på destinationen.",
+  "thisInspectorClientDoesNotSupportAttributes": "Denne inspektørklient understøtter ikke elementattributter.",
+  "culture": "da-DK"
 }

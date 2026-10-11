@@ -467,6 +467,9 @@ internal sealed class ValidationStrings : LocalizationModelBase
 
     public string ThisInspectorClientDoesNotSupportDeleting { get; set; } = "This inspector client does not support deleting storage items.";
 
+    public string ThisInspectorClientDoesNotSupportAttributes { get; set; } =
+        "This inspector client does not support item attributes.";
+
     public string ThisInspectorClientDoesNotSupportDirectory { get; set; } = "This inspector client does not support directory creation.";
 
     public string ThisInspectorClientDoesNotSupportEmpty { get; set; } = "This inspector client does not support empty-file creation.";
