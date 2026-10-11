@@ -113,6 +113,18 @@ server's system and software, the host key or certificate it presented and
 whether it is trusted, the cipher and key exchange negotiated, the server's
 features, how many sessions are open and the last health check.
 
+**Properties shows permissions, owner and dates, and can change permissions
+and the modified time.** Properties now opens on a folder or a link as well as a
+file, with a General tab listing its kind, size, modified, created and
+last-accessed times, its permissions as both `rwxr-xr-x` and octal, its owner
+and group, and where a link points, each as far as the connection reports it.
+On SFTP and FTP connections, and on local folders, "Change permissions…" opens
+a dialog with read, write and execute boxes for owner, group and others beside
+the octal value, and "Set modified time…" asks for a new time in your own time
+zone. Both are dimmed, with a sentence saying why, where the connection cannot
+make the change, and a server that refuses one says so in words. The window and
+the pane show the new values as soon as the change is made.
+
 **Checksums the server already keeps.** The object inspector has a Checksum
 tab: Get checksum shows the file's SHA-256 and says whether the server reported
 it (S3, FTP, Azure, Google Cloud Storage and Swift can, without the file being

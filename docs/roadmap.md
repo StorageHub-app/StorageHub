@@ -710,7 +710,22 @@ The profile already stores these; `CodeLogicConnectionProfileConnector.BuildAsyn
 
 ## 4. New abilities in the file panes
 
-- [ ] 4.1 Properties: permissions, owner, link target, dates; a chmod dialog and "Set modified time".
+- [x] 4.1 Properties: permissions, owner, link target, dates; a chmod dialog and "Set modified time".
+      Done: Properties opens on one file, folder or link on a saved connection, as "Properties — path", on a
+      new General tab: kind, size, modified, created and last-accessed times (in this computer's zone),
+      permissions as `rwxr-xr-x (0755)`, owner and group (FTP's names, SFTP's IDs, both where given) and a
+      link's target, each "—" where the connection does not report it; Versions, Metadata, Tags and
+      Checksum show for a file only. "Change permissions…" opens `PermissionsWindow` (nine boxes kept in
+      step with the octal; set-ID and sticky ride the octal's first digit) and "Set modified time…" the
+      name prompt (local `yyyy-MM-dd HH:mm[:ss]`, sent in UTC); each is dim with a sentence where the
+      connection does not advertise it (`StorageFeature.Permissions`/`SetModifiedTime`, now mapped from
+      CL.Storage: SFTP and FTP both, local times everywhere and modes outside Windows, S3 neither). Both
+      go through the agent's `ItemAttributeIpcCommandService` on its own contract
+      (`ItemAttributeMessages.cs`: mode ≤ 7777, time UTC within 1970–2106, the narrowest provider's
+      range), which refuses an unadvertised change before the provider is asked and words provider
+      refusals itself; the window and the active pane reload once a change is made. CL.Storage cannot
+      read SFTP link targets, which show "—". Changing owner/group, recursive chmod and This PC are not
+      offered.
 - [ ] 4.2 Free space in each pane's status bar.
 - [ ] 4.3 Connection health (retrying, lost, back) on the connection card and in the activity log.
 - [ ] 4.4 Auto-refresh of a folder when it changes (polling for remote connections, off by default).
