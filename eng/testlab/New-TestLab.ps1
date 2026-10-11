@@ -205,6 +205,18 @@ $settings = [ordered] @{
     STORAGEHUB_FTP_CLIENT_PFX_PATH       = (Resolve-Path (Join-Path $tlsFixtures 'client.pfx')).Path
     STORAGEHUB_FTP_CLIENT_PFX_PASSWORD   = $tls['STORAGEHUB_FTP_CLIENT_PFX_PASSWORD']
 
+    # WebDAV in plain HTTP and over HTTPS. The HTTPS server presents the FTPS endpoints' certificate,
+    # so its pin is the same fingerprint. The URLs carry the ports, so the ports are listed apart
+    # only for compose to publish.
+    STORAGEHUB_REQUIRE_WEBDAV            = '1'
+    STORAGEHUB_WEBDAV_PORT               = '18080'
+    STORAGEHUB_WEBDAV_TLS_PORT           = '18443'
+    STORAGEHUB_WEBDAV_URL                = 'http://127.0.0.1:18080/'
+    STORAGEHUB_WEBDAV_TLS_URL            = 'https://127.0.0.1:18443/'
+    STORAGEHUB_WEBDAV_USERNAME           = 'storagehub'
+    STORAGEHUB_WEBDAV_PASSWORD           = 'storagehub-testlab-password'
+    STORAGEHUB_WEBDAV_SERVER_SHA256      = $tls['STORAGEHUB_FTP_SERVER_SHA256']
+
     STORAGEHUB_REQUIRE_MINIO             = '1'
     STORAGEHUB_MINIO_ENDPOINT            = 'http://127.0.0.1:9000/'
     STORAGEHUB_MINIO_ACCESS_KEY          = 'storagehub-testlab'
@@ -274,6 +286,8 @@ Write-Host ('  FTP plain       127.0.0.1:{0}' -f $settings.STORAGEHUB_FTP_PLAIN_
 Write-Host ('  FTPS explicit   127.0.0.1:{0}' -f $settings.STORAGEHUB_FTP_EXPLICIT_PORT)
 Write-Host ('  FTPS implicit   127.0.0.1:{0}' -f $settings.STORAGEHUB_FTP_IMPLICIT_PORT)
 Write-Host ('  FTPS mutual     127.0.0.1:{0}' -f $settings.STORAGEHUB_FTP_MTLS_PORT)
+Write-Host ('  WebDAV          {0}' -f $settings.STORAGEHUB_WEBDAV_URL)
+Write-Host ('  WebDAV (HTTPS)  {0}' -f $settings.STORAGEHUB_WEBDAV_TLS_URL)
 Write-Host  '  MinIO (S3)      127.0.0.1:9000, console on 9001'
 Write-Host ('  Proxy           HTTP 127.0.0.1:{0}, SOCKS5 127.0.0.1:{1}' -f $settings.STORAGEHUB_PROXY_HTTP_PORT, $settings.STORAGEHUB_PROXY_SOCKS5_PORT)
 Write-Host ''

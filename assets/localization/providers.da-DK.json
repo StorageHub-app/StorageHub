@@ -61,5 +61,13 @@
   "theCurrentWindowsIdentityIsUsedOperations": "Den aktuelle Windows-identitet bruges. Handlinger er fortsat begrænset til den konfigurerede rod.",
   "theServerCertificateMustPassHostnameAnd": "Servercertifikatet skal bestå validering af værtsnavn og kæde. En valgfri SHA-256-fastlåsning giver ekstra beskyttelse; klientens PFX-materiale forbliver i boksen.",
   "updateLeftRight": "Opdatering venstre → højre",
+  "webDavSummary": "Filer på en WebDAV-server, f.eks. Nextcloud, ownCloud, SharePoint eller en NAS.",
+  "webDavTrustNotice": "Servercertifikatet skal godkendes af systemet eller passe til en verificeret SHA-256-fastlåsning. Basic-login sender adgangskoden med hver forespørgsel, så brug HTTPS.",
+  "serverUrl": "Server-URL",
+  "webDavUrlHelp": "Adressen på WebDAV-mappen, inklusive sti. Et værtsnavn alene opfattes som https://.",
+  "webDavAuthenticationHelp": "Basic, Digest, NTLM og Negotiate logger på med brugernavn og adgangskode; et bearer-token sendes, som det er.",
+  "bearerTokenReference": "Reference til bearer-token",
+  "onlyForBearerTokenSignIn": "Kun til login med bearer-token",
+  "webDavPlainHttpHelp": "Til en server, du selv driver på dit eget netværk. Adgangskoden og filerne sendes ukrypteret.",
   "culture": "da-DK"
 }

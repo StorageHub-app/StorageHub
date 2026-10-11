@@ -464,6 +464,13 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
                 Sftp: PersistedSftpOptions.From(sftp.ServerOptions)),
             SshClientEndpoint ssh => new PersistedEndpoint(
                 "ssh", Host: ssh.Host, Port: ssh.Port, HostKeyPolicy: ssh.HostKeyPolicy),
+            // The URL is the endpoint; its host and port are derived from it again on reading.
+            WebDavEndpoint webDav => new PersistedEndpoint(
+                "webdav", RootPath: webDav.RootPath, ServiceEndpoint: webDav.ServerUrl.AbsoluteUri,
+                AllowInsecureHttp: webDav.AllowInsecureHttp, TlsPolicy: webDav.TlsPolicy,
+                PfxReference: webDav.ClientCertificatePfxReference?.Value,
+                PfxPasswordReference: webDav.ClientCertificatePasswordReference?.Value,
+                CredentialScheme: webDav.CredentialScheme),
             _ => throw new NotSupportedException($"Endpoint type {endpoint.GetType().Name} is not supported.")
         };
         return JsonSerializer.Serialize(value, JsonOptions);
@@ -506,6 +513,14 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
                 Required(value.Host, "SSH host"),
                 Required(value.Port, "SSH port"),
                 value.HostKeyPolicy ?? SshHostKeyPolicy.Unspecified),
+            "webdav" => new WebDavEndpoint(
+                new Uri(Required(value.ServiceEndpoint, "WebDAV URL"), UriKind.Absolute),
+                value.TlsPolicy ?? TlsCertificatePolicy.Unspecified,
+                value.AllowInsecureHttp,
+                value.CredentialScheme ?? HttpCredentialScheme.Basic,
+                ParseSecretReference(value.PfxReference),
+                ParseSecretReference(value.PfxPasswordReference),
+                value.RootPath),
             _ => throw new InvalidDataException("The stored connection endpoint kind is unknown.")
         };
     }
@@ -528,6 +543,8 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
             SftpPrivateKeyAuthentication key => new PersistedAuthentication(
                 "sftp-key", key.Username, PrivateKeyReference: key.PrivateKeyReference.Value,
                 PassphraseReference: key.PassphraseReference?.Value, KeyFormat: key.KeyFormat),
+            BearerTokenAuthentication bearer => new PersistedAuthentication(
+                "bearer-token", TokenReference: bearer.TokenReference.Value),
             SshPrivateKeyPasswordAuthentication mfa => new PersistedAuthentication(
                 "ssh-key-password",
                 mfa.Username,
@@ -562,6 +579,8 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
                 SecretReference.Parse(Required(value.PrivateKeyReference, "private-key reference")),
                 ParseSecretReference(value.PassphraseReference),
                 value.KeyFormat ?? 0),
+            "bearer-token" => new BearerTokenAuthentication(
+                SecretReference.Parse(Required(value.TokenReference, "bearer-token reference"))),
             "ssh-key-password" => new SshPrivateKeyPasswordAuthentication(
                 Required(value.Username, "username"),
                 SecretReference.Parse(Required(value.PasswordReference, "password reference")),
@@ -634,6 +653,8 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
         // The original schema constrains this legacy storage-provider column. The endpoint JSON
         // carries the authoritative SSH client discriminator and restores ConnectionProviderKind.Ssh.
         ConnectionProviderKind.Ssh => "sftp",
+        // Allowed in the column from schema v17 (WebDavProviderSchemaMigration).
+        ConnectionProviderKind.WebDav => "webdav",
         _ => throw new ArgumentOutOfRangeException(nameof(provider))
     };
 
@@ -644,6 +665,7 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
         "ftp" => ConnectionProviderKind.Ftp,
         "ftps" => ConnectionProviderKind.Ftps,
         "sftp" => ConnectionProviderKind.Sftp,
+        "webdav" => ConnectionProviderKind.WebDav,
         _ => throw new InvalidDataException("The stored connection provider is unknown.")
     };
 
@@ -706,7 +728,8 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
         string? PfxPasswordReference = null,
         SshHostKeyPolicy? HostKeyPolicy = null,
         PersistedFtpOptions? Ftp = null,
-        PersistedSftpOptions? Sftp = null);
+        PersistedSftpOptions? Sftp = null,
+        HttpCredentialScheme? CredentialScheme = null);
 
     /// <summary>An FTP server's options; absent from rows written before they existed, which read as the defaults.</summary>
     private sealed record PersistedFtpOptions(
@@ -779,7 +802,8 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
         string? SessionTokenReference = null,
         string? PrivateKeyReference = null,
         string? PassphraseReference = null,
-        SftpPrivateKeyFormat? KeyFormat = null);
+        SftpPrivateKeyFormat? KeyFormat = null,
+        string? TokenReference = null);
 
     private sealed record PersistedOperationalOptions(
         long ConnectTimeoutTicks,

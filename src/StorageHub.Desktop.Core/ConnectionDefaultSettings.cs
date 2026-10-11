@@ -81,7 +81,7 @@ internal static class ConnectionDefaultSettings
         // CL.Storage exposes one network timeout for remote providers. Keeping the
         // two profile values identical prevents creation of a profile the adapter
         // would later have to reject as unenforceable.
-        var operationTimeout = providerKind == StorageProviderKind.Local
+        var operationTimeout = HasOwnOperationTimeout(providerKind)
             ? ReadBoundedInteger(
                 stored,
                 Key(providerKind, OperationTimeoutKey),
@@ -125,6 +125,13 @@ internal static class ConnectionDefaultSettings
 
     internal static string Key(StorageProviderKind provider, string setting) => $"{provider}.{setting}";
 
+    /// <summary>
+    /// Whether the operation timeout is set apart from the connection timeout: on this computer, and
+    /// on WebDAV, whose one HTTP timeout bounds each whole request, an upload's body included.
+    /// </summary>
+    internal static bool HasOwnOperationTimeout(StorageProviderKind provider) =>
+        provider is StorageProviderKind.Local or StorageProviderKind.WebDav;
+
     internal static bool SupportsConfigurableRetries(StorageProviderKind provider) => provider is
         StorageProviderKind.Local or StorageProviderKind.S3 or StorageProviderKind.Ssh;
 
@@ -134,6 +141,9 @@ internal static class ConnectionDefaultSettings
         StorageProviderKind.S3 => new(30, 30, 3, new Dictionary<string, string>()),
         StorageProviderKind.Ftp or StorageProviderKind.Ftps or StorageProviderKind.Sftp or StorageProviderKind.Ssh =>
             new(30, 30, 0, new Dictionary<string, string>()),
+        // Ten minutes a request: the timeout covers an upload's whole body, so FTP's 30 seconds
+        // would fail any file that takes longer than that to send.
+        StorageProviderKind.WebDav => new(30, 600, 0, new Dictionary<string, string>()),
         _ => throw new ArgumentOutOfRangeException(nameof(provider))
     };
 

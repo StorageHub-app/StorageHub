@@ -313,6 +313,74 @@ public sealed class ConnectionProfileTests
     }
 
     [Fact]
+    public void WebDav_keeps_its_url_path_and_pins_by_the_urls_host_and_port()
+    {
+        var endpoint = new WebDavEndpoint(
+            new Uri("https://DAV.Example.test/remote.php/dav/files/me/"),
+            TlsCertificatePolicy.Pinned,
+            credentialScheme: HttpCredentialScheme.Digest,
+            clientCertificatePfxReference: SecretReference.Create(),
+            clientCertificatePasswordReference: SecretReference.Create(),
+            rootPath: "Projects");
+
+        Assert.Equal("dav.example.test", endpoint.Host);
+        Assert.Equal(443, endpoint.Port);
+        Assert.Equal("/remote.php/dav/files/me/", endpoint.ServerUrl.AbsolutePath);
+        Assert.False(endpoint.AllowInsecureHttp);
+        Assert.Equal("Projects", endpoint.RootPath);
+        Assert.Equal(8080, new WebDavEndpoint(
+            new Uri("http://nas.local:8080/"), TlsCertificatePolicy.SystemTrust, allowInsecureHttp: true).Port);
+    }
+
+    [Fact]
+    public void WebDav_refuses_unacknowledged_http_and_protections_that_http_cannot_give()
+    {
+        var http = new Uri("http://nas.local/dav/");
+        Assert.ThrowsAny<ArgumentException>(() => new WebDavEndpoint(http, TlsCertificatePolicy.SystemTrust));
+        Assert.ThrowsAny<ArgumentException>(() => new WebDavEndpoint(
+            http, TlsCertificatePolicy.Pinned, allowInsecureHttp: true));
+        Assert.ThrowsAny<ArgumentException>(() => new WebDavEndpoint(
+            http, TlsCertificatePolicy.SystemTrust, allowInsecureHttp: true,
+            clientCertificatePfxReference: SecretReference.Create()));
+        Assert.ThrowsAny<ArgumentException>(() => new WebDavEndpoint(
+            new Uri("ftp://nas.local/"), TlsCertificatePolicy.SystemTrust));
+        Assert.ThrowsAny<ArgumentException>(() => new WebDavEndpoint(
+            new Uri("https://user:secret@nas.local/"), TlsCertificatePolicy.SystemTrust));
+        Assert.ThrowsAny<ArgumentException>(() => new WebDavEndpoint(
+            new Uri("https://nas.local/?token=secret"), TlsCertificatePolicy.SystemTrust));
+        Assert.ThrowsAny<ArgumentException>(() => new WebDavEndpoint(
+            new Uri("https://nas.local/"), TlsCertificatePolicy.Unspecified));
+        Assert.ThrowsAny<ArgumentException>(() => new WebDavEndpoint(
+            new Uri("https://nas.local/"), TlsCertificatePolicy.SystemTrust,
+            clientCertificatePasswordReference: SecretReference.Create()));
+        Assert.ThrowsAny<ArgumentException>(() => new WebDavEndpoint(
+            new Uri("https://nas.local/" + new string('a', 2_100)), TlsCertificatePolicy.SystemTrust));
+    }
+
+    [Fact]
+    public void WebDav_signs_in_anonymously_or_with_a_token_only_over_basic_and_otherwise_with_a_password()
+    {
+        var basic = new WebDavEndpoint(new Uri("https://dav.example.test/"), TlsCertificatePolicy.SystemTrust);
+        var negotiate = new WebDavEndpoint(
+            new Uri("https://dav.example.test/"), TlsCertificatePolicy.SystemTrust,
+            credentialScheme: HttpCredentialScheme.Negotiate);
+        var token = new BearerTokenAuthentication(SecretReference.Create());
+
+        Assert.Equal(ConnectionProviderKind.WebDav, Create(basic, new NoAuthentication()).Provider);
+        Assert.IsType<BearerTokenAuthentication>(Create(basic, token).Authentication);
+        Assert.IsType<UsernamePasswordAuthentication>(
+            Create(negotiate, new UsernamePasswordAuthentication("operator", Password)).Authentication);
+        Assert.Throws<ArgumentException>(() => Create(negotiate, new NoAuthentication()));
+        Assert.Throws<ArgumentException>(() => Create(negotiate, token));
+        Assert.Throws<ArgumentException>(() => Create(basic, new S3DefaultCredentialChainAuthentication()));
+        Assert.ThrowsAny<ArgumentException>(() => new BearerTokenAuthentication(default));
+
+        static ConnectionProfile Create(WebDavEndpoint endpoint, ConnectionAuthentication authentication) =>
+            ConnectionProfile.Create(ConnectionProfileId.New(), Metadata("WebDAV"), endpoint, authentication,
+                OperationalOptions(), DateTimeOffset.UtcNow);
+    }
+
+    [Fact]
     public void Provider_and_endpoint_must_match()
     {
         Assert.Throws<ArgumentException>(() => ConnectionProfile.Create(
@@ -348,6 +416,9 @@ public sealed class ConnectionProfileTests
                 new SftpEndpoint("sftp.example.test", 22, SshHostKeyPolicy.Pinned),
                 new SftpPrivateKeyAuthentication("operator", SecretReference.Create(), SecretReference.Create(),
                     SftpPrivateKeyFormat.OpenSsh), OperationalOptions(), now),
+            ConnectionProfile.Create(ConnectionProfileId.New(), Metadata("WebDAV"),
+                new WebDavEndpoint(new Uri("https://dav.example.test/files/"), TlsCertificatePolicy.SystemTrust),
+                new UsernamePasswordAuthentication("operator", Password), OperationalOptions(), now),
             ConnectionProfile.Create(ConnectionProfileId.New(), Metadata("SSH"),
                 new SshClientEndpoint("ssh.example.test", 22, SshHostKeyPolicy.Pinned),
                 new UsernamePasswordAuthentication("operator", Password), OperationalOptions(), now)

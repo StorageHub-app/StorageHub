@@ -79,7 +79,12 @@ internal static class ConnectionDetailFacts
             Secret(Ui.Connections.FieldPassword, auth.PasswordReference);
             Secret(Ui.Connections.FieldAccessKey, auth.AccessKeyReference);
             Secret(Ui.Connections.FieldSecretKey, auth.SecretKeyReference);
-            Secret(Ui.Connections.FieldSessionToken, auth.SessionTokenReference);
+            // A bearer token travels in the token slot too, and is named for what it is.
+            Secret(
+                auth.Kind == ConnectionAuthenticationKind.BearerToken
+                    ? Ui.Connections.AuthBearerToken
+                    : Ui.Connections.FieldSessionToken,
+                auth.SessionTokenReference);
             Secret(Ui.Connections.FieldPrivateKey, auth.PrivateKeyReference);
             Secret(Ui.Connections.FieldKeyPassphrase, auth.PrivateKeyPassphraseReference);
         }
@@ -88,7 +93,7 @@ internal static class ConnectionDetailFacts
         {
             Section(Ui.Connections.SectionSecurity);
             foreach (var (key, value) in security) Fact(key, value);
-            if (endpoint.Provider == StorageConnectionProvider.Ftps)
+            if (endpoint.Provider is StorageConnectionProvider.Ftps or StorageConnectionProvider.WebDav)
             {
                 Secret(Ui.Connections.FieldClientCert, endpoint.ClientCertificatePfxReference);
             }
@@ -196,6 +201,20 @@ internal static class ConnectionDetailFacts
             case StorageConnectionProvider.S3:
                 rows.Add((Ui.Connections.FieldTls, DescribeTls(endpoint.TlsPolicy)));
                 break;
+            case StorageConnectionProvider.WebDav:
+                // Plain HTTP has no certificate to trust; the transport row below says so instead.
+                if (!endpoint.AllowInsecureTransport)
+                {
+                    rows.Add((Ui.Connections.FieldTls, DescribeTls(endpoint.TlsPolicy)));
+                }
+
+                rows.Add((Ui.Connections.FieldHttpSignIn, endpoint.HttpCredentialScheme switch
+                {
+                    ConnectionHttpCredentialScheme.Ntlm => "NTLM",
+                    ConnectionHttpCredentialScheme.Negotiate => "Negotiate",
+                    var scheme => scheme.ToString()
+                }));
+                break;
         }
 
         // Plain FTP has no TLS to describe, and is the one that most needs saying.
@@ -224,6 +243,7 @@ internal static class ConnectionDetailFacts
         ConnectionAuthenticationKind.S3AccessKey => Ui.Connections.AuthAccessKeyAndSecret,
         ConnectionAuthenticationKind.SftpPrivateKey => Ui.Connections.AuthPrivateKey,
         ConnectionAuthenticationKind.SshPrivateKeyPassword => Ui.Connections.AuthPrivateKeyAndPassword,
+        ConnectionAuthenticationKind.BearerToken => Ui.Connections.AuthBearerToken,
         _ => kind.ToString()
     };
 

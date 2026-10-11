@@ -1,7 +1,7 @@
 # The StorageHub test lab: real servers for the integration fixtures to talk to.
 #
 # The fixtures have always been here -- SftpProviderIntegrationTests, SshTerminalIntegrationTests,
-# FtpFtpsProviderIntegrationTests and MinioS3ProviderIntegrationTests all read their endpoints from
+# FtpFtpsProviderIntegrationTests, MinioS3ProviderIntegrationTests and WebDavProviderIntegrationTests all read their endpoints from
 # STORAGEHUB_* variables and skip when they are unset. What was never here was anything to point
 # them at, so in practice they have always skipped. This is that.
 #
@@ -131,6 +131,48 @@ services:
     ports:
       - "127.0.0.1:${STORAGEHUB_FTP_MTLS_PORT}:21"
       - "127.0.0.1:30030-30039:30030-30039"
+    volumes:
+      - ./.fixtures/tls:/tls:ro
+
+  # ---------------------------------------------------------------- WebDAV
+  # rclone serving a folder over WebDAV, once in plain HTTP and once over HTTPS with the lab's
+  # server certificate -- the same certificate the FTPS endpoints present, so one pin covers both.
+  # Two servers rather than one because the fixture asserts that TLS spoken to the plain port fails
+  # as a TLS failure, which needs a port that does not speak TLS at all.
+  #
+  # The fixture's root is "mounted", and a WebDAV root has to exist the way a mount point does, so
+  # each makes it before serving. The image's entrypoint is rclone itself, hence the shell.
+
+  webdav:
+    image: rclone/rclone:1.71.1
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >
+        mkdir -p /data/mounted &&
+        exec rclone serve webdav /data --addr :8080
+        --user "$$WEBDAV_USER" --pass "$$WEBDAV_PASSWORD"
+    environment:
+      WEBDAV_USER: "${STORAGEHUB_WEBDAV_USERNAME}"
+      WEBDAV_PASSWORD: "${STORAGEHUB_WEBDAV_PASSWORD}"
+    ports:
+      - "127.0.0.1:${STORAGEHUB_WEBDAV_PORT}:8080"
+
+  webdav-tls:
+    image: rclone/rclone:1.71.1
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >
+        mkdir -p /data/mounted &&
+        exec rclone serve webdav /data --addr :8443
+        --cert /tls/server.crt --key /tls/server.key
+        --user "$$WEBDAV_USER" --pass "$$WEBDAV_PASSWORD"
+    environment:
+      WEBDAV_USER: "${STORAGEHUB_WEBDAV_USERNAME}"
+      WEBDAV_PASSWORD: "${STORAGEHUB_WEBDAV_PASSWORD}"
+    ports:
+      - "127.0.0.1:${STORAGEHUB_WEBDAV_TLS_PORT}:8443"
     volumes:
       - ./.fixtures/tls:/tls:ro
 

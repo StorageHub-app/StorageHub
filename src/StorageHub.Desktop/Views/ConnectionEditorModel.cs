@@ -852,7 +852,7 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
 
     private static string? PinField(ConnectionEndpointDocument endpoint) => endpoint switch
     {
-        { Provider: StorageConnectionProvider.Ftps, TlsPolicy: ConnectionTlsCertificatePolicy.Pinned } =>
+        { Provider: StorageConnectionProvider.Ftps or StorageConnectionProvider.WebDav, TlsPolicy: ConnectionTlsCertificatePolicy.Pinned } =>
             "certificatePin",
         { Provider: StorageConnectionProvider.Sftp or StorageConnectionProvider.Ssh, SshHostKeyPolicy: ConnectionSshHostKeyPolicy.Pinned } =>
             HostKeyFingerprintKey,
@@ -1289,6 +1289,21 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     /// What an FTP server may need beyond where it is. Defaults suit almost every server, so the
     /// section sits last and every field starts at what it would be anyway.
     /// </summary>
+    /// <summary>
+    /// WebDAV's one timeout, which bounds each whole request: an upload's file is sent inside it, so
+    /// it is what somebody sending large files over a slow line has to raise.
+    /// </summary>
+    private IReadOnlyList<ConnectionFieldDescriptor> WebDavAdvancedFields()
+    {
+        var defaults = ConnectionDefaultSettings.Get(_provider.Kind, _connectionDefaults);
+        return
+        [
+            new(ConnectionEditorDraftFactory.ReadTimeoutKey, Ui.Connections.FieldRequestTimeout, ConnectionFieldKind.Text,
+                DefaultValue: defaults.OperationTimeoutSeconds.ToString(CultureInfo.InvariantCulture),
+                HelpText: Ui.Connections.RequestTimeoutHint)
+        ];
+    }
+
     private IReadOnlyList<ConnectionFieldDescriptor> FtpAdvancedFields()
     {
         var defaults = ConnectionDefaultSettings.Get(_provider.Kind, _connectionDefaults);
@@ -1527,6 +1542,11 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
             // The drop-down shows a name; the connection keeps the id, which a rename leaves alone.
             _values[JumpHostKey] = JumpHostName(Get(ConnectionEditorDraftFactory.JumpConnectionIdKey));
             Add(Ui.Connections.SectionAdvanced, SftpAdvancedFields(), ConnectionEditorTab.General);
+        }
+
+        if (_provider.Kind == StorageProviderKind.WebDav)
+        {
+            Add(Ui.Connections.SectionAdvanced, WebDavAdvancedFields(), ConnectionEditorTab.General);
         }
 
         // Drawn even for a provider with nothing to authenticate, as 1.x's page was: its heading and
@@ -2177,6 +2197,7 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         StorageConnectionProvider.Ftps => StorageProviderKind.Ftps,
         StorageConnectionProvider.Sftp => StorageProviderKind.Sftp,
         StorageConnectionProvider.Ssh => StorageProviderKind.Ssh,
+        StorageConnectionProvider.WebDav => StorageProviderKind.WebDav,
         _ => StorageProviderKind.S3
     };
 

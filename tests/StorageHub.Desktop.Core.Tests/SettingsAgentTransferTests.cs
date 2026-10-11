@@ -108,6 +108,37 @@ public sealed class SettingsAgentTransferTests
         Assert.True(Assert.Single(agent.Profiles.Created).IsEnabled);
     }
 
+    /// <summary>
+    /// A WebDAV server that wants no sign-in but does want a client certificate still has a vault
+    /// reference that means nothing elsewhere, so it arrives disabled like any other.
+    /// </summary>
+    [Fact]
+    public async Task AnAnonymousConnectionWithAClientCertificateFromAnotherMachineArrivesDisabled()
+    {
+        var agent = Agent();
+        var draft = new ConnectionProfileDraft(
+            new ConnectionProfileMetadataDocument("Studio files", Tags: []),
+            new ConnectionEndpointDocument(
+                StorageConnectionProvider.WebDav,
+                ServiceEndpoint: "https://dav.example.test/",
+                ClientCertificatePfxReference: "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"),
+            new ConnectionAuthenticationDocument(ConnectionAuthenticationKind.None),
+            new ConnectionOperationalOptionsDocument());
+        var document = Document() with
+        {
+            Connections = [new ConnectionExportEntry(Guid.NewGuid(), draft)]
+        };
+
+        var result = await SettingsAgentTransfer.ApplyAsync(
+            document, [SettingsSectionId.Connections], agent.Clients,
+            SettingsConflictPolicy.Skip, sameMachine: false, default);
+
+        Assert.True(Assert.Single(result.Connections).NeedsCredentials);
+        var created = Assert.Single(agent.Profiles.Created);
+        Assert.False(created.IsEnabled);
+        Assert.Equal(draft.Endpoint, created.Endpoint);
+    }
+
     [Fact]
     public async Task ASkippedConnectionIsLeftAloneButStillFoundBySyncTasks()
     {

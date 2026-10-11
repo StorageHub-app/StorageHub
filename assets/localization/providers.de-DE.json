@@ -61,5 +61,13 @@
   "theCurrentWindowsIdentityIsUsedOperations": "Die aktuelle Windows-Identität wird verwendet. Vorgänge bleiben auf den konfigurierten Stamm beschränkt.",
   "theServerCertificateMustPassHostnameAnd": "Das Serverzertifikat muss die Hostnamen- und Kettenprüfung bestehen. Eine optionale SHA-256-Anheftung bietet zusätzlichen Schutz; das PFX-Material des Clients bleibt im Tresor.",
   "updateLeftRight": "Aktualisierung links → rechts",
+  "webDavSummary": "Dateien auf einem WebDAV-Server, etwa Nextcloud, ownCloud, SharePoint oder einem NAS.",
+  "webDavTrustNotice": "Das Serverzertifikat muss die Systemprüfung bestehen oder zu einer verifizierten SHA-256-Fixierung passen. Basic-Anmeldung sendet das Kennwort mit jeder Anfrage, verwenden Sie daher HTTPS.",
+  "serverUrl": "Server-URL",
+  "webDavUrlHelp": "Die Adresse des WebDAV-Ordners einschließlich Pfad. Ein Hostname allein wird als https:// verstanden.",
+  "webDavAuthenticationHelp": "Basic, Digest, NTLM und Negotiate melden sich mit Benutzername und Kennwort an; ein Bearer-Token wird unverändert gesendet.",
+  "bearerTokenReference": "Verweis auf Bearer-Token",
+  "onlyForBearerTokenSignIn": "Nur für die Anmeldung mit Bearer-Token",
+  "webDavPlainHttpHelp": "Für einen Server, den Sie selbst im eigenen Netzwerk betreiben. Kennwort und Dateien werden unverschlüsselt übertragen.",
   "culture": "de-DE"
 }

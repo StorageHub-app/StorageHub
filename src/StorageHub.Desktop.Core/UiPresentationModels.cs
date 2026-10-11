@@ -12,7 +12,8 @@ public enum StorageProviderKind
     Ftp,
     Ftps,
     Sftp,
-    Ssh
+    Ssh,
+    WebDav
 }
 
 public enum ConnectionFieldKind
@@ -88,6 +89,19 @@ public static class ConnectionProviderCatalog
 
     private static readonly ReadOnlyCollection<string> TrustModes =
         Array.AsReadOnly(new[] { "System trust + hostname", "System trust + certificate pin" });
+
+    // WebDAV's sign-ins. The first four send the user name and password (Basic with every request,
+    // the others in answer to the server's challenge); the bearer token is sent as it is.
+    private static readonly ReadOnlyCollection<string> WebDavAuthenticationModes =
+        Array.AsReadOnly(new[]
+        {
+            ConnectionEditorDraftFactory.WebDavBasic,
+            "Digest",
+            "NTLM",
+            "Negotiate (Kerberos)",
+            ConnectionEditorDraftFactory.WebDavBearerToken,
+            ConnectionEditorDraftFactory.WebDavAnonymous
+        });
 
     private static readonly ReadOnlyCollection<string> SshClientAuthenticationModes =
         Array.AsReadOnly(new[]
@@ -244,6 +258,33 @@ public static class ConnectionProviderCatalog
             ],
             [
                 Field("hostKeyFingerprint", Ui.Providers.SSHHostKeySHA256Fingerprint, ConnectionFieldKind.Fingerprint, required: true, placeholder: "SHA256:...")
+            ]),
+        new(
+            StorageProviderKind.WebDav,
+            "WebDAV",
+            "WEBDAV",
+            "#D946EF",
+            443,
+            true,
+            Ui.Providers.WebDavSummary,
+            "https://dav.example.com/remote.php/dav/files/me/",
+            Ui.Providers.WebDavTrustNotice,
+            [
+                Field(ConnectionEditorDraftFactory.WebDavUrlKey, Ui.Providers.ServerUrl, ConnectionFieldKind.Text, required: true, placeholder: "https://dav.example.com/remote.php/dav/files/me/", help: Ui.Providers.WebDavUrlHelp),
+                Field("initialPath", Ui.Providers.InitialPath, ConnectionFieldKind.Text, defaultValue: "/")
+            ],
+            [
+                Field("authenticationMode", Ui.Providers.Authentication, ConnectionFieldKind.Choice, defaultValue: WebDavAuthenticationModes[0], choices: WebDavAuthenticationModes, help: Ui.Providers.WebDavAuthenticationHelp),
+                Field("username", "Username", ConnectionFieldKind.Text),
+                Field("passwordReference", "Password reference", ConnectionFieldKind.SecretReference, placeholder: Ui.Providers.SelectAVaultEntry),
+                Field(ConnectionEditorDraftFactory.BearerTokenKey, Ui.Providers.BearerTokenReference, ConnectionFieldKind.SecretReference, placeholder: Ui.Providers.OnlyForBearerTokenSignIn)
+            ],
+            [
+                Field("acknowledgePlaintext", Ui.Providers.AllowPlainHTTPEndpoint, ConnectionFieldKind.Toggle, defaultValue: "false", help: Ui.Providers.WebDavPlainHttpHelp),
+                Field("trustMode", Ui.Providers.ServerTrust, ConnectionFieldKind.Choice, defaultValue: TrustModes[0], choices: TrustModes),
+                Field("certificatePin", Ui.Providers.CertificateSHA256Pin, ConnectionFieldKind.Fingerprint, placeholder: Ui.Providers.OptionalVerifyOutOfBand),
+                Field("clientCertificateReference", Ui.Providers.ClientPFXCertificateReference, ConnectionFieldKind.CertificateReference, placeholder: Ui.Providers.SelectAnImportedCertificate),
+                Field("clientCertificatePasswordReference", Ui.Providers.PFXPasswordReference, ConnectionFieldKind.SecretReference, placeholder: Ui.Providers.RequiredForImportedPFX, help: Ui.Providers.StorageHubDoesNotMaterializeUnprotectedClientPrivate)
             ]),
         new(
             StorageProviderKind.Ssh,

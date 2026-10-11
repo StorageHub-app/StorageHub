@@ -250,5 +250,10 @@
   "noFreeNameForRenameFormat": "Der blev ikke fundet et ledigt navn til {0} på destinationen.",
   "transferStoppedAtExistingFile": "Overførslen blev stoppet ved en fil, der allerede findes på destinationen.",
   "thisInspectorClientDoesNotSupportAttributes": "Denne inspektørklient understøtter ikke elementattributter.",
+  "aWebDavUrlIsRequired": "Der kræves en URL til WebDAV-serveren.",
+  "theWebDavUrlIsInvalid": "WebDAV-URL'en skal være en http://- eller https://-adresse uden brugernavn, forespørgsel eller fragment.",
+  "webDavPlainHttpNeedsAcknowledgement": "En ukrypteret http://-adresse kræver \"Tillad et ukrypteret HTTP-endepunkt\" under Transport og serveridentitet.",
+  "webDavTlsNeedsHttps": "En certifikatfastlåsning eller et klientcertifikat kræver en https://-adresse.",
+  "aBearerTokenIsRequired": "Login med bearer-token kræver et bearer-token.",
   "culture": "da-DK"
 }

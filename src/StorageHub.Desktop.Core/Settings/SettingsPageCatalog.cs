@@ -827,7 +827,7 @@ internal static class SettingsPageCatalog
     /// </remarks>
     private static IEnumerable<SettingsRowDefinition> ProviderBehaviourRows(StorageProviderKind provider)
     {
-        var local = provider == StorageProviderKind.Local;
+        var ownOperationTimeout = ConnectionDefaultSettings.HasOwnOperationTimeout(provider);
         var retries = ConnectionDefaultSettings.SupportsConfigurableRetries(provider);
 
         yield return ConnectionDefaultNumber(
@@ -835,8 +835,8 @@ internal static class SettingsPageCatalog
             Ui.Settings.UnitSeconds, static defaults => defaults.ConnectTimeoutSeconds, editable: true);
         yield return ConnectionDefaultNumber(
             provider, ConnectionDefaultSettings.OperationTimeoutKey, Ui.Settings.OperationTimeout,
-            local ? null : Ui.Settings.OperationTimeoutHint, 1, 86_400,
-            Ui.Settings.UnitSeconds, static defaults => defaults.OperationTimeoutSeconds, editable: local);
+            ownOperationTimeout ? null : Ui.Settings.OperationTimeoutHint, 1, 86_400,
+            Ui.Settings.UnitSeconds, static defaults => defaults.OperationTimeoutSeconds, editable: ownOperationTimeout);
         yield return ConnectionDefaultNumber(
             provider, ConnectionDefaultSettings.RetryAttemptsKey, Ui.Settings.RetryAttempts,
             retries ? null : Ui.Settings.RetriesUnsupported, 0, 20,

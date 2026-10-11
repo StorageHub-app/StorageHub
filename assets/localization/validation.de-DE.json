@@ -250,5 +250,10 @@
   "noFreeNameForRenameFormat": "Für {0} wurde am Ziel kein freier Name gefunden.",
   "transferStoppedAtExistingFile": "Die Übertragung wurde bei einer Datei angehalten, die am Ziel bereits vorhanden ist.",
   "thisInspectorClientDoesNotSupportAttributes": "Dieser Inspektor-Client unterstützt keine Elementattribute.",
+  "aWebDavUrlIsRequired": "Eine WebDAV-Server-URL ist erforderlich.",
+  "theWebDavUrlIsInvalid": "Die WebDAV-URL muss eine http://- oder https://-Adresse ohne Benutzername, Abfrage oder Fragment sein.",
+  "webDavPlainHttpNeedsAcknowledgement": "Eine unverschlüsselte http://-Adresse erfordert „Unverschlüsselten HTTP-Endpunkt zulassen“ unter Transport und Serveridentität.",
+  "webDavTlsNeedsHttps": "Eine Zertifikatsfixierung oder ein Clientzertifikat erfordert eine https://-Adresse.",
+  "aBearerTokenIsRequired": "Für die Anmeldung mit Bearer-Token ist ein Bearer-Token erforderlich.",
   "culture": "de-DE"
 }

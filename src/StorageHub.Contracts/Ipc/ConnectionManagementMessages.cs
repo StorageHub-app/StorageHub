@@ -57,6 +57,16 @@ public enum ConnectionSshHostKeyPolicy
     TrustOnFirstUse = 2
 }
 
+/// <summary>How a WebDAV server takes a user name and password; only WebDAV sets anything but Basic.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<ConnectionHttpCredentialScheme>))]
+public enum ConnectionHttpCredentialScheme
+{
+    Basic = 1,
+    Digest = 2,
+    Ntlm = 3,
+    Negotiate = 4
+}
+
 [JsonConverter(typeof(JsonStringEnumConverter<ConnectionFtpsTlsMode>))]
 public enum ConnectionFtpsTlsMode
 {
@@ -133,7 +143,14 @@ public enum ConnectionAuthenticationKind
     UsernamePassword = 4,
     S3AccessKey = 5,
     SftpPrivateKey = 6,
-    SshPrivateKeyPassword = 7
+    SshPrivateKeyPassword = 7,
+
+    /// <summary>
+    /// An HTTP bearer token, for WebDAV. The token's vault reference travels in
+    /// <see cref="ConnectionAuthenticationDocument.SessionTokenReference"/>, the document's slot for a
+    /// token, so no new field can be filled for any other kind.
+    /// </summary>
+    BearerToken = 8
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<ConnectionSftpPrivateKeyFormat>))]
@@ -201,6 +218,11 @@ public sealed record ConnectionProfileMetadataDocument(
 /// A provider-discriminated endpoint document. The agent rejects values in fields that do not
 /// belong to the selected provider, so unused strings cannot be used to smuggle secret material.
 /// </summary>
+/// <remarks>
+/// WebDAV's URL travels in <see cref="ServiceEndpoint"/>, path and all, and plain HTTP in
+/// <see cref="AllowInsecureTransport"/>, as S3's do; its certificate trust and client certificate
+/// use the same fields as FTPS.
+/// </remarks>
 public sealed record ConnectionEndpointDocument(
     StorageConnectionProvider Provider,
     string? RootPath = null,
@@ -217,9 +239,12 @@ public sealed record ConnectionEndpointDocument(
     string? ClientCertificatePasswordReference = null,
     ConnectionSshHostKeyPolicy SshHostKeyPolicy = ConnectionSshHostKeyPolicy.Pinned,
     ConnectionFtpOptionsDocument? Ftp = null,
-    ConnectionSftpOptionsDocument? Sftp = null)
+    ConnectionSftpOptionsDocument? Sftp = null,
+    ConnectionHttpCredentialScheme HttpCredentialScheme = ConnectionHttpCredentialScheme.Basic)
 {
     public bool HasValidBounds =>
+        Enum.IsDefined(HttpCredentialScheme) &&
+        (HttpCredentialScheme == ConnectionHttpCredentialScheme.Basic || Provider == StorageConnectionProvider.WebDav) &&
         (Ftp is null || Ftp.HasValidBounds &&
             Provider is StorageConnectionProvider.Ftp or StorageConnectionProvider.Ftps) &&
         (Sftp is null || Sftp.HasValidBounds && Provider == StorageConnectionProvider.Sftp) &&
@@ -277,6 +302,12 @@ public sealed record ConnectionEndpointDocument(
             Empty(ClientCertificatePfxReference) && Empty(ClientCertificatePasswordReference) &&
             TlsPolicy == ConnectionTlsCertificatePolicy.SystemTrust &&
             FtpsTlsMode == ConnectionFtpsTlsMode.Explicit,
+        StorageConnectionProvider.WebDav =>
+            Present(ServiceEndpoint) && Empty(Host) && Port is null && Empty(Bucket) && Empty(Region) &&
+            !ForcePathStyle &&
+            (!Empty(ClientCertificatePasswordReference) ? !Empty(ClientCertificatePfxReference) : true) &&
+            FtpsTlsMode == ConnectionFtpsTlsMode.Explicit &&
+            SshHostKeyPolicy == ConnectionSshHostKeyPolicy.Pinned,
         _ => false
     };
 
@@ -347,6 +378,9 @@ public sealed record ConnectionAuthenticationDocument(
             ConnectionAuthenticationKind.SshPrivateKeyPassword =>
                 hasUsername && !hasCredential && hasPassword && !hasAccess && !hasSecret &&
                 !hasToken && hasKey,
+            ConnectionAuthenticationKind.BearerToken =>
+                !hasUsername && !hasCredential && !hasPassword && !hasAccess && !hasSecret &&
+                hasToken && !hasKey && !hasPassphrase,
             _ => false
         };
     }
@@ -420,6 +454,10 @@ public sealed record ConnectionProfileDraft(
         StorageConnectionProvider.Sftp or StorageConnectionProvider.Ssh => Authentication.Kind is
             ConnectionAuthenticationKind.UsernamePassword or ConnectionAuthenticationKind.SftpPrivateKey or
             ConnectionAuthenticationKind.SshPrivateKeyPassword,
+        // Digest, NTLM and Negotiate answer a challenge with a user name and password.
+        StorageConnectionProvider.WebDav => Authentication.Kind == ConnectionAuthenticationKind.UsernamePassword ||
+            (Authentication.Kind is ConnectionAuthenticationKind.None or ConnectionAuthenticationKind.BearerToken &&
+                Endpoint.HttpCredentialScheme == ConnectionHttpCredentialScheme.Basic),
         _ => false
     };
 }

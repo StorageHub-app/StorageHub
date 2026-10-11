@@ -134,7 +134,7 @@ public class ConnectionManagerTests
     /// one too, for its jump host, sessions and algorithms, every field starting empty.
     /// </summary>
     [AvaloniaFact]
-    public void OnlyFtpAndSftpHaveAdvancedSettings()
+    public void OnlyFtpSftpAndWebDavHaveAdvancedSettings()
     {
         var editor = new ConnectionEditorModel(() => Controller(new FakeProfiles()));
 
@@ -157,6 +157,13 @@ public class ConnectionManagerTests
                 Assert.All(
                     advanced.Fields.Where(f => f.Key != ConnectionEditorModel.JumpHostKey),
                     f => Assert.Equal(string.Empty, f.Value));
+            }
+            else if (provider.Kind == StorageProviderKind.WebDav)
+            {
+                // WebDAV's one timeout bounds a whole request, so it is all its Advanced section has.
+                var field = Assert.Single(advanced!.Fields);
+                Assert.Equal(ConnectionEditorDraftFactory.ReadTimeoutKey, field.Key);
+                Assert.Equal("600", field.Value);
             }
             else
             {
@@ -1178,6 +1185,53 @@ public class ConnectionManagerTests
             var shot = window.CaptureRenderedFrame();
             Assert.NotNull(shot);
             using var stream = File.Create(Path.Combine(sources, name + ".png"));
+            shot!.Save(stream, new PngBitmapEncoderOptions());
+        }
+    }
+
+    /// <summary>
+    /// Photographs the editor with WebDAV chosen: the URL on General with the request timeout under
+    /// Advanced, the sign-in modes on Authentication, and the certificate pin on the trust tab.
+    /// </summary>
+    /// <remarks>Set STORAGEHUB_SHOT_DIR to keep the files.</remarks>
+    [AvaloniaFact]
+    public async Task TheWebDavEditorCanBePhotographed()
+    {
+        ColorSchemeApplier.Apply(
+            global::Avalonia.Application.Current!,
+            ColorSchemeCatalog.Resolve(id: null, preferDark: false));
+        var manager = new ConnectionManagerModel(
+            () => Controller(new FakeProfiles()),
+            keyStore: () => new KeyStoreTests.StubKeyStoreAgent());
+        await manager.OpenAsync(null, cancellationToken: TestContext.Current.CancellationToken);
+        var window = new ConnectionManagerWindow { DataContext = manager };
+        window.Show();
+
+        manager.Editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.WebDav);
+        Name(manager.Editor, "Studio files");
+        Field(manager.Editor, "url").Value = "https://dav.example.test/remote.php/dav/files/me/";
+        Field(manager.Editor, "username").Value = "operator";
+        Field(manager.Editor, "trustMode").Value = "System trust + certificate pin";
+        Field(manager.Editor, "certificatePin").Value = new string('A', 64);
+        Assert.Equal("600", Field(manager.Editor, ConnectionEditorDraftFactory.ReadTimeoutKey).Value);
+
+        var directory = Environment.GetEnvironmentVariable("STORAGEHUB_SHOT_DIR");
+        Shoot(ConnectionEditorTab.General, "webdav-general", 1250);
+        Shoot(ConnectionEditorTab.Authentication, "webdav-authentication", 760);
+        Shoot(ConnectionEditorTab.Trust, "webdav-trust", 760);
+
+        void Shoot(ConnectionEditorTab tab, string name, int height)
+        {
+            window.FindControl<TabControl>("PART_Tabs")!.SelectedIndex = (int)tab;
+            window.Measure(new Size(880, height));
+            window.Arrange(new Rect(0, 0, 880, height));
+            window.UpdateLayout();
+            var shot = window.CaptureRenderedFrame();
+            Assert.NotNull(shot);
+            if (string.IsNullOrWhiteSpace(directory)) return;
+
+            Directory.CreateDirectory(directory);
+            using var stream = File.Create(Path.Combine(directory, $"connection-editor-{name}.png"));
             shot!.Save(stream, new PngBitmapEncoderOptions());
         }
     }

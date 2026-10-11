@@ -2438,6 +2438,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         StorageConnectionProvider.S3 => StorageProviderKind.S3,
         StorageConnectionProvider.Ftp => StorageProviderKind.Ftp,
         StorageConnectionProvider.Ftps => StorageProviderKind.Ftps,
+        StorageConnectionProvider.WebDav => StorageProviderKind.WebDav,
         StorageConnectionProvider.Sftp => StorageProviderKind.Sftp,
         StorageConnectionProvider.Ssh => StorageProviderKind.Ssh,
         _ => StorageProviderKind.Local

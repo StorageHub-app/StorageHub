@@ -258,5 +258,9 @@
   "lastCheckHealthyFormat": "Sund på {0} ms, {1}",
   "lastCheckFailedFormat": "Mislykkedes ({0}), {1}",
   "detailDescribeHint": "Forbind og vis, hvad serveren viser, kører og har forhandlet",
+  "authBearerToken": "Bearer-token",
+  "fieldHttpSignIn": "HTTP-login",
+  "fieldRequestTimeout": "Tidsgrænse for forespørgsel",
+  "requestTimeoutHint": "I sekunder, for hver hel forespørgsel, inklusive filen ved en upload. Hæv den til store filer på en langsom forbindelse.",
   "culture": "da-DK"
 }

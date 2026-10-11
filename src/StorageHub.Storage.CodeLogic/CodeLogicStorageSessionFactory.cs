@@ -139,6 +139,8 @@ public sealed class CodeLogicStorageSessionFactory(StorageLibrary library)
                 profileId, rootIdentity, ftp, cancellationToken, runtimeResources),
             SftpConnectionConfig sftp => RegisterCoreAsync(
                 profileId, rootIdentity, sftp, cancellationToken, runtimeResources),
+            WebDavConnectionConfig webDav => RegisterCoreAsync(
+                profileId, rootIdentity, webDav, cancellationToken, runtimeResources),
             _ => ValueTask.FromResult(StorageResult<RuntimeStorageConnection>.Fail(new StorageFailure(
                 "storage.profile.unsupported",
                 StorageFailureKind.Unsupported,

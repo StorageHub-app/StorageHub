@@ -363,6 +363,8 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
                 SftpEndpoint sftp => await BuildSftpAsync(
                     profile, sftp, runtimeResources, rootIdentityEvidence, cancellationToken)
                     .ConfigureAwait(false),
+                WebDavEndpoint webDav => await BuildWebDavAsync(
+                    profile, webDav, rootIdentityEvidence, cancellationToken).ConfigureAwait(false),
                 _ => throw new UnsupportedProfileException("The connection provider is not supported by this adapter.")
             };
 
@@ -795,6 +797,100 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
         return (StrictUtf8.GetString(lease.Memory.Span), passphrase);
     }
 
+    /// <summary>
+    /// A WebDAV server, its certificate trusted the way an FTPS server's is: by the system, or by
+    /// the fingerprints pinned for the URL's host and port, which CL.Storage then accepts even for a
+    /// self-signed certificate, as it does for FTPS.
+    /// </summary>
+    /// <remarks>
+    /// A client certificate is handed over as bytes rather than written to a file: WebDAV's
+    /// configuration takes the PFX itself, so nothing is materialised on disk for it at all.
+    /// </remarks>
+    private async ValueTask<WebDavConnectionConfig> BuildWebDavAsync(
+        ConnectionProfile profile,
+        WebDavEndpoint endpoint,
+        RootIdentityEvidence rootIdentityEvidence,
+        CancellationToken cancellationToken)
+    {
+        if (endpoint.TlsPolicy == TlsCertificatePolicy.TrustOnFirstUse)
+        {
+            throw new UnsupportedProfileException(
+                "Trust-on-first-use certificate capture is unavailable; verify and pin the certificate explicitly.");
+        }
+
+        var configuration = new WebDavConnectionConfig
+        {
+            Enabled = true,
+            Endpoint = endpoint.ServerUrl.AbsoluteUri,
+            Root = endpoint.RootPath,
+            AllowInsecureHttp = endpoint.AllowInsecureHttp,
+            // One HTTP timeout bounds a whole request, an upload's body included, so it is the
+            // operation timeout rather than the connect one.
+            TimeoutSeconds = OperationTimeoutSeconds(profile),
+            Retry = LibraryRetry(profile),
+            TrustedCertificateSha256 = endpoint.TlsPolicy == TlsCertificatePolicy.SystemTrust
+                ? []
+                : await GetTrustedFingerprintsAsync(
+                    TrustArtifactKind.TlsCertificate,
+                    endpoint.Host,
+                    endpoint.Port,
+                    "webdav.server-certificate",
+                    rootIdentityEvidence,
+                    cancellationToken).ConfigureAwait(false)
+        };
+
+        switch (profile.Authentication)
+        {
+            case NoAuthentication:
+                configuration.AuthenticationMode = WebDavAuthenticationMode.None;
+                break;
+            case UsernamePasswordAuthentication password:
+                configuration.AuthenticationMode = endpoint.CredentialScheme switch
+                {
+                    HttpCredentialScheme.Digest => WebDavAuthenticationMode.Digest,
+                    HttpCredentialScheme.Ntlm => WebDavAuthenticationMode.Ntlm,
+                    HttpCredentialScheme.Negotiate => WebDavAuthenticationMode.Negotiate,
+                    _ => WebDavAuthenticationMode.Basic
+                };
+                configuration.Username = password.Username;
+                configuration.Password = await OpenTextSecretAsync(
+                    password.PasswordReference,
+                    "webdav.password",
+                    rootIdentityEvidence,
+                    cancellationToken).ConfigureAwait(false);
+                break;
+            case BearerTokenAuthentication bearer:
+                configuration.AuthenticationMode = WebDavAuthenticationMode.BearerToken;
+                configuration.BearerToken = await OpenTextSecretAsync(
+                    bearer.TokenReference,
+                    "webdav.bearer-token",
+                    rootIdentityEvidence,
+                    cancellationToken).ConfigureAwait(false);
+                break;
+            default:
+                throw new UnsupportedProfileException("The selected WebDAV authentication mode is unsupported.");
+        }
+
+        if (endpoint.ClientCertificatePfxReference is { } pfxReference)
+        {
+            await using (var lease = await _secretVault.OpenAsync(pfxReference, cancellationToken).ConfigureAwait(false))
+            {
+                rootIdentityEvidence.AddSecret("webdav.client-certificate", pfxReference, lease.Version);
+                configuration.ClientCertificateContent = lease.Memory.ToArray();
+            }
+
+            configuration.ClientCertificatePassword = endpoint.ClientCertificatePasswordReference is { } passwordReference
+                ? await OpenTextSecretAsync(
+                    passwordReference,
+                    "webdav.client-certificate-password",
+                    rootIdentityEvidence,
+                    cancellationToken).ConfigureAwait(false)
+                : null;
+        }
+
+        return configuration;
+    }
+
     private static FtpConnectionConfig BuildFtpBase(
         ConnectionProfile profile,
         string host,
@@ -978,6 +1074,7 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
                     "Active FTP cannot go through a proxy: the server would connect back around it. Use passive mode."),
             FtpConnectionConfig ftp => ftp.Proxy,
             SftpConnectionConfig sftp => sftp.Proxy,
+            WebDavConnectionConfig webDav => webDav.Proxy,
             _ => throw new UnsupportedProfileException("A local connection cannot use a proxy.")
         };
 
@@ -1055,6 +1152,11 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
             case SftpEndpoint sftp:
                 AppendNetworkNamespace(hash, sftp.Host, sftp.Port, sftp.RootPath);
                 break;
+            case WebDavEndpoint webDav:
+                // The URL's path is part of where the files are, not only its host and port.
+                AppendIdentityValue(hash, webDav.ServerUrl.AbsoluteUri);
+                AppendIdentityValue(hash, webDav.RootPath);
+                break;
         }
 
         switch (profile.Authentication)
@@ -1075,6 +1177,9 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
                 break;
             case S3AccessKeyAuthentication:
                 AppendIdentityValue(hash, "s3-static-credentials");
+                break;
+            case BearerTokenAuthentication:
+                AppendIdentityValue(hash, "bearer-token");
                 break;
             case SftpPrivateKeyAuthentication privateKey:
                 AppendIdentityValue(hash, "sftp-private-key");
@@ -1234,6 +1339,18 @@ internal sealed class PreparedCodeLogicConnection(
                     jump.Password = null;
                     jump.PrivateKeyContent = null;
                     jump.PrivateKeyPassphrase = null;
+                }
+
+                break;
+            case WebDavConnectionConfig webDav:
+                webDav.Password = null;
+                webDav.BearerToken = null;
+                webDav.ClientCertificatePassword = null;
+                // CL.Storage registers a copy, serialised and read back, so this array is ours alone.
+                if (webDav.ClientCertificateContent is { } content)
+                {
+                    CryptographicOperations.ZeroMemory(content);
+                    webDav.ClientCertificateContent = null;
                 }
 
                 break;

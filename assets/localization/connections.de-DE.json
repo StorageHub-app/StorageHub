@@ -258,5 +258,9 @@
   "lastCheckHealthyFormat": "In Ordnung nach {0} ms, {1}",
   "lastCheckFailedFormat": "Fehlgeschlagen ({0}), {1}",
   "detailDescribeHint": "Verbinden und anzeigen, was der Server vorlegt, ausführt und ausgehandelt hat",
+  "authBearerToken": "Bearer-Token",
+  "fieldHttpSignIn": "HTTP-Anmeldung",
+  "fieldRequestTimeout": "Anfrage-Zeitlimit",
+  "requestTimeoutHint": "In Sekunden, für jede ganze Anfrage einschließlich der Datei beim Hochladen. Erhöhen Sie den Wert für große Dateien auf einer langsamen Leitung.",
   "culture": "de-DE"
 }
