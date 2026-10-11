@@ -38,8 +38,11 @@ internal static class DesktopCulture
     /// Also what gets written into the framework's supportedCultures, because CodeLogic scaffolds
     /// that list with en-US alone and only generates and loads the cultures named in it.
     /// </remarks>
-    internal static IReadOnlyList<string> SupportedCultures { get; } = 
-    [DefaultCulture, "da-DK", "de-DE", "ru-RU", "vi-VN"];
+    internal static IReadOnlyList<string> SupportedCultures { get; } =
+    [
+        DefaultCulture,
+        "da-DK", "de-DE", "es-ES", "fr-FR", "ja-JP", "pt-BR", "ru-RU", "vi-VN", "zh-CN"
+    ];
 
     /// <summary>
     /// Whether a language is written right to left, so the shell mirrors its layout for it.
