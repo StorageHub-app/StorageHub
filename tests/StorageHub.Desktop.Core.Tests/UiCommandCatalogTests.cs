@@ -56,6 +56,8 @@ public sealed class UiCommandCatalogTests
         ("Connections", "Reconnect"),
         ("Connections", "Disconnect"),
         ("Connections", "Test Connection"),
+        // Not 1.4's: added in 2.0, under the id its label gives.
+        ("Connections", "FTP Console..."),
         ("Transfer", "Start Queue"),
         ("Transfer", "Pause All"),
         ("Transfer", "Resume All"),

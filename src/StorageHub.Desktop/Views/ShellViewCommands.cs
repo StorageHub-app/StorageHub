@@ -254,6 +254,14 @@ internal static class ShellViewCommands
         router.Handle(UiCommandIds.ConnectionsTestConnection, () => _ = TestAsync(model));
         router.When(UiCommandIds.ConnectionsTestConnection, () => TestTarget(model) is not null);
 
+        // The FTP command console, on the active pane's connection when it is FTP or FTPS; the
+        // window is App's to open, as the pane's own menu entry also asks it to.
+        router.Handle(UiCommandIds.ConnectionsFtpConsole, () =>
+        {
+            if (model.FtpConsoleTarget() is { } pane) model.OpenFtpConsole?.Invoke(pane);
+        });
+        router.When(UiCommandIds.ConnectionsFtpConsole, () => model.FtpConsoleTarget() is not null);
+
         FollowThePanes(model, toggles);
 
         void Pane(string id, Func<BrowserPaneModel, bool> can, Action<BrowserPaneModel> run)

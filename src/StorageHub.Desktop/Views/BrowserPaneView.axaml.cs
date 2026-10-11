@@ -292,6 +292,19 @@ public partial class BrowserPaneView : UserControl
             : this.FindControl<Control>("PART_Header") ?? this);
     }
 
+    /// <summary>
+    /// Pane actions, FTP Command Console: opened on this pane's connection, which is not always
+    /// the active pane's -- the menu belongs to the pane it hangs from.
+    /// </summary>
+    private void OnFtpConsole(object? sender, RoutedEventArgs e)
+    {
+        if (Model is { IsFtpConnection: true } pane &&
+            TopLevel.GetTopLevel(this)?.DataContext is ShellPreviewModel shell)
+        {
+            shell.OpenFtpConsole?.Invoke(pane);
+        }
+    }
+
     private void OnFocusAddress(object? sender, EventArgs e)
     {
         if (this.FindControl<TextBox>("PART_Address") is not { } address) return;

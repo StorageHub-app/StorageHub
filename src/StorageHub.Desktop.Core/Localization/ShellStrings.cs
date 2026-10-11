@@ -641,6 +641,68 @@ internal sealed class ShellStrings : LocalizationModelBase
 
     public string ChecksumNoneRead { get; set; } = "No checksum could be read.";
 
+    public string FtpConsoleTitleFormat { get; set; } = "FTP Command Console — {0}";
+
+    public string FtpConsoleIntro { get; set; } =
+        "Commands go to the server one at a time, each on a short connection of its own, and the reply is shown below. Listings and transfers stay in the panes.";
+
+    public string FtpConsoleCommandLabel { get; set; } = "Command:";
+
+    public string FtpConsoleCommandHint { get; set; } =
+        "SYST, FEAT, STAT, SITE CHMOD 644 file.txt… Up and Down go through earlier commands";
+
+    public string FtpConsoleTranscript { get; set; } = "Transcript";
+
+    public string FtpConsoleSend { get; set; } = "Send";
+
+    public string FtpConsoleClear { get; set; } = "Clear";
+
+    public string FtpConsoleCopy { get; set; } = "Copy transcript";
+
+    public string FtpConsoleCopied { get; set; } = "Transcript copied.";
+
+    public string FtpConsoleReady { get; set; } = "Type a command and press Enter.";
+
+    public string FtpConsoleSending { get; set; } = "Waiting for the server…";
+
+    public string FtpConsoleRepliedFormat { get; set; } = "The server answered {0}.";
+
+    public string FtpConsoleNotSent { get; set; } = "Not sent.";
+
+    public string FtpConsoleRefusedDataConnection { get; set; } =
+        "Not sent: this command opens a data connection. Use the panes for listings and transfers.";
+
+    public string FtpConsoleRefusedLogin { get; set; } =
+        "Not sent: the connection logs in with its saved account, and the console does not log in or out.";
+
+    public string FtpConsoleRefusedSecurity { get; set; } = "Not sent: TLS is set by the connection's settings.";
+
+    public string FtpConsoleRefusedSessionSetting { get; set; } =
+        "Not sent: each command runs on a session of its own, so a setting such as CWD or TYPE would not last. Use the address bar to change folder.";
+
+    public string FtpConsoleRefusedMalformed { get; set; } =
+        "Not sent: a command is one line of at most 512 characters, starting with its verb.";
+
+    public string FtpConsoleTruncated { get; set; } = "(The reply was cut short at 16,384 characters.)";
+
+    public string FtpConsoleTimedOut { get; set; } = "The server did not answer in time.";
+
+    public string FtpConsoleUnavailable { get; set; } = "The server could not be reached, or it closed the connection.";
+
+    public string FtpConsoleUnauthorized { get; set; } =
+        "The server refused the saved account, or the connection is disabled.";
+
+    public string FtpConsoleSecurity { get; set; } =
+        "The connection needs a trust decision first; test it from the connections panel.";
+
+    public string FtpConsoleNotFound { get; set; } = "The saved connection was not found.";
+
+    public string FtpConsoleUnsupported { get; set; } = "Only FTP and FTPS connections take raw commands.";
+
+    public string FtpConsoleFailed { get; set; } = "The command could not be sent.";
+
+    public string FtpConsoleAgentUnavailable { get; set; } = "The background agent could not be reached.";
+
     public string DiagnosticsTitle { get; set; } = "Diagnostics";
 
     public string DiagnosticsIntro { get; set; } =

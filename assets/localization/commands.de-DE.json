@@ -125,5 +125,7 @@
   "helpAboutStorageHubDescription": "Zeigen Sie die Version und Programminformationen von StorageHub an.",
   "toolsCleanUpLeftovers": "Zurückgebliebene Dateien bereinigen...",
   "toolsCleanUpLeftoversDescription": "Finden Sie die Arbeitsdateien, die unterbrochene Übertragungen und der externe Editor hinterlassen haben, und entfernen Sie die ausgewählten.",
+  "connectionsFtpConsole": "FTP-Befehlskonsole…",
+  "connectionsFtpConsoleDescription": "Rohe Befehle an den FTP- oder FTPS-Server des aktiven Bereichs senden und seine Antworten lesen.",
   "culture": "de-DE"
 }

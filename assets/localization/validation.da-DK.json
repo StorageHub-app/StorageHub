@@ -290,5 +290,8 @@
   "aKeystoneProjectIsRequired": "Et Keystone-projekt er påkrævet.",
   "aSwiftTokenIsRequired": "Et token er påkrævet ved login med udstedt token.",
   "thisTransferClientDoesNotSupportPausing": "Denne overførselsklient understøtter ikke at sætte overførsler på pause.",
+  "theFtpConsoleRequestTimedOut": "FTP-kommandoen fik ikke svar i tide.",
+  "theAgentReturnedAnInvalidFtpReply": "Baggrundsagenten returnerede et ugyldigt FTP-svar.",
+  "theFtpConsoleRequestIsInvalid": "Anmodningen med FTP-kommandoen er ugyldig.",
   "culture": "da-DK"
 }

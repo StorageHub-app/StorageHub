@@ -673,4 +673,11 @@ internal sealed class ValidationStrings : LocalizationModelBase
 
     public string ALeftoverCouldNotBeRemoved { get; set; } =
         "It could not be removed. It may be open in another program.";
+
+    public string TheFtpConsoleRequestTimedOut { get; set; } = "The FTP command got no answer in time.";
+
+    public string TheAgentReturnedAnInvalidFtpReply { get; set; } =
+        "The background agent returned an invalid FTP reply.";
+
+    public string TheFtpConsoleRequestIsInvalid { get; set; } = "The FTP command request is invalid.";
 }

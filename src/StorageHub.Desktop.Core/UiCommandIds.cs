@@ -56,6 +56,7 @@ internal static class UiCommandIds
     internal const string ConnectionsReconnect = "connections.reconnect";
     internal const string ConnectionsDisconnect = "connections.disconnect";
     internal const string ConnectionsTestConnection = "connections.test-connection";
+    internal const string ConnectionsFtpConsole = "connections.ftp-console";
     internal const string TransferStartQueue = "transfer.start-queue";
     internal const string TransferPauseAll = "transfer.pause-all";
     internal const string TransferResumeAll = "transfer.resume-all";

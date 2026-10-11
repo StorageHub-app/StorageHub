@@ -372,6 +372,14 @@ internal static class UiCommandCatalog
             UiGlyph.Test,
             UiIconTone.Success),
         new(
+            UiCommandIds.ConnectionsFtpConsole,
+            UiMenuId.Connections,
+            static strings => strings.ConnectionsFtpConsole,
+            static strings => strings.ConnectionsFtpConsoleDescription,
+            null,
+            UiGlyph.Terminal,
+            UiIconTone.Text),
+        new(
             UiCommandIds.TransferStartQueue,
             UiMenuId.Transfer,
             static strings => strings.TransferStartQueue,
@@ -647,6 +655,7 @@ internal static class UiCommandCatalog
         UiCommandIds.ConnectionsReconnect or
         UiCommandIds.ConnectionsDisconnect or
         UiCommandIds.ConnectionsTestConnection or
+        UiCommandIds.ConnectionsFtpConsole or
         UiCommandIds.ToolsBackgroundAgent or
         UiCommandIds.ToolsCleanUpLeftovers or
         UiCommandIds.SyncReviewRun or

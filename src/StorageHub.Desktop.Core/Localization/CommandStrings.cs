@@ -176,6 +176,11 @@ internal sealed class CommandStrings : LocalizationModelBase
 
     public string ConnectionsTestConnectionDescription { get; set; } = "Check that the selected profile can reach its endpoint.";
 
+    public string ConnectionsFtpConsole { get; set; } = "FTP Command Console…";
+
+    public string ConnectionsFtpConsoleDescription { get; set; } =
+        "Send raw commands to the active pane's FTP or FTPS server and read its replies.";
+
     public string TransferStartQueue { get; set; } = "Start Queue";
 
     public string TransferStartQueueDescription { get; set; } = "Start queued transfers.";

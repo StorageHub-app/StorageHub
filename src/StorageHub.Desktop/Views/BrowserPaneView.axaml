@@ -63,6 +63,16 @@
                           IsEnabled="{Binding IsListing}"
                           IsChecked="{Binding ShowTree, Mode=TwoWay}"/>
                 <Separator/>
+                <!-- What Connections > FTP Command Console opens, lit only on an FTP or FTPS connection. -->
+                <MenuItem x:Name="PART_FtpConsole"
+                          Header="{Binding FtpConsoleLabel}"
+                          IsEnabled="{Binding IsFtpConnection}"
+                          Click="OnFtpConsole">
+                  <MenuItem.Icon>
+                    <LucideIcon Kind="Terminal" Size="{StaticResource IconSizeSm}"/>
+                  </MenuItem.Icon>
+                </MenuItem>
+                <Separator/>
                 <MenuItem Header="{Binding MoveOrSwapLabel}"
                           IsEnabled="{Binding HasMoveTargets}"
                           ItemsSource="{Binding MoveTargets}">

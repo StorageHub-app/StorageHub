@@ -1,0 +1,90 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
+        x:Class="StorageHub.Desktop.Views.FtpConsoleWindow"
+        x:DataType="vm:FtpConsoleModel"
+        Title="{Binding Title}"
+        Width="820" Height="520"
+        MinWidth="560" MinHeight="340"
+        WindowStartupLocation="CenterOwner">
+
+  <!--
+    What the console does, once; the transcript, in the mono face so a multi-line reply's columns
+    stay put, with what was sent picked out and failure codes in the danger colour; then the
+    command line with Send, and the status with Copy, Clear and Close.
+  -->
+
+  <!--
+    The theme's tones on the transcript's lines, which are selectable and so not the TextBlock the
+    shared .status styles match: a command sent in the primary colour, a 4xx or 5xx reply in the
+    danger colour, and the console's own notes in the warning colour.
+  -->
+  <Window.Styles>
+    <Style Selector="SelectableTextBlock.sent">
+      <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+    <Style Selector="SelectableTextBlock.failed">
+      <Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/>
+    </Style>
+    <Style Selector="SelectableTextBlock.note">
+      <Setter Property="Foreground" Value="{DynamicResource WarningBrush}"/>
+    </Style>
+  </Window.Styles>
+
+  <Border Classes="surface">
+    <DockPanel Margin="{StaticResource PaddingLg}">
+
+      <TextBlock DockPanel.Dock="Top" Classes="caption" Text="{x:Static vm:FtpConsoleModel.Intro}"
+                 TextWrapping="Wrap" Margin="0,0,0,8"/>
+
+      <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto,Auto,Auto"
+            ColumnSpacing="{StaticResource SpaceSm}" Margin="0,8,0,0">
+        <TextBlock Grid.Column="0" Classes="status"
+                   Classes.success="{Binding Status.IsSuccess}"
+                   Classes.warning="{Binding Status.IsWarning}"
+                   Classes.danger="{Binding Status.IsDanger}"
+                   Text="{Binding Status.Text}" TextWrapping="Wrap"
+                   VerticalAlignment="Center"/>
+        <Button Grid.Column="1" Content="{x:Static vm:FtpConsoleModel.CopyLabel}"
+                Command="{Binding CopyCommand}"/>
+        <Button Grid.Column="2" Content="{x:Static vm:FtpConsoleModel.ClearLabel}"
+                Command="{Binding ClearCommand}"/>
+        <Button Grid.Column="3" Content="{x:Static vm:FtpConsoleModel.CloseLabel}"
+                Click="OnClose" IsCancel="True"/>
+      </Grid>
+
+      <Grid DockPanel.Dock="Bottom" ColumnDefinitions="Auto,*,Auto"
+            ColumnSpacing="{StaticResource SpaceSm}" Margin="0,8,0,0">
+        <TextBlock Grid.Column="0" Text="{x:Static vm:FtpConsoleModel.CommandLabel}" VerticalAlignment="Center"/>
+        <!-- Read-only rather than disabled while a reply is awaited, so the caret stays here. -->
+        <TextBox Grid.Column="1" x:Name="PART_Command"
+                 Text="{Binding Command, Mode=TwoWay}"
+                 IsReadOnly="{Binding IsBusy}"
+                 FontFamily="{DynamicResource AppFontMono}"
+                 MaxLength="512"
+                 PlaceholderText="{x:Static vm:FtpConsoleModel.CommandHint}"
+                 AutomationProperties.Name="{x:Static vm:FtpConsoleModel.CommandLabel}"/>
+        <Button Grid.Column="2" Classes="primary" Content="{x:Static vm:FtpConsoleModel.SendLabel}"
+                Command="{Binding SendCommand}"/>
+      </Grid>
+
+      <Border Classes="card" Padding="{StaticResource PaddingMd}">
+        <ScrollViewer x:Name="PART_Scroller" HorizontalScrollBarVisibility="Auto"
+                      AutomationProperties.Name="{x:Static vm:FtpConsoleModel.TranscriptLabel}">
+          <ItemsControl ItemsSource="{Binding Transcript}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate DataType="vm:FtpConsoleLine">
+                <SelectableTextBlock Classes.sent="{Binding IsSent}"
+                                     Classes.failed="{Binding IsFailed}"
+                                     Classes.note="{Binding IsNote}"
+                                     FontFamily="{DynamicResource AppFontMono}"
+                                     Text="{Binding Text}"/>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </Border>
+    </DockPanel>
+  </Border>
+</Window>
