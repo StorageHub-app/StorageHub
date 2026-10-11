@@ -124,7 +124,10 @@ public sealed class IpcContractTests
         Assert.True(draft.HasValidBounds);
         Assert.False((authentication with { PasswordReference = null }).HasValidBounds);
         Assert.False((authentication with { PrivateKeyReference = null }).HasValidBounds);
-        Assert.False((draft with
+
+        // An SFTP connection takes the key and the account password too, as a server that asks for
+        // both is reached over SFTP as often as over a shell.
+        Assert.True((draft with
         {
             Endpoint = new ConnectionEndpointDocument(
                 StorageConnectionProvider.Sftp,

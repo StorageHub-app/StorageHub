@@ -428,6 +428,54 @@ internal sealed class ConnectionStrings : LocalizationModelBase
 
     public string DetailTesting { get; set; } = "Testing…";
 
+    public string DetailDescribe { get; set; } = "Live details";
+
+    public string DetailDescribing { get; set; } = "Reading the connection's details…";
+
+    public string DetailDescribeHint { get; set; } = "Connect and show what the server presents, runs and negotiated";
+
+    public string SectionLive { get; set; } = "Live connection";
+
+    public string FieldTransportSecurity { get; set; } = "Transport security";
+
+    public string LiveSecurityNone { get; set; } = "Not encrypted";
+
+    public string LiveSecurityTls { get; set; } = "TLS";
+
+    public string LiveSecuritySsh { get; set; } = "SSH";
+
+    public string LiveSecurityUnknown { get; set; } = "Unknown";
+
+    public string FieldServerSystem { get; set; } = "Server system";
+
+    public string FieldServerSoftware { get; set; } = "Server software";
+
+    public string FieldServerFeatures { get; set; } = "Server features";
+
+    public string FieldPresentedKey { get; set; } = "Presented host key";
+
+    public string FieldPresentedCertificate { get; set; } = "Presented certificate";
+
+    public string FieldKeyAlgorithm { get; set; } = "Key type";
+
+    public string FieldCertificateSubject { get; set; } = "Subject";
+
+    public string FieldCertificateIssuer { get; set; } = "Issuer";
+
+    public string FieldCertificateExpires { get; set; } = "Expires";
+
+    public string FieldIdentityTrusted { get; set; } = "Trusted";
+
+    public string FieldSessions { get; set; } = "Sessions";
+
+    public string SessionsFormat { get; set; } = "{0} in use, {1} idle, {2} opened, {3} closed";
+
+    public string FieldLastHealthCheck { get; set; } = "Last health check";
+
+    public string LastCheckHealthyFormat { get; set; } = "Healthy in {0} ms, {1}";
+
+    public string LastCheckFailedFormat { get; set; } = "Failed ({0}), {1}";
+
     public string DetailEdit { get; set; } = "Edit";
 
     public string DetailDelete { get; set; } = "Delete";

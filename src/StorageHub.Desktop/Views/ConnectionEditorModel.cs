@@ -228,6 +228,12 @@ internal sealed record ConnectionGroupChoice(Guid? GroupId, string Label, bool I
 }
 
 /// <summary>A choice in the Type drop-down: storage, or a client such as an SSH terminal.</summary>
+/// <summary>One step of the last connection test, as the editor lists it.</summary>
+internal sealed record ConnectionTestStepRow(string Label, string Outcome, string Detail, bool IsPassed, bool IsFailed)
+{
+    public bool HasDetail => Detail.Length > 0;
+}
+
 internal sealed record ConnectionTypeChoice(ConnectionProfileType Type, string Label)
 {
     public override string ToString() => Label;
@@ -345,6 +351,7 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         _provider = ConnectionProviderCatalog.All[0];
 
         SaveCommand = new RelayCommand(_ => _ = SaveAsync(), _ => CanSave);
+        TestCommand = new RelayCommand(_ => _ = TestAsync(), _ => CanTest);
         Rebuild();
     }
 
@@ -686,6 +693,29 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
 
     public ICommand SaveCommand { get; }
 
+    /// <summary>Tests what is in the fields, saved or not.</summary>
+    public ICommand TestCommand { get; }
+
+    public static string TestLabel => Ui.ConnectionEditor.TestConnection;
+
+    public static string TestStepsHeading => Ui.ConnectionEditor.TestStepsHeading;
+
+    /// <summary>The steps of the last test, or none before one has run.</summary>
+    public IReadOnlyList<ConnectionTestStepRow> TestSteps
+    {
+        get => _testSteps;
+        private set
+        {
+            _testSteps = value;
+            Raise(nameof(TestSteps));
+            Raise(nameof(HasTestSteps));
+        }
+    }
+
+    public bool HasTestSteps => _testSteps.Count > 0;
+
+    private IReadOnlyList<ConnectionTestStepRow> _testSteps = [];
+
     public static string SaveLabel => Ui.Connections.SaveConnection;
 
     public static string ProviderLabel => Ui.Connections.Provider;
@@ -818,7 +848,9 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     /// The field holding what a saved connection is pinned to, or none when it pins nothing: an
     /// FTPS certificate pin, or an SFTP or SSH host key, as 1.x's TrustFingerprintField chose.
     /// </summary>
-    private static string? PinField(ConnectionProfileDocument profile) => profile.Draft.Endpoint switch
+    private static string? PinField(ConnectionProfileDocument profile) => PinField(profile.Draft.Endpoint);
+
+    private static string? PinField(ConnectionEndpointDocument endpoint) => endpoint switch
     {
         { Provider: StorageConnectionProvider.Ftps, TlsPolicy: ConnectionTlsCertificatePolicy.Pinned } =>
             "certificatePin",
@@ -828,7 +860,12 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     };
 
     /// <summary>Whether the editor holds something that could be saved.</summary>
-    internal bool CanSave => !_isBusy && _isDirty && Sections
+    internal bool CanSave => !_isBusy && _isDirty && HasRequiredFields;
+
+    /// <summary>Whether there is enough in the fields to test, saved or not.</summary>
+    internal bool CanTest => !_isBusy && _storage is not null && HasRequiredFields;
+
+    private bool HasRequiredFields => Sections
         .SelectMany(static section => section.Fields)
         .All(static row => !row.Required || row.Value.Trim().Length > 0);
 
@@ -869,42 +906,7 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     internal async Task SaveAsync(CancellationToken cancellationToken = default)
     {
         Capture();
-        ConnectionProfileDraft draft;
-        try
-        {
-            // The timeouts and retries a provider has no field for come from Settings, as they
-            // did in 1.4, rather than from the built-in defaults Settings exists to override.
-            draft = ConnectionEditorDraftFactory.Build(
-                _provider.Kind,
-                _values,
-                ConnectionDefaultSettings.Get(_provider.Kind, _connectionDefaults));
-        }
-        catch (ArgumentException error)
-        {
-            Status = SentenceOf(error);
-            return;
-        }
-
-        // The group is the drop-down's, which the draft factory knows nothing of.
-        draft = draft with { Metadata = draft.Metadata with { GroupId = _groupId } };
-
-        // The editor has no field for these, and the draft is built from its fields, so a save
-        // would reset them: a favourite stopped being one every time it was edited, as it did in
-        // 1.x, and a disabled connection came back enabled. An edit keeps what the profile had.
-        if (_current?.Draft is { } kept)
-        {
-            draft = draft with
-            {
-                IsEnabled = kept.IsEnabled,
-                Metadata = draft.Metadata with
-                {
-                    IsFavorite = kept.Metadata.IsFavorite,
-                    HomePath = kept.Metadata.HomePath,
-                    UploadPath = kept.Metadata.UploadPath,
-                    DownloadPath = kept.Metadata.DownloadPath
-                }
-            };
-        }
+        if (BuildDraft() is not { } draft) return;
 
         IsBusy = true;
         try
@@ -975,29 +977,117 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         }
     }
 
-    /// <summary>Asks the agent to reach the saved connection and reports what it found.</summary>
+    /// <summary>
+    /// The connection as the fields describe it, ready to save or test, or nothing with the reason
+    /// in the footer when the fields do not make one.
+    /// </summary>
+    private ConnectionProfileDraft? BuildDraft()
+    {
+        ConnectionProfileDraft draft;
+        try
+        {
+            // The timeouts and retries a provider has no field for come from Settings, as they
+            // did in 1.4, rather than from the built-in defaults Settings exists to override.
+            draft = ConnectionEditorDraftFactory.Build(
+                _provider.Kind,
+                _values,
+                ConnectionDefaultSettings.Get(_provider.Kind, _connectionDefaults));
+        }
+        catch (ArgumentException error)
+        {
+            Status = SentenceOf(error);
+            return null;
+        }
+
+        // The group is the drop-down's, which the draft factory knows nothing of.
+        draft = draft with { Metadata = draft.Metadata with { GroupId = _groupId } };
+
+        // The editor has no field for these, and the draft is built from its fields, so a save
+        // would reset them: a favourite stopped being one every time it was edited, as it did in
+        // 1.x, and a disabled connection came back enabled. An edit keeps what the profile had.
+        if (_current?.Draft is { } kept)
+        {
+            draft = draft with
+            {
+                IsEnabled = kept.IsEnabled,
+                Metadata = draft.Metadata with
+                {
+                    IsFavorite = kept.Metadata.IsFavorite,
+                    HomePath = kept.Metadata.HomePath,
+                    UploadPath = kept.Metadata.UploadPath,
+                    DownloadPath = kept.Metadata.DownloadPath
+                }
+            };
+        }
+
+        return draft;
+    }
+
+    /// <summary>
+    /// Asks the agent to reach the connection as the fields describe it, saved or not, and lists
+    /// how far it got: its settings, the server's identity, the credentials, reaching the server,
+    /// and listing the starting folder.
+    /// </summary>
+    /// <remarks>
+    /// Nothing is saved by it. A fingerprint in the field is trusted for the test as saving would
+    /// pin it, so a new SFTP or FTPS connection can be tested before it exists. An agent that
+    /// cannot test a draft can still test what is saved, when the fields hold nothing else.
+    /// </remarks>
     internal async Task TestAsync(CancellationToken cancellationToken = default)
     {
-        if (_current is not { } profile || _storage is null) return;
+        if (_storage is null) return;
+
+        Capture();
+        if (BuildDraft() is not { } draft)
+        {
+            TestSteps = [];
+            return;
+        }
+
+        var pinField = PinField(draft.Endpoint);
+        var fingerprint = pinField is not null && _values.TryGetValue(pinField, out var typed) &&
+            ConnectionTrustIpcLimits.IsValidFingerprint(typed.Trim())
+                ? typed.Trim()
+                : null;
 
         IsBusy = true;
+        Status = Ui.ConnectionEditor.TestingConnection;
+        TestSteps = [new ConnectionTestStepRow(
+            Ui.ConnectionEditor.TestStepsHeading, Ui.ConnectionEditor.TestOutcomeRunning, string.Empty, false, false)];
         try
         {
             await using var client = _storage();
-            var response = await client
-                .TestConnectionAsync(
-                    new ConnectionTestRequest(StorageIpcContract.CurrentVersion, profile.ConnectionId),
-                    cancellationToken)
-                .ConfigureAwait(true);
+            ConnectionDraftTestResponse response;
+            try
+            {
+                response = await client
+                    .TestDraftAsync(
+                        new ConnectionDraftTestRequest(
+                            StorageIpcContract.CurrentVersion,
+                            draft,
+                            _current?.ConnectionId,
+                            fingerprint),
+                        cancellationToken)
+                    .ConfigureAwait(true);
+            }
+            catch (NotSupportedException) when (_current is { } saved && !_isDirty)
+            {
+                TestSteps = [];
+                await TestSavedAsync(client, saved, cancellationToken).ConfigureAwait(true);
+                return;
+            }
 
-            Status = response.Failure is { } failure
-                ? failure.Message
-                : response.Succeeded
-                    ? Ui.Connections.ConnectionReachable
-                    : Ui.Connections.ConnectionUnreachable;
+            TestSteps = [.. response.Steps.Select(DescribeStep)];
+            Status = response.Succeeded
+                ? Ui.Format(Ui.ConnectionEditor.ConnectionSucceededFormat, response.ElapsedMilliseconds)
+                : response.Steps.FirstOrDefault(static step => step.Outcome == ConnectionTestStepOutcome.Failed)
+                    is { } failed
+                    ? StepFailure(failed)
+                    : Ui.ConnectionEditor.ConnectionTestFailed;
         }
         catch (Exception error) when (IsAgentFailure(error))
         {
+            TestSteps = [];
             Status = Ui.Shell.AgentNotConnected;
         }
         finally
@@ -1005,6 +1095,66 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
             IsBusy = false;
         }
     }
+
+    /// <summary>The saved connection's test, which says only whether it was reached.</summary>
+    private async Task TestSavedAsync(
+        IRemoteStorageAgentClient client,
+        ConnectionProfileDocument profile,
+        CancellationToken cancellationToken)
+    {
+        var response = await client
+            .TestConnectionAsync(
+                new ConnectionTestRequest(StorageIpcContract.CurrentVersion, profile.ConnectionId),
+                cancellationToken)
+            .ConfigureAwait(true);
+
+        Status = response.Failure is { } failure
+            ? failure.Message
+            : response.Succeeded
+                ? Ui.Connections.ConnectionReachable
+                : Ui.Connections.ConnectionUnreachable;
+    }
+
+    private static ConnectionTestStepRow DescribeStep(ConnectionTestStep step) => new(
+        StepLabel(step.Kind),
+        step.Outcome switch
+        {
+            ConnectionTestStepOutcome.Passed => Ui.ConnectionEditor.TestOutcomePassed,
+            ConnectionTestStepOutcome.Failed => Ui.ConnectionEditor.TestOutcomeFailed,
+            ConnectionTestStepOutcome.NotApplicable => Ui.ConnectionEditor.TestOutcomeNotApplicable,
+            _ => Ui.ConnectionEditor.TestOutcomeNotReached
+        },
+        step.Outcome == ConnectionTestStepOutcome.Failed ? StepFailure(step) : string.Empty,
+        step.Outcome == ConnectionTestStepOutcome.Passed,
+        step.Outcome == ConnectionTestStepOutcome.Failed);
+
+    private static string StepLabel(ConnectionTestStepKind kind) => kind switch
+    {
+        ConnectionTestStepKind.Settings => Ui.ConnectionEditor.TestStepSettings,
+        ConnectionTestStepKind.ServerIdentity => Ui.ConnectionEditor.TestStepServerIdentity,
+        ConnectionTestStepKind.Credentials => Ui.ConnectionEditor.TestStepCredentials,
+        ConnectionTestStepKind.Connect => Ui.ConnectionEditor.TestStepConnect,
+        _ => Ui.ConnectionEditor.TestStepBrowse
+    };
+
+    /// <summary>
+    /// What went wrong at a step, in the user's language: the agent's own message is English and,
+    /// for safety, says no more than the kind of failure.
+    /// </summary>
+    private static string StepFailure(ConnectionTestStep step) => step.Kind switch
+    {
+        ConnectionTestStepKind.Settings => Ui.ConnectionEditor.TestSettingsFailed,
+        ConnectionTestStepKind.ServerIdentity => step.Failure?.Code == "storage.trust.approval_required"
+            ? Ui.ConnectionEditor.TestIdentityMissing
+            : Ui.ConnectionEditor.TestIdentityMismatch,
+        ConnectionTestStepKind.Credentials => step.Failure?.Category == StorageIpcFailureCategory.Unauthorized
+            ? Ui.ConnectionEditor.TestCredentialsRefused
+            : Ui.ConnectionEditor.TestCredentialsUnavailable,
+        ConnectionTestStepKind.Connect => step.Failure?.Category == StorageIpcFailureCategory.Timeout
+            ? Ui.ConnectionEditor.TestConnectTimedOut
+            : Ui.ConnectionEditor.TestConnectFailed,
+        _ => Ui.ConnectionEditor.TestBrowseFailed
+    };
 
     /// <summary>The connection being edited, for a caller that wants to delete it.</summary>
     internal ConnectionProfileDocument? Current => _current;
@@ -2006,6 +2156,7 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     private void RaiseCommands()
     {
         (SaveCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        (TestCommand as RelayCommand)?.RaiseCanExecuteChanged();
         foreach (var command in _fieldCommands) command.RaiseCanExecuteChanged();
     }
 

@@ -22,7 +22,8 @@ internal static class ConnectionDetailFacts
         ConnectionSummary? summary,
         ConnectionProfileDocument? profile,
         SecretReferenceNames? keyNames = null,
-        string? groupName = null)
+        string? groupName = null,
+        ConnectionDetailsDocument? live = null)
     {
         ArgumentNullException.ThrowIfNull(card);
         var rows = new List<ConnectionDetailRow>();
@@ -117,6 +118,55 @@ internal static class ConnectionDetailFacts
             Fact(Ui.Connections.FieldChecked, health.CheckedUtc.ToLocalTime().ToString("g", CultureInfo.CurrentCulture));
             Fact(Ui.Connections.FieldRoundTrip, $"{health.ElapsedMilliseconds.ToString("N0", CultureInfo.CurrentCulture)} ms");
             Fact(Ui.Connections.FieldDetail, health.Status);
+        }
+
+        if (live is not null)
+        {
+            Section(Ui.Connections.SectionLive);
+            Fact(Ui.Connections.FieldTransportSecurity, live.TransportSecurity switch
+            {
+                "None" => Ui.Connections.LiveSecurityNone,
+                "Tls" => Ui.Connections.LiveSecurityTls,
+                "Ssh" => Ui.Connections.LiveSecuritySsh,
+                _ => Ui.Connections.LiveSecurityUnknown
+            });
+            Fact(Ui.Connections.FieldServerSystem, live.ServerSystem);
+            Fact(Ui.Connections.FieldServerSoftware, live.ServerSoftware);
+            if (live.PresentedIdentity is { } identity)
+            {
+                var isKey = identity.Kind == "ssh-host-key";
+                Fact(isKey ? Ui.Connections.FieldPresentedKey : Ui.Connections.FieldPresentedCertificate, identity.Fingerprint);
+                Fact(Ui.Connections.FieldKeyAlgorithm, identity.Algorithm);
+                Fact(Ui.Connections.FieldCertificateSubject, identity.Subject);
+                Fact(Ui.Connections.FieldCertificateIssuer, identity.Issuer);
+                Fact(
+                    Ui.Connections.FieldCertificateExpires,
+                    identity.NotAfter?.ToLocalTime().ToString("g", CultureInfo.CurrentCulture));
+                Fact(Ui.Connections.FieldIdentityTrusted, identity.Trusted ? Ui.Connections.DetailYes : Ui.Connections.DetailNo);
+            }
+
+            // Named as the library names them -- "cipher", "kex" -- which are the protocol's words.
+            foreach (var setting in live.Negotiated) Fact(setting.Name, setting.Value);
+            Fact(
+                Ui.Connections.FieldServerFeatures,
+                live.ServerFeatures.Length == 0 ? null : string.Join(", ", live.ServerFeatures));
+            if (live.Sessions is { } sessions)
+            {
+                Fact(Ui.Connections.FieldSessions, Ui.Format(
+                    Ui.Connections.SessionsFormat,
+                    sessions.InUse,
+                    sessions.Idle,
+                    sessions.Opened,
+                    sessions.Closed));
+            }
+
+            if (live.LastHealthCheck is { } check)
+            {
+                var when = check.CheckedUtc.ToLocalTime().ToString("g", CultureInfo.CurrentCulture);
+                Fact(Ui.Connections.FieldLastHealthCheck, check.Healthy
+                    ? Ui.Format(Ui.Connections.LastCheckHealthyFormat, check.LatencyMilliseconds.ToString("N0", CultureInfo.CurrentCulture), when)
+                    : Ui.Format(Ui.Connections.LastCheckFailedFormat, check.ErrorCode ?? Ui.Connections.LiveSecurityUnknown, when));
+            }
         }
 
         return rows;

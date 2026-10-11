@@ -201,6 +201,63 @@ public sealed class RuntimeStorageConnection : IAsyncDisposable
         await TearDownAsync().ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Asks the library what this connection and its server look like now. Opens a session when the
+    /// provider needs one to answer, so it can fail as any operation on the connection can.
+    /// </summary>
+    public async ValueTask<StorageResult<StorageConnectionDetails>> GetDetailsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var result = await _library
+                .GetConnectionDiagnosticsAsync(RuntimeConnectionId, cancellationToken)
+                .ConfigureAwait(false);
+            if (result.IsFailure || result.Value is not { } details)
+            {
+                return StorageResult<StorageConnectionDetails>.Fail(CodeLogicStorageMapper.MapFailure(
+                    result.Error,
+                    "storage.connection.details_failed",
+                    "The connection's details could not be read."));
+            }
+
+            return StorageResult<StorageConnectionDetails>.Success(new StorageConnectionDetails(
+                details.Provider.ToString(),
+                details.Host,
+                details.Port,
+                details.Security.ToString(),
+                details.ServerSystem,
+                details.ServerSoftware,
+                [.. details.ServerFeatures ?? []],
+                [.. (details.Negotiated ?? new Dictionary<string, string>())
+                    .OrderBy(static setting => setting.Key, StringComparer.Ordinal)],
+                details.ServerIdentity is { } identity
+                    ? new StoragePresentedIdentity(
+                        identity.Kind,
+                        identity.Fingerprint,
+                        identity.Algorithm,
+                        identity.Subject,
+                        identity.Issuer,
+                        identity.NotAfter,
+                        identity.Trusted)
+                    : null,
+                details.Pool is { } pool
+                    ? new StorageSessionCounts(pool.Idle, pool.InUse, pool.Opened, pool.Destroyed, pool.ProbeFailures)
+                    : null,
+                details.LastHealth is { } health
+                    ? new StorageHealthCheck(health.Healthy, health.ErrorCode, health.Latency, health.CheckedAt)
+                    : null));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return StorageResult<StorageConnectionDetails>.Fail(CodeLogicStorageMapper.Unexpected("connection details"));
+        }
+    }
+
     /// <summary>Closes the session and removes the runtime registration, once.</summary>
     internal async ValueTask TearDownAsync()
     {

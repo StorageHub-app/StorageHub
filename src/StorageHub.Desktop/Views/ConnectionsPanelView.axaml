@@ -337,6 +337,17 @@
               </StackPanel>
             </Button>
 
+            <!-- Under the saved facts rather than in the row of actions, which fits four labelled
+                 at the panel's usual width: what the live connection says about itself. -->
+            <Button DockPanel.Dock="Bottom" Classes="tool" HorizontalAlignment="Left" Margin="0,4,0,0"
+                    Command="{Binding DescribeSelectedCommand}"
+                    ToolTip.Tip="{Binding DescribeHint}" AutomationProperties.Name="{Binding DescribeLabel}">
+              <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+                <LucideIcon Kind="Info" Size="{StaticResource IconSizeSm}"/>
+                <TextBlock Text="{Binding DescribeLabel}"/>
+              </StackPanel>
+            </Button>
+
             <TextBlock DockPanel.Dock="Bottom" Classes="caption" TextWrapping="Wrap"
                        IsVisible="{Binding HasDetailStatus}" Text="{Binding DetailStatus}"/>
 

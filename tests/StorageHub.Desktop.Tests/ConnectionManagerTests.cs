@@ -209,6 +209,151 @@ public class ConnectionManagerTests
         Assert.Null(profiles.LastDraft?.Endpoint.Sftp);
     }
 
+    /// <summary>
+    /// The Test button tests what is in the fields before anything is saved, the typed fingerprint
+    /// with it, and lists each step with what went wrong in the user's language.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task TheTestButtonTestsTheUnsavedDraftAndListsEachStep()
+    {
+        var cancellation = TestContext.Current.CancellationToken;
+        var profiles = new FakeProfiles();
+        var agent = new ListingAgent([]);
+        var editor = new ConnectionEditorModel(() => Controller(profiles), () => agent);
+        editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Sftp);
+        Field(editor, "authenticationMode").Value = "Password reference";
+        Field(editor, "passwordReference").Value = KeyStoreTests.Reference('p');
+        Fill(editor);
+        Assert.True(editor.TestCommand.CanExecute(null));
+
+        var fingerprint = new string('A', 64);
+        Field(editor, "hostKeyFingerprint").Value = fingerprint;
+        var trustFailure = new StorageIpcFailure(
+            "storage.trust.approval_required", StorageIpcFailureCategory.Security, "Trust needed.", false);
+        agent.DraftTest = new ConnectionDraftTestResponse(
+            StorageIpcContract.CurrentVersion,
+            Succeeded: false,
+            ElapsedMilliseconds: 4,
+            [
+                new(ConnectionTestStepKind.Settings, ConnectionTestStepOutcome.Passed),
+                new(ConnectionTestStepKind.ServerIdentity, ConnectionTestStepOutcome.Failed, trustFailure),
+                new(ConnectionTestStepKind.Credentials, ConnectionTestStepOutcome.NotReached),
+                new(ConnectionTestStepKind.Connect, ConnectionTestStepOutcome.NotReached),
+                new(ConnectionTestStepKind.Browse, ConnectionTestStepOutcome.NotReached)
+            ],
+            trustFailure);
+
+        await editor.TestAsync(cancellation);
+
+        Assert.True(editor.IsNew);
+        Assert.Null(profiles.LastDraft);
+        Assert.Null(agent.LastDraftTest?.ConnectionId);
+        Assert.Equal(fingerprint, agent.LastDraftTest?.Sha256Fingerprint);
+        Assert.Equal("sample", agent.LastDraftTest?.Draft.Endpoint.Host);
+        Assert.Equal(Ui.ConnectionEditor.TestIdentityMissing, editor.Status);
+        Assert.Equal(
+            [
+                (Ui.ConnectionEditor.TestStepSettings, Ui.ConnectionEditor.TestOutcomePassed),
+                (Ui.ConnectionEditor.TestStepServerIdentity, Ui.ConnectionEditor.TestOutcomeFailed),
+                (Ui.ConnectionEditor.TestStepCredentials, Ui.ConnectionEditor.TestOutcomeNotReached),
+                (Ui.ConnectionEditor.TestStepConnect, Ui.ConnectionEditor.TestOutcomeNotReached),
+                (Ui.ConnectionEditor.TestStepBrowse, Ui.ConnectionEditor.TestOutcomeNotReached)
+            ],
+            editor.TestSteps.Select(static step => (step.Label, step.Outcome)).ToArray());
+        Assert.Equal(
+            Ui.ConnectionEditor.TestIdentityMissing,
+            Assert.Single(editor.TestSteps, static step => step.IsFailed).Detail);
+
+        agent.DraftTest = new ConnectionDraftTestResponse(
+            StorageIpcContract.CurrentVersion,
+            Succeeded: true,
+            ElapsedMilliseconds: 12,
+            [.. Enum.GetValues<ConnectionTestStepKind>().Select(static kind =>
+                new ConnectionTestStep(kind, ConnectionTestStepOutcome.Passed))]);
+        await editor.TestAsync(cancellation);
+
+        Assert.Equal(Ui.Format(Ui.ConnectionEditor.ConnectionSucceededFormat, 12), editor.Status);
+        Assert.All(editor.TestSteps, static step => Assert.True(step.IsPassed));
+
+        // A required field left empty is nothing to test.
+        Field(editor, "host").Value = string.Empty;
+        Assert.False(editor.TestCommand.CanExecute(null));
+    }
+
+    /// <summary>An agent that cannot test a draft still tests the saved connection, unchanged.</summary>
+    [AvaloniaFact]
+    public async Task AnAgentThatCannotTestADraftStillTestsTheSavedConnection()
+    {
+        var cancellation = TestContext.Current.CancellationToken;
+        var profiles = new FakeProfiles();
+        var agent = new ListingAgent([]);
+        var editor = new ConnectionEditorModel(() => Controller(profiles), () => agent);
+        editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Local);
+        Fill(editor);
+        await editor.SaveAsync(cancellation);
+        Assert.False(editor.IsNew);
+
+        await editor.TestAsync(cancellation);
+
+        Assert.Equal(Ui.Connections.ConnectionReachable, editor.Status);
+        Assert.Empty(editor.TestSteps);
+    }
+
+    /// <summary>
+    /// Details reads what the selected connection and its server look like now and lists it under
+    /// a Live connection section; selecting another connection drops it, and a failure says why.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task DetailsAddsWhatTheLiveConnectionSaysAboutItself()
+    {
+        var cancellation = TestContext.Current.CancellationToken;
+        var agent = new ListingAgent([Summary("Studio Assets"), Summary("Backups")])
+        {
+            LiveDetails = new ConnectionDetailsDocument(
+                "Sftp",
+                "files.example.test",
+                22,
+                "Ssh",
+                ServerSystem: null,
+                ServerSoftware: "OpenSSH_9.6",
+                ServerFeatures: [],
+                Negotiated: [new ConnectionNegotiatedSetting("cipher", "aes256-gcm@openssh.com")],
+                new ConnectionPresentedIdentityDocument(
+                    "ssh-host-key", "SHA256:abc", "ssh-ed25519", null, null, null, Trusted: true),
+                new ConnectionSessionCountsDocument(Idle: 1, InUse: 2, Opened: 3, Closed: 0, FailedProbes: 0))
+        };
+        var sidebar = new ConnectionsSidebar(new RelayCommand(static _ => { }), () => agent);
+        await sidebar.RefreshAsync(cancellation);
+        var first = sidebar.Groups.SelectMany(static g => g.Connections).First();
+        sidebar.Select(first);
+        Assert.DoesNotContain(sidebar.Details, static row => row.Key == Ui.Connections.SectionLive);
+        Assert.True(sidebar.DescribeSelectedCommand.CanExecute(null));
+
+        await sidebar.DescribeSelectedAsync(cancellation);
+
+        var live = sidebar.Details
+            .SkipWhile(static row => row.Key != Ui.Connections.SectionLive)
+            .ToArray();
+        Assert.NotEmpty(live);
+        Assert.Contains(new ConnectionDetailRow(Ui.Connections.FieldTransportSecurity, Ui.Connections.LiveSecuritySsh), live);
+        Assert.Contains(new ConnectionDetailRow(Ui.Connections.FieldServerSoftware, "OpenSSH_9.6"), live);
+        Assert.Contains(new ConnectionDetailRow(Ui.Connections.FieldPresentedKey, "SHA256:abc"), live);
+        Assert.Contains(new ConnectionDetailRow(Ui.Connections.FieldKeyAlgorithm, "ssh-ed25519"), live);
+        Assert.Contains(new ConnectionDetailRow("cipher", "aes256-gcm@openssh.com"), live);
+        Assert.Contains(
+            new ConnectionDetailRow(Ui.Connections.FieldSessions, Ui.Format(Ui.Connections.SessionsFormat, 2, 1, 3, 0)),
+            live);
+        Assert.Equal(string.Empty, sidebar.DetailStatus);
+
+        sidebar.Select(sidebar.Groups.SelectMany(static g => g.Connections).First(row => row.Id != first.Id));
+        Assert.DoesNotContain(sidebar.Details, static row => row.Key == Ui.Connections.SectionLive);
+
+        agent.LiveDetails = null;
+        await sidebar.DescribeSelectedAsync(cancellation);
+        Assert.Equal("Unreachable.", sidebar.DetailStatus);
+        Assert.DoesNotContain(sidebar.Details, static row => row.Key == Ui.Connections.SectionLive);
+    }
+
     /// <summary>Every provider lays out without a field the editor cannot draw.</summary>
     [AvaloniaFact]
     public void EveryProviderCanBeEdited()
@@ -1271,6 +1416,35 @@ public class ConnectionManagerTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult(new ConnectionTestResponse(
                 StorageIpcContract.CurrentVersion, request.ConnectionId, Succeeded: TestSucceeds, 1));
+
+        /// <summary>What describing a connection answers; none makes it fail as unreachable.</summary>
+        internal ConnectionDetailsDocument? LiveDetails { get; set; }
+
+        public Task<ConnectionDetailsResponse> GetConnectionDetailsAsync(
+            ConnectionDetailsRequest request,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ConnectionDetailsResponse(
+                request.ContractVersion,
+                request.ConnectionId,
+                LiveDetails,
+                LiveDetails is null
+                    ? new StorageIpcFailure("storage.provider.unreachable", StorageIpcFailureCategory.Unavailable, "Unreachable.", true)
+                    : null));
+
+        /// <summary>What a test of a draft answers; none makes this an agent that cannot test one.</summary>
+        internal ConnectionDraftTestResponse? DraftTest { get; set; }
+
+        internal ConnectionDraftTestRequest? LastDraftTest { get; private set; }
+
+        public Task<ConnectionDraftTestResponse> TestDraftAsync(
+            ConnectionDraftTestRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            LastDraftTest = request;
+            return DraftTest is { } response
+                ? Task.FromResult(response)
+                : throw new NotSupportedException();
+        }
 
         public Task<StorageListPageResponse> ListStorageAsync(
             StorageListPageRequest request,

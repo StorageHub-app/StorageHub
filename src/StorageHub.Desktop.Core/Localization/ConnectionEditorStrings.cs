@@ -292,6 +292,50 @@ internal sealed class ConnectionEditorStrings : LocalizationModelBase
 
     public string TestConnection { get; set; } = "Test connection";
 
+    public string TestStepsHeading { get; set; } = "Connection test";
+
+    public string TestStepSettings { get; set; } = "Settings";
+
+    public string TestStepServerIdentity { get; set; } = "Server identity";
+
+    public string TestStepCredentials { get; set; } = "Credentials";
+
+    public string TestStepConnect { get; set; } = "Reach the server";
+
+    public string TestStepBrowse { get; set; } = "List the starting folder";
+
+    public string TestOutcomePassed { get; set; } = "Passed";
+
+    public string TestOutcomeFailed { get; set; } = "Failed";
+
+    public string TestOutcomeNotReached { get; set; } = "Not reached";
+
+    public string TestOutcomeNotApplicable { get; set; } = "Not needed";
+
+    public string TestOutcomeRunning { get; set; } = "Testing…";
+
+    public string TestSettingsFailed { get; set; } =
+        "The agent cannot connect with these settings, such as a proxy, timeout or encoding this protocol does not support.";
+
+    public string TestIdentityMissing { get; set; } =
+        "No fingerprint is trusted for this server yet. Fetch it from the host or type it, then test again.";
+
+    public string TestIdentityMismatch { get; set; } =
+        "The server presented a host key or certificate that is not the trusted one.";
+
+    public string TestCredentialsUnavailable { get; set; } =
+        "A password or key this connection uses could not be opened from the vault.";
+
+    public string TestCredentialsRefused { get; set; } = "The server refused the user name, password or key.";
+
+    public string TestConnectTimedOut { get; set; } = "The server did not answer in time.";
+
+    public string TestConnectFailed { get; set; } =
+        "The server could not be reached. Check the host, the port and any proxy.";
+
+    public string TestBrowseFailed { get; set; } =
+        "Connected, but the starting folder could not be listed. Check the path and the account's permissions.";
+
     public string TeamProject { get; set; } = "Team / Project";
 
     public string SavingVerifiedTrust { get; set; } = "Saving verified server trust…";

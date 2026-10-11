@@ -11,6 +11,34 @@ namespace StorageHub.Storage.CodeLogic.Tests;
 public sealed class LocalProviderIntegrationTests
 {
     [Fact]
+    public async Task ARegisteredConnectionDescribesItselfThroughTheLibrary()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"storagehub-cl-details-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            var library = await CodeLogicTestFramework.EnsureStartedAsync();
+            var factory = new CodeLogicStorageSessionFactory(library);
+            var registration = await factory.RegisterLocalAsync(
+                ConnectionProfileId.New(),
+                "details-root-v1",
+                new LocalConnectionConfig { RootPath = root, Enabled = true });
+            Assert.True(registration.IsSuccess);
+            await using var connection = registration.Value;
+
+            var details = await connection.GetDetailsAsync();
+
+            Assert.True(details.IsSuccess, details.IsFailure ? details.Error.Code : null);
+            Assert.Equal("Local", details.Value.Provider);
+            Assert.Null(details.Value.PresentedIdentity);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task RuntimeOnlyLocalConnection_WritesListsAndReadsThroughRealCodeLogicStorage()
     {
         var testRoot = Path.Combine(Path.GetTempPath(), $"storagehub-cl-storage-{Guid.NewGuid():N}");

@@ -45,6 +45,43 @@ public sealed class RemoteStorageAgentClientTests
     }
 
     [Fact]
+    public async Task ADraftTestRoundTripsItsStepsAndRefusesOneThatContradictsItself()
+    {
+        var draft = new ConnectionProfileDraft(
+            new ConnectionProfileMetadataDocument("Local", Tags: []),
+            new ConnectionEndpointDocument(StorageConnectionProvider.Local, RootPath: "/srv"),
+            new ConnectionAuthenticationDocument(ConnectionAuthenticationKind.None),
+            new ConnectionOperationalOptionsDocument());
+        var steps = new ConnectionTestStep[]
+        {
+            new(ConnectionTestStepKind.Settings, ConnectionTestStepOutcome.Passed),
+            new(ConnectionTestStepKind.Browse, ConnectionTestStepOutcome.Passed)
+        };
+        var succeeded = true;
+        var transport = new FakeTransport(request => IpcEnvelope.Create(
+            StorageIpcMessageTypes.ConnectionDraftTestResponse,
+            request.RequestId,
+            1,
+            new ConnectionDraftTestResponse(
+                StorageIpcContract.CurrentVersion,
+                succeeded,
+                3,
+                steps,
+                Failure: null)));
+        await using var client = CreateClient(transport);
+        var request = new ConnectionDraftTestRequest(StorageIpcContract.CurrentVersion, draft);
+
+        var response = await client.TestDraftAsync(request);
+        Assert.Equal(steps, response.Steps);
+
+        // Failed with no failure to say why is not an answer.
+        succeeded = false;
+        await Assert.ThrowsAsync<InvalidDataException>(() => client.TestDraftAsync(request));
+        await Assert.ThrowsAsync<ArgumentException>(() => client.TestDraftAsync(
+            request with { Sha256Fingerprint = "not a fingerprint" }));
+    }
+
+    [Fact]
     public async Task ClientAppliesBoundedRequestDeadline()
     {
         var transport = new FakeTransport(async (_, cancellationToken) =>

@@ -634,7 +634,13 @@ The profile already stores these; `CodeLogicConnectionProfileConnector.BuildAsyn
 
 ## 2. Connection test and trust (was port item 10)
 
-- [ ] 2.1 The Test button runs `TestConnectionAsync` on the unsaved draft and shows each step.
+- [x] 2.1 The Test button runs `TestConnectionAsync` on the unsaved draft and shows each step.
+      Done: `connection.test-draft.request` carries the draft and the fingerprint in the editor.
+      The agent builds the profile under an id of its own, opens it on a connector of its own
+      whose trust store adds the typed fingerprint (`DraftTrustStore`; a rejected key stays
+      rejected), checks health and lists one entry at the root, and closes it all with the lease.
+      Each failure is put at its step from its code and category; the editor says what to check
+      at that step in en/da/de. An agent that cannot test a draft still tests the saved one.
 - [ ] 2.2 A refused host key or certificate is shown with Trust / Reject (`TrustOrRolloverAsync`,
       `RejectAsync`); trust-on-first-use for SFTP and FTPS stops being refused. The editor already
       loads the pinned fingerprint and pins it on save (L.4).
@@ -651,7 +657,15 @@ The profile already stores these; `CodeLogicConnectionProfileConnector.BuildAsyn
       Left open, past 1.4: a host key or certificate refused while browsing or testing is still
       only a failure, with no Trust / Reject offered where it happens, and the first connection to
       an SFTP or FTPS server still needs its fingerprint pinned first.
-- [ ] 2.3 A "Connection details" panel from `GetConnectionDiagnosticsAsync`.
+- [x] 2.3 A "Connection details" panel from `GetConnectionDiagnosticsAsync`.
+      Done: Live details, under a connection's details in the connections panel, asks the agent
+      (`connection.details.request`), which opens the connection as browsing does and reads the
+      library's diagnostics through `RuntimeStorageConnection.GetDetailsAsync`. The panel adds a
+      Live connection section: transport security, server system and software, the key or
+      certificate presented (fingerprint, type, subject, issuer, expiry, trusted), what was
+      negotiated, the server's features, the session counts and the last health check. Text the
+      server chose is cut to the contract with control characters dropped, never refused; selecting
+      another connection drops the section.
 
 ## 3. Directory tree (was port item 11)
 

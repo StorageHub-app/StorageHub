@@ -94,6 +94,21 @@ key exchanges, ciphers, MACs and host key types offered, how many sessions are
 opened at once and how often an idle one is kept alive. The private key goes to
 the SSH library in memory rather than as a file in the runtime folder.
 
+**Test a connection before saving it.** The editor's Test connection button
+tests what is in the fields, saved or not, and lists how far it got: the
+settings, the server's identity, the credentials, reaching the server and
+listing the starting folder, each passed, failed, not needed or not reached,
+with what to check when one fails. A fingerprint typed or fetched into the
+editor is trusted for the test, so a new SFTP or FTPS connection can be tested
+before it exists. Nothing is saved by a test and a saved connection's status is
+not changed by testing edits to it.
+
+**See what a connection is talking to.** Live details in the connections panel adds
+a Live connection section under the selected connection: how it is secured, the
+server's system and software, the host key or certificate it presented and
+whether it is trusted, the cipher and key exchange negotiated, the server's
+features, how many sessions are open and the last health check.
+
 **Smaller things that are new.** A pane's FILES bar can be hidden from Pane
 actions and is saved with the workspace, now that the list's right-click menu
 offers everything the bar does. The SSH terminal passes the mouse to a program
