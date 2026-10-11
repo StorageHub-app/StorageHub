@@ -20,6 +20,89 @@ public sealed class RemoteStorageAgentClientTests
         Assert.Equal(1, transport.DisconnectCount);
     }
 
+    /// <summary>
+    /// Free space comes back for the connection asked about, and a response that claims more free
+    /// space than there is in all, or answers both with figures and a failure, is refused.
+    /// </summary>
+    [Fact]
+    public async Task FreeSpaceRoundTripsAndAnImpossibleFigureIsRefused()
+    {
+        var connectionId = Guid.NewGuid();
+        StorageSpaceResponse answer = new(
+            StorageIpcContract.CurrentVersion, connectionId, new StorageSpaceDocument(1_000, 400, null));
+        var transport = new FakeTransport(request =>
+        {
+            Assert.Equal(StorageIpcMessageTypes.StorageSpaceRequest, request.MessageType);
+            return IpcEnvelope.Create(StorageIpcMessageTypes.StorageSpaceResponse, request.RequestId, 1, answer);
+        });
+        await using var client = CreateClient(transport);
+        var ask = new StorageSpaceRequest(StorageIpcContract.CurrentVersion, connectionId, "photos");
+
+        var space = await client.GetSpaceAsync(ask, CancellationToken.None);
+        Assert.Equal(400, space.Space?.AvailableBytes);
+
+        answer = answer with { Space = new StorageSpaceDocument(1_000, 4_000, null) };
+        await Assert.ThrowsAsync<InvalidDataException>(() => client.GetSpaceAsync(ask, CancellationToken.None));
+
+        answer = answer with
+        {
+            Space = new StorageSpaceDocument(null, 4, null),
+            Failure = new StorageIpcFailure("storage.space.unsupported", StorageIpcFailureCategory.Unsupported, "No.", false)
+        };
+        await Assert.ThrowsAsync<InvalidDataException>(() => client.GetSpaceAsync(ask, CancellationToken.None));
+
+        await Assert.ThrowsAsync<ArgumentException>(() => client.GetSpaceAsync(
+            ask with { RelativePath = "a\nb" }, CancellationToken.None));
+    }
+
+    /// <summary>
+    /// Link changes come back as the agent sent them, and a response with more than was asked
+    /// for, the same connection twice among the latest, or a change outside the contract is
+    /// refused.
+    /// </summary>
+    [Fact]
+    public async Task LinkChangesRoundTripAndAnAnswerOutsideTheContractIsRefused()
+    {
+        var connectionId = Guid.NewGuid();
+        var at = new DateTimeOffset(2026, 10, 11, 12, 0, 0, TimeSpan.Zero);
+        var lost = new ConnectionLinkEvent(2, connectionId, "Archive", ConnectionLinkEventKind.Lost, at, ErrorCode: "storage.timeout");
+        var retrying = new ConnectionLinkEvent(1, connectionId, "Archive", ConnectionLinkEventKind.Retrying, at, Attempt: 1);
+        ConnectionLinkEventsResponse answer = new(StorageIpcContract.CurrentVersion, [lost, retrying], [lost]);
+        var transport = new FakeTransport(request =>
+        {
+            Assert.Equal(StorageIpcMessageTypes.ConnectionLinkEventsRequest, request.MessageType);
+            return IpcEnvelope.Create(StorageIpcMessageTypes.ConnectionLinkEventsResponse, request.RequestId, 1, answer);
+        });
+        await using var client = CreateClient(transport);
+        var ask = new ConnectionLinkEventsRequest(StorageIpcContract.CurrentVersion, Limit: 2);
+
+        var read = await client.ListLinkEventsAsync(ask, CancellationToken.None);
+        Assert.Equal([2L, 1L], read.Events.Select(static change => change.Sequence));
+        Assert.Equal(ConnectionLinkEventKind.Lost, Assert.Single(read.Latest).Kind);
+
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            client.ListLinkEventsAsync(ask with { Limit = 1 }, CancellationToken.None));
+
+        answer = answer with { Latest = [lost, retrying] };
+        await Assert.ThrowsAsync<InvalidDataException>(() => client.ListLinkEventsAsync(ask, CancellationToken.None));
+
+        answer = answer with { Events = [retrying with { Attempt = 0 }], Latest = [] };
+        await Assert.ThrowsAsync<InvalidDataException>(() => client.ListLinkEventsAsync(ask, CancellationToken.None));
+
+        answer = answer with { Events = [lost with { DisplayName = string.Empty }] };
+        await Assert.ThrowsAsync<InvalidDataException>(() => client.ListLinkEventsAsync(ask, CancellationToken.None));
+
+        answer = answer with
+        {
+            Events = [lost],
+            Failure = new StorageIpcFailure("storage.connections.unavailable", StorageIpcFailureCategory.Unavailable, "No.", true)
+        };
+        await Assert.ThrowsAsync<InvalidDataException>(() => client.ListLinkEventsAsync(ask, CancellationToken.None));
+
+        await Assert.ThrowsAsync<ArgumentException>(() => client.ListLinkEventsAsync(
+            ask with { Limit = ConnectionLinkLimits.MaximumEvents + 1 }, CancellationToken.None));
+    }
+
     [Fact]
     public async Task ClientRejectsAResourceIdentityMismatch()
     {

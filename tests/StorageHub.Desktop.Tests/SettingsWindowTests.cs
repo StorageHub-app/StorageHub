@@ -114,6 +114,25 @@ public sealed class SettingsWindowTests : IDisposable
         existing.SelectedChoice = 0;
         Assert.Null(model.Working.TransferConflictDefault);
 
+        // Folders refresh by themselves only once that is turned on, and how often a connection's
+        // is read again waits on it, dimmed.
+        var interval = Row(model, "remote-refresh-interval");
+        Assert.False(Row(model, "auto-refresh-folders").IsOn);
+        Assert.False(interval.IsEnabled);
+        Assert.Equal(IndexOf(model, "remote-refresh-interval", "30"), interval.SelectedChoice);
+        Row(model, "auto-refresh-folders").IsOn = true;
+        Assert.True(model.Working.AutoRefreshFolders);
+        Assert.True(interval.IsEnabled);
+        interval.SelectedChoice = IndexOf(model, "remote-refresh-interval", "120");
+        Assert.Equal(120, model.Working.RemoteRefreshSeconds);
+        Assert.Equal(
+            [
+                Ui.Format(Ui.Settings.EverySecondsFormat, 15), Ui.Format(Ui.Settings.EverySecondsFormat, 30),
+                Ui.Settings.EveryMinute, Ui.Format(Ui.Settings.EveryMinutesFormat, 2),
+                Ui.Format(Ui.Settings.EveryMinutesFormat, 5)
+            ],
+            interval.Definition.Choices.Select(static choice => choice.Label));
+
         var startWith = Row(model, "start-with");
         Row(model, "adaptive-concurrency").IsOn = false;
         Assert.False(startWith.IsEnabled);

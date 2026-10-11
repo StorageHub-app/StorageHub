@@ -60,7 +60,7 @@ public sealed class CodeLogicStorageSessionFactory(StorageLibrary library)
         }
 
         ArgumentNullException.ThrowIfNull(configuration);
-        var runtimeId = $"storagehub-{profileId.Value:N}-{Guid.NewGuid():N}";
+        var runtimeId = $"{RuntimeIdPrefix}{profileId.Value:N}-{Guid.NewGuid():N}";
         var registered = false;
         try
         {
@@ -110,6 +110,33 @@ public sealed class CodeLogicStorageSessionFactory(StorageLibrary library)
 
             return StorageResult<RuntimeStorageConnection>.Fail(CodeLogicStorageMapper.Unexpected("connection registration"));
         }
+    }
+
+    private const string RuntimeIdPrefix = "storagehub-";
+
+    /// <summary>
+    /// The saved connection a runtime registration was made for, read back from its id, which is
+    /// what the library's events name. Null for an id this factory did not make.
+    /// </summary>
+    /// <remarks>
+    /// A profile is registered more than once -- the panes', the queue's and sync's connectors and
+    /// every test each have their own -- and each registration gets an id of its own, so the
+    /// profile is the only thing that ties a library event to the connection somebody sees.
+    /// </remarks>
+    internal static ConnectionProfileId? ProfileOf(string? runtimeId)
+    {
+        // "storagehub-" + 32 hex digits + "-" + 32 hex digits.
+        if (runtimeId is not { Length: 11 + 32 + 1 + 32 } ||
+            !runtimeId.StartsWith(RuntimeIdPrefix, StringComparison.Ordinal) ||
+            runtimeId[11 + 32] != '-' ||
+            !Guid.TryParseExact(runtimeId.AsSpan(11, 32), "N", out var profile) ||
+            !Guid.TryParseExact(runtimeId.AsSpan(11 + 33), "N", out _) ||
+            profile == Guid.Empty)
+        {
+            return null;
+        }
+
+        return new ConnectionProfileId(profile);
     }
 
     private async ValueTask RemoveRegistrationBestEffortAsync(string runtimeId)

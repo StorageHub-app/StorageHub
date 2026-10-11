@@ -25,7 +25,8 @@ public sealed class CodeLogicStorageEndpointSession :
     IStorageEndpointSession,
     IStorageAdvancedEndpointSession,
     IStorageAttributeEndpointSession,
-    IStoragePortableChecksumSession
+    IStoragePortableChecksumSession,
+    IStorageSpaceSession
 {
     private static readonly TimeSpan SignedUrlExpiryTolerance = TimeSpan.FromMinutes(1);
     private readonly IStorageService _storage;
@@ -99,6 +100,59 @@ public sealed class CodeLogicStorageEndpointSession :
         catch (Exception)
         {
             return StorageResult.Fail(CodeLogicStorageMapper.Unexpected("health check"));
+        }
+    }
+
+    /// <summary>
+    /// The space on the volume or quota that holds a folder, where the provider reports it: a
+    /// local folder's drive, an SFTP server's statvfs, an FTP server's AVBL. An object store has
+    /// none, and says so without a round trip.
+    /// </summary>
+    public async ValueTask<StorageResult<StorageSpace>> GetSpaceAsync(
+        StorageAddress address,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        var validation = Validate(address);
+        if (validation is not null)
+        {
+            return StorageResult<StorageSpace>.Fail(validation);
+        }
+
+        if (!_storage.Capabilities.Supports(ClStorageFeature.SpaceInfo))
+        {
+            return StorageResult<StorageSpace>.Fail(CodeLogicStorageMapper.Unsupported(
+                "storage.space.unsupported",
+                "The provider does not report free space."));
+        }
+
+        try
+        {
+            var result = await _storage
+                .GetSpaceAsync(address.CanonicalRelativePath, cancellationToken)
+                .ConfigureAwait(false);
+            if (result.IsFailure || result.Value is not { } figures)
+            {
+                return StorageResult<StorageSpace>.Fail(CodeLogicStorageMapper.MapFailure(
+                    result.Error,
+                    "storage.space.failed",
+                    "The free space could not be read."));
+            }
+
+            var space = StorageSpace.Create(figures.TotalBytes, figures.AvailableBytes, figures.UsedBytes);
+            return space.IsKnown
+                ? StorageResult<StorageSpace>.Success(space)
+                : StorageResult<StorageSpace>.Fail(CodeLogicStorageMapper.Unsupported(
+                    "storage.space.unknown",
+                    "The server reported no usable space figures."));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return StorageResult<StorageSpace>.Fail(CodeLogicStorageMapper.Unexpected("free space"));
         }
     }
 

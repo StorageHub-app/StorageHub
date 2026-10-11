@@ -35,8 +35,8 @@ internal sealed record ActivityLogResult(
 }
 
 /// <summary>
-/// A bounded, non-secret log of recent durable work: transfers, sync runs, and drags that have not
-/// become transfers yet.
+/// A bounded, non-secret log of recent durable work: transfers, sync runs, drags that have not
+/// become transfers yet, and connections that started retrying, were lost, or came back.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -61,7 +61,7 @@ internal static class ActivityLog
     internal const string DropKeyPrefix = "drop:";
 
     /// <summary>
-    /// Merges the three sources, newest first, capped at <see cref="MaximumEntries"/>.
+    /// Merges the sources, newest first, capped at <see cref="MaximumEntries"/>.
     /// </summary>
     /// <remarks>
     /// Ties are broken by area and then by key, so two records written in the same tick keep the
@@ -70,7 +70,8 @@ internal static class ActivityLog
     internal static IReadOnlyList<ActivityEntry> Build(
         IEnumerable<TransferQueueSummary> transfers,
         IEnumerable<SyncRunSummary> runs,
-        IEnumerable<PendingDropEntry>? pending = null)
+        IEnumerable<PendingDropEntry>? pending = null,
+        IEnumerable<ConnectionLinkEvent>? links = null)
     {
         ArgumentNullException.ThrowIfNull(transfers);
         ArgumentNullException.ThrowIfNull(runs);
@@ -80,6 +81,7 @@ internal static class ActivityLog
             .. transfers.Select(FromTransfer)
                 .Concat(runs.Select(FromRun))
                 .Concat((pending ?? []).Select(FromPendingDrop))
+                .Concat((links ?? []).Select(ConnectionLinkPresentation.ToActivity))
                 .OrderByDescending(static entry => entry.UpdatedUtc)
                 .ThenBy(static entry => entry.Area, StringComparer.Ordinal)
                 .ThenBy(static entry => entry.Key, StringComparer.Ordinal)
@@ -154,10 +156,16 @@ internal static class ActivityLog
 /// The two listings go out together and either failing fails the read: a log that showed transfers
 /// and silently left out sync runs would look complete and not be.
 /// </remarks>
+/// <param name="links">
+/// Where the connections' link changes are read from. Optional, and unlike the other two a failure
+/// to read them does not fail the log: they are a few lines about connections among records of
+/// work, and an agent too old to keep them should still show its transfers.
+/// </param>
 internal sealed class ActivityLogReader(
     Func<ITransferQueueAgentClient> transfers,
     Func<ISyncManagementAgentClient> sync,
-    Func<IReadOnlyList<PendingDropEntry>>? pending = null)
+    Func<IReadOnlyList<PendingDropEntry>>? pending = null,
+    Func<IRemoteStorageAgentClient>? links = null)
 {
     private readonly Func<ITransferQueueAgentClient> _transfers =
         transfers ?? throw new ArgumentNullException(nameof(transfers));
@@ -196,7 +204,10 @@ internal sealed class ActivityLogReader(
             }
 
             var drops = pending?.Invoke() ?? [];
-            return new ActivityLogResult(ActivityLog.Build(transferList.Transfers, runList.Runs, drops), drops.Count);
+            var changes = await ReadLinksAsync(cancellationToken).ConfigureAwait(false);
+            return new ActivityLogResult(
+                ActivityLog.Build(transferList.Transfers, runList.Runs, drops, changes),
+                drops.Count);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -207,6 +218,27 @@ internal sealed class ActivityLogReader(
             System.Text.Json.JsonException)
         {
             return new ActivityLogResult([], 0, DesktopAgentAvailability.ReportFailure(error));
+        }
+    }
+
+    private async Task<IReadOnlyList<ConnectionLinkEvent>> ReadLinksAsync(CancellationToken cancellationToken)
+    {
+        if (links is null) return [];
+        try
+        {
+            await using var client = links();
+            var response = await client
+                .ListLinkEventsAsync(new ConnectionLinkEventsRequest(StorageIpcContract.CurrentVersion), cancellationToken)
+                .ConfigureAwait(false);
+            return response.Failure is null ? response.Events : [];
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception error) when (error is NotSupportedException || RemoteBrowserErrors.IsExpected(error))
+        {
+            return [];
         }
     }
 }

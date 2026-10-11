@@ -262,5 +262,10 @@
   "fieldHttpSignIn": "HTTP-Anmeldung",
   "fieldRequestTimeout": "Anfrage-Zeitlimit",
   "requestTimeoutHint": "In Sekunden, für jede ganze Anfrage einschließlich der Datei beim Hochladen. Erhöhen Sie den Wert für große Dateien auf einer langsamen Leitung.",
+  "linkRetrying": "Erneuter Versuch…",
+  "linkRetryingAttemptFormat": "Erneuter Versuch, Versuch {0}…",
+  "linkLost": "Verbindung verloren",
+  "linkBack": "Wieder verbunden",
+  "linkSinceFormat": "Seit {0:t}",
   "culture": "de-DE"
 }

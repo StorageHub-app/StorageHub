@@ -341,6 +341,14 @@ internal sealed class PaneStrings : LocalizationModelBase
     /// <summary>{0} = how many the filter lets through; {1} = how many the folder holds.</summary>
     public string ItemCountFilteredFormat { get; set; } = "{0:N0} of {1:N0} items";
 
+    /// <summary>{0} = the free space, as "12.4 GiB", where the server does not say the total.</summary>
+    public string FreeSpaceFormat { get; set; } = "{0} free";
+
+    /// <summary>{0} = the free space; {1} = the size of the drive or quota.</summary>
+    public string FreeSpaceOfTotalFormat { get; set; } = "{0} free of {1}";
+
+    public string FreeSpaceHint { get; set; } = "Free space on the drive or server that holds this folder";
+
     /// <summary>The caption at the start of a pane's file command row, in capitals as 1.x drew it.</summary>
     public string FilesCaption { get; set; } = "FILES";
 

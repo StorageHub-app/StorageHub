@@ -89,6 +89,19 @@ internal interface IPaneSource : IAsyncDisposable
     /// its first 40 and counted 40, and a paste into it was refused for not being fully read.
     /// </remarks>
     Task<PaneNavigationResult> LoadMoreAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The free space behind the folder being shown, for the status line, or null where it is
+    /// not known. Never fails: a figure that cannot be read is simply left out.
+    /// </summary>
+    Task<FolderSpace?> SpaceAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<FolderSpace?>(null);
+
+    /// <summary>
+    /// How the pane can learn the folder it shows has changed, for refreshing it by itself:
+    /// nothing, by default, for a list that is not a folder.
+    /// </summary>
+    PaneFolderChanges Changes => PaneFolderChanges.None;
 }
 
 /// <summary>A pane over a saved connection, through the agent.</summary>
@@ -175,6 +188,13 @@ internal sealed class RemotePaneSource(RemoteBrowserController controller, strin
                 snapshot.HasMore))
             : PaneNavigationResult.Failed(result.ErrorMessage, result.NeedsTrust);
     }
+
+    public Task<FolderSpace?> SpaceAsync(CancellationToken cancellationToken = default) =>
+        controller.GetSpaceAsync(cancellationToken);
+
+    /// <summary>A server reports nothing to the pane, so its folders are read again on a timer.</summary>
+    public PaneFolderChanges Changes =>
+        controller.CurrentSnapshot is null ? PaneFolderChanges.None : PaneFolderChanges.Polling;
 
     public ValueTask DisposeAsync() => controller.DisposeAsync();
 
@@ -269,6 +289,24 @@ internal sealed class LocalPaneSource(LocalBrowserController controller) : IPane
             snapshot.Location.IsThisPc,
             snapshot.HasMore));
     }
+
+    public async Task<FolderSpace?> SpaceAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await controller.GetSpaceAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>A folder on this computer is watched; the drive list of This PC is not.</summary>
+    public PaneFolderChanges Changes =>
+        controller.CurrentLocation is { IsThisPc: false, DirectoryPath: { } directory }
+            ? PaneFolderChanges.Watched(directory)
+            : PaneFolderChanges.None;
 
     public ValueTask DisposeAsync() => controller.DisposeAsync();
 

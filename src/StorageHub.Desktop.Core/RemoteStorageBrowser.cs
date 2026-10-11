@@ -518,6 +518,45 @@ public sealed class RemoteBrowserController : IAsyncDisposable
         }
     }
 
+    /// <summary>How long a free-space read may hold the pane's pipe before it is given up.</summary>
+    private static readonly TimeSpan SpaceTimeout = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// The free space behind the folder being shown, or null wherever it is not known: a provider
+    /// that does not report it, an agent too old to be asked, or one that did not answer in time.
+    /// </summary>
+    /// <remarks>
+    /// Not an operation of its own, so it neither cancels a navigation nor is cancelled by one: the
+    /// two queue on the pane's one pipe, and the deadline keeps a slow server from holding a
+    /// navigation behind a figure that is only a nicety. A failure is never reported; the status
+    /// line just leaves the figure out.
+    /// </remarks>
+    public async Task<FolderSpace?> GetSpaceAsync(CancellationToken cancellationToken = default)
+    {
+        if (_disposed || CurrentSnapshot is not { } snapshot) return null;
+
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(SpaceTimeout);
+        try
+        {
+            var response = await _client.GetSpaceAsync(
+                new StorageSpaceRequest(
+                    StorageIpcContract.CurrentVersion,
+                    snapshot.Connection.ConnectionId,
+                    snapshot.RelativePath),
+                deadline.Token).ConfigureAwait(false);
+            return FolderSpace.From(response.Space);
+        }
+        catch (OperationCanceledException)
+        {
+            return null;
+        }
+        catch (Exception error) when (error is NotSupportedException || RemoteBrowserErrors.IsExpected(error))
+        {
+            return null;
+        }
+    }
+
     public void CancelCurrentOperation()
     {
         CancellationTokenSource? operation;

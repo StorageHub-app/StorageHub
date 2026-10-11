@@ -143,6 +143,19 @@ internal sealed class ConnectionStrings : LocalizationModelBase
 
     public string SidebarEmpty { get; set; } = "No saved connections yet";
 
+    /// <summary>A card's line while the library tries an operation on the connection again.</summary>
+    public string LinkRetrying { get; set; } = "Retrying…";
+
+    /// <summary>{0} = which retry this is.</summary>
+    public string LinkRetryingAttemptFormat { get; set; } = "Retrying, attempt {0}…";
+
+    public string LinkLost { get; set; } = "Connection lost";
+
+    public string LinkBack { get; set; } = "Connected again";
+
+    /// <summary>{0} = when the link last changed, as a short time; the card line's tooltip.</summary>
+    public string LinkSinceFormat { get; set; } = "Since {0:t}";
+
     public string SidebarNoMatches { get; set; } = "No connections match this search";
 
     public string SidebarKeyboardHint { get; set; } =

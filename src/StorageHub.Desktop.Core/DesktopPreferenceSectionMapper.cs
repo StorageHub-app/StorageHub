@@ -56,7 +56,9 @@ internal static class DesktopPreferenceSectionMapper
             preferences.TotalUploadBytesPerSecond,
             preferences.TotalDownloadBytesPerSecond,
             preferences.NewScheduleTimeZone,
-            preferences.TransferConflictDefault);
+            preferences.TransferConflictDefault,
+            preferences.AutoRefreshFolders,
+            preferences.RemoteRefreshSeconds);
     }
 
     /// <summary>
@@ -222,7 +224,13 @@ internal static class DesktopPreferenceSectionMapper
             // StorageHub that this one does not have leaves the setting as it was.
             TransferConflictDefault = general.TransferConflictDefault is not { } conflicts
                 ? null
-                : Enum.IsDefined(conflicts) ? conflicts : current.TransferConflictDefault
+                : Enum.IsDefined(conflicts) ? conflicts : current.TransferConflictDefault,
+            AutoRefreshFolders = general.AutoRefreshFolders ?? current.AutoRefreshFolders,
+            // An interval this build would not use leaves the setting as it was.
+            RemoteRefreshSeconds = general.RemoteRefreshSeconds is { } seconds &&
+                FolderAutoRefreshSettings.IsValidRemoteSeconds(seconds)
+                    ? seconds
+                    : current.RemoteRefreshSeconds
         };
 
     private static DesktopUpdatePreferences ApplyMachineSpecific(

@@ -52,6 +52,10 @@ public static class StorageIpcMessageTypes
     public const string ConnectionDetailsResponse = "connection.details.response";
     public const string StorageListRequest = "storage.list.request";
     public const string StorageListResponse = "storage.list.response";
+    public const string StorageSpaceRequest = "storage.space.request";
+    public const string StorageSpaceResponse = "storage.space.response";
+    public const string ConnectionLinkEventsRequest = "connection.link-events.request";
+    public const string ConnectionLinkEventsResponse = "connection.link-events.response";
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<StorageConnectionProvider>))]
@@ -393,3 +397,122 @@ public sealed record StorageListPageResponse(
         RootIdentity.Length <= StorageIpcLimits.MaximumOpaqueIdentityLength &&
         !RootIdentity.Any(char.IsControl);
 }
+
+/// <summary>
+/// Asks how much room the volume or quota behind a folder of a saved connection has, for the
+/// pane's status line. Nothing is listed or written.
+/// </summary>
+public sealed record StorageSpaceRequest(
+    int ContractVersion,
+    Guid ConnectionId,
+    string RelativePath)
+{
+    public bool HasValidBounds =>
+        ContractVersion > 0 &&
+        ConnectionId != Guid.Empty &&
+        RelativePath is not null &&
+        RelativePath.Length <= StorageIpcLimits.MaximumRelativePathLength &&
+        !RelativePath.Any(char.IsControl);
+}
+
+/// <summary>
+/// The figures a server reported, each of which may be unknown. At least one is known, none is
+/// negative, and neither the free nor the used space is more than the total.
+/// </summary>
+public sealed record StorageSpaceDocument(
+    long? TotalBytes,
+    long? AvailableBytes,
+    long? UsedBytes)
+{
+    public bool HasValidBounds =>
+        (TotalBytes is not null || AvailableBytes is not null || UsedBytes is not null) &&
+        TotalBytes is null or >= 0 &&
+        AvailableBytes is null or >= 0 &&
+        UsedBytes is null or >= 0 &&
+        (TotalBytes is not { } total ||
+            (AvailableBytes is null || AvailableBytes <= total) &&
+            (UsedBytes is null || UsedBytes <= total));
+}
+
+/// <summary>
+/// The space, or why there is none: a provider that does not report it answers with an
+/// unsupported failure, which the pane takes as nothing to show rather than as a problem.
+/// </summary>
+public sealed record StorageSpaceResponse(
+    int ContractVersion,
+    Guid ConnectionId,
+    StorageSpaceDocument? Space,
+    StorageIpcFailure? Failure = null);
+
+/// <summary>What happened to a saved connection's link to its server.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<ConnectionLinkEventKind>))]
+public enum ConnectionLinkEventKind
+{
+    /// <summary>Something failed that may pass, and it is being tried again.</summary>
+    Retrying = 1,
+
+    /// <summary>The connection dropped, or could not be reached after its retries.</summary>
+    Lost = 2,
+
+    /// <summary>It works again after retrying or being lost.</summary>
+    Back = 3
+}
+
+public static class ConnectionLinkLimits
+{
+    /// <summary>The most recent changes one read returns, which is what the activity log shows.</summary>
+    public const int MaximumEvents = 64;
+
+    /// <summary>The most connections whose latest change one read returns, for their cards.</summary>
+    public const int MaximumLatest = StorageIpcLimits.MaximumConnectionResults;
+
+    public const int MaximumAttempt = 1_000;
+}
+
+/// <summary>Asks for the recent changes to the saved connections' links, newest first.</summary>
+public sealed record ConnectionLinkEventsRequest(
+    int ContractVersion,
+    int Limit = ConnectionLinkLimits.MaximumEvents)
+{
+    public bool HasValidBounds =>
+        ContractVersion > 0 &&
+        Limit is >= 1 and <= ConnectionLinkLimits.MaximumEvents;
+}
+
+/// <summary>One change to a saved connection's link, named as the connection is named now.</summary>
+/// <param name="Sequence">Its place in the agent's journal, which starts again when the agent does.</param>
+/// <param name="Attempt">Which retry, for <see cref="ConnectionLinkEventKind.Retrying"/>.</param>
+/// <param name="ErrorCode">The <c>storage.*</c> code for what went wrong, when something did.</param>
+public sealed record ConnectionLinkEvent(
+    long Sequence,
+    Guid ConnectionId,
+    string DisplayName,
+    ConnectionLinkEventKind Kind,
+    DateTimeOffset OccurredUtc,
+    int? Attempt = null,
+    string? ErrorCode = null)
+{
+    public bool HasValidBounds =>
+        Sequence > 0 &&
+        ConnectionId != Guid.Empty &&
+        ConnectionProfileMetadataDocument.IsSafeText(DisplayName, 512, required: true) &&
+        Enum.IsDefined(Kind) &&
+        OccurredUtc != default &&
+        OccurredUtc.Offset == TimeSpan.Zero &&
+        Attempt is null or >= 1 and <= ConnectionLinkLimits.MaximumAttempt &&
+        (ErrorCode is null ||
+            ErrorCode.Length is > 0 and <= StorageIpcLimits.MaximumFailureCodeLength &&
+            ErrorCode.All(static character =>
+                char.IsAsciiLetterOrDigit(character) || character is '.' or '_' or '-'));
+}
+
+/// <param name="Events">The most recent changes, newest first: what the activity log lists.</param>
+/// <param name="Latest">
+/// Each connection's latest change, newest first, however long ago it was: what its card shows.
+/// A connection with none has had no trouble since the agent started.
+/// </param>
+public sealed record ConnectionLinkEventsResponse(
+    int ContractVersion,
+    ConnectionLinkEvent[] Events,
+    ConnectionLinkEvent[] Latest,
+    StorageIpcFailure? Failure = null);

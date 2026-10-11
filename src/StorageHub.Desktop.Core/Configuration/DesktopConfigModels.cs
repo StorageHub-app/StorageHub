@@ -124,6 +124,12 @@ internal sealed class DesktopConfig : ConfigModelBase
 
     /// <summary>What a transfer does with a file already at its destination; absent asks.</summary>
     public TransferConflictChoice? TransferConflictDefault { get; set; }
+
+    /// <summary>Whether panes refresh their folder when it changes; off by default.</summary>
+    public bool AutoRefreshFolders { get; set; }
+
+    /// <summary>How often, in seconds, a connection's folder is read again when it refreshes by itself.</summary>
+    public int RemoteRefreshSeconds { get; set; } = FolderAutoRefreshSettings.DefaultRemoteSeconds;
 }
 
 /// <summary>

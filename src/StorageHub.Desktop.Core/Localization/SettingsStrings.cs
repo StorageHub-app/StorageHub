@@ -340,6 +340,22 @@ internal sealed class SettingsStrings : LocalizationModelBase
     public string ReconnectRemotePanesHint { get; set; } =
         "Uses saved profiles to create fresh storage and SSH sessions. Workspace files never contain credentials or terminal contents.";
 
+    public string AutoRefreshFolders { get; set; } = "Refresh a folder when it changes";
+
+    public string AutoRefreshFoldersHint { get; set; } =
+        "A folder on this PC is shown again as soon as something in it changes. A connection's folder is read again on a timer, which asks the server each time. Waits while the pane is busy, and keeps the selection and scroll position.";
+
+    public string RemoteRefreshInterval { get; set; } = "Read a connection's folder again";
+
+    public string RemoteRefreshIntervalHint { get; set; } =
+        "Only while refreshing is on. A shorter interval shows changes sooner and asks the server more often.";
+
+    public string EverySecondsFormat { get; set; } = "Every {0} seconds";
+
+    public string EveryMinute { get; set; } = "Every minute";
+
+    public string EveryMinutesFormat { get; set; } = "Every {0} minutes";
+
     public string WarnClearingHistory { get; set; } = "Warn before clearing all transfer history";
 
     public string WarnClearingHistoryHint { get; set; } =

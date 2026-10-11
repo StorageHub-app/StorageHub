@@ -667,9 +667,48 @@ internal static class SettingsPageCatalog
                     Kind = SettingsControlKind.Toggle,
                     Read = p => Text(p.ReconnectRemotePanesAutomatically),
                     Write = (p, v) => p with { ReconnectRemotePanesAutomatically = Flag(v) }
+                },
+                // New in 2.0 (roadmap 4.4); 1.x read a folder only when asked. Off by default, as
+                // a timer that asks a server every so often is not something to start unasked.
+                new()
+                {
+                    Key = "auto-refresh-folders",
+                    Label = Ui.Settings.AutoRefreshFolders,
+                    Hint = Ui.Settings.AutoRefreshFoldersHint,
+                    Kind = SettingsControlKind.Toggle,
+                    Read = p => Text(p.AutoRefreshFolders),
+                    Write = (p, v) => p with { AutoRefreshFolders = Flag(v) }
+                },
+                new()
+                {
+                    Key = "remote-refresh-interval",
+                    Label = Ui.Settings.RemoteRefreshInterval,
+                    Hint = Ui.Settings.RemoteRefreshIntervalHint,
+                    Kind = SettingsControlKind.Choice,
+                    Choices = [.. RemoteRefreshChoices.Select(seconds => new SettingsChoice(Text(seconds), RefreshEvery(seconds)))],
+                    Enabled = p => p.AutoRefreshFolders,
+                    // A figure written into the file by hand shows as the nearest the row offers.
+                    Read = p => Text(RemoteRefreshChoices.MinBy(seconds => Math.Abs(seconds - p.RemoteRefreshSeconds))),
+                    Write = (p, v) => int.TryParse(v, NumberStyles.None, CultureInfo.InvariantCulture, out var seconds) &&
+                        FolderAutoRefreshSettings.IsValidRemoteSeconds(seconds)
+                            ? p with { RemoteRefreshSeconds = seconds }
+                            : p
                 }
             ])
         ]
+    };
+
+    /// <summary>
+    /// The intervals the remote refresh row offers, in seconds, all within the bounds. A property,
+    /// because the pages are built in a static initializer that runs before a field below it.
+    /// </summary>
+    private static int[] RemoteRefreshChoices => [15, 30, 60, 120, 300];
+
+    private static string RefreshEvery(int seconds) => seconds switch
+    {
+        60 => Ui.Settings.EveryMinute,
+        _ when seconds % 60 == 0 => Ui.Format(Ui.Settings.EveryMinutesFormat, seconds / 60),
+        _ => Ui.Format(Ui.Settings.EverySecondsFormat, seconds)
     };
 
     /// <summary>The new-workspace row's value for showing the chooser each time.</summary>

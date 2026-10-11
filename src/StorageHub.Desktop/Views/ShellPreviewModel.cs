@@ -1523,7 +1523,8 @@ internal static class ShellPreview
             new ActivityLogModel(new ActivityLogReader(
                 static () => new NamedPipeTransferQueueAgentClient(),
                 static () => new NamedPipeSyncManagementAgentClient(),
-                drops.Snapshot).ReadAsync),
+                drops.Snapshot,
+                static () => new NamedPipeRemoteStorageAgentClient()).ReadAsync),
             // Clear all history asks first, as 1.x's did.
             Services.ShellServices.Dialogs)
         {
@@ -1725,6 +1726,10 @@ internal static class ShellPreview
             panel.Restore(saved);
             panel.Persist = UpdatePreferences;
             panel.Shown += (_, _) => _ = model.Sidebar.RefreshAsync();
+
+            // Each connection's link -- retrying, lost, back -- on its card, read every few
+            // seconds whether the panel shows or not, so it is right the moment it is opened.
+            model.Sidebar.FollowLinks();
         }
 
         // Favourites in their own group as well as under Favorites, or only there, as Settings says.
@@ -1793,6 +1798,7 @@ internal static class ShellPreview
         pane.StopDeleteConfirmation = static () => UpdatePreferences(static preferences =>
             preferences with { ConfirmBeforeDeletingItems = false });
         pane.TerminalPreferences = static () => ReadPreferences()?.SshTerminal;
+        pane.AutoRefreshSettings = static () => ReadPreferences()?.FolderAutoRefresh ?? FolderAutoRefreshSettings.Off;
         _ = pane.LoadConnectionsAsync();
         return pane;
     }

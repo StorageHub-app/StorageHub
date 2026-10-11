@@ -262,5 +262,10 @@
   "fieldHttpSignIn": "HTTP-login",
   "fieldRequestTimeout": "Tidsgrænse for forespørgsel",
   "requestTimeoutHint": "I sekunder, for hver hel forespørgsel, inklusive filen ved en upload. Hæv den til store filer på en langsom forbindelse.",
+  "linkRetrying": "Prøver igen…",
+  "linkRetryingAttemptFormat": "Prøver igen, forsøg {0}…",
+  "linkLost": "Forbindelsen er tabt",
+  "linkBack": "Forbundet igen",
+  "linkSinceFormat": "Siden {0:t}",
   "culture": "da-DK"
 }

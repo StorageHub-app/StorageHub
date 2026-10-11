@@ -251,6 +251,79 @@ public class AddressBarTests
         }
     }
 
+    /// <summary>
+    /// With "Refresh a folder when it changes" on, a folder on this computer is watched, and a
+    /// change shows once the folder has settled -- keeping the filter and selection -- but not
+    /// while the pane is busy, when it is still owed and shown after.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task AWatchedFolderShowsWhatChangedOnceItSettlesAndWaitsWhileThePaneIsBusy()
+    {
+        var folder = Directory.CreateTempSubdirectory("storagehub-watched-");
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(folder.FullName, "a.txt"), "x", TestContext.Current.CancellationToken);
+            var now = new DateTimeOffset(2026, 10, 11, 12, 0, 0, TimeSpan.Zero);
+            var watched = new List<string>();
+            Action? changed = null;
+            var settings = FolderAutoRefreshSettings.From(true, 30);
+
+            await using var pane = await ThisPcAsync();
+            pane.Clock = () => now;
+            pane.AutoRefreshSettings = () => settings;
+            pane.FolderWatch = (path, report) =>
+            {
+                watched.Add(path);
+                changed = report;
+                return null;
+            };
+            pane.Address = folder.FullName;
+            await pane.GoToAddressAsync(TestContext.Current.CancellationToken);
+            Assert.Equal([folder.FullName], watched);
+            pane.Filter = "*.txt";
+            var a = pane.Rows.Single(static row => row.Name == "a.txt");
+            pane.SelectedRows.Add(a);
+
+            // Nothing changed: nothing is read, however long it waits.
+            now = now.AddSeconds(5);
+            Assert.False(await pane.AutoRefreshAsync());
+
+            await File.WriteAllTextAsync(Path.Combine(folder.FullName, "b.txt"), "x", TestContext.Current.CancellationToken);
+            changed!();
+            Assert.False(await pane.AutoRefreshAsync());
+            now += FolderAutoRefresh.Settle;
+            Assert.True(await pane.AutoRefreshAsync());
+
+            Assert.Equal("*.txt", pane.Filter);
+            Assert.Equal(["a.txt", "b.txt"], pane.Rows.Where(static row => !row.IsParentNavigation).Select(static row => row.Name));
+            Assert.Same(a, pane.Rows.Single(static row => row.Name == "a.txt"));
+            Assert.Contains(a, pane.SelectedRows);
+
+            // Busy reading the folder for another reason: the change waits, and is shown after.
+            await File.WriteAllTextAsync(Path.Combine(folder.FullName, "c.txt"), "x", TestContext.Current.CancellationToken);
+            changed();
+            now += FolderAutoRefresh.Settle;
+            var going = pane.RefreshAsync(TestContext.Current.CancellationToken);
+            Assert.True(pane.IsBusy);
+            Assert.False(await pane.AutoRefreshAsync());
+            await going;
+            await File.WriteAllTextAsync(Path.Combine(folder.FullName, "d.txt"), "x", TestContext.Current.CancellationToken);
+            Assert.True(await pane.AutoRefreshAsync());
+            Assert.Contains(pane.Rows, static row => row.Name == "d.txt");
+
+            // Turned off in Settings: within a few seconds the folder is no longer followed.
+            settings = FolderAutoRefreshSettings.Off;
+            now += BrowserPaneModel.AutoRefreshSettingsReadEvery;
+            changed();
+            now += FolderAutoRefresh.Settle;
+            Assert.False(await pane.AutoRefreshAsync());
+        }
+        finally
+        {
+            folder.Delete(recursive: true);
+        }
+    }
+
     private static async Task<BrowserPaneModel> ThisPcAsync()
     {
         var pane = new BrowserPaneModel(new Refusing(WorkspaceFakes.Summary("unused")));

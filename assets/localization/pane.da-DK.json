@@ -138,5 +138,8 @@
   "filesCaption": "FILER",
   "moreAvailableSuffix": " | flere tilgængelige",
   "indexingNextPageSuffix": " | indekserer næste side…",
+  "freeSpaceFormat": "{0} ledig",
+  "freeSpaceOfTotalFormat": "{0} ledig af {1}",
+  "freeSpaceHint": "Ledig plads på drevet eller serveren, som mappen ligger på",
   "culture": "da-DK"
 }
