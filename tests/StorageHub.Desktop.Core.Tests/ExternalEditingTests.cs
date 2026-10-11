@@ -350,8 +350,15 @@ public sealed class ExternalEditingTests : IDisposable
             MaximumEditableFileBytes = maximumBytes ?? preferences.MaximumEditableFileBytes
         });
         return new ExternalEditController(
-            store, () => _agent, _prompts, _launcher, Path.Combine(_directory, "sessions"), debounce ?? TimeSpan.FromMilliseconds(10));
+            store, () => _agent, _prompts, _launcher, Path.Combine(_directory, "sessions"), debounce ?? NoWatcherCheck);
     }
+
+    /// <summary>
+    /// Long enough that the real file watcher never checks during a test that calls the check
+    /// itself. At 10 ms it sometimes did, and asked a third question where the test counted two.
+    /// The one test that is about the watcher says how long it wants.
+    /// </summary>
+    private static readonly TimeSpan NoWatcherCheck = TimeSpan.FromMinutes(10);
 
     private DesktopConfigStore Store() => new(Path.Combine(_directory, "config"));
 
