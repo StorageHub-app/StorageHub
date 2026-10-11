@@ -485,6 +485,102 @@ public sealed class TransferQueueAgentSubsystemTests : IDisposable
         await worker.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
     }
 
+    /// <summary>
+    /// A full connection must not hold up work on idle ones. With every worker either running a job
+    /// on connection A or waiting on A's slot, a job for two other connections sat queued until A
+    /// freed up, though nothing was using them.
+    /// </summary>
+    [Fact]
+    public async Task A_full_connection_does_not_hold_a_worker_while_jobs_on_idle_connections_wait()
+    {
+        var fixture = await CreateFixtureAsync();
+        var sibling = CreateSiblingIntent(fixture.Intent, "second.bin");
+        Assert.True(await fixture.InnerStore.TryEnqueueAsync(sibling));
+
+        var otherSource = ConnectionProfileId.New();
+        var otherDestination = ConnectionProfileId.New();
+        await SeedProfileAsync(fixture.Database, otherSource, $"Other-source-{otherSource}");
+        await SeedProfileAsync(fixture.Database, otherDestination, $"Other-destination-{otherDestination}");
+        var idle = new TransferIntent(
+            TransferJobId.New(),
+            TransferOperationKind.Copy,
+            Address(otherSource, "other-source-root", "folder/idle.bin"),
+            Address(otherDestination, "other-destination-root", "folder/idle-copy.bin"),
+            expectedLength: 32_768,
+            TransferVerificationPolicy.Size,
+            fixture.Intent.CreatedAtUtc.AddSeconds(1));
+        Assert.True(await fixture.InnerStore.TryEnqueueAsync(idle));
+
+        var payload = Enumerable.Range(0, 32_768).Select(index => (byte)(index % 251)).ToArray();
+        var blockedEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var busySource = new FakeSession(
+            fixture.Intent.Source.ProfileId,
+            fixture.Intent.Source.RootIdentity,
+            Capabilities(StorageFeature.ReadStream))
+        {
+            Entry = StorageEntry.Create(
+                fixture.Intent.Source,
+                StorageEntryKind.File,
+                fixture.Intent.ExpectedLength).Value,
+            ReadStreamFactory = () => new CountingBlockingReadStream(() => blockedEntered.TrySetResult())
+        };
+        var busyDestination = new FakeSession(
+            fixture.Intent.Destination.ProfileId,
+            fixture.Intent.Destination.RootIdentity,
+            Capabilities(StorageFeature.WriteStream, StorageFeature.ConditionalCreate));
+        var idleSource = new FakeSession(
+            idle.Source.ProfileId,
+            idle.Source.RootIdentity,
+            Capabilities(StorageFeature.ReadStream))
+        {
+            Entry = StorageEntry.Create(idle.Source, StorageEntryKind.File, payload.LongLength).Value,
+            ReadStreamFactory = () => new SlowMemoryStream(payload, TimeSpan.FromMilliseconds(1))
+        };
+        var idleDestination = new FakeSession(
+            idle.Destination.ProfileId,
+            idle.Destination.RootIdentity,
+            Capabilities(StorageFeature.WriteStream, StorageFeature.ConditionalCreate));
+        var connector = new FakeConnector(new Dictionary<ConnectionProfileId, Func<FakeConnection>>
+        {
+            [busySource.ProfileId] = () => new FakeConnection(busySource),
+            [busyDestination.ProfileId] = () => new FakeConnection(busyDestination),
+            [idleSource.ProfileId] = () => new FakeConnection(idleSource),
+            [idleDestination.ProfileId] = () => new FakeConnection(idleDestination)
+        });
+        await using var worker = CreateWorker(
+            fixture.Store,
+            connector,
+            Options() with
+            {
+                MaximumConcurrency = 2,
+                PerConnectionConcurrency = 1
+            });
+        await worker.InitializeAsync(CancellationToken.None);
+        await worker.StartAsync(CancellationToken.None);
+        await blockedEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        TransferState idleState;
+        do
+        {
+            await Task.Delay(20);
+            idleState = Assert.IsType<DurableTransferJob>(
+                await fixture.InnerStore.FindAsync(idle.TransferJobId)).State.State;
+        }
+        while (idleState != TransferState.Completed && DateTime.UtcNow < deadline);
+
+        Assert.Equal(TransferState.Completed, idleState);
+
+        // The second job on the full connection was never claimed, so it holds no worker.
+        var states = new[]
+        {
+            (await fixture.InnerStore.FindAsync(fixture.Intent.TransferJobId))!.State.State,
+            (await fixture.InnerStore.FindAsync(sibling.TransferJobId))!.State.State,
+        };
+        Assert.Single(states, TransferState.Pending);
+        await worker.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
     [Fact]
     public async Task Polling_recovers_a_lease_that_expires_after_initialization()
     {

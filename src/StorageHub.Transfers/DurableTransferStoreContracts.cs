@@ -225,6 +225,13 @@ public sealed record TransferClaimRequest
     public string OwnerId { get; }
     public DateTimeOffset ObservedAtUtc { get; }
     public TimeSpan LeaseDuration { get; }
+
+    /// <summary>
+    /// Connections that cannot take another transfer right now, as profile ids. A job that reads
+    /// from or writes to one of them is not claimed, so a worker is never left holding a job it
+    /// cannot start while jobs on idle connections wait behind it.
+    /// </summary>
+    public IReadOnlyCollection<string> ExcludedProfileIds { get; init; } = [];
 }
 
 public sealed record TransferLeaseRenewal

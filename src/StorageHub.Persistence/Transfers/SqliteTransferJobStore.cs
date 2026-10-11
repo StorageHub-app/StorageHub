@@ -199,6 +199,11 @@ public sealed class SqliteTransferJobStore : ITransferJobStore, ITransferQueueQu
         try
         {
             DurableTransferJob? job;
+            var excluded = request.ExcludedProfileIds.Distinct(StringComparer.Ordinal).ToArray();
+            var excludedList = string.Join(", ", excluded.Select(static (_, index) => "$excluded" + index));
+            var exclusion = excluded.Length == 0
+                ? string.Empty
+                : $"AND source_profile_id NOT IN ({excludedList}) AND destination_profile_id NOT IN ({excludedList})";
             await using (var command = writer.Connection.CreateCommand())
             {
                 command.Transaction = transaction;
@@ -223,6 +228,7 @@ public sealed class SqliteTransferJobStore : ITransferJobStore, ITransferQueueQu
                         FROM transfer_jobs
                         WHERE
                             claimed_by IS NULL
+                            {exclusion}
                             AND
                             (
                                 state = $pending
@@ -244,6 +250,11 @@ public sealed class SqliteTransferJobStore : ITransferJobStore, ITransferQueueQu
                 command.Parameters.AddWithValue("$observedAt", FormatTimestamp(request.ObservedAtUtc));
                 command.Parameters.AddWithValue("$expiresAt", FormatTimestamp(expiresAtUtc));
                 command.Parameters.AddWithValue("$owner", request.OwnerId);
+                for (var index = 0; index < excluded.Length; index++)
+                {
+                    command.Parameters.AddWithValue("$excluded" + index, excluded[index]);
+                }
+
                 await using var reader = await command
                     .ExecuteReaderAsync(cancellationToken)
                     .ConfigureAwait(false);

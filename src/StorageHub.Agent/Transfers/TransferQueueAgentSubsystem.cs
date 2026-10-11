@@ -20,6 +20,7 @@ public sealed class TransferQueueAgentSubsystem
     private readonly TimeProvider _timeProvider;
     private readonly string _ownerId;
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
+    private readonly SemaphoreSlim _claimGate = new(1, 1);
     private readonly AdaptiveConcurrencyController _adaptiveConcurrency;
     private readonly ConcurrentDictionary<Domain.Identifiers.ConnectionProfileId, SemaphoreSlim> _connectionSlots = new();
     private readonly ConcurrentDictionary<Domain.Identifiers.TransferJobId, ActiveExecutionControl> _activeExecutions = new();
@@ -244,6 +245,14 @@ public sealed class TransferQueueAgentSubsystem
         }
 
         TransferJobClaim? claim;
+        ConnectionSlotLease? claimedSlots = null;
+
+        // Choosing a job, claiming it and taking its connection slots happen as one step. Done
+        // apart, a worker could claim a job for a connection that had just filled and then wait on
+        // it for as long as the transfers there ran, holding the claim, while jobs for idle
+        // connections stayed queued. The claim itself is a short write the store serialises
+        // anyway, so this costs nothing.
+        await _claimGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             var recoveryObservedAt = _timeProvider.GetUtcNow();
@@ -254,9 +263,21 @@ public sealed class TransferQueueAgentSubsystem
             // observation or a slow recovery could issue a lease that is already expired.
             var claimObservedAt = _timeProvider.GetUtcNow();
             claim = await _store.TryClaimNextAsync(
-                new TransferClaimRequest(_ownerId, claimObservedAt, _options.LeaseDuration),
+                new TransferClaimRequest(_ownerId, claimObservedAt, _options.LeaseDuration)
+                {
+                    ExcludedProfileIds = FullConnections(),
+                },
                 cancellationToken).ConfigureAwait(false);
             Volatile.Write(ref _lastInfrastructureFailure, null);
+            if (claim is not null)
+            {
+                // Never waits: the connections were checked above under the same gate, and
+                // nothing else takes a slot without it.
+                claimedSlots = await AcquireConnectionSlotsAsync(
+                    claim.Job.Intent.Source.ProfileId,
+                    claim.Job.Intent.Destination.ProfileId,
+                    cancellationToken).ConfigureAwait(false);
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -267,16 +288,17 @@ public sealed class TransferQueueAgentSubsystem
             Volatile.Write(ref _lastInfrastructureFailure, "The durable transfer queue could not claim work.");
             throw;
         }
+        finally
+        {
+            _ = _claimGate.Release();
+        }
 
-        if (claim is null)
+        if (claim is null || claimedSlots is null)
         {
             return false;
         }
 
-        await using var connectionLease = await AcquireConnectionSlotsAsync(
-            claim.Job.Intent.Source.ProfileId,
-            claim.Job.Intent.Destination.ProfileId,
-            cancellationToken).ConfigureAwait(false);
+        await using var connectionLease = claimedSlots;
 
         _ = Interlocked.Increment(ref _activeExecutionCount);
         var startedAt = _timeProvider.GetTimestamp();
@@ -358,6 +380,7 @@ public sealed class TransferQueueAgentSubsystem
 
         _connectionSlots.Clear();
         _lifecycleGate.Dispose();
+        _claimGate.Dispose();
     }
 
     private async Task WorkerLoopAsync(int workerIndex, CancellationToken cancellationToken)
@@ -403,6 +426,14 @@ public sealed class TransferQueueAgentSubsystem
         {
         }
     }
+
+    /// <summary>The connections already running as many transfers as they are allowed.</summary>
+    private string[] FullConnections() =>
+    [
+        .. _connectionSlots
+            .Where(static slot => slot.Value.CurrentCount == 0)
+            .Select(static slot => slot.Key.ToString()),
+    ];
 
     private async ValueTask<ConnectionSlotLease> AcquireConnectionSlotsAsync(
         Domain.Identifiers.ConnectionProfileId source,
