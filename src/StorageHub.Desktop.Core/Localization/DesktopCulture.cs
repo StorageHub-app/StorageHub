@@ -41,7 +41,7 @@ internal static class DesktopCulture
     internal static IReadOnlyList<string> SupportedCultures { get; } =
     [
         DefaultCulture,
-        "ar-SA", "da-DK", "de-DE", "es-ES", "fr-FR", "id-ID", "it-IT", "ja-JP", "ko-KR", "nl-NL", "pl-PL", "pt-BR", "ru-RU", "tr-TR", "uk-UA", "vi-VN", "zh-CN"
+        "ar-SA", "da-DK", "de-DE", "es-ES", "fr-FR", "hi-IN", "id-ID", "it-IT", "ja-JP", "ko-KR", "nl-NL", "pl-PL", "pt-BR", "ru-RU", "tr-TR", "uk-UA", "vi-VN", "zh-CN"
     ];
 
     /// <summary>
