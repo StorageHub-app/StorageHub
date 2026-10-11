@@ -58,6 +58,16 @@ public interface IRemoteStorageAgentClient : IAsyncDisposable
         StorageSpaceRequest request,
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("This storage client cannot read free space.");
+
+    /// <summary>
+    /// The recent changes to the connections' links -- retrying, lost, back -- and each
+    /// connection's latest, for the activity log and the cards.
+    /// </summary>
+    /// <remarks>Not every client can; one that cannot says so, and nothing is shown.</remarks>
+    Task<ConnectionLinkEventsResponse> ListLinkEventsAsync(
+        ConnectionLinkEventsRequest request,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("This storage client cannot read connection link changes.");
 }
 
 /// <summary>
@@ -219,6 +229,39 @@ public sealed class NamedPipeRemoteStorageAgentClient : IRemoteStorageAgentClien
                     !IsValidFailure(response.Failure) ||
                     (response.Space is null) == (response.Failure is null) ||
                     response.Space is { HasValidBounds: false })
+                {
+                    throw InvalidResponse();
+                }
+            },
+            cancellationToken);
+    }
+
+    public Task<ConnectionLinkEventsResponse> ListLinkEventsAsync(
+        ConnectionLinkEventsRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (!StorageIpcContract.IsSupported(request.ContractVersion) || !request.HasValidBounds)
+        {
+            throw new ArgumentException(Ui.Validation.TheConnectionListRequestIsOutsideThe, nameof(request));
+        }
+
+        return ExecuteAsync<ConnectionLinkEventsRequest, ConnectionLinkEventsResponse>(
+            StorageIpcMessageTypes.ConnectionLinkEventsRequest,
+            StorageIpcMessageTypes.ConnectionLinkEventsResponse,
+            request,
+            response =>
+            {
+                ValidateContract(response.ContractVersion);
+                if (response.ContractVersion != request.ContractVersion ||
+                    response.Events is null ||
+                    response.Latest is null ||
+                    response.Events.Length > request.Limit ||
+                    response.Latest.Length > ConnectionLinkLimits.MaximumLatest ||
+                    !IsValidFailure(response.Failure) ||
+                    response.Failure is not null && (response.Events.Length != 0 || response.Latest.Length != 0) ||
+                    response.Events.Concat(response.Latest).Any(static change => change is not { HasValidBounds: true }) ||
+                    response.Latest.Select(static change => change.ConnectionId).Distinct().Count() != response.Latest.Length)
                 {
                     throw InvalidResponse();
                 }

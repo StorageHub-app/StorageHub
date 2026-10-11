@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Media.Imaging;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Lucide.Avalonia;
 using StorageHub.Contracts.Ipc;
@@ -403,6 +404,81 @@ public class ConnectionGroupPanelTests
     }
 
     /// <summary>
+    /// A card says when its connection is retrying or lost for as long as that stands, and
+    /// "connected again" for a while after; the panel goes back to how it was on its own.
+    /// </summary>
+    /// <remarks>Set STORAGEHUB_SHOT_DIR to keep connections-link.png.</remarks>
+    [AvaloniaFact]
+    public async Task ACardSaysWhenItsConnectionIsRetryingLostOrBack()
+    {
+        ColorSchemeApplier.Apply(
+            global::Avalonia.Application.Current!,
+            ColorSchemeCatalog.Resolve(id: null, preferDark: false));
+        var cancellation = TestContext.Current.CancellationToken;
+        var noon = new DateTimeOffset(2026, 10, 11, 12, 0, 0, TimeSpan.Zero);
+        var agent = new GroupAgent(Summary("Studio Assets"), Summary("Renders"), Summary("Site Backups"), Summary("Old NAS"));
+        Link(agent, "Studio Assets", ConnectionLinkEventKind.Lost, noon.AddMinutes(-9), code: "storage.timeout");
+        Link(agent, "Renders", ConnectionLinkEventKind.Retrying, noon.AddSeconds(-20), attempt: 2);
+        Link(agent, "Site Backups", ConnectionLinkEventKind.Back, noon.AddSeconds(-30));
+        var sidebar = Sidebar(agent);
+        sidebar.Clock = () => noon;
+        await sidebar.RefreshAsync(cancellation);
+        await sidebar.RefreshLinksAsync(cancellation);
+        Dispatcher.UIThread.RunJobs();
+
+        ConnectionRowModel Row(string name) => sidebar.Groups.SelectMany(static g => g.Connections).Single(r => r.Name == name);
+        Assert.Equal(Ui.Connections.LinkLost, Row("Studio Assets").LinkText);
+        Assert.True(Row("Studio Assets").LinkIsDanger);
+        Assert.Equal(Ui.Format(Ui.Connections.LinkRetryingAttemptFormat, 2), Row("Renders").LinkText);
+        Assert.True(Row("Renders").LinkIsWarning);
+        Assert.Equal(Ui.Connections.LinkBack, Row("Site Backups").LinkText);
+        Assert.True(Row("Site Backups").LinkIsSuccess);
+        Assert.False(Row("Old NAS").HasLink);
+
+        var window = Show(sidebar, 260, 900);
+        var lines = window.GetVisualDescendants().OfType<TextBlock>()
+            .Where(static text => text.IsEffectivelyVisible)
+            .Select(static text => text.Text)
+            .ToArray();
+        Assert.Contains(Ui.Connections.LinkLost, lines);
+        Assert.Contains(Ui.Connections.LinkBack, lines);
+        if (Environment.GetEnvironmentVariable("STORAGEHUB_SHOT_DIR") is { Length: > 0 } directory)
+        {
+            Directory.CreateDirectory(directory);
+            using var stream = File.Create(Path.Combine(directory, "connections-link.png"));
+            window.CaptureRenderedFrame()!.Save(stream, new PngBitmapEncoderOptions());
+        }
+
+        // A rebuild keeps them, and "connected again" goes on its own once it is old news.
+        await sidebar.RefreshAsync(cancellation);
+        Assert.True(Row("Studio Assets").HasLink);
+        sidebar.Clock = () => noon.AddMinutes(3);
+        await sidebar.RefreshLinksAsync(cancellation);
+        Dispatcher.UIThread.RunJobs();
+        Assert.False(Row("Site Backups").HasLink);
+        Assert.True(Row("Renders").HasLink);
+
+        // The connection worked again: its card says so.
+        Link(agent, "Studio Assets", ConnectionLinkEventKind.Back, noon.AddMinutes(3));
+        await sidebar.RefreshLinksAsync(cancellation);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(Ui.Connections.LinkBack, Row("Studio Assets").LinkText);
+    }
+
+    private static void Link(
+        GroupAgent agent,
+        string name,
+        ConnectionLinkEventKind kind,
+        DateTimeOffset at,
+        int? attempt = null,
+        string? code = null)
+    {
+        var connection = agent.Connections.Single(c => c.DisplayName == name);
+        agent.Links.RemoveAll(change => change.ConnectionId == connection.ConnectionId);
+        agent.Links.Insert(0, new ConnectionLinkEvent(agent.Links.Count + 1, connection.ConnectionId, name, kind, at, attempt, code));
+    }
+
+    /// <summary>
     /// The panel on its own, with connections in it, 240 wide: narrower than it opens, which is
     /// where a selected card's name has to make room for edit and delete.
     /// </summary>
@@ -504,6 +580,15 @@ public class ConnectionGroupPanelTests
         internal int ImportsApplied { get; private set; }
 
         internal ConnectionProfileDraft? LastDraft { get; private set; }
+
+        /// <summary>Each connection's latest link change, newest first.</summary>
+        internal List<ConnectionLinkEvent> Links { get; } = [];
+
+        public Task<ConnectionLinkEventsResponse> ListLinkEventsAsync(
+            ConnectionLinkEventsRequest request,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ConnectionLinkEventsResponse(
+                request.ContractVersion, [.. Links.Take(request.Limit)], [.. Links]));
 
         internal ConnectionGroupDocument AddGroup(string name, string? iconKey = null, string? colorKey = null)
         {

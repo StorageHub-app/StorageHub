@@ -54,6 +54,8 @@ public static class StorageIpcMessageTypes
     public const string StorageListResponse = "storage.list.response";
     public const string StorageSpaceRequest = "storage.space.request";
     public const string StorageSpaceResponse = "storage.space.response";
+    public const string ConnectionLinkEventsRequest = "connection.link-events.request";
+    public const string ConnectionLinkEventsResponse = "connection.link-events.response";
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<StorageConnectionProvider>))]
@@ -439,4 +441,77 @@ public sealed record StorageSpaceResponse(
     int ContractVersion,
     Guid ConnectionId,
     StorageSpaceDocument? Space,
+    StorageIpcFailure? Failure = null);
+
+/// <summary>What happened to a saved connection's link to its server.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<ConnectionLinkEventKind>))]
+public enum ConnectionLinkEventKind
+{
+    /// <summary>Something failed that may pass, and it is being tried again.</summary>
+    Retrying = 1,
+
+    /// <summary>The connection dropped, or could not be reached after its retries.</summary>
+    Lost = 2,
+
+    /// <summary>It works again after retrying or being lost.</summary>
+    Back = 3
+}
+
+public static class ConnectionLinkLimits
+{
+    /// <summary>The most recent changes one read returns, which is what the activity log shows.</summary>
+    public const int MaximumEvents = 64;
+
+    /// <summary>The most connections whose latest change one read returns, for their cards.</summary>
+    public const int MaximumLatest = StorageIpcLimits.MaximumConnectionResults;
+
+    public const int MaximumAttempt = 1_000;
+}
+
+/// <summary>Asks for the recent changes to the saved connections' links, newest first.</summary>
+public sealed record ConnectionLinkEventsRequest(
+    int ContractVersion,
+    int Limit = ConnectionLinkLimits.MaximumEvents)
+{
+    public bool HasValidBounds =>
+        ContractVersion > 0 &&
+        Limit is >= 1 and <= ConnectionLinkLimits.MaximumEvents;
+}
+
+/// <summary>One change to a saved connection's link, named as the connection is named now.</summary>
+/// <param name="Sequence">Its place in the agent's journal, which starts again when the agent does.</param>
+/// <param name="Attempt">Which retry, for <see cref="ConnectionLinkEventKind.Retrying"/>.</param>
+/// <param name="ErrorCode">The <c>storage.*</c> code for what went wrong, when something did.</param>
+public sealed record ConnectionLinkEvent(
+    long Sequence,
+    Guid ConnectionId,
+    string DisplayName,
+    ConnectionLinkEventKind Kind,
+    DateTimeOffset OccurredUtc,
+    int? Attempt = null,
+    string? ErrorCode = null)
+{
+    public bool HasValidBounds =>
+        Sequence > 0 &&
+        ConnectionId != Guid.Empty &&
+        ConnectionProfileMetadataDocument.IsSafeText(DisplayName, 512, required: true) &&
+        Enum.IsDefined(Kind) &&
+        OccurredUtc != default &&
+        OccurredUtc.Offset == TimeSpan.Zero &&
+        Attempt is null or >= 1 and <= ConnectionLinkLimits.MaximumAttempt &&
+        (ErrorCode is null ||
+            ErrorCode.Length is > 0 and <= StorageIpcLimits.MaximumFailureCodeLength &&
+            ErrorCode.All(static character =>
+                char.IsAsciiLetterOrDigit(character) || character is '.' or '_' or '-'));
+}
+
+/// <param name="Events">The most recent changes, newest first: what the activity log lists.</param>
+/// <param name="Latest">
+/// Each connection's latest change, newest first, however long ago it was: what its card shows.
+/// A connection with none has had no trouble since the agent started.
+/// </param>
+public sealed record ConnectionLinkEventsResponse(
+    int ContractVersion,
+    ConnectionLinkEvent[] Events,
+    ConnectionLinkEvent[] Latest,
     StorageIpcFailure? Failure = null);

@@ -142,6 +142,20 @@
                   <StackPanel Grid.Column="1" Grid.Row="1" Spacing="2">
                     <TextBlock Classes="caption" Text="{Binding Subtitle}"
                                TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Endpoint}"/>
+                    <!-- The link, while it is in trouble or has just come back: retrying in the
+                         warning colour, lost in the danger colour, connected again in green for a
+                         couple of minutes. Absent the rest of the time. -->
+                    <StackPanel x:Name="PART_Link" Orientation="Horizontal" Spacing="{StaticResource SpaceXs}"
+                                IsVisible="{Binding HasLink}" ToolTip.Tip="{Binding LinkSince}">
+                      <LucideIcon Kind="{Binding LinkIcon}" Size="{StaticResource IconSizeSm}"
+                                  Classes.warning="{Binding LinkIsWarning}"
+                                  Classes.danger="{Binding LinkIsDanger}"
+                                  Classes.success="{Binding LinkIsSuccess}"/>
+                      <TextBlock Classes="caption" Text="{Binding LinkText}" TextTrimming="CharacterEllipsis"
+                                 Classes.warning="{Binding LinkIsWarning}"
+                                 Classes.danger="{Binding LinkIsDanger}"
+                                 Classes.success="{Binding LinkIsSuccess}"/>
+                    </StackPanel>
                     <ItemsControl ItemsSource="{Binding Tags}" IsVisible="{Binding HasTags}"
                                   Margin="0,2,0,0">
                       <ItemsControl.ItemsPanel>

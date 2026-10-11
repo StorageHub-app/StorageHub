@@ -142,6 +142,13 @@ Libraries.OverrideConfig<StorageConfig>("CL.Storage", "storage", config =>
     config.MaxTotalDownloadBytesPerSecond = transferConfiguration.TotalDownloadBytesPerSecond;
 });
 
+// What the library says about its connections -- a retry, a dropped session, a new one opening --
+// kept as the changes the connection cards and the activity log show. Subscribed before anything
+// is registered, so the first outage is not missed.
+var connectionLinks = new ConnectionLinkTracker();
+var connectionLinkJournal = new ConnectionLinkJournal(connectionLinks);
+using var connectionLinkFeed = new CodeLogicConnectionLinkFeed(CodeLogic.CodeLogic.GetEventBus(), connectionLinks);
+
 var agentInstanceId = Guid.NewGuid();
 AgentRuntimeCoordinator? coordinator = null;
 var databaseOptions = new SqliteDatabaseOptions(
@@ -192,7 +199,8 @@ await using var storageCommands = new StorageIpcCommandService(
     runtimeSecretFileMaterializer,
     () => new CodeLogicStorageSessionFactory(
         Libraries.Get<StorageLibrary>() ??
-        throw new InvalidOperationException("CL.Storage is not configured.")));
+        throw new InvalidOperationException("CL.Storage is not configured.")),
+    links: connectionLinkJournal);
 var profileCommands = new ConnectionProfileIpcCommandService(databaseOptions);
 var groupCommands = new ConnectionGroupIpcCommandService(databaseOptions);
 var keyStoreCommands = new KeyStoreIpcCommandService(

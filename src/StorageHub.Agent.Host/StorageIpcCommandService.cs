@@ -63,15 +63,22 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDi
     private readonly TimeProvider _timeProvider;
     private readonly ConcurrentDictionary<Guid, CachedConnectionHealth> _health = new();
     private readonly object _healthGate = new();
+    private readonly ConnectionLinkJournal? _links;
 
+    /// <param name="links">
+    /// What has happened to the connections' links, for the cards and the activity log. Without
+    /// one, the agent reports no changes, which is what an agent with no library events has.
+    /// </param>
     public StorageIpcCommandService(
         IConnectionProfileRepository profiles,
         IStorageIpcSessionOpener sessionOpener,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        ConnectionLinkJournal? links = null)
     {
         _profiles = profiles ?? throw new ArgumentNullException(nameof(profiles));
         _sessionOpener = sessionOpener ?? throw new ArgumentNullException(nameof(sessionOpener));
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _links = links;
     }
 
     /// <summary>
@@ -83,13 +90,15 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDi
         Func<ISecretVault> vaultProvider,
         IRuntimeSecretFileMaterializer secretFileMaterializer,
         CodeLogicStorageSessionFactory sessionFactory,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        ConnectionLinkJournal? links = null)
         : this(
             databaseOptions,
             vaultProvider,
             secretFileMaterializer,
             () => sessionFactory ?? throw new ArgumentNullException(nameof(sessionFactory)),
-            timeProvider)
+            timeProvider,
+            links)
     {
     }
 
@@ -102,7 +111,8 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDi
         Func<ISecretVault> vaultProvider,
         IRuntimeSecretFileMaterializer secretFileMaterializer,
         Func<CodeLogicStorageSessionFactory> sessionFactoryProvider,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        ConnectionLinkJournal? links = null)
         : this(
             new SqliteConnectionProfileRepository(databaseOptions, timeProvider),
             CreateCodeLogicSessionOpener(
@@ -111,7 +121,8 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDi
                 secretFileMaterializer,
                 sessionFactoryProvider,
                 timeProvider),
-            timeProvider)
+            timeProvider,
+            links)
     {
     }
 
@@ -129,7 +140,8 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDi
         StorageIpcMessageTypes.ConnectionDraftTestRequest or
         StorageIpcMessageTypes.ConnectionDetailsRequest or
         StorageIpcMessageTypes.StorageListRequest or
-        StorageIpcMessageTypes.StorageSpaceRequest;
+        StorageIpcMessageTypes.StorageSpaceRequest or
+        StorageIpcMessageTypes.ConnectionLinkEventsRequest;
 
     public ValueTask<AgentIpcCommandResponse> HandleAsync(
         IpcEnvelope request,
@@ -150,6 +162,8 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDi
                 ListStorageAsync(request, cancellationToken),
             StorageIpcMessageTypes.StorageSpaceRequest =>
                 ReadSpaceAsync(request, cancellationToken),
+            StorageIpcMessageTypes.ConnectionLinkEventsRequest =>
+                ReadLinkEventsAsync(request, cancellationToken),
             _ => ValueTask.FromResult(AgentIpcCommandResponse.Error(
                 "ipc.message.unsupported",
                 "The requested IPC operation is not supported by this agent version."))
@@ -733,6 +747,7 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDi
                 return StorageListFailure(request, pageFailure);
             }
 
+            _links?.Reached(profile.Id);
             var includeStableIdentities = StorageIpcContract.SupportsStableItemIdentities(
                 request.ContractVersion);
             var entries = listed.Value.Entries
@@ -823,6 +838,7 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDi
                 return SpaceFailure(request, SanitizeFailure(read.Error));
             }
 
+            _links?.Reached(profile.Id);
             var document = new StorageSpaceDocument(
                 read.Value.TotalBytes,
                 read.Value.AvailableBytes,
@@ -848,6 +864,98 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDi
                 StorageIpcFailureCategory.Unavailable,
                 SafeFailureMessage(StorageIpcFailureCategory.Unavailable),
                 IsTransient: true));
+        }
+    }
+
+    /// <summary>
+    /// The recent changes to the connections' links, and each one's latest, named as the
+    /// connections are named now. A change to a connection that has since been deleted, or to a
+    /// draft that was only ever tested, names nothing anybody can see and is left out.
+    /// </summary>
+    private async ValueTask<AgentIpcCommandResponse> ReadLinkEventsAsync(
+        IpcEnvelope envelope,
+        CancellationToken cancellationToken)
+    {
+        var request = envelope.DeserializePayload<ConnectionLinkEventsRequest>();
+        var validation = ValidateRequest(request.ContractVersion, request.HasValidBounds);
+        if (validation is not null)
+        {
+            return validation;
+        }
+
+        if (_links is null)
+        {
+            return AgentIpcCommandResponse.Create(
+                StorageIpcMessageTypes.ConnectionLinkEventsResponse,
+                new ConnectionLinkEventsResponse(request.ContractVersion, [], []));
+        }
+
+        try
+        {
+            var (recent, latest) = _links.Read(request.Limit, ConnectionLinkLimits.MaximumLatest);
+            var names = new Dictionary<ConnectionProfileId, string?>();
+            async ValueTask<ConnectionLinkEvent?> MapAsync(ConnectionLinkJournal.Entry entry)
+            {
+                var id = entry.Change.ProfileId;
+                if (!names.TryGetValue(id, out var name))
+                {
+                    name = (await _profiles.GetAsync(id, includeDeleted: false, cancellationToken)
+                        .ConfigureAwait(false))?.Metadata.DisplayName;
+                    names[id] = name;
+                }
+
+                if (name is null) return null;
+                var mapped = new ConnectionLinkEvent(
+                    entry.Sequence,
+                    id.Value,
+                    name,
+                    entry.Change.State switch
+                    {
+                        ConnectionLinkState.Retrying => ConnectionLinkEventKind.Retrying,
+                        ConnectionLinkState.Lost => ConnectionLinkEventKind.Lost,
+                        _ => ConnectionLinkEventKind.Back
+                    },
+                    entry.Change.OccurredUtc.ToUniversalTime(),
+                    entry.Change.Attempt is { } attempt
+                        ? Math.Clamp(attempt, 1, ConnectionLinkLimits.MaximumAttempt)
+                        : null,
+                    entry.Change.ErrorCode is { } code && IsSafeFailureCode(code) ? code : null);
+                return mapped.HasValidBounds ? mapped : null;
+            }
+
+            var events = new List<ConnectionLinkEvent>();
+            foreach (var entry in recent)
+            {
+                if (await MapAsync(entry).ConfigureAwait(false) is { } mapped) events.Add(mapped);
+            }
+
+            var latestEvents = new List<ConnectionLinkEvent>();
+            foreach (var entry in latest)
+            {
+                if (await MapAsync(entry).ConfigureAwait(false) is { } mapped) latestEvents.Add(mapped);
+            }
+
+            return AgentIpcCommandResponse.Create(
+                StorageIpcMessageTypes.ConnectionLinkEventsResponse,
+                new ConnectionLinkEventsResponse(request.ContractVersion, [.. events], [.. latestEvents]));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return AgentIpcCommandResponse.Create(
+                StorageIpcMessageTypes.ConnectionLinkEventsResponse,
+                new ConnectionLinkEventsResponse(
+                    request.ContractVersion,
+                    [],
+                    [],
+                    new StorageIpcFailure(
+                        "storage.connections.unavailable",
+                        StorageIpcFailureCategory.Unavailable,
+                        "Saved connections are temporarily unavailable.",
+                        IsTransient: true)));
         }
     }
 
@@ -1127,6 +1235,7 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDi
         StorageIpcFailure? failure = null)
     {
         var elapsed = ElapsedMilliseconds(started);
+        if (failure is null) _links?.Reached(profile.Id);
         var snapshot = failure is null
             ? new ConnectionHealthSnapshot(
                 ConnectionHealthState.Healthy,

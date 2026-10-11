@@ -373,6 +373,102 @@ public sealed class StorageIpcCommandServiceTests
         Assert.True(new StorageSpaceDocument(null, 5, null).HasValidBounds);
     }
 
+    /// <summary>
+    /// The link changes come back named as the connections are named now, newest first, with each
+    /// connection's latest beside them; a listing that comes back is what brings an object store
+    /// back, and a change for a connection since deleted is left out.
+    /// </summary>
+    [Fact]
+    public async Task LinkChangesAreReadNamedAndAListingBringsAConnectionBack()
+    {
+        var profile = CreateS3Profile(SecretReference.Create(), SecretReference.Create());
+        var deleted = ConnectionProfileId.New();
+        var tracker = new StorageHub.Storage.CodeLogic.ConnectionLinkTracker();
+        var journal = new ConnectionLinkJournal(tracker);
+        var at = DateTimeOffset.Parse("2026-10-11T08:00:00Z", CultureInfo.InvariantCulture);
+        tracker.Retrying(profile.Id, 2, "storage.timeout", at);
+        tracker.Lost(deleted, "storage.connection_lost", at);
+        tracker.Lost(profile.Id, "storage.not a safe code", at.AddSeconds(1));
+        var session = new FakeSession(profile.Id, "root-test", StorageResult<StoragePage>.Success(new StoragePage([])));
+        var service = new StorageIpcCommandService(
+            new FakeProfileRepository(profile),
+            new FakeSessionOpener(StorageResult<IStorageIpcSessionLease>.Success(new FakeSessionLease(session))),
+            links: journal);
+        Assert.True(service.CanHandle(StorageIpcMessageTypes.ConnectionLinkEventsRequest));
+
+        var listing = await service.HandleAsync(IpcEnvelope.Create(
+            StorageIpcMessageTypes.StorageListRequest,
+            Guid.NewGuid(),
+            1,
+            new StorageListPageRequest(StorageIpcContract.CurrentVersion, profile.Id.Value, string.Empty, PageSize: 25)));
+        Assert.Equal(StorageIpcMessageTypes.StorageListResponse, listing.MessageType);
+
+        var response = await service.HandleAsync(LinkRequest(10));
+        var payload = Assert.IsType<ConnectionLinkEventsResponse>(
+            response.Payload.Deserialize<ConnectionLinkEventsResponse>());
+
+        Assert.Null(payload.Failure);
+        Assert.Equal(
+            [ConnectionLinkEventKind.Back, ConnectionLinkEventKind.Lost, ConnectionLinkEventKind.Retrying],
+            payload.Events.Select(static change => change.Kind));
+        Assert.All(payload.Events, change =>
+        {
+            Assert.Equal(profile.Id.Value, change.ConnectionId);
+            Assert.Equal("Archive", change.DisplayName);
+            Assert.True(change.HasValidBounds);
+        });
+        Assert.Equal(2, payload.Events[2].Attempt);
+        Assert.Equal("storage.timeout", payload.Events[2].ErrorCode);
+        Assert.Null(payload.Events[1].ErrorCode);
+        var latest = Assert.Single(payload.Latest);
+        Assert.Equal(ConnectionLinkEventKind.Back, latest.Kind);
+
+        var limited = Assert.IsType<ConnectionLinkEventsResponse>(
+            (await service.HandleAsync(LinkRequest(1))).Payload.Deserialize<ConnectionLinkEventsResponse>());
+        Assert.Equal(ConnectionLinkEventKind.Back, Assert.Single(limited.Events).Kind);
+
+        var outside = await service.HandleAsync(LinkRequest(ConnectionLinkLimits.MaximumEvents + 1));
+        Assert.Equal(IpcProtocol.ErrorResponseMessageType, outside.MessageType);
+
+        // An agent without a journal has nothing to tell, which is not a failure.
+        var bare = new StorageIpcCommandService(new FakeProfileRepository(profile), new FakeSessionOpener());
+        var empty = Assert.IsType<ConnectionLinkEventsResponse>(
+            (await bare.HandleAsync(LinkRequest(10))).Payload.Deserialize<ConnectionLinkEventsResponse>());
+        Assert.Null(empty.Failure);
+        Assert.Empty(empty.Events);
+    }
+
+    /// <summary>
+    /// The journal keeps the newest changes in order and each connection's latest, and its sequence
+    /// numbers say which came first.
+    /// </summary>
+    [Fact]
+    public void TheJournalKeepsTheNewestChangesAndEachConnectionsLatest()
+    {
+        var tracker = new StorageHub.Storage.CodeLogic.ConnectionLinkTracker();
+        var journal = new ConnectionLinkJournal(tracker);
+        var at = DateTimeOffset.Parse("2026-10-11T08:00:00Z", CultureInfo.InvariantCulture);
+        var profiles = Enumerable.Range(0, ConnectionLinkJournal.Capacity + 3).Select(_ => ConnectionProfileId.New()).ToArray();
+        foreach (var profile in profiles) tracker.Lost(profile, null, at);
+        journal.Reached(profiles[^1]);
+
+        var (recent, latest) = journal.Read(5, 2);
+
+        Assert.Equal(5, recent.Count);
+        Assert.Equal(profiles[^1], recent[0].Change.ProfileId);
+        Assert.Equal(StorageHub.Storage.CodeLogic.ConnectionLinkState.Back, recent[0].Change.State);
+        Assert.True(recent.Zip(recent.Skip(1)).All(static pair => pair.First.Sequence > pair.Second.Sequence));
+        Assert.Equal([profiles[^1], profiles[^2]], latest.Select(static entry => entry.Change.ProfileId));
+        Assert.Equal(ConnectionLinkJournal.Capacity, journal.Read(int.MaxValue, 0).Recent.Count);
+        Assert.Equal(ConnectionLinkJournal.Capacity, journal.Read(0, int.MaxValue).Latest.Count);
+    }
+
+    private static IpcEnvelope LinkRequest(int limit) => IpcEnvelope.Create(
+        StorageIpcMessageTypes.ConnectionLinkEventsRequest,
+        Guid.NewGuid(),
+        1,
+        new ConnectionLinkEventsRequest(StorageIpcContract.CurrentVersion, limit));
+
     private static IpcEnvelope SpaceRequest(Guid connectionId, string path) => IpcEnvelope.Create(
         StorageIpcMessageTypes.StorageSpaceRequest,
         Guid.NewGuid(),

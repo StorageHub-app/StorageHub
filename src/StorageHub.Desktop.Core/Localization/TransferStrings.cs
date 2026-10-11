@@ -209,6 +209,24 @@ internal sealed class TransferStrings : LocalizationModelBase
 
     public string ActivityAreaSync { get; set; } = "Sync";
 
+    /// <summary>The area of a log line about a connection's link: retrying, lost, back.</summary>
+    public string ActivityAreaConnection { get; set; } = "Connection";
+
+    public string ActivityLinkRetrying { get; set; } = "Retrying";
+
+    public string ActivityLinkLost { get; set; } = "Lost";
+
+    public string ActivityLinkBack { get; set; } = "Back";
+
+    public string ActivityLinkRetryingDetails { get; set; } = "Trying again after a failure that may pass";
+
+    /// <summary>{0} = which retry this is.</summary>
+    public string ActivityLinkRetryingFormat { get; set; } = "Trying again after a failure that may pass (attempt {0})";
+
+    public string ActivityLinkLostDetails { get; set; } = "The connection to the server was lost";
+
+    public string ActivityLinkBackDetails { get; set; } = "The connection works again";
+
     /// <summary>{0} = the operation, {1} = the source path, {2} = the destination path.</summary>
     public string ActivityTransferDetailsFormat { get; set; } = "{0}: {1} \u2192 {2}";
 

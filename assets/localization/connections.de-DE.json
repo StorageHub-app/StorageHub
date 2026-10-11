@@ -258,5 +258,10 @@
   "lastCheckHealthyFormat": "In Ordnung nach {0} ms, {1}",
   "lastCheckFailedFormat": "Fehlgeschlagen ({0}), {1}",
   "detailDescribeHint": "Verbinden und anzeigen, was der Server vorlegt, ausführt und ausgehandelt hat",
+  "linkRetrying": "Erneuter Versuch…",
+  "linkRetryingAttemptFormat": "Erneuter Versuch, Versuch {0}…",
+  "linkLost": "Verbindung verloren",
+  "linkBack": "Wieder verbunden",
+  "linkSinceFormat": "Seit {0:t}",
   "culture": "de-DE"
 }
