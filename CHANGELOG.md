@@ -18,6 +18,16 @@ chosen is written down in [Versioning and merges](docs/versioning.md).
 
 ## Unreleased
 
+---
+
+## 2.1.0 — 2026-10-12
+
+The folder tree reads ahead and shows a spinner while it does, the background agent starts more
+steadily and says what it is doing, and several things that went wrong after 2.0.0 are fixed: a
+connection with no host key could not be saved, files in the root of a drive could not be copied, and
+two settings were forgotten at every start. There is a new setting, Scan subfolders for the folder
+tree, on by default.
+
 **Saving a connection with no host key pinned.** In the Edit Connection window Save stayed grey for any
 SFTP or SSH connection that had no host key pinned yet, whatever was changed, until Test connection
 happened to fetch one. Save now lights up as soon as something has changed, and clicking it fetches
