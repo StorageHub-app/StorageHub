@@ -18,6 +18,11 @@ chosen is written down in [Versioning and merges](docs/versioning.md).
 
 ## Unreleased
 
+**A live status while the agent starts.** The splash now says what the starting agent is doing,
+such as "preparing StorageHub database" or "starting Local IPC", instead of one sentence for the
+whole wait. The agent writes its progress, a stage and a subsystem name and nothing else, to a small
+file in its folder as it goes, which is how it can be heard before it answers on its pipe.
+
 **Starting after an install or update.** StorageHub waits for a freshly launched background agent
 instead of reporting "did not become ready in time" after eight seconds. The first start after an
 install or update can take ten seconds or more before the agent's own code runs, and it answered a

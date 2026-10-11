@@ -1,3 +1,4 @@
+using StorageHub.Agent;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 using StorageHub.Desktop.Configuration;
@@ -32,6 +33,8 @@ internal sealed class DesktopBoot : IDisposable
 
     /// <summary>After this long on the agent, the splash says that it can take a while.</summary>
     private static readonly TimeSpan PatienceDelay = TimeSpan.FromSeconds(3);
+
+    private static readonly TimeSpan ProgressInterval = TimeSpan.FromMilliseconds(300);
 
     /// <summary>How long a launched agent that is not answering yet is waited for before it is called failed.</summary>
     private static readonly TimeSpan AgentStartupPatience = TimeSpan.FromSeconds(90);
@@ -137,6 +140,18 @@ internal sealed class DesktopBoot : IDisposable
                 _model.StillWaiting();
             });
             patience.Start();
+            // What the agent says it is doing, from the file it writes as it starts. Only what it said
+            // after this wait began counts: a "ready" left by its previous run is not news.
+            var progressPath = AgentStartupProgress.PathIn(InstallationLayout.ForThisMachine().Paths);
+            var waitBegan = DateTimeOffset.UtcNow - TimeSpan.FromSeconds(2);
+            var agentProgress = new DispatcherTimer(ProgressInterval, DispatcherPriority.Background, (_, _) =>
+            {
+                if (AgentStartupProgress.Read(progressPath, waitBegan) is { } step)
+                {
+                    _model.ShowAgentProgress(BootText.AgentProgress(step));
+                }
+            });
+            agentProgress.Start();
             var agent = await DesktopAgentStartup.EnsureAsync(_lifetime.Token).ConfigureAwait(true);
 
             // An agent that was launched and has not answered yet is slow, not failed. The first
@@ -154,6 +169,7 @@ internal sealed class DesktopBoot : IDisposable
             }
 
             patience.Stop();
+            agentProgress.Stop();
             if (!agent.IsReady)
             {
                 _model.ShowFailure(

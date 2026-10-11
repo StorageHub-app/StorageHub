@@ -99,6 +99,8 @@ var agentRoot = agentDataDirectory.AgentDirectory;
 var agentPaths = resolvedPaths.WithDataRoot(storageHubRoot);
 var transferConfiguration = AgentTransferConfiguration.Load(
     Path.Combine(storageHubRoot, "Desktop"));
+var startupProgress = new AgentStartupProgress(AgentStartupProgress.PathIn(agentPaths), applicationVersion);
+startupProgress.Report(AgentStartupStages.Launched);
 var runtimeSecretFileMaterializer = agentPlatform.CreateRuntimeSecretFileMaterializer(agentPaths);
 try
 {
@@ -131,6 +133,7 @@ if (!initialization.Success || initialization.ShouldExit)
     return 1;
 }
 
+startupProgress.Report(AgentStartupStages.Framework);
 await Libraries.LoadAsync<StorageLibrary>();
 // Until CL.Storage ships RuntimeOnly mode, disabling configured connections is
 // the only safe bootstrap: runtime backends are registered by StorageHub and no
@@ -358,6 +361,7 @@ await using var runtimeCoordinator = new AgentRuntimeCoordinator(
         schedulerSubsystem
     ]);
 coordinator = runtimeCoordinator;
+runtimeCoordinator.Progress = startupProgress.Report;
 CodeLogic.CodeLogic.RegisterApplication(new StorageHubApplication(runtimeCoordinator, applicationVersion));
 
 try

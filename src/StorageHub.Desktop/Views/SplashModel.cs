@@ -21,6 +21,7 @@ internal sealed class SplashModel : INotifyPropertyChanged
     private string _warnings = string.Empty;
     private bool _failed;
     private bool _canRetry;
+    private string? _agentProgress;
 
     internal SplashModel()
     {
@@ -122,6 +123,7 @@ internal sealed class SplashModel : INotifyPropertyChanged
     {
         ArgumentNullException.ThrowIfNull(status);
         _stage = status.Stage;
+        if (status.Stage != BootStage.StartingAgent) _agentProgress = null;
         Status = BootText.Describe(status.Stage);
 
         // Warnings accumulate rather than replace: a set-aside settings file and a validator
@@ -141,10 +143,23 @@ internal sealed class SplashModel : INotifyPropertyChanged
     /// </summary>
     internal void StillWaiting()
     {
-        if (_stage == BootStage.StartingAgent && !_failed)
+        // Once the agent says what it is doing, that is the better answer than a general wait.
+        if (_stage == BootStage.StartingAgent && !_failed && _agentProgress is null)
         {
             Status = $"{BootText.Describe(BootStage.StartingAgent)} {BootText.Patience}";
         }
+    }
+
+    /// <summary>
+    /// Says what the starting agent reports it is doing, while the agent is the step being waited
+    /// for. The same line again changes nothing.
+    /// </summary>
+    internal void ShowAgentProgress(string progress)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(progress);
+        if (_stage != BootStage.StartingAgent || _failed) return;
+        _agentProgress = progress;
+        Status = progress;
     }
 
     internal void ShowFailure(string message, string? details, bool canRetry)

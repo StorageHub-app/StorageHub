@@ -1,3 +1,5 @@
+using StorageHub.Agent;
+
 namespace StorageHub.Desktop.Framework;
 
 /// <summary>
@@ -32,6 +34,26 @@ internal static class BootText
         BootStage.Opening => "Opening StorageHub...",
         _ => "Starting StorageHub..."
     };
+
+    /// <summary>
+    /// The step the starting agent says it is on, as a line for the splash. The stage is an
+    /// identifier the agent wrote and the name a subsystem's; neither is trusted further than that.
+    /// </summary>
+    internal static string AgentProgress(AgentStartupStep step)
+    {
+        ArgumentNullException.ThrowIfNull(step);
+        var subsystem = string.IsNullOrWhiteSpace(step.Detail) ? "its services" : step.Detail;
+        var what = step.Stage switch
+        {
+            AgentStartupStages.Launched => "loading",
+            AgentStartupStages.Framework => "its framework is up",
+            AgentStartupStages.Initializing => $"preparing {subsystem}",
+            AgentStartupStages.Starting => $"starting {subsystem}",
+            AgentStartupStages.Ready => "ready",
+            _ => "working",
+        };
+        return $"Starting the background agent: {what}...";
+    }
 
     internal static string DescribeFailure(BootStage stage) => stage switch
     {

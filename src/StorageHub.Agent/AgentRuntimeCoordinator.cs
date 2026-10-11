@@ -26,6 +26,24 @@ public sealed class AgentRuntimeCoordinator : IApplicationRuntimeCoordinator, IA
 
     public string? HealthMessage { get; private set; }
 
+    /// <summary>
+    /// Told each step of a start as it begins, with the subsystem's name, so something outside the
+    /// process can say how far it has got. Never allowed to fail a start.
+    /// </summary>
+    public Action<string, string?>? Progress { get; set; }
+
+    private void Announce(string stage, string? subsystem)
+    {
+        try
+        {
+            Progress?.Invoke(stage, subsystem);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            // Progress is a courtesy; a start does not depend on it.
+        }
+    }
+
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -47,6 +65,7 @@ public sealed class AgentRuntimeCoordinator : IApplicationRuntimeCoordinator, IA
                     continue;
                 }
 
+                Announce(AgentStartupStages.Initializing, subsystem.Name);
                 var result = await subsystem.InitializeAsync(cancellationToken).ConfigureAwait(false);
                 if (result.RequiresRecoveryMode)
                 {
@@ -103,12 +122,14 @@ public sealed class AgentRuntimeCoordinator : IApplicationRuntimeCoordinator, IA
                 }
 
                 startingSubsystem = subsystem;
+                Announce(AgentStartupStages.Starting, subsystem.Name);
                 await subsystem.StartAsync(cancellationToken).ConfigureAwait(false);
                 _started.Add(subsystem);
             }
 
             State = recoveryOnly ? ApplicationOperationalState.RecoveryOnly : ApplicationOperationalState.Ready;
             HealthMessage ??= recoveryOnly ? "Agent is available for recovery operations only." : "Agent is ready.";
+            Announce(AgentStartupStages.Ready, null);
         }
         catch (Exception startError)
         {
