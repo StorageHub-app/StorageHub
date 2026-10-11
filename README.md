@@ -99,8 +99,11 @@ exit. Resizing tells the remote its new size. ANSI, 256-color, and true-color
 with inverse, underline, and box drawing; the mouse is forwarded to programs
 that ask for it, with Shift to select locally.
 
-**In your language** — English, Danish, and German. Pick one in Settings or
-follow the system; StorageHub offers to restart so the change takes effect
+**In your language** — English plus eighteen translations: Arabic, Chinese
+(Simplified), Danish, Dutch, French, German, Hindi, Indonesian, Italian,
+Japanese, Korean, Polish, Portuguese (Brazil), Russian, Spanish, Turkish,
+Ukrainian, and Vietnamese. Arabic is laid out right to left. Pick one in
+Settings or follow the system; StorageHub offers to restart so the change takes effect
 everywhere at once.
 
 **Themes and settings** — Twenty-two colour schemes, from StorageHub's own light

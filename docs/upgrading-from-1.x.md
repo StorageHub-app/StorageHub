@@ -163,7 +163,7 @@ folder such as `C:\` opens on This PC instead.
 WinForms, and runs the same on Windows and Linux. Every 1.4 screen was ported
 and compared with 1.4, so menus, panes, the queue, Sync tasks and Settings are
 where you left them. There are twenty-two colour schemes, and Danish and German
-are still there.
+are still there, joined by sixteen more languages.
 
 **Changes made on purpose:**
 

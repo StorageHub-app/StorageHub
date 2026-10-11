@@ -38,7 +38,19 @@ internal static class DesktopCulture
     /// Also what gets written into the framework's supportedCultures, because CodeLogic scaffolds
     /// that list with en-US alone and only generates and loads the cultures named in it.
     /// </remarks>
-    internal static IReadOnlyList<string> SupportedCultures { get; } = [DefaultCulture, "da-DK", "de-DE"];
+    internal static IReadOnlyList<string> SupportedCultures { get; } = 
+    [DefaultCulture, "da-DK", "de-DE", "ru-RU", "vi-VN"];
+
+    /// <summary>
+    /// Whether a language is written right to left, so the shell mirrors its layout for it.
+    /// </summary>
+    /// <remarks>
+    /// By language rather than by the runtime's text-info, which needs the culture's data and
+    /// answers falsely where it is missing.
+    /// </remarks>
+    internal static bool IsRightToLeft(string? culture) =>
+        culture is { Length: >= 2 } &&
+        culture.Split('-')[0].ToLowerInvariant() is "ar" or "he" or "fa" or "ur";
 
     /// <summary>
     /// Resolves the language to use from a configured preference and the operating system.

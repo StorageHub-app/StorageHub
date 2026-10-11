@@ -136,8 +136,10 @@ not, and have to be set up again. Read
 
 - **Twenty-two colour schemes**, which look the same on both platforms.
 - **New options:** total speed limits, existing-file handling, the time zone for
-  new schedules and folder auto-refresh. English, Danish and German are
-  available, as in 1.4.
+  new schedules and folder auto-refresh. English plus eighteen translations
+  (Arabic, Chinese, Danish, Dutch, French, German, Hindi, Indonesian, Italian,
+  Japanese, Korean, Polish, Portuguese, Russian, Spanish, Turkish, Ukrainian and
+  Vietnamese) are available; 1.4 had English, Danish and German.
 - **Settings export moves to format 2.** It covers preferences, shortcuts,
   connection defaults, connections (with credentials as vault references, never
   secrets), connection groups, sync tasks and schedules.
