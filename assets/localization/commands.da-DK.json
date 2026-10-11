@@ -123,5 +123,7 @@
   "helpReportIssueDescription": "Rapportér en fejl i StorageHub.",
   "helpAboutStorageHub": "Om StorageHub",
   "helpAboutStorageHubDescription": "Vis StorageHubs version og oplysninger om programmet.",
+  "toolsCleanUpLeftovers": "Ryd op i efterladte filer...",
+  "toolsCleanUpLeftoversDescription": "Find de arbejdsfiler, som afbrudte overførsler og den eksterne editor har efterladt, og fjern dem, du vælger.",
   "culture": "da-DK"
 }

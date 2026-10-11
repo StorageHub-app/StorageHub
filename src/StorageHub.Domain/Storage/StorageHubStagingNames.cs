@@ -1,5 +1,14 @@
 namespace StorageHub.Domain.Storage;
 
+/// <summary>Which of StorageHub's working files a name is.</summary>
+public enum StagingFileKind
+{
+    ResumePartial,
+    TransferStaging,
+    WriteProbe,
+    RenameTemporary
+}
+
 /// <summary>
 /// The names StorageHub gives the files and folders it stages its own work in, wherever they end up.
 /// </summary>
@@ -27,6 +36,9 @@ namespace StorageHub.Domain.Storage;
 public static class StorageHubStagingNames
 {
     internal const string Prefix = ".storagehub-";
+
+    /// <summary>What every one of the working files a transfer or a mutation leaves starts with.</summary>
+    public const string FilePrefix = Prefix;
 
     /// <summary>The Local provider's reserved folder.</summary>
     public const string InternalFolderName = ".storagehub-internal";
@@ -60,6 +72,56 @@ public static class StorageHubStagingNames
              name.StartsWith(Prefix + "rename-", StringComparison.OrdinalIgnoreCase) &&
                 name.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase));
     }
+
+    /// <summary>
+    /// Which working file <paramref name="name"/> is, for the files a transfer or a mutation leaves
+    /// beside its destination; false for anything else, the folders and the drop marker included.
+    /// </summary>
+    /// <remarks>
+    /// The probes are tested first: <c>.storagehub-write-*.tmp</c> would otherwise need its own
+    /// exclusion from every rule after it. A name is only one of these with something between
+    /// the prefix and the suffix, so <c>.storagehub-.partial</c> is nobody's.
+    /// </remarks>
+    public static bool TryClassifyFile(string? name, out StagingFileKind kind)
+    {
+        kind = default;
+        if (string.IsNullOrEmpty(name) || !name.StartsWith(Prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        foreach (var (start, end, candidate) in Rules)
+        {
+            if (name.Length > start.Length + end.Length &&
+                name.StartsWith(start, StringComparison.OrdinalIgnoreCase) &&
+                name.EndsWith(end, StringComparison.OrdinalIgnoreCase))
+            {
+                kind = candidate;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// The transfer a <c>.storagehub-{id}.staging</c> file belongs to, which is what tells whether
+    /// that transfer is still under way.
+    /// </summary>
+    public static bool TryReadStagingJobId(string? name, out Guid jobId)
+    {
+        jobId = Guid.Empty;
+        return TryClassifyFile(name, out var kind) && kind == StagingFileKind.TransferStaging &&
+            Guid.TryParseExact(name![Prefix.Length..^".staging".Length], "N", out jobId);
+    }
+
+    private static readonly (string Start, string End, StagingFileKind Kind)[] Rules =
+    [
+        (Prefix + "write-", ".tmp", StagingFileKind.WriteProbe),
+        (Prefix + "rename-", ".tmp", StagingFileKind.RenameTemporary),
+        (Prefix, ".partial", StagingFileKind.ResumePartial),
+        (Prefix, ".staging", StagingFileKind.TransferStaging)
+    ];
 
     /// <summary>
     /// Whether any segment of a <c>/</c>-separated relative path is a staging name, which is what

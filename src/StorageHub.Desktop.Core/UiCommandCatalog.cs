@@ -460,6 +460,14 @@ internal static class UiCommandCatalog
             UiGlyph.Server,
             UiIconTone.Text),
         new(
+            UiCommandIds.ToolsCleanUpLeftovers,
+            UiMenuId.Tools,
+            static strings => strings.ToolsCleanUpLeftovers,
+            static strings => strings.ToolsCleanUpLeftoversDescription,
+            null,
+            UiGlyph.Delete,
+            UiIconTone.Text),
+        new(
             UiCommandIds.ToolsChecksums,
             UiMenuId.Tools,
             static strings => strings.ToolsChecksums,
@@ -627,6 +635,7 @@ internal static class UiCommandCatalog
         UiCommandIds.ConnectionsNewConnection or
         UiCommandIds.ConnectionsKeyStore or
         UiCommandIds.ToolsBackgroundAgent or
+        UiCommandIds.ToolsCleanUpLeftovers or
         UiCommandIds.SyncReviewRun or
         UiCommandIds.SyncSyncProfiles or
         UiCommandIds.SyncSchedules or

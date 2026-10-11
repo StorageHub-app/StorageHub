@@ -153,6 +153,10 @@ public partial class App : global::Avalonia.Application
         // enabling it to each user, and its own postinst points them here.
         model.Router.Handle(UiCommandIds.ToolsBackgroundAgent, () => ShowAgentControl(desktop, model));
 
+        // The working files interrupted transfers and the external editor left behind, listed with
+        // their sizes and removed only when somebody confirms it.
+        model.Router.Handle(UiCommandIds.ToolsCleanUpLeftovers, () => ShowStagingCleanup(desktop));
+
         // One updater for the session, shared with the window that shows it. Two would each
         // stage the same release into the same directory, and the second would find it taken.
         var updater = Views.UpdateCheckerWindow.CreateUpdater();
@@ -437,6 +441,14 @@ public partial class App : global::Avalonia.Application
         if (model.CompareActivePanes() is not { } compare) return;
         var window = Views.FolderCompareWindow.For(compare);
         if (desktop.MainWindow is { } owner) window.Show(owner);
+        else window.Show();
+    }
+
+    /// <summary>Opens Clean Up Leftover Files.</summary>
+    private static void ShowStagingCleanup(IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        var window = Views.StagingCleanupWindow.ForCurrentAgent();
+        if (desktop.MainWindow is { } owner) _ = window.ShowDialog(owner);
         else window.Show();
     }
 
