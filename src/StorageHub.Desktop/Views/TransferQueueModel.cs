@@ -309,6 +309,12 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
     private bool _dropsChanged;
 
     /// <summary>
+    /// How many transfers the queue held, by every state, when each handed-over drop was first seen,
+    /// by its token. A count that has grown since is the agent's transfers appearing.
+    /// </summary>
+    private readonly Dictionary<string, int> _handedOverAt = new(StringComparer.Ordinal);
+
+    /// <summary>
     /// Moves on whenever the tab or the page changes, so a read that was already under way for
     /// the old one is not shown on the new one.
     /// </summary>
@@ -899,8 +905,43 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
             ? drops.Snapshot()
             : [];
 
+    /// <summary>
+    /// Takes the row of a drop off the Active tab once the agent's own transfers for it are in the
+    /// queue. Such a row only says the agent has the drop: the transfers take over from it and have
+    /// rows of their own, so it has nothing left to say, and until now it stayed for as long as it
+    /// takes to expire, saying "Queued" over a file that had already arrived. The queue holding more
+    /// transfers than when the row was first seen is what says they have appeared; a drop whose
+    /// transfers appeared first, or none do, leaves the row to expire as it always did.
+    /// </summary>
+    private void SettleHandedOverDrops(IReadOnlyDictionary<TransferQueueState, int> counts)
+    {
+        if (_pendingDrops is not { } drops) return;
+
+        var total = counts.Values.Sum();
+        var handedOver = drops.Snapshot().Where(static entry => entry.State == PendingDropState.Queued).ToList();
+        foreach (var token in _handedOverAt.Keys.Except(handedOver.Select(static entry => entry.Token)).ToList())
+        {
+            _handedOverAt.Remove(token);
+        }
+
+        foreach (var entry in handedOver)
+        {
+            if (!_handedOverAt.TryGetValue(entry.Token, out var before))
+            {
+                _handedOverAt[entry.Token] = total;
+            }
+            else if (total > before)
+            {
+                _handedOverAt.Remove(entry.Token);
+                drops.Discard(entry.Token);
+            }
+        }
+    }
+
     private void Apply(TransferListResponse response, TransferQueueTab tab)
     {
+        if (response.StateCounts is { } known) SettleHandedOverDrops(known);
+
         _updating = true;
         try
         {

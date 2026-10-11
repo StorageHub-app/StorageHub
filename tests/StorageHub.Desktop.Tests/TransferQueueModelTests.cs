@@ -39,6 +39,35 @@ public class TransferQueueModelTests
     }
 
     /// <summary>
+    /// The row of a drag out the agent has taken goes as soon as the queue holds more transfers than
+    /// it did, because those are the transfers it handed over to. It said "Queued" for as long as it
+    /// took to expire, over a file that had already arrived. A drop that failed keeps its row, which
+    /// holds the reason.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task ADropTheAgentHasTakenGoesOnceItsTransfersAreInTheQueue()
+    {
+        var drops = new PendingDropRegistry();
+        drops.Begin("taken", "start.sh", 1);
+        drops.MarkQueued("taken", @"C:\Desktop");
+        drops.Begin("failed", "photos", 1);
+        drops.MarkFailed("failed", "Could not list the folder.");
+        var agent = new FakeQueueAgent { Counts = new() { [TransferQueueState.Completed] = 3 } };
+        await using var queue = new TransferQueueModel(() => agent) { PendingDrops = drops };
+
+        // First seen: nothing new has appeared in the queue yet.
+        await queue.RefreshAsync();
+        Assert.Equal(2, drops.Snapshot().Count);
+
+        // The agent's transfer arrives, and finishes, as one does for a small file.
+        agent.Counts[TransferQueueState.Completed] = 4;
+        await queue.RefreshAsync();
+
+        var left = Assert.Single(drops.Snapshot());
+        Assert.Equal("failed", left.Token);
+    }
+
+    /// <summary>
     /// More than a page is read a page at a time, within the contract's limit, up to four pages;
     /// Next shows the rows after those, as 1.x's did, and Refresh comes back to the newest.
     /// </summary>

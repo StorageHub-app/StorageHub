@@ -38,8 +38,9 @@ it used to need a second try once the first click had selected it.
 
 **Dragging a file from a connection to Explorer.** The row that says a drag out was handed to the agent
 stayed in the queue's Active tab as "Queued", with no progress, for a minute after the file had
-arrived, which read as a transfer that never started. It now clears after a few seconds, since the
-transfers have rows of their own; a drag that failed or was cancelled still stays long enough to read.
+arrived, which read as a transfer that never started. It now goes as soon as the agent's own transfers
+appear in the queue, which have rows of their own, and at the latest after a few seconds; a drag that
+failed or was cancelled still stays long enough to read.
 
 **Saving a connection with no host key pinned.** In the Edit Connection window Save stayed grey for any
 SFTP or SSH connection that had no host key pinned yet, whatever was changed, until Test connection
