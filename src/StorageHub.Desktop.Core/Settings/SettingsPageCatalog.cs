@@ -556,6 +556,15 @@ internal static class SettingsPageCatalog
                 },
                 new()
                 {
+                    Key = "hide-empty-groups",
+                    Label = Ui.Settings.HideEmptyGroups,
+                    Hint = Ui.Settings.HideEmptyGroupsHint,
+                    Kind = SettingsControlKind.Toggle,
+                    Read = p => Text(p.HideEmptyGroups),
+                    Write = (p, v) => p with { HideEmptyGroups = Flag(v) }
+                },
+                new()
+                {
                     Key = "connections-panel-side",
                     Label = Ui.Settings.ConnectionsPanelSide,
                     Kind = SettingsControlKind.Choice,

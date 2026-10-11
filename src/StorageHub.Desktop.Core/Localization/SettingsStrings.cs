@@ -480,6 +480,11 @@ internal sealed class SettingsStrings : LocalizationModelBase
         "A favourite is listed under Favourites and again where it actually lives. Turn this off "
         + "to list it only under Favourites.";
 
+    public string HideEmptyGroups { get; set; } = "Hide empty groups";
+
+    public string HideEmptyGroupsHint { get; set; } =
+        "The connections panel always shows Favourites, every group and Ungrouped, even with nothing in them. Turn this on to leave out the ones that are empty.";
+
     public string RenderBoldText { get; set; } = "Render ANSI bold text";
 
     public string RenderBoldTextHint { get; set; } =

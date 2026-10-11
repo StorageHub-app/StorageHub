@@ -620,7 +620,7 @@ internal sealed class ConnectionStrings : LocalizationModelBase
         "Could not send input to the background agent.";
 
     // ------------------------------------------------------------- agent groups
-    /// <summary>The section for connections filed in no group, shown only while it has any.</summary>
+    /// <summary>The section for connections filed in no group, last.</summary>
     public string Ungrouped { get; set; } = "Ungrouped";
 
     /// <summary>What an open group with nothing in it says, on one quiet line.</summary>

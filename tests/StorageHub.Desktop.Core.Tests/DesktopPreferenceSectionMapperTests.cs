@@ -137,6 +137,35 @@ public sealed class DesktopPreferenceSectionMapperTests
     }
 
     /// <summary>
+    /// Hiding empty groups travels in an export; a file from before it existed leaves the
+    /// importing machine's choice alone, and the default is to show every group.
+    /// </summary>
+    [Fact]
+    public void HideEmptyGroupsTravelsAndAnOlderFileLeavesItAlone()
+    {
+        Assert.False(DesktopUpdatePreferences.Defaults.HideEmptyGroups);
+        var hiding = DesktopUpdatePreferences.Defaults with { HideEmptyGroups = true };
+        var exported = Document() with { DesktopGeneral = DesktopPreferenceSectionMapper.CaptureGeneral(hiding) };
+        Assert.True(exported.DesktopGeneral!.HideEmptyGroups);
+        Assert.True(DesktopPreferenceSectionMapper.Apply(
+            DesktopUpdatePreferences.Defaults, exported, [SettingsSectionId.DesktopGeneral]).Preferences.HideEmptyGroups);
+
+        var shown = Document() with { DesktopGeneral = DesktopPreferenceSectionMapper.CaptureGeneral(DesktopUpdatePreferences.Defaults) };
+        Assert.False(DesktopPreferenceSectionMapper.Apply(hiding, shown, [SettingsSectionId.DesktopGeneral]).Preferences.HideEmptyGroups);
+
+        var older = exported with { DesktopGeneral = exported.DesktopGeneral with { HideEmptyGroups = null } };
+        Assert.True(DesktopPreferenceSectionMapper.Apply(hiding, older, [SettingsSectionId.DesktopGeneral]).Preferences.HideEmptyGroups);
+        Assert.False(DesktopPreferenceSectionMapper.Apply(
+            DesktopUpdatePreferences.Defaults, older, [SettingsSectionId.DesktopGeneral]).Preferences.HideEmptyGroups);
+
+        // And through the file itself, where the key is simply absent.
+        var json = System.Text.Json.JsonSerializer.Serialize(DesktopPreferenceSectionMapper.CaptureGeneral(hiding));
+        var withoutKey = System.Text.Json.Nodes.JsonNode.Parse(json)!.AsObject();
+        withoutKey.Remove("HideEmptyGroups");
+        Assert.Null(System.Text.Json.JsonSerializer.Deserialize<DesktopGeneralSection>(withoutKey.ToJsonString())!.HideEmptyGroups);
+    }
+
+    /// <summary>
     /// Asking is a choice of its own, so an export that asks imports as asking; a choice a newer
     /// StorageHub has and this one does not leaves the setting as it was.
     /// </summary>
