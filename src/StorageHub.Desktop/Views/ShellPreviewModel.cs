@@ -1785,6 +1785,7 @@ internal static class ShellPreview
         pane.StopDeleteConfirmation = static () => UpdatePreferences(static preferences =>
             preferences with { ConfirmBeforeDeletingItems = false });
         pane.TerminalPreferences = static () => ReadPreferences()?.SshTerminal;
+        pane.AutoRefreshSettings = static () => ReadPreferences()?.FolderAutoRefresh ?? FolderAutoRefreshSettings.Off;
         _ = pane.LoadConnectionsAsync();
         return pane;
     }

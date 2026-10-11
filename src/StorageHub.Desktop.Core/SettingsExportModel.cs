@@ -48,7 +48,11 @@ internal sealed record DesktopGeneralSection(
     string? NewScheduleTimeZone = null,
     // How the person wants a transfer to meet files already there, which is theirs rather than
     // the machine's. Null asks, as on a fresh install.
-    TransferConflictChoice? TransferConflictDefault = null);
+    TransferConflictChoice? TransferConflictDefault = null,
+    // Whether folders refresh by themselves, and how often a connection's does. Absent in a file
+    // from before they existed, which leaves them as they are.
+    bool? AutoRefreshFolders = null,
+    int? RemoteRefreshSeconds = null);
 
 /// <summary>
 /// Settings that name something on one computer: a path, or a reference into that machine's

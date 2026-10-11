@@ -177,7 +177,13 @@ internal static class DesktopConfigRepair
             // A choice this build does not have asks, which cannot replace anything by surprise.
             TransferConflictDefault = preferences.TransferConflictDefault is { } conflicts && Enum.IsDefined(conflicts)
                 ? conflicts
-                : null
+                : null,
+            // An interval outside the bounds is brought to the nearer one, which is what a pane
+            // would have used anyway.
+            RemoteRefreshSeconds = Math.Clamp(
+                preferences.RemoteRefreshSeconds,
+                FolderAutoRefreshSettings.MinimumRemoteSeconds,
+                FolderAutoRefreshSettings.MaximumRemoteSeconds)
         };
     }
 
@@ -229,6 +235,11 @@ internal static class DesktopConfigRepair
         if (preferences.TransferConflictDefault is { } conflicts && !Enum.IsDefined(conflicts))
         {
             return "The choice for files already at a transfer's destination is not one StorageHub has.";
+        }
+
+        if (!FolderAutoRefreshSettings.IsValidRemoteSeconds(preferences.RemoteRefreshSeconds))
+        {
+            return "How often a connection's folder is read again is outside what StorageHub allows.";
         }
 
         return !IsValidEditorPath(preferences.ExternalEditorPath) ||

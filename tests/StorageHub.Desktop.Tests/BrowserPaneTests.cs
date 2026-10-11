@@ -73,6 +73,50 @@ public class BrowserPaneTests
         Assert.False(pane.HasStatus, pane.Status);
     }
 
+    /// <summary>
+    /// With "Refresh a folder when it changes" on, a connection's folder is read again every
+    /// interval, keeping the selection; off, as by default, it is read only when asked.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task AConnectionsFolderIsReadAgainEveryIntervalOnlyWhenTurnedOn()
+    {
+        var agent = new FakeBrowsingAgent();
+        var connection = Connection("Build Box", StorageConnectionProvider.Sftp);
+        agent.Connections.Add(connection);
+        agent.Listings[string.Empty] = [Entry("q1.pdf", size: 10)];
+        var now = new DateTimeOffset(2026, 10, 11, 12, 0, 0, TimeSpan.Zero);
+
+        await using var pane = new BrowserPaneModel(agent) { Clock = () => now };
+        var settings = FolderAutoRefreshSettings.Off;
+        pane.AutoRefreshSettings = () => settings;
+        pane.FolderWatch = static (_, _) => throw new InvalidOperationException("A connection's folder is not watched.");
+        await pane.LoadConnectionsAsync(TestContext.Current.CancellationToken);
+        await pane.OpenConnectionAsync(connection.ConnectionId, TestContext.Current.CancellationToken);
+        var q1 = pane.Rows.Single(static row => row.Name == "q1.pdf");
+        pane.SelectedRows.Add(q1);
+
+        // Off: never read by itself.
+        agent.Listings[string.Empty] = [Entry("q1.pdf", size: 10), Entry("q2.pdf", size: 20)];
+        now = now.AddHours(1);
+        Assert.False(await pane.AutoRefreshAsync());
+        Assert.DoesNotContain(pane.Rows, static row => row.Name == "q2.pdf");
+
+        // On, from the next folder shown.
+        settings = FolderAutoRefreshSettings.From(true, 30);
+        await pane.RefreshAsync(TestContext.Current.CancellationToken);
+        q1 = pane.Rows.Single(static row => row.Name == "q1.pdf");
+        pane.SelectedRows.Clear();
+        pane.SelectedRows.Add(q1);
+        agent.Listings[string.Empty] = [Entry("q1.pdf", size: 10), Entry("q2.pdf", size: 20), Entry("q3.pdf", size: 30)];
+        now = now.AddSeconds(29);
+        Assert.False(await pane.AutoRefreshAsync());
+        now = now.AddSeconds(1);
+        Assert.True(await pane.AutoRefreshAsync());
+        Assert.Contains(pane.Rows, static row => row.Name == "q3.pdf");
+        Assert.Contains(q1, pane.SelectedRows);
+        Assert.False(pane.ShowsLoading);
+    }
+
     /// <summary>A listing with its free space in the footer, for a human to look at.</summary>
     [AvaloniaFact]
     public async Task AFooterWithFreeSpaceCanBePhotographed()

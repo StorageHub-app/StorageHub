@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows.Input;
+using Avalonia.Threading;
 using Lucide.Avalonia;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Localization;
@@ -239,6 +240,33 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     /// change made in Settings reaches the next session without the pane being replaced.
     /// </remarks>
     internal Func<SshTerminalPreferences?>? TerminalPreferences { get; set; }
+
+    /// <summary>
+    /// The "Refresh a folder when it changes" settings. Null, as in the samples and most tests,
+    /// never refreshes by itself.
+    /// </summary>
+    /// <remarks>
+    /// Read after every listing and every <see cref="AutoRefreshSettingsReadEvery"/> while
+    /// following a folder, so turning it on reaches a pane at its next folder and turning it off
+    /// within seconds, without the pane being replaced.
+    /// </remarks>
+    internal Func<FolderAutoRefreshSettings>? AutoRefreshSettings { get; set; }
+
+    /// <summary>Starts watching a folder on this computer; a test gives its own.</summary>
+    internal Func<string, Action, IDisposable?> FolderWatch { get; set; } = LocalFolderWatch.Start;
+
+    /// <summary>What auto-refresh measures its waits against; a test gives its own.</summary>
+    internal Func<DateTimeOffset> Clock { get; set; } = static () => DateTimeOffset.UtcNow;
+
+    /// <summary>How often a following pane asks whether its folder is due to be read again.</summary>
+    internal static readonly TimeSpan AutoRefreshTick = TimeSpan.FromSeconds(1);
+
+    internal static readonly TimeSpan AutoRefreshSettingsReadEvery = TimeSpan.FromSeconds(15);
+
+    private FolderAutoRefresh? _autoRefresh;
+    private DispatcherTimer? _autoRefreshTimer;
+    private FolderAutoRefreshSettings _autoRefreshSettings = FolderAutoRefreshSettings.Off;
+    private DateTimeOffset _autoRefreshSettingsRead;
 
     /// <summary>The folder tree beside the list.</summary>
     public PaneTreeModel Tree { get; } = new();
@@ -1229,16 +1257,17 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     /// Skipped while the pane is busy with anything else, and a failure changes nothing: the next
     /// tick tries again, and a banner every five seconds for a flaky connection would be noise.
     /// </remarks>
-    internal async Task RefreshQuietlyAsync(CancellationToken cancellationToken = default)
+    /// <returns>Whether the folder was read; false when skipped, moved away from, or failed.</returns>
+    internal async Task<bool> RefreshQuietlyAsync(CancellationToken cancellationToken = default)
     {
-        if (_source is not { } source || IsTerminal || _busy || _loadingMore is not null) return;
+        if (!CanRefreshQuietly || _source is not { } source) return false;
 
         // Not a navigation of its own: the same folder read again, which anything that moves the
         // pane meanwhile makes stale.
         var navigation = _navigation;
         var result = await source.MoveAsync(PaneNavigationKind.Refresh, cancellationToken: cancellationToken)
             .ConfigureAwait(true);
-        if (navigation != _navigation || _busy || result.Listing is not { } listing) return;
+        if (navigation != _navigation || _busy || result.Listing is not { } listing) return false;
 
         _hasMore = listing.HasMore;
         Index.Reset(listing.Rows);
@@ -1246,6 +1275,74 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         FollowTree(listing.Rows, append: false);
         Raise(nameof(HasMorePages));
         await ReadSpaceAsync(navigation, source).ConfigureAwait(true);
+
+        // The folder may be gone and its parent shown instead, which is the one to follow now.
+        FollowFolder(readSettings: false);
+        return true;
+    }
+
+    /// <summary>Whether a quiet refresh would read the folder now, rather than wait.</summary>
+    private bool CanRefreshQuietly => _source is not null && !IsTerminal && !_busy && _loadingMore is null;
+
+    /// <summary>
+    /// Follows the folder the pane shows now for auto-refresh -- watched, polled or neither, as
+    /// the source and the settings say -- and runs the tick only while there is something to follow.
+    /// </summary>
+    private void FollowFolder(bool readSettings)
+    {
+        if (AutoRefreshSettings is not { } settings)
+        {
+            return;
+        }
+
+        if (readSettings)
+        {
+            _autoRefreshSettings = settings();
+            _autoRefreshSettingsRead = Clock();
+        }
+
+        var changes = IsTerminal ? PaneFolderChanges.None : _source?.Changes ?? PaneFolderChanges.None;
+        _autoRefresh ??= new FolderAutoRefresh(FolderWatch);
+        _autoRefresh.Follow(changes, _autoRefreshSettings, Clock);
+
+        if (_autoRefreshSettings.Enabled && changes != PaneFolderChanges.None)
+        {
+            _autoRefreshTimer ??= new DispatcherTimer(
+                AutoRefreshTick, DispatcherPriority.Background, (_, _) => _ = AutoRefreshAsync());
+            _autoRefreshTimer.Start();
+        }
+        else
+        {
+            _autoRefreshTimer?.Stop();
+        }
+    }
+
+    /// <summary>
+    /// One tick of auto-refresh: reads the folder again if it changed or is due, unless the pane
+    /// is busy, in which case it is still owed and read on a later tick.
+    /// </summary>
+    /// <returns>Whether the folder was read.</returns>
+    internal async Task<bool> AutoRefreshAsync()
+    {
+        if (_autoRefresh is null) return false;
+        var now = Clock();
+        if (now - _autoRefreshSettingsRead >= AutoRefreshSettingsReadEvery)
+        {
+            FollowFolder(readSettings: true);
+        }
+
+        if (!_autoRefresh.Due(now) || !CanRefreshQuietly) return false;
+
+        // Marked read before the listing goes, so a change while it is on its way is owed again.
+        _autoRefresh.Read(now);
+        return await RefreshQuietlyAsync().ConfigureAwait(true);
+    }
+
+    /// <summary>Stops following any folder, for a pane about to show something else or go away.</summary>
+    private void StopFollowingFolder()
+    {
+        _autoRefreshTimer?.Stop();
+        _autoRefresh?.Follow(PaneFolderChanges.None, _autoRefreshSettings, Clock);
     }
 
     /// <summary>
@@ -1454,6 +1551,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         var navigation = ++_navigation;
         _standingBy = false;
         FreeSpace = string.Empty;
+        StopFollowingFolder();
         IsBusy = true;
         try
         {
@@ -1782,6 +1880,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         // is not being shown, and nothing is loading now.
         _navigation++;
         IsBusy = false;
+        StopFollowingFolder();
         await CloseTerminalAsync().ConfigureAwait(true);
         if (_source is LocalPaneSource local) await local.DisposeAsync().ConfigureAwait(true);
         _source = null;
@@ -2218,6 +2317,8 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         // nothing: either would otherwise build a new index, and its SQLite file, for a pane that
         // is gone.
         _navigation++;
+        _autoRefreshTimer?.Stop();
+        _autoRefresh?.Dispose();
         await CloseTerminalAsync().ConfigureAwait(false);
         if (_source is LocalPaneSource local)
         {
@@ -2284,6 +2385,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         Raise(nameof(Title));
         FollowTree(listing.Rows, append: false);
         if (_source is { } source) _ = ReadSpaceAsync(navigation, source);
+        FollowFolder(readSettings: true);
     }
 
     /// <summary>

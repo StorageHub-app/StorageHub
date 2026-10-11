@@ -296,7 +296,9 @@ internal sealed class DesktopConfigStore
             TotalUploadBytesPerSecond: general.TotalUploadBytesPerSecond,
             TotalDownloadBytesPerSecond: general.TotalDownloadBytesPerSecond,
             NewScheduleTimeZone: general.NewScheduleTimeZone,
-            TransferConflictDefault: general.TransferConflictDefault);
+            TransferConflictDefault: general.TransferConflictDefault,
+            AutoRefreshFolders: general.AutoRefreshFolders,
+            RemoteRefreshSeconds: general.RemoteRefreshSeconds);
     }
 
     /// <summary>
@@ -379,7 +381,9 @@ internal sealed class DesktopConfigStore
             TotalUploadBytesPerSecond = preferences.TotalUploadBytesPerSecond,
             TotalDownloadBytesPerSecond = preferences.TotalDownloadBytesPerSecond,
             NewScheduleTimeZone = preferences.NewScheduleTimeZone,
-            TransferConflictDefault = preferences.TransferConflictDefault
+            TransferConflictDefault = preferences.TransferConflictDefault,
+            AutoRefreshFolders = preferences.AutoRefreshFolders,
+            RemoteRefreshSeconds = preferences.RemoteRefreshSeconds
         };
 
         var shortcuts = new DesktopShortcutsConfig

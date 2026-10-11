@@ -96,6 +96,12 @@ internal interface IPaneSource : IAsyncDisposable
     /// </summary>
     Task<FolderSpace?> SpaceAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult<FolderSpace?>(null);
+
+    /// <summary>
+    /// How the pane can learn the folder it shows has changed, for refreshing it by itself:
+    /// nothing, by default, for a list that is not a folder.
+    /// </summary>
+    PaneFolderChanges Changes => PaneFolderChanges.None;
 }
 
 /// <summary>A pane over a saved connection, through the agent.</summary>
@@ -185,6 +191,10 @@ internal sealed class RemotePaneSource(RemoteBrowserController controller, strin
 
     public Task<FolderSpace?> SpaceAsync(CancellationToken cancellationToken = default) =>
         controller.GetSpaceAsync(cancellationToken);
+
+    /// <summary>A server reports nothing to the pane, so its folders are read again on a timer.</summary>
+    public PaneFolderChanges Changes =>
+        controller.CurrentSnapshot is null ? PaneFolderChanges.None : PaneFolderChanges.Polling;
 
     public ValueTask DisposeAsync() => controller.DisposeAsync();
 
@@ -291,6 +301,12 @@ internal sealed class LocalPaneSource(LocalBrowserController controller) : IPane
             return null;
         }
     }
+
+    /// <summary>A folder on this computer is watched; the drive list of This PC is not.</summary>
+    public PaneFolderChanges Changes =>
+        controller.CurrentLocation is { IsThisPc: false, DirectoryPath: { } directory }
+            ? PaneFolderChanges.Watched(directory)
+            : PaneFolderChanges.None;
 
     public ValueTask DisposeAsync() => controller.DisposeAsync();
 
