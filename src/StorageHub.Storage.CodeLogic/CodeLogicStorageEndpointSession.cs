@@ -1,6 +1,8 @@
 using System.Text;
 using CL.Storage.Abstractions;
 using CL.Storage.Models;
+using CodeLogic.Core.Results;
+using FluentFTP;
 using StorageHub.Contracts.Results;
 using StorageHub.Domain.Capabilities;
 using StorageHub.Domain.Identifiers;
@@ -26,7 +28,8 @@ public sealed class CodeLogicStorageEndpointSession :
     IStorageAdvancedEndpointSession,
     IStorageAttributeEndpointSession,
     IStoragePortableChecksumSession,
-    IStorageSpaceSession
+    IStorageSpaceSession,
+    IStorageRawCommandSession
 {
     private static readonly TimeSpan SignedUrlExpiryTolerance = TimeSpan.FromMinutes(1);
     private readonly IStorageService _storage;
@@ -58,6 +61,23 @@ public sealed class CodeLogicStorageEndpointSession :
     public string RootIdentity { get; }
 
     public EffectiveStorageCapabilities Capabilities { get; }
+
+    /// <summary>
+    /// Leases an FTP control connection of its own from the library, for the command console. Set
+    /// by the session factory on FTP and FTPS registrations only; null everywhere else.
+    /// </summary>
+    /// <remarks>
+    /// The library's native lease rather than its <c>IStorageCommandService</c>: the lease is
+    /// discarded when it is given back, where the command service returns its connection to the
+    /// pool the panes and the queue share. A console command can change that connection's working
+    /// directory or transfer type, or be cancelled halfway through a reply, and the pool would hand
+    /// it on regardless. The library documents its leases as discarded for exactly that reason.
+    /// </remarks>
+    internal Func<CancellationToken, Task<Result<NativeConnectionLease<AsyncFtpClient>>>>? OpenFtpControlConnection
+    {
+        get;
+        init;
+    }
 
     public async ValueTask<StorageResult> CheckHealthAsync(CancellationToken cancellationToken = default)
     {
@@ -154,6 +174,92 @@ public sealed class CodeLogicStorageEndpointSession :
         {
             return StorageResult<StorageSpace>.Fail(CodeLogicStorageMapper.Unexpected("free space"));
         }
+    }
+
+    /// <summary>
+    /// Sends one FTP command on a control connection of its own and returns the server's reply,
+    /// every line of it. The connection is closed afterwards rather than pooled.
+    /// </summary>
+    public async ValueTask<StorageResult<StorageRawCommandReply>> ExecuteRawCommandAsync(
+        string command,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        if (OpenFtpControlConnection is not { } open)
+        {
+            return StorageResult<StorageRawCommandReply>.Fail(CodeLogicStorageMapper.Unsupported(
+                "storage.raw_command.unsupported",
+                "Only FTP and FTPS connections take raw commands."));
+        }
+
+        if (string.IsNullOrWhiteSpace(command) || command.Any(char.IsControl))
+        {
+            return StorageResult<StorageRawCommandReply>.Fail(new StorageFailure(
+                "storage.raw_command.invalid",
+                StorageFailureKind.Validation,
+                "A command must be one line with no control characters."));
+        }
+
+        try
+        {
+            var leased = await open(cancellationToken).ConfigureAwait(false);
+            if (leased.IsFailure || leased.Value is not { } lease)
+            {
+                return StorageResult<StorageRawCommandReply>.Fail(CodeLogicStorageMapper.MapFailure(
+                    leased.Error,
+                    "storage.raw_command.connect_failed",
+                    "A control connection for the command could not be opened."));
+            }
+
+            await using (lease.ConfigureAwait(false))
+            {
+                var reply = await lease.Client.Execute(command, cancellationToken).ConfigureAwait(false);
+                return StorageResult<StorageRawCommandReply>.Success(new StorageRawCommandReply(
+                    reply.Code ?? string.Empty,
+                    reply.Success,
+                    LinesOf(reply)));
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (TimeoutException)
+        {
+            return StorageResult<StorageRawCommandReply>.Fail(new StorageFailure(
+                "storage.raw_command.timeout",
+                StorageFailureKind.Timeout,
+                "The server did not answer the command in time.",
+                isTransient: true));
+        }
+        catch (Exception error) when (error is IOException or System.Net.Sockets.SocketException or ObjectDisposedException)
+        {
+            return StorageResult<StorageRawCommandReply>.Fail(new StorageFailure(
+                "storage.raw_command.connection_lost",
+                StorageFailureKind.Unavailable,
+                "The connection closed before the server answered.",
+                isTransient: true));
+        }
+        catch (Exception)
+        {
+            return StorageResult<StorageRawCommandReply>.Fail(CodeLogicStorageMapper.Unexpected("raw command"));
+        }
+    }
+
+    /// <summary>
+    /// A reply's lines as the server sent them: FluentFTP keeps a multi-line reply's leading lines,
+    /// codes and all, apart from the last, whose code it splits off.
+    /// </summary>
+    private static string[] LinesOf(FtpReply reply)
+    {
+        var lines = (reply.InfoMessages ?? string.Empty)
+            .Split('\n')
+            .Select(static line => line.TrimEnd('\r'))
+            .Where(static line => line.Length > 0)
+            .ToList();
+        var last = string.IsNullOrEmpty(reply.Message) ? reply.Code ?? string.Empty : $"{reply.Code} {reply.Message}";
+        if (last.Length > 0) lines.Add(last);
+        return [.. lines];
     }
 
     public async ValueTask<StorageResult<StorageEntry>> GetEntryAsync(
