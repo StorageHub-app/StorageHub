@@ -272,6 +272,9 @@ var syncCommands = new SyncManagementIpcCommandService(
 var scheduleCommands = new ScheduleManagementIpcCommandService(scheduleManagementRepository);
 var objectInspectorCommands = new ObjectInspectorIpcCommandService(syncConnector);
 var itemAttributeCommands = new ItemAttributeIpcCommandService(syncConnector);
+// The FTP command console, from a pane on an FTP or FTPS connection: one command at a time, on a
+// control connection of its own, with the saved account read from the vault here.
+var ftpConsoleCommands = new FtpConsoleIpcCommandService(syncConnector);
 // Compare folders, from the panes: a saved connection opened as sync opens it, or a folder on this
 // PC approved as a transfer's would be.
 await using var folderCompareCommands = new FolderCompareIpcCommandService(syncConnector);
@@ -302,6 +305,7 @@ var requestHandler = new AgentIpcRequestHandler(
         scheduleCommands,
         objectInspectorCommands,
         itemAttributeCommands,
+        ftpConsoleCommands,
         folderCompareCommands,
         stagingCleanupCommands,
         sshTerminalCommands,
