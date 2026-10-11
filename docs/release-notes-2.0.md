@@ -21,9 +21,16 @@ not, and have to be set up again. Read
   by the system or pinned the same way as for FTPS. A client certificate from
   the key store can be added. Plain HTTP has to be allowed on the Trust tab. A
   longer request timeout for big uploads on slow lines is under Advanced.
-- _[Placeholder: Azure Blob Storage, Google Cloud Storage and OpenStack Swift
-  connections, being added on another branch. To be filled in by the
-  coordinator.]_
+- **Azure Blob Storage.** Add a container and sign in with a shared key, a SAS
+  token, a connection string or the computer's own Azure identity.
+- **Google Cloud Storage.** Add a bucket and sign in with a service-account key
+  file, Application Default Credentials, or anonymously for a public bucket. A
+  private endpoint or an emulator can be named instead of Google's.
+- **OpenStack Swift.** Add a container and sign in with Keystone v3 (user,
+  password, project and optional region), TempAuth, or a token you already have
+  together with the storage URL.
+- Every key, password and token for these is kept in the encrypted vault, and
+  plain HTTP is refused unless you allow it for an emulator or a test cluster.
 
 ### Connection test and trust
 
@@ -85,7 +92,8 @@ not, and have to be set up again. Read
   and staged copies, write tests and stand-ins left in folders StorageHub wrote
   to, and old external-editor copies, with their sizes. It removes only what
   you select, and it leaves anything still in use.
-- **Server checksums.** Where the server already keeps a file's SHA-256, sync
+- **Server checksums.** Where the server already keeps a file's SHA-256 (S3,
+  FTP, Azure, Google Cloud Storage and Swift can), sync
   scans use it instead of reading the whole file. A verified copy still reads
   back what it wrote.
 - **A time zone for new schedules.** Settings, Transfers & sync, "Time zone for

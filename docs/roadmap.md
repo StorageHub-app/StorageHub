@@ -797,9 +797,24 @@ icon, da/de text), settings and import/export, and a lab container with a confor
       custom headers, public-key pins, trust-on-first-use, a mutual-TLS lab server. Reopening a pinned
       FTPS connection no longer loses its pin, and an imported connection whose only secret is a
       client certificate now arrives disabled like any other.
-- [ ] 5.2 Azure Blob (Azurite)
-- [ ] 5.3 Google Cloud Storage (fake-gcs-server)
-- [ ] 5.4 Swift (all-in-one container)
+- [x] 5.2 Azure Blob (Azurite)
+      Done: a container with a shared key, SAS token, connection string or the machine's Azure
+      identity, every secret in the vault; plain HTTP only for a connection string marked as such,
+      for Azurite. Migration v18. The lab runs Azurite 3.37.0; the conformance suite passed against
+      Azurite from npm (the Docker image was not run here). Certificate pins are not offered: the
+      library has no setting for them.
+- [x] 5.3 Google Cloud Storage (fake-gcs-server)
+      Done: a bucket with a vaulted service-account key file, Application Default Credentials or
+      anonymous, with an optional custom endpoint. Migration v19. The lab runs fake-gcs-server
+      1.56.1; the conformance suite passed against it, with a check that requests are signed with the
+      vaulted key. HMAC keys stay with the S3 provider; timeouts and retries are the library's, which
+      exposes none.
+- [x] 5.4 Swift (all-in-one container)
+      Done: a container with Keystone v3 (project, domains, region), TempAuth or a pre-issued token
+      against a storage URL, every secret in the vault, with a request timeout under Advanced.
+      Migration v20. The lab runs the all-in-one Swift image pinned by digest; the conformance suite
+      passed against Swift 2.38.2 with TempAuth. Keystone v3 is unit-tested only (no Keystone in the
+      lab). Application credentials and certificate pins wait on library support.
 
 ## 6. Release
 

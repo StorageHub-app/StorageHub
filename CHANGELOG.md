@@ -113,6 +113,18 @@ server's system and software, the host key or certificate it presented and
 whether it is trusted, the cipher and key exchange negotiated, the server's
 features, how many sessions are open and the last health check.
 
+**Azure Blob Storage, Google Cloud Storage and OpenStack Swift connections.**
+An Azure container signs in with a shared key, a SAS token, a connection string
+or the computer's own Azure identity. A Google Cloud Storage bucket signs in with
+a service-account key file, Application Default Credentials, or anonymously for
+a public bucket, and can name a private endpoint or an emulator. A Swift
+container signs in with Keystone v3 (user, password, project and optional
+region), TempAuth, or a token you already have plus the storage URL, with the
+request timeout under Advanced. Every key, password and token is kept in the
+encrypted vault, plain HTTP is refused unless you allow it for an emulator or a
+test cluster, and the new connections browse, transfer, export and import like
+any other.
+
 **Compare two panes and copy the differences, and clean up what interrupted
 transfers left behind.** Sync, Compare Panes (Ctrl+D) now opens a Compare
 Folders window that lists what only the left or right folder has, what differs
