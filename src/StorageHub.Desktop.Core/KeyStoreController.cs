@@ -132,6 +132,36 @@ internal static class KeyStoreRules
         return DescribeBadName(draft.DisplayName);
     }
 
+    /// <summary>
+    /// Which envelope a key file uses, read from its first line, or nothing when it is unreadable
+    /// or none of the three. Lets the import dialog answer for the person instead of asking, since
+    /// the header leaves no room for doubt.
+    /// </summary>
+    internal static KeyStorePrivateKeyFormat? DetectKeyFormat(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return null;
+        try
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            var buffer = new byte[256];
+            var read = stream.Read(buffer, 0, buffer.Length);
+            var head = Encoding.ASCII.GetString(buffer, 0, read).TrimStart();
+            var line = head.Split('\n', 2)[0].Trim();
+            return line switch
+            {
+                "-----BEGIN OPENSSH PRIVATE KEY-----" => KeyStorePrivateKeyFormat.OpenSsh,
+                "-----BEGIN PRIVATE KEY-----" or "-----BEGIN ENCRYPTED PRIVATE KEY-----" => KeyStorePrivateKeyFormat.Pkcs8,
+                "-----BEGIN RSA PRIVATE KEY-----" or "-----BEGIN DSA PRIVATE KEY-----" or
+                    "-----BEGIN EC PRIVATE KEY-----" => KeyStorePrivateKeyFormat.Pem,
+                _ => null
+            };
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>Why a name will not do, or nothing. The contract's own bounds.</summary>
     internal static string? DescribeBadName(string? name)
     {

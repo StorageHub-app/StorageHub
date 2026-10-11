@@ -788,6 +788,9 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
             : null;
         await using var lease = await _secretVault.OpenAsync(keyReference, cancellationToken).ConfigureAwait(false);
         rootIdentityEvidence?.AddSecret(role, keyReference, lease.Version);
+        // The key says what it is; the profile's format is only what it was last told, and is used
+        // when the key does not say.
+        format = PrivateKeyEncryptionValidator.DetectFormat(lease.Memory.Span) ?? format;
         switch (PrivateKeyEncryptionValidator.Validate(lease.Memory.Span, passphrase, format))
         {
             case PrivateKeyValidationResult.Unencrypted:

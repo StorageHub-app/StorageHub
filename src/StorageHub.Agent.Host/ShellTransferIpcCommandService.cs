@@ -92,13 +92,14 @@ public sealed class ShellTransferIpcCommandService(
     private AgentIpcCommandResponse CommitExplorerDrop(IpcEnvelope envelope)
     {
         var request = envelope.DeserializePayload<ExplorerDropCommitRequest>();
+        // Begin keyed the drop by the lower-cased token, and the contract allows either case.
         if (!ShellTransferIpcContract.IsSupported(request.ContractVersion) || !request.HasValidBounds ||
-            !_pendingExplorerDrops.TryRemove(request.DropToken, out var pending) ||
+            !_pendingExplorerDrops.TryRemove(request.DropToken.ToLowerInvariant(), out var pending) ||
             pending.ExpiresAtUtc < _time.GetUtcNow())
             return CommitExplorerDropFailure("This Explorer drop has expired. Drag the selection again.");
 
         var receiptPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "StorageHub", "ShellDropInbox", request.DropToken + ".drop");
+            "StorageHub", "ShellDropInbox", request.DropToken.ToLowerInvariant() + ".drop");
         string destination;
         try
         {

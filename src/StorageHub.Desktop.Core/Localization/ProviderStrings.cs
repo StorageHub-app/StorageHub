@@ -97,7 +97,7 @@ internal sealed class ProviderStrings : LocalizationModelBase
 
     public string RequiredBeforeThisConnectionCanBeEnabled { get; set; } = "Required before this connection can be enabled.";
 
-    public string RequiredForImportedPFX { get; set; } = "Required for imported PFX";
+    public string RequiredForImportedPFX { get; set; } = "Leave empty for a PFX with no password";
 
     public string RequiredVaultEntry { get; set; } = "Required vault entry";
 
@@ -129,7 +129,7 @@ internal sealed class ProviderStrings : LocalizationModelBase
 
     public string SigningRegion { get; set; } = "Signing region";
 
-    public string StorageHubDoesNotMaterializeUnprotectedClientPrivate { get; set; } = "StorageHub does not materialize unprotected client private keys.";
+    public string StorageHubDoesNotMaterializeUnprotectedClientPrivate { get; set; } = "A password-protected PFX needs its password; one with no password is used as it is.";
 
     public string TheCurrentCLStorageS3ProviderUses { get; set; } = "The current CL.Storage S3 provider uses system TLS and hostname validation. Per-connection S3 certificate pins are not offered until the provider can enforce them.";
 

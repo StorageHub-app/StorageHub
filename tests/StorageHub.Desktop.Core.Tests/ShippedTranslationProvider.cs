@@ -24,7 +24,13 @@ public sealed class ShippedTranslationProvider : IDesktopStringProvider
 
     /// <summary>The languages a layout is worth checking against, English included.</summary>
     public static IEnumerable<object[]> Cultures =>
-        [["en-US"], ["da-DK"], ["de-DE"]];
+        DesktopCulture.SupportedCultures.Select(static culture => new object[] { culture });
+
+    /// <summary>The shipped translations: every language but the English the strings are written in.</summary>
+    public static IEnumerable<object[]> TranslatedCultures =>
+        DesktopCulture.SupportedCultures
+            .Where(static culture => culture != DesktopCulture.DefaultCulture)
+            .Select(static culture => new object[] { culture });
 
     public T Get<T>() where T : LocalizationModelBase, new()
     {

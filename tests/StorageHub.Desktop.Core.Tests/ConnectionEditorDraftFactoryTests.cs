@@ -286,6 +286,48 @@ public sealed class ConnectionEditorDraftFactoryTests
     }
 
     /// <summary>
+    /// A key borrowed from the Key Store brings its envelope with it. Without this every profile
+    /// said OpenSSH, so a PEM or PKCS#8 key could never be opened for a connection.
+    /// </summary>
+    [Theory]
+    [InlineData("Pem", ConnectionSftpPrivateKeyFormat.Pem)]
+    [InlineData("Pkcs8", ConnectionSftpPrivateKeyFormat.Pkcs8)]
+    [InlineData("OpenSsh", ConnectionSftpPrivateKeyFormat.OpenSsh)]
+    [InlineData("nonsense", ConnectionSftpPrivateKeyFormat.OpenSsh)]
+    public void ThePrivateKeyFormatTravelsWithTheDraftAndSurvivesAnEdit(
+        string held, ConnectionSftpPrivateKeyFormat expected)
+    {
+        var values = ValidValues(StorageProviderKind.Sftp);
+        values["authenticationMode"] = "Private key + password (MFA)";
+        values["privateKeyReference"] = "shs_BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
+        values["passwordReference"] = "shs_DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD";
+        values[ConnectionEditorDraftFactory.PrivateKeyFormatKey] = held;
+
+        var draft = ConnectionEditorDraftFactory.Build(StorageProviderKind.Sftp, values);
+        var reopened = ConnectionEditorDraftFactory.ToEditorValues(
+            new ConnectionProfileDocument(Guid.NewGuid(), 1, draft, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch));
+
+        Assert.Equal(expected, draft.Authentication.PrivateKeyFormat);
+        Assert.Equal(expected.ToString(), reopened[ConnectionEditorDraftFactory.PrivateKeyFormatKey]);
+    }
+
+    /// <summary>A password-less client certificate is a certificate and nothing else.</summary>
+    [Fact]
+    public void AnFtpsClientCertificateNeedsNoPasswordAndAStalePasswordIsDroppedWithoutOne()
+    {
+        var values = ValidValues(StorageProviderKind.Ftps);
+        values["clientCertificateReference"] = "shs_BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
+        var bare = ConnectionEditorDraftFactory.Build(StorageProviderKind.Ftps, values);
+        Assert.Null(bare.Endpoint.ClientCertificatePasswordReference);
+
+        values.Remove("clientCertificateReference");
+        values["clientCertificatePasswordReference"] = "shs_CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC";
+        var none = ConnectionEditorDraftFactory.Build(StorageProviderKind.Ftps, values);
+        Assert.Null(none.Endpoint.ClientCertificatePfxReference);
+        Assert.Null(none.Endpoint.ClientCertificatePasswordReference);
+    }
+
+    /// <summary>
     /// An SFTP server that wants a key and then the account password takes both, as an SSH
     /// terminal's does, now that the storage library offers them together.
     /// </summary>

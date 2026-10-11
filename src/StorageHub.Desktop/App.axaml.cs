@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Avalonia.Platform.Storage;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using StorageHub.Desktop.Localization;
 using StorageHub.Desktop.Settings;
@@ -44,11 +45,28 @@ public partial class App : global::Avalonia.Application
     }
 
     /// <summary>
+    /// Mirrors every window when the shell speaks a right-to-left language. One style on the window
+    /// rather than a property on each, so dialogs opened later are mirrored too; the terminal draws
+    /// its own text left to right regardless.
+    /// </summary>
+    private static void MirrorForRightToLeft()
+    {
+        if (Current is not { } application || !DesktopCulture.IsRightToLeft(Ui.Culture.Name)) return;
+        application.Styles.Add(new global::Avalonia.Styling.Style(x => x.OfType<global::Avalonia.Controls.Window>())
+        {
+            Setters = { new global::Avalonia.Styling.Setter(
+                global::Avalonia.Visual.FlowDirectionProperty,
+                global::Avalonia.Media.FlowDirection.RightToLeft) }
+        });
+    }
+
+    /// <summary>
     /// Builds the shell and wires every command that opens a window. Called by the boot once the
     /// agent is answering, with the splash still up.
     /// </summary>
     private static MainWindow OpenShell(IClassicDesktopStyleApplicationLifetime desktop)
     {
+        MirrorForRightToLeft();
         var model = ShellPreview.CreateLive();
         var window = new MainWindow { DataContext = model };
 

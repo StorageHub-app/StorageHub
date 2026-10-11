@@ -65,6 +65,14 @@ internal sealed class KeyStoreImportModel : INotifyPropertyChanged
         {
             if (!Set(ref _filePath, value ?? string.Empty)) return;
             SuggestName();
+            if (ShowsFormat && KeyStoreRules.DetectKeyFormat(_filePath.Trim()) is { } detected)
+            {
+                // The header says which it is, so the choice below is set rather than left to be
+                // got wrong. It stays changeable for a file whose header is not what it seems.
+                _format = Formats.First(choice => choice.Format == detected);
+                Raise(nameof(Format));
+            }
+
             RaiseProblem();
         }
     }

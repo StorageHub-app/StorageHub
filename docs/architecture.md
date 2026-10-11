@@ -66,7 +66,7 @@ remain outside that contract.
 | `StorageHub.Agent` | Runtime coordination, host modes and data-root layout, per-platform agent hosting (Windows Run entry, systemd user unit), schedules, and scheduler contracts |
 | `StorageHub.Agent.Host` | The agent executable: CodeLogic console host and database/vault/worker composition, storage browsing, profile/transfer/sync/schedule/key-store/terminal IPC, and dedicated secret IPC |
 | `StorageHub.Agent.Windows` | A residual Windows-only assembly with no code of its own, still referenced by the host |
-| `StorageHub.Desktop.Core` | Everything the desktop decides that is not drawing: controllers, agent clients and lifecycle (packaged MSI or systemd), workspaces and `.shw` files, settings and their export, the updater, the VT terminal emulator, colour schemes, and English/Danish/German strings |
+| `StorageHub.Desktop.Core` | Everything the desktop decides that is not drawing: controllers, agent clients and lifecycle (packaged MSI or systemd), workspaces and `.shw` files, settings and their export, the updater, the VT terminal emulator, colour schemes, and English strings and eighteen translations |
 | `StorageHub.Desktop` | The Avalonia shell: views, design tokens and control themes, and the multi-pane workspace, connections panel, transfer queue, sync, Settings, and dialogs |
 | `StorageHub.ShellExtension.Native` | The native Explorer drop broker (Windows only) that lets a remote connection's files be dragged out to Explorer |
 | `StorageHub.Diagnostics` | Allow-list policy for safe diagnostic artifacts |

@@ -1078,7 +1078,11 @@ public static class ConnectionEditorDraftFactory
                     ? ConnectionFtpsTlsMode.Implicit
                     : ConnectionFtpsTlsMode.Explicit,
             ClientCertificatePfxReference: Get(values, "clientCertificateReference"),
-            ClientCertificatePasswordReference: Get(values, "clientCertificatePasswordReference"),
+            // A password beside no certificate describes nothing, so a stale one left in the
+            // editor is dropped rather than refused. A certificate with no password is fine.
+            ClientCertificatePasswordReference: Get(values, "clientCertificateReference") is null
+                ? null
+                : Get(values, "clientCertificatePasswordReference"),
             Ftp: BuildFtpOptions(values));
     }
 
@@ -1154,7 +1158,8 @@ public static class ConnectionEditorDraftFactory
                     "privateKeyReference",
                     Ui.Validation.APrivateKeyVaultReferenceIsRequired),
                 // Absent for a key that has no passphrase, which 2.0 accepts with a warning.
-                PrivateKeyPassphraseReference: Get(values, "privateKeyPassphraseReference")),
+                PrivateKeyPassphraseReference: Get(values, "privateKeyPassphraseReference"),
+                PrivateKeyFormat: PrivateKeyFormatOf(values)),
             "Password reference" => new ConnectionAuthenticationDocument(
                 ConnectionAuthenticationKind.UsernamePassword,
                 Username: username,
@@ -1173,12 +1178,27 @@ public static class ConnectionEditorDraftFactory
                     values,
                     "privateKeyReference",
                     Ui.Validation.APrivateKeyVaultReferenceIsRequiredForMfa),
-                PrivateKeyPassphraseReference: Get(values, "privateKeyPassphraseReference")),
+                PrivateKeyPassphraseReference: Get(values, "privateKeyPassphraseReference"),
+                PrivateKeyFormat: PrivateKeyFormatOf(values)),
             _ => throw new ArgumentException(
                 Ui.Validation.SSHAgentAuthenticationIsNotAvailableIn,
                 nameof(values))
         };
     }
+
+    /// <summary>The key's envelope as the editor last learned it, or OpenSSH when it never did.</summary>
+    /// <remarks>
+    /// Not a field: it comes from the Key Store entry a key was borrowed from, and travels with the
+    /// profile so that editing and saving it again does not forget it. The agent reads the real
+    /// envelope from the key when it connects, so a stale value here cannot break a connection.
+    /// </remarks>
+    private static ConnectionSftpPrivateKeyFormat PrivateKeyFormatOf(IReadOnlyDictionary<string, string> values) =>
+        Enum.TryParse<ConnectionSftpPrivateKeyFormat>(Get(values, PrivateKeyFormatKey), ignoreCase: true, out var format) &&
+        Enum.IsDefined(format)
+            ? format
+            : ConnectionSftpPrivateKeyFormat.OpenSsh;
+
+    internal const string PrivateKeyFormatKey = "privateKeyFormat";
 
     private static void AddEndpoint(
         Dictionary<string, string> values,
@@ -1256,6 +1276,11 @@ public static class ConnectionEditorDraftFactory
         Add(values, "sessionTokenReference", authentication.SessionTokenReference);
         Add(values, "privateKeyReference", authentication.PrivateKeyReference);
         Add(values, "privateKeyPassphraseReference", authentication.PrivateKeyPassphraseReference);
+        if (authentication.PrivateKeyReference is not null)
+        {
+            Add(values, PrivateKeyFormatKey, authentication.PrivateKeyFormat.ToString());
+        }
+
         Add(values, "authenticationMode", authentication.Kind switch
         {
             ConnectionAuthenticationKind.SftpPrivateKey => "Private key reference",

@@ -523,7 +523,7 @@ public sealed class ConnectionProfileIpcCommandService : IAgentIpcCommandHandler
     }
 
     private static readonly string[] AllKeyStoreSlots =
-        ["ftps.client-certificate", "sftp.private-key", "ssh.private-key"];
+        ["ftps.client-certificate", "webdav.client-certificate", "sftp.private-key", "ssh.private-key"];
 
     private DateTimeOffset UtcNow() => _timeProvider.GetUtcNow().ToUniversalTime();
 
@@ -978,10 +978,12 @@ internal static class ConnectionProfileIpcMapper
                 value.TlsPolicy == ConnectionTlsCertificatePolicy.SystemTrust &&
                 value.FtpsTlsMode == ConnectionFtpsTlsMode.Explicit &&
                 value.SshHostKeyPolicy == ConnectionSshHostKeyPolicy.Pinned,
+            // A PFX may carry no password, so the password is optional beside it; a password without
+            // a PFX describes nothing.
             StorageConnectionProvider.Ftps =>
                 Present(value.Host) && value.Port is not null && Empty(value.Bucket) && Empty(value.Region) &&
                 Empty(value.ServiceEndpoint) && !value.ForcePathStyle && !value.AllowInsecureTransport &&
-                (Empty(value.ClientCertificatePfxReference) == Empty(value.ClientCertificatePasswordReference)) &&
+                (Empty(value.ClientCertificatePasswordReference) || !Empty(value.ClientCertificatePfxReference)) &&
                 value.SshHostKeyPolicy == ConnectionSshHostKeyPolicy.Pinned,
             StorageConnectionProvider.Sftp =>
                 Present(value.Host) && value.Port is not null && Empty(value.Bucket) && Empty(value.Region) &&
