@@ -290,5 +290,8 @@
   "aKeystoneProjectIsRequired": "Ein Keystone-Projekt ist erforderlich.",
   "aSwiftTokenIsRequired": "Für die Anmeldung mit vorab ausgestelltem Token ist ein Token erforderlich.",
   "thisTransferClientDoesNotSupportPausing": "Dieser Übertragungsclient unterstützt das Anhalten von Übertragungen nicht.",
+  "theFtpConsoleRequestTimedOut": "Der FTP-Befehl wurde nicht rechtzeitig beantwortet.",
+  "theAgentReturnedAnInvalidFtpReply": "Der Hintergrund-Agent hat eine ungültige FTP-Antwort zurückgegeben.",
+  "theFtpConsoleRequestIsInvalid": "Die Anfrage mit dem FTP-Befehl ist ungültig.",
   "culture": "de-DE"
 }

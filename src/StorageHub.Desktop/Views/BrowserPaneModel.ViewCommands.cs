@@ -1,4 +1,5 @@
 using Lucide.Avalonia;
+using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Localization;
 
 namespace StorageHub.Desktop.Views;
@@ -69,6 +70,8 @@ internal sealed partial class BrowserPaneModel
     }
 
     public static string ShowTreeLabel => Ui.Shell.ShowDirectoryTree;
+
+    public static string FtpConsoleLabel => Ui.Commands.ConnectionsFtpConsole;
 
     /// <summary>
     /// Whether the list and the tree include what is hidden: a name starting with a dot, or a file
@@ -233,6 +236,14 @@ internal sealed partial class BrowserPaneModel
 
     /// <summary>Whether there is a saved connection open, or chosen, to reconnect or disconnect.</summary>
     internal bool HasSavedConnection => _connection is { Id: not null, Kind: not PaneContentKind.ConnectionsHome };
+
+    /// <summary>
+    /// Whether the pane has a saved FTP or FTPS connection open, or chosen: what the FTP command
+    /// console can be opened on, from the pane's menu or from Connections.
+    /// </summary>
+    public bool IsFtpConnection =>
+        HasSavedConnection &&
+        _connection is { Kind: PaneContentKind.SavedStorage, Provider: StorageConnectionProvider.Ftp or StorageConnectionProvider.Ftps };
 
     /// <summary>
     /// Connections > Reconnect: opens the pane's connection again, from nothing, and goes back to

@@ -329,6 +329,16 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         Router.When(UiCommandIds.ToolsChecksums, () => ChecksumTarget() is not null);
     }
 
+    /// <summary>
+    /// Opens the FTP command console on a pane's connection: App's, which owns the windows; left
+    /// null, as in a test of the shell alone, nothing opens.
+    /// </summary>
+    internal Action<BrowserPaneModel>? OpenFtpConsole { get; set; }
+
+    /// <summary>The active pane, when it has an FTP or FTPS connection the console can talk to.</summary>
+    internal BrowserPaneModel? FtpConsoleTarget() =>
+        ActivePane() is { IsFtpConnection: true } pane ? pane : null;
+
     /// <summary>The active pane and its folder, when it has one Search can walk.</summary>
     internal (BrowserPaneModel Pane, PaneTransferContext Where)? SearchTarget() =>
         ActivePane() is { } pane && pane.ToolLocation is { } where && FileSearch.CanSearch(where)

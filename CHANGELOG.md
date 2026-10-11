@@ -236,6 +236,23 @@ the shortcut settings, Documentation opens the README, and Report Issue opens
 the bug form with your version and system filled in. Each entry is greyed out
 when there is nothing for it to act on.
 
+**An FTP command console.** Connections, FTP Command Console (also in a pane's
+actions menu) opens a console on the active pane's FTP or FTPS server. Type a
+command such as SYST, FEAT, STAT or SITE CHMOD 644 file.txt and the server's
+reply appears below it, every line of a multi-line reply included, with failure
+codes in red; Up and Down bring back earlier commands. Each command runs on a
+short connection of its own, so nothing typed there can disturb the panes or the
+transfer queue, and for the same reason commands that would open a data
+connection, log in or out, change TLS or set something for the session (LIST,
+RETR, STOR, USER, PASS, AUTH, CWD, TYPE and the like) are not sent, and the
+console says why. The saved password stays in the agent.
+
+**More room for the panes.** The bar above the panes that said "Drag pane headers
+to swap or dock panes" beside an empty clipboard is only drawn while something is
+staged for a paste; the hint is now the tooltip on a pane's header. The frame
+round each pane is two pixels wide instead of three, the active pane still
+marked by its colour.
+
 The 1.4 line's last unreleased fixes, to updating and repairing a
 service-hosted agent, stay in `1.x-archive`'s changelog. 2.0 has no service for
 them to apply to.

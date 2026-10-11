@@ -158,6 +158,10 @@ public partial class App : global::Avalonia.Application
         // their sizes and removed only when somebody confirms it.
         model.Router.Handle(UiCommandIds.ToolsCleanUpLeftovers, () => ShowStagingCleanup(desktop));
 
+        // The FTP command console, from Connections or a pane's own menu, on that pane's FTP or
+        // FTPS connection. The shell routes the command; the window is opened here.
+        model.OpenFtpConsole = pane => ShowFtpConsole(desktop, pane);
+
         // Tools and Help, which 1.4 declared and left dead. Links and folders open through the main
         // window's own launcher, the platform's, as About's link does. Keyboard shortcuts is the
         // Settings page that lists and rebinds them, which is what 1.4's entry said it would show.
@@ -487,6 +491,18 @@ public partial class App : global::Avalonia.Application
             model.Queue.StateCountsByName,
             folder => model.OpenFolder?.Invoke(folder) ?? Task.FromResult(false));
         if (desktop.MainWindow is { } owner) _ = window.ShowDialog(owner);
+        else window.Show();
+    }
+
+    /// <summary>
+    /// Opens the FTP command console on a pane's connection, beside the main window rather than
+    /// over it, so the pane can be refreshed to see what a command changed.
+    /// </summary>
+    private static void ShowFtpConsole(IClassicDesktopStyleApplicationLifetime desktop, Views.BrowserPaneModel pane)
+    {
+        if (!pane.IsFtpConnection || pane.Connection is not { Id: { } id } connection) return;
+        var window = Views.FtpConsoleWindow.For(id, connection.Name);
+        if (desktop.MainWindow is { } owner) window.Show(owner);
         else window.Show();
     }
 

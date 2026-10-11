@@ -21,11 +21,16 @@ namespace StorageHub.Desktop.Views;
 /// and it is the only entry in the picker that is: carrying the answer on the choice means the
 /// pane never has to look a connection back up to find out what it is showing.
 /// </param>
+/// <param name="Provider">
+/// The saved connection's provider, as the agent listed it; null for This PC, Connections Home
+/// and a connection opened by id before the list arrived. What lights the FTP command console.
+/// </param>
 internal sealed record PaneConnection(
     Guid? Id,
     string Name,
     LucideIconKind Icon,
-    PaneContentKind Kind = PaneContentKind.SavedStorage);
+    PaneContentKind Kind = PaneContentKind.SavedStorage,
+    StorageConnectionProvider? Provider = null);
 
 /// <summary>
 /// One entry in a pane's Move or swap menu: another pane, and the four ways to reach it.
@@ -612,6 +617,7 @@ internal sealed partial class BrowserPaneModel : INotifyPropertyChanged, IAsyncD
         Raise(nameof(ProviderBadge));
         Raise(nameof(HasBadges));
         Raise(nameof(AccentBrush));
+        Raise(nameof(IsFtpConnection));
     }
 
     /// <summary>Whether this is the pane a pane command would act on.</summary>
@@ -802,6 +808,7 @@ internal sealed partial class BrowserPaneModel : INotifyPropertyChanged, IAsyncD
     public bool HasMoveTargets => MoveTargets.Count > 0;
 
     public static string PaneActionsLabel => Ui.Shell.PaneActions;
+    public static string DragPaneHeadersHint => Ui.Shell.DragPaneHeadersHint;
 
     public static string SplitRightLabel => Ui.Shell.SplitRight;
 
@@ -1503,7 +1510,8 @@ internal sealed partial class BrowserPaneModel : INotifyPropertyChanged, IAsyncD
                         ConnectionIconCatalog.ResolveForConnection(
                             connection.IconKey, MapProvider(connection.Provider), connection.Type))
                         ?? LucideIconKind.Cloud,
-                    KindOf(connection)));
+                    KindOf(connection),
+                    connection.Provider));
             }
 
             if (navigation == _navigation) Status = string.Empty;
@@ -1895,6 +1903,7 @@ internal sealed partial class BrowserPaneModel : INotifyPropertyChanged, IAsyncD
         Raise(nameof(Connection));
         Raise(nameof(Title));
         Raise(nameof(ConnectionIcon));
+        Raise(nameof(IsFtpConnection));
         Status = Ui.Pane.AutoReconnectDisabled;
         _failed = false;
         _standingBy = true;

@@ -764,7 +764,20 @@ The profile already stores these; `CodeLogicConnectionProfileConnector.BuildAsyn
       removal. A failed transfer counts as finished, so its partial can go and a retry starts over.
       Self-cleaning folders (the Local provider's staging, Explorer export and drop folders) are left
       alone. Not done: update downloads, which would need the updater's word on what it still holds.
-- [ ] 4.7 (Optional) FTP raw command console.
+- [x] 4.7 (Optional) FTP raw command console.
+      Done: Connections, FTP Command Console… and the same entry in a pane's actions menu, lit only
+      when the pane has a saved FTP or FTPS connection. `FtpConsoleWindow` has a command line with
+      Up/Down history (in memory, never keeping PASS or ACCT) and a mono transcript with Copy and
+      Clear. One command per request (`ftp-console.execute.request`): at most 512 characters, no
+      control characters, replies cut at 16 KB. `FtpConsoleCommandPolicy` refuses data-connection,
+      login, TLS and session-setting verbs on both sides. The agent sends the command through
+      `IStorageRawCommandSession` on CL.Storage's `OpenNativeConnectionAsync<AsyncFtpClient>` lease,
+      which the library discards rather than pools, so nothing typed can leave the panes' pooled
+      connections in a changed directory or type or with half a reply unread; not its
+      `IStorageCommandService`, which needs `AllowRawCommands` and pools. Each command therefore logs
+      in afresh, CWD and TYPE are refused because they would not last, and a server that answers
+      SIZE only in binary mode refuses it. Live check: `FtpRawCommandIntegrationTests` against
+      pyftpdlib (`STORAGEHUB_FTP_CONSOLE_*`).
 - [x] 4.8 Hide a pane's FILES row from Pane actions, as the connection bar can be (1.4 could not).
       Done: "Show files bar" sits under "Show connection bar", is saved with the pane as
       `filesBarHidden`, appended so 1.4 still opens the file, and puts the `*` on the tab when it

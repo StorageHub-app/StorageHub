@@ -88,7 +88,14 @@ public sealed class CodeLogicStorageSessionFactory(StorageLibrary library)
             var session = new CodeLogicStorageEndpointSession(
                 storage,
                 profileId,
-                rootIdentity);
+                rootIdentity)
+            {
+                // FTP and FTPS only: the command console's control connection, leased from this
+                // registration's pool and closed after its one command.
+                OpenFtpControlConnection = storage.Provider == CL.Storage.Models.StorageProvider.Ftp
+                    ? token => _library.OpenNativeConnectionAsync<FluentFTP.AsyncFtpClient>(runtimeId, token)
+                    : null
+            };
             return StorageResult<RuntimeStorageConnection>.Success(
                 new RuntimeStorageConnection(_library, runtimeId, session, runtimeResources));
         }

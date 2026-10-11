@@ -125,5 +125,7 @@
   "helpAboutStorageHubDescription": "Vis StorageHubs version og oplysninger om programmet.",
   "toolsCleanUpLeftovers": "Ryd op i efterladte filer...",
   "toolsCleanUpLeftoversDescription": "Find de arbejdsfiler, som afbrudte overførsler og den eksterne editor har efterladt, og fjern dem, du vælger.",
+  "connectionsFtpConsole": "FTP-kommandokonsol…",
+  "connectionsFtpConsoleDescription": "Send rå kommandoer til FTP- eller FTPS-serveren i den aktive rude, og læs dens svar.",
   "culture": "da-DK"
 }

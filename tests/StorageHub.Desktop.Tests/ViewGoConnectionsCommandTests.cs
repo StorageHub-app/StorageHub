@@ -20,7 +20,7 @@ public class ViewGoConnectionsCommandTests
         UiCommandIds.ViewDirectoryTree, UiCommandIds.ViewTransferQueue, UiCommandIds.ViewSessionLog,
         UiCommandIds.ViewHiddenFiles, UiCommandIds.ViewTheme, UiCommandIds.GoHome, UiCommandIds.GoHistory,
         UiCommandIds.GoFavorites, UiCommandIds.ConnectionsQuickConnect, UiCommandIds.ConnectionsReconnect,
-        UiCommandIds.ConnectionsDisconnect, UiCommandIds.ConnectionsTestConnection,
+        UiCommandIds.ConnectionsDisconnect, UiCommandIds.ConnectionsTestConnection, UiCommandIds.ConnectionsFtpConsole,
     ];
 
     private static CancellationToken Cancellation => TestContext.Current.CancellationToken;
@@ -513,6 +513,35 @@ public class ViewGoConnectionsCommandTests
         // Nothing open is nothing to reconnect or disconnect.
         Assert.False(shell.Command(UiCommandIds.ConnectionsDisconnect).CanExecute(null));
         Assert.False(shell.Command(UiCommandIds.ConnectionsReconnect).CanExecute(null));
+    }
+
+    /// <summary>
+    /// The FTP command console is lit only while the active pane has an FTP or FTPS connection,
+    /// and opens on that pane's connection, the pane's own menu entry with it.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task FtpConsoleIsOfferedOnlyOnAnFtpConnectionAndOpensOnIt()
+    {
+        var studio = Summary("Studio Assets");
+        var site = Summary("Web Site", StorageConnectionProvider.Ftps);
+        await using var shell = new Shell([studio, site]);
+        var opened = new List<BrowserPaneModel>();
+        shell.Model.OpenFtpConsole = opened.Add;
+        Assert.False(shell.Command(UiCommandIds.ConnectionsFtpConsole).CanExecute(null));
+
+        await shell.OpenAsync(studio);
+        Assert.False(shell.Pane.IsFtpConnection);
+        Assert.False(shell.Command(UiCommandIds.ConnectionsFtpConsole).CanExecute(null));
+
+        await shell.OpenAsync(site);
+        Assert.True(shell.Pane.IsFtpConnection);
+        Assert.True(shell.Command(UiCommandIds.ConnectionsFtpConsole).CanExecute(null));
+
+        shell.Run(UiCommandIds.ConnectionsFtpConsole);
+
+        Assert.Same(shell.Pane, Assert.Single(opened));
+        Assert.Equal(site.ConnectionId, opened[0].Connection?.Id);
+        Assert.Equal(Ui.Commands.ConnectionsFtpConsole, BrowserPaneModel.FtpConsoleLabel);
     }
 
     [AvaloniaFact]

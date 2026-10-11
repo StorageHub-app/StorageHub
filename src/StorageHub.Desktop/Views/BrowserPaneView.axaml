@@ -25,7 +25,7 @@
         an arrangement is settled once and then wants the width back.
       -->
       <Border x:Name="PART_Header" DockPanel.Dock="Top" Classes="pane-header"
-              Cursor="SizeAll">
+              Cursor="SizeAll" ToolTip.Tip="{Binding DragPaneHeadersHint}">
         <Grid ColumnDefinitions="*,Auto">
           <TextBlock Grid.Column="0" VerticalAlignment="Center"
                      FontWeight="SemiBold" Text="{Binding PaneHeading}"/>
@@ -62,6 +62,16 @@
                           ToggleType="CheckBox"
                           IsEnabled="{Binding IsListing}"
                           IsChecked="{Binding ShowTree, Mode=TwoWay}"/>
+                <Separator/>
+                <!-- What Connections > FTP Command Console opens, lit only on an FTP or FTPS connection. -->
+                <MenuItem x:Name="PART_FtpConsole"
+                          Header="{Binding FtpConsoleLabel}"
+                          IsEnabled="{Binding IsFtpConnection}"
+                          Click="OnFtpConsole">
+                  <MenuItem.Icon>
+                    <LucideIcon Kind="Terminal" Size="{StaticResource IconSizeSm}"/>
+                  </MenuItem.Icon>
+                </MenuItem>
                 <Separator/>
                 <MenuItem Header="{Binding MoveOrSwapLabel}"
                           IsEnabled="{Binding HasMoveTargets}"
