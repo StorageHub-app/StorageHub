@@ -21,6 +21,14 @@ namespace StorageHub.Desktop.Tests;
 /// </remarks>
 public class CommandAvailabilityTests
 {
+    private static readonly string[] TransferEntriesWaitingOnTheQueue =
+    [
+        UiCommandIds.TransferStartQueue,
+        UiCommandIds.TransferPauseAll,
+        UiCommandIds.TransferResumeAll,
+        UiCommandIds.TransferCancelSelected,
+    ];
+
     [AvaloniaFact]
     public void ACommandWithNoHandlerIsNotOffered()
     {
@@ -81,6 +89,11 @@ public class CommandAvailabilityTests
         Assert.All(enabled, id => Assert.True(
             model.Router.IsHandled(id),
             $"{id} is offered but has no handler."));
+        Assert.All(TransferEntriesWaitingOnTheQueue, id =>
+        {
+            Assert.True(model.Router.IsHandled(id));
+            Assert.DoesNotContain(id, enabled);
+        });
     }
 
     /// <summary>

@@ -62,7 +62,9 @@ public static class TransferStateMachine
 
     public static bool CanTransition(TransferState current, TransferState next) => current switch
     {
-        TransferState.Pending => next is TransferState.Preparing or TransferState.Cancelled,
+        // A transfer waiting its turn, or waiting to retry, can be set aside by Pause all and put
+        // back by Retry; it holds no lease and nothing has been written, so there is nothing to stop.
+        TransferState.Pending => next is TransferState.Preparing or TransferState.Paused or TransferState.Cancelled,
         TransferState.Preparing => next is
             TransferState.Connecting or
             TransferState.BlockedCredential or
@@ -105,6 +107,7 @@ public static class TransferStateMachine
             TransferState.Cancelled,
         TransferState.Retrying => next is
             TransferState.Preparing or
+            TransferState.Paused or
             TransferState.BlockedCredential or
             TransferState.BlockedTrust or
             TransferState.Failed or

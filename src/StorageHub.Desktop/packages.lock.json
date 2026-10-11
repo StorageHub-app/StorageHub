@@ -270,9 +270,13 @@
           "SQLitePCLRaw.bundle_e_sqlite3": "[2.1.12, )",
           "StorageHub.Agent": "[2.0.0, )",
           "StorageHub.Contracts": "[2.0.0, )",
+          "StorageHub.Diagnostics": "[2.0.0, )",
           "StorageHub.Ipc": "[2.0.0, )",
           "StorageHub.Security": "[2.0.0, )"
         }
+      },
+      "storagehub.diagnostics": {
+        "type": "Project"
       },
       "storagehub.domain": {
         "type": "Project",

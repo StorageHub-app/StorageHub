@@ -182,7 +182,7 @@ public class ShellCommandRouterTests
                 [UiCommandIds.EditRename] = rename,
             },
 
-            // Search is not wired, so it goes, and so does one of the two dividers it leaves.
+            // Search, which 1.4 left dead and this shell now wires, stays where it was put.
             ToolbarItems =
             [
                 UiCommandIds.ToolsSettings, ToolbarLayout.Separator, UiCommandIds.ToolsSearch,
@@ -208,11 +208,14 @@ public class ShellCommandRouterTests
         Assert.Equal(rename, pane.GetControl<MenuItem>("PART_MoreRename").InputGesture);
 
         Assert.Equal(
-            [UiCommandIds.ToolsSettings, ToolbarLayout.Separator, UiCommandIds.WorkspaceNewWorkspace],
+            [
+                UiCommandIds.ToolsSettings, ToolbarLayout.Separator, UiCommandIds.ToolsSearch,
+                ToolbarLayout.Separator, UiCommandIds.WorkspaceNewWorkspace,
+            ],
             model.Toolbar.Select(static item => (item as CommandEntry)?.Id ?? ToolbarLayout.Separator));
         Dispatcher.UIThread.RunJobs();
         var labels = ToolbarLabels(window);
-        Assert.Equal(2, labels.Length);
+        Assert.Equal(3, labels.Length);
         Assert.All(labels, label =>
         {
             Assert.True(label.IsEffectivelyVisible);

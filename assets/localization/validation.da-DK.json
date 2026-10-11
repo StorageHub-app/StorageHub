@@ -289,5 +289,6 @@
   "theSwiftUrlIsInvalid": "En Swift-URL skal være en http://- eller https://-adresse uden brugernavn, forespørgsel eller fragment.",
   "aKeystoneProjectIsRequired": "Et Keystone-projekt er påkrævet.",
   "aSwiftTokenIsRequired": "Et token er påkrævet ved login med udstedt token.",
+  "thisTransferClientDoesNotSupportPausing": "Denne overførselsklient understøtter ikke at sætte overførsler på pause.",
   "culture": "da-DK"
 }

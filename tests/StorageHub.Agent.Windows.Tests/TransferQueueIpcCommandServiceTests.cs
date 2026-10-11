@@ -237,6 +237,84 @@ public sealed class TransferQueueIpcCommandServiceTests : IDisposable
         Assert.NotNull(stored.ActiveLease);
     }
 
+    /// <summary>Pause all on a waiting transfer: set aside at once, and Retry puts it back.</summary>
+    [Fact]
+    public async Task Pause_sets_a_waiting_transfer_aside_and_retry_puts_it_back()
+    {
+        var fixture = await CreateFixtureAsync();
+        var request = await CreateRequestAsync(fixture);
+        var enqueued = await SendAsync<TransferEnqueueRequest, TransferEnqueueResponse>(
+            fixture.Service,
+            TransferQueueIpcMessageTypes.EnqueueRequest,
+            request);
+
+        var paused = await SendAsync<TransferPauseRequest, TransferMutationResponse>(
+            fixture.Service,
+            TransferQueueIpcMessageTypes.PauseRequest,
+            new TransferPauseRequest(TransferQueueIpcContract.CurrentVersion, request.TransferId, enqueued.Transfer!.Revision));
+        var stale = await SendAsync<TransferPauseRequest, TransferMutationResponse>(
+            fixture.Service,
+            TransferQueueIpcMessageTypes.PauseRequest,
+            new TransferPauseRequest(TransferQueueIpcContract.CurrentVersion, request.TransferId, enqueued.Transfer.Revision));
+        var resumed = await SendAsync<TransferRetryRequest, TransferMutationResponse>(
+            fixture.Service,
+            TransferQueueIpcMessageTypes.RetryRequest,
+            new TransferRetryRequest(TransferQueueIpcContract.CurrentVersion, request.TransferId, paused.Transfer!.Revision));
+
+        Assert.Equal(TransferQueueMutationOutcome.Applied, paused.Outcome);
+        Assert.Equal(TransferQueueState.Paused, paused.Transfer.State);
+        Assert.True(paused.Transfer.CanRetry);
+        Assert.Equal(TransferQueueMutationOutcome.RevisionConflict, stale.Outcome);
+        Assert.Equal(TransferQueueMutationOutcome.Applied, resumed.Outcome);
+        Assert.Equal(TransferQueueState.Pending, resumed.Transfer?.State);
+    }
+
+    /// <summary>
+    /// A running transfer is paused by the worker that holds it, never by writing over its lease;
+    /// one still connecting cannot pause, and is refused rather than left half-asked.
+    /// </summary>
+    [Fact]
+    public async Task Active_pause_is_requested_from_the_worker_and_a_connecting_one_is_refused()
+    {
+        var fixture = await CreateFixtureAsync();
+        var request = await CreateRequestAsync(fixture);
+        _ = await SendAsync<TransferEnqueueRequest, TransferEnqueueResponse>(
+            fixture.Service,
+            TransferQueueIpcMessageTypes.EnqueueRequest,
+            request);
+        var claim = Assert.IsType<TransferJobClaim>(await fixture.Store.TryClaimNextAsync(
+            new TransferClaimRequest("worker", Now, TimeSpan.FromMinutes(1))));
+        var cancellation = new RecordingCancellation(ActiveTransferCancellationResult.Accepted);
+        var service = new TransferQueueIpcCommandService(
+            fixture.Store,
+            fixture.Store,
+            cancellation,
+            new FixedTimeProvider(Now));
+
+        var preparing = await SendAsync<TransferPauseRequest, TransferMutationResponse>(
+            service,
+            TransferQueueIpcMessageTypes.PauseRequest,
+            new TransferPauseRequest(TransferQueueIpcContract.CurrentVersion, request.TransferId, claim.Job.State.Revision));
+
+        var connecting = await fixture.Store.TryTransitionAsync(new TransferStateTransitionRequest(
+            claim.Lease, claim.Job.State.Revision, TransferState.Connecting, Now));
+        var transferring = await fixture.Store.TryTransitionAsync(new TransferStateTransitionRequest(
+            claim.Lease, connecting.Value!.State.Revision, TransferState.Transferring, Now));
+        var running = await SendAsync<TransferPauseRequest, TransferMutationResponse>(
+            service,
+            TransferQueueIpcMessageTypes.PauseRequest,
+            new TransferPauseRequest(TransferQueueIpcContract.CurrentVersion, request.TransferId, transferring.Value!.State.Revision));
+        var stored = Assert.IsType<DurableTransferJob>(
+            await fixture.Store.FindAsync(new TransferJobId(request.TransferId)));
+
+        Assert.Equal(TransferQueueMutationOutcome.InvalidState, preparing.Outcome);
+        Assert.Equal(TransferQueueMutationOutcome.Accepted, running.Outcome);
+        Assert.Equal(new TransferJobId(request.TransferId), cancellation.PausedId);
+        Assert.Equal(TransferState.Transferring, stored.State.State);
+        Assert.NotNull(stored.ActiveLease);
+        Assert.Equal(-1, cancellation.ExpectedRevision);
+    }
+
     [WindowsOnlyFact]
     public async Task Retry_moves_an_inactive_failed_job_to_pending_with_revision_cas()
     {
@@ -528,12 +606,22 @@ public sealed class TransferQueueIpcCommandServiceTests : IDisposable
         public TransferJobId TransferId { get; private set; }
         public long ExpectedRevision { get; private set; } = -1;
 
+        public TransferJobId PausedId { get; private set; }
+
         public ActiveTransferCancellationResult TryRequestActiveCancellation(
             TransferJobId transferJobId,
             long expectedRevision)
         {
             TransferId = transferJobId;
             ExpectedRevision = expectedRevision;
+            return result;
+        }
+
+        public ActiveTransferCancellationResult TryRequestActivePause(
+            TransferJobId transferJobId,
+            long expectedRevision)
+        {
+            PausedId = transferJobId;
             return result;
         }
     }

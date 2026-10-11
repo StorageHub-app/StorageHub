@@ -658,7 +658,19 @@ internal static class UiCommandCatalog
         UiCommandIds.ToolsExportSettings or
         UiCommandIds.ToolsImportSettings or
         UiCommandIds.HelpCheckForUpdates or
-        UiCommandIds.HelpAboutStorageHub;
+        UiCommandIds.HelpAboutStorageHub or
+        // Transfer, Tools and Help, wired after 1.4 had declared them and left them dead.
+        UiCommandIds.TransferStartQueue or
+        UiCommandIds.TransferPauseAll or
+        UiCommandIds.TransferResumeAll or
+        UiCommandIds.TransferCancelSelected or
+        UiCommandIds.ToolsSearch or
+        UiCommandIds.ToolsChecksums or
+        UiCommandIds.ToolsLogs or
+        UiCommandIds.ToolsDiagnostics or
+        UiCommandIds.HelpKeyboardShortcuts or
+        UiCommandIds.HelpDocumentation or
+        UiCommandIds.HelpReportIssue;
 
     internal static bool IsPaneCommand(UiCommandDefinition command)
     {

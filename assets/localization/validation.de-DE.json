@@ -289,5 +289,6 @@
   "theSwiftUrlIsInvalid": "Eine Swift-URL muss eine http://- oder https://-Adresse ohne Benutzernamen, Abfrage oder Fragment sein.",
   "aKeystoneProjectIsRequired": "Ein Keystone-Projekt ist erforderlich.",
   "aSwiftTokenIsRequired": "Für die Anmeldung mit vorab ausgestelltem Token ist ein Token erforderlich.",
+  "thisTransferClientDoesNotSupportPausing": "Dieser Übertragungsclient unterstützt das Anhalten von Übertragungen nicht.",
   "culture": "de-DE"
 }

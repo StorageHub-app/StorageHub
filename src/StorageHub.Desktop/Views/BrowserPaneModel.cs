@@ -2140,6 +2140,36 @@ internal sealed partial class BrowserPaneModel : INotifyPropertyChanged, IAsyncD
             : Ui.Format(Ui.Shell.DeletedThenStoppedFormat, outcome.Deleted, outcome.Failure!.Message)).ConfigureAwait(true);
     }
 
+    /// <summary>
+    /// Where this pane is, for Tools, Search and Checksums: null for a shell, or for a pane with
+    /// nothing open.
+    /// </summary>
+    internal PaneTransferContext? ToolLocation => IsTerminal ? null : Here();
+
+    /// <summary>The selected files and folders, as Tools, Checksums takes them; null when there are none to take.</summary>
+    internal PaneSelectionSnapshot? ToolSelection() =>
+        !IsTerminal && PaneTransferSnapshots.SelectionFor(_source, SelectedRows) is { IsSuccess: true } selection
+            ? selection.Value
+            : null;
+
+    /// <summary>
+    /// Opens a folder and selects an item in it, for a search result somebody chose: the pane goes
+    /// where the file is and shows it picked, as a file manager's "open containing folder" does.
+    /// </summary>
+    internal async Task RevealAsync(string folder, string name, CancellationToken cancellationToken = default)
+    {
+        await NavigateAsync(folder, cancellationToken).ConfigureAwait(true);
+        if (Rows.FirstOrDefault(row => !row.IsParentNavigation &&
+                string.Equals(row.Name, name, StringComparison.Ordinal)) is not { } found)
+        {
+            return;
+        }
+
+        SelectedRows.Clear();
+        SelectedRows.Add(found);
+        Selected = found;
+    }
+
     /// <summary>Where this pane is, as a location a mutation can act on.</summary>
     private PaneTransferContext? Here() =>
         PaneTransferSnapshots.ContextFor(_source) is { IsSuccess: true } context ? context.Value : null;
