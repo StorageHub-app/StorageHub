@@ -25,8 +25,15 @@ chosen is written down in [Versioning and merges](docs/versioning.md).
 The folder tree reads ahead and shows a spinner while it does, the background agent starts more
 steadily and says what it is doing, and several things that went wrong after 2.0.0 are fixed: a
 connection with no host key could not be saved, files in the root of a drive could not be copied, and
-two settings were forgotten at every start. There is a new setting, Scan subfolders for the folder
-tree, on by default.
+two settings were forgotten at every start. Files can be dropped onto a folder. There is a new
+setting, Scan subfolders for the folder tree, on by default.
+
+**Dropping onto a folder.** Dragging files from one pane onto a folder, in the folder tree or in the
+list, now puts them in that folder. Every drop used to land in the folder the pane was showing,
+whatever was under the pointer, and the whole tree lit up to say so. The folder under the pointer is
+lit instead, and the pane opens it before the drop, because a paste is checked against what is
+already there. A pane's own selection can be dropped onto one of its folders too, but never onto a
+folder that is being dragged or is inside one.
 
 **Saving a connection with no host key pinned.** In the Edit Connection window Save stayed grey for any
 SFTP or SSH connection that had no host key pinned yet, whatever was changed, until Test connection

@@ -791,6 +791,15 @@
     <Setter Property="Background" Value="{DynamicResource SelectionBrush}"/>
   </Style>
 
+  <!-- The one folder a drop would go into, in the tree or in the list, rather than the whole of
+       either: it is the folder under the pointer that receives it. -->
+  <Style Selector="TreeViewItem.drop-target /template/ Border#PART_LayoutRoot">
+    <Setter Property="Background" Value="{DynamicResource SelectionBrush}"/>
+  </Style>
+  <Style Selector="TableViewRow.drop-target">
+    <Setter Property="Background" Value="{DynamicResource SelectionBrush}"/>
+  </Style>
+
   <!-- A pane's banner above the list: quiet for a note, the warning colour for a failure. -->
   <Style Selector="Button.pane-banner">
     <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}"/>

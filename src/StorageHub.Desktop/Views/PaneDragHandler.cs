@@ -93,8 +93,11 @@ internal static class PaneDragHandler
     /// <summary>How far the pointer moves before a press on a selected row becomes a drag.</summary>
     private const double DragThreshold = 4;
 
-    /// <summary>The class that draws a list or tree as the place a drop would land.</summary>
+    /// <summary>The class that draws a list, a tree or a folder in either as the place a drop would land.</summary>
     internal const string DropTargetClass = "drop-target";
+
+    /// <summary>A folder the pointer is over: what to light, and where a drop there goes.</summary>
+    internal sealed record DropFolder(Control Element, string Target);
 
     internal static void Attach(Control view, Func<BrowserPaneModel?> pane)
     {
@@ -154,10 +157,14 @@ internal static class PaneDragHandler
 
         void Over(DragEventArgs e)
         {
-            var effect = EffectFor(e, pane());
+            var folder = FolderUnder(view, e.Source);
+            var effect = EffectFor(e, pane(), folder?.Target);
             e.DragEffects = effect;
             e.Handled = true;
-            Light(effect == DragDropEffects.None ? null : TargetFor(view, e.Source));
+
+            // The folder under the pointer when there is one, so it is plain which it will go into;
+            // otherwise the list or the tree, which is the folder the pane is in.
+            Light(effect == DragDropEffects.None ? null : folder?.Element ?? TargetFor(view, e.Source));
         }
 
         view.AddHandler(DragDrop.DragEnterEvent, (_, e) => Over(e));
@@ -168,12 +175,13 @@ internal static class PaneDragHandler
         {
             Light(null);
             if (pane() is not { } model) return;
-            var effect = EffectFor(e, model);
+            var folder = FolderUnder(view, e.Source);
+            var effect = EffectFor(e, model, folder?.Target);
             if (effect == DragDropEffects.None) return;
 
             e.DragEffects = effect;
             e.Handled = true;
-            _ = ReceiveAsync(e, model, effect, FolderAt(view, e.Source));
+            _ = ReceiveAsync(e, model, effect, FolderAt(view, e.Source), folder?.Target);
         });
     }
 
@@ -198,13 +206,21 @@ internal static class PaneDragHandler
     /// own folder, which the queue would answer with a collision for every item. Nothing, too, for
     /// a pane with no folder open or a terminal.
     /// </remarks>
-    internal static DragDropEffects EffectFor(DragEventArgs e, BrowserPaneModel? model)
+    /// <param name="folder">
+    /// The folder the pointer is over, where there is one. Over a folder, even a pane's own
+    /// selection can be dropped, unless the folder is one of the things dragged or inside one.
+    /// </param>
+    internal static DragDropEffects EffectFor(DragEventArgs e, BrowserPaneModel? model, string? folder = null)
     {
         if (model is null || !model.CanReceiveDrop) return DragDropEffects.None;
 
         if (PaneDragPayloads.Find(e.DataTransfer?.TryGetValue(Format)) is { } payload)
         {
-            if (ReferenceEquals(payload.Source, model)) return DragDropEffects.None;
+            if (ReferenceEquals(payload.Source, model) &&
+                (folder is null || IsInsideSelection(payload, folder)))
+            {
+                return DragDropEffects.None;
+            }
             return payload.CanMove && e.KeyModifiers.HasFlag(KeyModifiers.Shift)
                 ? DragDropEffects.Move
                 : DragDropEffects.Copy;
@@ -213,6 +229,29 @@ internal static class PaneDragHandler
         return e.DataTransfer?.Contains(DataFormat.File) == true
             ? DragDropEffects.Copy
             : DragDropEffects.None;
+    }
+
+    /// <summary>
+    /// Whether a folder is one of the things being dragged, or inside one. Dropped there, a folder
+    /// would be copied into itself without end, or a move would be refused after it had begun.
+    /// </summary>
+    internal static bool IsInsideSelection(PaneDragPayload payload, string folder)
+    {
+        static string Norm(string path) => path.Replace('\\', '/').Trim('/');
+
+        var target = Norm(folder);
+        foreach (var item in payload.Selection.Items)
+        {
+            var dragged = Norm(item.RelativePath);
+            if (dragged.Length == 0) continue;
+            if (string.Equals(target, dragged, StringComparison.OrdinalIgnoreCase) ||
+                target.StartsWith(dragged + "/", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -302,7 +341,7 @@ internal static class PaneDragHandler
 
     /// <summary>Hands what landed to the pane: another pane's rows, or the desktop's files.</summary>
     private static async Task ReceiveAsync(
-        DragEventArgs e, BrowserPaneModel model, DragDropEffects effect, string? folder)
+        DragEventArgs e, BrowserPaneModel model, DragDropEffects effect, string? folder, string? intoFolder = null)
     {
         if (PaneDragPayloads.Find(e.DataTransfer?.TryGetValue(Format)) is { } payload)
         {
@@ -310,7 +349,8 @@ internal static class PaneDragHandler
             var operation = effect == DragDropEffects.Move
                 ? TransferQueueOperation.Move
                 : TransferQueueOperation.Copy;
-            await model.ReceiveDropAsync(new PaneClipboard(payload.Selection, operation, payload.SourceName))
+            await model.ReceiveDropAsync(
+                new PaneClipboard(payload.Selection, operation, payload.SourceName), intoFolder)
                 .ConfigureAwait(true);
             return;
         }
@@ -336,6 +376,33 @@ internal static class PaneDragHandler
         }
 
         return view.FindControl<Control>("PART_Rows");
+    }
+
+    /// <summary>
+    /// The folder the pointer is over, in the pane's tree or in its list, with the element to light.
+    /// Not the way back out, not a connection on Connections Home, and not the root of the tree,
+    /// which is the folder the pane is already in.
+    /// </summary>
+    private static DropFolder? FolderUnder(Control view, object? source)
+    {
+        for (Visual? step = source as Visual; step is not null && !ReferenceEquals(step, view); step = step.GetVisualParent())
+        {
+            if (step is TreeViewItem { DataContext: PaneTreeNode { IsRoot: false } node } item)
+            {
+                return new DropFolder(item, node.Target);
+            }
+
+            if (step is TableViewRow
+                {
+                    DataContext: BrowserListItem { IsContainer: true, IsParentNavigation: false, Location.Length: > 0 } row
+                } line &&
+                ConnectionsHomeSource.ConnectionOf(row) is null)
+            {
+                return new DropFolder(line, row.Location!);
+            }
+        }
+
+        return null;
     }
 
     /// <summary>The folder in the tree a drop is over, as 1.x took it for a drop from Explorer.</summary>

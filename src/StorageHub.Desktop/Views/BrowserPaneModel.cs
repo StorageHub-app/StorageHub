@@ -1079,10 +1079,35 @@ internal sealed partial class BrowserPaneModel : INotifyPropertyChanged, IAsyncD
     internal bool CanReceiveDrop => DropReceiver is not null && !IsTerminal && _source is not null;
 
     /// <summary>Hands what was dropped to the workspace, as the paste it amounts to.</summary>
-    internal Task ReceiveDropAsync(PaneClipboard clipboard)
+    /// <param name="folder">
+    /// The folder the pointer let go over, in the pane or in its tree; null for where the pane is.
+    /// The pane goes into it first, because a paste is checked against what is already in the folder
+    /// it lands in, and only the folder the pane is showing has been read. If it cannot go there,
+    /// nothing is dropped.
+    /// </param>
+    internal async Task ReceiveDropAsync(PaneClipboard clipboard, string? folder = null)
     {
         ArgumentNullException.ThrowIfNull(clipboard);
-        return DropReceiver is { } receive && CanReceiveDrop ? receive(clipboard) : Task.CompletedTask;
+        if (DropReceiver is not { } receive || !CanReceiveDrop) return;
+
+        if (folder is not null && !await GoToForDropAsync(folder).ConfigureAwait(true)) return;
+        await receive(clipboard).ConfigureAwait(true);
+    }
+
+    /// <summary>Goes into a folder, and says whether the pane is there now.</summary>
+    private async Task<bool> GoToForDropAsync(string folder)
+    {
+        await NavigateAsync(folder).ConfigureAwait(true);
+        return Here() is { } here && SameFolder(here.RelativePath, folder);
+    }
+
+    /// <summary>Whether two folder paths, as a pane gives them, are the same place.</summary>
+    internal static bool SameFolder(string? left, string? right)
+    {
+        static string Trim(string? path) =>
+            (path ?? string.Empty).Replace('\\', '/').Trim('/');
+
+        return string.Equals(Trim(left), Trim(right), StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

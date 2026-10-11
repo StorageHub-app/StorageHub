@@ -321,6 +321,39 @@ public class WorkspaceTransferTests
         Assert.Equal("reports", fixture.Workspace.Clipboard!.Selection.Items[0].Name);
     }
 
+    /// <summary>
+    /// A drop onto a folder goes into that folder, not into the one the pane is showing: the pane
+    /// opens it first, because a paste is checked against what is already there. Every drop used to
+    /// land in the pane's current folder whatever was under the pointer, and the whole tree was lit
+    /// to say so. A folder is never dropped into itself or into what it holds.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task ADropOnAFolderLandsInThatFolderAndNeverInsideWhatIsDragged()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        fixture.Agent.Listings[(fixture.DestinationConnectionId, "backups")] =
+            new Page([Entry("old.bin", 1, parent: "backups")]);
+
+        fixture.Left.SelectedRows.Add(fixture.Left.Rows.Single(row => row.Name == "render.exr"));
+        var payload = PaneDragHandler.Payload(fixture.Left)!;
+        await fixture.Right.ReceiveDropAsync(
+            new PaneClipboard(payload.Selection, TransferQueueOperation.Copy, payload.SourceName), "backups");
+
+        var request = Assert.Single(fixture.Queue.Enqueued);
+        Assert.Equal("backups/render.exr", request.Destination.RelativePath);
+        Assert.True(BrowserPaneModel.SameFolder(fixture.Right.Path, "backups"));
+
+        // The folder dragged, and what is inside it, are not places to drop it.
+        fixture.Left.SelectedRows.Clear();
+        fixture.Left.SelectedRows.Add(fixture.Left.Rows.Single(row => row.Name == "reports"));
+        var folder = PaneDragHandler.Payload(fixture.Left)!;
+        Assert.True(PaneDragHandler.IsInsideSelection(folder, "reports"));
+        Assert.True(PaneDragHandler.IsInsideSelection(folder, "reports/q1"));
+        Assert.True(PaneDragHandler.IsInsideSelection(folder, "/Reports/"));
+        Assert.False(PaneDragHandler.IsInsideSelection(folder, "reports-old"));
+        Assert.False(PaneDragHandler.IsInsideSelection(folder, "backups"));
+    }
+
     /// <summary>A folder cannot be moved, so a drag of one can only copy.</summary>
     [AvaloniaFact]
     public async Task ADraggedFolderCanOnlyBeCopied()
