@@ -281,5 +281,11 @@
   "iconPickerColor": "Warna",
   "iconPickerNoColor": "Tanpa warna",
   "iconPickerGroupTitleFormat": "Ikon dan warna untuk {0}",
+  "contextDuplicate": "Duplikasi",
+  "detailDuplicate": "Duplikasi",
+  "copyNameFormat": "{0} (salinan)",
+  "copyNumberedNameFormat": "{0} (salinan {1})",
+  "duplicateFailed": "Koneksi tidak dapat diduplikasi.",
+  "duplicateFailedThroughAgent": "Koneksi tidak dapat diduplikasi melalui agen latar belakang.",
   "culture": "id-ID"
 }

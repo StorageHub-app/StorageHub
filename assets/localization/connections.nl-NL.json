@@ -281,5 +281,11 @@
   "iconPickerColor": "Kleur",
   "iconPickerNoColor": "Geen kleur",
   "iconPickerGroupTitleFormat": "Pictogram en kleur voor {0}",
+  "contextDuplicate": "Dupliceren",
+  "detailDuplicate": "Dupliceren",
+  "copyNameFormat": "{0} (kopie)",
+  "copyNumberedNameFormat": "{0} (kopie {1})",
+  "duplicateFailed": "De verbinding kan niet worden gedupliceerd.",
+  "duplicateFailedThroughAgent": "De verbinding kan niet worden gedupliceerd via de achtergrondagent.",
   "culture": "nl-NL"
 }

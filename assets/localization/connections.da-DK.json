@@ -281,5 +281,11 @@
   "fieldStorageUrl": "Lager-URL",
   "fieldAuthenticationUrl": "Godkendelses-URL",
   "fieldSwiftToken": "Godkendelsestoken",
+  "contextDuplicate": "Duplikér",
+  "detailDuplicate": "Duplikér",
+  "copyNameFormat": "{0} (kopi)",
+  "copyNumberedNameFormat": "{0} (kopi {1})",
+  "duplicateFailed": "Forbindelsen kunne ikke duplikeres.",
+  "duplicateFailedThroughAgent": "Forbindelsen kunne ikke duplikeres via baggrundsagenten.",
   "culture": "da-DK"
 }

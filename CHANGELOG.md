@@ -23,6 +23,12 @@ tagged: `2.0.0-rc.1` by hand, then one for every push to `main`. 1.4.5 stays the
 release marked Latest until then, and the 1.4 source is kept on the
 `1.x-archive` branch.
 
+**Duplicate a connection.** A connection's menu and its selected card have a
+Duplicate action: it saves a copy named "(copy)", then "(copy 2)" and on, with the same
+settings, the same saved passwords and keys and the same pinned host key, so it
+signs in without anything being typed again. The copy is not a favourite, and it
+is selected when it appears.
+
 **Key store audit.** PEM and PKCS#8 SSH keys can now be used by a connection:
 the editor never recorded a key's format, so every profile said OpenSSH and the
 connector refused the rest as malformed. The connector now reads the format from

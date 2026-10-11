@@ -281,5 +281,11 @@
   "iconPickerColor": "Колір",
   "iconPickerNoColor": "Без кольору",
   "iconPickerGroupTitleFormat": "Піктограма та колір для {0}",
+  "contextDuplicate": "Дублювати",
+  "detailDuplicate": "Дублювати",
+  "copyNameFormat": "{0} (копія)",
+  "copyNumberedNameFormat": "{0} (копія {1})",
+  "duplicateFailed": "Не вдалося дублювати підключення.",
+  "duplicateFailedThroughAgent": "Не вдалося дублювати підключення через фоновий агент.",
   "culture": "uk-UA"
 }

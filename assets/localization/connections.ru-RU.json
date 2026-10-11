@@ -281,5 +281,11 @@
   "iconPickerColor": "Цвет",
   "iconPickerNoColor": "Без цвета",
   "iconPickerGroupTitleFormat": "Значок и цвет для {0}",
+  "contextDuplicate": "Дублировать",
+  "detailDuplicate": "Дублировать",
+  "copyNameFormat": "{0} (копия)",
+  "copyNumberedNameFormat": "{0} (копия {1})",
+  "duplicateFailed": "Не удалось дублировать подключение.",
+  "duplicateFailedThroughAgent": "Не удалось дублировать подключение через фоновый агент.",
   "culture": "ru-RU"
 }

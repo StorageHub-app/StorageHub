@@ -281,5 +281,11 @@
   "iconPickerColor": "색",
   "iconPickerNoColor": "색 없음",
   "iconPickerGroupTitleFormat": "{0}의 아이콘 및 색",
+  "contextDuplicate": "복제",
+  "detailDuplicate": "복제",
+  "copyNameFormat": "{0} (복사본)",
+  "copyNumberedNameFormat": "{0} (복사본 {1})",
+  "duplicateFailed": "연결을 복제할 수 없습니다.",
+  "duplicateFailedThroughAgent": "백그라운드 에이전트를 통해 연결을 복제할 수 없습니다.",
   "culture": "ko-KR"
 }

@@ -281,5 +281,11 @@
   "iconPickerColor": "Kolor",
   "iconPickerNoColor": "Bez koloru",
   "iconPickerGroupTitleFormat": "Ikona i kolor dla {0}",
+  "contextDuplicate": "Duplikuj",
+  "detailDuplicate": "Duplikuj",
+  "copyNameFormat": "{0} (kopia)",
+  "copyNumberedNameFormat": "{0} (kopia {1})",
+  "duplicateFailed": "Nie można zduplikować połączenia.",
+  "duplicateFailedThroughAgent": "Nie można zduplikować połączenia przez agenta działającego w tle.",
   "culture": "pl-PL"
 }

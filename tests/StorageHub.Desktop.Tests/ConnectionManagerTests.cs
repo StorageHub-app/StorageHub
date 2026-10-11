@@ -1357,6 +1357,75 @@ public class ConnectionManagerTests
         Name(editor, "Studio Assets");
     }
 
+    /// <summary>
+    /// Duplicate, from a card's menu and from the details: a copy of the saved profile under the
+    /// original's name and "(copy)", the same references and settings, not a favourite, selected.
+    /// A name that was taken in the meantime moves on to "(copy 2)" instead of failing.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task ADuplicateIsASavedCopyUnderAFreeNameAndIsSelected()
+    {
+        var cancellation = TestContext.Current.CancellationToken;
+        var profiles = new FakeProfiles();
+        var editor = new ConnectionEditorModel(() => Controller(profiles));
+        var saved = Guid.Empty;
+        editor.Saved += (_, id) => saved = id;
+        Fill(editor);
+        await editor.SaveAsync(cancellation);
+        var original = (await profiles.GetAsync(
+            new ConnectionProfileGetRequest(ConnectionProfileIpcContract.CurrentVersion, saved), cancellation)).Profile!;
+
+        var agent = new ListingAgent([Summary("Studio Assets") with { ConnectionId = saved, IsFavorite = true }]);
+        var sidebar = new ConnectionsSidebar(
+            new RelayCommand(static _ => { }),
+            () => agent,
+            profiles: () => profiles);
+        var changed = 0;
+        sidebar.ConnectionsChanged += (_, _) => changed++;
+        await sidebar.RefreshAsync(cancellation);
+        var creates = profiles.Creates;
+
+        Assert.Contains(
+            sidebar.ContextEntriesFor(sidebar.Groups.SelectMany(static g => g.Connections).First(row => row.Id == saved)),
+            static entry => entry.Label == Ui.Connections.ContextDuplicate && entry.Enabled);
+
+        // Another window saved "(copy)" since the panel listed, so the copy is the second.
+        profiles.Reserved.Add("Studio Assets (copy)");
+        await sidebar.DuplicateConnectionAsync(saved, cancellation);
+
+        Assert.Equal(creates + 1, profiles.Creates);
+        var copy = profiles.LastDraft!;
+        Assert.Equal("Studio Assets (copy 2)", copy.Metadata.DisplayName);
+        Assert.False(copy.Metadata.IsFavorite);
+        Assert.Equal(original.Draft.Endpoint, copy.Endpoint);
+        Assert.Equal(original.Draft.Authentication, copy.Authentication);
+        Assert.Equal(original.Draft.OperationalOptions, copy.OperationalOptions);
+        Assert.Equal(1, changed);
+    }
+
+    [AvaloniaFact]
+    public async Task ADuplicateOfAConnectionThatCannotBeLoadedSaysWhy()
+    {
+        var cancellation = TestContext.Current.CancellationToken;
+        var profiles = new FakeProfiles();
+        var editor = new ConnectionEditorModel(() => Controller(profiles));
+        var saved = Guid.Empty;
+        editor.Saved += (_, id) => saved = id;
+        Fill(editor);
+        await editor.SaveAsync(cancellation);
+
+        var failing = new FakeProfiles { Failure = new StorageIpcFailure("x", StorageIpcFailureCategory.Validation, "Nope.", false) };
+        var sidebar = new ConnectionsSidebar(
+            new RelayCommand(static _ => { }),
+            () => new ListingAgent([Summary("Studio Assets") with { ConnectionId = saved }]),
+            profiles: () => failing);
+
+        await sidebar.DuplicateConnectionAsync(saved, cancellation);
+
+        Assert.Equal(0, failing.Creates);
+        Assert.Equal(Ui.Connections.LoadFailed, sidebar.DetailStatus);
+    }
+
     private static ConnectionSummary Summary(
         string name,
         StorageConnectionProvider provider = StorageConnectionProvider.S3,
@@ -1398,6 +1467,9 @@ public class ConnectionManagerTests
 
         internal StorageIpcFailure? Failure { get; init; }
 
+        /// <summary>Names another window has saved since the panel listed, which a create is refused for.</summary>
+        internal HashSet<string> Reserved { get; } = new(StringComparer.OrdinalIgnoreCase);
+
         /// <summary>The fingerprint each connection is pinned to, one trusted record apiece.</summary>
         internal Dictionary<Guid, string> Pins { get; } = [];
 
@@ -1416,6 +1488,12 @@ public class ConnectionManagerTests
             CancellationToken cancellationToken = default)
         {
             if (Failure is not null) return Refused();
+            if (Reserved.Contains(request.Draft.Metadata.DisplayName))
+            {
+                return Task.FromResult(new ConnectionProfileWriteResponse(
+                    ConnectionProfileIpcContract.CurrentVersion, ConnectionProfileWriteStatus.NameConflict));
+            }
+
             Creates++;
             return Written(Guid.NewGuid(), 1, request.Draft);
         }

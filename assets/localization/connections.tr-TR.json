@@ -281,5 +281,11 @@
   "iconPickerColor": "Renk",
   "iconPickerNoColor": "Renk yok",
   "iconPickerGroupTitleFormat": "{0} için simge ve renk",
+  "contextDuplicate": "Çoğalt",
+  "detailDuplicate": "Çoğalt",
+  "copyNameFormat": "{0} (kopya)",
+  "copyNumberedNameFormat": "{0} (kopya {1})",
+  "duplicateFailed": "Bağlantı çoğaltılamadı.",
+  "duplicateFailedThroughAgent": "Bağlantı arka plan aracısı üzerinden çoğaltılamadı.",
   "culture": "tr-TR"
 }
