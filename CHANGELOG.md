@@ -18,6 +18,12 @@ chosen is written down in [Versioning and merges](docs/versioning.md).
 
 ## Unreleased
 
+**Files in the root of a drive.** Copying a file that sits directly in the root of a drive, such as
+`D:\Z-wave.txt`, failed every time with "The local path escapes its approved folder". The check that
+a path is inside its folder looked for the folder and a separator, and a drive root already ends in
+one, so it looked for a prefix nothing starts with. The three local endpoints now agree on the prefix
+and a drive root is accepted. Transfers that failed this way can be retried.
+
 **A live status while the agent starts.** The splash now says what the starting agent is doing,
 such as "preparing StorageHub database" or "starting Local IPC", instead of one sentence for the
 whole wait. The agent writes its progress, a stage and a subsystem name and nothing else, to a small

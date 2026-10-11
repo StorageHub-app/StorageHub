@@ -73,6 +73,18 @@ public static class LocalPathPolicy
 
     public static ILocalPathPolicy Current => _current ??= CreateDefault();
 
+    /// <summary>
+    /// What a path has to start with to be inside <paramref name="root"/>: the root and one
+    /// separator. A drive root, <c>D:\</c>, or <c>/</c>, already ends in one, and adding another
+    /// made a prefix no path starts with, so every file in the root of a drive was reported as
+    /// escaping the folder it had just been chosen from.
+    /// </summary>
+    public static string ContainmentPrefix(string root)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(root);
+        return Path.EndsInDirectorySeparator(root) ? root : root + Path.DirectorySeparatorChar;
+    }
+
     /// <summary>Installs the policy the host's platform supplies.</summary>
     public static void Use(ILocalPathPolicy policy)
     {

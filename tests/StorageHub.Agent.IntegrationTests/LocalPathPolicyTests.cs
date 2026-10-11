@@ -17,6 +17,32 @@ namespace StorageHub.Agent.IntegrationTests;
 /// </remarks>
 public sealed class LocalPathPolicyTests
 {
+    /// <summary>
+    /// A file directly in a drive root, such as <c>D:\Z-wave.txt</c>, is inside the folder it was
+    /// chosen from. The containment prefix used to be the root plus a separator, which for a root
+    /// that already ends in one is a prefix nothing starts with, so three copies of such a file all
+    /// failed as "the local path escapes its approved folder".
+    /// </summary>
+    [Fact]
+    public void ARootThatAlreadyEndsInASeparatorContainsItsFiles()
+    {
+        var driveRoot = Path.GetPathRoot(Path.GetTempPath())!;
+        var nested = Path.TrimEndingDirectorySeparator(Path.GetTempPath());
+
+        foreach (var root in new[] { driveRoot, nested })
+        {
+            var prefix = LocalPathPolicy.ContainmentPrefix(root);
+            Assert.StartsWith(prefix, Path.Combine(root, "Z-wave.txt"), LocalPathPolicy.Current.PathComparison);
+            Assert.False(prefix.EndsWith(
+                string.Concat(Path.DirectorySeparatorChar, Path.DirectorySeparatorChar),
+                StringComparison.Ordinal));
+        }
+
+        // A sibling that merely starts with the same letters is still outside.
+        Assert.False((nested + "-other" + Path.DirectorySeparatorChar + "x").StartsWith(
+            LocalPathPolicy.ContainmentPrefix(nested), LocalPathPolicy.Current.PathComparison));
+    }
+
     [Fact]
     public void EveryProtectedRootExplainsItself()
     {

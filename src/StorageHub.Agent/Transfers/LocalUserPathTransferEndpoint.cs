@@ -410,7 +410,7 @@ public static class LocalUserPathTransferEndpoint
         {
             try
             {
-                var prefix = root + Path.DirectorySeparatorChar;
+                var prefix = LocalPathPolicy.ContainmentPrefix(root);
                 if (!string.Equals(target, root, LocalPathPolicy.Current.PathComparison) &&
                     !target.StartsWith(prefix, LocalPathPolicy.Current.PathComparison))
                 {
@@ -484,7 +484,7 @@ public static class LocalUserPathTransferEndpoint
             {
                 var candidate = Path.GetFullPath(Path.Combine(
                     root, address.CanonicalRelativePath.Replace('/', Path.DirectorySeparatorChar)));
-                var prefix = root + Path.DirectorySeparatorChar;
+                var prefix = LocalPathPolicy.ContainmentPrefix(root);
                 if (!candidate.StartsWith(prefix, LocalPathPolicy.Current.PathComparison))
                 {
                     return Fail<string>("local-user.escape", "The local path escapes its approved folder.");

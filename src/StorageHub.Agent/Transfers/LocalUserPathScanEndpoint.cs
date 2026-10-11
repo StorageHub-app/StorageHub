@@ -294,7 +294,7 @@ public static class LocalUserPathScanEndpoint
             {
                 var candidate = Path.GetFullPath(Path.Combine(
                     root, address.CanonicalRelativePath.Replace('/', Path.DirectorySeparatorChar)));
-                var prefix = root + Path.DirectorySeparatorChar;
+                var prefix = LocalPathPolicy.ContainmentPrefix(root);
                 return candidate.StartsWith(prefix, LocalPathPolicy.Current.PathComparison)
                     ? StorageResult<string>.Success(candidate)
                     : Fail<string>("local-scan.escape", "The local path escapes its approved folder.");

@@ -181,7 +181,7 @@ public static class LocalStagingTransferEndpoint
             try
             {
                 var candidate = Path.GetFullPath(Path.Combine(root, address.CanonicalRelativePath.Replace('/', Path.DirectorySeparatorChar)));
-                var prefix = root + Path.DirectorySeparatorChar;
+                var prefix = LocalPathPolicy.ContainmentPrefix(root);
                 if (!candidate.StartsWith(prefix, LocalPathPolicy.Current.PathComparison))
                     return Fail<string>("local-stage.escape", "The staged path escapes its approved root.");
                 return StorageResult<string>.Success(candidate);
