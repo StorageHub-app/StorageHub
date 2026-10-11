@@ -17,14 +17,11 @@ internal sealed class PaneTreeNode(string name, string target, LucideIconKind ic
 
     public string Name { get; set; } = name;
 
-    /// <summary>
-    /// A stand-in child that makes a folder whose contents are not known yet show an expander. It
-    /// says "..." while the folder is read, and is replaced by what is there, or by nothing.
-    /// </summary>
-    public bool IsPlaceholder { get; init; }
-
     /// <summary>When this folder's own folders were last read for the tree; null if they never were.</summary>
     internal DateTimeOffset? ScannedUtc { get; set; }
+
+    /// <summary>When a read of this folder last failed; it is not tried again for a little while.</summary>
+    internal DateTimeOffset? ScanFailedUtc { get; set; }
 
     /// <summary>Told when the node is opened, so the tree can read what is inside it.</summary>
     internal Action<PaneTreeNode>? Expanded { get; set; }
@@ -102,6 +99,9 @@ internal sealed class PaneTreeModel
     /// <summary>How long what a scan read is believed before an opened folder is read again.</summary>
     internal static readonly TimeSpan ScanFreshFor = TimeSpan.FromMinutes(5);
 
+    /// <summary>How long a folder that could not be read is left alone before it is tried again.</summary>
+    internal static readonly TimeSpan ScanRetryAfter = TimeSpan.FromSeconds(60);
+
     /// <summary>
     /// Whether the tree reads folders ahead of being asked, which is the Scan subfolders setting.
     /// Null, as a preview has it, means it does not.
@@ -124,7 +124,7 @@ internal sealed class PaneTreeModel
     /// <summary>Called by the view when the tree's selection changes.</summary>
     internal void Chosen(PaneTreeNode? node)
     {
-        if (_updating || node is null || node.IsPlaceholder) return;
+        if (_updating || node is null) return;
         NavigateRequested?.Invoke(this, node.Target);
     }
 
@@ -182,9 +182,7 @@ internal sealed class PaneTreeModel
             root.Name = rootName;
             var node = Ensure(root, current, local);
 
-            // A listing is the whole truth about this folder: whatever stood in for what it holds
-            // is not needed, and it was read now.
-            RemovePlaceholder(node);
+            // A listing is the whole truth about this folder, and it was read now.
             node.ScannedUtc = DateTimeOffset.UtcNow;
 
             var folders = rows
@@ -214,9 +212,7 @@ internal sealed class PaneTreeModel
             node.IsExpanded = true;
             Select(node);
             Hook(Roots);
-            var scanning = Scanning;
-            if (!scanning) StripScanning(Roots);
-            if (scanning) StartScan(node);
+            if (Scanning) StartScan(node);
         }
         finally
         {
@@ -237,20 +233,27 @@ internal sealed class PaneTreeModel
     /// <summary>Starts a scan below the folder the pane is in, replacing one still running.</summary>
     private void StartScan(PaneTreeNode from)
     {
-        // This PC's children are the drives, and reading each of them would wake a card reader or
-        // a network share nobody asked about.
-        if (_local && from.Target.Length == 0) return;
-
         var limits = _local ? ScanLimits.Local : ScanLimits.Remote;
         var scan = new CancellationTokenSource();
         _scan = scan;
+
+        // This PC's children are the drives. The fixed ones are read, one level, so they show
+        // whether they hold folders; a card reader, an optical drive or a network share is not
+        // woken for a tree nobody asked to fill.
+        if (_local && from.Target.Length == 0)
+        {
+            _ = ScanAsync([.. from.Children.Where(drive => NeedsReading(drive) && IsFixedDrive(drive.Target))], from, 1, limits, scan.Token);
+            return;
+        }
+
         _ = ScanAsync([.. from.Children.Where(NeedsReading)], from, limits.Depth - 1, limits, scan.Token);
     }
 
     /// <summary>
     /// Reads the folders inside <paramref name="first"/>, then inside what that finds, a level at a
-    /// time and a few at once, as far as <paramref name="levels"/> and the limits allow. What is
-    /// left unread below <paramref name="from"/> gets a stand-in so it can be opened and read then.
+    /// time and a few at once, as far as <paramref name="levels"/> and the limits allow. A folder
+    /// shows an expander only once it is known to hold folders, so there is never one that opens
+    /// onto nothing; the folders it has not read yet are read when its parent is opened.
     /// </summary>
     private async Task ScanAsync(
         IReadOnlyList<PaneTreeNode> first,
@@ -306,7 +309,6 @@ internal sealed class PaneTreeModel
             _updating = true;
             try
             {
-                Mark(from);
                 Hook(Roots);
             }
             finally
@@ -320,16 +322,39 @@ internal sealed class PaneTreeModel
         }
     }
 
-    private static bool NeedsReading(PaneTreeNode node) =>
-        !node.IsPlaceholder &&
-        (node.ScannedUtc is not { } read || DateTimeOffset.UtcNow - read > ScanFreshFor);
+    private static bool NeedsReading(PaneTreeNode node)
+    {
+        var now = DateTimeOffset.UtcNow;
+        if (node.ScanFailedUtc is { } failed && now - failed < ScanRetryAfter) return false;
+        return node.ScannedUtc is not { } read || now - read > ScanFreshFor;
+    }
+
+    private static bool IsFixedDrive(string target)
+    {
+        try
+        {
+            var drive = new DriveInfo(target);
+            return drive.DriveType == DriveType.Fixed && drive.IsReady;
+        }
+        catch (Exception error) when (error is ArgumentException or IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
 
     /// <summary>Puts what was read inside a folder, in name order, leaving what is already there.</summary>
     private void Apply(PaneTreeNode node, IReadOnlyList<PaneFolder>? folders)
     {
-        RemovePlaceholder(node);
+        // A read that failed is not "nothing inside": it is tried again after a little, and until
+        // then the folder simply shows what is known.
+        if (folders is null)
+        {
+            node.ScanFailedUtc = DateTimeOffset.UtcNow;
+            return;
+        }
+
+        node.ScanFailedUtc = null;
         node.ScannedUtc = DateTimeOffset.UtcNow;
-        if (folders is null) return;
 
         var showHidden = ShowHidden?.Invoke() ?? true;
         foreach (var folder in folders)
@@ -337,42 +362,6 @@ internal sealed class PaneTreeModel
             if (folder.IsHidden && !showHidden) continue;
             if (node.Children.Any(child => string.Equals(child.Target, folder.Target, StringComparison.Ordinal))) continue;
             Insert(node, new PaneTreeNode(folder.Name, folder.Target, LucideIconKind.Folder));
-        }
-    }
-
-    /// <summary>
-    /// Gives every folder below <paramref name="from"/> that has not been read, and so shows
-    /// nothing inside it, a stand-in, so it has an expander that reads it when it is opened.
-    /// </summary>
-    private static void Mark(PaneTreeNode from)
-    {
-        foreach (var child in from.Children.ToArray())
-        {
-            if (child.IsPlaceholder) continue;
-            if (child.ScannedUtc is null && child.Children.Count == 0)
-            {
-                child.Children.Add(new PaneTreeNode("...", child.Target + "\u0001", LucideIconKind.Folder) { IsPlaceholder = true });
-            }
-
-            Mark(child);
-        }
-    }
-
-    private static void RemovePlaceholder(PaneTreeNode node)
-    {
-        for (var index = node.Children.Count - 1; index >= 0; index--)
-        {
-            if (node.Children[index].IsPlaceholder) node.Children.RemoveAt(index);
-        }
-    }
-
-    /// <summary>With the setting off the tree is what the pane has listed and nothing more.</summary>
-    private static void StripScanning(IEnumerable<PaneTreeNode> nodes)
-    {
-        foreach (var node in nodes)
-        {
-            RemovePlaceholder(node);
-            StripScanning(node.Children);
         }
     }
 
@@ -386,16 +375,25 @@ internal sealed class PaneTreeModel
     }
 
     /// <summary>
-    /// A folder opened by somebody is read, one level, if it has not been. The tree opening folders
-    /// itself, to show where the pane is, does not read anything.
+    /// A folder opened by somebody has its folders read, so that the ones now in view show an
+    /// expander only if they hold folders. The tree opening folders itself, to show where the
+    /// pane is, does not read anything.
     /// </summary>
     private void OnExpanded(PaneTreeNode node)
     {
-        if (_updating || node.IsPlaceholder || node.IsRoot || !Scanning || _scan is not { } scan) return;
-        if (!NeedsReading(node)) return;
+        if (_updating || node.IsRoot || !Scanning || _scan is not { } scan) return;
 
-        var limits = _local ? ScanLimits.Local : ScanLimits.Remote;
-        _ = ScanAsync([node], node, 1, limits with { Requests = 1 }, scan.Token);
+        // Bounded like the first scan, and smaller: it is one folder's worth.
+        var limits = (_local ? ScanLimits.Local : ScanLimits.Remote) with { Requests = 50 };
+        if (NeedsReading(node))
+        {
+            // Not read yet: it, and then what it holds.
+            _ = ScanAsync([node], node, 2, limits, scan.Token);
+            return;
+        }
+
+        var children = node.Children.Where(NeedsReading).ToList();
+        if (children.Count > 0) _ = ScanAsync(children, node, 1, limits, scan.Token);
     }
 
     /// <summary>The node for a folder, made with every folder above it if it is not there yet.</summary>

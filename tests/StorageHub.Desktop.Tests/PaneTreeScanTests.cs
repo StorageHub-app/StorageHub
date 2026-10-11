@@ -16,6 +16,7 @@ public sealed class PaneTreeScanTests
     public async Task TheTreeScansWithinItsLimitsStopsWhenThePaneMovesOnAndReadsNothingWhenOff()
     {
         await ReadsAFewLevelsAndOpensWhatIsBeyondReach();
+        await ARefusedReadIsNotRememberedAsEmpty();
         await StaysWithinItsRequestBudgetAndNumberAtOnce();
         await MovingOnStopsAScanAndTheSettingOffReadsNothing();
     }
@@ -51,20 +52,59 @@ public sealed class PaneTreeScanTests
         var b = a.Children.Single(node => node.Name == "b");
         Assert.Equal(["b1", "b2"], b.Children.Select(node => node.Name).ToArray());
         var b1 = b.Children.Single(node => node.Name == "b1");
+        var b2 = b.Children.Single(node => node.Name == "b2");
 
-        // What is beyond reach can still be opened: a stand-in gives it an expander, and opening
-        // it reads that one folder, once.
-        var standIn = Assert.Single(b1.Children);
-        Assert.True(standIn.IsPlaceholder);
-        model.Chosen(standIn);
-        b1.IsExpanded = true;
+        // Nothing is shown as openable that is not known to hold folders: what is below b's
+        // folders has not been read, so they have no expander yet, rather than one that opens
+        // onto nothing.
+        Assert.Empty(b1.Children);
+        Assert.Empty(b2.Children);
+
+        // Opening b reads the folders in view in it, so each shows an expander only if it should.
+        b.IsExpanded = true;
         await WaitUntil(() => b1.Children.Any(node => node.Name == "b1x"));
-        Assert.DoesNotContain(b1.Children, node => node.IsPlaceholder);
-        Assert.Equal(3, requests.Count);
+        Assert.Equal(4, requests.Count);
+        Assert.Empty(b2.Children);
+
+        // And opening those reads theirs, once.
+        b1.IsExpanded = true;
+        await WaitUntil(() => requests.Count == 5);
+        b.IsExpanded = false;
+        b.IsExpanded = true;
         b1.IsExpanded = false;
         b1.IsExpanded = true;
         await Task.Delay(100, TestContext.Current.CancellationToken);
-        Assert.Equal(3, requests.Count);
+        Assert.Equal(5, requests.Count);
+    }
+
+    private static async Task ARefusedReadIsNotRememberedAsEmpty()
+    {
+        var answers = 0;
+        var model = new PaneTreeModel
+        {
+            ScanEnabled = () => true,
+            ListFolders = (target, _, _) =>
+            {
+                Interlocked.Increment(ref answers);
+                return Task.FromResult<IReadOnlyList<PaneFolder>?>(null);
+            },
+        };
+
+        model.Follow("conn", "Server", local: false, "a", [Folder("b", "a/b")]);
+        await WaitUntil(() => Volatile.Read(ref answers) == 1);
+        await Task.Delay(100, TestContext.Current.CancellationToken);
+        var b = model.Roots[0].Children.Single(node => node.Target == "a").Children.Single();
+
+        // Not "read, and empty": it is marked as failed, so it is left alone for a little while
+        // and then tried again, instead of being believed for five minutes.
+        Assert.Null(b.ScannedUtc);
+        Assert.NotNull(b.ScanFailedUtc);
+        model.Follow("conn", "Server", local: false, "a", [Folder("b", "a/b")]);
+        await Task.Delay(150, TestContext.Current.CancellationToken);
+        Assert.Equal(1, Volatile.Read(ref answers));
+        b.ScanFailedUtc = DateTimeOffset.UtcNow - PaneTreeModel.ScanRetryAfter - TimeSpan.FromSeconds(1);
+        model.Follow("conn", "Server", local: false, "a", [Folder("b", "a/b")]);
+        await WaitUntil(() => Volatile.Read(ref answers) == 2);
     }
 
     private static async Task StaysWithinItsRequestBudgetAndNumberAtOnce()

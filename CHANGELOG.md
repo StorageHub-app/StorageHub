@@ -26,10 +26,14 @@ the missing host key first and shows it to be checked, as Test does. A key you d
 **Subfolders in the folder tree.** A pane's folder tree now reads the folders below the one you are
 in, so you can open them without visiting each first. It goes two levels down on a connection and
 three on this computer, reads at most 100 folders for a connection (500 locally), two at a time on a
-server, and stops when you move on. Folders beyond that show an expander and are read when you open
-them. It runs on its own pipe to the agent, so it never makes the pane's own navigation wait. Settings >
-Scan subfolders for the folder tree, on by default, turns it off, which leaves the tree showing only
-what the pane has listed. The scan never follows a link and never reads the drives under This PC.
+server, and stops when you move on. A folder shows an expander only once it is known to hold
+folders, so there is never one that opens onto nothing; opening a folder reads the folders in it, so
+the ones now in view are right too. A read that fails is tried again after a minute instead of being
+taken for an empty folder. At This PC the fixed drives are read, one level, so they show whether they
+hold folders; card readers, optical drives and network shares are left alone. It runs on its own pipe
+to the agent, so it never makes the pane's own navigation wait. Settings > Scan subfolders for the
+folder tree, on by default, turns it off, which leaves the tree showing only what the pane has
+listed. The scan never follows a link.
 
 **Two settings that were not saved.** Hide empty groups and Show favourites in their folders went back
 to their defaults every time StorageHub started, because the settings file never stored them. They
