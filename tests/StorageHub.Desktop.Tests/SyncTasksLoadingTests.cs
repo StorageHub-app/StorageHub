@@ -155,12 +155,17 @@ public class SyncTasksLoadingTests
     [Fact]
     public async Task ARefreshAlreadyRunningIsNotStartedAgain()
     {
-        var agent = new StubSyncAgent { Profiles = [Profile("Nightly", enabled: true)] };
+        // The load is held open until both refreshes have been asked for. Left to finish on its own
+        // it could complete on another thread before the second call started, on a fast enough
+        // machine, and the guard would never be reached.
+        var hold = new TaskCompletionSource();
+        var agent = new StubSyncAgent { Profiles = [Profile("Nightly", enabled: true)], Hold = hold.Task };
         var model = SyncTasksModel.Create(() => agent);
 
-        await Task.WhenAll(
-            model.RefreshAsync(TestContext.Current.CancellationToken),
-            model.RefreshAsync(TestContext.Current.CancellationToken));
+        var first = model.RefreshAsync(TestContext.Current.CancellationToken);
+        var second = model.RefreshAsync(TestContext.Current.CancellationToken);
+        hold.SetResult();
+        await Task.WhenAll(first, second);
 
         Assert.Equal(1, agent.Loads);
     }
@@ -246,6 +251,9 @@ public class SyncTasksLoadingTests
 
         internal int Loads { get; private set; }
 
+        /// <summary>What a load waits on once it has started, to keep one running while another asks.</summary>
+        internal Task Hold { get; set; } = Task.CompletedTask;
+
         public async Task<SyncProfileListResponse> ListProfilesAsync(
             SyncProfileListRequest request, CancellationToken cancellationToken = default)
         {
@@ -254,6 +262,7 @@ public class SyncTasksLoadingTests
             // overlapping loads could never be reached -- and a test for it would pass whether or
             // not the guard existed.
             await Task.Yield();
+            await Hold.ConfigureAwait(false);
             Loads++;
             if (Throws is { } error) throw error;
             return new SyncProfileListResponse(SyncManagementIpcContract.CurrentVersion, Profiles);

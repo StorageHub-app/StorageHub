@@ -27,6 +27,22 @@ The first stable StorageHub 2.0, released after a run of release candidates
 the release marked Latest, and the 1.4 source is kept on the `1.x-archive`
 branch.
 
+**A steadier background agent.** The desktop no longer ends an agent that is running but slow to
+answer: a busy agent that misses a poll is left alone and asked again, and only one silent for a
+minute (five when transfers were running as it went quiet) is ended and replaced. An update that
+left the previous build's agent running no longer leaves it with the old database migrations and
+protocol: the agent reports its build, and one from another build is restarted once it is idle.
+The transfer queue and the panes now tell the status bar when they cannot reach the agent, so it no
+longer says "connected" over a pane that says the agent is unavailable. Every agent start, stop and
+restart is written to `desktop.log` with its reason. The installation check no longer warns about an
+earlier-version database that holds nothing.
+
+**A full connection no longer holds up the others.** The transfer queue claimed the next job and
+only then waited for its connection's slot, so jobs on idle connections could sit queued behind a
+worker waiting on a busy one, and long transfers there could let the waiting jobs' leases expire.
+The queue now skips jobs whose connection is at its limit, and takes a job and its slots in one
+step.
+
 **Duplicate a connection.** A connection's menu and its selected card have a
 Duplicate action: it saves a copy named "(copy)", then "(copy 2)" and on, with the same
 settings, the same saved passwords and keys and the same pinned host key, so it
