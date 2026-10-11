@@ -4,6 +4,15 @@ using StorageHub.Desktop.Localization;
 namespace StorageHub.Desktop.Tests;
 
 /// <summary>
+/// Run with nothing else running. What the desktop believes about the agent is one value for the
+/// whole process, and any test that makes an agent call fail, as the browser's and the controllers'
+/// do, writes it. In parallel with those this class read a value somebody else had just set, and
+/// "not running" came out as "not answering".
+/// </summary>
+[CollectionDefinition("Agent availability", DisableParallelization = true)]
+public sealed class AgentAvailabilityTestGroup;
+
+/// <summary>
 /// What a failed agent call means, who decides it, and what the person is told.
 /// </summary>
 /// <remarks>
@@ -13,6 +22,7 @@ namespace StorageHub.Desktop.Tests;
 /// polls on a fresh connection and never sees the pipe a surface has been holding since before the
 /// agent restarted. One place decides now, and these are its rules.
 /// </remarks>
+[Collection("Agent availability")]
 public sealed class AgentAvailabilityTests : IDisposable
 {
     public AgentAvailabilityTests() => DesktopAgentAvailability.ResetForTests();
