@@ -107,6 +107,55 @@ public sealed class DesktopPreferenceSectionMapperTests
                 .Preferences.NewScheduleTimeZone);
     }
 
+    /// <summary>
+    /// Refreshing folders by themselves travels with its interval; a file from before it existed,
+    /// or with an interval this build would not use, leaves the setting as it was.
+    /// </summary>
+    [Fact]
+    public void AutoRefreshTravelsAndAnIntervalOutsideTheBoundsDoesNot()
+    {
+        var exported = Document() with { DesktopGeneral = DesktopPreferenceSectionMapper.CaptureGeneral(Customised()) };
+        Assert.True(exported.DesktopGeneral!.AutoRefreshFolders);
+        Assert.Equal(60, exported.DesktopGeneral.RemoteRefreshSeconds);
+        var imported = DesktopPreferenceSectionMapper.Apply(
+            DesktopUpdatePreferences.Defaults, exported, [SettingsSectionId.DesktopGeneral]).Preferences;
+        Assert.True(imported.AutoRefreshFolders);
+        Assert.Equal(60, imported.RemoteRefreshSeconds);
+
+        var older = exported with
+        {
+            DesktopGeneral = exported.DesktopGeneral with { AutoRefreshFolders = null, RemoteRefreshSeconds = 5 }
+        };
+        var kept = DesktopPreferenceSectionMapper.Apply(Customised(), older, [SettingsSectionId.DesktopGeneral]).Preferences;
+        Assert.True(kept.AutoRefreshFolders);
+        Assert.Equal(60, kept.RemoteRefreshSeconds);
+    }
+
+    /// <summary>
+    /// Asking is a choice of its own, so an export that asks imports as asking; a choice a newer
+    /// StorageHub has and this one does not leaves the setting as it was.
+    /// </summary>
+    [Fact]
+    public void TheExistingFileChoiceTravelsAndAskingIsAChoice()
+    {
+        var asks = Document() with
+        {
+            DesktopGeneral = DesktopPreferenceSectionMapper.CaptureGeneral(DesktopUpdatePreferences.Defaults)
+        };
+        Assert.Null(asks.DesktopGeneral!.TransferConflictDefault);
+        Assert.Null(DesktopPreferenceSectionMapper.Apply(Customised(), asks, [SettingsSectionId.DesktopGeneral])
+            .Preferences.TransferConflictDefault);
+
+        var newer = asks with
+        {
+            DesktopGeneral = asks.DesktopGeneral with { TransferConflictDefault = (TransferConflictChoice)99 }
+        };
+        Assert.Equal(
+            TransferConflictChoice.OverwriteIfNewer,
+            DesktopPreferenceSectionMapper.Apply(Customised(), newer, [SettingsSectionId.DesktopGeneral])
+                .Preferences.TransferConflictDefault);
+    }
+
     [Fact]
     public void ImportingNothingChangesNothing()
     {
@@ -347,7 +396,10 @@ public sealed class DesktopPreferenceSectionMapperTests
         SshTerminal = new SshTerminalPreferences("screen-256color"),
         TotalUploadBytesPerSecond = 512 * 1024,
         TotalDownloadBytesPerSecond = 2 * 1024 * 1024,
-        NewScheduleTimeZone = ScheduleTimeZones.Normalize("Asia/Tokyo")
+        NewScheduleTimeZone = ScheduleTimeZones.Normalize("Asia/Tokyo"),
+        TransferConflictDefault = TransferConflictChoice.OverwriteIfNewer,
+        AutoRefreshFolders = true,
+        RemoteRefreshSeconds = 60
     };
 
     private static DesktopUpdatePreferences WithPrivateKey(string reference) =>

@@ -57,6 +57,77 @@ internal sealed class ValidationStrings : LocalizationModelBase
 
     public string AnFTPSHostIsRequired { get; set; } = "An FTPS host is required.";
 
+    public string AWebDavUrlIsRequired { get; set; } = "A WebDAV server URL is required.";
+
+    public string TheWebDavUrlIsInvalid { get; set; } =
+        "The WebDAV URL must be an http:// or https:// address without a user name, query or fragment.";
+
+    public string WebDavPlainHttpNeedsAcknowledgement { get; set; } =
+        "A plain http:// address needs \"Allow a plain HTTP endpoint\" under Transport and server identity.";
+
+    public string WebDavTlsNeedsHttps { get; set; } =
+        "A certificate pin or a client certificate needs an https:// address.";
+
+    public string ABearerTokenIsRequired { get; set; } = "A bearer token is required for bearer-token sign-in.";
+
+    public string AnAzureContainerIsRequired { get; set; } = "An Azure container is required.";
+
+    public string TheAzureContainerNameIsInvalid { get; set; } =
+        "The container name must be 3 to 63 lower-case letters, digits and single hyphens, starting and ending with a letter or digit.";
+
+    public string AnAzureServiceUrlIsRequired { get; set; } =
+        "A Blob service URL is required for SAS-token and Azure-identity sign-in.";
+
+    public string TheAzureServiceUrlIsInvalid { get; set; } =
+        "The Blob service URL must be an https:// address without a user name, query or fragment.";
+
+    public string AzurePlainHttpNeedsConnectionString { get; set; } =
+        "Plain HTTP is only for a connection string, such as Azurite's; a Blob service URL must be https://.";
+
+    public string AnAzureAccountNameIsRequired { get; set; } =
+        "A storage account name is required for shared-key sign-in.";
+
+    public string TheAzureAccountNameIsInvalid { get; set; } =
+        "The storage account name must be 3 to 24 lower-case letters and digits.";
+
+    public string AnAzureAccountKeyIsRequired { get; set; } = "An account key is required for shared-key sign-in.";
+
+    public string AnAzureSasTokenIsRequired { get; set; } = "A SAS token is required for SAS-token sign-in.";
+
+    public string AnAzureConnectionStringIsRequired { get; set; } =
+        "A connection string is required for connection-string sign-in.";
+
+    public string ACloudStorageBucketIsRequired { get; set; } = "A Cloud Storage bucket is required.";
+
+    public string TheCloudStorageBucketNameIsInvalid { get; set; } =
+        "The bucket name must be 3 to 63 lower-case letters, digits, hyphens and underscores (222 with dots), starting and ending with a letter or digit.";
+
+    public string TheCloudStorageServiceUrlIsInvalid { get; set; } =
+        "The service URL must be an http:// or https:// address with no user name, query or fragment.";
+
+    public string ServiceUrlPlainHttpNotAllowed { get; set; } =
+        "This service URL is plain HTTP. Allow plain HTTP on the trust tab, or use https://.";
+
+    public string AServiceAccountKeyIsRequired { get; set; } =
+        "A service-account key is required for service-account sign-in.";
+
+    public string ASwiftContainerIsRequired { get; set; } = "A Swift container is required.";
+
+    public string TheSwiftContainerNameIsInvalid { get; set; } =
+        "The container name must be at most 256 characters, with no slash.";
+
+    public string AnAuthenticationUrlIsRequired { get; set; } =
+        "An authentication URL is required for Keystone or TempAuth sign-in.";
+
+    public string AStorageUrlIsRequiredForAToken { get; set; } = "A storage URL is required for a pre-issued token.";
+
+    public string TheSwiftUrlIsInvalid { get; set; } =
+        "A Swift URL must be an http:// or https:// address with no user name, query or fragment.";
+
+    public string AKeystoneProjectIsRequired { get; set; } = "A Keystone project is required.";
+
+    public string ASwiftTokenIsRequired { get; set; } = "A token is required for pre-issued token sign-in.";
+
     public string AnHTTPSS3ServiceEndpointIsRequired { get; set; } = "An HTTPS S3 service endpoint is required.";
 
     public string AnS3BucketIsRequired { get; set; } = "An S3 bucket is required.";
@@ -333,6 +404,15 @@ internal sealed class ValidationStrings : LocalizationModelBase
 
     public string ActiveAddressIsInvalid { get; set; } = "The active external address must be an IP address.";
 
+    public string JumpHostIsInvalid { get; set; } = "The jump host must be a saved SFTP or SSH connection.";
+
+    public string AlgorithmListIsInvalid { get; set; } =
+        "An algorithm list must be names such as curve25519-sha256, separated by commas.";
+
+    public string SessionLimitIsInvalid { get; set; } = "Most sessions must be a whole number from 1 to 64.";
+
+    public string KeepAliveIsInvalid { get; set; } = "Keep-alive must be a whole number of seconds from 1 to 3600.";
+
     public string ActiveSettingsNeedActiveMode { get; set; } =
         "Active ports and an external address only apply when the data connection is active.";
 
@@ -458,6 +538,9 @@ internal sealed class ValidationStrings : LocalizationModelBase
 
     public string ThisInspectorClientDoesNotSupportDeleting { get; set; } = "This inspector client does not support deleting storage items.";
 
+    public string ThisInspectorClientDoesNotSupportAttributes { get; set; } =
+        "This inspector client does not support item attributes.";
+
     public string ThisInspectorClientDoesNotSupportDirectory { get; set; } = "This inspector client does not support directory creation.";
 
     public string ThisInspectorClientDoesNotSupportEmpty { get; set; } = "This inspector client does not support empty-file creation.";
@@ -545,4 +628,46 @@ internal sealed class ValidationStrings : LocalizationModelBase
     /// <summary>{0} = the shortcut, {1} = the command that already uses it.</summary>
     public string IsAlreadyAssignedToClearThatFormat { get; set; } =
         "{0} is already assigned to {1}. Clear that assignment first.";
+
+    public string MovingFromThisPCIsNotSupported { get; set; } =
+        "Files on this PC can be copied to a connection, but not moved.";
+
+    /// <summary>{0} = the file a free name was looked for.</summary>
+    public string NoFreeNameForRenameFormat { get; set; } =
+        "No free name was found for {0} at the destination.";
+
+    public string TransferStoppedAtExistingFile { get; set; } =
+        "The transfer was stopped at a file already at the destination.";
+
+    public string TheFolderComparisonRequestTimedOut { get; set; } = "The folder comparison request timed out.";
+
+    public string TheAgentReturnedAnInvalidFolderComparison { get; set; } =
+        "The background agent returned an invalid folder comparison.";
+
+    public string TheFolderComparisonRequestIsInvalid { get; set; } = "The folder comparison request is invalid.";
+
+    public string FolderComparisonNeedsAFolder { get; set; } =
+        "Compare folders needs a saved connection's folder or a folder on this PC in both panes.";
+
+    public string TheBackgroundAgentCouldNotCompareTheFolders { get; set; } =
+        "The background agent could not compare the folders.";
+
+    public string AFolderCouldNotBeCreatedAtTheDestination { get; set; } =
+        "A folder could not be created at the destination.";
+
+    public string TheLeftoverCleanupRequestTimedOut { get; set; } = "The search for leftover files timed out.";
+
+    public string TheAgentReturnedAnInvalidLeftoverList { get; set; } =
+        "The background agent returned an invalid list of leftover files.";
+
+    public string TheLeftoverCleanupRequestIsInvalid { get; set; } = "The leftover file request is invalid.";
+
+    public string TheBackgroundAgentCouldNotLookForLeftovers { get; set; } =
+        "The background agent could not be asked about leftover files from transfers.";
+
+    public string ALeftoverStillInUseWasLeft { get; set; } =
+        "A transfer, a sync or the external editor may still use it.";
+
+    public string ALeftoverCouldNotBeRemoved { get; set; } =
+        "It could not be removed. It may be open in another program.";
 }

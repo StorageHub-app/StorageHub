@@ -605,12 +605,54 @@ The profile already stores these; `CodeLogicConnectionProfileConnector.BuildAsyn
 - [x] 1.3 Proxy: `StorageProxyConfig` for FTP, SFTP and S3; a proxy section in the connection editor.
 - [x] 1.4 FTP options: separate connect and read timeouts, filename encoding (code pages), server time
       zone, listing parser, active mode; an "Advanced" expander in the editor.
-- [ ] 1.5 SFTP options: keyboard-interactive login, several keys and inline keys (no temp key file),
+- [x] 1.5 SFTP options: keyboard-interactive login, several keys and inline keys (no temp key file),
       jump host, algorithm lists, session limits.
-- [ ] 1.6 Conflict choices on transfers: overwrite, skip, if newer, if size differs, rename, resume.
-- [ ] 1.7 Resume: real resume for uploads and downloads in place of the `ResumeToken => null` stubs.
-- [ ] 1.8 Server checksums (`PreferServer`): verify without re-downloading; the inspector shows where a
-      checksum came from; the sync scanner uses them.
+      Done: a password is offered as itself and then to keyboard-interactive prompts (the library's
+      Auto mode, OpenSSH's order), and "Private key + password (MFA)" is offered on SFTP as it was
+      on SSH. The key goes to the library as `PrivateKeyContent`, so no key file is written. The
+      editor's SFTP Advanced section has a jump host, chosen from the saved SFTP and SSH connections
+      and kept by id (`SftpServerOptions`, stored with the endpoint and carried over IPC as
+      `ConnectionSftpOptionsDocument`); the agent refuses one that is not SFTP or SSH or that has a
+      jump host of its own, and the connector takes its address, pinned key and sign-in from that
+      connection. Algorithm lists (key exchange, ciphers, MACs, host key types) and the session
+      limit and keep-alive are there too, empty by default.
+      Left open: several keys. The library offers further keys only as file paths and shares one
+      passphrase across all of them, so it would bring back the key files this item removed.
+- [x] 1.6 Conflict choices on transfers: overwrite, skip, if newer, if size differs, rename, resume.
+      Decided in the desktop at plan time (`TransferConflictRules`, `TransferConflictPolicy`), with
+      no change to IPC or the queue: skip leaves the file out, rename queues a create to the first
+      free "name (n).ext", and the others replace under the same identity check as before. If
+      newer allows two seconds; a size or time the listing lacks counts as different. Resume
+      replaces a shorter file, continuing what the agent staged (1.7), and skips one as long or
+      longer. The first file found already there, at any depth of a folder copy, asks once in the
+      dialog (a drop-down, OK or Cancel, and "always do this"), unless Settings, Transfers & sync,
+      Existing files names the answer. Files on this PC now carry a time-and-length identity, so
+      they can be replaced and can replace; moving them stays refused. Left open: a choice per
+      file, appending in place to a partial file StorageHub did not stage, and a source with no
+      version or entity tag, which still cannot replace anything.
+- [x] 1.7 Resume: real resume for uploads and downloads in place of the `ResumeToken => null` stubs.
+      A write can carry a resume key (`TransferResumeKey`: the source's identity, version, size and
+      time, and the destination), and a destination that supports `ResumeUpload` stages it in a
+      partial named from that key: `LocalStagedFileWriteHandle` beside the file on this PC and in
+      Explorer staging, and `CodeLogicResumableWriteHandle` on Local, FTP and SFTP through
+      CL.Storage's `AppendAsync` and a move onto the destination (no change upstream). An
+      interruption or a pause suspends the handle and keeps the partial; the executor reopens it,
+      reads the source from `AcceptedOffset`, and re-hashes the staged prefix when a digest is
+      needed, discarding it when it is longer than the source or cannot be read back. A user's
+      cancel, a changed source and an integrity failure remove it. The checkpoint records the
+      offset and the partial's name. Left open: S3 uploads (no append in CL.Storage), a source with
+      only a size, appending to a foreign partial the way FileZilla does, and partials left by a
+      job that is cancelled while it is not running, which go with 4.6.
+- [x] 1.8 Server checksums (`PreferServer`): the inspector shows where a checksum came from; the sync
+      scanner uses them. By decision a verified copy still re-reads what it wrote: a server's digest
+      is its word for the bytes, so it may compare and show but never prove a copy. A
+      `PortableChecksumRequest` with `AcceptServerDigest` asks the server for a whole-file SHA-256
+      first (S3, FTP `HASH`, Azure, GCS, Swift) and reads the file when it has none, when it reports
+      something that is not a SHA-256 (an S3 multipart composite), or for an exact version; the
+      result says which (`PortableChecksumSource`). Sync scans accept them by default
+      (`SyncSnapshotScanOptions.AcceptServerDigests`); the transfer executor never asks. The
+      inspector has a Checksum tab: Get checksum (the server's first, else up to 256 MB read) and
+      Compute from the file, each saying where the digest came from.
 - [ ] 1.9 Certificate pins for S3.
 - [x] 1.10 SSH keys without a passphrase: 1.4 refused them, and 2.0 accepts them by decision. The
       profile, the key store (schema v15 drops its check), IPC, the agent, the editor and the SSH
@@ -623,8 +665,14 @@ The profile already stores these; `CodeLogicConnectionProfileConnector.BuildAsyn
 
 ## 2. Connection test and trust (was port item 10)
 
-- [ ] 2.1 The Test button runs `TestConnectionAsync` on the unsaved draft and shows each step.
-- [ ] 2.2 A refused host key or certificate is shown with Trust / Reject (`TrustOrRolloverAsync`,
+- [x] 2.1 The Test button runs `TestConnectionAsync` on the unsaved draft and shows each step.
+      Done: `connection.test-draft.request` carries the draft and the fingerprint in the editor.
+      The agent builds the profile under an id of its own, opens it on a connector of its own
+      whose trust store adds the typed fingerprint (`DraftTrustStore`; a rejected key stays
+      rejected), checks health and lists one entry at the root, and closes it all with the lease.
+      Each failure is put at its step from its code and category; the editor says what to check
+      at that step in en/da/de. An agent that cannot test a draft still tests the saved one.
+- [x] 2.2 A refused host key or certificate is shown with Trust / Reject (`TrustOrRolloverAsync`,
       `RejectAsync`); trust-on-first-use for SFTP and FTPS stops being refused. The editor already
       loads the pinned fingerprint and pins it on save (L.4).
       Done in the editor, which is as far as 1.4 went: 1.4's "Fetch from host…" (an SFTP or SSH
@@ -637,10 +685,24 @@ The profile already stores these; `CodeLogicConnectionProfileConnector.BuildAsyn
       TLS / SSH Trust tab on an SFTP or SSH endpoint with no fingerprint fetches its key, asking
       first ("Ask before fetching", the default) or not ("Fetch automatically"), once per endpoint,
       and "Manual — use Fetch from host" leaves it to the button, as 1.4's SettingsTabSelected did.
-      Left open, past 1.4: a host key or certificate refused while browsing or testing is still
-      only a failure, with no Trust / Reject offered where it happens, and the first connection to
-      an SFTP or FTPS server still needs its fingerprint pinned first.
-- [ ] 2.3 A "Connection details" panel from `GetConnectionDiagnosticsAsync`.
+      Past 1.4, done: a pane that fails on the server's identity (a `Security` failure or a
+      `storage.trust.*` code) offers "Review trust…" under its banner, which opens that
+      connection's TLS / SSH Trust tab, where Fetch from host, Reject and the pin are. In the
+      editor, Test connection on an SFTP or SSH connection with no host key fetches it and shows
+      it first, and a test refused on the host key offers the key the server presents; one
+      accepted goes in the field and is tested at once. Nothing is trusted until the connection is
+      saved, as before.
+      Not done, on purpose: silent trust-on-first-use. Every first key is still shown to be
+      checked before it is used, which is what the editor's question already does.
+- [x] 2.3 A "Connection details" panel from `GetConnectionDiagnosticsAsync`.
+      Done: Live details, under a connection's details in the connections panel, asks the agent
+      (`connection.details.request`), which opens the connection as browsing does and reads the
+      library's diagnostics through `RuntimeStorageConnection.GetDetailsAsync`. The panel adds a
+      Live connection section: transport security, server system and software, the key or
+      certificate presented (fingerprint, type, subject, issuer, expiry, trusted), what was
+      negotiated, the server's features, the session counts and the last health check. Text the
+      server chose is cut to the contract with control characters dropped, never refused; selecting
+      another connection drops the section.
 
 ## 3. Directory tree (was port item 11)
 
@@ -648,12 +710,60 @@ The profile already stores these; `CodeLogicConnectionProfileConnector.BuildAsyn
 
 ## 4. New abilities in the file panes
 
-- [ ] 4.1 Properties: permissions, owner, link target, dates; a chmod dialog and "Set modified time".
-- [ ] 4.2 Free space in each pane's status bar.
-- [ ] 4.3 Connection health (retrying, lost, back) on the connection card and in the activity log.
-- [ ] 4.4 Auto-refresh of a folder when it changes (polling for remote connections, off by default).
-- [ ] 4.5 Compare folders: a two-pane diff from `CompareAsync`; differences copied through our queue.
-- [ ] 4.6 Clean up leftover staging files, as a maintenance action.
+- [x] 4.1 Properties: permissions, owner, link target, dates; a chmod dialog and "Set modified time".
+      Done: Properties opens on one file, folder or link on a saved connection, as "Properties — path", on a
+      new General tab: kind, size, modified, created and last-accessed times (in this computer's zone),
+      permissions as `rwxr-xr-x (0755)`, owner and group (FTP's names, SFTP's IDs, both where given) and a
+      link's target, each "—" where the connection does not report it; Versions, Metadata, Tags and
+      Checksum show for a file only. "Change permissions…" opens `PermissionsWindow` (nine boxes kept in
+      step with the octal; set-ID and sticky ride the octal's first digit) and "Set modified time…" the
+      name prompt (local `yyyy-MM-dd HH:mm[:ss]`, sent in UTC); each is dim with a sentence where the
+      connection does not advertise it (`StorageFeature.Permissions`/`SetModifiedTime`, now mapped from
+      CL.Storage: SFTP and FTP both, local times everywhere and modes outside Windows, S3 neither). Both
+      go through the agent's `ItemAttributeIpcCommandService` on its own contract
+      (`ItemAttributeMessages.cs`: mode ≤ 7777, time UTC within 1970–2106, the narrowest provider's
+      range), which refuses an unadvertised change before the provider is asked and words provider
+      refusals itself; the window and the active pane reload once a change is made. CL.Storage cannot
+      read SFTP link targets, which show "—". Changing owner/group, recursive chmod and This PC are not
+      offered.
+- [x] 4.2 Free space in each pane's status bar.
+      Done: a folder on this PC or a Local connection reads its drive (the longest matching mount);
+      SFTP and FTP connections ask the server through the agent (`storage.space`, bounds-checked,
+      `IStorageSpaceSession` over CL.Storage's `IStorageSpaceService` where `SpaceInfo` is advertised).
+      The footer ends with "X free of Y" or "X free", and says nothing where it is unknown, as on S3.
+- [x] 4.3 Connection health (retrying, lost, back) on the connection card and in the activity log.
+      Done: the agent's `CodeLogicConnectionLinkFeed` turns the library's retry, lost, failed, health
+      and success events into one Retrying/Lost/Back change per outage per connection
+      (`ConnectionLinkTracker`), keeps the last 256 in memory (`ConnectionLinkJournal`) and serves them
+      over `connection.link-events`. Cards show the current state, "Connected again" for two minutes,
+      and the activity log lists every change as a Connection line. "Back" is inferred, because the
+      library reports no success event, and S3 never shows Retrying (the library sends it none).
+- [x] 4.4 Auto-refresh of a folder when it changes (polling for remote connections, off by default).
+      Done: Settings, Workspace, "Refresh a folder when it changes" (off) and "Read a connection's folder
+      again" (15 s to 5 min, 30 s by default), through preferences, config, repair, validation and
+      export. Local folders are watched with a `FileSystemWatcher` (1 s settle, 5 s ceiling);
+      connections are read again on the interval. Both use the quiet refresh, so filter, selection and
+      scroll are kept, and a busy pane is caught up on the next tick. 1.4 had no such feature.
+- [x] 4.5 Compare folders: a two-pane diff from `CompareAsync`; differences copied through our queue.
+      Done: Sync, Compare Panes (Ctrl+D) opens a Compare Folders window for the active pane and its
+      neighbour. The agent (`FolderCompareIpcCommandService`, `folder-compare.start/status/release`,
+      read a page at a time) compares them with `FolderComparison` over the sync scanner, because
+      CL.Storage's `CompareAsync` takes only connections registered in the library and a folder on
+      this PC is not one; it keeps CL's rules (size, newer with a 2 s tolerance, file against folder,
+      optional SHA-256 for same-size pairs). It shows only left / only right / different / same, with
+      filters, and names matched ignoring case keep each side's spelling. Selected differences are
+      copied either way as ordinary queued transfers that ask the usual conflict question, held to
+      the listed version, with missing folders created first. Not done: copying between two folders
+      on this PC, which the queue refuses.
+- [x] 4.6 Clean up leftover staging files, as a maintenance action.
+      Done: Tools, Clean Up Leftover Files… (`StagingCleanupIpcCommandService`) lists the resume
+      partials, staged copies, write probes and rename stand-ins in the folders the queue wrote to (up
+      to 64, this PC and saved connections), plus closed external-editor sessions, with sizes. It
+      removes only what is selected and confirmed; anything an unfinished transfer, a running sync, a
+      live partial write or an open editor session may need is shown in use and checked again at
+      removal. A failed transfer counts as finished, so its partial can go and a retry starts over.
+      Self-cleaning folders (the Local provider's staging, Explorer export and drop folders) are left
+      alone. Not done: update downloads, which would need the updater's word on what it still holds.
 - [ ] 4.7 (Optional) FTP raw command console.
 - [x] 4.8 Hide a pane's FILES row from Pane actions, as the connection bar can be (1.4 could not).
       Done: "Show files bar" sits under "Show connection bar", is saved with the pane as
@@ -675,13 +785,46 @@ The profile already stores these; `CodeLogicConnectionProfileConnector.BuildAsyn
 Each goes through the profile model, SQLite, IPC, the connector, capabilities, the editor (fields,
 icon, da/de text), settings and import/export, and a lab container with a conformance run.
 
-- [ ] 5.1 WebDAV (lab: `rclone serve webdav`, plus a TLS variant for pins)
-- [ ] 5.2 Azure Blob (Azurite)
-- [ ] 5.3 Google Cloud Storage (fake-gcs-server)
-- [ ] 5.4 Swift (all-in-one container)
+- [x] 5.1 WebDAV (lab: `rclone serve webdav`, plus a TLS variant for pins)
+      Done through the profile model (`WebDavEndpoint`, `BearerTokenAuthentication`), SQLite (migration
+      v17 widens the provider check in place), IPC (`ConnectionHttpCredentialScheme`, the URL in
+      `ServiceEndpoint`), the agent, the connector, the editor with da/de text, settings, import, and
+      the `webdav`/`webdav-tls` lab services. Sign-in is Basic, Digest, NTLM, Negotiate, bearer token or
+      anonymous. HTTPS is trusted by the system or pinned per host and port as FTPS is, with an
+      optional client certificate from the vault handed over as bytes; plain HTTP needs an explicit
+      acknowledgement. The conformance run passed against a local wsgidav server; the rclone lab
+      services were not run here (Docker Hub refused the pull). Not built: Windows integrated sign-in,
+      custom headers, public-key pins, trust-on-first-use, a mutual-TLS lab server. Reopening a pinned
+      FTPS connection no longer loses its pin, and an imported connection whose only secret is a
+      client certificate now arrives disabled like any other.
+- [x] 5.2 Azure Blob (Azurite)
+      Done: a container with a shared key, SAS token, connection string or the machine's Azure
+      identity, every secret in the vault; plain HTTP only for a connection string marked as such,
+      for Azurite. Migration v18. The lab runs Azurite 3.37.0; the conformance suite passed against
+      Azurite from npm (the Docker image was not run here). Certificate pins are not offered: the
+      library has no setting for them.
+- [x] 5.3 Google Cloud Storage (fake-gcs-server)
+      Done: a bucket with a vaulted service-account key file, Application Default Credentials or
+      anonymous, with an optional custom endpoint. Migration v19. The lab runs fake-gcs-server
+      1.56.1; the conformance suite passed against it, with a check that requests are signed with the
+      vaulted key. HMAC keys stay with the S3 provider; timeouts and retries are the library's, which
+      exposes none.
+- [x] 5.4 Swift (all-in-one container)
+      Done: a container with Keystone v3 (project, domains, region), TempAuth or a pre-issued token
+      against a storage URL, every secret in the vault, with a request timeout under Advanced.
+      Migration v20. The lab runs the all-in-one Swift image pinned by digest; the conformance suite
+      passed against Swift 2.38.2 with TempAuth. Keystone v3 is unit-tested only (no Keystone in the
+      lab). Application credentials and certificate pins wait on library support.
 
 ## 6. Release
 
 - [ ] 6.1 A full pass of the real app against the lab, with screenshots of every changed window.
 - [ ] 6.2 The Linux .deb installed and checked in WSL.
-- [ ] 6.3 Release notes and the 1.x upgrade path.
+- [x] 6.3 Release notes and the 1.x upgrade path.
+      Written: `docs/release-notes-2.0.md` (the user-facing notes) and `docs/upgrading-from-1.x.md`,
+      checked against `v1.4.5` and `main`. Preferences, shortcuts, the pinned and recent lists and
+      `.shw` files carry over in place under `%LOCALAPPDATA%\StorageHub\Desktop`; the agent's
+      database, vault, key store, trust, sync tasks and schedules do not (no reader for the old root,
+      a vault mark 2.0 refuses, and format-1 exports refused). Uninstall 1.4 before installing 2.0
+      (shared sign-in entry, pipes and lock). By decision there is no importer: 1.4 users set up
+      their connections, secrets, sync tasks and schedules again, as the guide says.

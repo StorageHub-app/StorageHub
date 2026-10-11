@@ -142,6 +142,13 @@ Libraries.OverrideConfig<StorageConfig>("CL.Storage", "storage", config =>
     config.MaxTotalDownloadBytesPerSecond = transferConfiguration.TotalDownloadBytesPerSecond;
 });
 
+// What the library says about its connections -- a retry, a dropped session, a new one opening --
+// kept as the changes the connection cards and the activity log show. Subscribed before anything
+// is registered, so the first outage is not missed.
+var connectionLinks = new ConnectionLinkTracker();
+var connectionLinkJournal = new ConnectionLinkJournal(connectionLinks);
+using var connectionLinkFeed = new CodeLogicConnectionLinkFeed(CodeLogic.CodeLogic.GetEventBus(), connectionLinks);
+
 var agentInstanceId = Guid.NewGuid();
 AgentRuntimeCoordinator? coordinator = null;
 var databaseOptions = new SqliteDatabaseOptions(
@@ -171,7 +178,8 @@ await using var transferConnector = new SharedConnectionProfileConnector(
             throw new InvalidOperationException("CL.Storage is not configured.")),
         vaultSubsystem.Vault,
         transferTrustStore,
-        runtimeSecretFileMaterializer));
+        runtimeSecretFileMaterializer,
+        profileLookup: (id, cancellationToken) => transferProfiles.GetAsync(id, cancellationToken: cancellationToken)));
 var transferEndpointConnector = new CodeLogicTransferEndpointConnector(
     transferProfiles,
     transferConnector.Get);
@@ -191,7 +199,8 @@ await using var storageCommands = new StorageIpcCommandService(
     runtimeSecretFileMaterializer,
     () => new CodeLogicStorageSessionFactory(
         Libraries.Get<StorageLibrary>() ??
-        throw new InvalidOperationException("CL.Storage is not configured.")));
+        throw new InvalidOperationException("CL.Storage is not configured.")),
+    links: connectionLinkJournal);
 var profileCommands = new ConnectionProfileIpcCommandService(databaseOptions);
 var groupCommands = new ConnectionGroupIpcCommandService(databaseOptions);
 var keyStoreCommands = new KeyStoreIpcCommandService(
@@ -223,7 +232,8 @@ await using var syncSharedConnector = new SharedConnectionProfileConnector(
             throw new InvalidOperationException("CL.Storage is not configured.")),
         vaultSubsystem.Vault,
         transferTrustStore,
-        runtimeSecretFileMaterializer));
+        runtimeSecretFileMaterializer,
+        profileLookup: (id, cancellationToken) => transferProfiles.GetAsync(id, cancellationToken: cancellationToken)));
 var syncConnector = new CodeLogicSyncEndpointConnector(
     transferProfiles,
     syncSharedConnector.Get);
@@ -261,6 +271,16 @@ var syncCommands = new SyncManagementIpcCommandService(
     syncConflicts);
 var scheduleCommands = new ScheduleManagementIpcCommandService(scheduleManagementRepository);
 var objectInspectorCommands = new ObjectInspectorIpcCommandService(syncConnector);
+var itemAttributeCommands = new ItemAttributeIpcCommandService(syncConnector);
+// Compare folders, from the panes: a saved connection opened as sync opens it, or a folder on this
+// PC approved as a transfer's would be.
+await using var folderCompareCommands = new FolderCompareIpcCommandService(syncConnector);
+// Leftover working files, from Tools: found in the folders the queue wrote to, and removed only
+// when no unfinished transfer writes there and no sync is running.
+using var stagingCleanupCommands = new StagingCleanupIpcCommandService(
+    transferStore,
+    syncConnector,
+    () => syncOutboxSubsystem.ActiveCount);
 await using var sshTerminalCommands = new SshTerminalIpcCommandService(
     transferProfiles,
     () => vaultSubsystem.Vault,
@@ -281,6 +301,9 @@ var requestHandler = new AgentIpcRequestHandler(
         syncCommands,
         scheduleCommands,
         objectInspectorCommands,
+        itemAttributeCommands,
+        folderCompareCommands,
+        stagingCleanupCommands,
         sshTerminalCommands,
         new AgentControlIpcCommandService(
             () => shutdown.TrySetResult(),

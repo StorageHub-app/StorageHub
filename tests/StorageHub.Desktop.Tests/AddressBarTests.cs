@@ -138,6 +138,36 @@ public class AddressBarTests
         Assert.True(pane.RetryCommand.CanExecute(null));
     }
 
+    /// <summary>
+    /// A connection refused on its server's identity offers Review trust where it happened, which
+    /// opens that connection's Trust tab; any other failure does not.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task AFailureOnTheServersIdentityOffersReviewTrust()
+    {
+        var cancellation = TestContext.Current.CancellationToken;
+        var connection = WorkspaceFakes.Summary("Files");
+        await using var offline = new BrowserPaneModel(new Refusing(connection)) { ReviewTrust = static _ => { } };
+        await offline.LoadConnectionsAsync(cancellation);
+        await offline.OpenConnectionAsync(connection.ConnectionId, cancellation);
+        Assert.False(offline.ShowsReviewTrust);
+
+        Guid? reviewed = null;
+        await using var pane = new BrowserPaneModel(new Refusing(
+            connection,
+            new StorageIpcFailure("storage.trust.host_key_rejected", StorageIpcFailureCategory.Security, "Rejected.", false)))
+        {
+            ReviewTrust = id => reviewed = id
+        };
+        await pane.LoadConnectionsAsync(cancellation);
+        await pane.OpenConnectionAsync(connection.ConnectionId, cancellation);
+
+        Assert.True(pane.StatusIsWarning);
+        Assert.True(pane.ShowsReviewTrust);
+        pane.ReviewTrustCommand.Execute(null);
+        Assert.Equal(connection.ConnectionId, reviewed);
+    }
+
     /// <summary>The empty and the failed pane, for a human to look at. STORAGEHUB_SHOT_DIR keeps them.</summary>
     [AvaloniaFact]
     public async Task TheEmptyAndTheFailedPaneCanBePhotographed()
@@ -221,6 +251,79 @@ public class AddressBarTests
         }
     }
 
+    /// <summary>
+    /// With "Refresh a folder when it changes" on, a folder on this computer is watched, and a
+    /// change shows once the folder has settled -- keeping the filter and selection -- but not
+    /// while the pane is busy, when it is still owed and shown after.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task AWatchedFolderShowsWhatChangedOnceItSettlesAndWaitsWhileThePaneIsBusy()
+    {
+        var folder = Directory.CreateTempSubdirectory("storagehub-watched-");
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(folder.FullName, "a.txt"), "x", TestContext.Current.CancellationToken);
+            var now = new DateTimeOffset(2026, 10, 11, 12, 0, 0, TimeSpan.Zero);
+            var watched = new List<string>();
+            Action? changed = null;
+            var settings = FolderAutoRefreshSettings.From(true, 30);
+
+            await using var pane = await ThisPcAsync();
+            pane.Clock = () => now;
+            pane.AutoRefreshSettings = () => settings;
+            pane.FolderWatch = (path, report) =>
+            {
+                watched.Add(path);
+                changed = report;
+                return null;
+            };
+            pane.Address = folder.FullName;
+            await pane.GoToAddressAsync(TestContext.Current.CancellationToken);
+            Assert.Equal([folder.FullName], watched);
+            pane.Filter = "*.txt";
+            var a = pane.Rows.Single(static row => row.Name == "a.txt");
+            pane.SelectedRows.Add(a);
+
+            // Nothing changed: nothing is read, however long it waits.
+            now = now.AddSeconds(5);
+            Assert.False(await pane.AutoRefreshAsync());
+
+            await File.WriteAllTextAsync(Path.Combine(folder.FullName, "b.txt"), "x", TestContext.Current.CancellationToken);
+            changed!();
+            Assert.False(await pane.AutoRefreshAsync());
+            now += FolderAutoRefresh.Settle;
+            Assert.True(await pane.AutoRefreshAsync());
+
+            Assert.Equal("*.txt", pane.Filter);
+            Assert.Equal(["a.txt", "b.txt"], pane.Rows.Where(static row => !row.IsParentNavigation).Select(static row => row.Name));
+            Assert.Same(a, pane.Rows.Single(static row => row.Name == "a.txt"));
+            Assert.Contains(a, pane.SelectedRows);
+
+            // Busy reading the folder for another reason: the change waits, and is shown after.
+            await File.WriteAllTextAsync(Path.Combine(folder.FullName, "c.txt"), "x", TestContext.Current.CancellationToken);
+            changed();
+            now += FolderAutoRefresh.Settle;
+            var going = pane.RefreshAsync(TestContext.Current.CancellationToken);
+            Assert.True(pane.IsBusy);
+            Assert.False(await pane.AutoRefreshAsync());
+            await going;
+            await File.WriteAllTextAsync(Path.Combine(folder.FullName, "d.txt"), "x", TestContext.Current.CancellationToken);
+            Assert.True(await pane.AutoRefreshAsync());
+            Assert.Contains(pane.Rows, static row => row.Name == "d.txt");
+
+            // Turned off in Settings: within a few seconds the folder is no longer followed.
+            settings = FolderAutoRefreshSettings.Off;
+            now += BrowserPaneModel.AutoRefreshSettingsReadEvery;
+            changed();
+            now += FolderAutoRefresh.Settle;
+            Assert.False(await pane.AutoRefreshAsync());
+        }
+        finally
+        {
+            folder.Delete(recursive: true);
+        }
+    }
+
     private static async Task<BrowserPaneModel> ThisPcAsync()
     {
         var pane = new BrowserPaneModel(new Refusing(WorkspaceFakes.Summary("unused")));
@@ -230,8 +333,11 @@ public class AddressBarTests
     }
 
     /// <summary>An agent whose one connection never answers.</summary>
-    private sealed class Refusing(ConnectionSummary connection) : IRemoteStorageAgentClient
+    private sealed class Refusing(ConnectionSummary connection, StorageIpcFailure? failure = null) : IRemoteStorageAgentClient
     {
+        private readonly StorageIpcFailure _failure = failure ??
+            new StorageIpcFailure("storage.unreachable", StorageIpcFailureCategory.Unavailable, "The server did not answer.", true);
+
         public Task<ConnectionListResponse> ListConnectionsAsync(
             ConnectionListRequest request, CancellationToken cancellationToken = default) =>
             Task.FromResult(new ConnectionListResponse(StorageIpcContract.CurrentVersion, [connection]));
@@ -239,14 +345,13 @@ public class AddressBarTests
         public Task<ConnectionTestResponse> TestConnectionAsync(
             ConnectionTestRequest request, CancellationToken cancellationToken = default) =>
             Task.FromResult(new ConnectionTestResponse(
-                StorageIpcContract.CurrentVersion, request.ConnectionId, Succeeded: false, 0,
-                new StorageIpcFailure("storage.unreachable", StorageIpcFailureCategory.Unavailable, "The server did not answer.", true)));
+                StorageIpcContract.CurrentVersion, request.ConnectionId, Succeeded: false, 0, _failure));
 
         public Task<StorageListPageResponse> ListStorageAsync(
             StorageListPageRequest request, CancellationToken cancellationToken = default) =>
             Task.FromResult(new StorageListPageResponse(
                 StorageIpcContract.CurrentVersion, request.ConnectionId, request.RelativePath, [], null,
-                Failure: new StorageIpcFailure("storage.unreachable", StorageIpcFailureCategory.Unavailable, "The server did not answer.", true)));
+                Failure: _failure));
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }

@@ -428,6 +428,36 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         Say(Ui.Shell.StatusEditedFileUploaded);
     }
 
+    /// <summary>
+    /// Reloads the active pane after Properties changed an item's permissions or modified time.
+    /// </summary>
+    /// <remarks>
+    /// The active pane for the reason <see cref="EditedFileUploadedAsync"/> gives: Properties is
+    /// modal over the shell, so the pane it was opened from is still the active one.
+    /// </remarks>
+    internal async Task ItemAttributesChangedAsync()
+    {
+        if (ActivePane() is not { } pane) return;
+        await pane.RefreshAsync().ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Compare Folders for the workspace on screen: its active pane and the one beside it. Null,
+    /// with the reason said in the status bar, when there is nothing to compare.
+    /// </summary>
+    internal FolderCompareModel? CompareActivePanes()
+    {
+        if (ActiveWorkspace() is not { } workspace)
+        {
+            Say(Ui.Sync.CompareNeedsTwoPanes);
+            return null;
+        }
+
+        var compare = workspace.CreateFolderCompare(out var refusal);
+        if (refusal is not null) Say(refusal);
+        return compare;
+    }
+
     internal BrowserPaneModel? ActivePane() =>
         ActiveWorkspace() is { Panes.Count: > 0 } workspace ? workspace.Active : null;
 
@@ -1510,7 +1540,8 @@ internal static class ShellPreview
             new ActivityLogModel(new ActivityLogReader(
                 static () => new NamedPipeTransferQueueAgentClient(),
                 static () => new NamedPipeSyncManagementAgentClient(),
-                drops.Snapshot).ReadAsync),
+                drops.Snapshot,
+                static () => new NamedPipeRemoteStorageAgentClient()).ReadAsync),
             // Clear all history asks first, as 1.x's did.
             Services.ShellServices.Dialogs)
         {
@@ -1533,6 +1564,9 @@ internal static class ShellPreview
         {
             [UiCommandIds.ViewConnectionsPanel] = panel.Check,
         };
+        // The shell the workspaces belong to, for a pane to reach the connections panel's editor:
+        // read when a pane asks, by which time it is there.
+        ShellPreviewModel? shell = null;
         var model = new ShellPreviewModel(router)
         {
             Menus = BuildMenus(router, checks),
@@ -1583,9 +1617,22 @@ internal static class ShellPreview
             {
                 PendingDrops = drops,
 
+                // What a transfer does with a file already where it is going, from Settings, read
+                // at each transfer; and "always do this" in the question saves its answer there.
+                // Only the application's own: a preview asks, as a fresh install does.
+                ConflictDefault = live ? static () => ReadPreferences()?.TransferConflictDefault : null,
+                RememberConflictChoice = live
+                    ? static choice => UpdatePreferences(preferences =>
+                        preferences with { TransferConflictDefault = choice })
+                    : null,
+
                 // A connection's rows dragged out to Explorer go through the drop broker the boot
                 // registered, and wait on the queue's Active tab for where they landed, as 1.x's
                 // did. Only the application's own shell: a preview's agent is a test's.
+                // A pane that failed on its server's identity offers the connection's Trust tab
+                // there, as the connections panel does once a check has found it.
+                ReviewTrust = id => shell?.Sidebar.EditConnection?.Invoke(id, ConnectionEditorTab.Trust),
+
                 DragOut = live
                     ? new ExplorerDragOut(
                         static () => new NamedPipeTransferQueueAgentClient(),
@@ -1599,6 +1646,7 @@ internal static class ShellPreview
         // listing them again on every poll. At startup the queue's first read can come back before
         // the sidebar's, so the rows are read again as the list comes in, rather than showing
         // short ids until the next poll. A rename shows as the Connection Manager closes, too.
+        shell = model;
         queue.ConnectionName = model.Sidebar.NameOf;
         model.Sidebar.Answered = () => _ = queue.RefreshAsync(background: true);
 
@@ -1695,6 +1743,10 @@ internal static class ShellPreview
             panel.Restore(saved);
             panel.Persist = UpdatePreferences;
             panel.Shown += (_, _) => _ = model.Sidebar.RefreshAsync();
+
+            // Each connection's link -- retrying, lost, back -- on its card, read every few
+            // seconds whether the panel shows or not, so it is right the moment it is opened.
+            model.Sidebar.FollowLinks();
         }
 
         // Favourites in their own group as well as under Favorites, or only there, as Settings says.
@@ -1763,6 +1815,7 @@ internal static class ShellPreview
         pane.StopDeleteConfirmation = static () => UpdatePreferences(static preferences =>
             preferences with { ConfirmBeforeDeletingItems = false });
         pane.TerminalPreferences = static () => ReadPreferences()?.SshTerminal;
+        pane.AutoRefreshSettings = static () => ReadPreferences()?.FolderAutoRefresh ?? FolderAutoRefreshSettings.Off;
         _ = pane.LoadConnectionsAsync();
         return pane;
     }

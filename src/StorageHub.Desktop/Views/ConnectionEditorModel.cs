@@ -228,6 +228,12 @@ internal sealed record ConnectionGroupChoice(Guid? GroupId, string Label, bool I
 }
 
 /// <summary>A choice in the Type drop-down: storage, or a client such as an SSH terminal.</summary>
+/// <summary>One step of the last connection test, as the editor lists it.</summary>
+internal sealed record ConnectionTestStepRow(string Label, string Outcome, string Detail, bool IsPassed, bool IsFailed)
+{
+    public bool HasDetail => Detail.Length > 0;
+}
+
 internal sealed record ConnectionTypeChoice(ConnectionProfileType Type, string Label)
 {
     public override string ToString() => Label;
@@ -345,6 +351,7 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         _provider = ConnectionProviderCatalog.All[0];
 
         SaveCommand = new RelayCommand(_ => _ = SaveAsync(), _ => CanSave);
+        TestCommand = new RelayCommand(_ => _ = TestAsync(), _ => CanTest);
         Rebuild();
     }
 
@@ -686,6 +693,29 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
 
     public ICommand SaveCommand { get; }
 
+    /// <summary>Tests what is in the fields, saved or not.</summary>
+    public ICommand TestCommand { get; }
+
+    public static string TestLabel => Ui.ConnectionEditor.TestConnection;
+
+    public static string TestStepsHeading => Ui.ConnectionEditor.TestStepsHeading;
+
+    /// <summary>The steps of the last test, or none before one has run.</summary>
+    public IReadOnlyList<ConnectionTestStepRow> TestSteps
+    {
+        get => _testSteps;
+        private set
+        {
+            _testSteps = value;
+            Raise(nameof(TestSteps));
+            Raise(nameof(HasTestSteps));
+        }
+    }
+
+    public bool HasTestSteps => _testSteps.Count > 0;
+
+    private IReadOnlyList<ConnectionTestStepRow> _testSteps = [];
+
     public static string SaveLabel => Ui.Connections.SaveConnection;
 
     public static string ProviderLabel => Ui.Connections.Provider;
@@ -818,9 +848,11 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     /// The field holding what a saved connection is pinned to, or none when it pins nothing: an
     /// FTPS certificate pin, or an SFTP or SSH host key, as 1.x's TrustFingerprintField chose.
     /// </summary>
-    private static string? PinField(ConnectionProfileDocument profile) => profile.Draft.Endpoint switch
+    private static string? PinField(ConnectionProfileDocument profile) => PinField(profile.Draft.Endpoint);
+
+    private static string? PinField(ConnectionEndpointDocument endpoint) => endpoint switch
     {
-        { Provider: StorageConnectionProvider.Ftps, TlsPolicy: ConnectionTlsCertificatePolicy.Pinned } =>
+        { Provider: StorageConnectionProvider.Ftps or StorageConnectionProvider.WebDav, TlsPolicy: ConnectionTlsCertificatePolicy.Pinned } =>
             "certificatePin",
         { Provider: StorageConnectionProvider.Sftp or StorageConnectionProvider.Ssh, SshHostKeyPolicy: ConnectionSshHostKeyPolicy.Pinned } =>
             HostKeyFingerprintKey,
@@ -828,9 +860,30 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     };
 
     /// <summary>Whether the editor holds something that could be saved.</summary>
-    internal bool CanSave => !_isBusy && _isDirty && Sections
+    internal bool CanSave => !_isBusy && _isDirty && HasRequiredFields;
+
+    /// <summary>Whether there is enough in the fields to test, saved or not.</summary>
+    internal bool CanTest => !_isBusy && _storage is not null && HasRequiredFieldsForTest;
+
+    private bool HasRequiredFields => HasRequiredFieldsBut(null);
+
+    /// <summary>
+    /// A test can fetch an SFTP or SSH host key it has not got, so that one field is not required
+    /// to start one, where there is a way to ask whether the key is the right one.
+    /// </summary>
+    private bool HasRequiredFieldsForTest => HasRequiredFieldsBut(UnfetchedHostKey());
+
+    private bool HasRequiredFieldsBut(ConnectionFieldModel? excused) => Sections
         .SelectMany(static section => section.Fields)
-        .All(static row => !row.Required || row.Value.Trim().Length > 0);
+        .All(row => !row.Required || row.Value.Trim().Length > 0 || ReferenceEquals(row, excused));
+
+    /// <summary>The host-key field when it is empty and its key can be fetched and checked.</summary>
+    private ConnectionFieldModel? UnfetchedHostKey() =>
+        _dialogs is not null &&
+        Field(HostKeyFingerprintKey) is { CanFetchFromHost: true } key &&
+        key.Value.Trim().Length == 0
+            ? key
+            : null;
 
     /// <summary>
     /// The sentence a validation error carries, without the "(Parameter 'value')" the runtime
@@ -869,42 +922,7 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     internal async Task SaveAsync(CancellationToken cancellationToken = default)
     {
         Capture();
-        ConnectionProfileDraft draft;
-        try
-        {
-            // The timeouts and retries a provider has no field for come from Settings, as they
-            // did in 1.4, rather than from the built-in defaults Settings exists to override.
-            draft = ConnectionEditorDraftFactory.Build(
-                _provider.Kind,
-                _values,
-                ConnectionDefaultSettings.Get(_provider.Kind, _connectionDefaults));
-        }
-        catch (ArgumentException error)
-        {
-            Status = SentenceOf(error);
-            return;
-        }
-
-        // The group is the drop-down's, which the draft factory knows nothing of.
-        draft = draft with { Metadata = draft.Metadata with { GroupId = _groupId } };
-
-        // The editor has no field for these, and the draft is built from its fields, so a save
-        // would reset them: a favourite stopped being one every time it was edited, as it did in
-        // 1.x, and a disabled connection came back enabled. An edit keeps what the profile had.
-        if (_current?.Draft is { } kept)
-        {
-            draft = draft with
-            {
-                IsEnabled = kept.IsEnabled,
-                Metadata = draft.Metadata with
-                {
-                    IsFavorite = kept.Metadata.IsFavorite,
-                    HomePath = kept.Metadata.HomePath,
-                    UploadPath = kept.Metadata.UploadPath,
-                    DownloadPath = kept.Metadata.DownloadPath
-                }
-            };
-        }
+        if (BuildDraft() is not { } draft) return;
 
         IsBusy = true;
         try
@@ -975,36 +993,219 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         }
     }
 
-    /// <summary>Asks the agent to reach the saved connection and reports what it found.</summary>
+    /// <summary>
+    /// The connection as the fields describe it, ready to save or test, or nothing with the reason
+    /// in the footer when the fields do not make one.
+    /// </summary>
+    private ConnectionProfileDraft? BuildDraft()
+    {
+        ConnectionProfileDraft draft;
+        try
+        {
+            // The timeouts and retries a provider has no field for come from Settings, as they
+            // did in 1.4, rather than from the built-in defaults Settings exists to override.
+            draft = ConnectionEditorDraftFactory.Build(
+                _provider.Kind,
+                _values,
+                ConnectionDefaultSettings.Get(_provider.Kind, _connectionDefaults));
+        }
+        catch (ArgumentException error)
+        {
+            Status = SentenceOf(error);
+            return null;
+        }
+
+        // The group is the drop-down's, which the draft factory knows nothing of.
+        draft = draft with { Metadata = draft.Metadata with { GroupId = _groupId } };
+
+        // The editor has no field for these, and the draft is built from its fields, so a save
+        // would reset them: a favourite stopped being one every time it was edited, as it did in
+        // 1.x, and a disabled connection came back enabled. An edit keeps what the profile had.
+        if (_current?.Draft is { } kept)
+        {
+            draft = draft with
+            {
+                IsEnabled = kept.IsEnabled,
+                Metadata = draft.Metadata with
+                {
+                    IsFavorite = kept.Metadata.IsFavorite,
+                    HomePath = kept.Metadata.HomePath,
+                    UploadPath = kept.Metadata.UploadPath,
+                    DownloadPath = kept.Metadata.DownloadPath
+                }
+            };
+        }
+
+        return draft;
+    }
+
+    /// <summary>
+    /// Asks the agent to reach the connection as the fields describe it, saved or not, and lists
+    /// how far it got: its settings, the server's identity, the credentials, reaching the server,
+    /// and listing the starting folder.
+    /// </summary>
+    /// <remarks>
+    /// Nothing is saved by it. A fingerprint in the field is trusted for the test as saving would
+    /// pin it, so a new SFTP or FTPS connection can be tested before it exists. An agent that
+    /// cannot test a draft can still test what is saved, when the fields hold nothing else.
+    /// </remarks>
     internal async Task TestAsync(CancellationToken cancellationToken = default)
     {
-        if (_current is not { } profile || _storage is null) return;
+        // An SFTP or SSH connection with no host key yet has it fetched and shown first, as Fetch
+        // from host does, rather than the test refusing it: a key accepted is tested, not pinned.
+        if (_storage is not null && UnfetchedHostKey() is { } empty)
+        {
+            await FetchHostKeyAsync(cancellationToken).ConfigureAwait(true);
+            if (empty.Value.Trim().Length == 0) return;
+        }
+
+        if (await TestOnceAsync(cancellationToken).ConfigureAwait(true) is not { } refusedKey) return;
+
+        // A host key refused or not trusted yet is offered where it happened: the key the server
+        // presents is fetched and shown to be checked, as Fetch from host does, and a key accepted
+        // is tested straight away. Nothing is pinned until the connection is saved.
+        var before = refusedKey.Value;
+        await FetchHostKeyAsync(cancellationToken).ConfigureAwait(true);
+        if (!string.Equals(before, refusedKey.Value, StringComparison.Ordinal))
+        {
+            await TestOnceAsync(cancellationToken).ConfigureAwait(true);
+        }
+    }
+
+    /// <returns>
+    /// The host-key field when the test failed on an SFTP or SSH server's identity and a key can
+    /// be fetched to settle it; otherwise nothing.
+    /// </returns>
+    private async Task<ConnectionFieldModel?> TestOnceAsync(CancellationToken cancellationToken)
+    {
+        if (_storage is null) return null;
+
+        Capture();
+        if (BuildDraft() is not { } draft)
+        {
+            TestSteps = [];
+            return null;
+        }
+
+        var pinField = PinField(draft.Endpoint);
+        var fingerprint = pinField is not null && _values.TryGetValue(pinField, out var typed) &&
+            ConnectionTrustIpcLimits.IsValidFingerprint(typed.Trim())
+                ? typed.Trim()
+                : null;
 
         IsBusy = true;
+        Status = Ui.ConnectionEditor.TestingConnection;
+        TestSteps = [new ConnectionTestStepRow(
+            Ui.ConnectionEditor.TestStepsHeading, Ui.ConnectionEditor.TestOutcomeRunning, string.Empty, false, false)];
         try
         {
             await using var client = _storage();
-            var response = await client
-                .TestConnectionAsync(
-                    new ConnectionTestRequest(StorageIpcContract.CurrentVersion, profile.ConnectionId),
-                    cancellationToken)
-                .ConfigureAwait(true);
+            ConnectionDraftTestResponse response;
+            try
+            {
+                response = await client
+                    .TestDraftAsync(
+                        new ConnectionDraftTestRequest(
+                            StorageIpcContract.CurrentVersion,
+                            draft,
+                            _current?.ConnectionId,
+                            fingerprint),
+                        cancellationToken)
+                    .ConfigureAwait(true);
+            }
+            catch (NotSupportedException) when (_current is { } saved && !_isDirty)
+            {
+                TestSteps = [];
+                await TestSavedAsync(client, saved, cancellationToken).ConfigureAwait(true);
+                return null;
+            }
 
-            Status = response.Failure is { } failure
-                ? failure.Message
-                : response.Succeeded
-                    ? Ui.Connections.ConnectionReachable
-                    : Ui.Connections.ConnectionUnreachable;
+            TestSteps = [.. response.Steps.Select(DescribeStep)];
+            Status = response.Succeeded
+                ? Ui.Format(Ui.ConnectionEditor.ConnectionSucceededFormat, response.ElapsedMilliseconds)
+                : response.Steps.FirstOrDefault(static step => step.Outcome == ConnectionTestStepOutcome.Failed)
+                    is { } failed
+                    ? StepFailure(failed)
+                    : Ui.ConnectionEditor.ConnectionTestFailed;
+
+            return _dialogs is not null &&
+                pinField == HostKeyFingerprintKey &&
+                response.Steps.Any(static step =>
+                    step is { Kind: ConnectionTestStepKind.ServerIdentity, Outcome: ConnectionTestStepOutcome.Failed })
+                    ? Field(HostKeyFingerprintKey)
+                    : null;
         }
         catch (Exception error) when (IsAgentFailure(error))
         {
+            TestSteps = [];
             Status = Ui.Shell.AgentNotConnected;
+            return null;
         }
         finally
         {
             IsBusy = false;
         }
     }
+
+    /// <summary>The saved connection's test, which says only whether it was reached.</summary>
+    private async Task TestSavedAsync(
+        IRemoteStorageAgentClient client,
+        ConnectionProfileDocument profile,
+        CancellationToken cancellationToken)
+    {
+        var response = await client
+            .TestConnectionAsync(
+                new ConnectionTestRequest(StorageIpcContract.CurrentVersion, profile.ConnectionId),
+                cancellationToken)
+            .ConfigureAwait(true);
+
+        Status = response.Failure is { } failure
+            ? failure.Message
+            : response.Succeeded
+                ? Ui.Connections.ConnectionReachable
+                : Ui.Connections.ConnectionUnreachable;
+    }
+
+    private static ConnectionTestStepRow DescribeStep(ConnectionTestStep step) => new(
+        StepLabel(step.Kind),
+        step.Outcome switch
+        {
+            ConnectionTestStepOutcome.Passed => Ui.ConnectionEditor.TestOutcomePassed,
+            ConnectionTestStepOutcome.Failed => Ui.ConnectionEditor.TestOutcomeFailed,
+            ConnectionTestStepOutcome.NotApplicable => Ui.ConnectionEditor.TestOutcomeNotApplicable,
+            _ => Ui.ConnectionEditor.TestOutcomeNotReached
+        },
+        step.Outcome == ConnectionTestStepOutcome.Failed ? StepFailure(step) : string.Empty,
+        step.Outcome == ConnectionTestStepOutcome.Passed,
+        step.Outcome == ConnectionTestStepOutcome.Failed);
+
+    private static string StepLabel(ConnectionTestStepKind kind) => kind switch
+    {
+        ConnectionTestStepKind.Settings => Ui.ConnectionEditor.TestStepSettings,
+        ConnectionTestStepKind.ServerIdentity => Ui.ConnectionEditor.TestStepServerIdentity,
+        ConnectionTestStepKind.Credentials => Ui.ConnectionEditor.TestStepCredentials,
+        ConnectionTestStepKind.Connect => Ui.ConnectionEditor.TestStepConnect,
+        _ => Ui.ConnectionEditor.TestStepBrowse
+    };
+
+    /// <summary>
+    /// What went wrong at a step, in the user's language: the agent's own message is English and,
+    /// for safety, says no more than the kind of failure.
+    /// </summary>
+    private static string StepFailure(ConnectionTestStep step) => step.Kind switch
+    {
+        ConnectionTestStepKind.Settings => Ui.ConnectionEditor.TestSettingsFailed,
+        ConnectionTestStepKind.ServerIdentity => step.Failure?.Code == "storage.trust.approval_required"
+            ? Ui.ConnectionEditor.TestIdentityMissing
+            : Ui.ConnectionEditor.TestIdentityMismatch,
+        ConnectionTestStepKind.Credentials => step.Failure?.Category == StorageIpcFailureCategory.Unauthorized
+            ? Ui.ConnectionEditor.TestCredentialsRefused
+            : Ui.ConnectionEditor.TestCredentialsUnavailable,
+        ConnectionTestStepKind.Connect => step.Failure?.Category == StorageIpcFailureCategory.Timeout
+            ? Ui.ConnectionEditor.TestConnectTimedOut
+            : Ui.ConnectionEditor.TestConnectFailed,
+        _ => Ui.ConnectionEditor.TestBrowseFailed
+    };
 
     /// <summary>The connection being edited, for a caller that wants to delete it.</summary>
     internal ConnectionProfileDocument? Current => _current;
@@ -1088,6 +1289,21 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     /// What an FTP server may need beyond where it is. Defaults suit almost every server, so the
     /// section sits last and every field starts at what it would be anyway.
     /// </summary>
+    /// <summary>
+    /// WebDAV's and Swift's one timeout, which bounds each whole request: an upload's file is sent
+    /// inside it, so it is what somebody sending large files over a slow line has to raise.
+    /// </summary>
+    private IReadOnlyList<ConnectionFieldDescriptor> RequestTimeoutAdvancedFields()
+    {
+        var defaults = ConnectionDefaultSettings.Get(_provider.Kind, _connectionDefaults);
+        return
+        [
+            new(ConnectionEditorDraftFactory.ReadTimeoutKey, Ui.Connections.FieldRequestTimeout, ConnectionFieldKind.Text,
+                DefaultValue: defaults.OperationTimeoutSeconds.ToString(CultureInfo.InvariantCulture),
+                HelpText: Ui.Connections.RequestTimeoutHint)
+        ];
+    }
+
     private IReadOnlyList<ConnectionFieldDescriptor> FtpAdvancedFields()
     {
         var defaults = ConnectionDefaultSettings.Get(_provider.Kind, _connectionDefaults);
@@ -1116,6 +1332,119 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
             new(ConnectionEditorDraftFactory.ActiveAddressKey, Ui.Connections.FieldActiveAddress, ConnectionFieldKind.Text,
                 Placeholder: Ui.Connections.ActiveAddressPlaceholder, HelpText: Ui.Connections.ActiveAddressHint)
         ];
+    }
+
+    /// <summary>The field the SFTP Advanced section's jump host is chosen in, by name.</summary>
+    internal const string JumpHostKey = "jumpHost";
+
+    /// <summary>
+    /// What an SFTP server may need beyond where it is: a saved connection to reach it through,
+    /// the SSH algorithms it is limited to, and how many sessions it is opened with. Every field
+    /// starts empty, which leaves the storage library's own choice.
+    /// </summary>
+    private IReadOnlyList<ConnectionFieldDescriptor> SftpAdvancedFields() =>
+    [
+        new(JumpHostKey, Ui.Connections.FieldJumpHost, ConnectionFieldKind.Choice,
+            DefaultValue: Ui.Connections.JumpHostNone, HelpText: Ui.Connections.JumpHostHint,
+            Choices: JumpHostChoices()),
+        new(ConnectionEditorDraftFactory.MaximumSessionsKey, Ui.Connections.FieldMaximumSessions, ConnectionFieldKind.Text,
+            Placeholder: Ui.Connections.MaximumSessionsPlaceholder, HelpText: Ui.Connections.MaximumSessionsHint),
+        new(ConnectionEditorDraftFactory.KeepAliveKey, Ui.Connections.FieldKeepAlive, ConnectionFieldKind.Text,
+            Placeholder: Ui.Connections.KeepAlivePlaceholder, HelpText: Ui.Connections.KeepAliveHint),
+        new(ConnectionEditorDraftFactory.KeyExchangeAlgorithmsKey, Ui.Connections.FieldKeyExchangeAlgorithms, ConnectionFieldKind.Text,
+            Placeholder: Ui.Connections.AlgorithmsPlaceholder, HelpText: Ui.Connections.AlgorithmsHint),
+        new(ConnectionEditorDraftFactory.CiphersKey, Ui.Connections.FieldCiphers, ConnectionFieldKind.Text,
+            Placeholder: Ui.Connections.AlgorithmsPlaceholder),
+        new(ConnectionEditorDraftFactory.MacAlgorithmsKey, Ui.Connections.FieldMacAlgorithms, ConnectionFieldKind.Text,
+            Placeholder: Ui.Connections.AlgorithmsPlaceholder),
+        new(ConnectionEditorDraftFactory.HostKeyAlgorithmsKey, Ui.Connections.FieldHostKeyAlgorithms, ConnectionFieldKind.Text,
+            Placeholder: Ui.Connections.AlgorithmsPlaceholder)
+    ];
+
+    /// <summary>
+    /// The saved SFTP and SSH connections a jump host can be chosen from, this one left out, as
+    /// last read; empty until they have been.
+    /// </summary>
+    private IReadOnlyList<ConnectionSummary> _jumpCandidates = [];
+
+    /// <summary>
+    /// None, every candidate by name, and -- for a jump host that is not among them, such as one
+    /// not read yet -- an entry that keeps it, so a save does not drop a jump host unseen.
+    /// </summary>
+    private List<string> JumpHostChoices()
+    {
+        var choices = new List<string> { Ui.Connections.JumpHostNone };
+        choices.AddRange(_jumpCandidates.Select(static candidate => candidate.DisplayName));
+        if (JumpHostName(Get(ConnectionEditorDraftFactory.JumpConnectionIdKey)) is var name &&
+            !choices.Contains(name, StringComparer.Ordinal))
+        {
+            choices.Add(name);
+        }
+
+        return choices;
+    }
+
+    private string JumpHostName(string? id) =>
+        string.IsNullOrEmpty(id)
+            ? Ui.Connections.JumpHostNone
+            : _jumpCandidates.FirstOrDefault(candidate =>
+                    string.Equals(candidate.ConnectionId.ToString(), id, StringComparison.OrdinalIgnoreCase))
+                ?.DisplayName ?? Ui.Connections.JumpHostUnlisted;
+
+    /// <summary>Keeps the chosen jump host as the id the draft is saved with.</summary>
+    private void ArmJumpHost(ConnectionFieldModel field) => field.Changed += (_, _) =>
+    {
+        if (string.Equals(field.Value, Ui.Connections.JumpHostUnlisted, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _values[ConnectionEditorDraftFactory.JumpConnectionIdKey] = _jumpCandidates
+            .FirstOrDefault(candidate => string.Equals(candidate.DisplayName, field.Value, StringComparison.Ordinal))
+            ?.ConnectionId.ToString() ?? string.Empty;
+    };
+
+    private string? Get(string key) => _values.TryGetValue(key, out var value) ? value : null;
+
+    /// <summary>
+    /// Reads the saved SFTP and SSH connections for the jump host drop-down. An agent that does not
+    /// answer leaves the drop-down as it was, the jump host the connection has kept in it.
+    /// </summary>
+    internal async Task LoadJumpHostsAsync(CancellationToken cancellationToken = default)
+    {
+        if (_storage is null) return;
+        try
+        {
+            await using var client = _storage();
+            var response = await client
+                .ListConnectionsAsync(
+                    new ConnectionListRequest(IncludeDisabled: false, Limit: StorageIpcLimits.MaximumConnectionResults),
+                    cancellationToken)
+                .ConfigureAwait(true);
+            if (response.Failure is not null) return;
+            _jumpCandidates =
+            [
+                .. response.Connections.Where(candidate =>
+                    candidate.Provider is StorageConnectionProvider.Sftp or StorageConnectionProvider.Ssh &&
+                    candidate.ConnectionId != _current?.ConnectionId)
+            ];
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception error) when (error is NotSupportedException || IsAgentFailure(error))
+        {
+            return;
+        }
+
+        if (_provider.Kind == StorageProviderKind.Sftp)
+        {
+            var dirty = IsDirty;
+            Capture();
+            Rebuild();
+            IsDirty = dirty;
+        }
     }
 
     /// <summary>
@@ -1208,6 +1537,18 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
             Add(Ui.Connections.SectionAdvanced, FtpAdvancedFields(), ConnectionEditorTab.General);
         }
 
+        if (_provider.Kind == StorageProviderKind.Sftp)
+        {
+            // The drop-down shows a name; the connection keeps the id, which a rename leaves alone.
+            _values[JumpHostKey] = JumpHostName(Get(ConnectionEditorDraftFactory.JumpConnectionIdKey));
+            Add(Ui.Connections.SectionAdvanced, SftpAdvancedFields(), ConnectionEditorTab.General);
+        }
+
+        if (_provider.Kind is StorageProviderKind.WebDav or StorageProviderKind.OpenStackSwift)
+        {
+            Add(Ui.Connections.SectionAdvanced, RequestTimeoutAdvancedFields(), ConnectionEditorTab.General);
+        }
+
         // Drawn even for a provider with nothing to authenticate, as 1.x's page was: its heading and
         // the vault hint on a tab that is always there, rather than a tab that comes and goes.
         Add(Ui.ConnectionEditor.TabAuthentication, _provider.AuthenticationFields,
@@ -1245,6 +1586,7 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
                 if (field.IsSecret) Arm(field);
                 if (field.IsFingerprint) ArmFingerprint(field);
                 if (field.IsIcon) ArmIcon(field);
+                if (field.Key == JumpHostKey) ArmJumpHost(field);
                 field.Editor = this;
                 fields.Add(field);
             }
@@ -1805,14 +2147,23 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         {
             if (_files is null) return null;
             var certificate = field.Kind == ConnectionFieldKind.CertificateReference;
+            var serviceAccount = field.Key == ConnectionEditorDraftFactory.ServiceAccountKey;
             var path = await _files.PickFileAsync(
                 new FilePickerRequest
                 {
-                    Title = certificate ? Ui.ConnectionEditor.SelectPfxCertificate : Ui.ConnectionEditor.SelectPrivateKey,
+                    Title = certificate ? Ui.ConnectionEditor.SelectPfxCertificate
+                        : serviceAccount ? Ui.ConnectionEditor.SelectServiceAccountKey
+                        : Ui.ConnectionEditor.SelectPrivateKey,
                     Filters = certificate
                         ?
                         [
                             new FilePickerFilter(Ui.KeyStore.CertificateFiles, ["pfx", "p12"]),
+                            new FilePickerFilter(Ui.KeyStore.AllFiles, ["*"])
+                        ]
+                        : serviceAccount
+                        ?
+                        [
+                            new FilePickerFilter(Ui.ConnectionEditor.ServiceAccountKeyFiles, ["json"]),
                             new FilePickerFilter(Ui.KeyStore.AllFiles, ["*"])
                         ]
                         :
@@ -1855,6 +2206,10 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         StorageConnectionProvider.Ftps => StorageProviderKind.Ftps,
         StorageConnectionProvider.Sftp => StorageProviderKind.Sftp,
         StorageConnectionProvider.Ssh => StorageProviderKind.Ssh,
+        StorageConnectionProvider.WebDav => StorageProviderKind.WebDav,
+        StorageConnectionProvider.AzureBlob => StorageProviderKind.AzureBlob,
+        StorageConnectionProvider.GoogleCloudStorage => StorageProviderKind.GoogleCloudStorage,
+        StorageConnectionProvider.OpenStackSwift => StorageProviderKind.OpenStackSwift,
         _ => StorageProviderKind.S3
     };
 
@@ -1885,6 +2240,7 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     private void RaiseCommands()
     {
         (SaveCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        (TestCommand as RelayCommand)?.RaiseCanExecuteChanged();
         foreach (var command in _fieldCommands) command.RaiseCanExecuteChanged();
     }
 

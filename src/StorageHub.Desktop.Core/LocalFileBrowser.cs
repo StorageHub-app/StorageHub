@@ -129,8 +129,20 @@ public interface IPagedLocalFileBrowserDataSource : ILocalFileBrowserDataSource
     void Release(string? continuationToken);
 }
 
-public sealed class LocalFileBrowserDataSource : IPagedLocalFileBrowserDataSource, IDisposable
+/// <summary>
+/// Optional: a data source that can say how much room the volume behind a folder has. One that
+/// cannot, such as a directory tree held in memory for a test, simply leaves the figure out.
+/// </summary>
+public interface ILocalFolderSpaceSource
 {
+    /// <summary>The volume's space, or null when it cannot be read. May block.</summary>
+    FolderSpace? GetSpace(string directoryPath);
+}
+
+public sealed class LocalFileBrowserDataSource : IPagedLocalFileBrowserDataSource, ILocalFolderSpaceSource, IDisposable
+{
+    public FolderSpace? GetSpace(string directoryPath) => FolderSpace.ForLocalFolder(directoryPath);
+
     private readonly object _sessionGate = new();
     private readonly Dictionary<string, DirectoryEnumerationSession> _sessions = new(StringComparer.Ordinal);
 
@@ -523,6 +535,21 @@ public sealed class LocalBrowserController : IAsyncDisposable
     }
 
     public LocalBrowserSnapshot? CurrentSnapshot { get; private set; }
+
+    /// <summary>
+    /// The space on the volume the current folder is on, or null at This PC, whose drive rows say
+    /// it already, and wherever the data source cannot tell.
+    /// </summary>
+    public async Task<FolderSpace?> GetSpaceAsync(CancellationToken cancellationToken = default)
+    {
+        if (_disposed || _dataSource is not ILocalFolderSpaceSource spaces ||
+            CurrentLocation is not { IsThisPc: false, DirectoryPath: { } directory })
+        {
+            return null;
+        }
+
+        return await Task.Run(() => spaces.GetSpace(directory), cancellationToken).ConfigureAwait(false);
+    }
 
     public async Task<LocalBrowserNavigationResult> NavigateAsync(
         LocalBrowserNavigationKind kind,

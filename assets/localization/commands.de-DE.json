@@ -34,7 +34,7 @@
   "editInvertSelection": "Auswahl umkehren",
   "editInvertSelectionDescription": "Kehren Sie die sichtbare Auswahl im aktiven Bereich um.",
   "editProperties": "Eigenschaften",
-  "editPropertiesDescription": "Zeigen Sie schreibgeschützte Versionen, Metadaten und Tags für eine Datei einer gespeicherten Verbindung an.",
+  "editPropertiesDescription": "Zeigen Sie Berechtigungen, Besitzer und Zeiten eines Elements einer gespeicherten Verbindung an, ändern Sie Berechtigungen oder Änderungszeitpunkt, wo die Verbindung es erlaubt, und sehen Sie Versionen, Metadaten und Tags einer Datei.",
   "viewRefresh": "Aktualisieren",
   "viewRefreshDescription": "Aktualisieren Sie den fokussierten Bereich.",
   "viewConnectionsPanel": "Verbindungsbereich",
@@ -123,5 +123,7 @@
   "helpReportIssueDescription": "Melden Sie einen Fehler in StorageHub.",
   "helpAboutStorageHub": "Über StorageHub",
   "helpAboutStorageHubDescription": "Zeigen Sie die Version und Programminformationen von StorageHub an.",
+  "toolsCleanUpLeftovers": "Zurückgebliebene Dateien bereinigen...",
+  "toolsCleanUpLeftoversDescription": "Finden Sie die Arbeitsdateien, die unterbrochene Übertragungen und der externe Editor hinterlassen haben, und entfernen Sie die ausgewählten.",
   "culture": "de-DE"
 }

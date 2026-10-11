@@ -114,7 +114,8 @@ public sealed class PaneTransferItem
         long? length,
         string? nativeItemId,
         string? versionId,
-        string? entityTag)
+        string? entityTag,
+        DateTimeOffset? modifiedUtc)
     {
         Name = name;
         RelativePath = relativePath;
@@ -123,6 +124,7 @@ public sealed class PaneTransferItem
         NativeItemId = nativeItemId;
         VersionId = versionId;
         EntityTag = entityTag;
+        ModifiedUtc = modifiedUtc;
     }
 
     public string Name { get; }
@@ -132,6 +134,12 @@ public sealed class PaneTransferItem
     public string? NativeItemId { get; }
     public string? VersionId { get; }
     public string? EntityTag { get; }
+
+    /// <summary>
+    /// When the listing says the item last changed, for the "if newer" conflict choice. Not an
+    /// identity: nothing is replaced on the strength of a time.
+    /// </summary>
+    public DateTimeOffset? ModifiedUtc { get; }
     public bool IsContainer => Kind is StorageItemKind.Directory or StorageItemKind.Prefix;
     public bool HasStableIdentity => VersionId is not null || EntityTag is not null;
 
@@ -142,7 +150,8 @@ public sealed class PaneTransferItem
         long? length,
         string? nativeItemId = null,
         string? versionId = null,
-        string? entityTag = null)
+        string? entityTag = null,
+        DateTimeOffset? modifiedUtc = null)
     {
         if (string.IsNullOrWhiteSpace(name) ||
             name.Length > StorageIpcLimits.MaximumItemNameLength ||
@@ -175,7 +184,8 @@ public sealed class PaneTransferItem
             length,
             nativeItemId,
             versionId,
-            entityTag));
+            entityTag,
+            modifiedUtc));
     }
 
     public static StorageResult<PaneTransferItem> Create(StorageListItem item)
@@ -188,8 +198,29 @@ public sealed class PaneTransferItem
             item.Size,
             item.NativeItemId,
             item.VersionId,
-            item.EntityTag);
+            item.EntityTag,
+            item.LastModifiedUtc);
     }
+
+    /// <summary>
+    /// A file on this PC, named the way the agent names it: by when it was last written and how
+    /// long it is (<see cref="LocalTransferFolder.FileIdentity"/>). That is what lets one be
+    /// replaced, or be the source of a replacement, under the same check every other overwrite
+    /// gets -- the agent looks again and refuses when the file is no longer the one listed.
+    /// </summary>
+    internal PaneTransferItem WithLocalIdentity() =>
+        Kind == StorageItemKind.File && EntityTag is null && VersionId is null &&
+        Length is { } length && ModifiedUtc is { } modified
+            ? new PaneTransferItem(
+                Name,
+                RelativePath,
+                Kind,
+                Length,
+                NativeItemId,
+                VersionId,
+                LocalTransferFolder.FileIdentity(modified, length),
+                ModifiedUtc)
+            : this;
 
     private static bool IsBoundedIdentity(string? value) => value is null ||
         !string.IsNullOrWhiteSpace(value) &&
@@ -340,12 +371,20 @@ public sealed class PaneDestinationSnapshot
 
 public sealed class ManualTransferPlan
 {
-    internal ManualTransferPlan(IReadOnlyList<TransferEnqueueRequest> requests)
+    internal ManualTransferPlan(IReadOnlyList<TransferEnqueueRequest> requests, int skipped = 0, int renamed = 0)
     {
         Requests = requests;
+        Skipped = skipped;
+        Renamed = renamed;
     }
 
     public IReadOnlyList<TransferEnqueueRequest> Requests { get; }
+
+    /// <summary>Selected files left out because they were already at the destination.</summary>
+    public int Skipped { get; }
+
+    /// <summary>Requests that write under a free name because the selected one was taken.</summary>
+    public int Renamed { get; }
 }
 
 public sealed class ManualTransferEnqueueResult
@@ -367,6 +406,12 @@ public sealed class ManualTransferEnqueueResult
     /// </summary>
     public IReadOnlyList<Guid> AmbiguousTransferIds { get; }
     public StorageFailure? Failure { get; }
+
+    /// <summary>Files not queued because they were already at the destination and were skipped.</summary>
+    public int Skipped { get; internal init; }
+
+    /// <summary>Files queued under a new name because their own was taken at the destination.</summary>
+    public int Renamed { get; internal init; }
     public bool HasAmbiguity => AmbiguousTransferIds.Count > 0;
     public bool IsSuccess => Failure is null && !HasAmbiguity;
     public bool IsPartial => Accepted.Count > 0 && (Failure is not null || HasAmbiguity);
@@ -454,19 +499,25 @@ public sealed class ManualTransferController : IAsyncDisposable
     /// <summary>Signals queue surfaces after an accepted or acknowledgement-ambiguous request.</summary>
     public event EventHandler<ManualTransfersEnqueuedEventArgs>? TransfersEnqueued;
 
+    /// <param name="conflicts">
+    /// What to do with a selected file whose name is already taken at the destination. Replacing
+    /// is what a plan did before there was a choice, and what it still does when none is given.
+    /// </param>
     public StorageResult<ManualTransferPlan> BuildPlan(
         PaneSelectionSnapshot source,
         PaneDestinationSnapshot destination,
         TransferQueueOperation operation,
         TransferQueueVerification verification = TransferQueueVerification.StrongHashWhenAvailable,
-        int priority = 0)
+        int priority = 0,
+        TransferConflictChoice conflicts = TransferConflictChoice.Overwrite)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(destination);
         if (!Enum.IsDefined(operation) ||
             !Enum.IsDefined(verification) ||
-            priority is < TransferQueueIpcLimits.MinimumPriority or > TransferQueueIpcLimits.MaximumPriority)
+            priority is < TransferQueueIpcLimits.MinimumPriority or > TransferQueueIpcLimits.MaximumPriority ||
+            !Enum.IsDefined(conflicts))
         {
             return InvalidPlan(
                 "manual_transfer.options.invalid",
@@ -482,8 +533,15 @@ public sealed class ManualTransferController : IAsyncDisposable
         var destinationByName = destination.Entries.ToDictionary(
             static item => item.Name,
             StringComparer.Ordinal);
-        var requests = new TransferEnqueueRequest[source.Items.Count];
+        var requests = new List<TransferEnqueueRequest>(source.Items.Count);
         var destinationPaths = new HashSet<string>(StringComparer.Ordinal);
+
+        // A name a rename may not take: one at the destination, one another selected file keeps,
+        // or one an earlier rename in this plan already took.
+        var claimedNames = new HashSet<string>(destinationByName.Keys, StringComparer.Ordinal);
+        claimedNames.UnionWith(source.Items.Select(static item => item.Name));
+        var skipped = 0;
+        var renamed = 0;
         for (var index = 0; index < source.Items.Count; index++)
         {
             var item = source.Items[index];
@@ -494,27 +552,21 @@ public sealed class ManualTransferController : IAsyncDisposable
                     Ui.Validation.ManualTransferCurrentlyAcceptsFilesOnlyDirectory);
             }
 
+            // A file on this PC carries a time-and-length identity so it can be replaced or replace
+            // something, but a move deletes its source, and the agent deletes only what it can
+            // name by an exact version. Said here, rather than as a failed row in the queue.
+            if (operation == TransferQueueOperation.Move && source.Context.Kind == PaneTransferContextKind.ThisPc)
+            {
+                return InvalidPlan(
+                    "manual_transfer.move.local_source_unsupported",
+                    Ui.Validation.MovingFromThisPCIsNotSupported);
+            }
+
             if (operation == TransferQueueOperation.Move && !item.HasStableIdentity)
             {
                 return InvalidPlan(
                     "manual_transfer.move.source_identity_required",
                     Ui.Validation.MovingAFileRequiresItsCapturedVersion);
-            }
-
-            // For a local destination the pane's folder is the address root, so the path is the
-            // file name alone. A saved connection's pane path is already root-relative and the
-            // name is appended to it.
-            var destinationPath = destination.Context.Kind == PaneTransferContextKind.ThisPc ||
-                destination.Context.RelativePath.Length == 0
-                    ? item.Name
-                    : destination.Context.RelativePath + "/" + item.Name;
-            if (!RemoteBrowserPath.TryNormalize(destinationPath, out var normalizedDestinationPath, out _) ||
-                !string.Equals(destinationPath, normalizedDestinationPath, StringComparison.Ordinal) ||
-                !destinationPaths.Add(destinationPath))
-            {
-                return InvalidPlan(
-                    "manual_transfer.destination.path_invalid",
-                    Ui.Validation.TheSelectedFilesDoNotProduceUnique);
             }
 
             destinationByName.TryGetValue(item.Name, out var existing);
@@ -523,6 +575,37 @@ public sealed class ManualTransferController : IAsyncDisposable
                 return InvalidPlan(
                     "manual_transfer.destination.container_conflict",
                     Ui.Validation.ADestinationFolderOrNonFileItem);
+            }
+
+            var name = item.Name;
+            if (existing is not null)
+            {
+                switch (TransferConflictRules.Decide(conflicts, item, existing))
+                {
+                    case TransferConflictOutcome.Skip:
+                        skipped++;
+                        continue;
+                    case TransferConflictOutcome.Rename:
+                        if (TransferConflictRules.FreeName(item.Name, claimedNames.Contains) is not { } free)
+                        {
+                            return InvalidPlan(
+                                "manual_transfer.rename.no_free_name",
+                                Ui.Format(Ui.Validation.NoFreeNameForRenameFormat, item.Name));
+                        }
+
+                        claimedNames.Add(free);
+                        name = free;
+                        existing = null;
+                        renamed++;
+                        break;
+                }
+            }
+
+            if (!TryDestinationPath(destination.Context, name, destinationPaths, out var destinationPath))
+            {
+                return InvalidPlan(
+                    "manual_transfer.destination.path_invalid",
+                    Ui.Validation.TheSelectedFilesDoNotProduceUnique);
             }
 
             if (existing is not null && (!existing.HasStableIdentity || !item.HasStableIdentity))
@@ -572,29 +655,94 @@ public sealed class ManualTransferController : IAsyncDisposable
                     Ui.Validation.AFileCannotBeCopiedOrMoved);
             }
 
-            requests[index] = request;
+            requests.Add(request);
         }
 
         return StorageResult<ManualTransferPlan>.Success(new ManualTransferPlan(
-            Array.AsReadOnly(requests)));
+            requests.AsReadOnly(),
+            skipped,
+            renamed));
     }
 
+    /// <summary>
+    /// Where a file of this name lands. For a local destination the pane's folder is the address
+    /// root, so the path is the file name alone; a saved connection's pane path is already
+    /// root-relative and the name is appended to it. False when the path is not canonical or
+    /// another file in the plan already lands there.
+    /// </summary>
+    private static bool TryDestinationPath(
+        PaneTransferContext destination,
+        string name,
+        HashSet<string> taken,
+        out string path)
+    {
+        path = destination.Kind == PaneTransferContextKind.ThisPc || destination.RelativePath.Length == 0
+            ? name
+            : destination.RelativePath + "/" + name;
+        return RemoteBrowserPath.TryNormalize(path, out var normalized, out _) &&
+            string.Equals(path, normalized, StringComparison.Ordinal) &&
+            taken.Add(path);
+    }
+
+    /// <param name="conflicts">
+    /// What to do with a file already at the destination, asked for only when there is one. Null
+    /// replaces, as every transfer did before there was a choice.
+    /// </param>
     public async Task<ManualTransferEnqueueResult> EnqueueAsync(
         PaneSelectionSnapshot source,
         PaneDestinationSnapshot destination,
         TransferQueueOperation operation,
         TransferQueueVerification verification = TransferQueueVerification.StrongHashWhenAvailable,
         int priority = 0,
+        TransferConflictPolicy? conflicts = null,
         CancellationToken cancellationToken = default)
     {
-        var plan = BuildPlan(source, destination, operation, verification, priority);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(destination);
+        conflicts ??= TransferConflictPolicy.Replace;
+        var choice = TransferConflictChoice.Overwrite;
+        if (FirstConflict(source, destination) is { } first)
+        {
+            if (await conflicts.ResolveAsync(first, cancellationToken).ConfigureAwait(false) is not { } resolved)
+            {
+                return new ManualTransferEnqueueResult([], [], StoppedAtConflict());
+            }
+
+            choice = resolved;
+        }
+
+        var plan = BuildPlan(source, destination, operation, verification, priority, choice);
         if (plan.IsFailure)
         {
             return new ManualTransferEnqueueResult([], [], plan.Error);
         }
 
-        return await EnqueuePlanAsync(plan.Value, cancellationToken).ConfigureAwait(false);
+        conflicts.Count(plan.Value.Skipped, plan.Value.Renamed);
+        var result = await EnqueuePlanAsync(plan.Value, cancellationToken).ConfigureAwait(false);
+        return new ManualTransferEnqueueResult(result.Accepted, result.AmbiguousTransferIds, result.Failure)
+        {
+            Skipped = plan.Value.Skipped,
+            Renamed = plan.Value.Renamed
+        };
     }
+
+    /// <summary>The first selected file whose name a file at the destination already has.</summary>
+    internal static PaneTransferItem? FirstConflict(PaneSelectionSnapshot source, PaneDestinationSnapshot destination)
+    {
+        var files = destination.Entries
+            .Where(static entry => entry.Kind == StorageItemKind.File)
+            .ToDictionary(static entry => entry.Name, StringComparer.Ordinal);
+        return source.Items
+            .Where(static item => item.Kind == StorageItemKind.File)
+            .Select(item => files.GetValueOrDefault(item.Name))
+            .FirstOrDefault(static existing => existing is not null);
+    }
+
+    /// <summary>What a transfer stopped at the conflict question reports: a cancellation.</summary>
+    internal static StorageFailure StoppedAtConflict() => new(
+        "manual_transfer.conflict_cancelled",
+        StorageFailureKind.Cancelled,
+        Ui.Validation.TransferStoppedAtExistingFile);
 
     internal async Task<ManualTransferEnqueueResult> EnqueuePlanAsync(
         ManualTransferPlan plan,
@@ -716,7 +864,7 @@ public sealed class ManualTransferController : IAsyncDisposable
     /// rather than approximated. The agent enforces the same rule, because a local path arrives
     /// from the UI rather than from a profile it already trusts.
     /// </summary>
-    private static StorageFailure? RequireQueueableEndpoints(
+    internal static StorageFailure? RequireQueueableEndpoints(
         PaneTransferContext source,
         PaneTransferContext destination)
     {
@@ -774,7 +922,7 @@ public sealed class ManualTransferController : IAsyncDisposable
     /// Builds the wire address for one side. A This PC pane has no saved profile, so its folder is
     /// carried in the root identity and its id derived from that folder.
     /// </summary>
-    private static TransferQueueAddress CreateAddress(
+    internal static TransferQueueAddress CreateAddress(
         PaneTransferContext context,
         string relativePath,
         string? nativeItemId,

@@ -20,6 +20,14 @@ namespace StorageHub.Agent.Host;
 public interface IStorageIpcSessionLease : IAsyncDisposable
 {
     IStorageEndpointSession Session { get; }
+
+    /// <summary>What the connection and its server look like now, where the session can say.</summary>
+    ValueTask<StorageResult<StorageConnectionDetails>> GetDetailsAsync(
+        CancellationToken cancellationToken = default) =>
+        ValueTask.FromResult(StorageResult<StorageConnectionDetails>.Fail(new StorageFailure(
+            "storage.connection.details_unsupported",
+            StorageFailureKind.Unsupported,
+            "This connection cannot describe itself.")));
 }
 
 /// <summary>Opens a saved profile without persisting its resolved runtime credentials.</summary>
@@ -28,11 +36,24 @@ public interface IStorageIpcSessionOpener
     ValueTask<StorageResult<IStorageIpcSessionLease>> OpenAsync(
         ConnectionProfile profile,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Opens a profile that is being tested rather than used: on a registration of its own, closed
+    /// with the lease, and trusting <paramref name="typedIdentity"/> as well as what is saved.
+    /// </summary>
+    /// <remarks>
+    /// An opener with no trust of its own to add to, such as a test's, opens it as any other.
+    /// </remarks>
+    ValueTask<StorageResult<IStorageIpcSessionLease>> OpenForTestAsync(
+        ConnectionProfile profile,
+        TrustRecord? typedIdentity,
+        CancellationToken cancellationToken = default) => OpenAsync(profile, cancellationToken);
 }
 
 /// <summary>
-/// Implements only saved-connection discovery, connection health checks, and bounded storage
-/// listing. It intentionally has no upload, mutation, delete, or secret-returning command.
+/// Implements only saved-connection discovery, connection health checks, bounded storage
+/// listing and free space. It intentionally has no upload, mutation, delete, or secret-returning
+/// command.
 /// </summary>
 public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDisposable
 {
@@ -42,15 +63,22 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDi
     private readonly TimeProvider _timeProvider;
     private readonly ConcurrentDictionary<Guid, CachedConnectionHealth> _health = new();
     private readonly object _healthGate = new();
+    private readonly ConnectionLinkJournal? _links;
 
+    /// <param name="links">
+    /// What has happened to the connections' links, for the cards and the activity log. Without
+    /// one, the agent reports no changes, which is what an agent with no library events has.
+    /// </param>
     public StorageIpcCommandService(
         IConnectionProfileRepository profiles,
         IStorageIpcSessionOpener sessionOpener,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        ConnectionLinkJournal? links = null)
     {
         _profiles = profiles ?? throw new ArgumentNullException(nameof(profiles));
         _sessionOpener = sessionOpener ?? throw new ArgumentNullException(nameof(sessionOpener));
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _links = links;
     }
 
     /// <summary>
@@ -62,13 +90,15 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDi
         Func<ISecretVault> vaultProvider,
         IRuntimeSecretFileMaterializer secretFileMaterializer,
         CodeLogicStorageSessionFactory sessionFactory,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        ConnectionLinkJournal? links = null)
         : this(
             databaseOptions,
             vaultProvider,
             secretFileMaterializer,
             () => sessionFactory ?? throw new ArgumentNullException(nameof(sessionFactory)),
-            timeProvider)
+            timeProvider,
+            links)
     {
     }
 
@@ -81,7 +111,8 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDi
         Func<ISecretVault> vaultProvider,
         IRuntimeSecretFileMaterializer secretFileMaterializer,
         Func<CodeLogicStorageSessionFactory> sessionFactoryProvider,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        ConnectionLinkJournal? links = null)
         : this(
             new SqliteConnectionProfileRepository(databaseOptions, timeProvider),
             CreateCodeLogicSessionOpener(
@@ -90,7 +121,8 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDi
                 secretFileMaterializer,
                 sessionFactoryProvider,
                 timeProvider),
-            timeProvider)
+            timeProvider,
+            links)
     {
     }
 
@@ -105,7 +137,11 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDi
     public bool CanHandle(string messageType) => messageType is
         StorageIpcMessageTypes.ConnectionListRequest or
         StorageIpcMessageTypes.ConnectionTestRequest or
-        StorageIpcMessageTypes.StorageListRequest;
+        StorageIpcMessageTypes.ConnectionDraftTestRequest or
+        StorageIpcMessageTypes.ConnectionDetailsRequest or
+        StorageIpcMessageTypes.StorageListRequest or
+        StorageIpcMessageTypes.StorageSpaceRequest or
+        StorageIpcMessageTypes.ConnectionLinkEventsRequest;
 
     public ValueTask<AgentIpcCommandResponse> HandleAsync(
         IpcEnvelope request,
@@ -118,8 +154,16 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDi
                 ListConnectionsAsync(request, cancellationToken),
             StorageIpcMessageTypes.ConnectionTestRequest =>
                 TestConnectionAsync(request, cancellationToken),
+            StorageIpcMessageTypes.ConnectionDraftTestRequest =>
+                TestDraftAsync(request, cancellationToken),
+            StorageIpcMessageTypes.ConnectionDetailsRequest =>
+                DescribeConnectionAsync(request, cancellationToken),
             StorageIpcMessageTypes.StorageListRequest =>
                 ListStorageAsync(request, cancellationToken),
+            StorageIpcMessageTypes.StorageSpaceRequest =>
+                ReadSpaceAsync(request, cancellationToken),
+            StorageIpcMessageTypes.ConnectionLinkEventsRequest =>
+                ReadLinkEventsAsync(request, cancellationToken),
             _ => ValueTask.FromResult(AgentIpcCommandResponse.Error(
                 "ipc.message.unsupported",
                 "The requested IPC operation is not supported by this agent version."))
@@ -250,6 +294,393 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDi
         }
     }
 
+    /// <summary>
+    /// Tests the connection in the editor, saved or not, and says how far it got: its settings, the
+    /// server's identity, the credentials, reaching the server, and listing its starting folder.
+    /// </summary>
+    /// <remarks>
+    /// Nothing is saved and no health is recorded: the profile is built under an id of its own,
+    /// opened on a registration of its own and dropped with it, so a saved connection's open
+    /// listings and cached health are untouched by a test of edits not saved yet.
+    /// </remarks>
+    private async ValueTask<AgentIpcCommandResponse> TestDraftAsync(
+        IpcEnvelope envelope,
+        CancellationToken cancellationToken)
+    {
+        var request = envelope.DeserializePayload<ConnectionDraftTestRequest>();
+        var validation = ValidateRequest(request.ContractVersion, request.HasValidBounds);
+        if (validation is not null)
+        {
+            return validation;
+        }
+
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        var steps = new DraftTestSteps();
+        try
+        {
+            ConnectionProfile profile;
+            try
+            {
+                // Enabled for the test whatever the draft says: testing is how a disabled
+                // connection is checked before it is turned back on.
+                profile = ConnectionProfileIpcMapper.ToNewProfile(
+                    ConnectionProfileId.New(),
+                    request.Draft with { IsEnabled = true },
+                    _timeProvider.GetUtcNow());
+            }
+            catch (Exception error) when (error is ArgumentException or FormatException or UriFormatException)
+            {
+                return CompleteDraftTest(request, started, steps.Fail(
+                    ConnectionTestStepKind.Settings,
+                    new StorageIpcFailure(
+                        "storage.profile.invalid",
+                        StorageIpcFailureCategory.Validation,
+                        "The connection settings are not valid.",
+                        IsTransient: false)));
+            }
+
+            steps.Pass(ConnectionTestStepKind.Settings);
+            var identity = TypedIdentity(profile, request.Sha256Fingerprint);
+            var opened = await _sessionOpener
+                .OpenForTestAsync(profile, identity, cancellationToken)
+                .ConfigureAwait(false);
+            if (opened.IsFailure)
+            {
+                // The connector checks the server's identity before the credentials, so each
+                // failure says which of the two it reached.
+                var failure = SanitizeFailure(opened.Error);
+                return CompleteDraftTest(request, started, failure.Code switch
+                {
+                    var code when code.StartsWith("storage.trust.", StringComparison.Ordinal) =>
+                        steps.Fail(ConnectionTestStepKind.ServerIdentity, failure),
+                    var code when code.StartsWith("storage.credential.", StringComparison.Ordinal) =>
+                        steps.Pass(ConnectionTestStepKind.ServerIdentity, HasPinnedIdentity(profile))
+                            .Fail(ConnectionTestStepKind.Credentials, failure),
+                    _ when failure.Category is StorageIpcFailureCategory.Unsupported or
+                        StorageIpcFailureCategory.Validation or StorageIpcFailureCategory.Conflict =>
+                        steps.Fail(ConnectionTestStepKind.Settings, failure),
+                    _ => steps
+                        .Pass(ConnectionTestStepKind.ServerIdentity, HasPinnedIdentity(profile))
+                        .Pass(ConnectionTestStepKind.Credentials, HasCredentials(profile))
+                        .Fail(ConnectionTestStepKind.Connect, failure)
+                });
+            }
+
+            steps.Pass(ConnectionTestStepKind.ServerIdentity, HasPinnedIdentity(profile));
+            steps.Pass(ConnectionTestStepKind.Credentials, HasCredentials(profile));
+            await using var lease = opened.Value;
+            var session = lease.Session;
+            var sessionFailure = ValidateSession(session, profile.Id);
+            if (sessionFailure is not null)
+            {
+                return CompleteDraftTest(request, started, steps.Fail(ConnectionTestStepKind.Connect, sessionFailure));
+            }
+
+            var health = await session.CheckHealthAsync(cancellationToken).ConfigureAwait(false);
+            if (health.IsFailure)
+            {
+                return CompleteDraftTest(request, started, steps.FailAtServer(SanitizeFailure(health.Error)));
+            }
+
+            steps.Pass(ConnectionTestStepKind.Connect);
+            var root = StorageAddress.Create(profile.Id, session.RootIdentity, string.Empty);
+            if (root.IsFailure)
+            {
+                return CompleteDraftTest(request, started, steps.Fail(
+                    ConnectionTestStepKind.Browse, SanitizeFailure(root.Error)));
+            }
+
+            var listed = await session.ListAsync(
+                root.Value,
+                new StorageListRequest(Recursive: false, PageSize: 1, ContinuationToken: null, IncludeVersions: false),
+                cancellationToken).ConfigureAwait(false);
+            return CompleteDraftTest(request, started, listed.IsSuccess
+                ? steps.Pass(ConnectionTestStepKind.Browse)
+                : steps.Fail(ConnectionTestStepKind.Browse, SanitizeFailure(listed.Error)));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return CompleteDraftTest(request, started, steps.FailAtNext(new StorageIpcFailure(
+                "storage.connection.unavailable",
+                StorageIpcFailureCategory.Unavailable,
+                "The connection could not be tested.",
+                IsTransient: true)));
+        }
+    }
+
+    /// <summary>
+    /// Describes a saved connection as it is now: what the server presented, runs and negotiated,
+    /// and its sessions. It opens the connection as browsing does, sharing what is open already.
+    /// </summary>
+    private async ValueTask<AgentIpcCommandResponse> DescribeConnectionAsync(
+        IpcEnvelope envelope,
+        CancellationToken cancellationToken)
+    {
+        var request = envelope.DeserializePayload<ConnectionDetailsRequest>();
+        var validation = ValidateRequest(request.ContractVersion, request.HasValidBounds);
+        if (validation is not null)
+        {
+            return validation;
+        }
+
+        try
+        {
+            var profile = await GetProfileAsync(request.ConnectionId, cancellationToken).ConfigureAwait(false);
+            if (profile is null)
+            {
+                return DetailsFailure(request, NotFoundFailure());
+            }
+
+            var opened = await _sessionOpener.OpenAsync(profile, cancellationToken).ConfigureAwait(false);
+            if (opened.IsFailure)
+            {
+                return DetailsFailure(request, SanitizeFailure(opened.Error));
+            }
+
+            await using var lease = opened.Value;
+            var described = await lease.GetDetailsAsync(cancellationToken).ConfigureAwait(false);
+            if (described.IsFailure)
+            {
+                return DetailsFailure(request, SanitizeFailure(described.Error));
+            }
+
+            var document = ToDetailsDocument(described.Value);
+            return document.HasValidBounds
+                ? AgentIpcCommandResponse.Create(
+                    StorageIpcMessageTypes.ConnectionDetailsResponse,
+                    new ConnectionDetailsResponse(request.ContractVersion, request.ConnectionId, document))
+                : DetailsFailure(request, new StorageIpcFailure(
+                    "storage.response.invalid",
+                    StorageIpcFailureCategory.Integrity,
+                    "The provider described the connection in a way that could not be shown.",
+                    IsTransient: false));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return DetailsFailure(request, new StorageIpcFailure(
+                "storage.connection.unavailable",
+                StorageIpcFailureCategory.Unavailable,
+                "The connection could not be described.",
+                IsTransient: true));
+        }
+    }
+
+    /// <summary>
+    /// The details as the contract carries them: text the server chose is cut to the contract's
+    /// length with control characters dropped, and lists to its counts, rather than refused.
+    /// </summary>
+    private static ConnectionDetailsDocument ToDetailsDocument(StorageConnectionDetails details)
+    {
+        static string? Text(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return null;
+            var clean = new string([.. value.Where(static character => !char.IsControl(character))]).Trim();
+            return clean.Length == 0
+                ? null
+                : clean.Length <= ConnectionDetailsLimits.MaximumTextLength
+                    ? clean
+                    : clean[..ConnectionDetailsLimits.MaximumTextLength];
+        }
+
+        return new ConnectionDetailsDocument(
+            Text(details.Provider) ?? "Unknown",
+            Text(details.Host),
+            details.Port,
+            Text(details.TransportSecurity) ?? "Unknown",
+            Text(details.ServerSystem),
+            Text(details.ServerSoftware),
+            [.. details.ServerFeatures
+                .Select(Text)
+                .OfType<string>()
+                .Distinct(StringComparer.Ordinal)
+                .Take(ConnectionDetailsLimits.MaximumFeatures)],
+            [.. details.Negotiated
+                .Select(setting => (Name: Text(setting.Key), Value: Text(setting.Value)))
+                .Where(static setting => setting.Name is not null)
+                .Take(ConnectionDetailsLimits.MaximumNegotiated)
+                .Select(static setting => new ConnectionNegotiatedSetting(setting.Name!, setting.Value))],
+            details.PresentedIdentity is { } identity && Text(identity.Kind) is { } kind &&
+                Text(identity.Fingerprint) is { } fingerprint
+                ? new ConnectionPresentedIdentityDocument(
+                    kind,
+                    fingerprint,
+                    Text(identity.Algorithm),
+                    Text(identity.Subject),
+                    Text(identity.Issuer),
+                    identity.NotAfter,
+                    identity.Trusted)
+                : null,
+            details.Sessions is { } sessions
+                ? new ConnectionSessionCountsDocument(
+                    Math.Max(0, sessions.Idle),
+                    Math.Max(0, sessions.InUse),
+                    Math.Max(0, sessions.Opened),
+                    Math.Max(0, sessions.Closed),
+                    Math.Max(0, sessions.FailedProbes))
+                : null,
+            details.LastHealthCheck is { } health
+                ? new ConnectionHealthCheckDocument(
+                    health.Healthy,
+                    Text(health.ErrorCode),
+                    Math.Max(0, (long)health.Latency.TotalMilliseconds),
+                    health.CheckedUtc.ToUniversalTime())
+                : null);
+    }
+
+    private static AgentIpcCommandResponse DetailsFailure(
+        ConnectionDetailsRequest request,
+        StorageIpcFailure failure) => AgentIpcCommandResponse.Create(
+        StorageIpcMessageTypes.ConnectionDetailsResponse,
+        new ConnectionDetailsResponse(request.ContractVersion, request.ConnectionId, Details: null, failure));
+
+    /// <summary>
+    /// The fingerprint typed in the editor as the record saving would pin, for the identity this
+    /// profile checks; nothing when it checks none or none was typed.
+    /// </summary>
+    private TrustRecord? TypedIdentity(ConnectionProfile profile, string? fingerprint)
+    {
+        if (string.IsNullOrWhiteSpace(fingerprint))
+        {
+            return null;
+        }
+
+        var target = profile.Endpoint switch
+        {
+            FtpsEndpoint { TlsPolicy: TlsCertificatePolicy.Pinned } ftps =>
+                (Kind: TrustArtifactKind.TlsCertificate, ftps.Host, ftps.Port),
+            SftpEndpoint { HostKeyPolicy: SshHostKeyPolicy.Pinned } sftp =>
+                (Kind: TrustArtifactKind.SshHostKey, sftp.Host, sftp.Port),
+            SshClientEndpoint { HostKeyPolicy: SshHostKeyPolicy.Pinned } ssh =>
+                (Kind: TrustArtifactKind.SshHostKey, ssh.Host, ssh.Port),
+            _ => ((TrustArtifactKind Kind, string Host, int Port)?)null
+        };
+        if (target is not { } pinned)
+        {
+            return null;
+        }
+
+        var now = _timeProvider.GetUtcNow();
+        return new TrustRecord(
+            "draft-test",
+            pinned.Kind,
+            pinned.Host,
+            pinned.Port,
+            "SHA256",
+            fingerprint.Trim(),
+            TrustDecision.Trusted,
+            TrustDecisionSource.UserVerified,
+            now,
+            now,
+            ExpiresUtc: null,
+            PreviousFingerprint: null,
+            Version: 1);
+    }
+
+    private static bool HasPinnedIdentity(ConnectionProfile profile) => profile.Endpoint switch
+    {
+        FtpsEndpoint { TlsPolicy: TlsCertificatePolicy.Pinned } => true,
+        SftpEndpoint { HostKeyPolicy: SshHostKeyPolicy.Pinned } => true,
+        SftpEndpoint { ServerOptions.JumpConnectionId: not null } => true,
+        SshClientEndpoint { HostKeyPolicy: SshHostKeyPolicy.Pinned } => true,
+        _ => false
+    };
+
+    private static bool HasCredentials(ConnectionProfile profile) =>
+        profile.Authentication is not (NoAuthentication or S3DefaultCredentialChainAuthentication) ||
+        profile.OperationalOptions.Proxy?.PasswordReference is not null;
+
+    private static AgentIpcCommandResponse CompleteDraftTest(
+        ConnectionDraftTestRequest request,
+        long started,
+        DraftTestSteps steps) => AgentIpcCommandResponse.Create(
+        StorageIpcMessageTypes.ConnectionDraftTestResponse,
+        new ConnectionDraftTestResponse(
+            request.ContractVersion,
+            steps.Failure is null,
+            ElapsedMilliseconds(started),
+            steps.ToArray(),
+            steps.Failure));
+
+    /// <summary>
+    /// The steps of one test in their order, each passed, failed or not applicable as it is
+    /// reached, and every one after a failure not reached.
+    /// </summary>
+    private sealed class DraftTestSteps
+    {
+        private static readonly ConnectionTestStepKind[] Order =
+        [
+            ConnectionTestStepKind.Settings,
+            ConnectionTestStepKind.ServerIdentity,
+            ConnectionTestStepKind.Credentials,
+            ConnectionTestStepKind.Connect,
+            ConnectionTestStepKind.Browse
+        ];
+
+        private readonly Dictionary<ConnectionTestStepKind, ConnectionTestStep> _taken = [];
+
+        public StorageIpcFailure? Failure { get; private set; }
+
+        public DraftTestSteps Pass(ConnectionTestStepKind kind, bool applies = true)
+        {
+            _taken[kind] = new ConnectionTestStep(
+                kind,
+                applies ? ConnectionTestStepOutcome.Passed : ConnectionTestStepOutcome.NotApplicable);
+            return this;
+        }
+
+        public DraftTestSteps Fail(ConnectionTestStepKind kind, StorageIpcFailure failure)
+        {
+            _taken[kind] = new ConnectionTestStep(kind, ConnectionTestStepOutcome.Failed, failure);
+            Failure = failure;
+            return this;
+        }
+
+        /// <summary>
+        /// A failure from the server itself, put where it belongs: a key or certificate it presented
+        /// that is not the trusted one, credentials it refused, or not reaching it at all.
+        /// </summary>
+        public DraftTestSteps FailAtServer(StorageIpcFailure failure) => failure.Category switch
+        {
+            StorageIpcFailureCategory.Security => Fail(ConnectionTestStepKind.ServerIdentity, failure),
+            StorageIpcFailureCategory.Unauthorized => Fail(ConnectionTestStepKind.Credentials, failure),
+            _ => Fail(ConnectionTestStepKind.Connect, failure)
+        };
+
+        /// <summary>Fails the first step not yet taken.</summary>
+        public DraftTestSteps FailAtNext(StorageIpcFailure failure) =>
+            Fail(Order.FirstOrDefault(kind => !_taken.ContainsKey(kind), ConnectionTestStepKind.Browse), failure);
+
+        public ConnectionTestStep[] ToArray()
+        {
+            var failed = false;
+            var steps = new ConnectionTestStep[Order.Length];
+            for (var index = 0; index < Order.Length; index++)
+            {
+                var kind = Order[index];
+                if (failed)
+                {
+                    steps[index] = new ConnectionTestStep(kind, ConnectionTestStepOutcome.NotReached);
+                    continue;
+                }
+
+                steps[index] = _taken.TryGetValue(kind, out var step)
+                    ? step
+                    : new ConnectionTestStep(kind, ConnectionTestStepOutcome.NotReached);
+                failed = steps[index].Outcome == ConnectionTestStepOutcome.Failed;
+            }
+
+            return steps;
+        }
+    }
+
     private async ValueTask<AgentIpcCommandResponse> ListStorageAsync(
         IpcEnvelope envelope,
         CancellationToken cancellationToken)
@@ -316,6 +747,7 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDi
                 return StorageListFailure(request, pageFailure);
             }
 
+            _links?.Reached(profile.Id);
             var includeStableIdentities = StorageIpcContract.SupportsStableItemIdentities(
                 request.ContractVersion);
             var entries = listed.Value.Entries
@@ -346,6 +778,192 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDi
                     IsTransient: true));
         }
     }
+
+    /// <summary>
+    /// The free space behind a folder, for the pane's status line. A provider with no figures is
+    /// an unsupported failure, which the desktop shows as nothing; the figures that come back are
+    /// the ones <see cref="StorageSpace.Create"/> kept, so the contract's bounds always hold.
+    /// </summary>
+    private async ValueTask<AgentIpcCommandResponse> ReadSpaceAsync(
+        IpcEnvelope envelope,
+        CancellationToken cancellationToken)
+    {
+        var request = envelope.DeserializePayload<StorageSpaceRequest>();
+        var validation = ValidateRequest(request.ContractVersion, request.HasValidBounds);
+        if (validation is not null)
+        {
+            return validation;
+        }
+
+        try
+        {
+            var profile = await GetProfileAsync(request.ConnectionId, cancellationToken).ConfigureAwait(false);
+            if (profile is null)
+            {
+                return SpaceFailure(request, NotFoundFailure());
+            }
+
+            var opened = await _sessionOpener.OpenAsync(profile, cancellationToken).ConfigureAwait(false);
+            if (opened.IsFailure)
+            {
+                return SpaceFailure(request, SanitizeFailure(opened.Error));
+            }
+
+            await using var lease = opened.Value;
+            var session = lease.Session;
+            var sessionFailure = ValidateSession(session, profile.Id);
+            if (sessionFailure is not null)
+            {
+                return SpaceFailure(request, sessionFailure);
+            }
+
+            if (session is not IStorageSpaceSession spaces)
+            {
+                return SpaceFailure(request, new StorageIpcFailure(
+                    "storage.space.unsupported",
+                    StorageIpcFailureCategory.Unsupported,
+                    SafeFailureMessage(StorageIpcFailureCategory.Unsupported),
+                    IsTransient: false));
+            }
+
+            var address = StorageAddress.Create(profile.Id, session.RootIdentity, request.RelativePath);
+            if (address.IsFailure)
+            {
+                return SpaceFailure(request, SanitizeFailure(address.Error));
+            }
+
+            var read = await spaces.GetSpaceAsync(address.Value, cancellationToken).ConfigureAwait(false);
+            if (read.IsFailure)
+            {
+                return SpaceFailure(request, SanitizeFailure(read.Error));
+            }
+
+            _links?.Reached(profile.Id);
+            var document = new StorageSpaceDocument(
+                read.Value.TotalBytes,
+                read.Value.AvailableBytes,
+                read.Value.UsedBytes);
+            return document.HasValidBounds
+                ? AgentIpcCommandResponse.Create(
+                    StorageIpcMessageTypes.StorageSpaceResponse,
+                    new StorageSpaceResponse(request.ContractVersion, request.ConnectionId, document))
+                : SpaceFailure(request, new StorageIpcFailure(
+                    "storage.space.unknown",
+                    StorageIpcFailureCategory.Unsupported,
+                    SafeFailureMessage(StorageIpcFailureCategory.Unsupported),
+                    IsTransient: false));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return SpaceFailure(request, new StorageIpcFailure(
+                "storage.space.unavailable",
+                StorageIpcFailureCategory.Unavailable,
+                SafeFailureMessage(StorageIpcFailureCategory.Unavailable),
+                IsTransient: true));
+        }
+    }
+
+    /// <summary>
+    /// The recent changes to the connections' links, and each one's latest, named as the
+    /// connections are named now. A change to a connection that has since been deleted, or to a
+    /// draft that was only ever tested, names nothing anybody can see and is left out.
+    /// </summary>
+    private async ValueTask<AgentIpcCommandResponse> ReadLinkEventsAsync(
+        IpcEnvelope envelope,
+        CancellationToken cancellationToken)
+    {
+        var request = envelope.DeserializePayload<ConnectionLinkEventsRequest>();
+        var validation = ValidateRequest(request.ContractVersion, request.HasValidBounds);
+        if (validation is not null)
+        {
+            return validation;
+        }
+
+        if (_links is null)
+        {
+            return AgentIpcCommandResponse.Create(
+                StorageIpcMessageTypes.ConnectionLinkEventsResponse,
+                new ConnectionLinkEventsResponse(request.ContractVersion, [], []));
+        }
+
+        try
+        {
+            var (recent, latest) = _links.Read(request.Limit, ConnectionLinkLimits.MaximumLatest);
+            var names = new Dictionary<ConnectionProfileId, string?>();
+            async ValueTask<ConnectionLinkEvent?> MapAsync(ConnectionLinkJournal.Entry entry)
+            {
+                var id = entry.Change.ProfileId;
+                if (!names.TryGetValue(id, out var name))
+                {
+                    name = (await _profiles.GetAsync(id, includeDeleted: false, cancellationToken)
+                        .ConfigureAwait(false))?.Metadata.DisplayName;
+                    names[id] = name;
+                }
+
+                if (name is null) return null;
+                var mapped = new ConnectionLinkEvent(
+                    entry.Sequence,
+                    id.Value,
+                    name,
+                    entry.Change.State switch
+                    {
+                        ConnectionLinkState.Retrying => ConnectionLinkEventKind.Retrying,
+                        ConnectionLinkState.Lost => ConnectionLinkEventKind.Lost,
+                        _ => ConnectionLinkEventKind.Back
+                    },
+                    entry.Change.OccurredUtc.ToUniversalTime(),
+                    entry.Change.Attempt is { } attempt
+                        ? Math.Clamp(attempt, 1, ConnectionLinkLimits.MaximumAttempt)
+                        : null,
+                    entry.Change.ErrorCode is { } code && IsSafeFailureCode(code) ? code : null);
+                return mapped.HasValidBounds ? mapped : null;
+            }
+
+            var events = new List<ConnectionLinkEvent>();
+            foreach (var entry in recent)
+            {
+                if (await MapAsync(entry).ConfigureAwait(false) is { } mapped) events.Add(mapped);
+            }
+
+            var latestEvents = new List<ConnectionLinkEvent>();
+            foreach (var entry in latest)
+            {
+                if (await MapAsync(entry).ConfigureAwait(false) is { } mapped) latestEvents.Add(mapped);
+            }
+
+            return AgentIpcCommandResponse.Create(
+                StorageIpcMessageTypes.ConnectionLinkEventsResponse,
+                new ConnectionLinkEventsResponse(request.ContractVersion, [.. events], [.. latestEvents]));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return AgentIpcCommandResponse.Create(
+                StorageIpcMessageTypes.ConnectionLinkEventsResponse,
+                new ConnectionLinkEventsResponse(
+                    request.ContractVersion,
+                    [],
+                    [],
+                    new StorageIpcFailure(
+                        "storage.connections.unavailable",
+                        StorageIpcFailureCategory.Unavailable,
+                        "Saved connections are temporarily unavailable.",
+                        IsTransient: true)));
+        }
+    }
+
+    private static AgentIpcCommandResponse SpaceFailure(
+        StorageSpaceRequest request,
+        StorageIpcFailure failure) => AgentIpcCommandResponse.Create(
+        StorageIpcMessageTypes.StorageSpaceResponse,
+        new StorageSpaceResponse(request.ContractVersion, request.ConnectionId, Space: null, failure));
 
     private async ValueTask<ConnectionProfile?> GetProfileAsync(
         Guid connectionId,
@@ -379,6 +997,10 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDi
         StorageConnectionProvider.S3 => ConnectionProviderKind.S3,
         StorageConnectionProvider.Ftp => ConnectionProviderKind.Ftp,
         StorageConnectionProvider.Ftps => ConnectionProviderKind.Ftps,
+        StorageConnectionProvider.WebDav => ConnectionProviderKind.WebDav,
+        StorageConnectionProvider.AzureBlob => ConnectionProviderKind.AzureBlob,
+        StorageConnectionProvider.GoogleCloudStorage => ConnectionProviderKind.GoogleCloudStorage,
+        StorageConnectionProvider.OpenStackSwift => ConnectionProviderKind.OpenStackSwift,
         StorageConnectionProvider.Sftp => ConnectionProviderKind.Sftp,
         StorageConnectionProvider.Ssh => ConnectionProviderKind.Ssh,
         _ => throw new InvalidDataException("The connection provider is invalid.")
@@ -390,6 +1012,10 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDi
         ConnectionProviderKind.S3 => StorageConnectionProvider.S3,
         ConnectionProviderKind.Ftp => StorageConnectionProvider.Ftp,
         ConnectionProviderKind.Ftps => StorageConnectionProvider.Ftps,
+        ConnectionProviderKind.WebDav => StorageConnectionProvider.WebDav,
+        ConnectionProviderKind.AzureBlob => StorageConnectionProvider.AzureBlob,
+        ConnectionProviderKind.GoogleCloudStorage => StorageConnectionProvider.GoogleCloudStorage,
+        ConnectionProviderKind.OpenStackSwift => StorageConnectionProvider.OpenStackSwift,
         ConnectionProviderKind.Sftp => StorageConnectionProvider.Sftp,
         ConnectionProviderKind.Ssh => StorageConnectionProvider.Ssh,
         _ => throw new InvalidDataException("The saved connection provider is invalid.")
@@ -617,6 +1243,7 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDi
         StorageIpcFailure? failure = null)
     {
         var elapsed = ElapsedMilliseconds(started);
+        if (failure is null) _links?.Reached(profile.Id);
         var snapshot = failure is null
             ? new ConnectionHealthSnapshot(
                 ConnectionHealthState.Healthy,
@@ -691,14 +1318,19 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDi
         ArgumentNullException.ThrowIfNull(secretFileMaterializer);
         ArgumentNullException.ThrowIfNull(sessionFactoryProvider);
         var trustStore = new SqliteTrustStore(new SingleWriterSqliteDatabase(databaseOptions));
+        var profiles = new SqliteConnectionProfileRepository(databaseOptions, timeProvider);
+        CodeLogicConnectionProfileConnector Create(ITrustStore trust) => new(
+            sessionFactoryProvider(),
+            vaultProvider(),
+            trust,
+            secretFileMaterializer,
+            timeProvider,
+            profileLookup: (id, cancellationToken) => profiles.GetAsync(id, cancellationToken: cancellationToken));
+
         // Shared, so the registration a listing opens is still there for the next page of it.
-        return new CodeLogicStorageIpcSessionOpener(new SharedConnectionProfileConnector(
-            () => new CodeLogicConnectionProfileConnector(
-                sessionFactoryProvider(),
-                vaultProvider(),
-                trustStore,
-                secretFileMaterializer,
-                timeProvider)));
+        return new CodeLogicStorageIpcSessionOpener(
+            new SharedConnectionProfileConnector(() => Create(trustStore)),
+            typed => Create(typed is null ? trustStore : new DraftTrustStore(trustStore, typed)));
     }
 
     private sealed record CachedConnectionHealth(
@@ -706,10 +1338,43 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDi
         ConnectionHealthSnapshot Snapshot);
 
     private sealed class CodeLogicStorageIpcSessionOpener(
-        SharedConnectionProfileConnector connector) : IStorageIpcSessionOpener, IAsyncDisposable
+        SharedConnectionProfileConnector connector,
+        Func<TrustRecord?, CodeLogicConnectionProfileConnector> createTestConnector)
+        : IStorageIpcSessionOpener, IAsyncDisposable
     {
         private readonly SharedConnectionProfileConnector _connector =
             connector ?? throw new ArgumentNullException(nameof(connector));
+        private readonly Func<TrustRecord?, CodeLogicConnectionProfileConnector> _createTestConnector =
+            createTestConnector ?? throw new ArgumentNullException(nameof(createTestConnector));
+
+        /// <summary>
+        /// On a connector of its own, so the test's registration, credentials and typed trust go
+        /// when its lease does rather than waiting in the shared one for an idle timeout.
+        /// </summary>
+        public async ValueTask<StorageResult<IStorageIpcSessionLease>> OpenForTestAsync(
+            ConnectionProfile profile,
+            TrustRecord? typedIdentity,
+            CancellationToken cancellationToken = default)
+        {
+            var testConnector = _createTestConnector(typedIdentity);
+            try
+            {
+                var opened = await testConnector.OpenAsync(profile, cancellationToken).ConfigureAwait(false);
+                if (opened.IsFailure)
+                {
+                    await testConnector.DisposeAsync().ConfigureAwait(false);
+                    return StorageResult<IStorageIpcSessionLease>.Fail(opened.Error);
+                }
+
+                return StorageResult<IStorageIpcSessionLease>.Success(
+                    new RuntimeSessionLease(opened.Value, testConnector));
+            }
+            catch
+            {
+                await testConnector.DisposeAsync().ConfigureAwait(false);
+                throw;
+            }
+        }
 
         public ValueTask DisposeAsync() => _connector.DisposeAsync();
 
@@ -724,13 +1389,26 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDi
         }
     }
 
-    private sealed class RuntimeSessionLease(RuntimeStorageConnection connection) : IStorageIpcSessionLease
+    /// <param name="owner">The connector to close with it, for one opened only for this lease.</param>
+    private sealed class RuntimeSessionLease(
+        RuntimeStorageConnection connection,
+        CodeLogicConnectionProfileConnector? owner = null) : IStorageIpcSessionLease
     {
         private readonly RuntimeStorageConnection _connection =
             connection ?? throw new ArgumentNullException(nameof(connection));
 
         public IStorageEndpointSession Session => _connection.Session;
 
-        public ValueTask DisposeAsync() => _connection.DisposeAsync();
+        public ValueTask<StorageResult<StorageConnectionDetails>> GetDetailsAsync(
+            CancellationToken cancellationToken = default) => _connection.GetDetailsAsync(cancellationToken);
+
+        public async ValueTask DisposeAsync()
+        {
+            await _connection.DisposeAsync().ConfigureAwait(false);
+            if (owner is not null)
+            {
+                await owner.DisposeAsync().ConfigureAwait(false);
+            }
+        }
     }
 }

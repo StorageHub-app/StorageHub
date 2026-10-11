@@ -1,0 +1,78 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
+        x:Class="StorageHub.Desktop.Views.PermissionsWindow"
+        x:DataType="vm:PermissionsModel"
+        Title="{Binding Title}"
+        Width="{StaticResource DialogPromptWidth}" SizeToContent="Height"
+        CanResize="False"
+        ShowInTaskbar="False"
+        Background="{DynamicResource SurfaceBrush}"
+        WindowStartupLocation="CenterOwner">
+
+  <!--
+    The nine boxes as ls lays them out, owner then group then others, and the octal beside the
+    rwx text they make. Apply is dim while the octal is not something the server could be sent,
+    with the reason underneath, as the name prompt does.
+  -->
+
+  <DockPanel>
+    <Border DockPanel.Dock="Bottom" Classes="dialog-footer">
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                  Spacing="{StaticResource SpaceMd}">
+        <Button Classes="dialog primary" Content="{Binding ApplyLabel}"
+                IsDefault="True" Command="{Binding AcceptCommand}"/>
+        <Button Classes="dialog" Content="{Binding CancelLabel}" Command="{Binding CancelCommand}"/>
+      </StackPanel>
+    </Border>
+
+    <StackPanel Margin="{StaticResource DialogContentPadding}" Spacing="{StaticResource SpaceSm}">
+      <TextBlock Text="{Binding Intro}" TextWrapping="Wrap"/>
+
+      <Grid ColumnDefinitions="Auto,*,*,*" RowDefinitions="Auto,Auto,Auto,Auto"
+            ColumnSpacing="{StaticResource SpaceMd}" RowSpacing="{StaticResource SpaceXs}"
+            Margin="0,4,0,4"
+            AutomationProperties.Name="{Binding CheckboxesAccessibleName}">
+        <TextBlock Grid.Row="0" Grid.Column="1" Classes="muted" Text="{Binding ReadLabel}"/>
+        <TextBlock Grid.Row="0" Grid.Column="2" Classes="muted" Text="{Binding WriteLabel}"/>
+        <TextBlock Grid.Row="0" Grid.Column="3" Classes="muted" Text="{Binding ExecuteLabel}"/>
+
+        <TextBlock Grid.Row="1" Grid.Column="0" Text="{Binding OwnerLabel}" VerticalAlignment="Center"/>
+        <CheckBox Grid.Row="1" Grid.Column="1" IsChecked="{Binding OwnerRead, Mode=TwoWay}"
+                  AutomationProperties.Name="{Binding OwnerLabel}"/>
+        <CheckBox Grid.Row="1" Grid.Column="2" IsChecked="{Binding OwnerWrite, Mode=TwoWay}"
+                  AutomationProperties.Name="{Binding OwnerLabel}"/>
+        <CheckBox Grid.Row="1" Grid.Column="3" IsChecked="{Binding OwnerExecute, Mode=TwoWay}"
+                  AutomationProperties.Name="{Binding OwnerLabel}"/>
+
+        <TextBlock Grid.Row="2" Grid.Column="0" Text="{Binding GroupLabel}" VerticalAlignment="Center"/>
+        <CheckBox Grid.Row="2" Grid.Column="1" IsChecked="{Binding GroupRead, Mode=TwoWay}"
+                  AutomationProperties.Name="{Binding GroupLabel}"/>
+        <CheckBox Grid.Row="2" Grid.Column="2" IsChecked="{Binding GroupWrite, Mode=TwoWay}"
+                  AutomationProperties.Name="{Binding GroupLabel}"/>
+        <CheckBox Grid.Row="2" Grid.Column="3" IsChecked="{Binding GroupExecute, Mode=TwoWay}"
+                  AutomationProperties.Name="{Binding GroupLabel}"/>
+
+        <TextBlock Grid.Row="3" Grid.Column="0" Text="{Binding OthersLabel}" VerticalAlignment="Center"/>
+        <CheckBox Grid.Row="3" Grid.Column="1" IsChecked="{Binding OthersRead, Mode=TwoWay}"
+                  AutomationProperties.Name="{Binding OthersLabel}"/>
+        <CheckBox Grid.Row="3" Grid.Column="2" IsChecked="{Binding OthersWrite, Mode=TwoWay}"
+                  AutomationProperties.Name="{Binding OthersLabel}"/>
+        <CheckBox Grid.Row="3" Grid.Column="3" IsChecked="{Binding OthersExecute, Mode=TwoWay}"
+                  AutomationProperties.Name="{Binding OthersLabel}"/>
+      </Grid>
+
+      <Grid ColumnDefinitions="Auto,96,*" ColumnSpacing="{StaticResource SpaceMd}">
+        <TextBlock Grid.Column="0" Text="{Binding OctalLabel}" VerticalAlignment="Center"/>
+        <TextBox Grid.Column="1" x:Name="PART_Octal" Text="{Binding Octal, Mode=TwoWay}"
+                 MaxLength="4" FontFamily="{DynamicResource AppFontMono}"
+                 AutomationProperties.Name="{Binding OctalLabel}"/>
+        <TextBlock Grid.Column="2" Classes="muted" Text="{Binding Symbolic}"
+                   FontFamily="{DynamicResource AppFontMono}" VerticalAlignment="Center"/>
+      </Grid>
+      <TextBlock Classes="caption danger" IsVisible="{Binding HasError}" Text="{Binding Error}"
+                 TextWrapping="Wrap"/>
+      <TextBlock Classes="caption muted" Text="{Binding SpecialBitsNote}" TextWrapping="Wrap"/>
+    </StackPanel>
+  </DockPanel>
+</Window>

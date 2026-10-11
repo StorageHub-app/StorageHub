@@ -55,7 +55,10 @@ internal static class DesktopPreferenceSectionMapper
             preferences.ColorScheme,
             preferences.TotalUploadBytesPerSecond,
             preferences.TotalDownloadBytesPerSecond,
-            preferences.NewScheduleTimeZone);
+            preferences.NewScheduleTimeZone,
+            preferences.TransferConflictDefault,
+            preferences.AutoRefreshFolders,
+            preferences.RemoteRefreshSeconds);
     }
 
     /// <summary>
@@ -216,7 +219,18 @@ internal static class DesktopPreferenceSectionMapper
             // left as it was, as an unknown colour scheme is.
             NewScheduleTimeZone = general.NewScheduleTimeZone is null
                 ? null
-                : ScheduleTimeZones.Normalize(general.NewScheduleTimeZone) ?? current.NewScheduleTimeZone
+                : ScheduleTimeZones.Normalize(general.NewScheduleTimeZone) ?? current.NewScheduleTimeZone,
+            // Null is a choice here -- ask -- so it is imported as one. A choice from a newer
+            // StorageHub that this one does not have leaves the setting as it was.
+            TransferConflictDefault = general.TransferConflictDefault is not { } conflicts
+                ? null
+                : Enum.IsDefined(conflicts) ? conflicts : current.TransferConflictDefault,
+            AutoRefreshFolders = general.AutoRefreshFolders ?? current.AutoRefreshFolders,
+            // An interval this build would not use leaves the setting as it was.
+            RemoteRefreshSeconds = general.RemoteRefreshSeconds is { } seconds &&
+                FolderAutoRefreshSettings.IsValidRemoteSeconds(seconds)
+                    ? seconds
+                    : current.RemoteRefreshSeconds
         };
 
     private static DesktopUpdatePreferences ApplyMachineSpecific(

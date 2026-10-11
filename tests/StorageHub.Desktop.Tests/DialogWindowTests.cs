@@ -91,6 +91,43 @@ public class DialogWindowTests
     }
 
     /// <summary>
+    /// A question with more answers than buttons shows them in a drop-down, starting on the one
+    /// asked for, and reports the one shown when it is answered -- but not when it is cancelled.
+    /// </summary>
+    [AvaloniaFact]
+    public void ADropDownReportsTheEntryShownWhenTheDialogIsAnswered()
+    {
+        int? reported = null;
+        DialogWindow Open() => DialogWindow.For(Request(DialogButtons.OkCancel) with
+        {
+            Choices = ["Overwrite", "Skip", "Rename"],
+            SelectedChoice = 1,
+            ChoiceAnswered = index => reported = index
+        });
+
+        var window = Open();
+        window.Show();
+        var choices = window.GetControl<ComboBox>("PART_Choices");
+        Assert.True(choices.IsVisible);
+        Assert.Equal(1, choices.SelectedIndex);
+        choices.SelectedIndex = 2;
+        Button(window, Ui.Dialogs.ButtonOk)
+            .RaiseEvent(new global::Avalonia.Interactivity.RoutedEventArgs(global::Avalonia.Controls.Button.ClickEvent));
+        Assert.Equal(2, reported);
+
+        reported = null;
+        var cancelled = Open();
+        cancelled.Show();
+        Button(cancelled, Ui.Dialogs.ButtonCancel)
+            .RaiseEvent(new global::Avalonia.Interactivity.RoutedEventArgs(global::Avalonia.Controls.Button.ClickEvent));
+        Assert.Null(reported);
+
+        var plain = DialogWindow.For(Request(DialogButtons.Ok));
+        plain.Show();
+        Assert.False(plain.GetControl<ComboBox>("PART_Choices").IsVisible);
+    }
+
+    /// <summary>
     /// A dismissed dialog answers the safe choice, not nothing.
     /// </summary>
     /// <remarks>

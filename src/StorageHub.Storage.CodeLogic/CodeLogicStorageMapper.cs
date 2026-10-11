@@ -40,9 +40,13 @@ internal static class CodeLogicStorageMapper
             [DomainStorageFeature.AtomicReplace] = capabilities.Supports(ClStorageFeature.AtomicReplace)
                 ? FeatureSupport.Native("The provider publishes replacement content without exposing a partial object.")
                 : FeatureSupport.Unsupported("The provider does not advertise atomic replacement."),
-            [DomainStorageFeature.ResumeUpload] = capabilities.Supports(ClStorageFeature.ResumableUpload)
-                ? FeatureSupport.Unsupported("The provider supports resumable upload internally, but the adapter does not yet expose a resume-token bridge.")
-                : FeatureSupport.Unsupported("The provider does not advertise resumable upload."),
+            // StorageHub's resume appends to a staged partial object and moves it into place, so
+            // it needs append and a file move rather than CL.Storage's own resume token, which
+            // only its relayed copies can use.
+            [DomainStorageFeature.ResumeUpload] =
+                capabilities.Supports(ClStorageFeature.Append) && capabilities.Supports(ClStorageFeature.FileMove)
+                    ? FeatureSupport.Native("StorageHub appends to a staged partial object and moves it into place.")
+                    : FeatureSupport.Unsupported("The provider cannot append to a staged object, so writes start again."),
             [DomainStorageFeature.ResumeDownload] = capabilities.Supports(ClStorageFeature.RangeReads)
                 ? FeatureSupport.Native()
                 : FeatureSupport.Unsupported("The provider does not advertise range reads."),
@@ -86,6 +90,15 @@ internal static class CodeLogicStorageMapper
             [DomainStorageFeature.SymbolicLinks] = capabilities.Supports(ClStorageFeature.Links)
                 ? FeatureSupport.Native()
                 : FeatureSupport.Unsupported("The provider does not advertise link support."),
+
+            // SFTP and FTP set the mode (FTP through SITE CHMOD, which a server may still refuse);
+            // a local folder does outside Windows only, where .NET has no Unix mode to set.
+            [DomainStorageFeature.Permissions] = capabilities.Supports(ClStorageFeature.Permissions)
+                ? FeatureSupport.Native()
+                : FeatureSupport.Unsupported("The provider does not advertise changing permissions."),
+            [DomainStorageFeature.SetModifiedTime] = capabilities.Supports(ClStorageFeature.SetTimestamps)
+                ? FeatureSupport.Native()
+                : FeatureSupport.Unsupported("The provider does not advertise setting the modified time."),
             [DomainStorageFeature.Checksums] = FeatureSupport.Emulated(
                 "StorageHub streams content through CL.Storage's explicit SHA-256 helper."),
             [DomainStorageFeature.ObjectVersioning] = capabilities.Supports(ClStorageFeature.Versioning)

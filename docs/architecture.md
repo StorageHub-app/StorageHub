@@ -97,9 +97,20 @@ are reduced to non-sensitive operation context.
 trust records immediately before building a provider configuration. It supports
 Local, S3 with system trust, acknowledged plaintext FTP, FTPS with system trust
 or explicit certificate pins, and SFTP with explicit host-key pins. Credentials
-are registered only in memory. PFX/private-key files are materialized in a
+are registered only in memory. An SSH private key is handed to CodeLogic.Storage
+as text in memory, never as a file; an FTPS client PFX is materialized in a
 current-user-only directory and retained for exactly the runtime connection's
 lifetime.
+
+An SFTP connection may name another saved SFTP or SSH connection as its jump
+host. The connector reads that connection when it builds the configuration and
+takes its address, its own pinned host key and its own sign-in from the vault;
+a jump host that goes through a jump host of its own is refused, because the
+library opens one tunnel. The route is not part of the root identity: which
+files a connection sees is decided by its own host and root. A password is
+offered to keyboard-interactive prompts as well as on its own, and an SFTP
+server that wants a key and then the account password takes both, in the order
+OpenSSH offers them.
 
 The session root identity is a canonical SHA-256 transcript over the profile ID
 and revision, endpoint namespace, authentication mode/principal, opaque vault

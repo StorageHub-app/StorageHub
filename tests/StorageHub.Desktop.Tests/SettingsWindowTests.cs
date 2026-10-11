@@ -88,7 +88,7 @@ public sealed class SettingsWindowTests : IDisposable
         Assert.Equal(
             [
                 Ui.Settings.SectionConcurrency, Ui.Settings.SectionSpeedLimits, Ui.Settings.SectionSchedules,
-                Ui.Settings.SectionConfirmations
+                Ui.Settings.SectionExistingFiles, Ui.Settings.SectionConfirmations
             ],
             transfers.Groups.Select(group => group.Caption),
             StringComparer.OrdinalIgnoreCase);
@@ -101,6 +101,37 @@ public sealed class SettingsWindowTests : IDisposable
         Assert.Equal(zone, model.Working.NewScheduleTimeZone);
         Row(model, "new-schedule-time-zone").SelectedChoice = 0;
         Assert.Null(model.Working.NewScheduleTimeZone);
+
+        // A file already at a transfer's destination is asked about until a choice is named here,
+        // and asking again stores none.
+        var existing = Row(model, "existing-file-choice");
+        Assert.Equal(0, existing.SelectedChoice);
+        Assert.Equal(
+            [Ui.Settings.ConflictAsk, .. TransferConflictText.All.Select(TransferConflictText.Label)],
+            existing.Definition.Choices.Select(static choice => choice.Label));
+        existing.SelectedChoice = IndexOf(model, "existing-file-choice", nameof(TransferConflictChoice.Resume));
+        Assert.Equal(TransferConflictChoice.Resume, model.Working.TransferConflictDefault);
+        existing.SelectedChoice = 0;
+        Assert.Null(model.Working.TransferConflictDefault);
+
+        // Folders refresh by themselves only once that is turned on, and how often a connection's
+        // is read again waits on it, dimmed.
+        var interval = Row(model, "remote-refresh-interval");
+        Assert.False(Row(model, "auto-refresh-folders").IsOn);
+        Assert.False(interval.IsEnabled);
+        Assert.Equal(IndexOf(model, "remote-refresh-interval", "30"), interval.SelectedChoice);
+        Row(model, "auto-refresh-folders").IsOn = true;
+        Assert.True(model.Working.AutoRefreshFolders);
+        Assert.True(interval.IsEnabled);
+        interval.SelectedChoice = IndexOf(model, "remote-refresh-interval", "120");
+        Assert.Equal(120, model.Working.RemoteRefreshSeconds);
+        Assert.Equal(
+            [
+                Ui.Format(Ui.Settings.EverySecondsFormat, 15), Ui.Format(Ui.Settings.EverySecondsFormat, 30),
+                Ui.Settings.EveryMinute, Ui.Format(Ui.Settings.EveryMinutesFormat, 2),
+                Ui.Format(Ui.Settings.EveryMinutesFormat, 5)
+            ],
+            interval.Definition.Choices.Select(static choice => choice.Label));
 
         var startWith = Row(model, "start-with");
         Row(model, "adaptive-concurrency").IsOn = false;

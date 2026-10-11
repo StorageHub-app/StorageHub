@@ -340,6 +340,22 @@ internal sealed class SettingsStrings : LocalizationModelBase
     public string ReconnectRemotePanesHint { get; set; } =
         "Uses saved profiles to create fresh storage and SSH sessions. Workspace files never contain credentials or terminal contents.";
 
+    public string AutoRefreshFolders { get; set; } = "Refresh a folder when it changes";
+
+    public string AutoRefreshFoldersHint { get; set; } =
+        "A folder on this PC is shown again as soon as something in it changes. A connection's folder is read again on a timer, which asks the server each time. Waits while the pane is busy, and keeps the selection and scroll position.";
+
+    public string RemoteRefreshInterval { get; set; } = "Read a connection's folder again";
+
+    public string RemoteRefreshIntervalHint { get; set; } =
+        "Only while refreshing is on. A shorter interval shows changes sooner and asks the server more often.";
+
+    public string EverySecondsFormat { get; set; } = "Every {0} seconds";
+
+    public string EveryMinute { get; set; } = "Every minute";
+
+    public string EveryMinutesFormat { get; set; } = "Every {0} minutes";
+
     public string WarnClearingHistory { get; set; } = "Warn before clearing all transfer history";
 
     public string WarnClearingHistoryHint { get; set; } =
@@ -513,6 +529,9 @@ internal sealed class SettingsStrings : LocalizationModelBase
     public string RetriesUnsupported { get; set; } =
         "Automatic retries are not supported for this provider.";
 
+    public string TimeoutKeptByProvider { get; set; } =
+        "This provider's own client sets its timeout, about 100 seconds a request.";
+
     public string OperationTimeoutHint { get; set; } = "Uses the connection timeout for this provider.";
 
     public string AuthenticationModeHint { get; set; } =
@@ -630,4 +649,77 @@ internal sealed class SettingsStrings : LocalizationModelBase
     public string ImportOpen { get; set; } = "Open";
 
     public string ImportBack { get; set; } = "Back";
+
+    // ------------------------------------------------- existing files (1.6)
+    public string SectionExistingFiles { get; set; } = "Existing files";
+
+    public string ExistingFileChoice { get; set; } = "When a file is already there";
+
+    public string ExistingFileChoiceHint { get; set; } =
+        "Ask shows the choice at the first such file, for the whole transfer. Resume finishes a shorter file and keeps what an interrupted attempt already sent.";
+
+    public string ConflictAsk { get; set; } = "Ask each time";
+
+    public string CleanupTitle { get; set; } = "Clean Up Leftover Files";
+
+    public string CleanupIntro { get; set; } =
+        "Working files that interrupted transfers and the external editor left behind. A file a transfer, a sync or the editor may still need is shown but cannot be removed.";
+
+    public string CleanupColumnName { get; set; } = "Name";
+
+    public string CleanupColumnKind { get; set; } = "Kind";
+
+    public string CleanupColumnFolder { get; set; } = "Folder";
+
+    public string CleanupColumnSize { get; set; } = "Size";
+
+    public string CleanupColumnModified { get; set; } = "Modified";
+
+    public string CleanupColumnState { get; set; } = "State";
+
+    public string CleanupKindResumePartial { get; set; } = "Partial copy";
+
+    public string CleanupKindTransferStaging { get; set; } = "Staged copy";
+
+    public string CleanupKindWriteProbe { get; set; } = "Write test";
+
+    public string CleanupKindRenameTemporary { get; set; } = "Rename stand-in";
+
+    public string CleanupKindEditSession { get; set; } = "External editor copy";
+
+    public string CleanupInUse { get; set; } = "In use";
+
+    public string CleanupRemovable { get; set; } = "Can be removed";
+
+    public string CleanupScanning { get; set; } = "Looking for leftover files…";
+
+    public string CleanupFoundFormat { get; set; } = "{0} leftover files take up {1}; {2} of them can be removed.";
+
+    public string CleanupNoneFound { get; set; } = "No leftover files were found.";
+
+    public string CleanupSyncRunning { get; set; } =
+        "A sync is running, so nothing it may write to can be removed until it finishes.";
+
+    public string CleanupUnreachableFormat { get; set; } = "{0} folders could not be searched.";
+
+    public string CleanupTruncated { get; set; } = "Only the most recent folders were searched.";
+
+    public string CleanupIncludeRemote { get; set; } = "Search saved connections too";
+
+    public string CleanupSearchAgain { get; set; } = "Search Again";
+
+    public string CleanupRemoveSelected { get; set; } = "Remove Selected…";
+
+    public string CleanupConfirmCaption { get; set; } = "Remove Leftover Files";
+
+    public string CleanupConfirmFormat { get; set; } = "Remove {0} leftover files ({1})? This cannot be undone.";
+
+    public string CleanupConfirmDetail { get; set; } =
+        "A partial copy is what an interrupted transfer would resume from. Retrying that transfer starts the copy again.";
+
+    public string CleanupSelectFirst { get; set; } = "Select the files to remove. Files in use cannot be removed.";
+
+    public string CleanupRemovedFormat { get; set; } = "Removed {0} files and freed {1}.";
+
+    public string CleanupKeptFormat { get; set; } = "{0} were left: {1}";
 }

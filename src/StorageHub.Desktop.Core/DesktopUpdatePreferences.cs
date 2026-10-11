@@ -184,8 +184,25 @@ internal sealed record DesktopUpdatePreferences(
     /// system, read again each time. Existing schedules keep their own zone, and the times shown
     /// everywhere else follow the system whatever this says.
     /// </summary>
-    string? NewScheduleTimeZone = null)
+    string? NewScheduleTimeZone = null,
+    /// <summary>
+    /// What a transfer does with a file already at its destination; null asks, at the first such
+    /// file of each transfer. Resume is the one that continues what an interrupted attempt staged.
+    /// </summary>
+    TransferConflictChoice? TransferConflictDefault = null,
+    /// <summary>
+    /// Whether a pane reads its folder again by itself when it changes: watched on this computer,
+    /// read again every <see cref="RemoteRefreshSeconds"/> on a connection. Off by default, as
+    /// every pane before it was.
+    /// </summary>
+    bool AutoRefreshFolders = false,
+    /// <summary>How often a connection's folder is read again when it refreshes by itself.</summary>
+    int RemoteRefreshSeconds = FolderAutoRefreshSettings.DefaultRemoteSeconds)
 {
+    /// <summary>The auto-refresh settings as a pane follows them, the interval within its bounds.</summary>
+    internal FolderAutoRefreshSettings FolderAutoRefresh =>
+        FolderAutoRefreshSettings.From(AutoRefreshFolders, RemoteRefreshSeconds);
+
     /// <summary>16 GiB/s: far past any link, and small enough that KiB * 1024 cannot overflow.</summary>
     internal const long MaximumSpeedLimitBytesPerSecond = 16L * 1024 * 1024 * 1024;
 

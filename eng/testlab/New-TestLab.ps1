@@ -205,11 +205,48 @@ $settings = [ordered] @{
     STORAGEHUB_FTP_CLIENT_PFX_PATH       = (Resolve-Path (Join-Path $tlsFixtures 'client.pfx')).Path
     STORAGEHUB_FTP_CLIENT_PFX_PASSWORD   = $tls['STORAGEHUB_FTP_CLIENT_PFX_PASSWORD']
 
+    # WebDAV in plain HTTP and over HTTPS. The HTTPS server presents the FTPS endpoints' certificate,
+    # so its pin is the same fingerprint. The URLs carry the ports, so the ports are listed apart
+    # only for compose to publish.
+    STORAGEHUB_REQUIRE_WEBDAV            = '1'
+    STORAGEHUB_WEBDAV_PORT               = '18080'
+    STORAGEHUB_WEBDAV_TLS_PORT           = '18443'
+    STORAGEHUB_WEBDAV_URL                = 'http://127.0.0.1:18080/'
+    STORAGEHUB_WEBDAV_TLS_URL            = 'https://127.0.0.1:18443/'
+    STORAGEHUB_WEBDAV_USERNAME           = 'storagehub'
+    STORAGEHUB_WEBDAV_PASSWORD           = 'storagehub-testlab-password'
+    STORAGEHUB_WEBDAV_SERVER_SHA256      = $tls['STORAGEHUB_FTP_SERVER_SHA256']
+
     STORAGEHUB_REQUIRE_MINIO             = '1'
     STORAGEHUB_MINIO_ENDPOINT            = 'http://127.0.0.1:9000/'
     STORAGEHUB_MINIO_ACCESS_KEY          = 'storagehub-testlab'
     STORAGEHUB_MINIO_SECRET_KEY          = 'storagehub-testlab-secret'
     STORAGEHUB_MINIO_BUCKET              = 'storagehub-testlab'
+
+    # Azurite with its published development account. The key is Microsoft's documented
+    # devstoreaccount1 key, the same in every Azurite there is, so it is no more secret than the rest.
+    # The connection string names the blob endpoint itself, and in plain HTTP, which is why the
+    # fixture's profile has to say plain HTTP is allowed.
+    STORAGEHUB_REQUIRE_AZURITE           = '1'
+    STORAGEHUB_AZURITE_PORT              = '10000'
+    STORAGEHUB_AZURE_CONTAINER           = 'storagehub-testlab'
+    STORAGEHUB_AZURE_CONNECTION_STRING   = 'DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;'
+
+    # fake-gcs-server in plain HTTP. It checks no credentials; the fixture signs in anonymously,
+    # and with a service-account key it mints itself.
+    STORAGEHUB_REQUIRE_FAKE_GCS          = '1'
+    STORAGEHUB_FAKE_GCS_PORT             = '4443'
+    STORAGEHUB_GCS_SERVICE_URL           = 'http://127.0.0.1:4443/'
+    STORAGEHUB_GCS_BUCKET                = 'storagehub-testlab'
+
+    # The all-in-one Swift with TempAuth in plain HTTP. test:tester and testing are the image's
+    # own account, written into it, so they are no more secret than the rest.
+    STORAGEHUB_REQUIRE_SWIFT             = '1'
+    STORAGEHUB_SWIFT_PORT                = '8080'
+    STORAGEHUB_SWIFT_AUTH_URL            = 'http://127.0.0.1:8080/auth/v1.0'
+    STORAGEHUB_SWIFT_USERNAME            = 'test:tester'
+    STORAGEHUB_SWIFT_PASSWORD            = 'testing'
+    STORAGEHUB_SWIFT_CONTAINER           = 'storagehub-testlab'
 
     # A proxy in front of the servers above. The tests reach MinIO through it by its service name,
     # which is why these name the proxy and not the servers behind it.
@@ -274,7 +311,12 @@ Write-Host ('  FTP plain       127.0.0.1:{0}' -f $settings.STORAGEHUB_FTP_PLAIN_
 Write-Host ('  FTPS explicit   127.0.0.1:{0}' -f $settings.STORAGEHUB_FTP_EXPLICIT_PORT)
 Write-Host ('  FTPS implicit   127.0.0.1:{0}' -f $settings.STORAGEHUB_FTP_IMPLICIT_PORT)
 Write-Host ('  FTPS mutual     127.0.0.1:{0}' -f $settings.STORAGEHUB_FTP_MTLS_PORT)
+Write-Host ('  WebDAV          {0}' -f $settings.STORAGEHUB_WEBDAV_URL)
+Write-Host ('  WebDAV (HTTPS)  {0}' -f $settings.STORAGEHUB_WEBDAV_TLS_URL)
 Write-Host  '  MinIO (S3)      127.0.0.1:9000, console on 9001'
+Write-Host ('  Azurite (Azure) 127.0.0.1:{0}' -f $settings.STORAGEHUB_AZURITE_PORT)
+Write-Host ('  fake-gcs (GCS)  {0}' -f $settings.STORAGEHUB_GCS_SERVICE_URL)
+Write-Host ('  Swift           {0}' -f $settings.STORAGEHUB_SWIFT_AUTH_URL)
 Write-Host ('  Proxy           HTTP 127.0.0.1:{0}, SOCKS5 127.0.0.1:{1}' -f $settings.STORAGEHUB_PROXY_HTTP_PORT, $settings.STORAGEHUB_PROXY_SOCKS5_PORT)
 Write-Host ''
 Write-Host 'Point a shell at it with:' -ForegroundColor Cyan

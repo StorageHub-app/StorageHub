@@ -57,6 +57,16 @@ public enum ConnectionSshHostKeyPolicy
     TrustOnFirstUse = 2
 }
 
+/// <summary>How a WebDAV server takes a user name and password; only WebDAV sets anything but Basic.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<ConnectionHttpCredentialScheme>))]
+public enum ConnectionHttpCredentialScheme
+{
+    Basic = 1,
+    Digest = 2,
+    Ntlm = 3,
+    Negotiate = 4
+}
+
 [JsonConverter(typeof(JsonStringEnumConverter<ConnectionFtpsTlsMode>))]
 public enum ConnectionFtpsTlsMode
 {
@@ -100,6 +110,30 @@ public sealed record ConnectionFtpOptionsDocument(
         ConnectionProfileMetadataDocument.IsSafeText(ActiveExternalAddress, 45);
 }
 
+/// <summary>
+/// An SFTP server's options beyond where it is; null on the endpoint means the defaults. The
+/// algorithm lists are comma-separated in preference order, and the jump connection is a saved
+/// SFTP or SSH connection's id.
+/// </summary>
+public sealed record ConnectionSftpOptionsDocument(
+    Guid? JumpConnectionId = null,
+    string? KeyExchangeAlgorithms = null,
+    string? Ciphers = null,
+    string? MacAlgorithms = null,
+    string? HostKeyAlgorithms = null,
+    int? MaximumSessions = null,
+    int? KeepAliveSeconds = null)
+{
+    public bool HasValidBounds =>
+        JumpConnectionId != Guid.Empty &&
+        ConnectionProfileMetadataDocument.IsSafeText(KeyExchangeAlgorithms, 2_048) &&
+        ConnectionProfileMetadataDocument.IsSafeText(Ciphers, 2_048) &&
+        ConnectionProfileMetadataDocument.IsSafeText(MacAlgorithms, 2_048) &&
+        ConnectionProfileMetadataDocument.IsSafeText(HostKeyAlgorithms, 2_048) &&
+        MaximumSessions is null or >= 1 and <= 64 &&
+        KeepAliveSeconds is null or >= 1 and <= 3_600;
+}
+
 [JsonConverter(typeof(JsonStringEnumConverter<ConnectionAuthenticationKind>))]
 public enum ConnectionAuthenticationKind
 {
@@ -109,7 +143,54 @@ public enum ConnectionAuthenticationKind
     UsernamePassword = 4,
     S3AccessKey = 5,
     SftpPrivateKey = 6,
-    SshPrivateKeyPassword = 7
+    SshPrivateKeyPassword = 7,
+
+    /// <summary>
+    /// An HTTP bearer token, for WebDAV. The token's vault reference travels in
+    /// <see cref="ConnectionAuthenticationDocument.SessionTokenReference"/>, the document's slot for a
+    /// token, so no new field can be filled for any other kind.
+    /// </summary>
+    BearerToken = 8,
+
+    /// <summary>
+    /// The agent's own platform identity (Azure's identity chain, Google's Application Default
+    /// Credentials); nothing travels with it.
+    /// </summary>
+    AmbientCredential = 9,
+
+    /// <summary>
+    /// An Azure account's name and shared key: the name in <see cref="ConnectionAuthenticationDocument.Username"/>,
+    /// the key's vault reference in <see cref="ConnectionAuthenticationDocument.SecretKeyReference"/>.
+    /// </summary>
+    AzureSharedKey = 10,
+
+    /// <summary>An Azure SAS token, its vault reference in the document's token slot.</summary>
+    AzureSasToken = 11,
+
+    /// <summary>An Azure connection string, its vault reference in the document's secret-key slot.</summary>
+    AzureConnectionString = 12,
+
+    /// <summary>A Google Cloud service-account key file, its vault reference in the document's secret-key slot.</summary>
+    GoogleServiceAccount = 13,
+
+    /// <summary>
+    /// An OpenStack Keystone v3 password: the user in <see cref="ConnectionAuthenticationDocument.Username"/>,
+    /// the password's vault reference in <see cref="ConnectionAuthenticationDocument.PasswordReference"/>,
+    /// and the project and domains in <see cref="ConnectionAuthenticationDocument.Keystone"/>.
+    /// </summary>
+    KeystonePassword = 14
+}
+
+/// <summary>The Keystone project a token is scoped to, and the domains of the user and the project.</summary>
+public sealed record ConnectionKeystoneDocument(
+    string ProjectName,
+    string UserDomainName = "Default",
+    string ProjectDomainName = "Default")
+{
+    public bool HasValidBounds =>
+        ConnectionProfileMetadataDocument.IsSafeText(ProjectName, 255, required: true) &&
+        ConnectionProfileMetadataDocument.IsSafeText(UserDomainName, 255, required: true) &&
+        ConnectionProfileMetadataDocument.IsSafeText(ProjectDomainName, 255, required: true);
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<ConnectionSftpPrivateKeyFormat>))]
@@ -177,6 +258,17 @@ public sealed record ConnectionProfileMetadataDocument(
 /// A provider-discriminated endpoint document. The agent rejects values in fields that do not
 /// belong to the selected provider, so unused strings cannot be used to smuggle secret material.
 /// </summary>
+/// <remarks>
+/// WebDAV's URL travels in <see cref="ServiceEndpoint"/>, path and all, and plain HTTP in
+/// <see cref="AllowInsecureTransport"/>, as S3's do; its certificate trust and client certificate
+/// use the same fields as FTPS. An Azure container travels in <see cref="Bucket"/>, its prefix in
+/// <see cref="RootPath"/> and its Blob service URL, absent for a connection string, in
+/// <see cref="ServiceEndpoint"/>. A Cloud Storage bucket travels the same way, its service URL
+/// absent for Google's own and plain HTTP, for an emulator, in <see cref="AllowInsecureTransport"/>.
+/// A Swift container travels in <see cref="Bucket"/> too, with its authentication URL in
+/// <see cref="ServiceEndpoint"/>, its storage URL in <see cref="StorageUrl"/> (Swift's alone) and
+/// its Keystone region in <see cref="Region"/>.
+/// </remarks>
 public sealed record ConnectionEndpointDocument(
     StorageConnectionProvider Provider,
     string? RootPath = null,
@@ -192,16 +284,25 @@ public sealed record ConnectionEndpointDocument(
     string? ClientCertificatePfxReference = null,
     string? ClientCertificatePasswordReference = null,
     ConnectionSshHostKeyPolicy SshHostKeyPolicy = ConnectionSshHostKeyPolicy.Pinned,
-    ConnectionFtpOptionsDocument? Ftp = null)
+    ConnectionFtpOptionsDocument? Ftp = null,
+    ConnectionSftpOptionsDocument? Sftp = null,
+    ConnectionHttpCredentialScheme HttpCredentialScheme = ConnectionHttpCredentialScheme.Basic,
+    string? StorageUrl = null)
 {
     public bool HasValidBounds =>
+        Enum.IsDefined(HttpCredentialScheme) &&
+        (StorageUrl is null || Provider == StorageConnectionProvider.OpenStackSwift) &&
+        ConnectionProfileMetadataDocument.IsSafeText(StorageUrl, ConnectionProfileIpcLimits.MaximumEndpointLength) &&
+        (HttpCredentialScheme == ConnectionHttpCredentialScheme.Basic || Provider == StorageConnectionProvider.WebDav) &&
         (Ftp is null || Ftp.HasValidBounds &&
             Provider is StorageConnectionProvider.Ftp or StorageConnectionProvider.Ftps) &&
+        (Sftp is null || Sftp.HasValidBounds && Provider == StorageConnectionProvider.Sftp) &&
         Enum.IsDefined(Provider) &&
         ConnectionProfileMetadataDocument.IsSafePath(RootPath, ConnectionProfileIpcLimits.MaximumPathLength) &&
         ConnectionProfileMetadataDocument.IsSafeText(Host, 253) &&
         Port is null or >= 1 and <= 65_535 &&
-        ConnectionProfileMetadataDocument.IsSafeText(Bucket, 255) &&
+        // Swift allows a container name of 256; S3, Azure and Google names are far shorter.
+        ConnectionProfileMetadataDocument.IsSafeText(Bucket, 256) &&
         ConnectionProfileMetadataDocument.IsSafeText(Region, 128) &&
         ConnectionProfileMetadataDocument.IsSafeText(ServiceEndpoint, ConnectionProfileIpcLimits.MaximumEndpointLength) &&
         Enum.IsDefined(TlsPolicy) &&
@@ -251,6 +352,30 @@ public sealed record ConnectionEndpointDocument(
             Empty(ClientCertificatePfxReference) && Empty(ClientCertificatePasswordReference) &&
             TlsPolicy == ConnectionTlsCertificatePolicy.SystemTrust &&
             FtpsTlsMode == ConnectionFtpsTlsMode.Explicit,
+        StorageConnectionProvider.WebDav =>
+            Present(ServiceEndpoint) && Empty(Host) && Port is null && Empty(Bucket) && Empty(Region) &&
+            !ForcePathStyle &&
+            (!Empty(ClientCertificatePasswordReference) ? !Empty(ClientCertificatePfxReference) : true) &&
+            FtpsTlsMode == ConnectionFtpsTlsMode.Explicit &&
+            SshHostKeyPolicy == ConnectionSshHostKeyPolicy.Pinned,
+        // Plain HTTP can only come from a connection string, which is when there is no service URL.
+        StorageConnectionProvider.AzureBlob =>
+            Present(Bucket) && Empty(Host) && Port is null && Empty(Region) && !ForcePathStyle &&
+            (!AllowInsecureTransport || Empty(ServiceEndpoint)) &&
+            Empty(ClientCertificatePfxReference) && Empty(ClientCertificatePasswordReference) &&
+            HasDefaultNonProviderPolicies(),
+        // Plain HTTP is a property of a service URL, so it means nothing without one.
+        StorageConnectionProvider.GoogleCloudStorage =>
+            Present(Bucket) && Empty(Host) && Port is null && Empty(Region) && !ForcePathStyle &&
+            (!AllowInsecureTransport || Present(ServiceEndpoint)) &&
+            Empty(ClientCertificatePfxReference) && Empty(ClientCertificatePasswordReference) &&
+            HasDefaultNonProviderPolicies(),
+        // Somewhere to sign in, somewhere to send a token, or both.
+        StorageConnectionProvider.OpenStackSwift =>
+            Present(Bucket) && Empty(Host) && Port is null && !ForcePathStyle &&
+            (Present(ServiceEndpoint) || Present(StorageUrl)) &&
+            Empty(ClientCertificatePfxReference) && Empty(ClientCertificatePasswordReference) &&
+            HasDefaultNonProviderPolicies(),
         _ => false
     };
 
@@ -274,10 +399,13 @@ public sealed record ConnectionAuthenticationDocument(
     string? SessionTokenReference = null,
     string? PrivateKeyReference = null,
     string? PrivateKeyPassphraseReference = null,
-    ConnectionSftpPrivateKeyFormat PrivateKeyFormat = ConnectionSftpPrivateKeyFormat.OpenSsh)
+    ConnectionSftpPrivateKeyFormat PrivateKeyFormat = ConnectionSftpPrivateKeyFormat.OpenSsh,
+    ConnectionKeystoneDocument? Keystone = null)
 {
     public bool HasValidBounds =>
         Enum.IsDefined(Kind) &&
+        (Keystone is null ? Kind != ConnectionAuthenticationKind.KeystonePassword
+            : Kind == ConnectionAuthenticationKind.KeystonePassword && Keystone.HasValidBounds) &&
         ConnectionProfileMetadataDocument.IsSafeText(
             Username,
             ConnectionProfileIpcLimits.MaximumUsernameLength) &&
@@ -303,13 +431,14 @@ public sealed record ConnectionAuthenticationDocument(
         var hasPassphrase = Present(PrivateKeyPassphraseReference);
         return Kind switch
         {
-            ConnectionAuthenticationKind.None or ConnectionAuthenticationKind.S3DefaultCredentialChain =>
+            ConnectionAuthenticationKind.None or ConnectionAuthenticationKind.S3DefaultCredentialChain or
+                ConnectionAuthenticationKind.AmbientCredential =>
                 !hasUsername && !hasCredential && !hasPassword && !hasAccess && !hasSecret &&
                 !hasToken && !hasKey && !hasPassphrase,
             ConnectionAuthenticationKind.CredentialReference =>
                 !hasUsername && hasCredential && !hasPassword && !hasAccess && !hasSecret &&
                 !hasToken && !hasKey && !hasPassphrase,
-            ConnectionAuthenticationKind.UsernamePassword =>
+            ConnectionAuthenticationKind.UsernamePassword or ConnectionAuthenticationKind.KeystonePassword =>
                 hasUsername && !hasCredential && hasPassword && !hasAccess && !hasSecret &&
                 !hasToken && !hasKey && !hasPassphrase,
             ConnectionAuthenticationKind.S3AccessKey =>
@@ -321,6 +450,15 @@ public sealed record ConnectionAuthenticationDocument(
             ConnectionAuthenticationKind.SshPrivateKeyPassword =>
                 hasUsername && !hasCredential && hasPassword && !hasAccess && !hasSecret &&
                 !hasToken && hasKey,
+            ConnectionAuthenticationKind.BearerToken or ConnectionAuthenticationKind.AzureSasToken =>
+                !hasUsername && !hasCredential && !hasPassword && !hasAccess && !hasSecret &&
+                hasToken && !hasKey && !hasPassphrase,
+            ConnectionAuthenticationKind.AzureSharedKey =>
+                hasUsername && !hasCredential && !hasPassword && !hasAccess && hasSecret &&
+                !hasToken && !hasKey && !hasPassphrase,
+            ConnectionAuthenticationKind.AzureConnectionString or ConnectionAuthenticationKind.GoogleServiceAccount =>
+                !hasUsername && !hasCredential && !hasPassword && !hasAccess && hasSecret &&
+                !hasToken && !hasKey && !hasPassphrase,
             _ => false
         };
     }
@@ -391,13 +529,39 @@ public sealed record ConnectionProfileDraft(
             ConnectionAuthenticationKind.S3AccessKey,
         StorageConnectionProvider.Ftp or StorageConnectionProvider.Ftps => Authentication.Kind is
             ConnectionAuthenticationKind.None or ConnectionAuthenticationKind.UsernamePassword,
-        StorageConnectionProvider.Sftp => Authentication.Kind is
-            ConnectionAuthenticationKind.UsernamePassword or ConnectionAuthenticationKind.SftpPrivateKey,
-        StorageConnectionProvider.Ssh => Authentication.Kind is
+        StorageConnectionProvider.Sftp or StorageConnectionProvider.Ssh => Authentication.Kind is
             ConnectionAuthenticationKind.UsernamePassword or ConnectionAuthenticationKind.SftpPrivateKey or
             ConnectionAuthenticationKind.SshPrivateKeyPassword,
+        // Digest, NTLM and Negotiate answer a challenge with a user name and password.
+        StorageConnectionProvider.WebDav => Authentication.Kind == ConnectionAuthenticationKind.UsernamePassword ||
+            (Authentication.Kind is ConnectionAuthenticationKind.None or ConnectionAuthenticationKind.BearerToken &&
+                Endpoint.HttpCredentialScheme == ConnectionHttpCredentialScheme.Basic),
+        // A connection string names its own endpoint; every other Azure sign-in needs the service URL.
+        StorageConnectionProvider.AzureBlob => Authentication.Kind == ConnectionAuthenticationKind.AzureConnectionString
+            ? string.IsNullOrEmpty(Endpoint.ServiceEndpoint)
+            : Authentication.Kind is ConnectionAuthenticationKind.AzureSharedKey or
+                ConnectionAuthenticationKind.AzureSasToken or ConnectionAuthenticationKind.AmbientCredential &&
+                !string.IsNullOrWhiteSpace(Endpoint.ServiceEndpoint),
+        // No sign-in reads a public bucket, or an emulator that checks nothing.
+        StorageConnectionProvider.GoogleCloudStorage => Authentication.Kind is
+            ConnectionAuthenticationKind.GoogleServiceAccount or ConnectionAuthenticationKind.AmbientCredential or
+            ConnectionAuthenticationKind.None,
+        // Keystone and TempAuth sign in at the authentication URL; a pre-issued token goes straight
+        // to the storage URL. Only Keystone's catalog has regions.
+        StorageConnectionProvider.OpenStackSwift => Authentication.Kind switch
+        {
+            ConnectionAuthenticationKind.KeystonePassword => Present(Endpoint.ServiceEndpoint),
+            ConnectionAuthenticationKind.UsernamePassword =>
+                Present(Endpoint.ServiceEndpoint) && string.IsNullOrEmpty(Endpoint.Region),
+            ConnectionAuthenticationKind.BearerToken =>
+                Present(Endpoint.StorageUrl) && string.IsNullOrEmpty(Endpoint.ServiceEndpoint) &&
+                string.IsNullOrEmpty(Endpoint.Region),
+            _ => false
+        },
         _ => false
     };
+
+    private static bool Present(string? value) => !string.IsNullOrWhiteSpace(value);
 }
 
 public sealed record ConnectionProfileDocument(

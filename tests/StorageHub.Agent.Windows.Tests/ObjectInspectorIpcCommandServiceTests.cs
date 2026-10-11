@@ -149,6 +149,50 @@ public sealed class ObjectInspectorIpcCommandServiceTests
         Assert.False(service.CanHandle("object-inspector.version.delete.request"));
     }
 
+    [Fact]
+    public async Task ChecksumSaysWhetherTheServerReportedItOrItWasComputed()
+    {
+        var profileId = ConnectionProfileId.New();
+        const string root = "s3:archive/root";
+        var address = new ObjectInspectorAddress(profileId.Value, root, "reports/q2.csv");
+        var storageAddress = StorageAddress.Create(profileId, root, address.RelativePath).Value;
+        var digest = new string('c', 64);
+        var session = new FakeAdvancedSession(profileId, root)
+        {
+            EntryResult = StorageResult<StorageEntry>.Success(
+                StorageEntry.Create(storageAddress, StorageEntryKind.File, size: 900_000_000).Value),
+            ChecksumHandler = request => request.AcceptServerDigest
+                ? StorageResult<PortableChecksumResult>.Success(new PortableChecksumResult(
+                    new PortableContentDigest(PortableChecksumAlgorithm.Sha256, digest),
+                    900_000_000,
+                    PortableChecksumSource.Server))
+                : StorageResult<PortableChecksumResult>.Fail(new StorageFailure(
+                    "storage.checksum.invalid_request",
+                    StorageFailureKind.Validation,
+                    "Over the limit.")),
+        };
+        var service = new ObjectInspectorIpcCommandService(new FakeConnector(
+            StorageResult<ISyncEndpointConnection>.Success(new FakeConnection(session))));
+
+        async Task<ObjectChecksumGetResponse?> AskAsync(bool preferServer) =>
+            (await service.HandleAsync(IpcEnvelope.Create(
+                ObjectInspectorIpcMessageTypes.ChecksumGetRequest,
+                Guid.NewGuid(),
+                1,
+                new ObjectChecksumGetRequest(ObjectInspectorIpcContract.CurrentVersion, address, preferServer))))
+            .Payload.Deserialize<ObjectChecksumGetResponse>();
+
+        var reported = await AskAsync(preferServer: true);
+        var refused = await AskAsync(preferServer: false);
+
+        Assert.True(reported?.HasValidResultBounds);
+        Assert.Equal(ObjectChecksumSource.Server, reported?.Source);
+        Assert.Equal(digest, reported?.Value);
+        Assert.Equal(ObjectInspectorIpcLimits.MaximumComputedChecksumBytes, session.LastChecksumRequest?.MaximumBytes);
+        Assert.True(refused?.HasValidResultBounds);
+        Assert.Equal("storage.inspector.checksum_too_large", refused?.Failure?.Code);
+    }
+
     [WindowsOnlyFact]
     public async Task ProviderFailureCodeMessageAndDiagnosticsAreNeverReturned()
     {
@@ -336,8 +380,20 @@ public sealed class ObjectInspectorIpcCommandServiceTests
 
     private sealed class FakeAdvancedSession(
         ConnectionProfileId profileId,
-        string rootIdentity) : IStorageEndpointSession, IStorageAdvancedEndpointSession
+        string rootIdentity) : IStorageEndpointSession, IStorageAdvancedEndpointSession, IStoragePortableChecksumSession
     {
+        public PortableChecksumRequest? LastChecksumRequest { get; private set; }
+        public Func<PortableChecksumRequest, StorageResult<PortableChecksumResult>>? ChecksumHandler { get; init; }
+
+        public ValueTask<StorageResult<PortableChecksumResult>> ComputePortableChecksumAsync(
+            PortableChecksumRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            LastChecksumRequest = request;
+            return ValueTask.FromResult(ChecksumHandler?.Invoke(request) ?? StorageResult<PortableChecksumResult>.Fail(
+                new StorageFailure("storage.checksum.failed", StorageFailureKind.Unsupported, "No checksum.")));
+        }
+
         public ConnectionProfileId ProfileId { get; } = profileId;
         public string RootIdentity { get; } = rootIdentity;
         public EffectiveStorageCapabilities EffectiveCapabilities { get; init; } = EffectiveStorageCapabilities.None;

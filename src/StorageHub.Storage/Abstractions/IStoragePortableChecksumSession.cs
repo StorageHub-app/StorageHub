@@ -94,6 +94,13 @@ public sealed record PortableChecksumRequest
 
     public PortableChecksumAlgorithm Algorithm { get; }
 
+    /// <summary>
+    /// Whether a digest the server already keeps for the whole file may answer instead of reading
+    /// it. A server's digest is its claim about the bytes, so this is for comparing and showing,
+    /// never for judging a verified copy, which must stay proven by the bytes read back.
+    /// </summary>
+    public bool AcceptServerDigest { get; init; }
+
     public StorageResult Validate()
     {
         if (ExpectedEntry.Kind != StorageEntryKind.File || ExpectedEntry.Size is not long length)
@@ -115,18 +122,43 @@ public sealed record PortableChecksumRequest
         message));
 }
 
+/// <summary>Where a portable digest came from.</summary>
+public enum PortableChecksumSource
+{
+    /// <summary>Computed here from the file's bytes, read in full.</summary>
+    Computed = 0,
+
+    /// <summary>Reported by the server for the whole file; nothing was read.</summary>
+    Server = 1,
+}
+
 public sealed record PortableChecksumResult
 {
-    public PortableChecksumResult(PortableContentDigest digest, long bytesProcessed)
+    public PortableChecksumResult(
+        PortableContentDigest digest,
+        long bytesProcessed,
+        PortableChecksumSource source = PortableChecksumSource.Computed)
     {
         Digest = digest ?? throw new ArgumentNullException(nameof(digest));
         ArgumentOutOfRangeException.ThrowIfNegative(bytesProcessed);
+        if (!Enum.IsDefined(source))
+        {
+            throw new ArgumentOutOfRangeException(nameof(source));
+        }
+
         BytesProcessed = bytesProcessed;
+        Source = source;
     }
 
     public PortableContentDigest Digest { get; }
 
+    /// <summary>
+    /// The length the digest covers: the bytes read for a computed digest, and the observed length
+    /// of the file a server's digest was reported for.
+    /// </summary>
     public long BytesProcessed { get; }
+
+    public PortableChecksumSource Source { get; }
 }
 
 /// <summary>

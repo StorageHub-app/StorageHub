@@ -94,6 +94,31 @@ public sealed class ConnectionTrustIpcCommandServiceTests : IAsyncLifetime
         Assert.Equal(firstFingerprint, replacement.PreviousFingerprint);
     }
 
+    /// <summary>A WebDAV certificate is trusted for the URL's host and port, as an FTPS one is for its server's.</summary>
+    [Fact]
+    public async Task WebDavCertificateTrustIsKeyedOnTheUrlsHostAndPort()
+    {
+        var profile = ConnectionProfile.Create(
+            ConnectionProfileId.New(),
+            new ConnectionProfileMetadata("Pinned WebDAV"),
+            new WebDavEndpoint(
+                new Uri("https://DAV.example.test:8443/remote.php/dav/files/me/"),
+                TlsCertificatePolicy.Pinned),
+            new UsernamePasswordAuthentication("operator", SecretReference.Create()),
+            Options(),
+            Now);
+        Assert.Equal(DomainProfileWriteStatus.Succeeded, (await _profiles.CreateAsync(profile)).Status);
+
+        var enrolled = await DecideAsync(profile, new string('C', 64), ConnectionTrustDecision.Trusted);
+
+        Assert.Equal(ConnectionTrustMutationStatus.Succeeded, enrolled.Status);
+        Assert.Equal(
+            new ConnectionTrustTargetDocument(ConnectionTrustArtifactKind.TlsCertificate, "dav.example.test", 8443),
+            enrolled.Snapshot!.Target);
+        var record = Assert.Single(await _trust.FindAsync(TrustArtifactKind.TlsCertificate, "dav.example.test", 8443));
+        Assert.Equal(new string('C', 64), record.Sha256Fingerprint);
+    }
+
     [WindowsOnlyFact]
     public async Task StaleProfileRevisionCannotEnrollTrustForChangedEndpoint()
     {

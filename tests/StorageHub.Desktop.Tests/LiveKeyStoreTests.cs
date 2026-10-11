@@ -99,7 +99,8 @@ public class LiveKeyStoreTests
             await TrustAsync(editor.Current!.ConnectionId, Lab("STORAGEHUB_SYNCLAB_SFTP_HOST_SHA256"), token);
 
             await editor.TestAsync(token);
-            Assert.Equal(Ui.Connections.ConnectionReachable, editor.Status);
+            Assert.NotEmpty(editor.TestSteps);
+            Assert.All(editor.TestSteps, step => Assert.False(step.IsFailed, editor.Status));
 
             // 4. The store now names the connection, and refuses to delete what it uses.
             await store.LoadAsync(token);

@@ -113,6 +113,18 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
     /// <summary>The panes, in the order the layout tree visits them.</summary>
     public ObservableCollection<BrowserPaneModel> Panes { get; } = [];
 
+    /// <summary>
+    /// What Settings says a transfer does with a file already at its destination, read at each
+    /// transfer; null, or none given, asks.
+    /// </summary>
+    internal Func<TransferConflictChoice?>? ConflictDefault { get; init; }
+
+    /// <summary>
+    /// Saves an answer to the conflict question as that setting, when "always do this" was ticked.
+    /// Null draws no such box.
+    /// </summary>
+    internal Action<TransferConflictChoice>? RememberConflictChoice { get; init; }
+
     /// <summary>The arrangement itself, for the view to walk and for a save to serialise.</summary>
     internal WorkspaceLayoutModel Layout => _layout;
 
@@ -192,6 +204,9 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
     /// 1.x's could. Null drags nothing out, as a workspace with no agent behind it wants.
     /// </summary>
     internal ExplorerDragOut? DragOut { get; init; }
+
+    /// <summary>Opens a connection's Trust tab, for a pane that failed on its server's identity.</summary>
+    internal Action<Guid>? ReviewTrust { get; init; }
 
     /// <summary>What is staged and waiting to be pasted, or nothing.</summary>
     internal PaneClipboard? Clipboard
@@ -742,10 +757,11 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
             return false;
         }
 
+        var conflicts = ConflictPolicy();
         ManualTransferEnqueueResult? result;
         try
         {
-            result = await EnqueueAsync(clipboard, target.Value, gathering, cancellationToken)
+            result = await EnqueueAsync(clipboard, target.Value, gathering, conflicts, cancellationToken)
                 .ConfigureAwait(true);
         }
         catch (OperationCanceledException)
@@ -767,7 +783,9 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
             // failure, so it is only said, as 1.x only said it, and in 1.x's words: how many were
             // queued before it, when some were, then that the reading was stopped.
             var refusal = RefusalFor(result, clipboard.Selection.Items.Count);
-            if (gathering is not null && failure.Kind == StorageFailureKind.Cancelled && !result.HasAmbiguity)
+            if (!result.HasAmbiguity &&
+                (gathering is not null && failure.Kind == StorageFailureKind.Cancelled ||
+                 failure.Code == ManualTransferController.StoppedAtConflict().Code))
             {
                 Message = refusal;
             }
@@ -779,13 +797,71 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
             return false;
         }
 
-        Message = Ui.Format(Ui.Transfer.QueuedFormat, result.Accepted.Count);
-        if (_queueChanged is not null)
+        Message = conflicts.Skipped + conflicts.Renamed == 0
+            ? Ui.Format(Ui.Transfer.QueuedFormat, result.Accepted.Count)
+            : Ui.Format(Ui.Transfer.QueuedWithConflictsFormat, result.Accepted.Count, conflicts.Skipped, conflicts.Renamed);
+        if (_queueChanged is not null && result.Accepted.Count > 0)
         {
             await _queueChanged().ConfigureAwait(true);
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// How this transfer meets files already at its destination: as Settings says, or asked at the
+    /// first one. With nowhere to ask, as in a headless test, it replaces, as every transfer did
+    /// before there was a choice -- each replacement still held to the identity listed.
+    /// </summary>
+    private TransferConflictPolicy ConflictPolicy()
+    {
+        if (ConflictDefault?.Invoke() is { } chosen && Enum.IsDefined(chosen))
+        {
+            return new TransferConflictPolicy(chosen);
+        }
+
+        return _dialogs is null
+            ? TransferConflictPolicy.Replace
+            : new TransferConflictPolicy(AskConflictAsync);
+    }
+
+    /// <summary>
+    /// The question, at the first file a transfer finds already there: what to do with it and with
+    /// any other, as one choice from a list. Null when it is answered with Cancel.
+    /// </summary>
+    private async Task<TransferConflictChoice?> AskConflictAsync(
+        PaneTransferItem existing,
+        CancellationToken cancellationToken)
+    {
+        var choices = TransferConflictText.All;
+        var chosen = -1;
+        var remember = false;
+        var answer = await _dialogs!.ConfirmAsync(
+            new DialogRequest
+            {
+                Title = Ui.Dialogs.TransferConflictCaption,
+                Message = Ui.Format(Ui.Dialogs.TransferConflictPromptFormat, existing.Name),
+                Detail = Ui.Dialogs.TransferConflictDetail,
+                Severity = DialogSeverity.Question,
+                Buttons = DialogButtons.OkCancel,
+                Choices = [.. choices.Select(TransferConflictText.Label)],
+                ChoiceAnswered = index => chosen = index,
+                CheckBoxLabel = RememberConflictChoice is null ? null : Ui.Dialogs.TransferConflictRemember,
+                CheckBoxAnswered = ticked => remember = ticked
+            },
+            cancellationToken).ConfigureAwait(true);
+        if (answer != DialogChoice.Ok)
+        {
+            return null;
+        }
+
+        var choice = choices[Math.Clamp(chosen, 0, choices.Count - 1)];
+        if (remember)
+        {
+            RememberConflictChoice?.Invoke(choice);
+        }
+
+        return choice;
     }
 
     /// <summary>
@@ -800,6 +876,7 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
         PaneClipboard clipboard,
         PaneDestinationSnapshot target,
         PendingGathering? gathering,
+        TransferConflictPolicy conflicts,
         CancellationToken cancellationToken)
     {
         // Always the recursive controller, even for a selection of plain files: it delegates to
@@ -817,6 +894,7 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
                     target,
                     clipboard.Operation,
                     progress: gathering is null ? null : gathering.Report,
+                    conflicts: conflicts,
                     stop: gathering?.Stopped ?? default,
                     cancellationToken: cancellationToken)
                 .ConfigureAwait(true);
@@ -826,6 +904,124 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// The agent's folder comparison, opened for one comparison and closed after it. Replaceable so
+    /// a headless test compares without a socket.
+    /// </summary>
+    internal Func<IFolderCompareAgentClient> FolderCompareClient { get; init; } =
+        static () => new NamedPipeFolderCompareAgentClient();
+
+    /// <summary>
+    /// Compare Folders for the active pane and the one beside it: the next in the layout, or the
+    /// one before when the active pane is the last. The earlier of the two is the left, as they
+    /// are read. Null, with the reason, when there is no second pane or either has no folder.
+    /// </summary>
+    internal FolderCompareModel? CreateFolderCompare(out string? refusal)
+    {
+        refusal = null;
+        if (Panes.Count < 2)
+        {
+            refusal = Ui.Sync.CompareNeedsTwoPanes;
+            return null;
+        }
+
+        var active = Panes.IndexOf(Active);
+        var other = active + 1 < Panes.Count ? active + 1 : active - 1;
+        var (leftPane, rightPane) = (Panes[Math.Min(active, other)], Panes[Math.Max(active, other)]);
+        var left = PaneTransferSnapshots.ContextFor(leftPane.Source);
+        var right = PaneTransferSnapshots.ContextFor(rightPane.Source);
+        if (left.IsFailure || right.IsFailure ||
+            FolderCompareController.AddressFor(left.Value) is null ||
+            FolderCompareController.AddressFor(right.Value) is null)
+        {
+            refusal = Ui.Validation.FolderComparisonNeedsAFolder;
+            return null;
+        }
+
+        return new FolderCompareModel(
+            Describe(leftPane),
+            Describe(rightPane),
+            (contents, cancellationToken) => CompareFoldersAsync(left.Value, right.Value, contents, cancellationToken),
+            CopyComparedAsync);
+
+        static string Describe(BrowserPaneModel pane) => pane.Title + " — " + pane.Path;
+    }
+
+    private async Task<StorageResult<FolderCompareOutcome>> CompareFoldersAsync(
+        PaneTransferContext left,
+        PaneTransferContext right,
+        bool compareContents,
+        CancellationToken cancellationToken)
+    {
+        await using var controller = new FolderCompareController(FolderCompareClient(), ownsClient: true);
+        return await controller.CompareAsync(left, right, compareContents, cancellationToken).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Copies compared differences through the queue, as a paste does: the same conflict question,
+    /// the same identity checks, and the queue refreshed once it holds them.
+    /// </summary>
+    private async Task<FolderCompareCopyResult> CopyComparedAsync(
+        FolderCompareOutcome compared,
+        IReadOnlyList<FolderCompareEntry> selected,
+        FolderCompareDirection direction,
+        CancellationToken cancellationToken)
+    {
+        var destination = direction == FolderCompareDirection.LeftToRight ? compared.Right : compared.Left;
+        FolderCompareCopyResult result;
+        try
+        {
+            await using var transfers = new ManualTransferController(_queue(), ownsClient: true);
+            await using var folders = _mutations();
+            result = await FolderCompareController.CopyAsync(
+                compared,
+                selected,
+                direction,
+                transfers,
+                (path, token) => EnsureFolderAsync(folders, destination, path, token),
+                ConflictPolicy(),
+                cancellationToken).ConfigureAwait(true);
+        }
+        catch (Exception error) when (error is IOException or TimeoutException or
+            InvalidOperationException or ObjectDisposedException or InvalidDataException)
+        {
+            return new FolderCompareCopyResult(
+                null, 0, 0, 0, 0,
+                new StorageFailure("compare.agent_unavailable", StorageFailureKind.Unavailable, Ui.Shell.AgentCannotEnqueue));
+        }
+
+        if (_queueChanged is not null && result.Queued > 0)
+        {
+            await _queueChanged().ConfigureAwait(true);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Creates one folder a copy needs: through the agent on a saved connection, which holds its
+    /// credentials, or here on this PC, inside the compared folder.
+    /// </summary>
+    private static async Task<StorageFailure?> EnsureFolderAsync(
+        IObjectInspectorAgentClient folders,
+        PaneTransferContext destination,
+        string relativePath,
+        CancellationToken cancellationToken)
+    {
+        if (destination.Kind == PaneTransferContextKind.ThisPc)
+        {
+            return FolderCompareController.EnsureLocalFolder(destination.RelativePath, relativePath);
+        }
+
+        var path = destination.RelativePath.Length == 0 ? relativePath : destination.RelativePath + "/" + relativePath;
+        var ensured = await folders.EnsureDirectoryAsync(
+            new StorageDirectoryEnsureRequest(
+                EditableFileIpcContract.CurrentVersion,
+                new ObjectInspectorAddress(destination.ConnectionId!.Value, destination.RootIdentity!, path)),
+            cancellationToken).ConfigureAwait(true);
+        return ensured.Failure is { } failure ? RecursiveTransferController.MapFailure(failure) : null;
     }
 
     /// <summary>
@@ -1145,6 +1341,7 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
         pane.Announce = news => Announced?.Invoke(this, news);
         pane.FilesDropReceiver = (paths, folder) => DropFilesAsync(paths, pane, folder);
         pane.DragOut = selection => DragOut?.Start(selection) ?? ExplorerDrag.Nothing;
+        if (ReviewTrust is { } reviewTrust) pane.ReviewTrust = reviewTrust;
         return pane;
     }
 

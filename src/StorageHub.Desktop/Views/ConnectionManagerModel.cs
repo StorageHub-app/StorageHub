@@ -102,5 +102,6 @@ internal sealed class ConnectionManagerModel
         }
 
         await Editor.LoadGroupsAsync(cancellationToken).ConfigureAwait(true);
+        await Editor.LoadJumpHostsAsync(cancellationToken).ConfigureAwait(true);
     }
 }

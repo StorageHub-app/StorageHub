@@ -140,6 +140,104 @@ public sealed class RecursiveTransferControllerTests
         Assert.Equal(mutations.EnsuredPaths.Count, reported[^1].Folders);
     }
 
+    /// <summary>
+    /// A folder copied onto one that already holds two of its files, one of them two levels down,
+    /// is asked about once, at the first, and the answer is applied to both.
+    /// </summary>
+    [Theory]
+    [InlineData(TransferConflictChoice.Skip)]
+    [InlineData(TransferConflictChoice.Rename)]
+    [InlineData(TransferConflictChoice.Overwrite)]
+    public async Task Files_already_anywhere_in_the_destination_tree_are_asked_about_once(TransferConflictChoice answer)
+    {
+        var sourceId = Guid.NewGuid();
+        var destinationId = Guid.NewGuid();
+        var storage = new FakeStorageClient(
+            sourceId,
+            destinationId,
+            "source-root",
+            "destination-root",
+            destinationExisting:
+            [
+                FakeStorageClient.Item("root.txt", "destination/folder/root.txt", StorageItemKind.File, 4, "dest-root-v1"),
+                FakeStorageClient.Item("nested", "destination/folder/nested", StorageItemKind.Directory),
+                FakeStorageClient.Item("child.bin", "destination/folder/nested/child.bin", StorageItemKind.File, 8, "dest-child-v1")
+            ]);
+        var queue = new FakeTransferClient();
+        await using var transfers = new ManualTransferController(queue);
+        await using var controller = new RecursiveTransferController(transfers, storage, new FakeMutationClient());
+        var asked = new List<string>();
+        var conflicts = new TransferConflictPolicy((existing, _) =>
+        {
+            asked.Add(existing.RelativePath);
+            return Task.FromResult<TransferConflictChoice?>(answer);
+        });
+
+        var result = await controller.EnqueueAsync(
+            CreateFolderSelection(sourceId, "source-root"),
+            CreateDestination(destinationId, "destination-root"),
+            TransferQueueOperation.Copy,
+            progress: null,
+            conflicts,
+            stop: default,
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess, result.Failure?.Message);
+        Assert.Equal(["destination/folder/root.txt"], asked);
+        switch (answer)
+        {
+            case TransferConflictChoice.Skip:
+                Assert.Empty(queue.Requests);
+                Assert.Equal(2, conflicts.Skipped);
+                break;
+            case TransferConflictChoice.Rename:
+                Assert.Equal(
+                    ["destination/folder/root (1).txt", "destination/folder/nested/child (1).bin"],
+                    queue.Requests.Select(static request => request.Destination.RelativePath));
+                Assert.All(queue.Requests, static request => Assert.Null(request.ExpectedDestinationVersionId));
+                Assert.Equal(2, conflicts.Renamed);
+                break;
+            default:
+                Assert.Equal(
+                    ["dest-root-v1", "dest-child-v1"],
+                    queue.Requests.Select(static request => request.ExpectedDestinationVersionId));
+                Assert.Equal(0, conflicts.Skipped + conflicts.Renamed);
+                break;
+        }
+    }
+
+    [Fact]
+    public async Task Cancelling_the_question_stops_the_walk_without_queueing_the_file_it_was_about()
+    {
+        var sourceId = Guid.NewGuid();
+        var destinationId = Guid.NewGuid();
+        var storage = new FakeStorageClient(
+            sourceId,
+            destinationId,
+            "source-root",
+            "destination-root",
+            destinationExisting:
+            [
+                FakeStorageClient.Item("root.txt", "destination/folder/root.txt", StorageItemKind.File, 4, "dest-root-v1")
+            ]);
+        var queue = new FakeTransferClient();
+        await using var transfers = new ManualTransferController(queue);
+        await using var controller = new RecursiveTransferController(transfers, storage, new FakeMutationClient());
+
+        var result = await controller.EnqueueAsync(
+            CreateFolderSelection(sourceId, "source-root"),
+            CreateDestination(destinationId, "destination-root"),
+            TransferQueueOperation.Copy,
+            progress: null,
+            new TransferConflictPolicy(static (_, _) => Task.FromResult<TransferConflictChoice?>(null)),
+            stop: default,
+            CancellationToken.None);
+
+        Assert.Equal("manual_transfer.conflict_cancelled", result.Failure?.Code);
+        Assert.Equal(Contracts.Results.StorageFailureKind.Cancelled, result.Failure?.Kind);
+        Assert.Empty(queue.Requests);
+    }
+
     private static PaneSelectionSnapshot CreateFolderSelection(Guid connectionId, string rootIdentity)
     {
         var context = PaneTransferContext.Create(
@@ -170,7 +268,8 @@ public sealed class RecursiveTransferControllerTests
         string sourceRoot,
         string destinationRoot,
         bool repeatSourcePageToken = false,
-        bool sourceKindCollision = false) : IRemoteStorageAgentClient
+        bool sourceKindCollision = false,
+        StorageListItem[]? destinationExisting = null) : IRemoteStorageAgentClient
     {
         public int SourceListCount { get; private set; }
 
@@ -214,6 +313,17 @@ public sealed class RecursiveTransferControllerTests
 
             Assert.Equal(destinationId, request.ConnectionId);
             Assert.Equal("destination/folder", request.RelativePath);
+            if (destinationExisting is not null)
+            {
+                return Task.FromResult(new StorageListPageResponse(
+                    StorageIpcContract.CurrentVersion,
+                    destinationId,
+                    request.RelativePath,
+                    destinationExisting,
+                    ContinuationToken: null,
+                    RootIdentity: destinationRoot));
+            }
+
             return Task.FromResult(new StorageListPageResponse(
                 StorageIpcContract.CurrentVersion,
                 destinationId,
@@ -230,7 +340,7 @@ public sealed class RecursiveTransferControllerTests
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
-        private static StorageListItem Item(
+        internal static StorageListItem Item(
             string name,
             string path,
             StorageItemKind kind,

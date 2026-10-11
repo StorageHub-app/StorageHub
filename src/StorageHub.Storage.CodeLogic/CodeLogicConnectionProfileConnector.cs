@@ -45,7 +45,8 @@ public sealed class CodeLogicConnectionProfileConnector : IAsyncDisposable
         ITrustStore trustStore,
         IRuntimeSecretFileMaterializer secretFileMaterializer,
         TimeProvider? timeProvider = null,
-        TimeSpan? idleLifetime = null)
+        TimeSpan? idleLifetime = null,
+        Func<ConnectionProfileId, CancellationToken, ValueTask<ConnectionProfile?>>? profileLookup = null)
     {
         _sessionFactory = sessionFactory ?? throw new ArgumentNullException(nameof(sessionFactory));
         _timeProvider = timeProvider ?? TimeProvider.System;
@@ -54,7 +55,8 @@ public sealed class CodeLogicConnectionProfileConnector : IAsyncDisposable
             secretVault,
             trustStore,
             secretFileMaterializer,
-            _timeProvider);
+            _timeProvider,
+            profileLookup);
     }
 
     /// <summary>
@@ -287,13 +289,20 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
     private readonly ITrustStore _trustStore;
     private readonly IRuntimeSecretFileMaterializer _secretFileMaterializer;
     private readonly TimeProvider _timeProvider;
+    private readonly Func<ConnectionProfileId, CancellationToken, ValueTask<ConnectionProfile?>>? _profileLookup;
 
+    /// <param name="profileLookup">
+    /// Reads another saved connection, for an SFTP connection's jump host. Null leaves jump hosts
+    /// unavailable, which refuses a connection that names one.
+    /// </param>
     internal CodeLogicConnectionConfigurationBuilder(
         ISecretVault secretVault,
         ITrustStore trustStore,
         IRuntimeSecretFileMaterializer secretFileMaterializer,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        Func<ConnectionProfileId, CancellationToken, ValueTask<ConnectionProfile?>>? profileLookup = null)
     {
+        _profileLookup = profileLookup;
         _secretVault = secretVault ?? throw new ArgumentNullException(nameof(secretVault));
         _trustStore = trustStore ?? throw new ArgumentNullException(nameof(trustStore));
         _secretFileMaterializer = secretFileMaterializer ??
@@ -312,9 +321,9 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
                 "The connection profile is disabled or deleted.");
         }
 
-        // FTP takes a connect and a read timeout of its own; S3 and SFTP have one timeout for both.
+        // FTP takes a connect and a read timeout of its own; S3, SFTP and Azure have one timeout for both.
         var usesHistoricalEditorDefaults = UsesHistoricalEditorDefaults(profile.OperationalOptions);
-        if (profile.Provider is ConnectionProviderKind.S3 or ConnectionProviderKind.Sftp &&
+        if (profile.Provider is ConnectionProviderKind.S3 or ConnectionProviderKind.Sftp or ConnectionProviderKind.AzureBlob &&
             profile.OperationalOptions.ConnectTimeout != profile.OperationalOptions.OperationTimeout &&
             !usesHistoricalEditorDefaults)
         {
@@ -354,6 +363,14 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
                 SftpEndpoint sftp => await BuildSftpAsync(
                     profile, sftp, runtimeResources, rootIdentityEvidence, cancellationToken)
                     .ConfigureAwait(false),
+                WebDavEndpoint webDav => await BuildWebDavAsync(
+                    profile, webDav, rootIdentityEvidence, cancellationToken).ConfigureAwait(false),
+                AzureBlobEndpoint azure => await BuildAzureBlobAsync(
+                    profile, azure, rootIdentityEvidence, cancellationToken).ConfigureAwait(false),
+                GoogleCloudStorageEndpoint gcs => await BuildGoogleCloudStorageAsync(
+                    profile, gcs, rootIdentityEvidence, cancellationToken).ConfigureAwait(false),
+                SwiftEndpoint swift => await BuildSwiftAsync(
+                    profile, swift, rootIdentityEvidence, cancellationToken).ConfigureAwait(false),
                 _ => throw new UnsupportedProfileException("The connection provider is not supported by this adapter.")
             };
 
@@ -574,6 +591,7 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
                 "Trust-on-first-use host-key capture is unavailable; verify and pin the SSH host key explicitly.");
         }
 
+        var options = endpoint.ServerOptions;
         var configuration = new SftpConnectionConfig
         {
             Enabled = true,
@@ -589,14 +607,27 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
                 endpoint.Port,
                 "sftp.host-key",
                 rootIdentityEvidence,
-                cancellationToken).ConfigureAwait(false)
+                cancellationToken).ConfigureAwait(false),
+            KeyExchangeAlgorithms = [.. SftpServerOptions.Split(options.KeyExchangeAlgorithms)],
+            Ciphers = [.. SftpServerOptions.Split(options.Ciphers)],
+            MacAlgorithms = [.. SftpServerOptions.Split(options.MacAlgorithms)],
+            HostKeyAlgorithms = [.. SftpServerOptions.Split(options.HostKeyAlgorithms)]
         };
+        if (options.MaximumSessions is { } sessions)
+        {
+            configuration.Session.MaxSessions = sessions;
+            configuration.Session.MaxIdleSessions = Math.Min(configuration.Session.MaxIdleSessions, sessions);
+        }
+
+        configuration.Session.KeepAliveSeconds = options.KeepAliveSeconds ?? 0;
 
         switch (profile.Authentication)
         {
             case UsernamePasswordAuthentication password:
                 configuration.Username = password.Username;
-                configuration.AuthenticationMode = SftpAuthenticationMode.Password;
+                // Auto offers the password as itself and then to the server's keyboard-interactive
+                // prompt, as OpenSSH does, so a server that only asks through PAM still signs in.
+                configuration.AuthenticationMode = SftpAuthenticationMode.Auto;
                 configuration.Password = await OpenTextSecretAsync(
                     password.PasswordReference,
                     "sftp.password",
@@ -606,52 +637,493 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
             case SftpPrivateKeyAuthentication privateKey:
                 configuration.Username = privateKey.Username;
                 configuration.AuthenticationMode = SftpAuthenticationMode.PrivateKey;
-                // A key without a passphrase has no passphrase reference, and nothing is opened
-                // for it. The library and SSH.NET read a null passphrase as "the key has none".
-                string? privateKeyPassphrase = privateKey.PassphraseReference is { } passphraseReference
-                    ? await OpenTextSecretAsync(
-                        passphraseReference,
-                        "sftp.private-key-passphrase",
-                        rootIdentityEvidence,
-                        cancellationToken).ConfigureAwait(false)
-                    : null;
-                await using (var lease = await _secretVault
-                    .OpenAsync(privateKey.PrivateKeyReference, cancellationToken)
-                    .ConfigureAwait(false))
-                {
-                    rootIdentityEvidence.AddSecret(
-                        "sftp.private-key",
-                        privateKey.PrivateKeyReference,
-                        lease.Version);
-                    switch (PrivateKeyEncryptionValidator.Validate(
-                        lease.Memory.Span,
-                        privateKeyPassphrase,
-                        privateKey.KeyFormat))
-                    {
-                        case PrivateKeyValidationResult.Unencrypted:
-                            // A passphrase kept for a key that has none unlocks nothing, so it is
-                            // not handed on: the key is used as it is.
-                            privateKeyPassphrase = null;
-                            break;
-                        case PrivateKeyValidationResult.Invalid:
-                            throw new InvalidPrivateKeyException();
-                    }
-
-                    var material = await _secretFileMaterializer.MaterializeAsync(
-                        lease.Memory,
-                        privateKey.KeyFormat == SftpPrivateKeyFormat.OpenSsh ? ".key" : ".pem",
-                        cancellationToken).ConfigureAwait(false);
-                    runtimeResources.Add(material);
-                    configuration.PrivateKeyPath = material.FullPath;
-                }
-
-                configuration.PrivateKeyPassphrase = privateKeyPassphrase;
+                (configuration.PrivateKeyContent, configuration.PrivateKeyPassphrase) = await OpenPrivateKeyAsync(
+                    privateKey.PrivateKeyReference,
+                    privateKey.PassphraseReference,
+                    privateKey.KeyFormat,
+                    "sftp.private-key",
+                    rootIdentityEvidence,
+                    cancellationToken).ConfigureAwait(false);
+                break;
+            case SshPrivateKeyPasswordAuthentication keyAndPassword:
+                // A server that wants both gets the key first and then the password, in the order
+                // OpenSSH offers them.
+                configuration.Username = keyAndPassword.Username;
+                configuration.AuthenticationMode = SftpAuthenticationMode.Auto;
+                (configuration.PrivateKeyContent, configuration.PrivateKeyPassphrase) = await OpenPrivateKeyAsync(
+                    keyAndPassword.PrivateKeyReference,
+                    keyAndPassword.PassphraseReference,
+                    keyAndPassword.KeyFormat,
+                    "sftp.private-key",
+                    rootIdentityEvidence,
+                    cancellationToken).ConfigureAwait(false);
+                configuration.Password = await OpenTextSecretAsync(
+                    keyAndPassword.PasswordReference,
+                    "sftp.password",
+                    rootIdentityEvidence,
+                    cancellationToken).ConfigureAwait(false);
                 break;
             default:
                 throw new UnsupportedProfileException("The selected SFTP authentication mode is unsupported.");
         }
 
+        if (options.JumpConnectionId is { } jumpId)
+        {
+            configuration.JumpHost = await BuildJumpHostAsync(profile, jumpId, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
         return configuration;
+    }
+
+    /// <summary>
+    /// The jump host an SFTP connection is tunnelled through, taken from the saved SFTP or SSH
+    /// connection it names: that connection's address, its pinned host key and its sign-in.
+    /// </summary>
+    /// <remarks>
+    /// Nothing here goes into the root identity. Which server is reached, and so which files are
+    /// seen, is the connection's own host; the route to it is not. A connection that goes through
+    /// a jump host of its own is refused: the storage library opens one tunnel, not a chain.
+    /// </remarks>
+    private async ValueTask<SftpJumpHostConfig> BuildJumpHostAsync(
+        ConnectionProfile profile,
+        ConnectionProfileId jumpId,
+        CancellationToken cancellationToken)
+    {
+        var jump = _profileLookup is null
+            ? null
+            : await _profileLookup(jumpId, cancellationToken).ConfigureAwait(false);
+        if (jump is null || !jump.IsEnabled || jump.DeletedUtc is not null || jump.Id == profile.Id)
+        {
+            throw new UnsupportedProfileException("The jump host is not a saved, enabled connection.");
+        }
+
+        var (host, port, policy) = jump.Endpoint switch
+        {
+            SftpEndpoint { ServerOptions.JumpConnectionId: not null } => throw new UnsupportedProfileException(
+                "The jump host goes through a jump host of its own, which is not supported."),
+            SftpEndpoint sftp => (sftp.Host, sftp.Port, sftp.HostKeyPolicy),
+            SshClientEndpoint ssh => (ssh.Host, ssh.Port, ssh.HostKeyPolicy),
+            _ => throw new UnsupportedProfileException("The jump host must be an SFTP or SSH connection.")
+        };
+        if (policy == SshHostKeyPolicy.TrustOnFirstUse)
+        {
+            throw new UnsupportedProfileException(
+                "Trust-on-first-use host-key capture is unavailable; pin the jump host's SSH host key explicitly.");
+        }
+
+        var jumpHost = new SftpJumpHostConfig
+        {
+            Host = host,
+            Port = port,
+            HostKeyFingerprints = await GetTrustedFingerprintsAsync(
+                TrustArtifactKind.SshHostKey,
+                host,
+                port,
+                "sftp.jump-host-key",
+                new RootIdentityEvidence(),
+                cancellationToken).ConfigureAwait(false)
+        };
+        switch (jump.Authentication)
+        {
+            case UsernamePasswordAuthentication password:
+                jumpHost.Username = password.Username;
+                jumpHost.Password = await OpenTextSecretAsync(
+                    password.PasswordReference, "sftp.jump-password", null, cancellationToken).ConfigureAwait(false);
+                break;
+            case SftpPrivateKeyAuthentication privateKey:
+                jumpHost.Username = privateKey.Username;
+                (jumpHost.PrivateKeyContent, jumpHost.PrivateKeyPassphrase) = await OpenPrivateKeyAsync(
+                    privateKey.PrivateKeyReference,
+                    privateKey.PassphraseReference,
+                    privateKey.KeyFormat,
+                    "sftp.jump-private-key",
+                    null,
+                    cancellationToken).ConfigureAwait(false);
+                break;
+            case SshPrivateKeyPasswordAuthentication keyAndPassword:
+                jumpHost.Username = keyAndPassword.Username;
+                (jumpHost.PrivateKeyContent, jumpHost.PrivateKeyPassphrase) = await OpenPrivateKeyAsync(
+                    keyAndPassword.PrivateKeyReference,
+                    keyAndPassword.PassphraseReference,
+                    keyAndPassword.KeyFormat,
+                    "sftp.jump-private-key",
+                    null,
+                    cancellationToken).ConfigureAwait(false);
+                jumpHost.Password = await OpenTextSecretAsync(
+                    keyAndPassword.PasswordReference, "sftp.jump-password", null, cancellationToken).ConfigureAwait(false);
+                break;
+            default:
+                throw new UnsupportedProfileException("The jump host's sign-in is not one SSH can use.");
+        }
+
+        return jumpHost;
+    }
+
+    /// <summary>
+    /// Opens an SSH private key and its passphrase from the vault, checked before the SSH library
+    /// sees them, as the text the library reads the key from. The key is handed over in memory:
+    /// nothing is written to disk for it.
+    /// </summary>
+    /// <param name="rootIdentityEvidence">
+    /// Where the key's revision is recorded when it decides what the connection sees, or null for
+    /// a jump host's, which only decides the route.
+    /// </param>
+    private async ValueTask<(string Key, string? Passphrase)> OpenPrivateKeyAsync(
+        SecretReference keyReference,
+        SecretReference? passphraseReference,
+        SftpPrivateKeyFormat format,
+        string role,
+        RootIdentityEvidence? rootIdentityEvidence,
+        CancellationToken cancellationToken)
+    {
+        // A key without a passphrase has no passphrase reference, and nothing is opened for it.
+        // The library and SSH.NET read a null passphrase as "the key has none".
+        var passphrase = passphraseReference is { } reference
+            ? await OpenTextSecretAsync(
+                reference,
+                role + "-passphrase",
+                rootIdentityEvidence,
+                cancellationToken).ConfigureAwait(false)
+            : null;
+        await using var lease = await _secretVault.OpenAsync(keyReference, cancellationToken).ConfigureAwait(false);
+        rootIdentityEvidence?.AddSecret(role, keyReference, lease.Version);
+        switch (PrivateKeyEncryptionValidator.Validate(lease.Memory.Span, passphrase, format))
+        {
+            case PrivateKeyValidationResult.Unencrypted:
+                // A passphrase kept for a key that has none unlocks nothing, so it is not handed
+                // on: the key is used as it is.
+                passphrase = null;
+                break;
+            case PrivateKeyValidationResult.Invalid:
+                throw new InvalidPrivateKeyException();
+        }
+
+        // Every supported envelope is PEM text, which the validator has just read as such.
+        return (StrictUtf8.GetString(lease.Memory.Span), passphrase);
+    }
+
+    /// <summary>
+    /// A WebDAV server, its certificate trusted the way an FTPS server's is: by the system, or by
+    /// the fingerprints pinned for the URL's host and port, which CL.Storage then accepts even for a
+    /// self-signed certificate, as it does for FTPS.
+    /// </summary>
+    /// <remarks>
+    /// A client certificate is handed over as bytes rather than written to a file: WebDAV's
+    /// configuration takes the PFX itself, so nothing is materialised on disk for it at all.
+    /// </remarks>
+    private async ValueTask<WebDavConnectionConfig> BuildWebDavAsync(
+        ConnectionProfile profile,
+        WebDavEndpoint endpoint,
+        RootIdentityEvidence rootIdentityEvidence,
+        CancellationToken cancellationToken)
+    {
+        if (endpoint.TlsPolicy == TlsCertificatePolicy.TrustOnFirstUse)
+        {
+            throw new UnsupportedProfileException(
+                "Trust-on-first-use certificate capture is unavailable; verify and pin the certificate explicitly.");
+        }
+
+        var configuration = new WebDavConnectionConfig
+        {
+            Enabled = true,
+            Endpoint = endpoint.ServerUrl.AbsoluteUri,
+            Root = endpoint.RootPath,
+            AllowInsecureHttp = endpoint.AllowInsecureHttp,
+            // One HTTP timeout bounds a whole request, an upload's body included, so it is the
+            // operation timeout rather than the connect one.
+            TimeoutSeconds = OperationTimeoutSeconds(profile),
+            Retry = LibraryRetry(profile),
+            TrustedCertificateSha256 = endpoint.TlsPolicy == TlsCertificatePolicy.SystemTrust
+                ? []
+                : await GetTrustedFingerprintsAsync(
+                    TrustArtifactKind.TlsCertificate,
+                    endpoint.Host,
+                    endpoint.Port,
+                    "webdav.server-certificate",
+                    rootIdentityEvidence,
+                    cancellationToken).ConfigureAwait(false)
+        };
+
+        switch (profile.Authentication)
+        {
+            case NoAuthentication:
+                configuration.AuthenticationMode = WebDavAuthenticationMode.None;
+                break;
+            case UsernamePasswordAuthentication password:
+                configuration.AuthenticationMode = endpoint.CredentialScheme switch
+                {
+                    HttpCredentialScheme.Digest => WebDavAuthenticationMode.Digest,
+                    HttpCredentialScheme.Ntlm => WebDavAuthenticationMode.Ntlm,
+                    HttpCredentialScheme.Negotiate => WebDavAuthenticationMode.Negotiate,
+                    _ => WebDavAuthenticationMode.Basic
+                };
+                configuration.Username = password.Username;
+                configuration.Password = await OpenTextSecretAsync(
+                    password.PasswordReference,
+                    "webdav.password",
+                    rootIdentityEvidence,
+                    cancellationToken).ConfigureAwait(false);
+                break;
+            case BearerTokenAuthentication bearer:
+                configuration.AuthenticationMode = WebDavAuthenticationMode.BearerToken;
+                configuration.BearerToken = await OpenTextSecretAsync(
+                    bearer.TokenReference,
+                    "webdav.bearer-token",
+                    rootIdentityEvidence,
+                    cancellationToken).ConfigureAwait(false);
+                break;
+            default:
+                throw new UnsupportedProfileException("The selected WebDAV authentication mode is unsupported.");
+        }
+
+        if (endpoint.ClientCertificatePfxReference is { } pfxReference)
+        {
+            await using (var lease = await _secretVault.OpenAsync(pfxReference, cancellationToken).ConfigureAwait(false))
+            {
+                rootIdentityEvidence.AddSecret("webdav.client-certificate", pfxReference, lease.Version);
+                configuration.ClientCertificateContent = lease.Memory.ToArray();
+            }
+
+            configuration.ClientCertificatePassword = endpoint.ClientCertificatePasswordReference is { } passwordReference
+                ? await OpenTextSecretAsync(
+                    passwordReference,
+                    "webdav.client-certificate-password",
+                    rootIdentityEvidence,
+                    cancellationToken).ConfigureAwait(false)
+                : null;
+        }
+
+        return configuration;
+    }
+
+    /// <summary>
+    /// An Azure Blob container, signed in to with a shared key, a SAS token, a connection string or
+    /// the agent's Azure identity, every secret read from the vault just before it is handed over.
+    /// </summary>
+    /// <remarks>
+    /// CL.Storage sends a key, a token or an identity only to an HTTPS service URL, which the
+    /// endpoint already insists on. A connection string names its own endpoint, so whether it is
+    /// plain HTTP, as an Azurite emulator's is, can only be seen here, once it is open: one that is
+    /// and was not acknowledged on the connection is refused before anything is sent.
+    /// </remarks>
+    private async ValueTask<AzureBlobConnectionConfig> BuildAzureBlobAsync(
+        ConnectionProfile profile,
+        AzureBlobEndpoint endpoint,
+        RootIdentityEvidence rootIdentityEvidence,
+        CancellationToken cancellationToken)
+    {
+        var configuration = new AzureBlobConnectionConfig
+        {
+            Enabled = true,
+            Container = endpoint.Container,
+            Prefix = endpoint.RootPrefix,
+            ServiceUri = endpoint.ServiceUri?.AbsoluteUri,
+            // The Azure SDK's network timeout bounds each read and write, not a whole transfer, so
+            // it is the connection timeout, as S3's is; its retries count after the first try.
+            TimeoutSeconds = TimeoutSeconds(profile),
+            MaxRetries = Math.Max(0, profile.OperationalOptions.Retry.MaximumAttempts - 1)
+        };
+
+        switch (profile.Authentication)
+        {
+            case AmbientCredentialAuthentication:
+                configuration.AuthenticationMode = AzureBlobAuthenticationMode.DefaultCredential;
+                break;
+            case AzureSharedKeyAuthentication sharedKey:
+                configuration.AuthenticationMode = AzureBlobAuthenticationMode.SharedKey;
+                configuration.AccountName = sharedKey.AccountName;
+                configuration.AccountKey = await OpenTextSecretAsync(
+                    sharedKey.AccountKeyReference,
+                    "azure.account-key",
+                    rootIdentityEvidence,
+                    cancellationToken).ConfigureAwait(false);
+                break;
+            case AzureSasTokenAuthentication sas:
+                configuration.AuthenticationMode = AzureBlobAuthenticationMode.SasToken;
+                configuration.SasToken = await OpenTextSecretAsync(
+                    sas.SasTokenReference,
+                    "azure.sas-token",
+                    rootIdentityEvidence,
+                    cancellationToken).ConfigureAwait(false);
+                break;
+            case AzureConnectionStringAuthentication connectionString:
+                configuration.AuthenticationMode = AzureBlobAuthenticationMode.ConnectionString;
+                configuration.ConnectionString = await OpenTextSecretAsync(
+                    connectionString.ConnectionStringReference,
+                    "azure.connection-string",
+                    rootIdentityEvidence,
+                    cancellationToken).ConfigureAwait(false);
+                if (!endpoint.AllowInsecureHttp && AzureConnectionStringNamesPlainHttp(configuration.ConnectionString))
+                {
+                    configuration.ConnectionString = null;
+                    throw new UnsupportedProfileException(
+                        "The connection string names a plain-HTTP endpoint, which the connection does not allow. Allow plain HTTP on it, or use an https endpoint.");
+                }
+
+                break;
+            default:
+                throw new UnsupportedProfileException("The selected Azure Blob authentication mode is unsupported.");
+        }
+
+        return configuration;
+    }
+
+    /// <summary>
+    /// A Google Cloud Storage bucket, signed in to with a service-account key from the vault, with
+    /// the agent's Application Default Credentials, or not at all for a public bucket or an emulator.
+    /// </summary>
+    /// <remarks>
+    /// The key goes over inline, never as a path: CL.Storage reads the JSON from the configuration,
+    /// so nothing is written to disk. Google's client keeps its own request timeout and retry
+    /// policy, which CL.Storage does not expose, so the profile's are not handed over; the editor
+    /// and Settings keep them at what the client does.
+    /// </remarks>
+    private async ValueTask<GoogleCloudConnectionConfig> BuildGoogleCloudStorageAsync(
+        ConnectionProfile profile,
+        GoogleCloudStorageEndpoint endpoint,
+        RootIdentityEvidence rootIdentityEvidence,
+        CancellationToken cancellationToken)
+    {
+        var configuration = new GoogleCloudConnectionConfig
+        {
+            Enabled = true,
+            Bucket = endpoint.Bucket,
+            Prefix = endpoint.RootPrefix,
+            ServiceUrl = endpoint.ServiceUri?.AbsoluteUri,
+            AllowInsecureHttp = endpoint.AllowInsecureHttp
+        };
+
+        switch (profile.Authentication)
+        {
+            case NoAuthentication:
+                configuration.AuthenticationMode = GoogleCloudAuthenticationMode.Anonymous;
+                break;
+            case AmbientCredentialAuthentication:
+                configuration.AuthenticationMode = GoogleCloudAuthenticationMode.ApplicationDefaultCredentials;
+                break;
+            case GoogleServiceAccountAuthentication serviceAccount:
+                configuration.AuthenticationMode = GoogleCloudAuthenticationMode.ServiceAccountJson;
+                configuration.CredentialsJson = await OpenTextSecretAsync(
+                    serviceAccount.ServiceAccountJsonReference,
+                    "gcs.service-account",
+                    rootIdentityEvidence,
+                    cancellationToken).ConfigureAwait(false);
+                break;
+            default:
+                throw new UnsupportedProfileException("The selected Cloud Storage authentication mode is unsupported.");
+        }
+
+        return configuration;
+    }
+
+    /// <summary>
+    /// An OpenStack Swift container, signed in to with a Keystone v3 password, a TempAuth user name
+    /// and password, or a pre-issued token, each secret read from the vault just before it is
+    /// handed over.
+    /// </summary>
+    /// <remarks>
+    /// CL.Storage gives Swift one HTTP timeout, for each whole request, an upload's body included,
+    /// so it is the operation timeout, as WebDAV's is. It does not retry, and it trusts the system's
+    /// certificate authorities only.
+    /// </remarks>
+    private async ValueTask<SwiftConnectionConfig> BuildSwiftAsync(
+        ConnectionProfile profile,
+        SwiftEndpoint endpoint,
+        RootIdentityEvidence rootIdentityEvidence,
+        CancellationToken cancellationToken)
+    {
+        var configuration = new SwiftConnectionConfig
+        {
+            Enabled = true,
+            Container = endpoint.Container,
+            Prefix = endpoint.RootPrefix,
+            AuthenticationUrl = endpoint.AuthenticationUrl?.AbsoluteUri,
+            StorageUrl = endpoint.StorageUrl?.AbsoluteUri,
+            Region = endpoint.Region,
+            AllowInsecureHttp = endpoint.AllowInsecureHttp,
+            TimeoutSeconds = OperationTimeoutSeconds(profile)
+        };
+
+        switch (profile.Authentication)
+        {
+            case KeystonePasswordAuthentication keystone:
+                configuration.AuthenticationMode = SwiftAuthenticationMode.KeystoneV3Password;
+                configuration.Username = keystone.Username;
+                configuration.ProjectName = keystone.ProjectName;
+                configuration.UserDomainName = keystone.UserDomainName;
+                configuration.ProjectDomainName = keystone.ProjectDomainName;
+                configuration.Password = await OpenTextSecretAsync(
+                    keystone.PasswordReference,
+                    "swift.password",
+                    rootIdentityEvidence,
+                    cancellationToken).ConfigureAwait(false);
+                break;
+            case UsernamePasswordAuthentication tempAuth:
+                configuration.AuthenticationMode = SwiftAuthenticationMode.TempAuthV1;
+                configuration.Username = tempAuth.Username;
+                configuration.Password = await OpenTextSecretAsync(
+                    tempAuth.PasswordReference,
+                    "swift.password",
+                    rootIdentityEvidence,
+                    cancellationToken).ConfigureAwait(false);
+                break;
+            case BearerTokenAuthentication token:
+                configuration.AuthenticationMode = SwiftAuthenticationMode.StaticToken;
+                configuration.Token = await OpenTextSecretAsync(
+                    token.TokenReference,
+                    "swift.token",
+                    rootIdentityEvidence,
+                    cancellationToken).ConfigureAwait(false);
+                break;
+            default:
+                throw new UnsupportedProfileException("The selected Swift authentication mode is unsupported.");
+        }
+
+        return configuration;
+    }
+
+    /// <summary>
+    /// Whether an Azure Storage connection string sends its blob requests in plain HTTP: an
+    /// explicit <c>BlobEndpoint</c> that is not https, the development-storage shortcut (Azurite on
+    /// loopback), or <c>DefaultEndpointsProtocol=http</c>. A blob endpoint that cannot be read
+    /// counts as plain, so a malformed string is refused rather than trusted.
+    /// </summary>
+    internal static bool AzureConnectionStringNamesPlainHttp(string connectionString)
+    {
+        string? blobEndpoint = null;
+        string? protocol = null;
+        var development = false;
+        foreach (var part in connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var separator = part.IndexOf('=', StringComparison.Ordinal);
+            if (separator <= 0)
+            {
+                continue;
+            }
+
+            var key = part[..separator].Trim();
+            var value = part[(separator + 1)..].Trim();
+            if (key.Equals("BlobEndpoint", StringComparison.OrdinalIgnoreCase))
+            {
+                blobEndpoint = value;
+            }
+            else if (key.Equals("DefaultEndpointsProtocol", StringComparison.OrdinalIgnoreCase))
+            {
+                protocol = value;
+            }
+            else if (key.Equals("UseDevelopmentStorage", StringComparison.OrdinalIgnoreCase))
+            {
+                development = value.Equals("true", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        if (blobEndpoint is not null)
+        {
+            return !(Uri.TryCreate(blobEndpoint, UriKind.Absolute, out var url) && url.Scheme == Uri.UriSchemeHttps);
+        }
+
+        return development || string.Equals(protocol, "http", StringComparison.OrdinalIgnoreCase);
     }
 
     private static FtpConnectionConfig BuildFtpBase(
@@ -837,6 +1309,10 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
                     "Active FTP cannot go through a proxy: the server would connect back around it. Use passive mode."),
             FtpConnectionConfig ftp => ftp.Proxy,
             SftpConnectionConfig sftp => sftp.Proxy,
+            WebDavConnectionConfig webDav => webDav.Proxy,
+            AzureBlobConnectionConfig azure => azure.Proxy,
+            GoogleCloudConnectionConfig gcs => gcs.Proxy,
+            SwiftConnectionConfig swift => swift.Proxy,
             _ => throw new UnsupportedProfileException("A local connection cannot use a proxy.")
         };
 
@@ -914,6 +1390,30 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
             case SftpEndpoint sftp:
                 AppendNetworkNamespace(hash, sftp.Host, sftp.Port, sftp.RootPath);
                 break;
+            case WebDavEndpoint webDav:
+                // The URL's path is part of where the files are, not only its host and port.
+                AppendIdentityValue(hash, webDav.ServerUrl.AbsoluteUri);
+                AppendIdentityValue(hash, webDav.RootPath);
+                break;
+            case AzureBlobEndpoint azure:
+                // A connection string's endpoint is inside the secret, whose revision is evidence below.
+                AppendIdentityValue(hash, azure.ServiceUri?.AbsoluteUri);
+                AppendIdentityValue(hash, azure.Container);
+                AppendIdentityValue(hash, azure.RootPrefix);
+                break;
+            case GoogleCloudStorageEndpoint gcs:
+                AppendIdentityValue(hash, gcs.ServiceUri?.AbsoluteUri);
+                AppendIdentityValue(hash, gcs.Bucket);
+                AppendIdentityValue(hash, gcs.RootPrefix);
+                break;
+            case SwiftEndpoint swift:
+                // Keystone's catalog names the account from the project, which is part of the sign-in below.
+                AppendIdentityValue(hash, swift.AuthenticationUrl?.AbsoluteUri);
+                AppendIdentityValue(hash, swift.StorageUrl?.AbsoluteUri);
+                AppendIdentityValue(hash, swift.Region);
+                AppendIdentityValue(hash, swift.Container);
+                AppendIdentityValue(hash, swift.RootPrefix);
+                break;
         }
 
         switch (profile.Authentication)
@@ -935,10 +1435,41 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
             case S3AccessKeyAuthentication:
                 AppendIdentityValue(hash, "s3-static-credentials");
                 break;
+            case BearerTokenAuthentication:
+                AppendIdentityValue(hash, "bearer-token");
+                break;
+            case AmbientCredentialAuthentication:
+                AppendIdentityValue(hash, "ambient-credential");
+                break;
+            case AzureSharedKeyAuthentication sharedKey:
+                AppendIdentityValue(hash, "azure-shared-key");
+                AppendIdentityValue(hash, sharedKey.AccountName);
+                break;
+            case AzureSasTokenAuthentication:
+                AppendIdentityValue(hash, "azure-sas-token");
+                break;
+            case AzureConnectionStringAuthentication:
+                AppendIdentityValue(hash, "azure-connection-string");
+                break;
+            case GoogleServiceAccountAuthentication:
+                AppendIdentityValue(hash, "gcs-service-account");
+                break;
+            case KeystonePasswordAuthentication keystone:
+                AppendIdentityValue(hash, "keystone-password");
+                AppendIdentityValue(hash, keystone.Username);
+                AppendIdentityValue(hash, keystone.UserDomainName);
+                AppendIdentityValue(hash, keystone.ProjectName);
+                AppendIdentityValue(hash, keystone.ProjectDomainName);
+                break;
             case SftpPrivateKeyAuthentication privateKey:
                 AppendIdentityValue(hash, "sftp-private-key");
                 AppendIdentityValue(hash, privateKey.Username);
                 AppendIdentityValue(hash, privateKey.KeyFormat.ToString());
+                break;
+            case SshPrivateKeyPasswordAuthentication keyAndPassword:
+                AppendIdentityValue(hash, "ssh-private-key-password");
+                AppendIdentityValue(hash, keyAndPassword.Username);
+                AppendIdentityValue(hash, keyAndPassword.KeyFormat.ToString());
                 break;
         }
 
@@ -1081,7 +1612,39 @@ internal sealed class PreparedCodeLogicConnection(
                 break;
             case SftpConnectionConfig sftp:
                 sftp.Password = null;
+                sftp.PrivateKeyContent = null;
                 sftp.PrivateKeyPassphrase = null;
+                if (sftp.JumpHost is { } jump)
+                {
+                    jump.Password = null;
+                    jump.PrivateKeyContent = null;
+                    jump.PrivateKeyPassphrase = null;
+                }
+
+                break;
+            case WebDavConnectionConfig webDav:
+                webDav.Password = null;
+                webDav.BearerToken = null;
+                webDav.ClientCertificatePassword = null;
+                // CL.Storage registers a copy, serialised and read back, so this array is ours alone.
+                if (webDav.ClientCertificateContent is { } content)
+                {
+                    CryptographicOperations.ZeroMemory(content);
+                    webDav.ClientCertificateContent = null;
+                }
+
+                break;
+            case AzureBlobConnectionConfig azure:
+                azure.AccountKey = null;
+                azure.SasToken = null;
+                azure.ConnectionString = null;
+                break;
+            case GoogleCloudConnectionConfig gcs:
+                gcs.CredentialsJson = null;
+                break;
+            case SwiftConnectionConfig swift:
+                swift.Password = null;
+                swift.Token = null;
                 break;
         }
     }

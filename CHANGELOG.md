@@ -85,6 +85,124 @@ and GitHub's size, and installs it once StorageHub has closed: through
 encrypted in the vault like any other, the library is handed no passphrase for
 it, and importing or choosing one warns that a passphrase is still recommended.
 
+**SFTP reaches more servers.** A connection can go through a jump host, chosen
+from your saved SFTP and SSH connections, each with its own sign-in and pinned
+host key. A server that only signs in through keyboard-interactive prompts is
+answered with the password, as OpenSSH answers it, and one that wants a key and
+then the account password takes both. The editor's Advanced section limits the
+key exchanges, ciphers, MACs and host key types offered, how many sessions are
+opened at once and how often an idle one is kept alive. The private key goes to
+the SSH library in memory rather than as a file in the runtime folder.
+
+**Test a connection before saving it.** The editor's Test connection button
+tests what is in the fields, saved or not, and lists how far it got: the
+settings, the server's identity, the credentials, reaching the server and
+listing the starting folder, each passed, failed, not needed or not reached,
+with what to check when one fails. A fingerprint typed or fetched into the
+editor is trusted for the test, so a new SFTP or FTPS connection can be tested
+before it exists, and an SFTP server with no key yet has its key fetched and
+shown to be checked first. A test refused on the host key offers the key the
+server presents. A pane that fails on a server's key or certificate offers
+Review trust there, which opens the connection's trust settings. Nothing is
+saved by a test and a saved connection's status is not changed by testing edits
+to it.
+
+**See what a connection is talking to.** Live details in the connections panel adds
+a Live connection section under the selected connection: how it is secured, the
+server's system and software, the host key or certificate it presented and
+whether it is trusted, the cipher and key exchange negotiated, the server's
+features, how many sessions are open and the last health check.
+
+**Azure Blob Storage, Google Cloud Storage and OpenStack Swift connections.**
+An Azure container signs in with a shared key, a SAS token, a connection string
+or the computer's own Azure identity. A Google Cloud Storage bucket signs in with
+a service-account key file, Application Default Credentials, or anonymously for
+a public bucket, and can name a private endpoint or an emulator. A Swift
+container signs in with Keystone v3 (user, password, project and optional
+region), TempAuth, or a token you already have plus the storage URL, with the
+request timeout under Advanced. Every key, password and token is kept in the
+encrypted vault, plain HTTP is refused unless you allow it for an emulator or a
+test cluster, and the new connections browse, transfer, export and import like
+any other.
+
+**Compare two panes and copy the differences, and clean up what interrupted
+transfers left behind.** Sync, Compare Panes (Ctrl+D) now opens a Compare
+Folders window that lists what only the left or right folder has, what differs
+by size, time or, if asked, SHA-256 contents, and what is the same. You can
+filter by kind and name, and copy selected differences in either direction as
+normal queued transfers that ask the usual conflict question and never overwrite
+a file that changed since the comparison. Folders on saved connections and on
+this PC can both be compared. A new Tools, Clean Up Leftover Files… lists the
+partial and staged copies, write tests and rename stand-ins left in folders
+StorageHub transferred to, plus copies of files no longer open in the external
+editor, each with its size. It removes only what you select and confirm, and
+leaves anything an unfinished transfer, a running sync or an open editor may
+still need.
+
+**Free space, connection trouble and folders that refresh themselves.** A
+pane's footer ends with the free space behind the folder it shows: for a folder
+on this PC from the drive, for SFTP and FTP connections from the server, and
+nothing where it is not known. Each connection's card in the connections panel
+says when its link to the server is retrying, has been lost or has come back,
+and each change is a Connection line in the activity log. A new setting under
+Settings, Workspace, "Refresh a folder when it changes", off by default, makes a
+pane show changes by itself: a folder on this PC as soon as something in it
+changes, a connection's folder on an interval you choose from 15 seconds to 5
+minutes. Selection and scroll position stay where they were, and a busy pane
+waits until it is done.
+
+**WebDAV connections.** StorageHub now connects to WebDAV servers such as
+Nextcloud, ownCloud, SharePoint and NAS boxes. Enter the folder's URL and sign
+in with Basic, Digest, NTLM, Negotiate, a bearer token or no sign-in at all. The
+server's HTTPS certificate is trusted by the system or pinned the same way as
+for FTPS, and a client certificate from the vault can be added. Plain HTTP works
+only after you allow it on the Trust tab. A request timeout under Advanced can
+be raised for large uploads on slow lines. Reopening a pinned FTPS connection
+for editing no longer loses its pin, and imported connections that rely on a
+client certificate now arrive disabled when that certificate is not available.
+
+**Properties shows permissions, owner and dates, and can change permissions
+and the modified time.** Properties now opens on a folder or a link as well as a
+file, with a General tab listing its kind, size, modified, created and
+last-accessed times, its permissions as both `rwxr-xr-x` and octal, its owner
+and group, and where a link points, each as far as the connection reports it.
+On SFTP and FTP connections, and on local folders, "Change permissions…" opens
+a dialog with read, write and execute boxes for owner, group and others beside
+the octal value, and "Set modified time…" asks for a new time in your own time
+zone. Both are dimmed, with a sentence saying why, where the connection cannot
+make the change, and a server that refuses one says so in words. The window and
+the pane show the new values as soon as the change is made.
+
+**Checksums the server already keeps.** The object inspector has a Checksum
+tab: Get checksum shows the file's SHA-256 and says whether the server reported
+it (S3, FTP, Azure, Google Cloud Storage and Swift can, without the file being
+downloaded) or it was computed from the bytes read, up to 256 MB. Compute from
+the file reads it to check what the server says. Sync scans take a server's
+SHA-256 instead of reading the file when it has one. A verified copy still
+reads back what it wrote, because a server's checksum is its word for the bytes
+rather than a check of them.
+
+**A file already at the destination is a choice.** A copy or a move that meets
+one asks once, at the first, what to do with it and with the rest: overwrite,
+skip, overwrite if the source is newer or if the sizes differ, keep both by
+naming the new one "name (1).ext", or resume a shorter file. Settings, under
+Transfers & sync, can name the answer instead, and the question can save it
+there. A folder copy asks at the first such file however deep it is. Files on
+this PC can now be replaced by a download and can replace a file on a
+connection, each still checked to be the file that was listed.
+
+**An interrupted transfer continues where it stopped.** A download to this
+PC, and an upload to a Local, FTP or SFTP connection, is written to a hidden
+`.storagehub-….partial` file and renamed into place only when it is whole, so
+the destination never holds half a file. When the connection drops, the agent
+restarts or the transfer is paused, the bytes that arrived stay, and the retry
+or the next queueing of the same file reads only the rest. The staged part is
+used only for the same version of the same source to the same place: a source
+that changed since, or staged bytes that no longer match it, start again from
+the beginning, and a checksum the transfer was planned with still covers the
+whole file. Cancelling a transfer removes what it staged. S3 has no append, so
+uploads to it still start again.
+
 **Smaller things that are new.** A pane's FILES bar can be hidden from Pane
 actions and is saved with the workspace, now that the list's right-click menu
 offers everything the bar does. The SSH terminal passes the mouse to a program

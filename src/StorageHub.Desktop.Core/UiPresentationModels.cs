@@ -12,7 +12,11 @@ public enum StorageProviderKind
     Ftp,
     Ftps,
     Sftp,
-    Ssh
+    Ssh,
+    WebDav,
+    AzureBlob,
+    GoogleCloudStorage,
+    OpenStackSwift
 }
 
 public enum ConnectionFieldKind
@@ -89,8 +93,47 @@ public static class ConnectionProviderCatalog
     private static readonly ReadOnlyCollection<string> TrustModes =
         Array.AsReadOnly(new[] { "System trust + hostname", "System trust + certificate pin" });
 
-    private static readonly ReadOnlyCollection<string> SshAuthenticationModes =
-        Array.AsReadOnly(new[] { "Private key reference", "Password reference" });
+    // WebDAV's sign-ins. The first four send the user name and password (Basic with every request,
+    // the others in answer to the server's challenge); the bearer token is sent as it is.
+    private static readonly ReadOnlyCollection<string> WebDavAuthenticationModes =
+        Array.AsReadOnly(new[]
+        {
+            ConnectionEditorDraftFactory.WebDavBasic,
+            "Digest",
+            "NTLM",
+            "Negotiate (Kerberos)",
+            ConnectionEditorDraftFactory.WebDavBearerToken,
+            ConnectionEditorDraftFactory.WebDavAnonymous
+        });
+
+    // Azure's sign-ins, the first the default because it is what the portal's Access keys page gives.
+    private static readonly ReadOnlyCollection<string> AzureAuthenticationModes =
+        Array.AsReadOnly(new[]
+        {
+            ConnectionEditorDraftFactory.AzureSharedKey,
+            ConnectionEditorDraftFactory.AzureSasToken,
+            ConnectionEditorDraftFactory.AzureConnectionString,
+            ConnectionEditorDraftFactory.AzureIdentity
+        });
+
+    // Cloud Storage's sign-ins: a key file first, as the console hands one out; anonymous last.
+    private static readonly ReadOnlyCollection<string> GcsAuthenticationModes =
+        Array.AsReadOnly(new[]
+        {
+            ConnectionEditorDraftFactory.GcsServiceAccount,
+            ConnectionEditorDraftFactory.GcsApplicationDefault,
+            ConnectionEditorDraftFactory.GcsAnonymous
+        });
+
+    // Swift's sign-ins: Keystone first, as every OpenStack cloud has it; TempAuth for a SAIO or a
+    // small cluster; a token issued elsewhere last.
+    private static readonly ReadOnlyCollection<string> SwiftAuthenticationModes =
+        Array.AsReadOnly(new[]
+        {
+            ConnectionEditorDraftFactory.SwiftKeystone,
+            ConnectionEditorDraftFactory.SwiftTempAuth,
+            ConnectionEditorDraftFactory.SwiftToken
+        });
 
     private static readonly ReadOnlyCollection<string> SshClientAuthenticationModes =
         Array.AsReadOnly(new[]
@@ -240,13 +283,116 @@ public static class ConnectionProviderCatalog
             ],
             [
                 Field("username", "Username", ConnectionFieldKind.Text, required: true),
-                Field("authenticationMode", Ui.Providers.Authentication, ConnectionFieldKind.Choice, defaultValue: SshAuthenticationModes[0], choices: SshAuthenticationModes),
+                Field("authenticationMode", Ui.Providers.Authentication, ConnectionFieldKind.Choice, defaultValue: SshClientAuthenticationModes[0], choices: SshClientAuthenticationModes),
                 Field("passwordReference", "Password reference", ConnectionFieldKind.SecretReference, placeholder: Ui.Providers.OptionalVaultEntry),
                 Field("privateKeyReference", Ui.Providers.OpenSSHPEMPrivateKeyReference, ConnectionFieldKind.SecretReference, placeholder: Ui.Providers.SelectAVaultEntry),
                 Field("privateKeyPassphraseReference", Ui.Providers.PrivateKeyPassphraseReference, ConnectionFieldKind.SecretReference, placeholder: Ui.Providers.OptionalVaultEntry, help: Ui.Providers.LeaveEmptyForAKeyWithNoPassphrase)
             ],
             [
                 Field("hostKeyFingerprint", Ui.Providers.SSHHostKeySHA256Fingerprint, ConnectionFieldKind.Fingerprint, required: true, placeholder: "SHA256:...")
+            ]),
+        new(
+            StorageProviderKind.WebDav,
+            "WebDAV",
+            "WEBDAV",
+            "#D946EF",
+            443,
+            true,
+            Ui.Providers.WebDavSummary,
+            "https://dav.example.com/remote.php/dav/files/me/",
+            Ui.Providers.WebDavTrustNotice,
+            [
+                Field(ConnectionEditorDraftFactory.WebDavUrlKey, Ui.Providers.ServerUrl, ConnectionFieldKind.Text, required: true, placeholder: "https://dav.example.com/remote.php/dav/files/me/", help: Ui.Providers.WebDavUrlHelp),
+                Field("initialPath", Ui.Providers.InitialPath, ConnectionFieldKind.Text, defaultValue: "/")
+            ],
+            [
+                Field("authenticationMode", Ui.Providers.Authentication, ConnectionFieldKind.Choice, defaultValue: WebDavAuthenticationModes[0], choices: WebDavAuthenticationModes, help: Ui.Providers.WebDavAuthenticationHelp),
+                Field("username", "Username", ConnectionFieldKind.Text),
+                Field("passwordReference", "Password reference", ConnectionFieldKind.SecretReference, placeholder: Ui.Providers.SelectAVaultEntry),
+                Field(ConnectionEditorDraftFactory.BearerTokenKey, Ui.Providers.BearerTokenReference, ConnectionFieldKind.SecretReference, placeholder: Ui.Providers.OnlyForBearerTokenSignIn)
+            ],
+            [
+                Field("acknowledgePlaintext", Ui.Providers.AllowPlainHTTPEndpoint, ConnectionFieldKind.Toggle, defaultValue: "false", help: Ui.Providers.WebDavPlainHttpHelp),
+                Field("trustMode", Ui.Providers.ServerTrust, ConnectionFieldKind.Choice, defaultValue: TrustModes[0], choices: TrustModes),
+                Field("certificatePin", Ui.Providers.CertificateSHA256Pin, ConnectionFieldKind.Fingerprint, placeholder: Ui.Providers.OptionalVerifyOutOfBand),
+                Field("clientCertificateReference", Ui.Providers.ClientPFXCertificateReference, ConnectionFieldKind.CertificateReference, placeholder: Ui.Providers.SelectAnImportedCertificate),
+                Field("clientCertificatePasswordReference", Ui.Providers.PFXPasswordReference, ConnectionFieldKind.SecretReference, placeholder: Ui.Providers.RequiredForImportedPFX, help: Ui.Providers.StorageHubDoesNotMaterializeUnprotectedClientPrivate)
+            ]),
+        new(
+            StorageProviderKind.AzureBlob,
+            Ui.Providers.AzureBlobStorage,
+            "AZURE",
+            "#0078D4",
+            443,
+            true,
+            Ui.Providers.AzureBlobSummary,
+            "https://account.blob.core.windows.net/",
+            Ui.Providers.AzureBlobTrustNotice,
+            [
+                Field(ConnectionEditorDraftFactory.ContainerKey, Ui.Providers.Container, ConnectionFieldKind.Text, required: true, placeholder: "documents", help: Ui.Providers.AzureContainerHelp),
+                Field("endpoint", Ui.Providers.BlobServiceUrl, ConnectionFieldKind.Text, placeholder: "https://account.blob.core.windows.net/", help: Ui.Providers.AzureServiceUrlHelp),
+                Field("prefix", Ui.Providers.InitialPrefix, ConnectionFieldKind.Text, placeholder: "team/archive/")
+            ],
+            [
+                Field("authenticationMode", Ui.Providers.Authentication, ConnectionFieldKind.Choice, defaultValue: AzureAuthenticationModes[0], choices: AzureAuthenticationModes, help: Ui.Providers.AzureAuthenticationHelp),
+                Field(ConnectionEditorDraftFactory.AccountNameKey, Ui.Providers.StorageAccountName, ConnectionFieldKind.Text, placeholder: Ui.Providers.OnlyForSharedKeySignIn),
+                Field(ConnectionEditorDraftFactory.AccountKeyKey, Ui.Providers.AccountKeyReference, ConnectionFieldKind.SecretReference, placeholder: Ui.Providers.OnlyForSharedKeySignIn),
+                Field(ConnectionEditorDraftFactory.SasTokenKey, Ui.Providers.SasTokenReference, ConnectionFieldKind.SecretReference, placeholder: Ui.Providers.OnlyForSasSignIn),
+                Field(ConnectionEditorDraftFactory.ConnectionStringKey, Ui.Providers.ConnectionStringReference, ConnectionFieldKind.SecretReference, placeholder: Ui.Providers.OnlyForConnectionStringSignIn)
+            ],
+            [
+                Field("acknowledgePlaintext", Ui.Providers.AllowPlainHttpConnectionString, ConnectionFieldKind.Toggle, defaultValue: "false", help: Ui.Providers.AzurePlainHttpHelp)
+            ]),
+        new(
+            StorageProviderKind.GoogleCloudStorage,
+            Ui.Providers.GoogleCloudStorage,
+            "GCS",
+            "#4285F4",
+            443,
+            true,
+            Ui.Providers.GoogleCloudStorageSummary,
+            "https://storage.googleapis.com/",
+            Ui.Providers.GoogleCloudStorageTrustNotice,
+            [
+                Field("bucket", "Bucket", ConnectionFieldKind.Text, required: true, placeholder: "my-bucket", help: Ui.Providers.GcsBucketHelp),
+                Field("endpoint", Ui.Providers.GcsServiceUrl, ConnectionFieldKind.Text, placeholder: "https://storage.googleapis.com/", help: Ui.Providers.GcsServiceUrlHelp),
+                Field("prefix", Ui.Providers.InitialPrefix, ConnectionFieldKind.Text, placeholder: "team/archive/")
+            ],
+            [
+                Field("authenticationMode", Ui.Providers.Authentication, ConnectionFieldKind.Choice, defaultValue: GcsAuthenticationModes[0], choices: GcsAuthenticationModes, help: Ui.Providers.GcsAuthenticationHelp),
+                Field(ConnectionEditorDraftFactory.ServiceAccountKey, Ui.Providers.ServiceAccountKeyReference, ConnectionFieldKind.SecretReference, placeholder: Ui.Providers.OnlyForServiceAccountSignIn)
+            ],
+            [
+                Field("acknowledgePlaintext", Ui.Providers.AllowPlainHTTPEndpoint, ConnectionFieldKind.Toggle, defaultValue: "false", help: Ui.Providers.GcsPlainHttpHelp)
+            ]),
+        new(
+            StorageProviderKind.OpenStackSwift,
+            Ui.Providers.OpenStackSwift,
+            "SWIFT",
+            "#ED1944",
+            443,
+            true,
+            Ui.Providers.SwiftSummary,
+            "https://keystone.example.com/v3",
+            Ui.Providers.SwiftTrustNotice,
+            [
+                Field(ConnectionEditorDraftFactory.ContainerKey, Ui.Providers.Container, ConnectionFieldKind.Text, required: true, placeholder: "documents", help: Ui.Providers.SwiftContainerHelp),
+                Field(ConnectionEditorDraftFactory.AuthenticationUrlKey, Ui.Providers.AuthenticationUrl, ConnectionFieldKind.Text, placeholder: "https://keystone.example.com/v3", help: Ui.Providers.SwiftAuthenticationUrlHelp),
+                Field(ConnectionEditorDraftFactory.StorageUrlKey, Ui.Providers.StorageUrl, ConnectionFieldKind.Text, placeholder: "https://swift.example.com/v1/AUTH_project", help: Ui.Providers.SwiftStorageUrlHelp),
+                Field("region", Ui.Providers.SwiftRegion, ConnectionFieldKind.Text, placeholder: "RegionOne", help: Ui.Providers.SwiftRegionHelp),
+                Field("prefix", Ui.Providers.InitialPrefix, ConnectionFieldKind.Text, placeholder: "team/archive/")
+            ],
+            [
+                Field("authenticationMode", Ui.Providers.Authentication, ConnectionFieldKind.Choice, defaultValue: SwiftAuthenticationModes[0], choices: SwiftAuthenticationModes, help: Ui.Providers.SwiftAuthenticationHelp),
+                Field("username", "Username", ConnectionFieldKind.Text),
+                Field("passwordReference", "Password reference", ConnectionFieldKind.SecretReference, placeholder: Ui.Providers.SelectAVaultEntry),
+                Field(ConnectionEditorDraftFactory.ProjectKey, Ui.Providers.KeystoneProject, ConnectionFieldKind.Text, placeholder: Ui.Providers.OnlyForKeystoneSignIn),
+                Field(ConnectionEditorDraftFactory.UserDomainKey, Ui.Providers.KeystoneUserDomain, ConnectionFieldKind.Text, defaultValue: "Default"),
+                Field(ConnectionEditorDraftFactory.ProjectDomainKey, Ui.Providers.KeystoneProjectDomain, ConnectionFieldKind.Text, defaultValue: "Default"),
+                Field(ConnectionEditorDraftFactory.BearerTokenKey, Ui.Providers.SwiftTokenReference, ConnectionFieldKind.SecretReference, placeholder: Ui.Providers.OnlyForTokenSignIn)
+            ],
+            [
+                Field("acknowledgePlaintext", Ui.Providers.AllowPlainHTTPEndpoint, ConnectionFieldKind.Toggle, defaultValue: "false", help: Ui.Providers.SwiftPlainHttpHelp)
             ]),
         new(
             StorageProviderKind.Ssh,

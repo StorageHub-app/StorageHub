@@ -34,7 +34,7 @@
   "editInvertSelection": "Invertér markering",
   "editInvertSelectionDescription": "Invertér den synlige markering i den aktive rude.",
   "editProperties": "Egenskaber",
-  "editPropertiesDescription": "Se skrivebeskyttede versioner, metadata og mærkater for én fil på en gemt forbindelse.",
+  "editPropertiesDescription": "Vis rettigheder, ejer og tidspunkter for ét element på en gemt forbindelse, skift dets rettigheder eller ændringstidspunkt, hvor forbindelsen tillader det, og se en fils versioner, metadata og mærkater.",
   "viewRefresh": "Opdatér",
   "viewRefreshDescription": "Opdatér den fokuserede rude.",
   "viewConnectionsPanel": "Forbindelsespanel",
@@ -123,5 +123,7 @@
   "helpReportIssueDescription": "Rapportér en fejl i StorageHub.",
   "helpAboutStorageHub": "Om StorageHub",
   "helpAboutStorageHubDescription": "Vis StorageHubs version og oplysninger om programmet.",
+  "toolsCleanUpLeftovers": "Ryd op i efterladte filer...",
+  "toolsCleanUpLeftoversDescription": "Find de arbejdsfiler, som afbrudte overførsler og den eksterne editor har efterladt, og fjern dem, du vælger.",
   "culture": "da-DK"
 }

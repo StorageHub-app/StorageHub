@@ -783,4 +783,76 @@ internal sealed class SyncStrings : LocalizationModelBase
         "This plan needs an operation these locations cannot perform safely. A destination that " +
         "cannot create or replace a file in a single step, such as SFTP or FTP, needs " +
         "\"Allow non-atomic destination writes\" on this task.";
+
+    public string CompareWindowTitle { get; set; } = "Compare Folders";
+
+    public string CompareLeft { get; set; } = "Left";
+
+    public string CompareRight { get; set; } = "Right";
+
+    public string CompareColumnPath { get; set; } = "Path";
+
+    public string CompareColumnLeftSize { get; set; } = "Left size";
+
+    public string CompareColumnLeftModified { get; set; } = "Left modified";
+
+    public string CompareColumnStatus { get; set; } = "Comparison";
+
+    public string CompareColumnRightSize { get; set; } = "Right size";
+
+    public string CompareColumnRightModified { get; set; } = "Right modified";
+
+    public string CompareOnlyLeftFormat { get; set; } = "Only left ({0})";
+
+    public string CompareOnlyRightFormat { get; set; } = "Only right ({0})";
+
+    public string CompareDifferentFormat { get; set; } = "Different ({0})";
+
+    public string CompareSameFormat { get; set; } = "Same ({0})";
+
+    public string CompareStatusOnlyLeft { get; set; } = "Only left";
+
+    public string CompareStatusOnlyRight { get; set; } = "Only right";
+
+    public string CompareStatusSame { get; set; } = "Same";
+
+    public string CompareStatusDifferentFormat { get; set; } = "Different: {0}";
+
+    public string CompareReasonSize { get; set; } = "size";
+
+    public string CompareReasonLeftNewer { get; set; } = "left newer";
+
+    public string CompareReasonRightNewer { get; set; } = "right newer";
+
+    public string CompareReasonChecksum { get; set; } = "contents";
+
+    public string CompareReasonType { get; set; } = "file and folder";
+
+    public string CompareNameFilter { get; set; } = "Filter by name";
+
+    public string CompareContents { get; set; } = "Compare contents (SHA-256)";
+
+    public string CompareAgain { get; set; } = "Compare Again";
+
+    public string CompareCopyToRight { get; set; } = "Copy to Right →";
+
+    public string CompareCopyToLeft { get; set; } = "← Copy to Left";
+
+    public string CompareComparing { get; set; } = "Comparing…";
+
+    public string CompareSummaryFormat { get; set; } = "{0} only left, {1} only right, {2} different, {3} same.";
+
+    public string CompareCaseInsensitive { get; set; } = "Names are matched ignoring case.";
+
+    public string CompareUncheckedFormat { get; set; } =
+        "The contents of {0} pairs could not be compared and are judged by size and time.";
+
+    public string CompareSelectDifferences { get; set; } = "Select the differences to copy.";
+
+    public string CompareCopiedFormat { get; set; } = "Queued {0} files and created {1} folders.";
+
+    public string CompareCopiedWithLeftOutFormat { get; set; } =
+        "Queued {0} files and created {1} folders. {2} already there were skipped, {3} were renamed and {4} cannot be copied this way.";
+
+    public string CompareNeedsTwoPanes { get; set; } = "Compare Panes needs a second pane. Split the window first.";
 }

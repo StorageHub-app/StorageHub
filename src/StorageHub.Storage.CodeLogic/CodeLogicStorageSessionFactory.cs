@@ -60,7 +60,7 @@ public sealed class CodeLogicStorageSessionFactory(StorageLibrary library)
         }
 
         ArgumentNullException.ThrowIfNull(configuration);
-        var runtimeId = $"storagehub-{profileId.Value:N}-{Guid.NewGuid():N}";
+        var runtimeId = $"{RuntimeIdPrefix}{profileId.Value:N}-{Guid.NewGuid():N}";
         var registered = false;
         try
         {
@@ -112,6 +112,33 @@ public sealed class CodeLogicStorageSessionFactory(StorageLibrary library)
         }
     }
 
+    private const string RuntimeIdPrefix = "storagehub-";
+
+    /// <summary>
+    /// The saved connection a runtime registration was made for, read back from its id, which is
+    /// what the library's events name. Null for an id this factory did not make.
+    /// </summary>
+    /// <remarks>
+    /// A profile is registered more than once -- the panes', the queue's and sync's connectors and
+    /// every test each have their own -- and each registration gets an id of its own, so the
+    /// profile is the only thing that ties a library event to the connection somebody sees.
+    /// </remarks>
+    internal static ConnectionProfileId? ProfileOf(string? runtimeId)
+    {
+        // "storagehub-" + 32 hex digits + "-" + 32 hex digits.
+        if (runtimeId is not { Length: 11 + 32 + 1 + 32 } ||
+            !runtimeId.StartsWith(RuntimeIdPrefix, StringComparison.Ordinal) ||
+            runtimeId[11 + 32] != '-' ||
+            !Guid.TryParseExact(runtimeId.AsSpan(11, 32), "N", out var profile) ||
+            !Guid.TryParseExact(runtimeId.AsSpan(11 + 33), "N", out _) ||
+            profile == Guid.Empty)
+        {
+            return null;
+        }
+
+        return new ConnectionProfileId(profile);
+    }
+
     private async ValueTask RemoveRegistrationBestEffortAsync(string runtimeId)
     {
         try
@@ -139,6 +166,14 @@ public sealed class CodeLogicStorageSessionFactory(StorageLibrary library)
                 profileId, rootIdentity, ftp, cancellationToken, runtimeResources),
             SftpConnectionConfig sftp => RegisterCoreAsync(
                 profileId, rootIdentity, sftp, cancellationToken, runtimeResources),
+            AzureBlobConnectionConfig azure => RegisterCoreAsync(
+                profileId, rootIdentity, azure, cancellationToken, runtimeResources),
+            GoogleCloudConnectionConfig gcs => RegisterCoreAsync(
+                profileId, rootIdentity, gcs, cancellationToken, runtimeResources),
+            SwiftConnectionConfig swift => RegisterCoreAsync(
+                profileId, rootIdentity, swift, cancellationToken, runtimeResources),
+            WebDavConnectionConfig webDav => RegisterCoreAsync(
+                profileId, rootIdentity, webDav, cancellationToken, runtimeResources),
             _ => ValueTask.FromResult(StorageResult<RuntimeStorageConnection>.Fail(new StorageFailure(
                 "storage.profile.unsupported",
                 StorageFailureKind.Unsupported,
@@ -199,6 +234,63 @@ public sealed class RuntimeStorageConnection : IAsyncDisposable
         }
 
         await TearDownAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Asks the library what this connection and its server look like now. Opens a session when the
+    /// provider needs one to answer, so it can fail as any operation on the connection can.
+    /// </summary>
+    public async ValueTask<StorageResult<StorageConnectionDetails>> GetDetailsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var result = await _library
+                .GetConnectionDiagnosticsAsync(RuntimeConnectionId, cancellationToken)
+                .ConfigureAwait(false);
+            if (result.IsFailure || result.Value is not { } details)
+            {
+                return StorageResult<StorageConnectionDetails>.Fail(CodeLogicStorageMapper.MapFailure(
+                    result.Error,
+                    "storage.connection.details_failed",
+                    "The connection's details could not be read."));
+            }
+
+            return StorageResult<StorageConnectionDetails>.Success(new StorageConnectionDetails(
+                details.Provider.ToString(),
+                details.Host,
+                details.Port,
+                details.Security.ToString(),
+                details.ServerSystem,
+                details.ServerSoftware,
+                [.. details.ServerFeatures ?? []],
+                [.. (details.Negotiated ?? new Dictionary<string, string>())
+                    .OrderBy(static setting => setting.Key, StringComparer.Ordinal)],
+                details.ServerIdentity is { } identity
+                    ? new StoragePresentedIdentity(
+                        identity.Kind,
+                        identity.Fingerprint,
+                        identity.Algorithm,
+                        identity.Subject,
+                        identity.Issuer,
+                        identity.NotAfter,
+                        identity.Trusted)
+                    : null,
+                details.Pool is { } pool
+                    ? new StorageSessionCounts(pool.Idle, pool.InUse, pool.Opened, pool.Destroyed, pool.ProbeFailures)
+                    : null,
+                details.LastHealth is { } health
+                    ? new StorageHealthCheck(health.Healthy, health.ErrorCode, health.Latency, health.CheckedAt)
+                    : null));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return StorageResult<StorageConnectionDetails>.Fail(CodeLogicStorageMapper.Unexpected("connection details"));
+        }
     }
 
     /// <summary>Closes the session and removes the runtime registration, once.</summary>

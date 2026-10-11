@@ -17,6 +17,10 @@ public sealed class PresentationModelTests
                 StorageProviderKind.Ftp,
                 StorageProviderKind.Ftps,
                 StorageProviderKind.Sftp,
+                StorageProviderKind.WebDav,
+                StorageProviderKind.AzureBlob,
+                StorageProviderKind.GoogleCloudStorage,
+                StorageProviderKind.OpenStackSwift,
                 StorageProviderKind.Ssh
             ],
             ConnectionProviderCatalog.All.Select(provider => provider.Kind));
@@ -25,6 +29,10 @@ public sealed class PresentationModelTests
         Assert.Equal(21, ConnectionProviderCatalog.Get(StorageProviderKind.Ftp).DefaultPort);
         Assert.Equal(21, ConnectionProviderCatalog.Get(StorageProviderKind.Ftps).DefaultPort);
         Assert.Equal(22, ConnectionProviderCatalog.Get(StorageProviderKind.Sftp).DefaultPort);
+        Assert.Equal(443, ConnectionProviderCatalog.Get(StorageProviderKind.WebDav).DefaultPort);
+        Assert.Equal(443, ConnectionProviderCatalog.Get(StorageProviderKind.AzureBlob).DefaultPort);
+        Assert.Equal(443, ConnectionProviderCatalog.Get(StorageProviderKind.GoogleCloudStorage).DefaultPort);
+        Assert.Equal(443, ConnectionProviderCatalog.Get(StorageProviderKind.OpenStackSwift).DefaultPort);
         var ssh = ConnectionProviderCatalog.Get(StorageProviderKind.Ssh);
         Assert.Equal(22, ssh.DefaultPort);
         Assert.Equal(ConnectionProfileType.Client, ssh.Type);
@@ -91,7 +99,9 @@ public sealed class PresentationModelTests
         Assert.DoesNotContain(sftp.GeneralFields, field => field.Key == "keepAliveSeconds");
         Assert.DoesNotContain(sftp.SecurityFields, field => field.Key == "hostKeyPolicy");
         var authentication = Assert.Single(sftp.AuthenticationFields, field => field.Key == "authenticationMode");
-        Assert.Equal(["Private key reference", "Password reference"], authentication.Choices);
+        Assert.Equal(
+            ["Private key reference", "Password reference", "Private key + password (MFA)"],
+            authentication.Choices);
         var sshAuthentication = Assert.Single(
             ssh.AuthenticationFields,
             field => field.Key == "authenticationMode");

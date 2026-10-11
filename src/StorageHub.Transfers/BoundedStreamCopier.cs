@@ -51,6 +51,43 @@ public static class BoundedStreamCopier
         computeSha256: true,
         cancellationToken).ConfigureAwait(false);
 
+    /// <summary>
+    /// Copies the rest of a transfer whose first <paramref name="resumedBytes"/> are already at
+    /// the destination. <paramref name="source"/> starts at that offset; progress and the result
+    /// count the whole item, and <paramref name="prefixHash"/>, when given, already holds the
+    /// resumed bytes and is finished with the copied ones, so the digest covers the whole item.
+    /// </summary>
+    /// <remarks>The hash is owned, and disposed, by this call.</remarks>
+    public static async Task<StreamCopyResult> CopyRemainderAsync(
+        Stream source,
+        Stream destination,
+        long resumedBytes,
+        long totalLength,
+        IncrementalHash? prefixHash,
+        int bufferSize = DefaultBufferSize,
+        IProgress<TransferProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        using (prefixHash)
+        {
+            if (resumedBytes < 0 || resumedBytes > totalLength)
+            {
+                throw new ArgumentOutOfRangeException(nameof(resumedBytes));
+            }
+
+            return await CopyCoreAsync(
+                source,
+                destination,
+                totalLength - resumedBytes,
+                bufferSize,
+                progress,
+                computeSha256: prefixHash is not null,
+                cancellationToken,
+                resumedBytes,
+                prefixHash).ConfigureAwait(false);
+        }
+    }
+
     private static async Task<StreamCopyResult> CopyCoreAsync(
         Stream source,
         Stream destination,
@@ -58,7 +95,9 @@ public static class BoundedStreamCopier
         int bufferSize,
         IProgress<TransferProgress>? progress,
         bool computeSha256,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        long resumedBytes = 0,
+        IncrementalHash? seededHash = null)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(destination);
@@ -89,9 +128,11 @@ public static class BoundedStreamCopier
 
         var buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
         long totalCopied = 0;
-        using var hash = computeSha256
+        using var ownedHash = computeSha256 && seededHash is null
             ? IncrementalHash.CreateHash(HashAlgorithmName.SHA256)
             : null;
+        var hash = seededHash ?? ownedHash;
+        long? totalLength = expectedLength is long remainder ? resumedBytes + remainder : null;
 
         try
         {
@@ -124,7 +165,7 @@ public static class BoundedStreamCopier
                 hash?.AppendData(buffer, 0, read);
 
                 totalCopied = checked(totalCopied + read);
-                progress?.Report(new TransferProgress(totalCopied, expectedLength));
+                progress?.Report(new TransferProgress(resumedBytes + totalCopied, totalLength));
             }
 
             // Reading exactly the planned length is not sufficient evidence that the source is
@@ -142,7 +183,7 @@ public static class BoundedStreamCopier
             }
 
             return new StreamCopyResult(
-                totalCopied,
+                resumedBytes + totalCopied,
                 hash is null
                     ? null
                     : new PortableContentDigest(

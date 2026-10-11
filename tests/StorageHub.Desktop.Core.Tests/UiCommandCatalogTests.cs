@@ -67,6 +67,7 @@ public sealed class UiCommandCatalogTests
         ("Sync", "Schedules..."),
         ("Tools", "Search..."),
         ("Tools", "Background Agent..."),
+        ("Tools", "Clean Up Leftover Files..."),
         ("Tools", "Checksums..."),
         ("Tools", "Settings..."),
         ("Tools", "Export Settings..."),

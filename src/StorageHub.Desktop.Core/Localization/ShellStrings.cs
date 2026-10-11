@@ -197,7 +197,7 @@ internal sealed class ShellStrings : LocalizationModelBase
 
     public string SelectTwoToBatchRename { get; set; } = "Select at least two items to batch rename.";
 
-    public string SelectOneToInspect { get; set; } = "Select exactly one file to inspect.";
+    public string SelectOneToInspect { get; set; } = "Select exactly one file or folder to see its properties.";
 
     public string OperationCancelled { get; set; } = "The operation was cancelled.";
 

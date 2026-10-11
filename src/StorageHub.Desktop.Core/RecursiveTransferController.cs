@@ -48,11 +48,16 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
         TransferQueueOperation operation,
         CancellationToken cancellationToken,
         Action<int, int>? progress = null) =>
-        EnqueueAsync(source, destination, operation, progress, stop: default, cancellationToken);
+        EnqueueAsync(source, destination, operation, progress, conflicts: null, stop: default, cancellationToken);
 
     /// <param name="progress">
     /// Called with the running file and folder counts after every page, so the queue can show the
     /// walk while it runs. Null if nothing is shown.
+    /// </param>
+    /// <param name="conflicts">
+    /// What to do with a file already at the destination, at any depth: decided once, at the first
+    /// such file, and applied to the rest. Null replaces, as a transfer did before there was a
+    /// choice.
     /// </param>
     /// <param name="stop">
     /// Somebody stopping the walk from the queue. It is not thrown, because a stop is an outcome:
@@ -66,10 +71,12 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
         PaneDestinationSnapshot destination,
         TransferQueueOperation operation,
         Action<int, int>? progress,
+        TransferConflictPolicy? conflicts,
         CancellationToken stop,
         CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+        conflicts ??= TransferConflictPolicy.Replace;
 
         // Plain files are the manual controller's whole job, and it is the one that can address a
         // This PC folder. Refusing them here as "not saved connections on both panes" refused
@@ -77,7 +84,7 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
         if (!source.Items.Any(static item => item.IsContainer))
         {
             return await _transfers
-                .EnqueueAsync(source, destination, operation, cancellationToken: cancellationToken)
+                .EnqueueAsync(source, destination, operation, conflicts: conflicts, cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
         }
 
@@ -102,7 +109,7 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
         using var walk = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, stop);
         try
         {
-            return await StreamAsync(source, destination, operation, accepted, progress, walk.Token)
+            return await StreamAsync(source, destination, operation, conflicts, accepted, progress, walk.Token)
                 .ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -162,6 +169,7 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
         PaneSelectionSnapshot source,
         PaneDestinationSnapshot destination,
         TransferQueueOperation operation,
+        TransferConflictPolicy conflicts,
         List<TransferEnqueueResponse> accepted,
         Action<int, int>? progress,
         CancellationToken cancellationToken)
@@ -188,7 +196,7 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
         if (batch.Count > 0)
         {
             var flushed = await FlushAsync(
-                batch, source, destination, operation, targetPaths, ensuredDirectories,
+                batch, source, destination, operation, conflicts, targetPaths, ensuredDirectories,
                 destinationEntries, accepted, cancellationToken).ConfigureAwait(false);
             if (flushed is not null)
             {
@@ -327,7 +335,7 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
                 if (batch.Count > 0)
                 {
                     var flushed = await FlushAsync(
-                        batch, source, destination, operation, targetPaths, ensuredDirectories,
+                        batch, source, destination, operation, conflicts, targetPaths, ensuredDirectories,
                         destinationEntries, accepted, cancellationToken).ConfigureAwait(false);
                     if (flushed is not null)
                     {
@@ -353,6 +361,7 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
         PaneSelectionSnapshot source,
         PaneDestinationSnapshot destination,
         TransferQueueOperation operation,
+        TransferConflictPolicy conflicts,
         HashSet<string> targetPaths,
         HashSet<string> ensuredDirectories,
         Dictionary<string, PaneTransferItem> destinationEntries,
@@ -360,8 +369,11 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
         CancellationToken cancellationToken)
     {
         var requests = new List<TransferEnqueueRequest>(batch.Count);
-        foreach (var (item, destinationPath) in batch)
+        var skipped = 0;
+        var renamed = 0;
+        foreach (var (item, plannedPath) in batch)
         {
+            var destinationPath = plannedPath;
             if (ensuredDirectories.Contains(destinationPath))
             {
                 return new ManualTransferEnqueueResult([], [], new StorageFailure(
@@ -385,6 +397,44 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
                     "manual_transfer.destination_container_conflict",
                     StorageFailureKind.Conflict,
                     Ui.Validation.ADestinationFolderOrNonFileItem2));
+            }
+
+            if (existing is not null)
+            {
+                // Asked at the first file found already there, wherever in the tree that is, and
+                // kept for the rest of the walk.
+                if (await conflicts.ResolveAsync(existing, cancellationToken).ConfigureAwait(false) is not { } choice)
+                {
+                    return new ManualTransferEnqueueResult([], [], ManualTransferController.StoppedAtConflict());
+                }
+
+                switch (TransferConflictRules.Decide(choice, item, existing))
+                {
+                    case TransferConflictOutcome.Skip:
+                        skipped++;
+                        continue;
+                    case TransferConflictOutcome.Rename:
+                        var separator = destinationPath.LastIndexOf('/');
+                        var parent = separator < 0 ? string.Empty : destinationPath[..separator];
+                        var free = TransferConflictRules.FreeName(
+                            destinationPath[(separator + 1)..],
+                            candidate => destinationEntries.ContainsKey(Combine(parent, candidate)) ||
+                                targetPaths.Contains(Combine(parent, candidate)) ||
+                                ensuredDirectories.Contains(Combine(parent, candidate)));
+                        if (free is null)
+                        {
+                            return new ManualTransferEnqueueResult([], [], new StorageFailure(
+                                "manual_transfer.rename.no_free_name",
+                                StorageFailureKind.Conflict,
+                                Ui.Format(Ui.Validation.NoFreeNameForRenameFormat, item.Name)));
+                        }
+
+                        destinationPath = Combine(parent, free);
+                        targetPaths.Add(destinationPath);
+                        existing = null;
+                        renamed++;
+                        break;
+                }
             }
 
             if (existing is not null && (!existing.HasStableIdentity || !item.HasStableIdentity))
@@ -428,8 +478,14 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
             requests.Add(request);
         }
 
+        conflicts.Count(skipped, renamed);
+        if (requests.Count == 0)
+        {
+            return null;
+        }
+
         var result = await _transfers.EnqueuePlanAsync(
-            new ManualTransferPlan(requests),
+            new ManualTransferPlan(requests, skipped, renamed),
             cancellationToken).ConfigureAwait(false);
         accepted.AddRange(result.Accepted);
         return result.Failure is null && !result.HasAmbiguity ? null : result;
@@ -776,7 +832,7 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
     private static ManualTransferEnqueueResult Failure(string code, string message, bool isTransient = false) =>
         new([], [], new StorageFailure(code, StorageFailureKind.Validation, message, isTransient));
 
-    private static StorageFailure MapFailure(StorageIpcFailure failure) => new(
+    internal static StorageFailure MapFailure(StorageIpcFailure failure) => new(
         failure.Code,
         failure.Category switch
         {

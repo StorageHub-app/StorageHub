@@ -67,6 +67,7 @@ internal static class UiCommandIds
     internal const string SyncSchedules = "sync.schedules";
     internal const string ToolsSearch = "tools.search";
     internal const string ToolsBackgroundAgent = "tools.background-agent";
+    internal const string ToolsCleanUpLeftovers = "tools.clean-up-leftover-files";
     internal const string ToolsChecksums = "tools.checksums";
     internal const string ToolsSettings = "tools.settings";
     internal const string ToolsExportSettings = "tools.export-settings";

@@ -205,7 +205,7 @@ public static class LocalUserPathTransferEndpoint
         }
     }
 
-    private static bool TryDecodeRoot(StorageAddress address, out string root)
+    internal static bool TryDecodeRoot(StorageAddress address, out string root)
     {
         root = string.Empty;
         if (LocalTransferFolder.TryReadFolder(address.RootIdentity) is not { } folder)
@@ -241,10 +241,15 @@ public static class LocalUserPathTransferEndpoint
         public ConnectionProfileId ProfileId { get; } = profileId;
         public string RootIdentity { get; } = rootIdentity;
 
+        // A read can start at an offset, so a download can be resumed from here, and a write is
+        // staged beside its destination, so one into here can be.
         public EffectiveStorageCapabilities Capabilities { get; } = new([
             new KeyValuePair<StorageFeature, FeatureSupport>(StorageFeature.ReadStream, FeatureSupport.Native()),
             new KeyValuePair<StorageFeature, FeatureSupport>(StorageFeature.WriteStream, FeatureSupport.Native()),
-            new KeyValuePair<StorageFeature, FeatureSupport>(StorageFeature.ConditionalCreate, FeatureSupport.Native())]);
+            new KeyValuePair<StorageFeature, FeatureSupport>(StorageFeature.ConditionalCreate, FeatureSupport.Native()),
+            new KeyValuePair<StorageFeature, FeatureSupport>(StorageFeature.ResumeDownload, FeatureSupport.Native()),
+            new KeyValuePair<StorageFeature, FeatureSupport>(StorageFeature.ResumeUpload, FeatureSupport.Native(
+                "A partial file beside the destination is continued and renamed into place."))]);
 
         public ValueTask<StorageResult> CheckHealthAsync(CancellationToken cancellationToken = default) =>
             ValueTask.FromResult(Directory.Exists(root)
@@ -276,7 +281,10 @@ public static class LocalUserPathTransferEndpoint
             }
 
             return ValueTask.FromResult(StorageEntry.Create(
-                address, StorageEntryKind.File, file.Length, file.LastWriteTimeUtc));
+                LocalStagedFileWriteHandle.WithIdentity(address, file),
+                StorageEntryKind.File,
+                file.Length,
+                file.LastWriteTimeUtc));
         }
 
         public ValueTask<StorageResult<Stream>> OpenReadAsync(StorageReadRequest request, CancellationToken cancellationToken = default)
@@ -330,14 +338,17 @@ public static class LocalUserPathTransferEndpoint
                 return ValueTask.FromResult(StorageResult<IStorageWriteHandle>.Fail(validation.Error));
             }
 
-            // Create-only, like every other destination without an atomic conditional overwrite.
-            // Replacing an existing local file is a separate safety decision and is not offered
-            // here rather than being approximated.
-            if (request.Mode != StorageWriteMode.CreateNew)
+            // Create-new, or an overwrite somebody chose when the paste met a file already
+            // here. The transfer executor holds the overwrite to the file's identity before it
+            // writes, and the new content only replaces the old by a rename once it is complete,
+            // so the file is either the one that was there or the whole new one.
+            if (request.Mode is not (StorageWriteMode.CreateNew or StorageWriteMode.Overwrite) ||
+                request.ExpectedDestinationVersionId is not null ||
+                request.ExpectedDestinationEntityTag is not null)
             {
                 return ValueTask.FromResult(Fail<IStorageWriteHandle>(
-                    "local-user.create-only",
-                    "A local destination can only create new files; it cannot overwrite an existing one."));
+                    "local-user.write-mode",
+                    "A local destination creates a file or replaces one; it cannot hold the replacement to a version."));
             }
 
             var resolved = Resolve(request.Destination);
@@ -355,14 +366,15 @@ public static class LocalUserPathTransferEndpoint
                     return ValueTask.FromResult(StorageResult<IStorageWriteHandle>.Fail(created.Error));
                 }
 
-                IStorageWriteHandle handle = new LocalWriteHandle(
-                    request.Destination, resolved.Value, request.ExpectedLength);
-                return ValueTask.FromResult(StorageResult<IStorageWriteHandle>.Success(handle));
-            }
-            catch (IOException) when (File.Exists(resolved.Value))
-            {
-                return ValueTask.FromResult(Fail<IStorageWriteHandle>(
-                    "local-user.exists", "A file with that name already exists in the local folder."));
+                if (Directory.Exists(resolved.Value) ||
+                    new FileInfo(resolved.Value) is { Exists: true, LinkTarget: not null })
+                {
+                    return ValueTask.FromResult(Fail<IStorageWriteHandle>(
+                        "local-user.not-a-file", "The local destination is a folder or a link."));
+                }
+
+                return ValueTask.FromResult(LocalStagedFileWriteHandle.Open(
+                    request.Destination, resolved.Value, request, "local-user"));
             }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException)
             {
@@ -553,106 +565,6 @@ public static class LocalUserPathTransferEndpoint
         {
             await inner.DisposeAsync().ConfigureAwait(false);
             await base.DisposeAsync().ConfigureAwait(false);
-        }
-    }
-
-    private sealed class LocalWriteHandle : IStorageWriteHandle
-    {
-        private readonly string _path;
-        private readonly long? _expectedLength;
-        private FileStream? _stream;
-
-        public LocalWriteHandle(StorageAddress destination, string path, long? expectedLength)
-        {
-            Destination = destination;
-            _path = path;
-            _expectedLength = expectedLength;
-            _stream = new FileStream(
-                path, FileMode.CreateNew, FileAccess.Write, FileShare.Read, 128 * 1024,
-                FileOptions.Asynchronous | FileOptions.SequentialScan);
-        }
-
-        public StorageAddress Destination { get; }
-        public Stream Content => _stream ?? throw new ObjectDisposedException(nameof(LocalWriteHandle));
-        public long AcceptedOffset => 0;
-        public string? ResumeToken => null;
-        public StorageWriteHandleState State { get; private set; } = StorageWriteHandleState.Open;
-
-        public async ValueTask<StorageResult<StorageEntry>> CommitAsync(CancellationToken cancellationToken = default)
-        {
-            if (State != StorageWriteHandleState.Open)
-            {
-                return Fail<StorageEntry>("local-user.state", "The local write is no longer open.");
-            }
-
-            State = StorageWriteHandleState.Committing;
-            try
-            {
-                await _stream!.FlushAsync(cancellationToken).ConfigureAwait(false);
-                await _stream.DisposeAsync().ConfigureAwait(false);
-                _stream = null;
-                var file = new FileInfo(_path);
-                if (_expectedLength is { } length && file.Length != length)
-                {
-                    throw new IOException("The local file length did not match the transfer plan.");
-                }
-
-                State = StorageWriteHandleState.Committed;
-                return StorageEntry.Create(Destination, StorageEntryKind.File, file.Length, file.LastWriteTimeUtc);
-            }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
-            {
-                State = StorageWriteHandleState.Faulted;
-                TryDelete();
-                return Fail<StorageEntry>("local-user.commit", "The local file could not be committed.", transient: true);
-            }
-        }
-
-        public async ValueTask<StorageResult> AbortAsync(CancellationToken cancellationToken = default)
-        {
-            if (State is StorageWriteHandleState.Committed or StorageWriteHandleState.Aborted)
-            {
-                return StorageResult.Success();
-            }
-
-            State = StorageWriteHandleState.Aborting;
-            if (_stream is not null)
-            {
-                await _stream.DisposeAsync().ConfigureAwait(false);
-                _stream = null;
-            }
-
-            TryDelete();
-            State = StorageWriteHandleState.Aborted;
-            return StorageResult.Success();
-        }
-
-        public async ValueTask DisposeAsync()
-        {
-            if (State == StorageWriteHandleState.Open)
-            {
-                _ = await AbortAsync().ConfigureAwait(false);
-            }
-            else if (_stream is not null)
-            {
-                await _stream.DisposeAsync().ConfigureAwait(false);
-                _stream = null;
-            }
-        }
-
-        private void TryDelete()
-        {
-            try
-            {
-                if (File.Exists(_path))
-                {
-                    File.Delete(_path);
-                }
-            }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
-            {
-                // A partial file left behind is reported by the queue rather than hidden here.
-            }
         }
     }
 }

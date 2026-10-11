@@ -46,8 +46,16 @@ public static class StorageIpcMessageTypes
     public const string ConnectionListResponse = "connection.list.response";
     public const string ConnectionTestRequest = "connection.test.request";
     public const string ConnectionTestResponse = "connection.test.response";
+    public const string ConnectionDraftTestRequest = "connection.test-draft.request";
+    public const string ConnectionDraftTestResponse = "connection.test-draft.response";
+    public const string ConnectionDetailsRequest = "connection.details.request";
+    public const string ConnectionDetailsResponse = "connection.details.response";
     public const string StorageListRequest = "storage.list.request";
     public const string StorageListResponse = "storage.list.response";
+    public const string StorageSpaceRequest = "storage.space.request";
+    public const string StorageSpaceResponse = "storage.space.response";
+    public const string ConnectionLinkEventsRequest = "connection.link-events.request";
+    public const string ConnectionLinkEventsResponse = "connection.link-events.response";
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<StorageConnectionProvider>))]
@@ -58,7 +66,11 @@ public enum StorageConnectionProvider
     Ftp = 3,
     Ftps = 4,
     Sftp = 5,
-    Ssh = 6
+    Ssh = 6,
+    WebDav = 7,
+    AzureBlob = 8,
+    GoogleCloudStorage = 9,
+    OpenStackSwift = 10
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<StorageIpcFailureCategory>))]
@@ -174,6 +186,162 @@ public sealed record ConnectionTestResponse(
     long ElapsedMilliseconds,
     StorageIpcFailure? Failure = null);
 
+/// <summary>
+/// Asks the agent to reach a connection as it stands in the editor, saved or not. Nothing is
+/// written: the profile is built for the test and dropped after it, and a fingerprint typed in the
+/// editor is trusted for this test only, as saving would pin it.
+/// </summary>
+/// <param name="ConnectionId">The saved connection being edited, if it is one.</param>
+/// <param name="Sha256Fingerprint">
+/// The host key or certificate fingerprint in the editor, not pinned yet.
+/// </param>
+public sealed record ConnectionDraftTestRequest(
+    int ContractVersion,
+    ConnectionProfileDraft Draft,
+    Guid? ConnectionId = null,
+    string? Sha256Fingerprint = null)
+{
+    public bool HasValidBounds =>
+        ContractVersion > 0 &&
+        Draft is { HasValidBounds: true } &&
+        ConnectionId != Guid.Empty &&
+        (Sha256Fingerprint is null || ConnectionTrustIpcLimits.IsValidFingerprint(Sha256Fingerprint));
+}
+
+/// <summary>The steps of a connection test, in the order they are taken.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<ConnectionTestStepKind>))]
+public enum ConnectionTestStepKind
+{
+    /// <summary>The settings make a connection the agent can use.</summary>
+    Settings,
+
+    /// <summary>The server's host key or certificate is one the user trusts.</summary>
+    ServerIdentity,
+
+    /// <summary>The passwords and keys it names open from the vault.</summary>
+    Credentials,
+
+    /// <summary>The server answers and accepts the credentials.</summary>
+    Connect,
+
+    /// <summary>The starting folder can be listed.</summary>
+    Browse
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter<ConnectionTestStepOutcome>))]
+public enum ConnectionTestStepOutcome
+{
+    Passed,
+    Failed,
+
+    /// <summary>An earlier step failed, so this one was not tried.</summary>
+    NotReached,
+
+    /// <summary>The connection has nothing to check here, such as a key for a local folder.</summary>
+    NotApplicable
+}
+
+public sealed record ConnectionTestStep(
+    ConnectionTestStepKind Kind,
+    ConnectionTestStepOutcome Outcome,
+    StorageIpcFailure? Failure = null);
+
+public sealed record ConnectionDraftTestResponse(
+    int ContractVersion,
+    bool Succeeded,
+    long ElapsedMilliseconds,
+    ConnectionTestStep[] Steps,
+    StorageIpcFailure? Failure = null);
+
+/// <summary>Asks what a saved connection and the server behind it look like now.</summary>
+public sealed record ConnectionDetailsRequest(
+    int ContractVersion,
+    Guid ConnectionId)
+{
+    public bool HasValidBounds => ContractVersion > 0 && ConnectionId != Guid.Empty;
+}
+
+public static class ConnectionDetailsLimits
+{
+    public const int MaximumTextLength = 256;
+    public const int MaximumFeatures = 64;
+    public const int MaximumNegotiated = 32;
+}
+
+/// <summary>
+/// A live description of a connection: never a secret, only what the server presented, runs and
+/// negotiated, and how the connection's sessions are doing.
+/// </summary>
+public sealed record ConnectionDetailsDocument(
+    string Provider,
+    string? Host,
+    int? Port,
+    string TransportSecurity,
+    string? ServerSystem,
+    string? ServerSoftware,
+    string[] ServerFeatures,
+    ConnectionNegotiatedSetting[] Negotiated,
+    ConnectionPresentedIdentityDocument? PresentedIdentity = null,
+    ConnectionSessionCountsDocument? Sessions = null,
+    ConnectionHealthCheckDocument? LastHealthCheck = null)
+{
+    public bool HasValidBounds =>
+        IsSafe(Provider, required: true) &&
+        IsSafe(Host) &&
+        Port is null or >= 0 and <= 65_535 &&
+        IsSafe(TransportSecurity, required: true) &&
+        IsSafe(ServerSystem) &&
+        IsSafe(ServerSoftware) &&
+        ServerFeatures is not null &&
+        ServerFeatures.Length <= ConnectionDetailsLimits.MaximumFeatures &&
+        ServerFeatures.All(static feature => IsSafe(feature, required: true)) &&
+        Negotiated is not null &&
+        Negotiated.Length <= ConnectionDetailsLimits.MaximumNegotiated &&
+        Negotiated.All(static setting => setting is not null &&
+            IsSafe(setting.Name, required: true) && IsSafe(setting.Value)) &&
+        (PresentedIdentity is null ||
+            IsSafe(PresentedIdentity.Kind, required: true) &&
+            IsSafe(PresentedIdentity.Fingerprint, required: true) &&
+            IsSafe(PresentedIdentity.Algorithm) &&
+            IsSafe(PresentedIdentity.Subject) &&
+            IsSafe(PresentedIdentity.Issuer)) &&
+        (Sessions is null ||
+            Sessions.Idle >= 0 && Sessions.InUse >= 0 && Sessions.Opened >= 0 &&
+            Sessions.Closed >= 0 && Sessions.FailedProbes >= 0) &&
+        (LastHealthCheck is null ||
+            LastHealthCheck.LatencyMilliseconds >= 0 && IsSafe(LastHealthCheck.ErrorCode));
+
+    internal static bool IsSafe(string? value, bool required = false) => value is null
+        ? !required
+        : value.Length is > 0 and <= ConnectionDetailsLimits.MaximumTextLength && !value.Any(char.IsControl);
+}
+
+public sealed record ConnectionNegotiatedSetting(string Name, string? Value);
+
+/// <param name="Kind"><c>ssh-host-key</c> or <c>tls-certificate</c>.</param>
+public sealed record ConnectionPresentedIdentityDocument(
+    string Kind,
+    string Fingerprint,
+    string? Algorithm,
+    string? Subject,
+    string? Issuer,
+    DateTimeOffset? NotAfter,
+    bool Trusted);
+
+public sealed record ConnectionSessionCountsDocument(int Idle, int InUse, int Opened, int Closed, int FailedProbes);
+
+public sealed record ConnectionHealthCheckDocument(
+    bool Healthy,
+    string? ErrorCode,
+    long LatencyMilliseconds,
+    DateTimeOffset CheckedUtc);
+
+public sealed record ConnectionDetailsResponse(
+    int ContractVersion,
+    Guid ConnectionId,
+    ConnectionDetailsDocument? Details,
+    StorageIpcFailure? Failure = null);
+
 public sealed record StorageListPageRequest(
     int ContractVersion,
     Guid ConnectionId,
@@ -232,3 +400,122 @@ public sealed record StorageListPageResponse(
         RootIdentity.Length <= StorageIpcLimits.MaximumOpaqueIdentityLength &&
         !RootIdentity.Any(char.IsControl);
 }
+
+/// <summary>
+/// Asks how much room the volume or quota behind a folder of a saved connection has, for the
+/// pane's status line. Nothing is listed or written.
+/// </summary>
+public sealed record StorageSpaceRequest(
+    int ContractVersion,
+    Guid ConnectionId,
+    string RelativePath)
+{
+    public bool HasValidBounds =>
+        ContractVersion > 0 &&
+        ConnectionId != Guid.Empty &&
+        RelativePath is not null &&
+        RelativePath.Length <= StorageIpcLimits.MaximumRelativePathLength &&
+        !RelativePath.Any(char.IsControl);
+}
+
+/// <summary>
+/// The figures a server reported, each of which may be unknown. At least one is known, none is
+/// negative, and neither the free nor the used space is more than the total.
+/// </summary>
+public sealed record StorageSpaceDocument(
+    long? TotalBytes,
+    long? AvailableBytes,
+    long? UsedBytes)
+{
+    public bool HasValidBounds =>
+        (TotalBytes is not null || AvailableBytes is not null || UsedBytes is not null) &&
+        TotalBytes is null or >= 0 &&
+        AvailableBytes is null or >= 0 &&
+        UsedBytes is null or >= 0 &&
+        (TotalBytes is not { } total ||
+            (AvailableBytes is null || AvailableBytes <= total) &&
+            (UsedBytes is null || UsedBytes <= total));
+}
+
+/// <summary>
+/// The space, or why there is none: a provider that does not report it answers with an
+/// unsupported failure, which the pane takes as nothing to show rather than as a problem.
+/// </summary>
+public sealed record StorageSpaceResponse(
+    int ContractVersion,
+    Guid ConnectionId,
+    StorageSpaceDocument? Space,
+    StorageIpcFailure? Failure = null);
+
+/// <summary>What happened to a saved connection's link to its server.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<ConnectionLinkEventKind>))]
+public enum ConnectionLinkEventKind
+{
+    /// <summary>Something failed that may pass, and it is being tried again.</summary>
+    Retrying = 1,
+
+    /// <summary>The connection dropped, or could not be reached after its retries.</summary>
+    Lost = 2,
+
+    /// <summary>It works again after retrying or being lost.</summary>
+    Back = 3
+}
+
+public static class ConnectionLinkLimits
+{
+    /// <summary>The most recent changes one read returns, which is what the activity log shows.</summary>
+    public const int MaximumEvents = 64;
+
+    /// <summary>The most connections whose latest change one read returns, for their cards.</summary>
+    public const int MaximumLatest = StorageIpcLimits.MaximumConnectionResults;
+
+    public const int MaximumAttempt = 1_000;
+}
+
+/// <summary>Asks for the recent changes to the saved connections' links, newest first.</summary>
+public sealed record ConnectionLinkEventsRequest(
+    int ContractVersion,
+    int Limit = ConnectionLinkLimits.MaximumEvents)
+{
+    public bool HasValidBounds =>
+        ContractVersion > 0 &&
+        Limit is >= 1 and <= ConnectionLinkLimits.MaximumEvents;
+}
+
+/// <summary>One change to a saved connection's link, named as the connection is named now.</summary>
+/// <param name="Sequence">Its place in the agent's journal, which starts again when the agent does.</param>
+/// <param name="Attempt">Which retry, for <see cref="ConnectionLinkEventKind.Retrying"/>.</param>
+/// <param name="ErrorCode">The <c>storage.*</c> code for what went wrong, when something did.</param>
+public sealed record ConnectionLinkEvent(
+    long Sequence,
+    Guid ConnectionId,
+    string DisplayName,
+    ConnectionLinkEventKind Kind,
+    DateTimeOffset OccurredUtc,
+    int? Attempt = null,
+    string? ErrorCode = null)
+{
+    public bool HasValidBounds =>
+        Sequence > 0 &&
+        ConnectionId != Guid.Empty &&
+        ConnectionProfileMetadataDocument.IsSafeText(DisplayName, 512, required: true) &&
+        Enum.IsDefined(Kind) &&
+        OccurredUtc != default &&
+        OccurredUtc.Offset == TimeSpan.Zero &&
+        Attempt is null or >= 1 and <= ConnectionLinkLimits.MaximumAttempt &&
+        (ErrorCode is null ||
+            ErrorCode.Length is > 0 and <= StorageIpcLimits.MaximumFailureCodeLength &&
+            ErrorCode.All(static character =>
+                char.IsAsciiLetterOrDigit(character) || character is '.' or '_' or '-'));
+}
+
+/// <param name="Events">The most recent changes, newest first: what the activity log lists.</param>
+/// <param name="Latest">
+/// Each connection's latest change, newest first, however long ago it was: what its card shows.
+/// A connection with none has had no trouble since the agent started.
+/// </param>
+public sealed record ConnectionLinkEventsResponse(
+    int ContractVersion,
+    ConnectionLinkEvent[] Events,
+    ConnectionLinkEvent[] Latest,
+    StorageIpcFailure? Failure = null);

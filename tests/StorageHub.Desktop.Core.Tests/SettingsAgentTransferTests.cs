@@ -108,6 +108,66 @@ public sealed class SettingsAgentTransferTests
         Assert.True(Assert.Single(agent.Profiles.Created).IsEnabled);
     }
 
+    /// <summary>
+    /// A WebDAV server that wants no sign-in but does want a client certificate still has a vault
+    /// reference that means nothing elsewhere, so it arrives disabled like any other.
+    /// </summary>
+    [Fact]
+    public async Task AnAnonymousConnectionWithAClientCertificateFromAnotherMachineArrivesDisabled()
+    {
+        var agent = Agent();
+        var draft = new ConnectionProfileDraft(
+            new ConnectionProfileMetadataDocument("Studio files", Tags: []),
+            new ConnectionEndpointDocument(
+                StorageConnectionProvider.WebDav,
+                ServiceEndpoint: "https://dav.example.test/",
+                ClientCertificatePfxReference: "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"),
+            new ConnectionAuthenticationDocument(ConnectionAuthenticationKind.None),
+            new ConnectionOperationalOptionsDocument());
+        var document = Document() with
+        {
+            Connections = [new ConnectionExportEntry(Guid.NewGuid(), draft)]
+        };
+
+        var result = await SettingsAgentTransfer.ApplyAsync(
+            document, [SettingsSectionId.Connections], agent.Clients,
+            SettingsConflictPolicy.Skip, sameMachine: false, default);
+
+        Assert.True(Assert.Single(result.Connections).NeedsCredentials);
+        var created = Assert.Single(agent.Profiles.Created);
+        Assert.False(created.IsEnabled);
+        Assert.Equal(draft.Endpoint, created.Endpoint);
+    }
+
+    /// <summary>
+    /// An Azure container that signs in with the machine's own Azure identity carries no vault
+    /// reference at all, so like a Local folder it arrives ready to use.
+    /// </summary>
+    [Fact]
+    public async Task AConnectionThatSignsInWithTheMachinesAzureIdentityArrivesEnabled()
+    {
+        var agent = Agent();
+        var draft = new ConnectionProfileDraft(
+            new ConnectionProfileMetadataDocument("Archive", Tags: []),
+            new ConnectionEndpointDocument(
+                StorageConnectionProvider.AzureBlob,
+                Bucket: "archive",
+                ServiceEndpoint: "https://account.blob.core.windows.net/"),
+            new ConnectionAuthenticationDocument(ConnectionAuthenticationKind.AmbientCredential),
+            new ConnectionOperationalOptionsDocument());
+        var document = Document() with
+        {
+            Connections = [new ConnectionExportEntry(Guid.NewGuid(), draft)]
+        };
+
+        var result = await SettingsAgentTransfer.ApplyAsync(
+            document, [SettingsSectionId.Connections], agent.Clients,
+            SettingsConflictPolicy.Skip, sameMachine: false, default);
+
+        Assert.False(Assert.Single(result.Connections).NeedsCredentials);
+        Assert.True(Assert.Single(agent.Profiles.Created).IsEnabled);
+    }
+
     [Fact]
     public async Task ASkippedConnectionIsLeftAloneButStillFoundBySyncTasks()
     {

@@ -26,7 +26,8 @@ public sealed record SyncSnapshotScanOptions
         long maximumHashBytesPerFile = 1024L * 1024 * 1024,
         long maximumTotalHashBytes = 10L * 1024 * 1024 * 1024,
         int maximumConcurrentHashes = 2,
-        bool requirePortableHashCapability = false)
+        bool requirePortableHashCapability = false,
+        bool acceptServerDigests = true)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(pageSize, StorageListRequest.MaximumPageSize);
@@ -53,6 +54,7 @@ public sealed record SyncSnapshotScanOptions
         MaximumTotalHashBytes = maximumTotalHashBytes;
         MaximumConcurrentHashes = maximumConcurrentHashes;
         RequirePortableHashCapability = requirePortableHashCapability;
+        AcceptServerDigests = acceptServerDigests;
     }
 
     public int PageSize { get; }
@@ -74,6 +76,12 @@ public sealed record SyncSnapshotScanOptions
     public int MaximumConcurrentHashes { get; }
 
     public bool RequirePortableHashCapability { get; }
+
+    /// <summary>
+    /// Whether a SHA-256 the server already keeps for a whole file may stand in for reading it.
+    /// A scan only compares; a copy it plans is still verified from the bytes written.
+    /// </summary>
+    public bool AcceptServerDigests { get; }
 
     /// <summary>
     /// Safe orchestration default: obtain portable evidence for files that lack a provider version
@@ -352,7 +360,10 @@ public static class SyncSnapshotScanner
                     var result = await checksumSession.ComputePortableChecksumAsync(
                         new PortableChecksumRequest(
                             candidate.Value,
-                            options.MaximumHashBytesPerFile),
+                            options.MaximumHashBytesPerFile)
+                        {
+                            AcceptServerDigest = options.AcceptServerDigests,
+                        },
                         token).ConfigureAwait(false);
                     if (result.IsFailure)
                     {

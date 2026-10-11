@@ -29,6 +29,7 @@ public sealed class ObjectInspectorIpcCommandService : IAgentIpcCommandHandler
         ObjectInspectorIpcMessageTypes.VersionListRequest or
         ObjectInspectorIpcMessageTypes.MetadataGetRequest or
         ObjectInspectorIpcMessageTypes.TagsGetRequest or
+        ObjectInspectorIpcMessageTypes.ChecksumGetRequest or
         EditableFileIpcMessageTypes.DownloadRequest or
         EditableFileIpcMessageTypes.UploadRequest or
         EditableFileIpcMessageTypes.DirectoryEnsureRequest or
@@ -50,6 +51,8 @@ public sealed class ObjectInspectorIpcCommandService : IAgentIpcCommandHandler
                 GetMetadataAsync(request, cancellationToken),
             ObjectInspectorIpcMessageTypes.TagsGetRequest =>
                 GetTagsAsync(request, cancellationToken),
+            ObjectInspectorIpcMessageTypes.ChecksumGetRequest =>
+                GetChecksumAsync(request, cancellationToken),
             EditableFileIpcMessageTypes.DownloadRequest =>
                 DownloadEditableFileAsync(request, cancellationToken),
             EditableFileIpcMessageTypes.UploadRequest =>
@@ -225,6 +228,126 @@ public sealed class ObjectInspectorIpcCommandService : IAgentIpcCommandHandler
             return MetadataFailure(request, InspectorUnavailable());
         }
     }
+
+    /// <summary>
+    /// The file's SHA-256 and where it came from: the server's own digest when asked for and
+    /// reported, otherwise computed from at most a bounded number of bytes read.
+    /// </summary>
+    private async ValueTask<AgentIpcCommandResponse> GetChecksumAsync(
+        IpcEnvelope envelope,
+        CancellationToken cancellationToken)
+    {
+        ObjectChecksumGetRequest request;
+        try
+        {
+            request = envelope.DeserializePayload<ObjectChecksumGetRequest>();
+        }
+        catch (JsonException)
+        {
+            return InvalidPayload();
+        }
+
+        if (!request.HasValidBounds)
+        {
+            return InvalidRequest(request.ContractVersion);
+        }
+
+        try
+        {
+            var opened = await _connector.OpenAsync(
+                new ConnectionProfileId(request.Address.ConnectionId),
+                cancellationToken).ConfigureAwait(false);
+            if (opened.IsFailure)
+            {
+                return ChecksumFailure(request, SanitizeFailure(opened.Error));
+            }
+
+            await using var connection = opened.Value;
+            var validated = ValidateAndCreateAddress(connection.Session, request.Address);
+            if (validated.Failure is not null)
+            {
+                return ChecksumFailure(request, validated.Failure);
+            }
+
+            if (connection.Session is not IStoragePortableChecksumSession checksums)
+            {
+                return ChecksumFailure(request, ChecksumUnsupported());
+            }
+
+            var entry = await connection.Session.GetEntryAsync(validated.Address!, cancellationToken)
+                .ConfigureAwait(false);
+            if (entry.IsFailure)
+            {
+                return ChecksumFailure(request, SanitizeFailure(entry.Error));
+            }
+
+            if (entry.Value.Kind != StorageEntryKind.File || entry.Value.Size is null)
+            {
+                return ChecksumFailure(request, ChecksumUnsupported());
+            }
+
+            var computed = await checksums.ComputePortableChecksumAsync(
+                new PortableChecksumRequest(entry.Value, ObjectInspectorIpcLimits.MaximumComputedChecksumBytes)
+                {
+                    AcceptServerDigest = request.PreferServer,
+                },
+                cancellationToken).ConfigureAwait(false);
+            if (computed.IsFailure)
+            {
+                return ChecksumFailure(
+                    request,
+                    computed.Error.Code == "storage.checksum.invalid_request"
+                        ? ChecksumTooLarge()
+                        : SanitizeFailure(computed.Error));
+            }
+
+            var response = new ObjectChecksumGetResponse(
+                request.ContractVersion,
+                request.Address,
+                ObjectChecksumGetResponse.Sha256,
+                computed.Value.Digest.Value,
+                computed.Value.Source == PortableChecksumSource.Server
+                    ? ObjectChecksumSource.Server
+                    : ObjectChecksumSource.Computed,
+                computed.Value.BytesProcessed);
+            return response.HasValidResultBounds
+                ? AgentIpcCommandResponse.Create(ObjectInspectorIpcMessageTypes.ChecksumGetResponse, response)
+                : ChecksumFailure(request, InvalidProviderResponse());
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return ChecksumFailure(request, InspectorUnavailable());
+        }
+    }
+
+    private static StorageIpcFailure ChecksumUnsupported() => new(
+        "storage.inspector.checksum_unsupported",
+        StorageIpcFailureCategory.Unsupported,
+        "A checksum is available only for files on this connection.",
+        IsTransient: false);
+
+    private static StorageIpcFailure ChecksumTooLarge() => new(
+        "storage.inspector.checksum_too_large",
+        StorageIpcFailureCategory.Validation,
+        "The server reports no checksum for this file, and it is too large to read for one here.",
+        IsTransient: false);
+
+    private static AgentIpcCommandResponse ChecksumFailure(
+        ObjectChecksumGetRequest request,
+        StorageIpcFailure failure) => AgentIpcCommandResponse.Create(
+        ObjectInspectorIpcMessageTypes.ChecksumGetResponse,
+        new ObjectChecksumGetResponse(
+            request.ContractVersion,
+            request.Address,
+            Algorithm: null,
+            Value: null,
+            ObjectChecksumSource.Computed,
+            BytesCovered: 0,
+            failure));
 
     private async ValueTask<AgentIpcCommandResponse> GetTagsAsync(
         IpcEnvelope envelope,
@@ -574,7 +697,12 @@ public sealed class ObjectInspectorIpcCommandService : IAgentIpcCommandHandler
         }
     }
 
-    private static AddressValidation ValidateAndCreateAddress(
+    /// <summary>
+    /// Checks that the opened session is the requested connection and root, and that the path is
+    /// exactly canonical and not the root. Shared with the item-attribute handler, which reaches
+    /// the same items by the same address.
+    /// </summary>
+    internal static AddressValidation ValidateAndCreateAddress(
         IStorageEndpointSession? session,
         ObjectInspectorAddress requested)
     {
@@ -853,7 +981,7 @@ public sealed class ObjectInspectorIpcCommandService : IAgentIpcCommandHandler
         return null;
     }
 
-    private static AgentIpcCommandResponse InvalidPayload() => AgentIpcCommandResponse.Error(
+    internal static AgentIpcCommandResponse InvalidPayload() => AgentIpcCommandResponse.Error(
         "ipc.payload.invalid",
         "The inspector request payload was invalid.");
 
@@ -1053,5 +1181,5 @@ public sealed class ObjectInspectorIpcCommandService : IAgentIpcCommandHandler
         AgentIpcCommandResponse.Create(EditableFileIpcMessageTypes.RenameResponse,
             new StorageItemRenameResponse(request.ContractVersion, request.Source, request.Destination, Renamed: false, failure));
 
-    private sealed record AddressValidation(StorageAddress? Address, StorageIpcFailure? Failure);
+    internal sealed record AddressValidation(StorageAddress? Address, StorageIpcFailure? Failure);
 }

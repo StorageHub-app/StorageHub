@@ -303,8 +303,9 @@
         </Button>
       </Grid>
 
-      <!-- "12 items" and what is selected, under the listing, as 1.x's pane footer read. -->
-      <Grid x:Name="PART_Footer" DockPanel.Dock="Bottom" ColumnDefinitions="Auto,*"
+      <!-- "12 items" and what is selected, under the listing, as 1.x's pane footer read, and at
+           its end the free space behind the folder, where the drive or server says it. -->
+      <Grid x:Name="PART_Footer" DockPanel.Dock="Bottom" ColumnDefinitions="Auto,*,Auto"
             ColumnSpacing="{StaticResource SpaceLg}"
             IsVisible="{Binding IsListing}"
             Margin="8,4">
@@ -313,7 +314,11 @@
           <Button Classes="link" Content="{Binding LoadMoreLabel}" Command="{Binding LoadMoreCommand}"
                   IsVisible="{Binding HasMorePages}" VerticalAlignment="Center"/>
         </StackPanel>
-        <TextBlock Grid.Column="1" Classes="muted" Text="{Binding SelectionSummary}" VerticalAlignment="Center"/>
+        <TextBlock Grid.Column="1" Classes="muted" Text="{Binding SelectionSummary}" VerticalAlignment="Center"
+                   TextTrimming="CharacterEllipsis"/>
+        <TextBlock x:Name="PART_FreeSpace" Grid.Column="2" Classes="muted" Text="{Binding FreeSpace}"
+                   IsVisible="{Binding HasFreeSpace}" VerticalAlignment="Center"
+                   ToolTip.Tip="{Binding FreeSpaceHint}"/>
       </Grid>
 
       <!--
@@ -334,6 +339,17 @@
           <LucideIcon Kind="TriangleAlert" Size="{StaticResource IconSizeSm}" Classes="warning"
                       IsVisible="{Binding StatusIsWarning}"/>
           <TextBlock Text="{Binding Status}" TextWrapping="Wrap"/>
+        </StackPanel>
+      </Button>
+
+      <!-- Under a failure on the server's identity: the connection's Trust tab, where the key
+           can be fetched and checked or the certificate pinned, offered where it happened. -->
+      <Button DockPanel.Dock="Top" Classes="tool" HorizontalAlignment="Left"
+              IsVisible="{Binding ShowsReviewTrust}" Command="{Binding ReviewTrustCommand}"
+              AutomationProperties.Name="{Binding ReviewTrustLabel}">
+        <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+          <LucideIcon Kind="ShieldAlert" Size="{StaticResource IconSizeSm}" Classes="warning"/>
+          <TextBlock Classes="warning" Text="{Binding ReviewTrustLabel}"/>
         </StackPanel>
       </Button>
 

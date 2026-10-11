@@ -440,6 +440,9 @@ public sealed class ConnectionTrustIpcCommandService : IAgentIpcCommandHandler
         {
             FtpsEndpoint { TlsPolicy: TlsCertificatePolicy.Pinned } endpoint => new TrustTarget(
                 TrustArtifactKind.TlsCertificate, endpoint.Host, endpoint.Port),
+            // A WebDAV certificate is pinned where an FTPS one is: by the URL's host and port.
+            WebDavEndpoint { TlsPolicy: TlsCertificatePolicy.Pinned } endpoint => new TrustTarget(
+                TrustArtifactKind.TlsCertificate, endpoint.Host, endpoint.Port),
             SftpEndpoint { HostKeyPolicy: SshHostKeyPolicy.Pinned } endpoint => new TrustTarget(
                 TrustArtifactKind.SshHostKey, endpoint.Host, endpoint.Port),
             SshClientEndpoint { HostKeyPolicy: SshHostKeyPolicy.Pinned } endpoint => new TrustTarget(

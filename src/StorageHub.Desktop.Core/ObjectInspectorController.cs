@@ -1,4 +1,5 @@
 using StorageHub.Contracts.Ipc;
+using StorageHub.Desktop.Localization;
 
 namespace StorageHub.Desktop;
 
@@ -10,7 +11,9 @@ public sealed record ObjectInspectorState(
     IReadOnlyList<ObjectTagEntry> Tags,
     StorageIpcFailure? VersionsFailure = null,
     StorageIpcFailure? MetadataFailure = null,
-    StorageIpcFailure? TagsFailure = null)
+    StorageIpcFailure? TagsFailure = null,
+    ItemAttributes? Attributes = null,
+    StorageIpcFailure? AttributesFailure = null)
 {
     public bool CanLoadMoreVersions =>
         VersionsFailure is null && VersionContinuationToken is not null;
@@ -27,6 +30,12 @@ public sealed record ObjectInspectorState(
 }
 
 /// <summary>Serializes refresh and version paging while retaining independent tab failures.</summary>
+/// <remarks>
+/// The item's attributes are read for every kind of item; versions, metadata and tags only for a
+/// file, which is the only kind they describe. The two attribute changes go through the same gate,
+/// so a change never races a refresh, and each reads the attributes again once it has been made so
+/// what is shown is what the server now says rather than what was asked for.
+/// </remarks>
 public sealed class ObjectInspectorController : IAsyncDisposable
 {
     private readonly IObjectInspectorAgentClient _client;
@@ -37,7 +46,8 @@ public sealed class ObjectInspectorController : IAsyncDisposable
     public ObjectInspectorController(
         IObjectInspectorAgentClient client,
         ObjectInspectorAddress address,
-        bool ownsClient = false)
+        bool ownsClient = false,
+        StorageItemKind kind = StorageItemKind.File)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
         if (address?.HasValidBounds != true)
@@ -48,10 +58,16 @@ public sealed class ObjectInspectorController : IAsyncDisposable
         }
 
         _ownsClient = ownsClient;
+        Kind = kind;
         State = ObjectInspectorState.Empty(address);
     }
 
     public ObjectInspectorState State { get; private set; }
+
+    /// <summary>What the pane listed the item as: a file has versions, metadata and tags to read.</summary>
+    public StorageItemKind Kind { get; }
+
+    public bool IsFile => Kind == StorageItemKind.File;
 
     public event EventHandler<ObjectInspectorState>? StateChanged;
 
@@ -64,6 +80,19 @@ public sealed class ObjectInspectorController : IAsyncDisposable
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             var address = State.Address;
+            var (attributes, attributesFailure) = await ReadAttributesAsync(address, cancellationToken)
+                .ConfigureAwait(false);
+            if (!IsFile)
+            {
+                State = ObjectInspectorState.Empty(address) with
+                {
+                    Attributes = attributes,
+                    AttributesFailure = attributesFailure
+                };
+                OnStateChanged();
+                return State;
+            }
+
             var versions = await _client.ListVersionsAsync(new ObjectVersionListRequest(
                 ObjectInspectorIpcContract.CurrentVersion,
                 WithoutVersion(address)), cancellationToken).ConfigureAwait(false);
@@ -82,7 +111,9 @@ public sealed class ObjectInspectorController : IAsyncDisposable
                 tags.Tags,
                 versions.Failure,
                 metadata.Failure,
-                tags.Failure);
+                tags.Failure,
+                attributes,
+                attributesFailure);
             OnStateChanged();
             return State;
         }
@@ -142,6 +173,104 @@ public sealed class ObjectInspectorController : IAsyncDisposable
         finally
         {
             _operationGate.Release();
+        }
+    }
+
+    /// <summary>
+    /// The file's SHA-256, the server's own when <paramref name="preferServer"/> and it keeps one,
+    /// otherwise read and computed by the agent. Not part of a refresh, because it can read the file.
+    /// </summary>
+    public async Task<ObjectChecksumGetResponse> GetChecksumAsync(
+        bool preferServer,
+        CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        await _operationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            return await _client.GetChecksumAsync(new ObjectChecksumGetRequest(
+                ObjectInspectorIpcContract.CurrentVersion,
+                State.Address,
+                preferServer), cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _operationGate.Release();
+        }
+    }
+
+    /// <summary>Changes the permission bits, then reads the attributes again.</summary>
+    /// <returns>Nothing when the change was made, or the agent's reason it was not.</returns>
+    public Task<StorageIpcFailure?> SetPermissionsAsync(int unixMode, CancellationToken cancellationToken = default) =>
+        ChangeAsync(async (address, token) =>
+        {
+            var response = await _client.SetItemPermissionsAsync(new ItemPermissionsSetRequest(
+                ItemAttributeIpcContract.CurrentVersion, address, unixMode), token).ConfigureAwait(false);
+            return response.Failure;
+        }, cancellationToken);
+
+    /// <summary>Sets the modified time, then reads the attributes again.</summary>
+    /// <returns>Nothing when the change was made, or the agent's reason it was not.</returns>
+    public Task<StorageIpcFailure?> SetModifiedTimeAsync(
+        DateTimeOffset modifiedUtc,
+        CancellationToken cancellationToken = default) =>
+        ChangeAsync(async (address, token) =>
+        {
+            var response = await _client.SetItemModifiedTimeAsync(new ItemModifiedTimeSetRequest(
+                ItemAttributeIpcContract.CurrentVersion, address, modifiedUtc.ToUniversalTime()), token)
+                .ConfigureAwait(false);
+            return response.Failure;
+        }, cancellationToken);
+
+    private async Task<StorageIpcFailure?> ChangeAsync(
+        Func<ObjectInspectorAddress, CancellationToken, Task<StorageIpcFailure?>> change,
+        CancellationToken cancellationToken)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        await _operationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            var failure = await change(State.Address, cancellationToken).ConfigureAwait(false);
+            if (failure is not null) return failure;
+
+            var (attributes, attributesFailure) = await ReadAttributesAsync(State.Address, cancellationToken)
+                .ConfigureAwait(false);
+            State = State with { Attributes = attributes, AttributesFailure = attributesFailure };
+            OnStateChanged();
+            return null;
+        }
+        finally
+        {
+            _operationGate.Release();
+        }
+    }
+
+    /// <summary>
+    /// The item's attributes, or why there are none.
+    /// </summary>
+    /// <remarks>
+    /// An agent that refuses the request outright (one older than the attribute contract) costs
+    /// the General tab only: it becomes that tab's failure and the other three still load.
+    /// </remarks>
+    private async Task<(ItemAttributes? Attributes, StorageIpcFailure? Failure)> ReadAttributesAsync(
+        ObjectInspectorAddress address,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var response = await _client.GetItemAttributesAsync(new ItemAttributesGetRequest(
+                ItemAttributeIpcContract.CurrentVersion, address), cancellationToken).ConfigureAwait(false);
+            return (response.Attributes, response.Failure);
+        }
+        catch (InvalidDataException)
+        {
+            return (null, new StorageIpcFailure(
+                "storage.attributes.agent_refused",
+                StorageIpcFailureCategory.Unsupported,
+                Ui.Inspector.TheAgentCouldNotReadProperties,
+                IsTransient: false));
         }
     }
 

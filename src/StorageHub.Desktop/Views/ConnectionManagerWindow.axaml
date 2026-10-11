@@ -173,7 +173,7 @@
       </Border>
 
       <Border DockPanel.Dock="Bottom" Classes="editor-footer">
-        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{StaticResource SpaceSm}">
+        <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="{StaticResource SpaceSm}">
           <TextBlock Grid.Column="0" Classes="success" VerticalAlignment="Center"
                      DataContext="{Binding Editor}"
                      IsVisible="{Binding HasLoadedVersion}" Text="{Binding LoadedVersion}"/>
@@ -181,13 +181,37 @@
                      TextTrimming="CharacterEllipsis"
                      DataContext="{Binding Editor}"
                      IsVisible="{Binding HasStatus}" Text="{Binding Status}"/>
+          <!-- Tests what is in the fields, saved or not; the steps it took show above. -->
+          <Button Grid.Column="1" DataContext="{Binding Editor}"
+                  Content="{Binding TestLabel}" Command="{Binding TestCommand}"/>
           <!-- Escape cancels and Enter saves, as 1.x's CancelButton and AcceptButton did. -->
-          <Button Grid.Column="1" Content="{Binding CancelLabel}" Command="{Binding CloseCommand}"
+          <Button Grid.Column="2" Content="{Binding CancelLabel}" Command="{Binding CloseCommand}"
                   IsCancel="True"/>
-          <Button Grid.Column="2" Classes="primary" DataContext="{Binding Editor}"
+          <Button Grid.Column="3" Classes="primary" DataContext="{Binding Editor}"
                   Content="{Binding SaveProfileLabel}" Command="{Binding SaveCommand}"
                   IsDefault="True"/>
         </Grid>
+      </Border>
+
+      <!-- The last test's steps, each passed, failed, not needed or not reached. -->
+      <Border DockPanel.Dock="Bottom" Classes="editor-footer" DataContext="{Binding Editor}"
+              IsVisible="{Binding HasTestSteps}"
+              AutomationProperties.Name="{Binding TestStepsHeading}">
+        <ItemsControl ItemsSource="{Binding TestSteps}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate DataType="vm:ConnectionTestStepRow">
+              <Grid ColumnDefinitions="180,110,*" ColumnSpacing="{StaticResource SpaceSm}">
+                <TextBlock Grid.Column="0" Text="{Binding Label}"/>
+                <TextBlock Grid.Column="1" Classes="muted" Text="{Binding Outcome}"
+                           IsVisible="{Binding !IsPassed}"/>
+                <TextBlock Grid.Column="1" Classes="success" Text="{Binding Outcome}"
+                           IsVisible="{Binding IsPassed}"/>
+                <TextBlock Grid.Column="2" Classes="danger" Text="{Binding Detail}"
+                           TextWrapping="Wrap" IsVisible="{Binding HasDetail}"/>
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
       </Border>
 
       <TabControl x:Name="PART_Tabs" Classes="editor-tabs" DataContext="{Binding Editor}">

@@ -82,6 +82,11 @@ internal static class ConnectionIconCatalog
             StorageProviderKind.Local => UiGlyph.Home,
             StorageProviderKind.Sftp or StorageProviderKind.Ftp or StorageProviderKind.Ftps => UiGlyph.Server,
             StorageProviderKind.Ssh => UiGlyph.Terminal,
+            // A folder reached by a web address: the link, rather than S3's bucket in the cloud.
+            StorageProviderKind.WebDav => UiGlyph.Link,
+            // Object storage in somebody's cloud, as S3 is.
+            StorageProviderKind.AzureBlob or StorageProviderKind.GoogleCloudStorage or
+                StorageProviderKind.OpenStackSwift => UiGlyph.Cloud,
             _ => UiGlyph.Cloud
         };
     }

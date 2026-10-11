@@ -460,9 +460,27 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
                 RootPath: ftps.RootPath,
                 Ftp: PersistedFtpOptions.From(ftps.ServerOptions)),
             SftpEndpoint sftp => new PersistedEndpoint(
-                "sftp", RootPath: sftp.RootPath, Host: sftp.Host, Port: sftp.Port, HostKeyPolicy: sftp.HostKeyPolicy),
+                "sftp", RootPath: sftp.RootPath, Host: sftp.Host, Port: sftp.Port, HostKeyPolicy: sftp.HostKeyPolicy,
+                Sftp: PersistedSftpOptions.From(sftp.ServerOptions)),
             SshClientEndpoint ssh => new PersistedEndpoint(
                 "ssh", Host: ssh.Host, Port: ssh.Port, HostKeyPolicy: ssh.HostKeyPolicy),
+            // The URL is the endpoint; its host and port are derived from it again on reading.
+            WebDavEndpoint webDav => new PersistedEndpoint(
+                "webdav", RootPath: webDav.RootPath, ServiceEndpoint: webDav.ServerUrl.AbsoluteUri,
+                AllowInsecureHttp: webDav.AllowInsecureHttp, TlsPolicy: webDav.TlsPolicy,
+                PfxReference: webDav.ClientCertificatePfxReference?.Value,
+                PfxPasswordReference: webDav.ClientCertificatePasswordReference?.Value,
+                CredentialScheme: webDav.CredentialScheme),
+            AzureBlobEndpoint azure => new PersistedEndpoint(
+                "azureblob", RootPath: azure.RootPrefix, Bucket: azure.Container,
+                ServiceEndpoint: azure.ServiceUri?.AbsoluteUri, AllowInsecureHttp: azure.AllowInsecureHttp),
+            GoogleCloudStorageEndpoint gcs => new PersistedEndpoint(
+                "gcs", RootPath: gcs.RootPrefix, Bucket: gcs.Bucket,
+                ServiceEndpoint: gcs.ServiceUri?.AbsoluteUri, AllowInsecureHttp: gcs.AllowInsecureHttp),
+            SwiftEndpoint swift => new PersistedEndpoint(
+                "swift", RootPath: swift.RootPrefix, Bucket: swift.Container, Region: swift.Region,
+                ServiceEndpoint: swift.AuthenticationUrl?.AbsoluteUri, AllowInsecureHttp: swift.AllowInsecureHttp,
+                StorageUrl: swift.StorageUrl?.AbsoluteUri),
             _ => throw new NotSupportedException($"Endpoint type {endpoint.GetType().Name} is not supported.")
         };
         return JsonSerializer.Serialize(value, JsonOptions);
@@ -499,11 +517,37 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
                 Required(value.Host, "SFTP host"),
                 Required(value.Port, "SFTP port"),
                 value.HostKeyPolicy ?? SshHostKeyPolicy.Unspecified,
-                value.RootPath),
+                value.RootPath,
+                value.Sftp?.ToOptions()),
             "ssh" => new SshClientEndpoint(
                 Required(value.Host, "SSH host"),
                 Required(value.Port, "SSH port"),
                 value.HostKeyPolicy ?? SshHostKeyPolicy.Unspecified),
+            "webdav" => new WebDavEndpoint(
+                new Uri(Required(value.ServiceEndpoint, "WebDAV URL"), UriKind.Absolute),
+                value.TlsPolicy ?? TlsCertificatePolicy.Unspecified,
+                value.AllowInsecureHttp,
+                value.CredentialScheme ?? HttpCredentialScheme.Basic,
+                ParseSecretReference(value.PfxReference),
+                ParseSecretReference(value.PfxPasswordReference),
+                value.RootPath),
+            "azureblob" => new AzureBlobEndpoint(
+                Required(value.Bucket, "Azure container"),
+                value.ServiceEndpoint is null ? null : new Uri(value.ServiceEndpoint, UriKind.Absolute),
+                value.AllowInsecureHttp,
+                value.RootPath),
+            "swift" => new SwiftEndpoint(
+                Required(value.Bucket, "Swift container"),
+                value.ServiceEndpoint is null ? null : new Uri(value.ServiceEndpoint, UriKind.Absolute),
+                value.StorageUrl is null ? null : new Uri(value.StorageUrl, UriKind.Absolute),
+                value.Region,
+                value.AllowInsecureHttp,
+                value.RootPath),
+            "gcs" => new GoogleCloudStorageEndpoint(
+                Required(value.Bucket, "Cloud Storage bucket"),
+                value.ServiceEndpoint is null ? null : new Uri(value.ServiceEndpoint, UriKind.Absolute),
+                value.AllowInsecureHttp,
+                value.RootPath),
             _ => throw new InvalidDataException("The stored connection endpoint kind is unknown.")
         };
     }
@@ -526,6 +570,21 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
             SftpPrivateKeyAuthentication key => new PersistedAuthentication(
                 "sftp-key", key.Username, PrivateKeyReference: key.PrivateKeyReference.Value,
                 PassphraseReference: key.PassphraseReference?.Value, KeyFormat: key.KeyFormat),
+            BearerTokenAuthentication bearer => new PersistedAuthentication(
+                "bearer-token", TokenReference: bearer.TokenReference.Value),
+            AmbientCredentialAuthentication => new PersistedAuthentication("ambient"),
+            AzureSharedKeyAuthentication azureKey => new PersistedAuthentication(
+                "azure-shared-key", azureKey.AccountName, SecretKeyReference: azureKey.AccountKeyReference.Value),
+            AzureSasTokenAuthentication sas => new PersistedAuthentication(
+                "azure-sas", TokenReference: sas.SasTokenReference.Value),
+            AzureConnectionStringAuthentication connectionString => new PersistedAuthentication(
+                "azure-connection-string", SecretKeyReference: connectionString.ConnectionStringReference.Value),
+            GoogleServiceAccountAuthentication serviceAccount => new PersistedAuthentication(
+                "gcs-service-account", SecretKeyReference: serviceAccount.ServiceAccountJsonReference.Value),
+            KeystonePasswordAuthentication keystone => new PersistedAuthentication(
+                "keystone-password", keystone.Username, PasswordReference: keystone.PasswordReference.Value,
+                ProjectName: keystone.ProjectName, UserDomainName: keystone.UserDomainName,
+                ProjectDomainName: keystone.ProjectDomainName),
             SshPrivateKeyPasswordAuthentication mfa => new PersistedAuthentication(
                 "ssh-key-password",
                 mfa.Username,
@@ -560,6 +619,24 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
                 SecretReference.Parse(Required(value.PrivateKeyReference, "private-key reference")),
                 ParseSecretReference(value.PassphraseReference),
                 value.KeyFormat ?? 0),
+            "bearer-token" => new BearerTokenAuthentication(
+                SecretReference.Parse(Required(value.TokenReference, "bearer-token reference"))),
+            "ambient" => new AmbientCredentialAuthentication(),
+            "azure-shared-key" => new AzureSharedKeyAuthentication(
+                Required(value.Username, "Azure account name"),
+                SecretReference.Parse(Required(value.SecretKeyReference, "Azure account-key reference"))),
+            "azure-sas" => new AzureSasTokenAuthentication(
+                SecretReference.Parse(Required(value.TokenReference, "Azure SAS-token reference"))),
+            "azure-connection-string" => new AzureConnectionStringAuthentication(
+                SecretReference.Parse(Required(value.SecretKeyReference, "Azure connection-string reference"))),
+            "gcs-service-account" => new GoogleServiceAccountAuthentication(
+                SecretReference.Parse(Required(value.SecretKeyReference, "service-account reference"))),
+            "keystone-password" => new KeystonePasswordAuthentication(
+                Required(value.Username, "username"),
+                SecretReference.Parse(Required(value.PasswordReference, "password reference")),
+                Required(value.ProjectName, "Keystone project"),
+                Required(value.UserDomainName, "Keystone user domain"),
+                Required(value.ProjectDomainName, "Keystone project domain")),
             "ssh-key-password" => new SshPrivateKeyPasswordAuthentication(
                 Required(value.Username, "username"),
                 SecretReference.Parse(Required(value.PasswordReference, "password reference")),
@@ -632,6 +709,14 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
         // The original schema constrains this legacy storage-provider column. The endpoint JSON
         // carries the authoritative SSH client discriminator and restores ConnectionProviderKind.Ssh.
         ConnectionProviderKind.Ssh => "sftp",
+        // Allowed in the column from schema v17 (WebDavProviderSchemaMigration).
+        ConnectionProviderKind.WebDav => "webdav",
+        // Allowed in the column from schema v18 (AzureBlobProviderSchemaMigration).
+        ConnectionProviderKind.AzureBlob => "azureblob",
+        // Allowed in the column from schema v19 (GoogleCloudStorageProviderSchemaMigration).
+        ConnectionProviderKind.GoogleCloudStorage => "gcs",
+        // Allowed in the column from schema v20 (SwiftProviderSchemaMigration).
+        ConnectionProviderKind.OpenStackSwift => "swift",
         _ => throw new ArgumentOutOfRangeException(nameof(provider))
     };
 
@@ -642,6 +727,10 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
         "ftp" => ConnectionProviderKind.Ftp,
         "ftps" => ConnectionProviderKind.Ftps,
         "sftp" => ConnectionProviderKind.Sftp,
+        "webdav" => ConnectionProviderKind.WebDav,
+        "azureblob" => ConnectionProviderKind.AzureBlob,
+        "gcs" => ConnectionProviderKind.GoogleCloudStorage,
+        "swift" => ConnectionProviderKind.OpenStackSwift,
         _ => throw new InvalidDataException("The stored connection provider is unknown.")
     };
 
@@ -703,7 +792,10 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
         string? PfxReference = null,
         string? PfxPasswordReference = null,
         SshHostKeyPolicy? HostKeyPolicy = null,
-        PersistedFtpOptions? Ftp = null);
+        PersistedFtpOptions? Ftp = null,
+        PersistedSftpOptions? Sftp = null,
+        HttpCredentialScheme? CredentialScheme = null,
+        string? StorageUrl = null);
 
     /// <summary>An FTP server's options; absent from rows written before they existed, which read as the defaults.</summary>
     private sealed record PersistedFtpOptions(
@@ -734,6 +826,38 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
             ActiveExternalAddress is null ? null : System.Net.IPAddress.Parse(ActiveExternalAddress));
     }
 
+    /// <summary>An SFTP server's options; absent from rows written before they existed, which read as the defaults.</summary>
+    private sealed record PersistedSftpOptions(
+        Guid? JumpConnectionId = null,
+        string? KeyExchangeAlgorithms = null,
+        string? Ciphers = null,
+        string? MacAlgorithms = null,
+        string? HostKeyAlgorithms = null,
+        int? MaximumSessions = null,
+        int? KeepAliveSeconds = null)
+    {
+        // Null for the defaults, so an ordinary SFTP row stays as it was written before.
+        public static PersistedSftpOptions? From(SftpServerOptions options) => options == SftpServerOptions.Default
+            ? null
+            : new(
+                options.JumpConnectionId?.Value,
+                options.KeyExchangeAlgorithms,
+                options.Ciphers,
+                options.MacAlgorithms,
+                options.HostKeyAlgorithms,
+                options.MaximumSessions,
+                options.KeepAliveSeconds);
+
+        public SftpServerOptions ToOptions() => new(
+            JumpConnectionId is { } jump ? new ConnectionProfileId(jump) : null,
+            KeyExchangeAlgorithms,
+            Ciphers,
+            MacAlgorithms,
+            HostKeyAlgorithms,
+            MaximumSessions,
+            KeepAliveSeconds);
+    }
+
     private sealed record PersistedAuthentication(
         string Kind,
         string? Username = null,
@@ -744,7 +868,11 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
         string? SessionTokenReference = null,
         string? PrivateKeyReference = null,
         string? PassphraseReference = null,
-        SftpPrivateKeyFormat? KeyFormat = null);
+        SftpPrivateKeyFormat? KeyFormat = null,
+        string? TokenReference = null,
+        string? ProjectName = null,
+        string? UserDomainName = null,
+        string? ProjectDomainName = null);
 
     private sealed record PersistedOperationalOptions(
         long ConnectTimeoutTicks,

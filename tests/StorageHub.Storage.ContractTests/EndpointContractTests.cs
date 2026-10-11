@@ -82,6 +82,40 @@ public sealed class EndpointContractTests
         Assert.Equal("alice", valid.Metadata["owner"]);
     }
 
+    [Theory]
+    [InlineData(StorageWriteMode.CreateNew, "0f3a-resume", true)]
+    [InlineData(StorageWriteMode.Overwrite, "0f3a", true)]
+    [InlineData(StorageWriteMode.Resume, "0f3a", false)]
+    [InlineData(StorageWriteMode.CreateNew, "../escape", false)]
+    [InlineData(StorageWriteMode.CreateNew, "", false)]
+    [InlineData(StorageWriteMode.CreateNew, "has space", false)]
+    public void A_resume_key_is_a_file_name_safe_token_on_create_or_overwrite(
+        StorageWriteMode mode,
+        string key,
+        bool valid)
+    {
+        var address = StorageAddress.Create(ProfileId, "root", "one.txt").Value;
+        var request = new StorageWriteRequest(
+            address,
+            mode,
+            expectedLength: 10,
+            resumeToken: mode == StorageWriteMode.Resume ? "opaque" : null,
+            resumeKey: key);
+
+        Assert.Equal(valid, request.Validate().IsSuccess);
+    }
+
+    [Fact]
+    public void A_resume_key_longer_than_a_file_name_allows_is_refused()
+    {
+        var address = StorageAddress.Create(ProfileId, "root", "one.txt").Value;
+
+        Assert.True(new StorageWriteRequest(address, StorageWriteMode.CreateNew, resumeKey: new string('a', 128))
+            .Validate().IsSuccess);
+        Assert.True(new StorageWriteRequest(address, StorageWriteMode.CreateNew, resumeKey: new string('a', 129))
+            .Validate().IsFailure);
+    }
+
     [Fact]
     public void Mutation_identity_tokens_are_validated_without_being_path_normalized()
     {

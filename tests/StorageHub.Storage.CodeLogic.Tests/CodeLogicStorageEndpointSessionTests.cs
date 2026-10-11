@@ -529,6 +529,104 @@ public sealed class CodeLogicStorageEndpointSessionTests
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : string.Empty);
     }
 
+    /// <summary>
+    /// An object store has no free space to report, and is answered without a round trip; a
+    /// server that reports some figures has them passed on, and one that reports none is no answer.
+    /// </summary>
+    [Fact]
+    public async Task FreeSpaceIsAskedForOnlyWhereTheProviderAdvertisesIt()
+    {
+        var bucket = new SpaceReportingStorageService(new CL.Storage.Abstractions.StorageSpaceInfo(null, 1, null));
+        await using (var session = CreateSession(bucket))
+        {
+            var refused = await session.GetSpaceAsync(Address(session.ProfileId, RootIdentity, "photos"));
+            Assert.True(refused.IsFailure);
+            Assert.Equal("storage.space.unsupported", refused.Error.Code);
+            Assert.Equal(StorageFailureKind.Unsupported, refused.Error.Kind);
+            Assert.Equal(0, bucket.SpaceCalls);
+        }
+
+        var server = new SpaceReportingStorageService(new CL.Storage.Abstractions.StorageSpaceInfo(null, 5_000, null))
+        {
+            Capabilities = new StorageCapabilities(ClStorageFeature.PhysicalDirectories | ClStorageFeature.SpaceInfo),
+        };
+        await using (var session = CreateSession(server))
+        {
+            var space = await session.GetSpaceAsync(Address(session.ProfileId, RootIdentity, "incoming"));
+            Assert.True(space.IsSuccess);
+            Assert.Null(space.Value.TotalBytes);
+            Assert.Equal(5_000, space.Value.AvailableBytes);
+            Assert.Equal("incoming", server.LastSpacePath);
+        }
+
+        var silent = new SpaceReportingStorageService(new CL.Storage.Abstractions.StorageSpaceInfo(null, null, null))
+        {
+            Capabilities = new StorageCapabilities(ClStorageFeature.PhysicalDirectories | ClStorageFeature.SpaceInfo),
+        };
+        await using (var session = CreateSession(silent))
+        {
+            var none = await session.GetSpaceAsync(Address(session.ProfileId, RootIdentity, string.Empty));
+            Assert.True(none.IsFailure);
+            Assert.Equal("storage.space.unknown", none.Error.Code);
+        }
+    }
+
+    [Fact]
+    public async Task PortableChecksumTakesTheServersDigestOnlyWhenAskedTo()
+    {
+        var content = new byte[] { 5, 6, 7, 8 };
+        var reported = Convert.ToHexStringLower(SHA256.HashData([9, 9]));
+        var service = new ChecksumReportingStorageService(reported)
+        {
+            GetInfoHandler = (path, _) => Task.FromResult(Result<StorageItem>.Success(
+                Item(path, StorageItemType.File, size: content.LongLength))),
+            DownloadHandler = (_, _, _) => Task.FromResult(Result<Stream>.Success(
+                new MemoryStream(content, writable: false))),
+        };
+        await using var session = CreateSession(service);
+        var entry = await session.GetEntryAsync(Address(session.ProfileId, RootIdentity, "reported.bin"));
+        var checksums = session;
+
+        var computed = await checksums.ComputePortableChecksumAsync(
+            new PortableChecksumRequest(entry.Value, content.LongLength));
+        var server = await checksums.ComputePortableChecksumAsync(
+            new PortableChecksumRequest(entry.Value, maximumBytes: 1) { AcceptServerDigest = true });
+
+        Assert.Equal(PortableChecksumSource.Computed, computed.Value.Source);
+        Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(content)), computed.Value.Digest.Value);
+        Assert.Equal(1, service.ServerChecksumCalls);
+        Assert.Equal(PortableChecksumSource.Server, server.Value.Source);
+        Assert.Equal(reported, server.Value.Digest.Value);
+        Assert.Equal(content.LongLength, server.Value.BytesProcessed);
+    }
+
+    [Fact]
+    public async Task PortableChecksumReadsTheFileWhenTheServerHasNoUsableDigest()
+    {
+        var content = new byte[] { 1, 2, 3 };
+        // An S3 multipart upload reports a composite checksum, which is not the file's SHA-256.
+        var service = new ChecksumReportingStorageService("not-a-sha256-1")
+        {
+            GetInfoHandler = (path, _) => Task.FromResult(Result<StorageItem>.Success(
+                Item(path, StorageItemType.File, size: content.LongLength))),
+            DownloadHandler = (_, _, _) => Task.FromResult(Result<Stream>.Success(
+                new MemoryStream(content, writable: false))),
+        };
+        await using var session = CreateSession(service);
+        var entry = await session.GetEntryAsync(Address(session.ProfileId, RootIdentity, "multipart.bin"));
+        var checksums = session;
+
+        var fallback = await checksums.ComputePortableChecksumAsync(
+            new PortableChecksumRequest(entry.Value, content.LongLength) { AcceptServerDigest = true });
+        var tooLarge = await checksums.ComputePortableChecksumAsync(
+            new PortableChecksumRequest(entry.Value, maximumBytes: 1) { AcceptServerDigest = true });
+
+        Assert.Equal(PortableChecksumSource.Computed, fallback.Value.Source);
+        Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(content)), fallback.Value.Digest.Value);
+        Assert.True(tooLarge.IsFailure);
+        Assert.Equal("storage.checksum.invalid_request", tooLarge.Error.Code);
+    }
+
     [Fact]
     public async Task RejectsExactVersionReadWhenVersioningCapabilityIsAbsent()
     {
@@ -736,6 +834,35 @@ public sealed class CodeLogicStorageEndpointSessionTests
         Assert.Equal(FeatureSupportLevel.Native, session.Capabilities[DomainStorageFeature.MultipartUpload].Level);
         Assert.Equal(FeatureSupportLevel.Native, session.Capabilities[DomainStorageFeature.ChangeNotifications].Level);
         Assert.Equal(FeatureSupportLevel.Unsupported, session.Capabilities[DomainStorageFeature.ResumeUpload].Level);
+    }
+
+    /// <summary>
+    /// Changing permissions and the modified time are offered exactly where CL.Storage advertises
+    /// them, and refused before the library is asked where it does not.
+    /// </summary>
+    [Fact]
+    public async Task MapsPermissionAndTimestampFeaturesAndRefusesWhereAbsent()
+    {
+        var sftpLike = new FakeStorageService
+        {
+            Provider = StorageProvider.Sftp,
+            Capabilities = new StorageCapabilities(
+                ClStorageFeature.PhysicalDirectories | ClStorageFeature.Permissions | ClStorageFeature.SetTimestamps)
+        };
+        await using (var session = CreateSession(sftpLike))
+        {
+            Assert.True(session.Capabilities.Supports(DomainStorageFeature.Permissions));
+            Assert.True(session.Capabilities.Supports(DomainStorageFeature.SetModifiedTime));
+        }
+
+        await using var plain = CreateSession(new FakeStorageService { Provider = StorageProvider.S3 });
+        Assert.False(plain.Capabilities.Supports(DomainStorageFeature.Permissions));
+        Assert.False(plain.Capabilities.Supports(DomainStorageFeature.SetModifiedTime));
+        var address = StorageAddress.Create(plain.ProfileId, plain.RootIdentity, "photo.jpg").Value;
+        Assert.Equal(StorageFailureKind.Unsupported, (await plain.SetPermissionsAsync(address, 0x1A4)).Error!.Kind);
+        Assert.Equal(
+            StorageFailureKind.Unsupported,
+            (await plain.SetModifiedTimeAsync(address, DateTimeOffset.UnixEpoch)).Error!.Kind);
     }
 
     [Fact]
@@ -1333,4 +1460,36 @@ public sealed class CodeLogicStorageEndpointSessionTests
             VersionId = versionId,
             ETag = entityTag
         };
+
+    private sealed class SpaceReportingStorageService(CL.Storage.Abstractions.StorageSpaceInfo figures)
+        : FakeStorageService, CL.Storage.Abstractions.IStorageSpaceService
+    {
+        public int SpaceCalls { get; private set; }
+
+        public string? LastSpacePath { get; private set; }
+
+        public Task<Result<CL.Storage.Abstractions.StorageSpaceInfo>> GetSpaceAsync(
+            string path = "",
+            CancellationToken cancellationToken = default)
+        {
+            SpaceCalls++;
+            LastSpacePath = path;
+            return Task.FromResult(Result<CL.Storage.Abstractions.StorageSpaceInfo>.Success(figures));
+        }
+    }
+
+    private sealed class ChecksumReportingStorageService(string hexValue) : FakeStorageService, CL.Storage.Abstractions.IStorageChecksumService
+    {
+        public int ServerChecksumCalls { get; private set; }
+
+        public Task<Result<StorageChecksum>> GetServerChecksumAsync(
+            string path,
+            StorageChecksumAlgorithm algorithm,
+            CancellationToken cancellationToken = default)
+        {
+            ServerChecksumCalls++;
+            return Task.FromResult(Result<StorageChecksum>.Success(
+                new StorageChecksum(algorithm, hexValue, 0, StorageChecksumSource.Server)));
+        }
+    }
 }

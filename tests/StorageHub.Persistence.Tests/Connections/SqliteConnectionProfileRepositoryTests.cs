@@ -72,6 +72,12 @@ public sealed class SqliteConnectionProfileRepositoryTests : IDisposable
                 new SftpEndpoint("sftp.example.test", 22, SshHostKeyPolicy.TrustOnFirstUse),
                 new SftpPrivateKeyAuthentication("sftp-user", SecretReference.Create(), SecretReference.Create(),
                     SftpPrivateKeyFormat.Pkcs8), OptionsForConnection(), now),
+            ConnectionProfile.Create(ConnectionProfileId.New(), new ConnectionProfileMetadata("SFTP behind a bastion"),
+                new SftpEndpoint("inner.example.test", 22, SshHostKeyPolicy.Pinned, "data", new SftpServerOptions(
+                    ConnectionProfileId.New(), "curve25519-sha256", "aes256-ctr,aes128-ctr", "hmac-sha2-256",
+                    "ssh-ed25519", maximumSessions: 2, keepAliveSeconds: 30)),
+                new SshPrivateKeyPasswordAuthentication("sftp-user", password, SecretReference.Create(), null,
+                    SftpPrivateKeyFormat.OpenSsh), OptionsForConnection(), now),
             ConnectionProfile.Create(ConnectionProfileId.New(), new ConnectionProfileMetadata("SSH client"),
                 new SshClientEndpoint("ssh.example.test", 22, SshHostKeyPolicy.Pinned),
                 new UsernamePasswordAuthentication("ssh-user", password), OptionsForConnection(), now),
@@ -82,7 +88,53 @@ public sealed class SqliteConnectionProfileRepositoryTests : IDisposable
                     password,
                     SecretReference.Create(),
                     SecretReference.Create(),
-                    SftpPrivateKeyFormat.OpenSsh), OptionsForConnection(), now)
+                    SftpPrivateKeyFormat.OpenSsh), OptionsForConnection(), now),
+            ConnectionProfile.Create(ConnectionProfileId.New(), new ConnectionProfileMetadata("WebDAV pinned"),
+                new WebDavEndpoint(new Uri("https://dav.example.test:8443/remote.php/dav/files/me/"),
+                    TlsCertificatePolicy.Pinned, credentialScheme: HttpCredentialScheme.Digest,
+                    clientCertificatePfxReference: SecretReference.Create(),
+                    clientCertificatePasswordReference: SecretReference.Create(), rootPath: "Projects/2026"),
+                new UsernamePasswordAuthentication("dav-user", password), OptionsForConnection(), now),
+            ConnectionProfile.Create(ConnectionProfileId.New(), new ConnectionProfileMetadata("WebDAV bearer"),
+                new WebDavEndpoint(new Uri("http://127.0.0.1:8080/"), TlsCertificatePolicy.SystemTrust,
+                    allowInsecureHttp: true),
+                new BearerTokenAuthentication(SecretReference.Create()), OptionsForConnection(), now),
+            ConnectionProfile.Create(ConnectionProfileId.New(), new ConnectionProfileMetadata("WebDAV anonymous"),
+                new WebDavEndpoint(new Uri("https://public.example.test/dav"), TlsCertificatePolicy.SystemTrust),
+                new NoAuthentication(), OptionsForConnection(), now),
+            ConnectionProfile.Create(ConnectionProfileId.New(), new ConnectionProfileMetadata("Azure shared key"),
+                new AzureBlobEndpoint("archive", new Uri("https://account.blob.core.windows.net/"), rootPrefix: "team"),
+                new AzureSharedKeyAuthentication("account", SecretReference.Create()), OptionsForConnection(), now),
+            ConnectionProfile.Create(ConnectionProfileId.New(), new ConnectionProfileMetadata("Azure SAS"),
+                new AzureBlobEndpoint("archive", new Uri("https://account.blob.core.windows.net/")),
+                new AzureSasTokenAuthentication(SecretReference.Create()), OptionsForConnection(), now),
+            ConnectionProfile.Create(ConnectionProfileId.New(), new ConnectionProfileMetadata("Azure identity"),
+                new AzureBlobEndpoint("archive", new Uri("https://account.blob.core.windows.net/")),
+                new AmbientCredentialAuthentication(), OptionsForConnection(), now),
+            ConnectionProfile.Create(ConnectionProfileId.New(), new ConnectionProfileMetadata("Azurite"),
+                new AzureBlobEndpoint("archive", allowInsecureHttp: true),
+                new AzureConnectionStringAuthentication(SecretReference.Create()), OptionsForConnection(), now),
+            ConnectionProfile.Create(ConnectionProfileId.New(), new ConnectionProfileMetadata("Cloud Storage key"),
+                new GoogleCloudStorageEndpoint("archive", rootPrefix: "team"),
+                new GoogleServiceAccountAuthentication(SecretReference.Create()), OptionsForConnection(), now),
+            ConnectionProfile.Create(ConnectionProfileId.New(), new ConnectionProfileMetadata("Cloud Storage ADC"),
+                new GoogleCloudStorageEndpoint("archive", new Uri("https://storage.example.test/")),
+                new AmbientCredentialAuthentication(), OptionsForConnection(), now),
+            ConnectionProfile.Create(ConnectionProfileId.New(), new ConnectionProfileMetadata("fake-gcs-server"),
+                new GoogleCloudStorageEndpoint("archive", new Uri("http://127.0.0.1:4443/"), allowInsecureHttp: true),
+                new NoAuthentication(), OptionsForConnection(), now),
+            ConnectionProfile.Create(ConnectionProfileId.New(), new ConnectionProfileMetadata("Swift Keystone"),
+                new SwiftEndpoint("archive", new Uri("https://keystone.example.test/v3"), region: "RegionOne",
+                    rootPrefix: "team"),
+                new KeystonePasswordAuthentication("operator", SecretReference.Create(), "project"),
+                OptionsForConnection(), now),
+            ConnectionProfile.Create(ConnectionProfileId.New(), new ConnectionProfileMetadata("Swift TempAuth"),
+                new SwiftEndpoint("archive", new Uri("http://127.0.0.1:8080/auth/v1.0"),
+                    new Uri("http://127.0.0.1:8080/v1/AUTH_test"), allowInsecureHttp: true),
+                new UsernamePasswordAuthentication("test:tester", SecretReference.Create()), OptionsForConnection(), now),
+            ConnectionProfile.Create(ConnectionProfileId.New(), new ConnectionProfileMetadata("Swift token"),
+                new SwiftEndpoint("archive", null, new Uri("https://swift.example.test/v1/AUTH_project")),
+                new BearerTokenAuthentication(SecretReference.Create()), OptionsForConnection(), now)
         };
 
         foreach (var profile in profiles)
@@ -114,6 +166,28 @@ public sealed class SqliteConnectionProfileRepositoryTests : IDisposable
 
         var match = Assert.Single(matches);
         Assert.Equal("Production SFTP", match.Metadata.DisplayName);
+    }
+
+    [Fact]
+    public async Task A_WebDav_profile_is_stored_as_itself_and_found_by_its_provider()
+    {
+        var repository = Repository();
+        await repository.CreateAsync(SftpProfile("Production SFTP", "Partners/Acme", ["partner"]));
+        var webDav = ConnectionProfile.Create(
+            ConnectionProfileId.New(),
+            new ConnectionProfileMetadata("Nextcloud"),
+            new WebDavEndpoint(new Uri("https://cloud.example.test/remote.php/dav/files/me/"), TlsCertificatePolicy.SystemTrust),
+            new UsernamePasswordAuthentication("me", SecretReference.Create()),
+            OptionsForConnection(),
+            DateTimeOffset.UtcNow);
+        Assert.Equal(ConnectionProfileWriteStatus.Succeeded, (await repository.CreateAsync(webDav)).Status);
+
+        var found = Assert.Single(await repository.SearchAsync(new ConnectionProfileSearch(
+            Provider: ConnectionProviderKind.WebDav)));
+        Assert.Equal(webDav.Id, found.Id);
+        Assert.Equal(webDav.Endpoint, found.Endpoint);
+        Assert.Empty(await repository.SearchAsync(new ConnectionProfileSearch(
+            Text: "Nextcloud", Provider: ConnectionProviderKind.Sftp)));
     }
 
     [Fact]

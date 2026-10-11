@@ -84,6 +84,20 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     private string _search = string.Empty;
     private bool _showFavoritesInTheirFolders = true;
 
+    /// <summary>
+    /// Each connection's latest link change the agent reported, by id. Kept apart from the cards
+    /// so a listing, which rebuilds every card, does not wipe a "Connection lost" off one.
+    /// </summary>
+    private Dictionary<Guid, ConnectionLinkEvent> _links = [];
+
+    /// <summary>How often the cards ask the agent how their links are.</summary>
+    internal static readonly TimeSpan LinkPollInterval = TimeSpan.FromSeconds(5);
+
+    private DispatcherTimer? _linkPoll;
+
+    /// <summary>What "connected again" is measured against. A test sets its own.</summary>
+    internal Func<DateTimeOffset> Clock { get; set; } = static () => DateTimeOffset.UtcNow;
+
     /// <summary>What the Favorites group offers in place of rename and remove, which is nothing.</summary>
     private static readonly RelayCommand Inert = new(static _ => { }, static _ => false);
 
@@ -155,6 +169,8 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
             _ => _selected is not null && OpenConnection is not null);
         TestSelectedCommand = new RelayCommand(
             _ => _ = TestSelectedAsync(), _ => _selected is not null && _client is not null && !_testing);
+        DescribeSelectedCommand = new RelayCommand(
+            _ => _ = DescribeSelectedAsync(), _ => _selected is not null && _client is not null && !_testing);
         EditSelectedCommand = new RelayCommand(
             row => { if ((row as ConnectionRowModel ?? _selected) is { } chosen) EditConnection?.Invoke(chosen.Id, ConnectionEditorTab.General); },
             _ => EditConnection is not null);
@@ -193,6 +209,7 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
             foreach (var row in Rows()) row.IsSelected = value is not null && row.Id == value.Id;
             DetailStatus = string.Empty;
             _testedVersion = null;
+            _live = null;
             LoadProfile();
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Selected)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasSelection)));
@@ -238,7 +255,11 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
             Connections.FirstOrDefault(listed => listed.ConnectionId == row.Id),
             _profile is { } profile && profile.ConnectionId == row.Id ? profile : null,
             _keyNames,
-            GroupNameOf(card.GroupId) ?? Ui.Connections.Ungrouped);
+            GroupNameOf(card.GroupId) ?? Ui.Connections.Ungrouped,
+            _live is { } live && live.Id == row.Id ? live.Details : null);
+
+    /// <summary>What the selected connection said about itself when last asked, until another is selected.</summary>
+    private (Guid Id, ConnectionDetailsDocument Details)? _live;
 
     /// <summary>
     /// The selected connection's saved profile, which the Server, Authentication, Security and
@@ -361,6 +382,9 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     public ICommand OpenSelectedCommand { get; }
 
     public ICommand TestSelectedCommand { get; }
+
+    /// <summary>Reads what the selected connection and its server look like now, under its details.</summary>
+    public ICommand DescribeSelectedCommand { get; }
 
     /// <summary>Edit, on the selected card and in the details panel. Its parameter is the row, if any.</summary>
     public ICommand EditSelectedCommand { get; }
@@ -518,6 +542,50 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     }
 
     /// <summary>
+    /// Asks the agent what the selected connection and its server look like now -- the key or
+    /// certificate presented, the server's software, what was negotiated, its sessions -- and adds
+    /// it to the details as a Live connection section. It opens the connection, as browsing does.
+    /// </summary>
+    internal async Task DescribeSelectedAsync(CancellationToken cancellationToken = default)
+    {
+        if (_selected is not { } row || _client is null) return;
+
+        _testing = true;
+        DetailStatus = Ui.Connections.DetailDescribing;
+        RaiseDetailCommands();
+        try
+        {
+            await using var client = _client();
+            var response = await client
+                .GetConnectionDetailsAsync(
+                    new ConnectionDetailsRequest(StorageIpcContract.CurrentVersion, row.Id),
+                    cancellationToken)
+                .ConfigureAwait(true);
+
+            if (_selected?.Id != row.Id) return;
+            if (response.Details is { } details)
+            {
+                _live = (row.Id, details);
+                DetailStatus = string.Empty;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Details)));
+            }
+            else
+            {
+                DetailStatus = response.Failure?.Message ?? Ui.Connections.ConnectionUnreachable;
+            }
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            DetailStatus = Ui.Shell.AgentNotConnected;
+        }
+        finally
+        {
+            _testing = false;
+            RaiseDetailCommands();
+        }
+    }
+
+    /// <summary>
     /// Makes a connection a favourite, or stops it being one, as 1.x's Toggle favorite did.
     /// </summary>
     /// <remarks>
@@ -576,6 +644,7 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     {
         (OpenSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
         (TestSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        (DescribeSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
         (EditSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
         (DeleteSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
         (AttentionCommand as RelayCommand)?.RaiseCanExecuteChanged();
@@ -754,6 +823,10 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     public string OpenLabel => Ui.Connections.DetailOpen;
 
     public string TestLabel => Ui.Connections.DetailTest;
+
+    public string DescribeLabel => Ui.Connections.DetailDescribe;
+
+    public string DescribeHint => Ui.Connections.DetailDescribeHint;
 
     public string EditLabel => Ui.Connections.DetailEdit;
 
@@ -1259,6 +1332,69 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         var searchFoundNothing = HasSearch && matched == 0 && _cards.Count > 0;
         IsEmpty = _cards.Count == 0 || searchFoundNothing;
         Status = searchFoundNothing ? Ui.Connections.NoMatches : _listingStatus;
+        ShowLinks();
+    }
+
+    /// <summary>
+    /// Asks the agent how the connections' links have changed, and puts each one's latest on its
+    /// card. Called every few seconds by the shell; quiet when the agent cannot say.
+    /// </summary>
+    /// <remarks>
+    /// Only the latest per connection is read here; the activity log reads the history. A card
+    /// keeps "Retrying" or "Connection lost" for as long as that stands, and "Connected again"
+    /// for <see cref="ConnectionLinkPresentation.BackShownFor"/>, which is why this runs even when
+    /// nothing new has happened: the green line has to go on its own.
+    /// </remarks>
+    internal async Task RefreshLinksAsync(CancellationToken cancellationToken = default)
+    {
+        if (_client is null) return;
+        IReadOnlyList<ConnectionLinkEvent> latest;
+        try
+        {
+            await using var client = _client();
+            var response = await client
+                .ListLinkEventsAsync(new ConnectionLinkEventsRequest(StorageIpcContract.CurrentVersion, Limit: 1), cancellationToken)
+                .ConfigureAwait(false);
+            if (response.Failure is not null) return;
+            latest = response.Latest;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception error) when (error is NotSupportedException || RemoteBrowserErrors.IsExpected(error))
+        {
+            return;
+        }
+
+        void Update()
+        {
+            var links = new Dictionary<Guid, ConnectionLinkEvent>();
+            foreach (var change in latest) links.TryAdd(change.ConnectionId, change);
+            _links = links;
+            ShowLinks();
+        }
+
+        if (Dispatcher.UIThread.CheckAccess()) Update();
+        else Dispatcher.UIThread.Post(Update);
+    }
+
+    /// <summary>Reads the links every <see cref="LinkPollInterval"/> from now on.</summary>
+    internal void FollowLinks()
+    {
+        _linkPoll ??= new DispatcherTimer(
+            LinkPollInterval, DispatcherPriority.Background, (_, _) => _ = RefreshLinksAsync());
+        _linkPoll.Start();
+        _ = RefreshLinksAsync();
+    }
+
+    private void ShowLinks()
+    {
+        var now = Clock();
+        foreach (var row in Rows())
+        {
+            row.Link = _links.TryGetValue(row.Id, out var change) ? ConnectionLinkPresentation.Badge(change, now) : null;
+        }
     }
 
     /// <summary>Remembers a group being closed or opened, and an opened one as where a new connection goes.</summary>

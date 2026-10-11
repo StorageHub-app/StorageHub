@@ -4,7 +4,7 @@
 
   Per-user, as 1.4's Velopack install was: into %LOCALAPPDATA%\Programs\StorageHub, with no
   elevation to install, update or remove it. The agent is a process of the signed-in user, and its
-  data lives in %LOCALAPPDATA%\StorageHub, which this package never touches, so an upgrade or an
+  data lives in %PROGRAMDATA%\StorageHub, which this package never touches, so an upgrade or an
   uninstall keeps every connection, task, schedule and secret.
 
   The desktop sits at the top of the folder and the agent in Agent beside it, which is where the

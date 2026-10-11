@@ -24,7 +24,9 @@ namespace StorageHub.Storage.CodeLogic;
 public sealed class CodeLogicStorageEndpointSession :
     IStorageEndpointSession,
     IStorageAdvancedEndpointSession,
-    IStoragePortableChecksumSession
+    IStorageAttributeEndpointSession,
+    IStoragePortableChecksumSession,
+    IStorageSpaceSession
 {
     private static readonly TimeSpan SignedUrlExpiryTolerance = TimeSpan.FromMinutes(1);
     private readonly IStorageService _storage;
@@ -98,6 +100,59 @@ public sealed class CodeLogicStorageEndpointSession :
         catch (Exception)
         {
             return StorageResult.Fail(CodeLogicStorageMapper.Unexpected("health check"));
+        }
+    }
+
+    /// <summary>
+    /// The space on the volume or quota that holds a folder, where the provider reports it: a
+    /// local folder's drive, an SFTP server's statvfs, an FTP server's AVBL. An object store has
+    /// none, and says so without a round trip.
+    /// </summary>
+    public async ValueTask<StorageResult<StorageSpace>> GetSpaceAsync(
+        StorageAddress address,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        var validation = Validate(address);
+        if (validation is not null)
+        {
+            return StorageResult<StorageSpace>.Fail(validation);
+        }
+
+        if (!_storage.Capabilities.Supports(ClStorageFeature.SpaceInfo))
+        {
+            return StorageResult<StorageSpace>.Fail(CodeLogicStorageMapper.Unsupported(
+                "storage.space.unsupported",
+                "The provider does not report free space."));
+        }
+
+        try
+        {
+            var result = await _storage
+                .GetSpaceAsync(address.CanonicalRelativePath, cancellationToken)
+                .ConfigureAwait(false);
+            if (result.IsFailure || result.Value is not { } figures)
+            {
+                return StorageResult<StorageSpace>.Fail(CodeLogicStorageMapper.MapFailure(
+                    result.Error,
+                    "storage.space.failed",
+                    "The free space could not be read."));
+            }
+
+            var space = StorageSpace.Create(figures.TotalBytes, figures.AvailableBytes, figures.UsedBytes);
+            return space.IsKnown
+                ? StorageResult<StorageSpace>.Success(space)
+                : StorageResult<StorageSpace>.Fail(CodeLogicStorageMapper.Unsupported(
+                    "storage.space.unknown",
+                    "The server reported no usable space figures."));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return StorageResult<StorageSpace>.Fail(CodeLogicStorageMapper.Unexpected("free space"));
         }
     }
 
@@ -335,7 +390,19 @@ public sealed class CodeLogicStorageEndpointSession :
         {
             return ValueTask.FromResult(StorageResult<IStorageWriteHandle>.Fail(CodeLogicStorageMapper.Unsupported(
                 "storage.resume_upload.unsupported",
-                "StorageHub's streaming handle does not yet expose CL.Storage resume tokens.")));
+                "Resume is requested with a resume key on a create-new or overwrite write.")));
+        }
+
+        if (request.ResumeKey is not null)
+        {
+            if (Capabilities[DomainStorageFeature.ResumeUpload].Level != FeatureSupportLevel.Native)
+            {
+                return ValueTask.FromResult(StorageResult<IStorageWriteHandle>.Fail(CodeLogicStorageMapper.Unsupported(
+                    "storage.resume_upload.unsupported",
+                    "This provider cannot append to a staged object, so the write cannot be resumed.")));
+            }
+
+            return OpenResumableWriteAsync(request, cancellationToken);
         }
 
         try
@@ -347,6 +414,25 @@ public sealed class CodeLogicStorageEndpointSession :
         {
             return ValueTask.FromResult(StorageResult<IStorageWriteHandle>.Fail(
                 CodeLogicStorageMapper.Unexpected("write initialization")));
+        }
+    }
+
+    private async ValueTask<StorageResult<IStorageWriteHandle>> OpenResumableWriteAsync(
+        StorageWriteRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await CodeLogicResumableWriteHandle.OpenAsync(
+                _storage, request, ProfileId, RootIdentity, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return StorageResult<IStorageWriteHandle>.Fail(CodeLogicStorageMapper.Unexpected("write initialization"));
         }
     }
 
@@ -466,8 +552,12 @@ public sealed class CodeLogicStorageEndpointSession :
             return StorageResult<PortableChecksumResult>.Fail(addressValidation);
         }
 
+        // The byte limit bounds reading, so a file over it can still be answered by its server.
         var requestValidation = request.Validate();
-        if (requestValidation.IsFailure)
+        var mayAskServer = request.AcceptServerDigest &&
+            request.ExpectedEntry is { Kind: StorageEntryKind.File, Size: not null } &&
+            request.ExpectedEntry.Address.VersionId is null;
+        if (requestValidation.IsFailure && !mayAskServer)
         {
             return StorageResult<PortableChecksumResult>.Fail(requestValidation.Error);
         }
@@ -494,6 +584,21 @@ public sealed class CodeLogicStorageEndpointSession :
             }
 
             var expectedLength = request.ExpectedEntry.Size!.Value;
+            if (mayAskServer)
+            {
+                var reported = await ServerDigestAsync(request.ExpectedEntry, before.Value, cancellationToken)
+                    .ConfigureAwait(false);
+                if (reported is not null)
+                {
+                    return reported;
+                }
+            }
+
+            if (requestValidation.IsFailure)
+            {
+                return StorageResult<PortableChecksumResult>.Fail(requestValidation.Error);
+            }
+
             var checksum = await _storage.ComputeChecksumAsync(
                 request.ExpectedEntry.Address.CanonicalRelativePath,
                 StorageChecksumAlgorithm.Sha256,
@@ -566,6 +671,53 @@ public sealed class CodeLogicStorageEndpointSession :
             return StorageResult<PortableChecksumResult>.Fail(
                 CodeLogicStorageMapper.Unexpected("portable checksum"));
         }
+    }
+
+    /// <summary>
+    /// The SHA-256 the server keeps for the whole file, when it reports one for the file as it was
+    /// observed; null to fall back to reading the bytes. Any refusal, an S3 composite checksum of a
+    /// multipart upload, or a file that changed meanwhile all fall back rather than fail.
+    /// </summary>
+    private async ValueTask<StorageResult<PortableChecksumResult>?> ServerDigestAsync(
+        StorageEntry expected,
+        StorageEntry before,
+        CancellationToken cancellationToken)
+    {
+        var reported = await _storage.ComputeChecksumAsync(
+            expected.Address.CanonicalRelativePath,
+            StorageChecksumAlgorithm.Sha256,
+            options: null,
+            progress: null,
+            mode: StorageChecksumMode.ServerOnly,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+        if (reported.IsFailure || reported.Value is not { Algorithm: StorageChecksumAlgorithm.Sha256 } value)
+        {
+            return null;
+        }
+
+        PortableContentDigest digest;
+        try
+        {
+            digest = new PortableContentDigest(PortableChecksumAlgorithm.Sha256, value.HexValue);
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
+
+        var after = await GetEntryAsync(expected.Address, cancellationToken).ConfigureAwait(false);
+        if (after.IsFailure)
+        {
+            return StorageResult<PortableChecksumResult>.Fail(after.Error);
+        }
+
+        if (!MatchesChecksumObservation(expected, after.Value) || !MatchesChecksumObservation(before, after.Value))
+        {
+            return ChecksumChanged();
+        }
+
+        return StorageResult<PortableChecksumResult>.Success(
+            new PortableChecksumResult(digest, expected.Size!.Value, PortableChecksumSource.Server));
     }
 
     public async ValueTask<StorageResult<StorageObjectVersionPage>> ListObjectVersionsAsync(
@@ -1169,6 +1321,170 @@ public sealed class CodeLogicStorageEndpointSession :
         {
             return StorageResult<ContractStorageSignedUrl>.Fail(
                 CodeLogicStorageMapper.Unexpected("signed URL"));
+        }
+    }
+
+    /// <remarks>
+    /// The item's own information call carries everything CL.Storage knows about it. A link whose
+    /// target the listing left out is asked once more through ReadLink where the provider can
+    /// answer it, and a link it cannot read keeps its other attributes rather than failing.
+    /// </remarks>
+    public async ValueTask<StorageResult<StorageItemAttributes>> GetAttributesAsync(
+        StorageAddress address,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        var validation = ValidateExactObject(address);
+        if (validation is not null)
+        {
+            return StorageResult<StorageItemAttributes>.Fail(validation);
+        }
+
+        try
+        {
+            var result = await _storage
+                .GetInfoAsync(address.CanonicalRelativePath, cancellationToken)
+                .ConfigureAwait(false);
+            if (result.IsFailure || result.Value is null)
+            {
+                return StorageResult<StorageItemAttributes>.Fail(CodeLogicStorageMapper.MapFailure(
+                    result.Error,
+                    "storage.attributes.read_failed",
+                    "The item's attributes could not be read."));
+            }
+
+            var item = result.Value;
+            var entry = CodeLogicStorageMapper.MapEntry(item, ProfileId, RootIdentity);
+            if (entry.IsFailure)
+            {
+                return StorageResult<StorageItemAttributes>.Fail(entry.Error);
+            }
+
+            var linkTarget = item.LinkTarget;
+            if (item.ItemType == StorageItemType.Link &&
+                string.IsNullOrEmpty(linkTarget) &&
+                _storage.Capabilities.Supports(ClStorageFeature.ReadLinks) &&
+                _storage is IStorageAttributeService links)
+            {
+                var read = await links.ReadLinkAsync(address.CanonicalRelativePath, cancellationToken)
+                    .ConfigureAwait(false);
+                if (read.IsSuccess && read.Value is not null) linkTarget = read.Value.RawTarget;
+            }
+
+            return StorageResult<StorageItemAttributes>.Success(new StorageItemAttributes(
+                entry.Value,
+                item.UnixMode,
+                item.Owner,
+                item.Group,
+                item.OwnerId,
+                item.GroupId,
+                linkTarget,
+                item.Created?.ToUniversalTime(),
+                item.LastAccessed?.ToUniversalTime()));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return StorageResult<StorageItemAttributes>.Fail(CodeLogicStorageMapper.Unexpected("attribute read"));
+        }
+    }
+
+    public async ValueTask<StorageResult> SetPermissionsAsync(
+        StorageAddress address,
+        int unixMode,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        var validation = ValidateExactObject(address);
+        if (validation is not null)
+        {
+            return StorageResult.Fail(validation);
+        }
+
+        if (unixMode is < 0 or > UnixPermissions.MaxMode)
+        {
+            return StorageResult.Fail(new StorageFailure(
+                "storage.permissions.invalid_mode",
+                StorageFailureKind.Validation,
+                "Permission bits must be between octal 0000 and 7777."));
+        }
+
+        if (!Capabilities.Supports(DomainStorageFeature.Permissions) ||
+            _storage is not IStorageAttributeService attributes)
+        {
+            return StorageResult.Fail(CodeLogicStorageMapper.Unsupported(
+                "storage.permissions.unsupported",
+                "The provider does not support changing permissions."));
+        }
+
+        try
+        {
+            var result = await attributes
+                .SetPermissionsAsync(address.CanonicalRelativePath, unixMode, cancellationToken)
+                .ConfigureAwait(false);
+            return result.IsSuccess
+                ? StorageResult.Success()
+                : StorageResult.Fail(CodeLogicStorageMapper.MapFailure(
+                    result.Error,
+                    "storage.permissions.failed",
+                    "The permissions could not be changed."));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return StorageResult.Fail(CodeLogicStorageMapper.Unexpected("permission change"));
+        }
+    }
+
+    public async ValueTask<StorageResult> SetModifiedTimeAsync(
+        StorageAddress address,
+        DateTimeOffset modifiedUtc,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        var validation = ValidateExactObject(address);
+        if (validation is not null)
+        {
+            return StorageResult.Fail(validation);
+        }
+
+        if (!Capabilities.Supports(DomainStorageFeature.SetModifiedTime) ||
+            _storage is not IStorageAttributeService attributes)
+        {
+            return StorageResult.Fail(CodeLogicStorageMapper.Unsupported(
+                "storage.timestamps.unsupported",
+                "The provider does not support setting the modified time."));
+        }
+
+        try
+        {
+            var result = await attributes
+                .SetTimestampsAsync(
+                    address.CanonicalRelativePath,
+                    modifiedUtc.ToUniversalTime(),
+                    lastAccessed: null,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            return result.IsSuccess
+                ? StorageResult.Success()
+                : StorageResult.Fail(CodeLogicStorageMapper.MapFailure(
+                    result.Error,
+                    "storage.timestamps.failed",
+                    "The modified time could not be set."));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return StorageResult.Fail(CodeLogicStorageMapper.Unexpected("modified-time change"));
         }
     }
 
