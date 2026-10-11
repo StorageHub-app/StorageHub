@@ -173,6 +173,8 @@ again. Workspace (`.shw`) files carry across. An installation that ran the 1.4
 agent as a Windows service must have that service removed before the 2.0 agent
 can use its data folder; `eng/remove-legacy-agent-service.ps1`, run elevated,
 does that and deletes the old service's data with it.
+[Upgrading from StorageHub 1.4](docs/upgrading-from-1.x.md) has what carries
+over, the steps, and how to go back to 1.4.5.
 
 ### How the background agent runs
 
@@ -317,6 +319,7 @@ restore the defaults. Conflicting shortcuts must be cleared before reassignment.
 ## Documentation
 
 - [Changelog](CHANGELOG.md)
+- [2.0 release notes](docs/release-notes-2.0.md) and [upgrading from 1.4](docs/upgrading-from-1.x.md)
 - [Architecture](docs/architecture.md)
 - [Versioning and merges](docs/versioning.md)
 - [Release engineering](docs/releasing.md)
