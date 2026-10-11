@@ -20,6 +20,7 @@ public partial class MainWindow : Window
     private const int WorkspaceMinimumWidth = 560;
 
     private ConnectionsPanelLayout? _panelLayout;
+    private ShellViewToggles? _toggles;
     private ToolbarOverflowPanel? _toolbarRow;
     private bool _opened;
 
@@ -174,8 +175,14 @@ public partial class MainWindow : Window
         var queue = this.GetControl<Border>("PART_Queue");
         var splitter = LayoutLimits.Thickness(this.GetControl<GridSplitter>("PART_QueueSplitter"), sideBySide: false);
         var panelSplitter = LayoutLimits.Thickness(this.GetControl<GridSplitter>("PART_ConnectionsSplitter"), sideBySide: true);
-        var queueMinimum = this.GetControl<TransferQueueView>("PART_QueueView").MinimumHeight() +
-            queue.BorderThickness.Top + queue.BorderThickness.Bottom;
+        var queueShown = _toggles?.QueueVisible ?? true;
+        var queueMinimum = queueShown
+            ? this.GetControl<TransferQueueView>("PART_QueueView").MinimumHeight() +
+              queue.BorderThickness.Top + queue.BorderThickness.Bottom
+            : 0;
+
+        // View > Transfer Queue hides the queue with its splitter, and the workspace takes the room.
+        if (!queueShown) splitter = 0;
 
         var view = tabs.GetVisualDescendants().OfType<WorkspaceView>()
             .FirstOrDefault(static candidate => candidate.IsEffectivelyVisible);
@@ -196,7 +203,9 @@ public partial class MainWindow : Window
         var available = area.Bounds.Height;
         if (available <= 0) return;
 
-        var queueHeight = Math.Max(queueMinimum, Math.Min(_queueHeight, available - splitter - workspace.Height));
+        var queueHeight = queueShown
+            ? Math.Max(queueMinimum, Math.Min(_queueHeight, available - splitter - workspace.Height))
+            : 0;
         if (!rows[2].Height.IsAbsolute || Math.Abs(rows[2].Height.Value - queueHeight) > 0.5)
         {
             rows[2].Height = new GridLength(queueHeight);
@@ -352,6 +361,43 @@ public partial class MainWindow : Window
         _panelLayout = (DataContext as ShellPreviewModel)?.ConnectionsPanel;
         if (_panelLayout is { } layout) layout.PropertyChanged += OnPanelLayoutChanged;
         ArrangeConnectionsPanel();
+
+        if (_toggles is { } before) before.PropertyChanged -= OnTogglesChanged;
+        _toggles = (DataContext as ShellPreviewModel)?.ViewToggles;
+        if (_toggles is { } toggles) toggles.PropertyChanged += OnTogglesChanged;
+        ArrangeQueue();
+    }
+
+    private void OnTogglesChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(ShellViewToggles.QueueVisible)) return;
+        ArrangeQueue();
+        ApplyLayoutLimits();
+    }
+
+    /// <summary>
+    /// Shows or hides the transfer queue with the splitter above it, as View > Transfer Queue asks.
+    /// </summary>
+    /// <remarks>
+    /// Hidden, its row is sized to nothing rather than removed, and shown again it comes back at
+    /// the height it was last dragged to, which <see cref="ApplyLayoutLimits"/> puts back.
+    /// </remarks>
+    private void ArrangeQueue()
+    {
+        var shown = _toggles?.QueueVisible ?? true;
+        var row = this.GetControl<Grid>("PART_WorkArea").RowDefinitions[2];
+        if (!shown && row.ActualHeight > 0) RememberQueueHeight();
+        this.GetControl<Border>("PART_Queue").IsVisible = shown;
+        this.GetControl<GridSplitter>("PART_QueueSplitter").IsVisible = shown;
+        if (shown)
+        {
+            row.Height = new GridLength(_queueHeight);
+        }
+        else
+        {
+            row.MinHeight = 0;
+            row.Height = new GridLength(0);
+        }
     }
 
     private void OnPanelLayoutChanged(object? sender, PropertyChangedEventArgs e)

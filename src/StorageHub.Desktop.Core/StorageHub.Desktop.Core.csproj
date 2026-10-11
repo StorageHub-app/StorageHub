@@ -13,6 +13,7 @@
     <PackageReference Include="Avalonia" />
     <ProjectReference Include="..\StorageHub.Agent\StorageHub.Agent.csproj" />
     <ProjectReference Include="..\StorageHub.Contracts\StorageHub.Contracts.csproj" />
+    <ProjectReference Include="..\StorageHub.Diagnostics\StorageHub.Diagnostics.csproj" />
     <ProjectReference Include="..\StorageHub.Ipc\StorageHub.Ipc.csproj" />
     <ProjectReference Include="..\StorageHub.Security\StorageHub.Security.csproj" />
     <PackageReference Include="CodeLogic" />

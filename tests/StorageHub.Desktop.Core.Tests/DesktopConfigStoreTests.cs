@@ -47,7 +47,9 @@ public sealed class DesktopConfigStoreTests : IDisposable
             TotalUploadBytesPerSecond = 256 * 1024,
             TransferConflictDefault = TransferConflictChoice.Resume,
             AutoRefreshFolders = true,
-            RemoteRefreshSeconds = 120
+            RemoteRefreshSeconds = 120,
+            TransferQueueVisible = false,
+            ShowHiddenFiles = false
         };
         new DesktopConfigStore(_directory).Save(saved);
 

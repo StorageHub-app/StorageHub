@@ -79,6 +79,29 @@ public sealed class TransferQueueAgentClientTests
         Assert.Equal(TransferQueueIpcMessageTypes.ListRequest, transport.LastRequest?.MessageType);
     }
 
+    /// <summary>Pause goes out as its own message and its answer is checked like any mutation's.</summary>
+    [Fact]
+    public async Task Client_sends_a_pause_and_accepts_the_correlated_answer()
+    {
+        var transferId = Guid.NewGuid();
+        var transport = new FakeTransport(request => IpcEnvelope.Create(
+            TransferQueueIpcMessageTypes.PauseResponse,
+            request.RequestId,
+            sequence: 1,
+            new TransferMutationResponse(
+                TransferQueueIpcContract.CurrentVersion,
+                transferId,
+                TransferQueueMutationOutcome.Accepted,
+                Summary(TransferQueueState.Transferring) with { TransferId = transferId })));
+        await using var client = CreateClient(transport);
+
+        var response = await client.PauseAsync(
+            new TransferPauseRequest(TransferQueueIpcContract.CurrentVersion, transferId, ExpectedRevision: 3));
+
+        Assert.Equal(TransferQueueMutationOutcome.Accepted, response.Outcome);
+        Assert.Equal(TransferQueueIpcMessageTypes.PauseRequest, transport.LastRequest?.MessageType);
+    }
+
     [Fact]
     public async Task Client_applies_a_bounded_deadline()
     {

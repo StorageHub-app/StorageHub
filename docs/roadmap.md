@@ -779,6 +779,21 @@ The profile already stores these; `CodeLogicConnectionProfileConnector.BuildAsyn
       or IANA name). Nothing else takes it: an FTP server's time zone describes the server, which
       is usually elsewhere or on UTC, so it stays empty (UTC) unless set; SFTP, S3 and local times
       are UTC already; and SSH.NET has no public way to send TZ on the terminal's shell channel.
+- [x] 4.10 Every menu command 1.4 declared but never wired, 23 of them, now does its job.
+      Done: View's Directory tree (per pane, saved as `BrowserPaneState.TreeHidden`), Transfer
+      queue, Session log (the queue's Logs tab), Hidden files (one setting, filtered in
+      `PagedListingIndex` so no new listing is needed) and Theme (light, dark, system), in
+      `ShellViewCommands`; Go's Home, History (this session's last 20 folders) and Favorites, as
+      menus under the address bar; Connections' Quick connect (the pane's searchable list of saved
+      connections, since 1.4's unsaved quick connect could not be reached), Reconnect, Disconnect
+      and Test connection. Transfer's Start queue (retry what is stopped), Pause all (new
+      `transfer.pause.request`, a running transfer stopping at its next safe point and keeping
+      what it staged), Resume all and Cancel selected. Tools' Search (bounded, through the agent
+      on a connection), Checksums (`object-inspector.checksum.get` on a connection), Logs and
+      Diagnostics (a report and a bundle under `DiagnosticBundlePolicy`); Help's Keyboard
+      shortcuts, Documentation (the README) and Report issue (the prefilled bug form). Not done:
+      saving History between sessions, an agent-side diagnostics call so the bundle carries the
+      agent's own logs, and a documentation site for Help to point at.
 
 ## 5. New providers
 

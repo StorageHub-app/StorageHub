@@ -133,6 +133,35 @@ public sealed class TransferQueueAgentSubsystem
             : ActiveTransferCancellationResult.AlreadyRequested;
     }
 
+    /// <summary>
+    /// Stops a running transfer at its next safe point and leaves it paused, keeping what it staged
+    /// so Retry goes on from there. A cancel already asked for wins: it is the stronger request.
+    /// </summary>
+    public ActiveTransferCancellationResult TryRequestActivePause(
+        Domain.Identifiers.TransferJobId transferJobId,
+        long expectedRevision)
+    {
+        if (transferJobId.IsEmpty)
+        {
+            throw new ArgumentException("A transfer job ID is required.", nameof(transferJobId));
+        }
+
+        ArgumentOutOfRangeException.ThrowIfNegative(expectedRevision);
+        if (!_activeExecutions.TryGetValue(transferJobId, out var active))
+        {
+            return ActiveTransferCancellationResult.NotActive;
+        }
+
+        if (active.ExpectedRevision != expectedRevision)
+        {
+            return ActiveTransferCancellationResult.RevisionConflict;
+        }
+
+        return active.RequestPause()
+            ? ActiveTransferCancellationResult.Accepted
+            : ActiveTransferCancellationResult.AlreadyRequested;
+    }
+
     public async Task<SubsystemInitializationResult> InitializeAsync(CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -545,6 +574,12 @@ public sealed class TransferQueueAgentSubsystem
                     return false;
                 }
 
+                if (activeControl.IsPauseRequestedByUser)
+                {
+                    await TransitionPausedAsync(context).ConfigureAwait(false);
+                    return false;
+                }
+
                 if (hostCancellationToken.IsCancellationRequested)
                 {
                     await TransitionInterruptedAsync(context).ConfigureAwait(false);
@@ -757,6 +792,22 @@ public sealed class TransferQueueAgentSubsystem
             _ = Interlocked.Increment(ref _cancelled);
         }
         else
+        {
+            RecordLeaseLoss();
+        }
+    }
+
+    /// <summary>
+    /// Leaves a transfer somebody paused where it stopped. Its staged bytes are kept, since only a
+    /// cancel discards them, so a Retry resumes it wherever both ends can.
+    /// </summary>
+    private async Task TransitionPausedAsync(ClaimContext context)
+    {
+        using var storeWriteTimeout = CreateStoreWriteTimeout();
+        if (!await TryTransitionAsync(
+                context,
+                TransferState.Paused,
+                cancellationToken: storeWriteTimeout.Token).ConfigureAwait(false))
         {
             RecordLeaseLoss();
         }
@@ -1087,6 +1138,7 @@ public sealed class TransferQueueAgentSubsystem
         CancellationTokenSource executionLifetime)
     {
         private int _cancellationRequestedByUser;
+        private int _pauseRequestedByUser;
 
         public long ExpectedRevision { get; } = expectedRevision;
 
@@ -1102,6 +1154,20 @@ public sealed class TransferQueueAgentSubsystem
         public bool RequestCancellation()
         {
             if (Interlocked.Exchange(ref _cancellationRequestedByUser, 1) != 0)
+            {
+                return false;
+            }
+
+            executionLifetime.Cancel();
+            return true;
+        }
+
+        public bool IsPauseRequestedByUser =>
+            Volatile.Read(ref _pauseRequestedByUser) != 0;
+
+        public bool RequestPause()
+        {
+            if (IsCancellationRequestedByUser || Interlocked.Exchange(ref _pauseRequestedByUser, 1) != 0)
             {
                 return false;
             }
@@ -1151,6 +1217,14 @@ public interface IActiveTransferCancellation
     ActiveTransferCancellationResult TryRequestActiveCancellation(
         Domain.Identifiers.TransferJobId transferJobId,
         long expectedRevision);
+
+    /// <summary>
+    /// Asks a running transfer to stop and stay paused rather than cancelled. Defaulted so a host
+    /// that cannot pause one reports it as not running here, and the request is refused.
+    /// </summary>
+    ActiveTransferCancellationResult TryRequestActivePause(
+        Domain.Identifiers.TransferJobId transferJobId,
+        long expectedRevision) => ActiveTransferCancellationResult.NotActive;
 }
 
 /// <summary>

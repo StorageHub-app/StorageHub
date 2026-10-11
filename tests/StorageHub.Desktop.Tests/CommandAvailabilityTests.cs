@@ -21,6 +21,14 @@ namespace StorageHub.Desktop.Tests;
 /// </remarks>
 public class CommandAvailabilityTests
 {
+    private static readonly string[] TransferEntriesWaitingOnTheQueue =
+    [
+        UiCommandIds.TransferStartQueue,
+        UiCommandIds.TransferPauseAll,
+        UiCommandIds.TransferResumeAll,
+        UiCommandIds.TransferCancelSelected,
+    ];
+
     [AvaloniaFact]
     public void ACommandWithNoHandlerIsNotOffered()
     {
@@ -73,10 +81,19 @@ public class CommandAvailabilityTests
             .Select(static entry => ((ShellCommand)entry.Command).Id)
             .ToArray();
 
-        Assert.Equal(model.Router.HandledCount, enabled.Length);
+        // A handled entry is dimmed only while its condition says there is nothing to act on --
+        // Reconnect with no connection open -- so the count is of those that can run now.
+        Assert.Equal(
+            UiCommandCatalog.Definitions.Count(definition => model.Router.CanRun(definition.Id)),
+            enabled.Length);
         Assert.All(enabled, id => Assert.True(
             model.Router.IsHandled(id),
             $"{id} is offered but has no handler."));
+        Assert.All(TransferEntriesWaitingOnTheQueue, id =>
+        {
+            Assert.True(model.Router.IsHandled(id));
+            Assert.DoesNotContain(id, enabled);
+        });
     }
 
     /// <summary>

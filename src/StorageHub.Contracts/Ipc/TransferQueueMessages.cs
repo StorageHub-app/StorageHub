@@ -36,6 +36,8 @@ public static class TransferQueueIpcMessageTypes
     public const string ReconcileResponse = "transfer.reconcile.response";
     public const string ClearHistoryRequest = "transfer.history.clear.request";
     public const string ClearHistoryResponse = "transfer.history.clear.response";
+    public const string PauseRequest = "transfer.pause.request";
+    public const string PauseResponse = "transfer.pause.response";
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<TransferQueueOperation>))]
@@ -224,6 +226,17 @@ public sealed record TransferCancelRequest(int ContractVersion, Guid TransferId,
 }
 
 public sealed record TransferRetryRequest(int ContractVersion, Guid TransferId, long ExpectedRevision)
+{
+    public bool HasValidBounds =>
+        ContractVersion > 0 && TransferId != Guid.Empty && ExpectedRevision >= 0;
+}
+
+/// <summary>
+/// Holds a transfer where it is: one waiting is set aside, one running stops at its next safe
+/// point and keeps what it staged. Retry puts a paused transfer back in the queue, and a resumable
+/// one goes on from where it stopped.
+/// </summary>
+public sealed record TransferPauseRequest(int ContractVersion, Guid TransferId, long ExpectedRevision)
 {
     public bool HasValidBounds =>
         ContractVersion > 0 && TransferId != Guid.Empty && ExpectedRevision >= 0;

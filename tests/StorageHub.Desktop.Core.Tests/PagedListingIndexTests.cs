@@ -39,6 +39,32 @@ public sealed class PagedListingIndexTests
         Assert.InRange(index.CachedPageCount, 1, 16);
     }
 
+    /// <summary>
+    /// View > Hidden Files off leaves the hidden rows out of the view, filtered or not, and keeps
+    /// them in the index, where a paste still finds them by name.
+    /// </summary>
+    [Fact]
+    public void AViewWithoutHiddenRowsLeavesThemOutButTheIndexKeepsThem()
+    {
+        using var index = new PagedListingIndex();
+        index.Reset(
+        [
+            new BrowserListItem(".git", "", "Folder", "", "", ".git", IsContainer: true, IsHidden: true),
+            new BrowserListItem("renders", "", "Folder", "", "", "renders", IsContainer: true),
+            new BrowserListItem(".env", "12 B", "", "", "", ".env", IsHidden: true),
+            new BrowserListItem("brief.env", "1 KB", "", "", "", "brief.env")
+        ]);
+
+        Assert.Equal(4, index.CreateView(BrowserSortColumn.Name, ascending: true).Count);
+        Assert.Equal(
+            ["renders", "brief.env"],
+            index.CreateView(BrowserSortColumn.Name, ascending: true, includeHidden: false).Select(static row => row.Name));
+        Assert.Equal(
+            ["brief.env"],
+            index.CreateView(BrowserSortColumn.Name, ascending: true, "*.env", includeHidden: false).Select(static row => row.Name));
+        Assert.True(Assert.Single(index.FindByNames([".env"])).IsHidden);
+    }
+
     [Fact]
     public void FindIndexesResolvesEveryRequestedLocationInOneRankingPass()
     {

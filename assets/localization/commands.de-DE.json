@@ -72,7 +72,7 @@
   "connectionsKeyStore": "Schlüsselspeicher...",
   "connectionsKeyStoreDescription": "Importieren und verwalten Sie die Zertifikate und privaten Schlüssel, die gespeicherte Verbindungen gemeinsam nutzen.",
   "connectionsQuickConnect": "Schnellverbindung...",
-  "connectionsQuickConnectDescription": "Öffnen Sie eine temporäre Verbindung, ohne Anmeldedaten im Profil zu speichern.",
+  "connectionsQuickConnectDescription": "Suchen Sie eine gespeicherte Verbindung nach ihrem Namen und öffnen Sie sie im aktiven Bereich.",
   "connectionsReconnect": "Erneut verbinden",
   "connectionsReconnectDescription": "Öffnen Sie die Verbindung des aktiven Bereichs erneut.",
   "connectionsDisconnect": "Verbindung trennen",

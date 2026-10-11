@@ -8,6 +8,7 @@ using StorageHub.Desktop.Localization;
 using StorageHub.Desktop.Themes;
 using StorageHub.Desktop.Configuration;
 using StorageHub.Desktop.Framework;
+using StorageHub.Desktop.Shell;
 
 namespace StorageHub.Desktop.Views;
 
@@ -272,6 +273,109 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
     }
 
     /// <summary>
+    /// Points the Transfer menu at the queue: Start queue, Pause all and Resume all act on every
+    /// transfer the agent holds, and Cancel selected on the rows chosen in the queue.
+    /// </summary>
+    /// <remarks>
+    /// 1.4 declared all four, with F7 and F8, and wired none of them; its queue's own Cancel was the
+    /// only way to stop a transfer. Each entry is lit only while it has something to act on, by the
+    /// counts the queue reads on every poll, so the menu says what pressing it would do.
+    /// </remarks>
+    internal void RouteTransferCommands()
+    {
+        Router.Handle(UiCommandIds.TransferStartQueue, () => _ = Queue.StartQueueAsync());
+        Router.Handle(UiCommandIds.TransferPauseAll, () => _ = Queue.PauseAllAsync());
+        Router.Handle(UiCommandIds.TransferResumeAll, () => _ = Queue.ResumeAllAsync());
+        Router.Handle(UiCommandIds.TransferCancelSelected, Queue.CancelSelected);
+        Router.When(UiCommandIds.TransferStartQueue, () => Queue.CanStartQueue);
+        Router.When(UiCommandIds.TransferPauseAll, () => Queue.CanPauseAll);
+        Router.When(UiCommandIds.TransferResumeAll, () => Queue.CanResumeAll);
+        Router.When(UiCommandIds.TransferCancelSelected, () => Queue.CanCancelSelected);
+        Queue.ControlsChanged += (_, _) => Router.Reconsider();
+        Queue.CancelCommand.CanExecuteChanged += (_, _) => Router.Reconsider();
+    }
+
+    /// <summary>
+    /// Opens a web address in the browser, answering whether anything did. The application's is the
+    /// main window's launcher; left null, an address is shown rather than opened.
+    /// </summary>
+    internal Func<Uri, Task<bool>>? OpenUri { get; set; }
+
+    /// <summary>Opens a folder in the file manager, answering whether anything did; null shows the path.</summary>
+    internal Func<string, Task<bool>>? OpenFolder { get; set; }
+
+    /// <summary>Where Tools, Logs goes: the desktop's log folder. Settable so a test opens one of its own.</summary>
+    internal Func<string> LogFolder { get; set; } = static () => DesktopDiagnostics.LogFolder;
+
+    /// <summary>
+    /// Points the Tools and Help entries that need no window of their own: Logs, Documentation and
+    /// Report issue; and lights Search and Checksums by what the active pane shows.
+    /// </summary>
+    /// <remarks>
+    /// 1.4 declared all of them and wired none. Logs opens the folder its description named, the
+    /// desktop's own, where its error log and CodeLogic's logs are written. Documentation is the
+    /// project's README, and Report issue the repository's bug report form with its version and
+    /// environment boxes filled in, and nothing that names anybody. Search, Checksums, Diagnostics
+    /// and Keyboard shortcuts open windows, which App wires.
+    /// </remarks>
+    internal void RouteToolAndHelpCommands()
+    {
+        Router.Handle(UiCommandIds.ToolsLogs, () => _ = OpenLogsAsync());
+        Router.Handle(UiCommandIds.HelpDocumentation, () => _ = OpenLinkAsync(new Uri(StorageHubLinks.Documentation)));
+        Router.Handle(UiCommandIds.HelpReportIssue, () => _ = OpenLinkAsync(StorageHubLinks.BugReportFor(
+            DesktopApplicationVersion.Current,
+            DesktopDiagnostics.IssueEnvironment(DesktopDiagnostics.Collect(AgentStatus)))));
+        Router.When(UiCommandIds.ToolsSearch, () => SearchTarget() is not null);
+        Router.When(UiCommandIds.ToolsChecksums, () => ChecksumTarget() is not null);
+    }
+
+    /// <summary>The active pane and its folder, when it has one Search can walk.</summary>
+    internal (BrowserPaneModel Pane, PaneTransferContext Where)? SearchTarget() =>
+        ActivePane() is { } pane && pane.ToolLocation is { } where && FileSearch.CanSearch(where)
+            ? (pane, where)
+            : null;
+
+    /// <summary>The active pane's selection, when it holds a file Checksums can read.</summary>
+    internal PaneSelectionSnapshot? ChecksumTarget() =>
+        ActivePane() is { HasSelection: true } pane && pane.ToolSelection() is { } selection &&
+        ChecksumCalculator.CanCompute(selection.Context, selection.Items)
+            ? selection
+            : null;
+
+    private async Task OpenLinkAsync(Uri address)
+    {
+        if (OpenUri is { } open && await open(address).ConfigureAwait(true)) return;
+
+        // A machine with no browser registered still gets the address, as About gives its own.
+        await Services.ShellServices.Dialogs.ShowAsync(new DialogRequest
+        {
+            Title = Ui.Shell.LinkNotOpenedTitle,
+            Message = address.AbsoluteUri
+        }).ConfigureAwait(true);
+    }
+
+    private async Task OpenLogsAsync()
+    {
+        var folder = LogFolder();
+        try
+        {
+            // Made if nothing has been logged yet, so there is a folder to open rather than an error.
+            Directory.CreateDirectory(folder);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            // Opening says it could not, below.
+        }
+
+        if (OpenFolder is { } open && await open(folder).ConfigureAwait(true)) return;
+        await Services.ShellServices.Dialogs.ShowAsync(new DialogRequest
+        {
+            Title = Ui.Shell.LogsTitle,
+            Message = Ui.Format(Ui.Shell.LogsFolderIsFormat, folder)
+        }).ConfigureAwait(true);
+    }
+
+    /// <summary>
     /// Makes the next pane in the arrangement the active one, wrapping at the end.
     /// </summary>
     /// <remarks>
@@ -384,6 +488,10 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
     /// </remarks>
     private void ReportThePane()
     {
+        // Search and Checksums are lit by the active pane's folder and selection, which is what
+        // just changed.
+        Router.Reconsider();
+
         var message = _said ?? _standing;
         if (ActivePane() is not { } pane)
         {
@@ -699,6 +807,7 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         Router.UseShortcuts(saved.Shortcuts);
         ArrangeToolbar(saved.ToolbarItems, saved.ToolbarLabels);
         ConnectionsPanel.FollowSettings(saved);
+        ViewToggles.FollowSettings(saved);
         Sidebar.ShowFavoritesInTheirFolders = saved.ShowFavoritesInTheirFolders;
     }
 
@@ -1001,6 +1110,9 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
 
     /// <summary>Where the connections panel is docked, how wide, and whether it is showing.</summary>
     internal ConnectionsPanelLayout ConnectionsPanel { get; init; } = new();
+
+    /// <summary>The queue, the session log, hidden files and the theme, which the View menu turns on and off.</summary>
+    internal ShellViewToggles ViewToggles { get; init; } = new();
 
     /// <summary>What a pane's right-click menu offers after its own Open and Edit.</summary>
     internal IReadOnlyList<object> PaneContextEntries { get; init; } = [];
@@ -1560,9 +1672,17 @@ internal static class ShellPreview
         // Built before the menus, which tick View > Connections Panel while it shows, and the
         // toolbar, which draws that button pressed.
         var panel = new ConnectionsPanelLayout();
+
+        // And the View toggles 1.4 declared and never wired: the active pane's tree, the queue, its
+        // log and hidden files, ticked the same way.
+        var toggles = new ShellViewToggles();
         var checks = new Dictionary<string, CommandCheck>(StringComparer.Ordinal)
         {
             [UiCommandIds.ViewConnectionsPanel] = panel.Check,
+            [UiCommandIds.ViewDirectoryTree] = toggles.TreeCheck,
+            [UiCommandIds.ViewTransferQueue] = toggles.QueueCheck,
+            [UiCommandIds.ViewSessionLog] = toggles.LogCheck,
+            [UiCommandIds.ViewHiddenFiles] = toggles.HiddenCheck,
         };
         // The shell the workspaces belong to, for a pane to reach the connections panel's editor:
         // read when a pane asks, by which time it is there.
@@ -1575,6 +1695,7 @@ internal static class ShellPreview
             SelectedWorkspace = selectedWorkspace,
             Sidebar = BuildSidebar(router),
             ConnectionsPanel = panel,
+            ViewToggles = toggles,
             NewWorkspaceCommand = router.For(UiCommandIds.WorkspaceNewWorkspace),
             NewWorkspaceLabel = Ui.Commands.WorkspaceNewWorkspace,
             Queue = queue,
@@ -1721,6 +1842,8 @@ internal static class ShellPreview
         model.RouteToActivePane();
         model.DimWorkspaceCommandsOnPages();
         model.WatchTheStatusBar();
+        model.RouteTransferCommands();
+        model.RouteToolAndHelpCommands();
 
         // The keys and the toolbar as Settings saved them, as 1.x built its menus and toolbar from
         // the saved preferences. The samples have no settings file, and keep the catalog's.
@@ -1734,6 +1857,19 @@ internal static class ShellPreview
         router.Handle(UiCommandIds.ViewMoveConnectionsPanel, panel.MoveToOtherSide);
         model.Sidebar.MoveToOtherSideCommand = router.For(UiCommandIds.ViewMoveConnectionsPanel);
         model.Sidebar.HidePanelCommand = new RelayCommand(_ => panel.SetVisible(false));
+
+        // The rest of View, and Go and Connections: the queue and hidden files as they were left,
+        // and the theme put on screen as Settings puts it. Live only, as the panel's are: a
+        // preview has no settings file, and its colours are what the photographs compare.
+        if (live)
+        {
+            toggles.Restore(saved);
+            toggles.Persist = UpdatePreferences;
+            toggles.ApplyAppearance = static appearance => SettingsWindow.ApplyScheme(
+                (ReadPreferences() ?? DesktopUpdatePreferences.Defaults) with { Appearance = appearance });
+        }
+
+        ShellViewCommands.Wire(model, toggles);
 
         // Live, the panel opens the way it was left and every change is saved as it happens. It
         // reads the connections again when it comes back, as 1.x did: they may have changed while

@@ -213,6 +213,29 @@ as 1.4 did. A new schedule starts on the time zone Settings names, following
 the system by default, and the schedule window says which one is in use; on
 Linux a machine on `Etc/UTC` no longer gets `Africa/Abidjan`.
 
+**Every menu entry now does what it says.** 1.4 listed 23 menu commands that
+did nothing; 2.0 builds all of them. In View, the folder tree beside a pane,
+the transfer queue, the session log and hidden files can each be shown or
+hidden, and StorageHub remembers which; Theme switches between light, dark and
+following the system. Go > Home takes a pane to the top of its connection or to
+your home folder, and Go > History and Go > Favorites list the folders the pane
+visited this session and your favourite connections, under the address bar.
+Quick Connect finds a saved connection as you type, and Reconnect, Disconnect
+and Test Connection act on the pane's connection or the one selected in the
+Connections panel. In Transfer, Start Queue (F7) retries everything stopped,
+Pause All (F8) pauses the whole queue, a running copy stopping at its next safe
+point and keeping what it has so far, Resume All carries on, and Cancel
+Selected cancels the rows chosen in the queue. Tools > Search finds files by
+name or wildcard under the active pane's folder, on this PC or a connection;
+Tools > Checksums shows the SHA-256 of the selected files, the server's own
+where it keeps one, compares them with each other or a checksum you paste, and
+copies them in `sha256sum` form; Tools > Logs opens the log folder; and Tools >
+Diagnostics shows a short report and saves a support bundle with your user
+name, computer name and home folder taken out. Help > Keyboard Shortcuts opens
+the shortcut settings, Documentation opens the README, and Report Issue opens
+the bug form with your version and system filled in. Each entry is greyed out
+when there is nothing for it to act on.
+
 The 1.4 line's last unreleased fixes, to updating and repairing a
 service-hosted agent, stay in `1.x-archive`'s changelog. 2.0 has no service for
 them to apply to.

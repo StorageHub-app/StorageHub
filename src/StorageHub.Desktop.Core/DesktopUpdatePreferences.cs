@@ -197,7 +197,18 @@ internal sealed record DesktopUpdatePreferences(
     /// </summary>
     bool AutoRefreshFolders = false,
     /// <summary>How often a connection's folder is read again when it refreshes by itself.</summary>
-    int RemoteRefreshSeconds = FolderAutoRefreshSettings.DefaultRemoteSeconds)
+    int RemoteRefreshSeconds = FolderAutoRefreshSettings.DefaultRemoteSeconds,
+    /// <summary>
+    /// Whether the transfer queue is shown under the workspaces, as View > Transfer Queue left it.
+    /// Window layout, like the connections panel's, so it stays on the machine it was set on.
+    /// </summary>
+    bool TransferQueueVisible = true,
+    /// <summary>
+    /// Whether panes list what is hidden -- a name starting with a dot, a file this computer marks
+    /// hidden -- as View > Hidden Files left it. On by default, because every pane listed them
+    /// before there was a way not to.
+    /// </summary>
+    bool ShowHiddenFiles = true)
 {
     /// <summary>The auto-refresh settings as a pane follows them, the interval within its bounds.</summary>
     internal FolderAutoRefreshSettings FolderAutoRefresh =>

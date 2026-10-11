@@ -1,0 +1,81 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
+        x:Class="StorageHub.Desktop.Views.ChecksumsWindow"
+        x:DataType="vm:ChecksumsModel"
+        Title="{x:Static vm:ChecksumsModel.Title}"
+        Width="1000" Height="480"
+        MinWidth="720" MinHeight="320"
+        WindowStartupLocation="CenterOwner">
+
+  <!--
+    What this does, once; a box for a checksum to compare with; every selected file with its
+    SHA-256, where it came from, and how it compares; and Copy, which writes them as sha256sum does.
+  -->
+
+  <Border Classes="surface">
+    <DockPanel Margin="{StaticResource PaddingLg}">
+
+      <TextBlock DockPanel.Dock="Top" Classes="caption" Text="{x:Static vm:ChecksumsModel.Intro}"
+                 TextWrapping="Wrap" Margin="0,0,0,8"/>
+
+      <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*"
+            ColumnSpacing="{StaticResource SpaceSm}" Margin="0,0,0,8">
+        <TextBlock Grid.Column="0" Text="{x:Static vm:ChecksumsModel.ExpectedLabel}" VerticalAlignment="Center"/>
+        <TextBox Grid.Column="1" Text="{Binding Expected, Mode=TwoWay}"
+                 FontFamily="{DynamicResource AppFontMono}"
+                 PlaceholderText="{x:Static vm:ChecksumsModel.ExpectedHint}"
+                 AutomationProperties.Name="{x:Static vm:ChecksumsModel.ExpectedLabel}"/>
+      </Grid>
+
+      <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto,Auto"
+            ColumnSpacing="{StaticResource SpaceSm}" Margin="0,8,0,0">
+        <TextBlock Grid.Column="0" Classes="status"
+                   Classes.primary="{Binding Status.IsPrimary}"
+                   Classes.success="{Binding Status.IsSuccess}"
+                   Classes.warning="{Binding Status.IsWarning}"
+                   Classes.danger="{Binding Status.IsDanger}"
+                   Text="{Binding Status.Text}" TextWrapping="Wrap"
+                   VerticalAlignment="Center"/>
+        <Button Grid.Column="1" Content="{x:Static vm:ChecksumsModel.CopyLabel}"
+                Command="{Binding CopyCommand}"/>
+        <Button Grid.Column="2" Content="{x:Static vm:ChecksumsModel.CloseLabel}"
+                Click="OnClose" IsCancel="True"/>
+      </Grid>
+
+      <TableView ItemsSource="{Binding Rows}"
+                 SelectionMode="Single"
+                 AutomationProperties.Name="{x:Static vm:ChecksumsModel.Title}">
+        <TableView.Columns>
+          <TableViewColumn Header="{x:Static vm:ChecksumsModel.ColumnName}" Binding="{Binding Name}" Width="180*"/>
+          <TableViewColumn Header="{x:Static vm:ChecksumsModel.ColumnSize}" Binding="{Binding Size}" Width="80"/>
+          <TableViewColumn Header="{x:Static vm:ChecksumsModel.ColumnSha256}" Width="470">
+            <TableViewColumn.CellTemplate>
+              <DataTemplate DataType="vm:ChecksumRow">
+                <SelectableTextBlock FontFamily="{DynamicResource AppFontMono}" Text="{Binding Sha256}"
+                                     VerticalAlignment="Center"/>
+              </DataTemplate>
+            </TableViewColumn.CellTemplate>
+          </TableViewColumn>
+          <TableViewColumn Header="{x:Static vm:ChecksumsModel.ColumnSource}" Width="150*">
+            <TableViewColumn.CellTemplate>
+              <DataTemplate DataType="vm:ChecksumRow">
+                <TextBlock Classes="status" Classes.danger="{Binding Failed}"
+                           Text="{Binding Source}" TextTrimming="CharacterEllipsis"
+                           ToolTip.Tip="{Binding Source}" VerticalAlignment="Center"/>
+              </DataTemplate>
+            </TableViewColumn.CellTemplate>
+          </TableViewColumn>
+          <TableViewColumn Header="{x:Static vm:ChecksumsModel.ColumnMatch}" Width="150*">
+            <TableViewColumn.CellTemplate>
+              <DataTemplate DataType="vm:ChecksumRow">
+                <TextBlock Classes="status" Classes.success="{Binding Matches}" Classes.danger="{Binding Differs}"
+                           Text="{Binding Match}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+              </DataTemplate>
+            </TableViewColumn.CellTemplate>
+          </TableViewColumn>
+        </TableView.Columns>
+      </TableView>
+    </DockPanel>
+  </Border>
+</Window>

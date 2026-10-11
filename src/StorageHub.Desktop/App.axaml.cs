@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using StorageHub.Desktop.Localization;
 using StorageHub.Desktop.Settings;
@@ -156,6 +157,17 @@ public partial class App : global::Avalonia.Application
         // The working files interrupted transfers and the external editor left behind, listed with
         // their sizes and removed only when somebody confirms it.
         model.Router.Handle(UiCommandIds.ToolsCleanUpLeftovers, () => ShowStagingCleanup(desktop));
+
+        // Tools and Help, which 1.4 declared and left dead. Links and folders open through the main
+        // window's own launcher, the platform's, as About's link does. Keyboard shortcuts is the
+        // Settings page that lists and rebinds them, which is what 1.4's entry said it would show.
+        model.OpenUri = uri => window.Launcher.LaunchUriAsync(uri);
+        model.OpenFolder = folder => window.Launcher.LaunchDirectoryInfoAsync(new DirectoryInfo(folder));
+        model.Router.Handle(UiCommandIds.ToolsSearch, () => ShowSearch(desktop, model));
+        model.Router.Handle(UiCommandIds.ToolsChecksums, () => ShowChecksums(desktop, model));
+        model.Router.Handle(UiCommandIds.ToolsDiagnostics, () => ShowDiagnostics(desktop, model));
+        model.Router.Handle(
+            UiCommandIds.HelpKeyboardShortcuts, () => ShowSettings(SettingsPageCatalog.ShortcutsPageKey));
 
         // One updater for the session, shared with the window that shows it. Two would each
         // stage the same release into the same directory, and the second would find it taken.
@@ -443,6 +455,38 @@ public partial class App : global::Avalonia.Application
         if (model.CompareActivePanes() is not { } compare) return;
         var window = Views.FolderCompareWindow.For(compare);
         if (desktop.MainWindow is { } owner) window.Show(owner);
+        else window.Show();
+    }
+
+    /// <summary>
+    /// Opens Search on the active pane's folder, beside the main window rather than over it, so a
+    /// match chosen with Go to can be looked at in the pane while the results stay open.
+    /// </summary>
+    private static void ShowSearch(IClassicDesktopStyleApplicationLifetime desktop, ShellPreviewModel model)
+    {
+        if (model.SearchTarget() is not { } target) return;
+        var window = Views.FileSearchWindow.For(target.Pane, target.Where);
+        if (desktop.MainWindow is { } owner) window.Show(owner);
+        else window.Show();
+    }
+
+    /// <summary>Opens Checksums on the active pane's selected files.</summary>
+    private static void ShowChecksums(IClassicDesktopStyleApplicationLifetime desktop, ShellPreviewModel model)
+    {
+        if (model.ChecksumTarget() is not { } selection) return;
+        var window = Views.ChecksumsWindow.For(selection);
+        if (desktop.MainWindow is { } owner) _ = window.ShowDialog(owner);
+        else window.Show();
+    }
+
+    /// <summary>Opens Diagnostics, describing the agent as the shell last heard it.</summary>
+    private static void ShowDiagnostics(IClassicDesktopStyleApplicationLifetime desktop, ShellPreviewModel model)
+    {
+        var window = Views.DiagnosticsWindow.For(
+            model.AgentStatus,
+            model.Queue.StateCountsByName,
+            folder => model.OpenFolder?.Invoke(folder) ?? Task.FromResult(false));
+        if (desktop.MainWindow is { } owner) _ = window.ShowDialog(owner);
         else window.Show();
     }
 

@@ -151,6 +151,18 @@ internal sealed class TransferStrings : LocalizationModelBase
     /// <summary>{0} = how many were updated, {1} = how many changed or need review.</summary>
     public string UpdatedWithConflictsFormat { get; set; } = "Updated {0}; {1} changed or require review.";
 
+    public string PausedTransfersFormat { get; set; } = "Paused {0} transfer(s).";
+
+    public string ResumedTransfersFormat { get; set; } = "Resumed {0} transfer(s).";
+
+    public string StartedTransfersFormat { get; set; } = "Started {0} transfer(s) again.";
+
+    public string NothingToPause { get; set; } = "Nothing is running or waiting to be paused.";
+
+    public string NothingToResume { get; set; } = "No paused transfers to resume.";
+
+    public string NothingToStart { get; set; } = "No paused, blocked or failed transfers to start.";
+
     /// <summary>{0} = the transfer state, {1} = what went wrong.</summary>
     public string TransferErrorFormat { get; set; } = "{0}: {1}";
 
