@@ -102,7 +102,8 @@
           first connection into is a group you cannot start using. An empty one says so on one
           quiet line under its name, which is part of the group and so takes a drop too.
         -->
-        <TextBlock Classes="group-empty" Text="{Binding EmptyLabel}" IsVisible="{Binding ShowsEmptyLine}"/>
+        <TextBlock Classes="group-empty" Text="{Binding EmptyLabel}" ToolTip.Tip="{Binding EmptyHint}"
+                   IsVisible="{Binding ShowsEmptyLine}"/>
         <ItemsControl ItemsSource="{Binding Connections}"
                       IsVisible="{Binding IsExpanded}">
           <ItemsControl.ItemsPanel>
@@ -416,10 +417,11 @@
         </Panel>
       </Border>
 
-      <Panel Margin="12,12,12,0">
-        <TextBlock Classes="muted" Text="{Binding Status}"
-                   HorizontalAlignment="Center" VerticalAlignment="Top"
-                   Margin="0,24,0,0"
+      <DockPanel Margin="12,12,12,0">
+        <!-- Why the panel is empty, above the always-drawn groups when there are any. -->
+        <TextBlock DockPanel.Dock="Top" Classes="muted" Text="{Binding Status}"
+                   HorizontalAlignment="Center" TextWrapping="Wrap"
+                   Margin="0,12,0,12"
                    IsVisible="{Binding IsEmpty}"/>
         <!--
           Groups somebody made, rather than the Storage and Clients split 1.x had. That split
@@ -428,9 +430,9 @@
           inside two fixed lists gives that. The classification survives as a badge on the row,
           which is where it is actually useful.
         -->
-        <ScrollViewer x:Name="PART_Connections" IsVisible="{Binding !IsEmpty}">
+        <ScrollViewer x:Name="PART_Connections" IsVisible="{Binding HasGroups}">
           <!-- Favorites above the groups, as 1.x listed them above its sections (ui-reference 09),
-               drawn by the same template as a group and shown only while it has a card. -->
+               drawn by the same template as a group; always there unless Settings hides empty groups. -->
           <StackPanel Spacing="{StaticResource SpaceMd}">
             <ContentControl Content="{Binding Favorites}"
                             IsVisible="{Binding Favorites, Converter={x:Static ObjectConverters.IsNotNull}}"/>
@@ -443,6 +445,6 @@
             </ItemsControl>
           </StackPanel>
         </ScrollViewer>
-      </Panel>
+      </DockPanel>
     </DockPanel>
 </UserControl>

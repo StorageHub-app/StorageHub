@@ -819,6 +819,7 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         ConnectionsPanel.FollowSettings(saved);
         ViewToggles.FollowSettings(saved);
         Sidebar.ShowFavoritesInTheirFolders = saved.ShowFavoritesInTheirFolders;
+        Sidebar.HideEmptyGroups = saved.HideEmptyGroups;
     }
 
     /// <summary>
@@ -1897,6 +1898,7 @@ internal static class ShellPreview
 
         // Favourites in their own group as well as under Favorites, or only there, as Settings says.
         model.Sidebar.ShowFavoritesInTheirFolders = saved.ShowFavoritesInTheirFolders;
+        model.Sidebar.HideEmptyGroups = saved.HideEmptyGroups;
 
         // Go > Favorites follows what the panel lists. Live only, as the Workspace menu's own
         // entries are: the samples list no connections and keep the catalog's menu.

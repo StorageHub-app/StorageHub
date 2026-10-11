@@ -208,7 +208,12 @@ internal sealed record DesktopUpdatePreferences(
     /// hidden -- as View > Hidden Files left it. On by default, because every pane listed them
     /// before there was a way not to.
     /// </summary>
-    bool ShowHiddenFiles = true)
+    bool ShowHiddenFiles = true,
+    /// <summary>
+    /// Whether the connections panel leaves out a group with nothing in it: Favorites, a group
+    /// somebody made, Ungrouped. Off by default, so the panel always shows every group.
+    /// </summary>
+    bool HideEmptyGroups = false)
 {
     /// <summary>The auto-refresh settings as a pane follows them, the interval within its bounds.</summary>
     internal FolderAutoRefreshSettings FolderAutoRefresh =>

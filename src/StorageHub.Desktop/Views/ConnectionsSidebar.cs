@@ -83,6 +83,8 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     private IReadOnlyDictionary<Guid, string> _names = new Dictionary<Guid, string>();
     private string _search = string.Empty;
     private bool _showFavoritesInTheirFolders = true;
+    private bool _hideEmptyGroups;
+    private bool _hasGroups;
 
     /// <summary>
     /// Each connection's latest link change the agent reported, by id. Kept apart from the cards
@@ -676,7 +678,7 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     public ObservableCollection<ConnectionGroupModel> Groups { get; } = [];
 
     /// <summary>
-    /// The Favorites group above the others, or null when no favourite is showing.
+    /// The Favorites group above the others; null only when it is empty and empty groups are hidden.
     /// </summary>
     /// <remarks>
     /// 1.x's Favorites section: the enabled favourites, by name, flat, whatever group each is in.
@@ -709,6 +711,25 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         {
             if (_showFavoritesInTheirFolders == value) return;
             _showFavoritesInTheirFolders = value;
+            Rebuild();
+        }
+    }
+
+    /// <summary>
+    /// Whether a group with no connections is left out, as Settings' "Hide empty groups" says.
+    /// </summary>
+    /// <remarks>
+    /// Off by default: Favorites, every group somebody made and Ungrouped are always drawn, so the
+    /// panel keeps one shape and an empty group is somewhere to drop a connection. On, any of them
+    /// with nothing in it (or nothing matching a search) is not drawn.
+    /// </remarks>
+    internal bool HideEmptyGroups
+    {
+        get => _hideEmptyGroups;
+        set
+        {
+            if (_hideEmptyGroups == value) return;
+            _hideEmptyGroups = value;
             Rebuild();
         }
     }
@@ -857,6 +878,16 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     {
         get => _status;
         private set => Set(ref _status, value, nameof(Status));
+    }
+
+    /// <summary>
+    /// Whether any group is drawn, which decides whether the list shows: with empty groups on,
+    /// even a panel with no connections has Favorites and Ungrouped, and says why above them.
+    /// </summary>
+    public bool HasGroups
+    {
+        get => _hasGroups;
+        private set => Set(ref _hasGroups, value, nameof(HasGroups));
     }
 
     public bool IsEmpty
@@ -1256,7 +1287,9 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
             .OrderBy(static card => card.Name, StringComparer.CurrentCultureIgnoreCase)
             .Select(card => new ConnectionRowModel(card, GroupNameOf(card.GroupId)))
             .ToArray();
-        Favorites = favorites.Length == 0
+        // Drawn with nothing in it too, so the panel always has the same shape, unless Settings
+        // says empty groups are to be left out.
+        Favorites = favorites.Length == 0 && _hideEmptyGroups
             ? null
             : new ConnectionGroupModel(Ui.Connections.GroupFavorites, favorites, ConnectionGroupKind.Favorites)
             {
@@ -1289,8 +1322,9 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
             var rows = RowsFor(card => card.GroupId == id, group.Name);
             matched += rows.Length;
 
-            // A search shows where it found something, not every group it found nothing in.
-            if (HasSearch && rows.Length == 0) continue;
+            // A group with nothing in it is still a group, and a search that finds nothing in one
+            // says so on its empty line; only Settings' "Hide empty groups" leaves it out.
+            if (_hideEmptyGroups && rows.Length == 0) continue;
 
             var first = position == 0;
             var last = position == ordered.Length - 1;
@@ -1307,12 +1341,12 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
             Groups.Add(drawn);
         }
 
-        // Ungrouped last, and only while something is in it: a connection in no group, or in one
-        // the agent no longer has.
+        // Ungrouped last: a connection in no group, or in one the agent no longer has. Drawn while
+        // empty too, where it is also somewhere to drop a connection to take it out of its group.
         var known = ordered.Select(static group => group.GroupId).ToHashSet();
         var loose = RowsFor(card => card.GroupId is not { } group || !known.Contains(group), null);
         matched += loose.Length;
-        if (loose.Length > 0)
+        if (loose.Length > 0 || !_hideEmptyGroups)
         {
             var ungrouped = new ConnectionGroupModel(Ui.Connections.Ungrouped, loose, ConnectionGroupKind.Ungrouped)
             {
@@ -1343,6 +1377,7 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         // thing to be told, and is still true whatever is typed in the box.
         var searchFoundNothing = HasSearch && matched == 0 && _cards.Count > 0;
         IsEmpty = _cards.Count == 0 || searchFoundNothing;
+        HasGroups = Favorites is not null || Groups.Count > 0;
         Status = searchFoundNothing ? Ui.Connections.NoMatches : _listingStatus;
         ShowLinks();
     }

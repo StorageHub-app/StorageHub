@@ -253,6 +253,14 @@ staged for a paste; the hint is now the tooltip on a pane's header. The frame
 round each pane is two pixels wide instead of three, the active pane still
 marked by its colour.
 
+**The connections panel now always shows its groups, even empty ones.** Favorites,
+every group you made and Ungrouped are always listed, each saying "No
+connections" (or "No favorite connections") when there is nothing in it, and a
+search keeps them instead of making them vanish. An empty Ungrouped is also
+somewhere to drop a connection to take it out of its group. If you prefer the
+quieter panel, turn on Settings > Hide empty groups, next to "Show favourites in
+their folders too"; it travels with Export and Import settings.
+
 The 1.4 line's last unreleased fixes, to updating and repairing a
 service-hosted agent, stay in `1.x-archive`'s changelog. 2.0 has no service for
 them to apply to.

@@ -52,7 +52,10 @@ internal sealed record DesktopGeneralSection(
     // Whether folders refresh by themselves, and how often a connection's does. Absent in a file
     // from before they existed, which leaves them as they are.
     bool? AutoRefreshFolders = null,
-    int? RemoteRefreshSeconds = null);
+    int? RemoteRefreshSeconds = null,
+    // Whether empty connection groups are left out of the panel. Absent in an older file, which
+    // leaves the importing machine's choice alone.
+    bool? HideEmptyGroups = null);
 
 /// <summary>
 /// Settings that name something on one computer: a path, or a reference into that machine's

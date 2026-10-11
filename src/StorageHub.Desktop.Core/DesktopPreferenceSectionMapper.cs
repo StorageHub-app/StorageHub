@@ -58,7 +58,8 @@ internal static class DesktopPreferenceSectionMapper
             preferences.NewScheduleTimeZone,
             preferences.TransferConflictDefault,
             preferences.AutoRefreshFolders,
-            preferences.RemoteRefreshSeconds);
+            preferences.RemoteRefreshSeconds,
+            preferences.HideEmptyGroups);
     }
 
     /// <summary>
@@ -230,7 +231,8 @@ internal static class DesktopPreferenceSectionMapper
             RemoteRefreshSeconds = general.RemoteRefreshSeconds is { } seconds &&
                 FolderAutoRefreshSettings.IsValidRemoteSeconds(seconds)
                     ? seconds
-                    : current.RemoteRefreshSeconds
+                    : current.RemoteRefreshSeconds,
+            HideEmptyGroups = general.HideEmptyGroups ?? current.HideEmptyGroups
         };
 
     private static DesktopUpdatePreferences ApplyMachineSpecific(
