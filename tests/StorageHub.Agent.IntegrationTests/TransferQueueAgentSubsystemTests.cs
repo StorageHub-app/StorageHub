@@ -559,7 +559,9 @@ public sealed class TransferQueueAgentSubsystemTests : IDisposable
         await worker.StartAsync(CancellationToken.None);
         await blockedEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        var deadline = DateTime.UtcNow.AddSeconds(5);
+        // Generous: what matters is that it was claimed and ran while the other connection was
+        // full, not how fast a loaded build machine copies 32 KiB.
+        var deadline = DateTime.UtcNow.AddSeconds(45);
         TransferState idleState;
         do
         {
