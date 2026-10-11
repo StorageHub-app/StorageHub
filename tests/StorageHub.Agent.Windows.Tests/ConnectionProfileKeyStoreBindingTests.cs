@@ -154,6 +154,119 @@ public sealed class ConnectionProfileKeyStoreBindingTests : IDisposable
             (await fixture.KeyStore.DeleteAsync(certificate.Id, certificate.Version)).Status);
     }
 
+    [Fact]
+    public async Task A_certificate_with_no_password_is_accepted_for_ftps_and_still_binds()
+    {
+        // A PKCS#12 bundle may carry no password, in which case the entry has no passphrase
+        // reference and the profile has no password reference beside its certificate.
+        var fixture = await CreateFixtureAsync();
+        var certificate = await ImportAsync(
+            fixture, KeyMaterialKind.Pkcs12Certificate, "Passwordless certificate", passphrase: false);
+
+        var response = await CreateAsync(
+            fixture, FtpsDraft(certificate.MaterialReference.Value, null, "Passwordless FTPS"));
+
+        Assert.Equal(ContractWriteStatus.Succeeded, response.Status);
+        var usage = Assert.Single(await fixture.KeyStore.SearchAsync(new KeyStoreSearch()));
+        Assert.Equal(["Passwordless FTPS"], usage.ReferencedByProfileNames);
+    }
+
+    [Fact]
+    public async Task A_certificate_password_without_a_certificate_is_refused_for_ftps()
+    {
+        var fixture = await CreateFixtureAsync();
+
+        var response = await CreateAsync(
+            fixture, FtpsDraft(null, SecretReference.Create().Value, "Orphan password"));
+
+        Assert.Equal(ContractWriteStatus.ValidationFailed, response.Status);
+    }
+
+    [Fact]
+    public async Task A_webdav_client_certificate_is_released_when_the_profile_stops_using_it()
+    {
+        var fixture = await CreateFixtureAsync();
+        var certificate = await ImportAsync(fixture, KeyMaterialKind.Pkcs12Certificate, "Partner certificate");
+        var created = await CreateAsync(fixture, WebDavDraft(
+            certificate.MaterialReference.Value, certificate.PassphraseReference!.Value.Value));
+        Assert.Equal(ContractWriteStatus.Succeeded, created.Status);
+        Assert.Equal(["Nightly WebDAV"], Assert.Single(await fixture.KeyStore.SearchAsync(new KeyStoreSearch())).ReferencedByProfileNames);
+
+        var updated = await SendAsync<ConnectionProfileUpdateRequest, ConnectionProfileWriteResponse>(
+            fixture.Service,
+            ConnectionProfileIpcMessageTypes.UpdateRequest,
+            new ConnectionProfileUpdateRequest(
+                ConnectionProfileIpcContract.CurrentVersion,
+                created.Profile!.ConnectionId,
+                created.Profile.Version,
+                WebDavDraft(null, null)));
+
+        Assert.Equal(ContractWriteStatus.Succeeded, updated.Status);
+        Assert.Empty(Assert.Single(await fixture.KeyStore.SearchAsync(new KeyStoreSearch())).ReferencedByProfileNames);
+        Assert.Equal(
+            KeyStoreWriteStatus.Succeeded,
+            (await fixture.KeyStore.DeleteAsync(certificate.Id, certificate.Version)).Status);
+    }
+
+    [Fact]
+    public async Task A_webdav_profile_is_released_from_its_certificate_when_deleted()
+    {
+        var fixture = await CreateFixtureAsync();
+        var certificate = await ImportAsync(fixture, KeyMaterialKind.Pkcs12Certificate, "Partner certificate");
+        var created = await CreateAsync(fixture, WebDavDraft(
+            certificate.MaterialReference.Value, certificate.PassphraseReference!.Value.Value));
+
+        var deleted = await SendAsync<ConnectionProfileDeleteRequest, ConnectionProfileWriteResponse>(
+            fixture.Service,
+            ConnectionProfileIpcMessageTypes.DeleteRequest,
+            new ConnectionProfileDeleteRequest(
+                ConnectionProfileIpcContract.CurrentVersion,
+                created.Profile!.ConnectionId,
+                created.Profile.Version));
+
+        Assert.Equal(ContractWriteStatus.Succeeded, deleted.Status);
+        Assert.Equal(
+            KeyStoreWriteStatus.Succeeded,
+            (await fixture.KeyStore.DeleteAsync(certificate.Id, certificate.Version)).Status);
+    }
+
+    [Fact]
+    public async Task A_key_with_no_passphrase_binds_to_a_key_and_password_profile()
+    {
+        var fixture = await CreateFixtureAsync();
+        var key = await ImportAsync(fixture, KeyMaterialKind.SshPrivateKey, "Bare key", passphrase: false);
+
+        var response = await CreateAsync(fixture, new ConnectionProfileDraft(
+            new ConnectionProfileMetadataDocument("Key and password", Tags: []),
+            new ConnectionEndpointDocument(StorageConnectionProvider.Sftp, Host: "sftp.example.test", Port: 22),
+            new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.SshPrivateKeyPassword,
+                Username: "operator",
+                PasswordReference: SecretReference.Create().Value,
+                PrivateKeyReference: key.MaterialReference.Value,
+                PrivateKeyFormat: ConnectionSftpPrivateKeyFormat.Pem),
+            new ConnectionOperationalOptionsDocument()));
+
+        Assert.Equal(ContractWriteStatus.Succeeded, response.Status);
+        Assert.Equal(
+            ConnectionSftpPrivateKeyFormat.Pem,
+            response.Profile!.Draft.Authentication.PrivateKeyFormat);
+        Assert.Equal(["Key and password"], Assert.Single(await fixture.KeyStore.SearchAsync(new KeyStoreSearch())).ReferencedByProfileNames);
+    }
+
+    private static ConnectionProfileDraft WebDavDraft(string? certificate, string? password) => new(
+        new ConnectionProfileMetadataDocument("Nightly WebDAV", Tags: []),
+        new ConnectionEndpointDocument(
+            StorageConnectionProvider.WebDav,
+            ServiceEndpoint: "https://dav.example.test/files/",
+            ClientCertificatePfxReference: certificate,
+            ClientCertificatePasswordReference: password),
+        new ConnectionAuthenticationDocument(
+            ConnectionAuthenticationKind.UsernamePassword,
+            Username: "operator",
+            PasswordReference: SecretReference.Create().Value),
+        new ConnectionOperationalOptionsDocument());
+
     private static Task<ConnectionProfileWriteResponse> CreateAsync(Fixture fixture, ConnectionProfileDraft draft) =>
         SendAsync<ConnectionProfileCreateRequest, ConnectionProfileWriteResponse>(
             fixture.Service,
@@ -163,7 +276,7 @@ public sealed class ConnectionProfileKeyStoreBindingTests : IDisposable
     private static ConnectionProfileDraft FtpsDraft(KeyStoreEntry entry) =>
         FtpsDraft(entry.MaterialReference.Value, entry.PassphraseReference!.Value.Value, "Nightly FTPS");
 
-    private static ConnectionProfileDraft FtpsDraft(string material, string passphrase, string name) => new(
+    private static ConnectionProfileDraft FtpsDraft(string? material, string? passphrase, string name) => new(
         new ConnectionProfileMetadataDocument(name, Tags: []),
         new ConnectionEndpointDocument(
             StorageConnectionProvider.Ftps,
@@ -191,14 +304,15 @@ public sealed class ConnectionProfileKeyStoreBindingTests : IDisposable
             PrivateKeyFormat: ConnectionSftpPrivateKeyFormat.OpenSsh),
         new ConnectionOperationalOptionsDocument());
 
-    private static async Task<KeyStoreEntry> ImportAsync(Fixture fixture, KeyMaterialKind kind, string name)
+    private static async Task<KeyStoreEntry> ImportAsync(
+        Fixture fixture, KeyMaterialKind kind, string name, bool passphrase = true)
     {
         var entry = KeyStoreEntry.Create(
             KeyStoreEntryId.New(),
             kind,
             name,
             SecretReference.Create(),
-            SecretReference.Create(),
+            passphrase ? SecretReference.Create() : null,
             kind is KeyMaterialKind.Pkcs12Certificate
                 ? new Pkcs12CertificateSummary(
                     "CN=partner.example.test",

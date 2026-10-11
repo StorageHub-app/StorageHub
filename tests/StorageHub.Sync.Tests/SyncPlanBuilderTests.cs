@@ -141,6 +141,34 @@ public sealed class SyncPlanBuilderTests
                 "shared.storagehub-conflict-location-b.txt");
     }
 
+    [Theory]
+    [InlineData("report.pdf")]
+    [InlineData("notes.md")]
+    [InlineData("Makefile")]
+    [InlineData("shared.txt")]
+    public void Keep_both_overwrites_the_other_side_only_after_every_copy_that_preserves_it(string name)
+    {
+        var baseline = new Dictionary<string, SyncBaselineObservation>
+        {
+            [name] = SyncBaselineObservation.Present(10, Digest("00"), "left-v1", "right-v1")
+        };
+        var fixture = Fixture.Create(
+            left: [File(name, 11, "AA", "left-v2")],
+            right: [File(name, 12, "BB", "right-v2")],
+            baseline: baseline);
+
+        var result = SyncPlanBuilder.Build(fixture.Request(
+            SyncDirection.TwoWay,
+            SyncDeletionMode.Disabled,
+            SyncBehavior.TwoWaySync,
+            conflictPolicy: SyncConflictPolicy.KeepBoth));
+
+        Assert.True(result.IsSuccess);
+        var operations = result.Value.Plan.Operations.ToArray();
+        var overwrite = Array.FindIndex(operations, operation => operation.Destination?.CanonicalRelativePath == name);
+        Assert.Equal(operations.Length - 1, overwrite);
+    }
+
     [Fact]
     public void Two_way_single_side_modification_copies_to_the_unchanged_side()
     {

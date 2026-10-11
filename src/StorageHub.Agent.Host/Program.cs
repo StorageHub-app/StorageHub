@@ -106,7 +106,9 @@ try
     // directory above says why it refused and exits with a code, and this failing with a stack
     // trace instead is the difference between a diagnosable start and a mystery -- which is
     // exactly how it read when the runtime root pointed at a directory owned by somebody else.
-    _ = runtimeSecretFileMaterializer.ScavengeOrphans(TimeSpan.FromHours(24));
+    // The data-root lock is already held, so nothing here can belong to a live agent: whatever a
+    // crashed run left is plaintext key material, and waiting a day to remove it helps no one.
+    _ = runtimeSecretFileMaterializer.ScavengeOrphans(TimeSpan.FromMinutes(1));
 }
 catch (Exception error) when (error is IOException or UnauthorizedAccessException)
 {

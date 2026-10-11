@@ -136,6 +136,7 @@ internal sealed class ConnectionEditorStrings : LocalizationModelBase
         "Vault secret deleted. Save the profile to remove its old reference.";
 
     public string KeyStoreUnreadable { get; set; } = "The key store could not be read.";
+    public string KeyStoreEntryReleased { get; set; } = "Removed from this connection. The key stays in the Key Store.";
 
     /// <summary>{0} = the field's label.</summary>
     public string EnrollFieldFormat { get; set; } = "Enroll {0}";

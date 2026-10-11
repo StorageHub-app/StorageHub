@@ -99,6 +99,26 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
         }
     }
 
+    [Theory]
+    [InlineData("-----BEGIN OPENSSH PRIVATE KEY-----\nAAAA\n", SftpPrivateKeyFormat.OpenSsh)]
+    [InlineData("\n  -----BEGIN OPENSSH PRIVATE KEY-----\r\nAAAA", SftpPrivateKeyFormat.OpenSsh)]
+    [InlineData("-----BEGIN PRIVATE KEY-----\nAAAA\n", SftpPrivateKeyFormat.Pkcs8)]
+    [InlineData("-----BEGIN ENCRYPTED PRIVATE KEY-----\nAAAA\n", SftpPrivateKeyFormat.Pkcs8)]
+    [InlineData("-----BEGIN RSA PRIVATE KEY-----\nAAAA\n", SftpPrivateKeyFormat.Pem)]
+    [InlineData("-----BEGIN EC PRIVATE KEY-----\nAAAA\n", SftpPrivateKeyFormat.Pem)]
+    [InlineData("-----BEGIN DSA PRIVATE KEY-----", SftpPrivateKeyFormat.Pem)]
+    public void The_envelope_is_read_from_the_key_header(string text, SftpPrivateKeyFormat expected) =>
+        Assert.Equal(expected, PrivateKeyEncryptionValidator.DetectFormat(Encoding.ASCII.GetBytes(text)));
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("# comment\n-----BEGIN OPENSSH PRIVATE KEY-----\n")]
+    [InlineData("-----BEGIN CERTIFICATE-----\n")]
+    [InlineData("ssh-ed25519 AAAA")]
+    public void An_unrecognised_header_has_no_envelope(string text) =>
+        Assert.Null(PrivateKeyEncryptionValidator.DetectFormat(Encoding.ASCII.GetBytes(text)));
+
     [Fact]
     public void Private_key_envelopes_reject_comments_multiple_blocks_and_trailing_markers()
     {

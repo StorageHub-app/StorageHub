@@ -23,6 +23,21 @@ tagged: `2.0.0-rc.1` by hand, then one for every push to `main`. 1.4.5 stays the
 release marked Latest until then, and the 1.4 source is kept on the
 `1.x-archive` branch.
 
+**Key store audit.** PEM and PKCS#8 SSH keys can now be used by a connection:
+the editor never recorded a key's format, so every profile said OpenSSH and the
+connector refused the rest as malformed. The connector now reads the format from
+the key itself, a key borrowed from the Key Store brings its format with it, and
+the import dialog picks the format from the file. A client certificate with no
+password is accepted for FTPS, as it already was for WebDAV. A WebDAV client
+certificate is released when its connection stops using it or is deleted, where
+it used to keep the Key Store entry undeletable. Enrolling over, or deleting, a
+field that holds a Key Store entry no longer rewrites or destroys the shared
+entry for every connection using it. Keep-both sync conflicts could overwrite
+location B before saving its copy for most file types; the overwrite now runs
+last. An Explorer drop committed with an upper-case token no longer expires, a
+too-large settings import is refused before it is read, and runtime key files
+left by a crashed agent are removed at the next start instead of a day later.
+
 **StorageHub 2.0: a new shell, and one place its data lives.** The desktop is
 rewritten on AvaloniaUI and runs on Windows and Linux from the same source. The
 WinForms shell is gone -- 35,686 lines of it -- and with it the DPI machinery,

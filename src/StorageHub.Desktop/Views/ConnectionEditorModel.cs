@@ -1676,7 +1676,12 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
 
             IsBusy = true;
             Status = Ui.ConnectionEditor.WritingVaultEntry;
-            var existing = field.Value.Trim();
+            // A reference the Key Store handed out is shared by every connection using that entry,
+            // and the entry's summary describes the material it holds. Rewriting it in place from
+            // here would change the key under all of them and leave the store describing the old
+            // one, so this field gets an enrolment of its own and the entry is left alone.
+            var borrowed = IsKeyStoreReference(field.Value);
+            var existing = borrowed ? string.Empty : field.Value.Trim();
             var response = await _controller()
                 .EnrollOrUpdateSecretAsync(
                     ConnectionSecretFields.Purpose(field.Key),
@@ -1692,6 +1697,15 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
             }
 
             field.Value = response.Reference;
+            if (borrowed &&
+                ConnectionSecretFields.CompanionPassphrase(field.Key) is { } companionKey &&
+                Field(companionKey) is { } companion &&
+                IsKeyStoreReference(companion.Value))
+            {
+                // The passphrase belonged to the entry's key, not to the one just enrolled.
+                companion.Value = string.Empty;
+            }
+
             Status = Ui.Format(Ui.ConnectionEditor.VaultReferenceReadyFormat, response.Version);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -1728,6 +1742,15 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         if (reference.Length == 0 || !ConnectionEndpointDocument.IsOpaqueSecretReference(reference))
         {
             Status = Ui.ConnectionEditor.NoVaultReference;
+            return;
+        }
+
+        if (IsKeyStoreReference(reference))
+        {
+            // Not this field's to delete: other connections may use the entry, and it is managed
+            // in the Key Store. Dropping it from this connection only lets go of it.
+            field.Value = string.Empty;
+            Status = Ui.ConnectionEditor.KeyStoreEntryReleased;
             return;
         }
 
@@ -1828,6 +1851,12 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
                 passphrase.Value = chosen.PassphraseReference ?? string.Empty;
             }
 
+            if (kind is KeyStoreMaterialKind.SshPrivateKey && chosen.Summary.KeyFormat is { } keyFormat)
+            {
+                // Not a field, so it is kept beside them and saved with the profile.
+                _values[ConnectionEditorDraftFactory.PrivateKeyFormatKey] = keyFormat.ToString();
+            }
+
             var usingKey = Ui.Format(Ui.ConnectionEditor.UsingStoredKeyFormat, chosen.DisplayName);
             Status = KeyStoreRules.IsKeyWithoutPassphrase(kind, chosen.PassphraseReference)
                 ? usingKey + " " + Ui.KeyStore.KeyHasNoPassphraseWarning
@@ -1875,6 +1904,11 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         {
         }
     }
+
+    /// <summary>Whether a field's reference belongs to a Key Store entry rather than to the field.</summary>
+    private bool IsKeyStoreReference(string? reference) =>
+        _keyNames.Describe(reference, string.Empty).Source
+            is SecretReferenceSource.KeyStore or SecretReferenceSource.MissingFromKeyStore;
 
     private void RefreshSecretDisplays()
     {
