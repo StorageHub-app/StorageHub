@@ -102,7 +102,8 @@ public sealed record LocalBrowserEntry(
     long? Length,
     DateTimeOffset? Modified,
     string Type,
-    string Status);
+    string Status,
+    bool IsHidden = false);
 
 public sealed record LocalBrowserSnapshot(
     LocalBrowserLocation Location,
@@ -352,6 +353,10 @@ public sealed class LocalFileBrowserDataSource : IPagedLocalFileBrowserDataSourc
         long? length = null;
         DateTimeOffset? modified = null;
         var statusParts = new List<string>(2);
+
+        // A dot is hidden on every system's own terms but Windows', and is taken as hidden here on
+        // Windows too, so a .git folder is treated the same whichever computer lists it.
+        var hidden = item.Name.StartsWith('.');
         try
         {
             if (item is FileInfo file)
@@ -363,6 +368,7 @@ public sealed class LocalFileBrowserDataSource : IPagedLocalFileBrowserDataSourc
             var attributes = item.Attributes;
             if ((attributes & FileAttributes.Hidden) != 0)
             {
+                hidden = true;
                 statusParts.Add("Hidden");
             }
 
@@ -384,7 +390,8 @@ public sealed class LocalFileBrowserDataSource : IPagedLocalFileBrowserDataSourc
             length,
             modified,
             isContainer ? Ui.Validation.FileFolder : LocalBrowserPresentation.DescribeFileType(item.Extension),
-            string.Join(" · ", statusParts));
+            string.Join(" · ", statusParts),
+            hidden);
     }
 
     private static string DescribeDriveType(DriveType driveType) => driveType switch

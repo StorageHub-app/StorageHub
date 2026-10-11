@@ -130,6 +130,12 @@ internal sealed class DesktopConfig : ConfigModelBase
 
     /// <summary>How often, in seconds, a connection's folder is read again when it refreshes by itself.</summary>
     public int RemoteRefreshSeconds { get; set; } = FolderAutoRefreshSettings.DefaultRemoteSeconds;
+
+    /// <summary>Whether the transfer queue is shown under the workspaces; shown by default.</summary>
+    public bool TransferQueueVisible { get; set; } = true;
+
+    /// <summary>Whether panes list hidden files and folders; they do by default.</summary>
+    public bool ShowHiddenFiles { get; set; } = true;
 }
 
 /// <summary>

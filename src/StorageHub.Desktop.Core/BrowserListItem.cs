@@ -37,4 +37,7 @@ public sealed record BrowserListItem(
     string? VersionId = null,
     string? EntityTag = null,
     DateTimeOffset? ModifiedUtc = null,
-    bool IsParentNavigation = false);
+    bool IsParentNavigation = false,
+    // What View > Hidden Files leaves out when it is off: a name starting with a dot, which is how
+    // every server StorageHub speaks to marks one, or a file this computer marks hidden.
+    bool IsHidden = false);

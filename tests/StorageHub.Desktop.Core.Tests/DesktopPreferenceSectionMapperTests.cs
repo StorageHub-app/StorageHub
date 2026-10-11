@@ -25,6 +25,11 @@ public sealed class DesktopPreferenceSectionMapperTests
         [nameof(DesktopUpdatePreferences.ConnectionsPanelWidth)] = "machine-specific window layout",
         [nameof(DesktopUpdatePreferences.ConnectionsPanelVisible)] = "machine-specific window layout",
         [nameof(DesktopUpdatePreferences.ConnectionsPanelSide)] = "machine-specific window layout",
+        [nameof(DesktopUpdatePreferences.TransferQueueVisible)] = "machine-specific window layout",
+
+        // A View menu toggle, kept where it was flipped like the panels beside it, rather than a
+        // setting somebody would expect a colleague's file to change.
+        [nameof(DesktopUpdatePreferences.ShowHiddenFiles)] = "View menu toggle",
 
         // Deliberately not exported. Importing a colleague's settings should not change which
         // language your copy of StorageHub speaks, and the export format is frozen anyway.
