@@ -272,6 +272,15 @@ var syncCommands = new SyncManagementIpcCommandService(
 var scheduleCommands = new ScheduleManagementIpcCommandService(scheduleManagementRepository);
 var objectInspectorCommands = new ObjectInspectorIpcCommandService(syncConnector);
 var itemAttributeCommands = new ItemAttributeIpcCommandService(syncConnector);
+// Compare folders, from the panes: a saved connection opened as sync opens it, or a folder on this
+// PC approved as a transfer's would be.
+await using var folderCompareCommands = new FolderCompareIpcCommandService(syncConnector);
+// Leftover working files, from Tools: found in the folders the queue wrote to, and removed only
+// when no unfinished transfer writes there and no sync is running.
+using var stagingCleanupCommands = new StagingCleanupIpcCommandService(
+    transferStore,
+    syncConnector,
+    () => syncOutboxSubsystem.ActiveCount);
 await using var sshTerminalCommands = new SshTerminalIpcCommandService(
     transferProfiles,
     () => vaultSubsystem.Vault,
@@ -293,6 +302,8 @@ var requestHandler = new AgentIpcRequestHandler(
         scheduleCommands,
         objectInspectorCommands,
         itemAttributeCommands,
+        folderCompareCommands,
+        stagingCleanupCommands,
         sshTerminalCommands,
         new AgentControlIpcCommandService(
             () => shutdown.TrySetResult(),

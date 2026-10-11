@@ -95,6 +95,15 @@ internal static class ShellServices
         }
     }
 
+    /// <summary>
+    /// The folders of the files still being edited, which Clean Up Leftover Files must leave: each
+    /// is an editor's working copy until its session closes.
+    /// </summary>
+    internal static IReadOnlyCollection<string> OpenEditSessionDirectories() =>
+        _editing is { } editing
+            ? [.. editing.Sessions.Select(static session => Path.GetDirectoryName(session.LocalPath)!)]
+            : [];
+
     /// <summary>Stops watching every edited file, at shutdown.</summary>
     internal static async ValueTask CloseEditingAsync()
     {

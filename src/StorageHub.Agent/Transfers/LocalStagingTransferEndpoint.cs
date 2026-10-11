@@ -64,6 +64,13 @@ public static class LocalStagingTransferEndpoint
             new Connection(new Session(address.ProfileId, root, address.RootIdentity)));
     }
 
+    /// <summary>
+    /// The folder on this PC an Explorer import writes into, for an address that names one; false
+    /// for the export staging root, which the shell transfer service purges itself.
+    /// </summary>
+    internal static bool TryReadDestinationRoot(StorageAddress address, out string root) =>
+        TryDecodeRoot(address, out root, out var staging) & !staging;
+
     private static bool TryDecodeRoot(StorageAddress address, out string root, out bool staging)
     {
         root = string.Empty;

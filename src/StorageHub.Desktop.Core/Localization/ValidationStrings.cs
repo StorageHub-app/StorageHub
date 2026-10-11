@@ -580,4 +580,36 @@ internal sealed class ValidationStrings : LocalizationModelBase
 
     public string TransferStoppedAtExistingFile { get; set; } =
         "The transfer was stopped at a file already at the destination.";
+
+    public string TheFolderComparisonRequestTimedOut { get; set; } = "The folder comparison request timed out.";
+
+    public string TheAgentReturnedAnInvalidFolderComparison { get; set; } =
+        "The background agent returned an invalid folder comparison.";
+
+    public string TheFolderComparisonRequestIsInvalid { get; set; } = "The folder comparison request is invalid.";
+
+    public string FolderComparisonNeedsAFolder { get; set; } =
+        "Compare folders needs a saved connection's folder or a folder on this PC in both panes.";
+
+    public string TheBackgroundAgentCouldNotCompareTheFolders { get; set; } =
+        "The background agent could not compare the folders.";
+
+    public string AFolderCouldNotBeCreatedAtTheDestination { get; set; } =
+        "A folder could not be created at the destination.";
+
+    public string TheLeftoverCleanupRequestTimedOut { get; set; } = "The search for leftover files timed out.";
+
+    public string TheAgentReturnedAnInvalidLeftoverList { get; set; } =
+        "The background agent returned an invalid list of leftover files.";
+
+    public string TheLeftoverCleanupRequestIsInvalid { get; set; } = "The leftover file request is invalid.";
+
+    public string TheBackgroundAgentCouldNotLookForLeftovers { get; set; } =
+        "The background agent could not be asked about leftover files from transfers.";
+
+    public string ALeftoverStillInUseWasLeft { get; set; } =
+        "A transfer, a sync or the external editor may still use it.";
+
+    public string ALeftoverCouldNotBeRemoved { get; set; } =
+        "It could not be removed. It may be open in another program.";
 }

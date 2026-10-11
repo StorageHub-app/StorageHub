@@ -1,0 +1,90 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
+        x:Class="StorageHub.Desktop.Views.FolderCompareWindow"
+        x:DataType="vm:FolderCompareModel"
+        Title="{x:Static vm:FolderCompareModel.Title}"
+        Width="1040" Height="620"
+        MinWidth="760" MinHeight="420"
+        WindowStartupLocation="CenterOwner">
+
+  <!--
+    The two folders named at the top, left and right as the panes stand; the filters; one list of
+    every path, each with both sides' size and time and what tells them apart; and the two copy
+    buttons at the bottom, pointing the way they copy. Same is off at first: the differences are
+    what the window is opened for.
+  -->
+
+  <Border Classes="surface">
+    <DockPanel Margin="{StaticResource PaddingLg}">
+
+      <Grid DockPanel.Dock="Top" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto"
+            ColumnSpacing="{StaticResource SpaceMd}" Margin="0,0,0,8">
+        <TextBlock Grid.Row="0" Grid.Column="0" Classes="caption" Text="{x:Static vm:FolderCompareModel.LeftHeading}"/>
+        <TextBlock Grid.Row="1" Grid.Column="0" Text="{Binding LeftLabel}" TextTrimming="CharacterEllipsis"
+                   ToolTip.Tip="{Binding LeftLabel}"/>
+        <TextBlock Grid.Row="0" Grid.Column="1" Classes="caption" Text="{x:Static vm:FolderCompareModel.RightHeading}"/>
+        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding RightLabel}" TextTrimming="CharacterEllipsis"
+                   ToolTip.Tip="{Binding RightLabel}"/>
+      </Grid>
+
+      <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,Auto,Auto,Auto,*,220,Auto,Auto"
+            ColumnSpacing="{StaticResource SpaceSm}" Margin="0,0,0,8">
+        <CheckBox Grid.Column="0" Content="{Binding OnlyLeftLabel}" IsChecked="{Binding ShowOnlyLeft, Mode=TwoWay}"/>
+        <CheckBox Grid.Column="1" Content="{Binding OnlyRightLabel}" IsChecked="{Binding ShowOnlyRight, Mode=TwoWay}"/>
+        <CheckBox Grid.Column="2" Content="{Binding DifferentLabel}" IsChecked="{Binding ShowDifferent, Mode=TwoWay}"/>
+        <CheckBox Grid.Column="3" Content="{Binding SameLabel}" IsChecked="{Binding ShowSame, Mode=TwoWay}"/>
+        <TextBox Grid.Column="5" Text="{Binding NameFilter, Mode=TwoWay}"
+                 PlaceholderText="{x:Static vm:FolderCompareModel.NameFilterPlaceholder}"
+                 AutomationProperties.Name="{x:Static vm:FolderCompareModel.NameFilterPlaceholder}"/>
+        <CheckBox Grid.Column="6" Content="{x:Static vm:FolderCompareModel.CompareContentsLabel}"
+                  IsChecked="{Binding CompareContents, Mode=TwoWay}"/>
+        <Button Grid.Column="7" Content="{x:Static vm:FolderCompareModel.CompareAgainLabel}"
+                Command="{Binding CompareCommand}"/>
+      </Grid>
+
+      <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto,Auto,Auto"
+            ColumnSpacing="{StaticResource SpaceSm}" Margin="0,8,0,0">
+        <TextBlock Grid.Column="0" Classes="status"
+                   Classes.primary="{Binding Status.IsPrimary}"
+                   Classes.success="{Binding Status.IsSuccess}"
+                   Classes.warning="{Binding Status.IsWarning}"
+                   Classes.danger="{Binding Status.IsDanger}"
+                   Text="{Binding Status.Text}" TextWrapping="Wrap"
+                   VerticalAlignment="Center"/>
+        <Button Grid.Column="1" Content="{x:Static vm:FolderCompareModel.CopyToLeftLabel}"
+                Command="{Binding CopyToLeftCommand}"/>
+        <Button Grid.Column="2" Classes="primary" Content="{x:Static vm:FolderCompareModel.CopyToRightLabel}"
+                Command="{Binding CopyToRightCommand}"/>
+        <Button Grid.Column="3" Content="{x:Static vm:FolderCompareModel.CloseLabel}"
+                Click="OnClose" IsCancel="True"/>
+      </Grid>
+
+      <TableView ItemsSource="{Binding Rows}"
+                 SelectedItems="{Binding SelectedRows}"
+                 SelectionMode="Multiple"
+                 AutomationProperties.Name="{x:Static vm:FolderCompareModel.Title}">
+        <TableView.Columns>
+          <TableViewColumn Header="{x:Static vm:FolderCompareModel.ColumnPath}" Binding="{Binding Path}" Width="300*"/>
+          <TableViewColumn Header="{x:Static vm:FolderCompareModel.ColumnLeftSize}" Binding="{Binding LeftSize}" Width="90"/>
+          <TableViewColumn Header="{x:Static vm:FolderCompareModel.ColumnLeftModified}" Binding="{Binding LeftModified}" Width="140"/>
+          <!-- Coloured by kind, so the differences stand out from the paths only one side has. -->
+          <TableViewColumn Header="{x:Static vm:FolderCompareModel.ColumnStatus}" Width="190*">
+            <TableViewColumn.CellTemplate>
+              <DataTemplate DataType="vm:FolderCompareRow">
+                <TextBlock Classes="status"
+                           Classes.primary="{Binding IsOnlyOneSide}"
+                           Classes.warning="{Binding IsDifferent}"
+                           Classes.success="{Binding IsSame}"
+                           Text="{Binding Status}" VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"/>
+              </DataTemplate>
+            </TableViewColumn.CellTemplate>
+          </TableViewColumn>
+          <TableViewColumn Header="{x:Static vm:FolderCompareModel.ColumnRightSize}" Binding="{Binding RightSize}" Width="90"/>
+          <TableViewColumn Header="{x:Static vm:FolderCompareModel.ColumnRightModified}" Binding="{Binding RightModified}" Width="140"/>
+        </TableView.Columns>
+      </TableView>
+    </DockPanel>
+  </Border>
+</Window>

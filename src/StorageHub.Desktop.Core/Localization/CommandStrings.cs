@@ -220,6 +220,11 @@ internal sealed class CommandStrings : LocalizationModelBase
 
     public string ToolsBackgroundAgentDescription { get; set; } = "Check whether the background agent is running and start, stop, or restart it.";
 
+    public string ToolsCleanUpLeftovers { get; set; } = "Clean Up Leftover Files...";
+
+    public string ToolsCleanUpLeftoversDescription { get; set; } =
+        "Find the working files interrupted transfers and the external editor left behind, and remove the ones you choose.";
+
     public string ToolsChecksums { get; set; } = "Checksums...";
 
     public string ToolsChecksumsDescription { get; set; } = "Compute and compare content hashes for the selected items.";

@@ -79,6 +79,14 @@ internal sealed class LocalStagedFileWriteHandle : IResumableStorageWriteHandle
     public StorageWriteHandleState State { get; private set; } = StorageWriteHandleState.Open;
 
     /// <summary>Whether a file name is one of these partial files, which nobody else should touch.</summary>
+    /// <summary>
+    /// Holds <paramref name="partialPath"/> as a write would, so nothing can start writing it while
+    /// it is removed; false when a write already holds it. Released by <see cref="ReleaseClaim"/>.
+    /// </summary>
+    internal static bool TryClaim(string partialPath) => PartialsInUse.TryAdd(partialPath, 0);
+
+    internal static void ReleaseClaim(string partialPath) => _ = PartialsInUse.TryRemove(partialPath, out _);
+
     internal static bool IsPartialName(string name) =>
         name.StartsWith(PartialPrefix, StringComparison.OrdinalIgnoreCase) &&
         name.EndsWith(PartialSuffix, StringComparison.OrdinalIgnoreCase);

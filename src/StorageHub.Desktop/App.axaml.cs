@@ -139,6 +139,9 @@ public partial class App : global::Avalonia.Application
         // And the schedule manager, which is what turns a profile into something that runs
         // without anybody present.
         model.Router.Handle(UiCommandIds.SyncSchedules, () => ShowSchedules(desktop, model));
+        // Compare Panes: the active pane's folder and its neighbour's, side by side, with the
+        // differences copied either way through the queue.
+        model.Router.Handle(UiCommandIds.SyncComparePanes, () => ShowFolderCompare(desktop, model));
 
         // Settings out to a file and back in again. Import is the one that can change what
         // the agent holds, so the shell refreshes itself when it reports that it did.
@@ -149,6 +152,10 @@ public partial class App : global::Avalonia.Application
         // stopped from, which matters most on Linux: the .deb installs the unit but leaves
         // enabling it to each user, and its own postinst points them here.
         model.Router.Handle(UiCommandIds.ToolsBackgroundAgent, () => ShowAgentControl(desktop, model));
+
+        // The working files interrupted transfers and the external editor left behind, listed with
+        // their sizes and removed only when somebody confirms it.
+        model.Router.Handle(UiCommandIds.ToolsCleanUpLeftovers, () => ShowStagingCleanup(desktop));
 
         // One updater for the session, shared with the window that shows it. Two would each
         // stage the same release into the same directory, and the second would find it taken.
@@ -423,6 +430,26 @@ public partial class App : global::Avalonia.Application
         DesktopUpdater updater)
     {
         var window = Views.UpdateCheckerWindow.For(updater);
+        if (desktop.MainWindow is { } owner) _ = window.ShowDialog(owner);
+        else window.Show();
+    }
+
+    /// <summary>
+    /// Opens Compare Folders beside the main window rather than over it, so the panes stay usable
+    /// and the transfer conflict question, which is asked over the main window, is not hidden.
+    /// </summary>
+    private static void ShowFolderCompare(IClassicDesktopStyleApplicationLifetime desktop, ShellPreviewModel model)
+    {
+        if (model.CompareActivePanes() is not { } compare) return;
+        var window = Views.FolderCompareWindow.For(compare);
+        if (desktop.MainWindow is { } owner) window.Show(owner);
+        else window.Show();
+    }
+
+    /// <summary>Opens Clean Up Leftover Files.</summary>
+    private static void ShowStagingCleanup(IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        var window = Views.StagingCleanupWindow.ForCurrentAgent();
         if (desktop.MainWindow is { } owner) _ = window.ShowDialog(owner);
         else window.Show();
     }
