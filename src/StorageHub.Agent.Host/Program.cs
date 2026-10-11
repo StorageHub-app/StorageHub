@@ -171,7 +171,8 @@ await using var transferConnector = new SharedConnectionProfileConnector(
             throw new InvalidOperationException("CL.Storage is not configured.")),
         vaultSubsystem.Vault,
         transferTrustStore,
-        runtimeSecretFileMaterializer));
+        runtimeSecretFileMaterializer,
+        profileLookup: (id, cancellationToken) => transferProfiles.GetAsync(id, cancellationToken: cancellationToken)));
 var transferEndpointConnector = new CodeLogicTransferEndpointConnector(
     transferProfiles,
     transferConnector.Get);
@@ -223,7 +224,8 @@ await using var syncSharedConnector = new SharedConnectionProfileConnector(
             throw new InvalidOperationException("CL.Storage is not configured.")),
         vaultSubsystem.Vault,
         transferTrustStore,
-        runtimeSecretFileMaterializer));
+        runtimeSecretFileMaterializer,
+        profileLookup: (id, cancellationToken) => transferProfiles.GetAsync(id, cancellationToken: cancellationToken)));
 var syncConnector = new CodeLogicSyncEndpointConnector(
     transferProfiles,
     syncSharedConnector.Get);

@@ -83,6 +83,24 @@ public static class ConnectionEditorDraftFactory
 
     internal const string ActiveAddressKey = "activeAddress";
 
+    /// <summary>
+    /// The SFTP Advanced section's fields. The jump host is a saved connection's id, which the
+    /// editor puts here from the name chosen in its drop-down.
+    /// </summary>
+    internal const string JumpConnectionIdKey = "jumpConnectionId";
+
+    internal const string KeyExchangeAlgorithmsKey = "keyExchangeAlgorithms";
+
+    internal const string CiphersKey = "ciphers";
+
+    internal const string MacAlgorithmsKey = "macAlgorithms";
+
+    internal const string HostKeyAlgorithmsKey = "hostKeyAlgorithms";
+
+    internal const string MaximumSessionsKey = "maximumSessions";
+
+    internal const string KeepAliveKey = "keepAliveSeconds";
+
     // Choice values, matched below as written, so they are not translated (see the note in
     // ConnectionProviderCatalog): the technical names are what a server's documentation uses anyway.
     internal static readonly IReadOnlyList<string> ListingFormats =
@@ -207,6 +225,68 @@ public static class ConnectionEditorDraftFactory
             highest,
             address);
         return options == new ConnectionFtpOptionsDocument() ? null : options;
+    }
+
+    /// <summary>An SFTP server's Advanced options, or null when every one is left as it comes.</summary>
+    private static ConnectionSftpOptionsDocument? BuildSftpOptions(IReadOnlyDictionary<string, string> values)
+    {
+        Guid? jump = null;
+        if (Get(values, JumpConnectionIdKey) is { } id)
+        {
+            jump = Guid.TryParse(id, out var parsed) && parsed != Guid.Empty
+                ? parsed
+                : throw new ArgumentException(Ui.Validation.JumpHostIsInvalid, nameof(values));
+        }
+
+        var options = new ConnectionSftpOptionsDocument(
+            jump,
+            ParseAlgorithms(values, KeyExchangeAlgorithmsKey),
+            ParseAlgorithms(values, CiphersKey),
+            ParseAlgorithms(values, MacAlgorithmsKey),
+            ParseAlgorithms(values, HostKeyAlgorithmsKey),
+            ParseWholeNumber(values, MaximumSessionsKey, 64, Ui.Validation.SessionLimitIsInvalid),
+            ParseWholeNumber(values, KeepAliveKey, 3_600, Ui.Validation.KeepAliveIsInvalid));
+        return options == new ConnectionSftpOptionsDocument() ? null : options;
+    }
+
+    /// <summary>
+    /// SSH algorithm names, comma-separated in preference order, as a server's documentation and
+    /// OpenSSH's -o options write them. Whether each one is known is the agent's to say, on
+    /// connecting, where the SSH library's own list is.
+    /// </summary>
+    private static string? ParseAlgorithms(IReadOnlyDictionary<string, string> values, string key)
+    {
+        if (Get(values, key) is not { } list)
+        {
+            return null;
+        }
+
+        var names = list.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        if (names.Length > 32 || names.Any(static name => name.Length > 64 || !name.All(static character =>
+            char.IsAsciiLetterOrDigit(character) || character is '-' or '.' or '@' or '_' or '+')))
+        {
+            throw new ArgumentException(Ui.Validation.AlgorithmListIsInvalid, nameof(values));
+        }
+
+        return names.Length == 0 ? null : string.Join(',', names);
+    }
+
+    /// <summary>A whole number from 1 to the maximum, or null when the field is empty.</summary>
+    private static int? ParseWholeNumber(
+        IReadOnlyDictionary<string, string> values,
+        string key,
+        int maximum,
+        string message)
+    {
+        if (Get(values, key) is not { } value)
+        {
+            return null;
+        }
+
+        return int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var number) &&
+            number >= 1 && number <= maximum
+                ? number
+                : throw new ArgumentException(message, nameof(values));
     }
 
     /// <summary>
@@ -353,7 +433,8 @@ public static class ConnectionEditorDraftFactory
             RootPath: NormalizeProviderRoot(Get(values, "initialPath")),
             Host: Require(values, "host", Ui.Validation.AnSFTPHostIsRequired),
             Port: ParsePort(values, 22),
-            SshHostKeyPolicy: ConnectionSshHostKeyPolicy.Pinned);
+            SshHostKeyPolicy: ConnectionSshHostKeyPolicy.Pinned,
+            Sftp: BuildSftpOptions(values));
     }
 
     private static ConnectionEndpointDocument BuildSshEndpoint(IReadOnlyDictionary<string, string> values)
@@ -520,8 +601,7 @@ public static class ConnectionEditorDraftFactory
                     ConnectionAuthenticationKind.UsernamePassword,
                     Username: Require(values, "username", Ui.Validation.AUsernameIsRequired),
                     PasswordReference: Require(values, "passwordReference", Ui.Validation.AVaultPasswordReferenceIsRequired)),
-            StorageProviderKind.Sftp => BuildSshAuthentication(values, allowMultiFactor: false),
-            StorageProviderKind.Ssh => BuildSshAuthentication(values, allowMultiFactor: true),
+            StorageProviderKind.Sftp or StorageProviderKind.Ssh => BuildSshAuthentication(values),
             _ => throw new ArgumentOutOfRangeException(nameof(provider))
         };
 
@@ -564,8 +644,7 @@ public static class ConnectionEditorDraftFactory
     }
 
     private static ConnectionAuthenticationDocument BuildSshAuthentication(
-        IReadOnlyDictionary<string, string> values,
-        bool allowMultiFactor)
+        IReadOnlyDictionary<string, string> values)
     {
         var mode = Get(values, "authenticationMode") ?? "Private key reference";
         var username = Require(values, "username", Ui.Validation.AnSFTPUsernameIsRequired);
@@ -587,7 +666,7 @@ public static class ConnectionEditorDraftFactory
                     values,
                     "passwordReference",
                     Ui.Validation.AVaultPasswordReferenceIsRequired)),
-            "Private key + password (MFA)" when allowMultiFactor => new ConnectionAuthenticationDocument(
+            "Private key + password (MFA)" => new ConnectionAuthenticationDocument(
                 ConnectionAuthenticationKind.SshPrivateKeyPassword,
                 Username: username,
                 PasswordReference: Require(
@@ -644,6 +723,18 @@ public static class ConnectionEditorDraftFactory
                 ? string.Create(CultureInfo.InvariantCulture, $"{low}-{high}")
                 : string.Empty;
             values[ActiveAddressKey] = ftp.ActiveExternalAddress ?? string.Empty;
+        }
+
+        if (endpoint.Provider == StorageConnectionProvider.Sftp)
+        {
+            var sftp = endpoint.Sftp ?? new ConnectionSftpOptionsDocument();
+            values[JumpConnectionIdKey] = sftp.JumpConnectionId?.ToString() ?? string.Empty;
+            values[KeyExchangeAlgorithmsKey] = sftp.KeyExchangeAlgorithms ?? string.Empty;
+            values[CiphersKey] = sftp.Ciphers ?? string.Empty;
+            values[MacAlgorithmsKey] = sftp.MacAlgorithms ?? string.Empty;
+            values[HostKeyAlgorithmsKey] = sftp.HostKeyAlgorithms ?? string.Empty;
+            values[MaximumSessionsKey] = sftp.MaximumSessions?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+            values[KeepAliveKey] = sftp.KeepAliveSeconds?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
         }
     }
 

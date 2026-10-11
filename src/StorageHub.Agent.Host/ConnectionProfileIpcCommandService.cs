@@ -132,6 +132,17 @@ public sealed class ConnectionProfileIpcCommandService : IAgentIpcCommandHandler
                     mismatch);
             }
 
+            var jump = await ValidateJumpConnectionAsync(profile, cancellationToken).ConfigureAwait(false);
+            if (jump is not null)
+            {
+                return WriteFailure(
+                    ConnectionProfileIpcMessageTypes.CreateResponse,
+                    ContractWriteStatus.ValidationFailed,
+                    "connection.profile.jump_connection_invalid",
+                    StorageIpcFailureCategory.Validation,
+                    jump);
+            }
+
             var result = await _profiles.CreateAsync(profile, cancellationToken).ConfigureAwait(false);
             await SyncKeyStoreBindingsAsync(result, cancellationToken).ConfigureAwait(false);
             return MapWriteResult(ConnectionProfileIpcMessageTypes.CreateResponse, result);
@@ -202,6 +213,17 @@ public sealed class ConnectionProfileIpcCommandService : IAgentIpcCommandHandler
                     "connection.profile.key_store_kind_mismatch",
                     StorageIpcFailureCategory.Validation,
                     mismatch);
+            }
+
+            var jump = await ValidateJumpConnectionAsync(profile, cancellationToken).ConfigureAwait(false);
+            if (jump is not null)
+            {
+                return WriteFailure(
+                    ConnectionProfileIpcMessageTypes.UpdateResponse,
+                    ContractWriteStatus.ValidationFailed,
+                    "connection.profile.jump_connection_invalid",
+                    StorageIpcFailureCategory.Validation,
+                    jump);
             }
 
             var result = await _profiles.UpdateAsync(
@@ -382,6 +404,31 @@ public sealed class ConnectionProfileIpcCommandService : IAgentIpcCommandHandler
                 yield return ("ssh.private-key", key.PrivateKeyReference.Value, KeyMaterialKind.SshPrivateKey);
                 break;
         }
+    }
+
+    /// <summary>
+    /// Rejects an SFTP connection whose jump host is not a saved SFTP or SSH connection, or is
+    /// one that goes through a jump host of its own: the storage library opens one tunnel, not a
+    /// chain. Returns null when there is no jump host or it is usable.
+    /// </summary>
+    private async ValueTask<string?> ValidateJumpConnectionAsync(
+        ConnectionProfile profile,
+        CancellationToken cancellationToken)
+    {
+        if (profile.Endpoint is not SftpEndpoint { ServerOptions.JumpConnectionId: { } jumpId })
+        {
+            return null;
+        }
+
+        var jump = await _profiles.GetAsync(jumpId, includeDeleted: false, cancellationToken).ConfigureAwait(false);
+        return jump switch
+        {
+            null => "The jump host is not a saved connection.",
+            { Endpoint: SftpEndpoint { ServerOptions.JumpConnectionId: not null } } =>
+                $"'{jump.Metadata.DisplayName}' goes through a jump host of its own, so it cannot be one.",
+            { Endpoint: SftpEndpoint or SshClientEndpoint } => null,
+            _ => $"'{jump.Metadata.DisplayName}' is not an SFTP or SSH connection, so it cannot be a jump host."
+        };
     }
 
     /// <summary>
@@ -595,7 +642,8 @@ internal static class ConnectionProfileIpcMapper
                 value.RootPath,
                 ToFtpOptions(value.Ftp)),
             StorageConnectionProvider.Sftp => new SftpEndpoint(
-                value.Host!, value.Port!.Value, MapSshPolicy(value.SshHostKeyPolicy), value.RootPath),
+                value.Host!, value.Port!.Value, MapSshPolicy(value.SshHostKeyPolicy), value.RootPath,
+                ToSftpOptions(value.Sftp)),
             StorageConnectionProvider.Ssh => new SshClientEndpoint(
                 value.Host!, value.Port!.Value, MapSshPolicy(value.SshHostKeyPolicy)),
             _ => throw new ArgumentOutOfRangeException(nameof(value), "The provider is invalid.")
@@ -638,7 +686,8 @@ internal static class ConnectionProfileIpcMapper
             RootPath: endpoint.RootPath,
             Host: endpoint.Host,
             Port: endpoint.Port,
-            SshHostKeyPolicy: MapSshPolicy(endpoint.HostKeyPolicy)),
+            SshHostKeyPolicy: MapSshPolicy(endpoint.HostKeyPolicy),
+            Sftp: ToSftpOptionsDocument(endpoint.ServerOptions)),
         SshClientEndpoint endpoint => new(
             StorageConnectionProvider.Ssh,
             Host: endpoint.Host,
@@ -738,6 +787,30 @@ internal static class ConnectionProfileIpcMapper
                 value.ActivePortMinimum,
                 value.ActivePortMaximum,
                 value.ActiveExternalAddress?.ToString());
+
+    private static SftpServerOptions? ToSftpOptions(ConnectionSftpOptionsDocument? value) => value is null
+        ? null
+        : new SftpServerOptions(
+            value.JumpConnectionId is { } jump ? new ConnectionProfileId(jump) : null,
+            value.KeyExchangeAlgorithms,
+            value.Ciphers,
+            value.MacAlgorithms,
+            value.HostKeyAlgorithms,
+            value.MaximumSessions,
+            value.KeepAliveSeconds);
+
+    // Null for the defaults, so a document about an ordinary SFTP server carries nothing extra.
+    private static ConnectionSftpOptionsDocument? ToSftpOptionsDocument(SftpServerOptions value) =>
+        value == SftpServerOptions.Default
+            ? null
+            : new ConnectionSftpOptionsDocument(
+                value.JumpConnectionId?.Value,
+                value.KeyExchangeAlgorithms,
+                value.Ciphers,
+                value.MacAlgorithms,
+                value.HostKeyAlgorithms,
+                value.MaximumSessions,
+                value.KeepAliveSeconds);
 
     private static ConnectionOperationalOptions ToOperationalOptions(ConnectionOperationalOptionsDocument value)
     {

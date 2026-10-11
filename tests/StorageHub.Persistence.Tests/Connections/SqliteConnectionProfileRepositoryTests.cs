@@ -72,6 +72,12 @@ public sealed class SqliteConnectionProfileRepositoryTests : IDisposable
                 new SftpEndpoint("sftp.example.test", 22, SshHostKeyPolicy.TrustOnFirstUse),
                 new SftpPrivateKeyAuthentication("sftp-user", SecretReference.Create(), SecretReference.Create(),
                     SftpPrivateKeyFormat.Pkcs8), OptionsForConnection(), now),
+            ConnectionProfile.Create(ConnectionProfileId.New(), new ConnectionProfileMetadata("SFTP behind a bastion"),
+                new SftpEndpoint("inner.example.test", 22, SshHostKeyPolicy.Pinned, "data", new SftpServerOptions(
+                    ConnectionProfileId.New(), "curve25519-sha256", "aes256-ctr,aes128-ctr", "hmac-sha2-256",
+                    "ssh-ed25519", maximumSessions: 2, keepAliveSeconds: 30)),
+                new SshPrivateKeyPasswordAuthentication("sftp-user", password, SecretReference.Create(), null,
+                    SftpPrivateKeyFormat.OpenSsh), OptionsForConnection(), now),
             ConnectionProfile.Create(ConnectionProfileId.New(), new ConnectionProfileMetadata("SSH client"),
                 new SshClientEndpoint("ssh.example.test", 22, SshHostKeyPolicy.Pinned),
                 new UsernamePasswordAuthentication("ssh-user", password), OptionsForConnection(), now),

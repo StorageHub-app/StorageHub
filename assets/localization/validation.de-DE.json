@@ -242,5 +242,9 @@
   "chooseCtrlAltWithAKeyFormat": "Wählen Sie Strg/Alt mit einer Taste, eine Funktionstaste oder Entf für {0}.",
   "isAlreadyAssignedToClearThatFormat": "{0} ist bereits {1} zugewiesen. Heben Sie diese Zuweisung zuerst auf.",
   "aGroupNameIsRequired": "Ein Gruppenname ist erforderlich.",
+  "jumpHostIsInvalid": "Der Jump-Host muss eine gespeicherte SFTP- oder SSH-Verbindung sein.",
+  "algorithmListIsInvalid": "Eine Algorithmenliste muss aus Namen wie curve25519-sha256 bestehen, durch Kommas getrennt.",
+  "sessionLimitIsInvalid": "Höchstens Sitzungen muss eine ganze Zahl von 1 bis 64 sein.",
+  "keepAliveIsInvalid": "Keep-alive muss eine ganze Zahl von Sekunden von 1 bis 3600 sein.",
   "culture": "de-DE"
 }

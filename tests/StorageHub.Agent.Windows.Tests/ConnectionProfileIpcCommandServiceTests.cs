@@ -4,6 +4,7 @@ using StorageHub.Application.Connections;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Domain.Identifiers;
 using StorageHub.Persistence;
+using StorageHub.Security;
 using ContractWriteStatus = StorageHub.Contracts.Ipc.ConnectionProfileWriteStatus;
 using StorageHub.Testing;
 using StorageHub.Agent.Host;
@@ -79,6 +80,70 @@ public sealed class ConnectionProfileIpcCommandServiceTests
         Assert.Equal(password, authentication.PasswordReference.Value);
         Assert.Equal(key, authentication.PrivateKeyReference.Value);
         Assert.Equal(passphrase, authentication.PassphraseReference?.Value);
+    }
+
+    /// <summary>
+    /// An SFTP connection's jump host must be a saved SFTP or SSH connection: anything else is
+    /// refused before anything is written, and one that is accepted is kept by its id.
+    /// </summary>
+    [WindowsOnlyFact]
+    public async Task CreateKeepsAnSftpJumpHostOnlyWhenItIsAnSshConnection()
+    {
+        var jumpId = ConnectionProfileId.New();
+        var draft = new ConnectionProfileDraft(
+            new ConnectionProfileMetadataDocument("Inner", Tags: []),
+            new ConnectionEndpointDocument(
+                StorageConnectionProvider.Sftp,
+                Host: "inner.example.test",
+                Port: 22,
+                Sftp: new ConnectionSftpOptionsDocument(jumpId.Value, MaximumSessions: 2)),
+            new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.UsernamePassword,
+                Username: "operator",
+                PasswordReference: "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"),
+            new ConnectionOperationalOptionsDocument());
+        var bastion = ConnectionProfile.Create(
+            jumpId,
+            new ConnectionProfileMetadata("Bastion"),
+            new SshClientEndpoint("bastion.example.test", 22, SshHostKeyPolicy.Pinned),
+            new UsernamePasswordAuthentication("jumper", SecretReference.Create()),
+            Options(),
+            Now);
+        var local = ConnectionProfile.Create(
+            jumpId,
+            new ConnectionProfileMetadata("Local files"),
+            new LocalEndpoint("C:\\Data"),
+            new NoAuthentication(),
+            Options(),
+            Now);
+
+        foreach (var (existing, expected) in new[]
+        {
+            (bastion, ContractWriteStatus.Succeeded),
+            (local, ContractWriteStatus.ValidationFailed)
+        })
+        {
+            var repository = new RecordingProfileRepository(existing);
+            var service = new ConnectionProfileIpcCommandService(repository, new FixedTimeProvider(Now));
+
+            var result = await service.HandleAsync(IpcEnvelope.Create(
+                ConnectionProfileIpcMessageTypes.CreateRequest,
+                Guid.NewGuid(),
+                1,
+                new ConnectionProfileCreateRequest(ConnectionProfileIpcContract.CurrentVersion, draft)));
+
+            Assert.Equal(expected, result.Payload.Deserialize<ConnectionProfileWriteResponse>()?.Status);
+            if (expected == ContractWriteStatus.Succeeded)
+            {
+                var endpoint = Assert.IsType<SftpEndpoint>(repository.Created?.Endpoint);
+                Assert.Equal(jumpId, endpoint.ServerOptions.JumpConnectionId);
+                Assert.Equal(2, endpoint.ServerOptions.MaximumSessions);
+            }
+            else
+            {
+                Assert.Null(repository.Created);
+            }
+        }
     }
 
     [WindowsOnlyFact]

@@ -605,8 +605,19 @@ The profile already stores these; `CodeLogicConnectionProfileConnector.BuildAsyn
 - [x] 1.3 Proxy: `StorageProxyConfig` for FTP, SFTP and S3; a proxy section in the connection editor.
 - [x] 1.4 FTP options: separate connect and read timeouts, filename encoding (code pages), server time
       zone, listing parser, active mode; an "Advanced" expander in the editor.
-- [ ] 1.5 SFTP options: keyboard-interactive login, several keys and inline keys (no temp key file),
+- [x] 1.5 SFTP options: keyboard-interactive login, several keys and inline keys (no temp key file),
       jump host, algorithm lists, session limits.
+      Done: a password is offered as itself and then to keyboard-interactive prompts (the library's
+      Auto mode, OpenSSH's order), and "Private key + password (MFA)" is offered on SFTP as it was
+      on SSH. The key goes to the library as `PrivateKeyContent`, so no key file is written. The
+      editor's SFTP Advanced section has a jump host, chosen from the saved SFTP and SSH connections
+      and kept by id (`SftpServerOptions`, stored with the endpoint and carried over IPC as
+      `ConnectionSftpOptionsDocument`); the agent refuses one that is not SFTP or SSH or that has a
+      jump host of its own, and the connector takes its address, pinned key and sign-in from that
+      connection. Algorithm lists (key exchange, ciphers, MACs, host key types) and the session
+      limit and keep-alive are there too, empty by default.
+      Left open: several keys. The library offers further keys only as file paths and shares one
+      passphrase across all of them, so it would bring back the key files this item removed.
 - [ ] 1.6 Conflict choices on transfers: overwrite, skip, if newer, if size differs, rename, resume.
 - [ ] 1.7 Resume: real resume for uploads and downloads in place of the `ResumeToken => null` stubs.
 - [ ] 1.8 Server checksums (`PreferServer`): verify without re-downloading; the inspector shows where a

@@ -242,5 +242,9 @@
   "chooseCtrlAltWithAKeyFormat": "Vælg Ctrl/Alt sammen med en tast, en funktionstast eller Delete til {0}.",
   "isAlreadyAssignedToClearThatFormat": "{0} er allerede tildelt {1}. Ryd den tildeling først.",
   "aGroupNameIsRequired": "Et gruppenavn er påkrævet.",
+  "jumpHostIsInvalid": "Jump-værten skal være en gemt SFTP- eller SSH-forbindelse.",
+  "algorithmListIsInvalid": "En algoritmeliste skal være navne som curve25519-sha256, adskilt af kommaer.",
+  "sessionLimitIsInvalid": "Flest sessioner skal være et helt tal fra 1 til 64.",
+  "keepAliveIsInvalid": "Hold i live skal være et helt antal sekunder fra 1 til 3600.",
   "culture": "da-DK"
 }

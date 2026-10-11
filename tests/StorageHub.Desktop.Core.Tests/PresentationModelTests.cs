@@ -91,7 +91,9 @@ public sealed class PresentationModelTests
         Assert.DoesNotContain(sftp.GeneralFields, field => field.Key == "keepAliveSeconds");
         Assert.DoesNotContain(sftp.SecurityFields, field => field.Key == "hostKeyPolicy");
         var authentication = Assert.Single(sftp.AuthenticationFields, field => field.Key == "authenticationMode");
-        Assert.Equal(["Private key reference", "Password reference"], authentication.Choices);
+        Assert.Equal(
+            ["Private key reference", "Password reference", "Private key + password (MFA)"],
+            authentication.Choices);
         var sshAuthentication = Assert.Single(
             ssh.AuthenticationFields,
             field => field.Key == "authenticationMode");

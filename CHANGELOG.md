@@ -85,6 +85,15 @@ and GitHub's size, and installs it once StorageHub has closed: through
 encrypted in the vault like any other, the library is handed no passphrase for
 it, and importing or choosing one warns that a passphrase is still recommended.
 
+**SFTP reaches more servers.** A connection can go through a jump host, chosen
+from your saved SFTP and SSH connections, each with its own sign-in and pinned
+host key. A server that only signs in through keyboard-interactive prompts is
+answered with the password, as OpenSSH answers it, and one that wants a key and
+then the account password takes both. The editor's Advanced section limits the
+key exchanges, ciphers, MACs and host key types offered, how many sessions are
+opened at once and how often an idle one is kept alive. The private key goes to
+the SSH library in memory rather than as a file in the runtime folder.
+
 **Smaller things that are new.** A pane's FILES bar can be hidden from Pane
 actions and is saved with the workspace, now that the list's right-click menu
 offers everything the bar does. The SSH terminal passes the mouse to a program

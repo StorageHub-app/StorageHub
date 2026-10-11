@@ -100,6 +100,30 @@ public sealed record ConnectionFtpOptionsDocument(
         ConnectionProfileMetadataDocument.IsSafeText(ActiveExternalAddress, 45);
 }
 
+/// <summary>
+/// An SFTP server's options beyond where it is; null on the endpoint means the defaults. The
+/// algorithm lists are comma-separated in preference order, and the jump connection is a saved
+/// SFTP or SSH connection's id.
+/// </summary>
+public sealed record ConnectionSftpOptionsDocument(
+    Guid? JumpConnectionId = null,
+    string? KeyExchangeAlgorithms = null,
+    string? Ciphers = null,
+    string? MacAlgorithms = null,
+    string? HostKeyAlgorithms = null,
+    int? MaximumSessions = null,
+    int? KeepAliveSeconds = null)
+{
+    public bool HasValidBounds =>
+        JumpConnectionId != Guid.Empty &&
+        ConnectionProfileMetadataDocument.IsSafeText(KeyExchangeAlgorithms, 2_048) &&
+        ConnectionProfileMetadataDocument.IsSafeText(Ciphers, 2_048) &&
+        ConnectionProfileMetadataDocument.IsSafeText(MacAlgorithms, 2_048) &&
+        ConnectionProfileMetadataDocument.IsSafeText(HostKeyAlgorithms, 2_048) &&
+        MaximumSessions is null or >= 1 and <= 64 &&
+        KeepAliveSeconds is null or >= 1 and <= 3_600;
+}
+
 [JsonConverter(typeof(JsonStringEnumConverter<ConnectionAuthenticationKind>))]
 public enum ConnectionAuthenticationKind
 {
@@ -192,11 +216,13 @@ public sealed record ConnectionEndpointDocument(
     string? ClientCertificatePfxReference = null,
     string? ClientCertificatePasswordReference = null,
     ConnectionSshHostKeyPolicy SshHostKeyPolicy = ConnectionSshHostKeyPolicy.Pinned,
-    ConnectionFtpOptionsDocument? Ftp = null)
+    ConnectionFtpOptionsDocument? Ftp = null,
+    ConnectionSftpOptionsDocument? Sftp = null)
 {
     public bool HasValidBounds =>
         (Ftp is null || Ftp.HasValidBounds &&
             Provider is StorageConnectionProvider.Ftp or StorageConnectionProvider.Ftps) &&
+        (Sftp is null || Sftp.HasValidBounds && Provider == StorageConnectionProvider.Sftp) &&
         Enum.IsDefined(Provider) &&
         ConnectionProfileMetadataDocument.IsSafePath(RootPath, ConnectionProfileIpcLimits.MaximumPathLength) &&
         ConnectionProfileMetadataDocument.IsSafeText(Host, 253) &&
@@ -391,9 +417,7 @@ public sealed record ConnectionProfileDraft(
             ConnectionAuthenticationKind.S3AccessKey,
         StorageConnectionProvider.Ftp or StorageConnectionProvider.Ftps => Authentication.Kind is
             ConnectionAuthenticationKind.None or ConnectionAuthenticationKind.UsernamePassword,
-        StorageConnectionProvider.Sftp => Authentication.Kind is
-            ConnectionAuthenticationKind.UsernamePassword or ConnectionAuthenticationKind.SftpPrivateKey,
-        StorageConnectionProvider.Ssh => Authentication.Kind is
+        StorageConnectionProvider.Sftp or StorageConnectionProvider.Ssh => Authentication.Kind is
             ConnectionAuthenticationKind.UsernamePassword or ConnectionAuthenticationKind.SftpPrivateKey or
             ConnectionAuthenticationKind.SshPrivateKeyPassword,
         _ => false

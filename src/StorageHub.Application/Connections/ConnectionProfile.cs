@@ -701,9 +701,113 @@ public sealed record FtpsEndpoint : ConnectionEndpoint
     }
 }
 
+/// <summary>
+/// What an SFTP server may need beyond where it is: a jump host to reach it through, the SSH
+/// algorithms it is limited to, and how many sessions it is opened with.
+/// </summary>
+/// <remarks>
+/// None of this changes which files the connection sees, so none of it is part of the root identity.
+/// The algorithm lists are kept as the comma-separated text they are typed as, in preference order,
+/// so two options with the same lists compare equal.
+/// </remarks>
+public sealed record SftpServerOptions
+{
+    /// <summary>The most sessions a connection may hold open at once; servers usually allow ten.</summary>
+    public const int MaximumSessionLimit = 64;
+
+    /// <summary>The longest keep-alive interval, in seconds, that the storage library accepts.</summary>
+    public const int MaximumKeepAliveSeconds = 3_600;
+
+    public static SftpServerOptions Default { get; } = new();
+
+    public SftpServerOptions(
+        ConnectionProfileId? jumpConnectionId = null,
+        string? keyExchangeAlgorithms = null,
+        string? ciphers = null,
+        string? macAlgorithms = null,
+        string? hostKeyAlgorithms = null,
+        int? maximumSessions = null,
+        int? keepAliveSeconds = null)
+    {
+        if (jumpConnectionId is { IsEmpty: true })
+        {
+            throw new ArgumentException("A jump connection must name a saved connection.", nameof(jumpConnectionId));
+        }
+
+        if (maximumSessions is < 1 or > MaximumSessionLimit)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(maximumSessions),
+                $"A session limit is from 1 to {MaximumSessionLimit}.");
+        }
+
+        if (keepAliveSeconds is < 1 or > MaximumKeepAliveSeconds)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(keepAliveSeconds),
+                $"A keep-alive is from 1 to {MaximumKeepAliveSeconds} seconds.");
+        }
+
+        JumpConnectionId = jumpConnectionId;
+        KeyExchangeAlgorithms = NormalizeAlgorithms(keyExchangeAlgorithms, nameof(keyExchangeAlgorithms));
+        Ciphers = NormalizeAlgorithms(ciphers, nameof(ciphers));
+        MacAlgorithms = NormalizeAlgorithms(macAlgorithms, nameof(macAlgorithms));
+        HostKeyAlgorithms = NormalizeAlgorithms(hostKeyAlgorithms, nameof(hostKeyAlgorithms));
+        MaximumSessions = maximumSessions;
+        KeepAliveSeconds = keepAliveSeconds;
+    }
+
+    /// <summary>A saved SFTP or SSH connection the server is reached through, or null to connect directly.</summary>
+    public ConnectionProfileId? JumpConnectionId { get; }
+
+    /// <summary>Allowed key exchanges, comma-separated in preference order; null keeps the library's.</summary>
+    public string? KeyExchangeAlgorithms { get; }
+    public string? Ciphers { get; }
+    public string? MacAlgorithms { get; }
+    public string? HostKeyAlgorithms { get; }
+
+    /// <summary>The most sessions open at once, in use or idle; null keeps the library's eight.</summary>
+    public int? MaximumSessions { get; }
+
+    /// <summary>How often an idle session is kept alive, in seconds; null sends no keep-alives.</summary>
+    public int? KeepAliveSeconds { get; }
+
+    /// <summary>One of the comma-separated lists as names, empty when it is not set.</summary>
+    public static IReadOnlyList<string> Split(string? algorithms) => algorithms is null
+        ? []
+        : algorithms.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+    /// <summary>
+    /// Names as SSH writes them, such as curve25519-sha256 or aes256-gcm@openssh.com. Whether
+    /// the library implements each one is checked when the connection is opened, where the
+    /// library's own list is.
+    /// </summary>
+    private static string? NormalizeAlgorithms(string? value, string parameterName)
+    {
+        var names = Split(value);
+        if (names.Count == 0)
+        {
+            return null;
+        }
+
+        if (names.Count > 32 || names.Any(static name => name.Length > 64 || !name.All(static character =>
+            char.IsAsciiLetterOrDigit(character) || character is '-' or '.' or '@' or '_' or '+')))
+        {
+            throw new ArgumentException("An SSH algorithm list is invalid.", parameterName);
+        }
+
+        return string.Join(',', names.Distinct(StringComparer.Ordinal));
+    }
+}
+
 public sealed record SftpEndpoint : ConnectionEndpoint
 {
-    public SftpEndpoint(string host, int port, SshHostKeyPolicy hostKeyPolicy, string? rootPath = null)
+    public SftpEndpoint(
+        string host,
+        int port,
+        SshHostKeyPolicy hostKeyPolicy,
+        string? rootPath = null,
+        SftpServerOptions? serverOptions = null)
         : base(ConnectionProviderKind.Sftp)
     {
         if (!Enum.IsDefined(hostKeyPolicy) || hostKeyPolicy == SshHostKeyPolicy.Unspecified)
@@ -715,12 +819,14 @@ public sealed record SftpEndpoint : ConnectionEndpoint
         Port = ValidatePort(port);
         HostKeyPolicy = hostKeyPolicy;
         RootPath = NormalizeProviderRoot(rootPath, nameof(rootPath));
+        ServerOptions = serverOptions ?? SftpServerOptions.Default;
     }
 
     public string Host { get; }
     public int Port { get; }
     public SshHostKeyPolicy HostKeyPolicy { get; }
     public string RootPath { get; }
+    public SftpServerOptions ServerOptions { get; }
 }
 
 public sealed record SshClientEndpoint : ConnectionEndpoint
@@ -1029,6 +1135,11 @@ public sealed record ConnectionProfile
             throw new ArgumentException("A deleted connection profile cannot remain enabled.", nameof(IsEnabled));
         }
 
+        if (Endpoint is SftpEndpoint { ServerOptions.JumpConnectionId: { } jump } && jump == Id)
+        {
+            throw new ArgumentException("A connection cannot be its own jump host.", nameof(Endpoint));
+        }
+
         ValidateAuthentication();
         return;
 
@@ -1050,8 +1161,11 @@ public sealed record ConnectionProfile
                 S3AccessKeyAuthentication,
             ConnectionProviderKind.Ftp or ConnectionProviderKind.Ftps =>
                 Authentication is NoAuthentication or UsernamePasswordAuthentication,
+            // A server that wants a key and then the account password takes both, as an SSH
+            // terminal's does: the storage library offers them in the order OpenSSH does.
             ConnectionProviderKind.Sftp =>
-                Authentication is UsernamePasswordAuthentication or SftpPrivateKeyAuthentication,
+                Authentication is UsernamePasswordAuthentication or SftpPrivateKeyAuthentication or
+                    SshPrivateKeyPasswordAuthentication,
             ConnectionProviderKind.Ssh =>
                 Authentication is UsernamePasswordAuthentication or SftpPrivateKeyAuthentication or
                     SshPrivateKeyPasswordAuthentication,

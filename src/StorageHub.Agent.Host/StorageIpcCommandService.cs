@@ -691,6 +691,7 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDi
         ArgumentNullException.ThrowIfNull(secretFileMaterializer);
         ArgumentNullException.ThrowIfNull(sessionFactoryProvider);
         var trustStore = new SqliteTrustStore(new SingleWriterSqliteDatabase(databaseOptions));
+        var profiles = new SqliteConnectionProfileRepository(databaseOptions, timeProvider);
         // Shared, so the registration a listing opens is still there for the next page of it.
         return new CodeLogicStorageIpcSessionOpener(new SharedConnectionProfileConnector(
             () => new CodeLogicConnectionProfileConnector(
@@ -698,7 +699,8 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDi
                 vaultProvider(),
                 trustStore,
                 secretFileMaterializer,
-                timeProvider)));
+                timeProvider,
+                profileLookup: (id, cancellationToken) => profiles.GetAsync(id, cancellationToken: cancellationToken))));
     }
 
     private sealed record CachedConnectionHealth(

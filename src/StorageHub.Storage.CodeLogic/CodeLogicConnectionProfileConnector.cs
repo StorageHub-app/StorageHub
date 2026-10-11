@@ -45,7 +45,8 @@ public sealed class CodeLogicConnectionProfileConnector : IAsyncDisposable
         ITrustStore trustStore,
         IRuntimeSecretFileMaterializer secretFileMaterializer,
         TimeProvider? timeProvider = null,
-        TimeSpan? idleLifetime = null)
+        TimeSpan? idleLifetime = null,
+        Func<ConnectionProfileId, CancellationToken, ValueTask<ConnectionProfile?>>? profileLookup = null)
     {
         _sessionFactory = sessionFactory ?? throw new ArgumentNullException(nameof(sessionFactory));
         _timeProvider = timeProvider ?? TimeProvider.System;
@@ -54,7 +55,8 @@ public sealed class CodeLogicConnectionProfileConnector : IAsyncDisposable
             secretVault,
             trustStore,
             secretFileMaterializer,
-            _timeProvider);
+            _timeProvider,
+            profileLookup);
     }
 
     /// <summary>
@@ -287,13 +289,20 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
     private readonly ITrustStore _trustStore;
     private readonly IRuntimeSecretFileMaterializer _secretFileMaterializer;
     private readonly TimeProvider _timeProvider;
+    private readonly Func<ConnectionProfileId, CancellationToken, ValueTask<ConnectionProfile?>>? _profileLookup;
 
+    /// <param name="profileLookup">
+    /// Reads another saved connection, for an SFTP connection's jump host. Null leaves jump hosts
+    /// unavailable, which refuses a connection that names one.
+    /// </param>
     internal CodeLogicConnectionConfigurationBuilder(
         ISecretVault secretVault,
         ITrustStore trustStore,
         IRuntimeSecretFileMaterializer secretFileMaterializer,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        Func<ConnectionProfileId, CancellationToken, ValueTask<ConnectionProfile?>>? profileLookup = null)
     {
+        _profileLookup = profileLookup;
         _secretVault = secretVault ?? throw new ArgumentNullException(nameof(secretVault));
         _trustStore = trustStore ?? throw new ArgumentNullException(nameof(trustStore));
         _secretFileMaterializer = secretFileMaterializer ??
@@ -574,6 +583,7 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
                 "Trust-on-first-use host-key capture is unavailable; verify and pin the SSH host key explicitly.");
         }
 
+        var options = endpoint.ServerOptions;
         var configuration = new SftpConnectionConfig
         {
             Enabled = true,
@@ -589,14 +599,27 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
                 endpoint.Port,
                 "sftp.host-key",
                 rootIdentityEvidence,
-                cancellationToken).ConfigureAwait(false)
+                cancellationToken).ConfigureAwait(false),
+            KeyExchangeAlgorithms = [.. SftpServerOptions.Split(options.KeyExchangeAlgorithms)],
+            Ciphers = [.. SftpServerOptions.Split(options.Ciphers)],
+            MacAlgorithms = [.. SftpServerOptions.Split(options.MacAlgorithms)],
+            HostKeyAlgorithms = [.. SftpServerOptions.Split(options.HostKeyAlgorithms)]
         };
+        if (options.MaximumSessions is { } sessions)
+        {
+            configuration.Session.MaxSessions = sessions;
+            configuration.Session.MaxIdleSessions = Math.Min(configuration.Session.MaxIdleSessions, sessions);
+        }
+
+        configuration.Session.KeepAliveSeconds = options.KeepAliveSeconds ?? 0;
 
         switch (profile.Authentication)
         {
             case UsernamePasswordAuthentication password:
                 configuration.Username = password.Username;
-                configuration.AuthenticationMode = SftpAuthenticationMode.Password;
+                // Auto offers the password as itself and then to the server's keyboard-interactive
+                // prompt, as OpenSSH does, so a server that only asks through PAM still signs in.
+                configuration.AuthenticationMode = SftpAuthenticationMode.Auto;
                 configuration.Password = await OpenTextSecretAsync(
                     password.PasswordReference,
                     "sftp.password",
@@ -606,52 +629,170 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
             case SftpPrivateKeyAuthentication privateKey:
                 configuration.Username = privateKey.Username;
                 configuration.AuthenticationMode = SftpAuthenticationMode.PrivateKey;
-                // A key without a passphrase has no passphrase reference, and nothing is opened
-                // for it. The library and SSH.NET read a null passphrase as "the key has none".
-                string? privateKeyPassphrase = privateKey.PassphraseReference is { } passphraseReference
-                    ? await OpenTextSecretAsync(
-                        passphraseReference,
-                        "sftp.private-key-passphrase",
-                        rootIdentityEvidence,
-                        cancellationToken).ConfigureAwait(false)
-                    : null;
-                await using (var lease = await _secretVault
-                    .OpenAsync(privateKey.PrivateKeyReference, cancellationToken)
-                    .ConfigureAwait(false))
-                {
-                    rootIdentityEvidence.AddSecret(
-                        "sftp.private-key",
-                        privateKey.PrivateKeyReference,
-                        lease.Version);
-                    switch (PrivateKeyEncryptionValidator.Validate(
-                        lease.Memory.Span,
-                        privateKeyPassphrase,
-                        privateKey.KeyFormat))
-                    {
-                        case PrivateKeyValidationResult.Unencrypted:
-                            // A passphrase kept for a key that has none unlocks nothing, so it is
-                            // not handed on: the key is used as it is.
-                            privateKeyPassphrase = null;
-                            break;
-                        case PrivateKeyValidationResult.Invalid:
-                            throw new InvalidPrivateKeyException();
-                    }
-
-                    var material = await _secretFileMaterializer.MaterializeAsync(
-                        lease.Memory,
-                        privateKey.KeyFormat == SftpPrivateKeyFormat.OpenSsh ? ".key" : ".pem",
-                        cancellationToken).ConfigureAwait(false);
-                    runtimeResources.Add(material);
-                    configuration.PrivateKeyPath = material.FullPath;
-                }
-
-                configuration.PrivateKeyPassphrase = privateKeyPassphrase;
+                (configuration.PrivateKeyContent, configuration.PrivateKeyPassphrase) = await OpenPrivateKeyAsync(
+                    privateKey.PrivateKeyReference,
+                    privateKey.PassphraseReference,
+                    privateKey.KeyFormat,
+                    "sftp.private-key",
+                    rootIdentityEvidence,
+                    cancellationToken).ConfigureAwait(false);
+                break;
+            case SshPrivateKeyPasswordAuthentication keyAndPassword:
+                // A server that wants both gets the key first and then the password, in the order
+                // OpenSSH offers them.
+                configuration.Username = keyAndPassword.Username;
+                configuration.AuthenticationMode = SftpAuthenticationMode.Auto;
+                (configuration.PrivateKeyContent, configuration.PrivateKeyPassphrase) = await OpenPrivateKeyAsync(
+                    keyAndPassword.PrivateKeyReference,
+                    keyAndPassword.PassphraseReference,
+                    keyAndPassword.KeyFormat,
+                    "sftp.private-key",
+                    rootIdentityEvidence,
+                    cancellationToken).ConfigureAwait(false);
+                configuration.Password = await OpenTextSecretAsync(
+                    keyAndPassword.PasswordReference,
+                    "sftp.password",
+                    rootIdentityEvidence,
+                    cancellationToken).ConfigureAwait(false);
                 break;
             default:
                 throw new UnsupportedProfileException("The selected SFTP authentication mode is unsupported.");
         }
 
+        if (options.JumpConnectionId is { } jumpId)
+        {
+            configuration.JumpHost = await BuildJumpHostAsync(profile, jumpId, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
         return configuration;
+    }
+
+    /// <summary>
+    /// The jump host an SFTP connection is tunnelled through, taken from the saved SFTP or SSH
+    /// connection it names: that connection's address, its pinned host key and its sign-in.
+    /// </summary>
+    /// <remarks>
+    /// Nothing here goes into the root identity. Which server is reached, and so which files are
+    /// seen, is the connection's own host; the route to it is not. A connection that goes through
+    /// a jump host of its own is refused: the storage library opens one tunnel, not a chain.
+    /// </remarks>
+    private async ValueTask<SftpJumpHostConfig> BuildJumpHostAsync(
+        ConnectionProfile profile,
+        ConnectionProfileId jumpId,
+        CancellationToken cancellationToken)
+    {
+        var jump = _profileLookup is null
+            ? null
+            : await _profileLookup(jumpId, cancellationToken).ConfigureAwait(false);
+        if (jump is null || !jump.IsEnabled || jump.DeletedUtc is not null || jump.Id == profile.Id)
+        {
+            throw new UnsupportedProfileException("The jump host is not a saved, enabled connection.");
+        }
+
+        var (host, port, policy) = jump.Endpoint switch
+        {
+            SftpEndpoint { ServerOptions.JumpConnectionId: not null } => throw new UnsupportedProfileException(
+                "The jump host goes through a jump host of its own, which is not supported."),
+            SftpEndpoint sftp => (sftp.Host, sftp.Port, sftp.HostKeyPolicy),
+            SshClientEndpoint ssh => (ssh.Host, ssh.Port, ssh.HostKeyPolicy),
+            _ => throw new UnsupportedProfileException("The jump host must be an SFTP or SSH connection.")
+        };
+        if (policy == SshHostKeyPolicy.TrustOnFirstUse)
+        {
+            throw new UnsupportedProfileException(
+                "Trust-on-first-use host-key capture is unavailable; pin the jump host's SSH host key explicitly.");
+        }
+
+        var jumpHost = new SftpJumpHostConfig
+        {
+            Host = host,
+            Port = port,
+            HostKeyFingerprints = await GetTrustedFingerprintsAsync(
+                TrustArtifactKind.SshHostKey,
+                host,
+                port,
+                "sftp.jump-host-key",
+                new RootIdentityEvidence(),
+                cancellationToken).ConfigureAwait(false)
+        };
+        switch (jump.Authentication)
+        {
+            case UsernamePasswordAuthentication password:
+                jumpHost.Username = password.Username;
+                jumpHost.Password = await OpenTextSecretAsync(
+                    password.PasswordReference, "sftp.jump-password", null, cancellationToken).ConfigureAwait(false);
+                break;
+            case SftpPrivateKeyAuthentication privateKey:
+                jumpHost.Username = privateKey.Username;
+                (jumpHost.PrivateKeyContent, jumpHost.PrivateKeyPassphrase) = await OpenPrivateKeyAsync(
+                    privateKey.PrivateKeyReference,
+                    privateKey.PassphraseReference,
+                    privateKey.KeyFormat,
+                    "sftp.jump-private-key",
+                    null,
+                    cancellationToken).ConfigureAwait(false);
+                break;
+            case SshPrivateKeyPasswordAuthentication keyAndPassword:
+                jumpHost.Username = keyAndPassword.Username;
+                (jumpHost.PrivateKeyContent, jumpHost.PrivateKeyPassphrase) = await OpenPrivateKeyAsync(
+                    keyAndPassword.PrivateKeyReference,
+                    keyAndPassword.PassphraseReference,
+                    keyAndPassword.KeyFormat,
+                    "sftp.jump-private-key",
+                    null,
+                    cancellationToken).ConfigureAwait(false);
+                jumpHost.Password = await OpenTextSecretAsync(
+                    keyAndPassword.PasswordReference, "sftp.jump-password", null, cancellationToken).ConfigureAwait(false);
+                break;
+            default:
+                throw new UnsupportedProfileException("The jump host's sign-in is not one SSH can use.");
+        }
+
+        return jumpHost;
+    }
+
+    /// <summary>
+    /// Opens an SSH private key and its passphrase from the vault, checked before the SSH library
+    /// sees them, as the text the library reads the key from. The key is handed over in memory:
+    /// nothing is written to disk for it.
+    /// </summary>
+    /// <param name="rootIdentityEvidence">
+    /// Where the key's revision is recorded when it decides what the connection sees, or null for
+    /// a jump host's, which only decides the route.
+    /// </param>
+    private async ValueTask<(string Key, string? Passphrase)> OpenPrivateKeyAsync(
+        SecretReference keyReference,
+        SecretReference? passphraseReference,
+        SftpPrivateKeyFormat format,
+        string role,
+        RootIdentityEvidence? rootIdentityEvidence,
+        CancellationToken cancellationToken)
+    {
+        // A key without a passphrase has no passphrase reference, and nothing is opened for it.
+        // The library and SSH.NET read a null passphrase as "the key has none".
+        var passphrase = passphraseReference is { } reference
+            ? await OpenTextSecretAsync(
+                reference,
+                role + "-passphrase",
+                rootIdentityEvidence,
+                cancellationToken).ConfigureAwait(false)
+            : null;
+        await using var lease = await _secretVault.OpenAsync(keyReference, cancellationToken).ConfigureAwait(false);
+        rootIdentityEvidence?.AddSecret(role, keyReference, lease.Version);
+        switch (PrivateKeyEncryptionValidator.Validate(lease.Memory.Span, passphrase, format))
+        {
+            case PrivateKeyValidationResult.Unencrypted:
+                // A passphrase kept for a key that has none unlocks nothing, so it is not handed
+                // on: the key is used as it is.
+                passphrase = null;
+                break;
+            case PrivateKeyValidationResult.Invalid:
+                throw new InvalidPrivateKeyException();
+        }
+
+        // Every supported envelope is PEM text, which the validator has just read as such.
+        return (StrictUtf8.GetString(lease.Memory.Span), passphrase);
     }
 
     private static FtpConnectionConfig BuildFtpBase(
@@ -940,6 +1081,11 @@ internal sealed class CodeLogicConnectionConfigurationBuilder
                 AppendIdentityValue(hash, privateKey.Username);
                 AppendIdentityValue(hash, privateKey.KeyFormat.ToString());
                 break;
+            case SshPrivateKeyPasswordAuthentication keyAndPassword:
+                AppendIdentityValue(hash, "ssh-private-key-password");
+                AppendIdentityValue(hash, keyAndPassword.Username);
+                AppendIdentityValue(hash, keyAndPassword.KeyFormat.ToString());
+                break;
         }
 
         foreach (var evidence in revisionEvidence
@@ -1081,7 +1227,15 @@ internal sealed class PreparedCodeLogicConnection(
                 break;
             case SftpConnectionConfig sftp:
                 sftp.Password = null;
+                sftp.PrivateKeyContent = null;
                 sftp.PrivateKeyPassphrase = null;
+                if (sftp.JumpHost is { } jump)
+                {
+                    jump.Password = null;
+                    jump.PrivateKeyContent = null;
+                    jump.PrivateKeyPassphrase = null;
+                }
+
                 break;
         }
     }

@@ -333,6 +333,15 @@ internal sealed class ValidationStrings : LocalizationModelBase
 
     public string ActiveAddressIsInvalid { get; set; } = "The active external address must be an IP address.";
 
+    public string JumpHostIsInvalid { get; set; } = "The jump host must be a saved SFTP or SSH connection.";
+
+    public string AlgorithmListIsInvalid { get; set; } =
+        "An algorithm list must be names such as curve25519-sha256, separated by commas.";
+
+    public string SessionLimitIsInvalid { get; set; } = "Most sessions must be a whole number from 1 to 64.";
+
+    public string KeepAliveIsInvalid { get; set; } = "Keep-alive must be a whole number of seconds from 1 to 3600.";
+
     public string ActiveSettingsNeedActiveMode { get; set; } =
         "Active ports and an external address only apply when the data connection is active.";
 

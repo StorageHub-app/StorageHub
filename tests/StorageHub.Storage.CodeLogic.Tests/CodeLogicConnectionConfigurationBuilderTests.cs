@@ -325,7 +325,7 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
     }
 
     [Fact]
-    public async Task Sftp_private_key_requires_a_pin_and_material_lives_with_prepared_connection()
+    public async Task Sftp_private_key_requires_a_pin_and_is_handed_over_in_memory()
     {
         _trust.Records.Add(TrustedRecord(TrustArtifactKind.SshHostKey, "sftp.example.test", 22));
         var encryptedKey = CreateEncryptedOpenSshPrivateKey();
@@ -344,15 +344,166 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
         Assert.Equal("operator", configuration.Username);
         Assert.Equal(TestPrivateKeyPassphrase, configuration.PrivateKeyPassphrase);
         Assert.Equal(Assert.Single(_trust.Records).Sha256Fingerprint, Assert.Single(configuration.HostKeyFingerprints));
-        var material = Assert.Single(_materializer.Materials);
-        Assert.False(material.IsDisposed);
-        Assert.Equal(".key", material.Extension);
-        Assert.Equal(encryptedKey, material.Bytes);
+        Assert.Equal(Encoding.UTF8.GetString(encryptedKey), configuration.PrivateKeyContent);
+        Assert.Null(configuration.PrivateKeyPath);
+        Assert.Empty(_materializer.Materials);
 
         await prepared.DisposeAsync();
 
-        Assert.True(material.IsDisposed);
+        Assert.Null(configuration.PrivateKeyContent);
         Assert.Null(configuration.PrivateKeyPassphrase);
+    }
+
+    /// <summary>
+    /// A password is offered to the server's keyboard-interactive prompt too, as OpenSSH offers it,
+    /// so a server that only signs in through PAM is reached.
+    /// </summary>
+    [Fact]
+    public async Task Sftp_password_is_also_offered_to_keyboard_interactive_prompts()
+    {
+        _trust.Records.Add(TrustedRecord(TrustArtifactKind.SshHostKey, "sftp.example.test", 22));
+        var password = await StoreTextAsync("sftp-password");
+        var profile = CreateProfile(
+            new SftpEndpoint("sftp.example.test", 22, SshHostKeyPolicy.Pinned),
+            new UsernamePasswordAuthentication("operator", password));
+
+        var result = await CreateBuilder().BuildAsync(profile);
+
+        Assert.True(result.IsSuccess, result.Error?.Message);
+        await using var prepared = result.Value;
+        var configuration = Assert.IsType<SftpConnectionConfig>(prepared.Configuration);
+        Assert.Equal(SftpAuthenticationMode.Auto, configuration.AuthenticationMode);
+        Assert.Equal("sftp-password", configuration.Password);
+        Assert.Null(configuration.PrivateKeyContent);
+    }
+
+    [Fact]
+    public async Task Sftp_key_and_password_offers_both()
+    {
+        _trust.Records.Add(TrustedRecord(TrustArtifactKind.SshHostKey, "sftp.example.test", 22));
+        var unencryptedKey = CreateUnencryptedOpenSshPrivateKey();
+        var key = await StoreBytesAsync(unencryptedKey);
+        var password = await StoreTextAsync("account-password");
+        var profile = CreateProfile(
+            new SftpEndpoint("sftp.example.test", 22, SshHostKeyPolicy.Pinned),
+            new SshPrivateKeyPasswordAuthentication("operator", password, key, null, SftpPrivateKeyFormat.OpenSsh));
+
+        var result = await CreateBuilder().BuildAsync(profile);
+
+        Assert.True(result.IsSuccess, result.Error?.Message);
+        await using var prepared = result.Value;
+        var configuration = Assert.IsType<SftpConnectionConfig>(prepared.Configuration);
+        Assert.Equal(SftpAuthenticationMode.Auto, configuration.AuthenticationMode);
+        Assert.Equal("account-password", configuration.Password);
+        Assert.Equal(Encoding.UTF8.GetString(unencryptedKey), configuration.PrivateKeyContent);
+        Assert.Null(configuration.PrivateKeyPassphrase);
+    }
+
+    [Fact]
+    public async Task Sftp_options_set_algorithms_and_session_limits()
+    {
+        _trust.Records.Add(TrustedRecord(TrustArtifactKind.SshHostKey, "sftp.example.test", 22));
+        var password = await StoreTextAsync("sftp-password");
+        var profile = CreateProfile(
+            new SftpEndpoint(
+                "sftp.example.test",
+                22,
+                SshHostKeyPolicy.Pinned,
+                serverOptions: new SftpServerOptions(
+                    keyExchangeAlgorithms: "curve25519-sha256, diffie-hellman-group14-sha256",
+                    ciphers: "aes256-ctr",
+                    macAlgorithms: "hmac-sha2-256",
+                    hostKeyAlgorithms: "ssh-ed25519",
+                    maximumSessions: 2,
+                    keepAliveSeconds: 30)),
+            new UsernamePasswordAuthentication("operator", password));
+
+        var result = await CreateBuilder().BuildAsync(profile);
+
+        Assert.True(result.IsSuccess, result.Error?.Message);
+        await using var prepared = result.Value;
+        var configuration = Assert.IsType<SftpConnectionConfig>(prepared.Configuration);
+        Assert.Equal(["curve25519-sha256", "diffie-hellman-group14-sha256"], configuration.KeyExchangeAlgorithms);
+        Assert.Equal(["aes256-ctr"], configuration.Ciphers);
+        Assert.Equal(["hmac-sha2-256"], configuration.MacAlgorithms);
+        Assert.Equal(["ssh-ed25519"], configuration.HostKeyAlgorithms);
+        Assert.Equal(2, configuration.Session.MaxSessions);
+        Assert.Equal(2, configuration.Session.MaxIdleSessions);
+        Assert.Equal(30, configuration.Session.KeepAliveSeconds);
+        Assert.Null(configuration.JumpHost);
+    }
+
+    [Fact]
+    public async Task Sftp_jump_host_comes_from_the_saved_connection_it_names()
+    {
+        _trust.Records.Add(TrustedRecord(TrustArtifactKind.SshHostKey, "sftp.example.test", 22));
+        _trust.Records.Add(TrustedRecord(TrustArtifactKind.SshHostKey, "bastion.example.test", 2222));
+        var password = await StoreTextAsync("sftp-password");
+        var jumpPassword = await StoreTextAsync("bastion-password");
+        var jump = CreateProfile(
+            new SshClientEndpoint("bastion.example.test", 2222, SshHostKeyPolicy.Pinned),
+            new UsernamePasswordAuthentication("jumper", jumpPassword));
+        var profile = CreateProfile(
+            new SftpEndpoint(
+                "sftp.example.test",
+                22,
+                SshHostKeyPolicy.Pinned,
+                serverOptions: new SftpServerOptions(jumpConnectionId: jump.Id)),
+            new UsernamePasswordAuthentication("operator", password));
+
+        var result = await CreateBuilder(jump).BuildAsync(profile);
+
+        Assert.True(result.IsSuccess, result.Error?.Message);
+        var prepared = result.Value;
+        var configuration = Assert.IsType<SftpConnectionConfig>(prepared.Configuration);
+        var jumpHost = Assert.IsType<SftpJumpHostConfig>(configuration.JumpHost);
+        Assert.Equal("bastion.example.test", jumpHost.Host);
+        Assert.Equal(2222, jumpHost.Port);
+        Assert.Equal("jumper", jumpHost.Username);
+        Assert.Equal("bastion-password", jumpHost.Password);
+        Assert.Equal(_trust.Records[1].Sha256Fingerprint, Assert.Single(jumpHost.HostKeyFingerprints));
+
+        await prepared.DisposeAsync();
+
+        Assert.Null(jumpHost.Password);
+    }
+
+    [Fact]
+    public async Task Sftp_jump_host_that_is_missing_unpinned_or_chained_is_refused()
+    {
+        _trust.Records.Add(TrustedRecord(TrustArtifactKind.SshHostKey, "sftp.example.test", 22));
+        var password = await StoreTextAsync("sftp-password");
+        var unpinned = CreateProfile(
+            new SshClientEndpoint("unpinned.example.test", 22, SshHostKeyPolicy.Pinned),
+            new UsernamePasswordAuthentication("jumper", password));
+        var chained = CreateProfile(
+            new SftpEndpoint(
+                "chained.example.test",
+                22,
+                SshHostKeyPolicy.Pinned,
+                serverOptions: new SftpServerOptions(jumpConnectionId: unpinned.Id)),
+            new UsernamePasswordAuthentication("jumper", password));
+
+        foreach (var (jumpId, code) in new[]
+        {
+            (ConnectionProfileId.New(), "storage.profile.unsupported"),
+            (unpinned.Id, "storage.trust.approval_required"),
+            (chained.Id, "storage.profile.unsupported")
+        })
+        {
+            var profile = CreateProfile(
+                new SftpEndpoint(
+                    "sftp.example.test",
+                    22,
+                    SshHostKeyPolicy.Pinned,
+                    serverOptions: new SftpServerOptions(jumpConnectionId: jumpId)),
+                new UsernamePasswordAuthentication("operator", password));
+
+            var result = await CreateBuilder(unpinned, chained).BuildAsync(profile);
+
+            Assert.True(result.IsFailure);
+            Assert.Equal(code, result.Error.Code);
+        }
     }
 
     [Fact]
@@ -403,7 +554,7 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
     /// passphrase, whether the profile has none or kept one that unlocks nothing.
     /// </summary>
     [Fact]
-    public async Task Unencrypted_private_key_is_materialized_without_a_passphrase()
+    public async Task Unencrypted_private_key_is_used_without_a_passphrase()
     {
         _trust.Records.Add(TrustedRecord(TrustArtifactKind.SshHostKey, "sftp.example.test", 22));
         var unencryptedKey = CreateUnencryptedOpenSshPrivateKey();
@@ -423,7 +574,7 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
             var configuration = Assert.IsType<SftpConnectionConfig>(prepared.Configuration);
             Assert.Equal(SftpAuthenticationMode.PrivateKey, configuration.AuthenticationMode);
             Assert.Null(configuration.PrivateKeyPassphrase);
-            Assert.Equal(unencryptedKey, _materializer.Materials[^1].Bytes);
+            Assert.Equal(Encoding.UTF8.GetString(unencryptedKey), configuration.PrivateKeyContent);
         }
     }
 
@@ -772,11 +923,13 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
         Assert.Equal(300_000, retry.MaxDelayMs);
     }
 
-    private CodeLogicConnectionConfigurationBuilder CreateBuilder() => new(
+    /// <param name="saved">The other saved connections the builder can read, for a jump host.</param>
+    private CodeLogicConnectionConfigurationBuilder CreateBuilder(params ConnectionProfile[] saved) => new(
         _vault,
         _trust,
         _materializer,
-        TimeProvider.System);
+        TimeProvider.System,
+        (id, _) => ValueTask.FromResult(saved.FirstOrDefault(profile => profile.Id == id)));
 
     private async ValueTask<SecretReference> StoreTextAsync(string value) =>
         await StoreBytesAsync(Encoding.UTF8.GetBytes(value));

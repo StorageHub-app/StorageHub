@@ -1118,6 +1118,119 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         ];
     }
 
+    /// <summary>The field the SFTP Advanced section's jump host is chosen in, by name.</summary>
+    internal const string JumpHostKey = "jumpHost";
+
+    /// <summary>
+    /// What an SFTP server may need beyond where it is: a saved connection to reach it through,
+    /// the SSH algorithms it is limited to, and how many sessions it is opened with. Every field
+    /// starts empty, which leaves the storage library's own choice.
+    /// </summary>
+    private IReadOnlyList<ConnectionFieldDescriptor> SftpAdvancedFields() =>
+    [
+        new(JumpHostKey, Ui.Connections.FieldJumpHost, ConnectionFieldKind.Choice,
+            DefaultValue: Ui.Connections.JumpHostNone, HelpText: Ui.Connections.JumpHostHint,
+            Choices: JumpHostChoices()),
+        new(ConnectionEditorDraftFactory.MaximumSessionsKey, Ui.Connections.FieldMaximumSessions, ConnectionFieldKind.Text,
+            Placeholder: Ui.Connections.MaximumSessionsPlaceholder, HelpText: Ui.Connections.MaximumSessionsHint),
+        new(ConnectionEditorDraftFactory.KeepAliveKey, Ui.Connections.FieldKeepAlive, ConnectionFieldKind.Text,
+            Placeholder: Ui.Connections.KeepAlivePlaceholder, HelpText: Ui.Connections.KeepAliveHint),
+        new(ConnectionEditorDraftFactory.KeyExchangeAlgorithmsKey, Ui.Connections.FieldKeyExchangeAlgorithms, ConnectionFieldKind.Text,
+            Placeholder: Ui.Connections.AlgorithmsPlaceholder, HelpText: Ui.Connections.AlgorithmsHint),
+        new(ConnectionEditorDraftFactory.CiphersKey, Ui.Connections.FieldCiphers, ConnectionFieldKind.Text,
+            Placeholder: Ui.Connections.AlgorithmsPlaceholder),
+        new(ConnectionEditorDraftFactory.MacAlgorithmsKey, Ui.Connections.FieldMacAlgorithms, ConnectionFieldKind.Text,
+            Placeholder: Ui.Connections.AlgorithmsPlaceholder),
+        new(ConnectionEditorDraftFactory.HostKeyAlgorithmsKey, Ui.Connections.FieldHostKeyAlgorithms, ConnectionFieldKind.Text,
+            Placeholder: Ui.Connections.AlgorithmsPlaceholder)
+    ];
+
+    /// <summary>
+    /// The saved SFTP and SSH connections a jump host can be chosen from, this one left out, as
+    /// last read; empty until they have been.
+    /// </summary>
+    private IReadOnlyList<ConnectionSummary> _jumpCandidates = [];
+
+    /// <summary>
+    /// None, every candidate by name, and -- for a jump host that is not among them, such as one
+    /// not read yet -- an entry that keeps it, so a save does not drop a jump host unseen.
+    /// </summary>
+    private List<string> JumpHostChoices()
+    {
+        var choices = new List<string> { Ui.Connections.JumpHostNone };
+        choices.AddRange(_jumpCandidates.Select(static candidate => candidate.DisplayName));
+        if (JumpHostName(Get(ConnectionEditorDraftFactory.JumpConnectionIdKey)) is var name &&
+            !choices.Contains(name, StringComparer.Ordinal))
+        {
+            choices.Add(name);
+        }
+
+        return choices;
+    }
+
+    private string JumpHostName(string? id) =>
+        string.IsNullOrEmpty(id)
+            ? Ui.Connections.JumpHostNone
+            : _jumpCandidates.FirstOrDefault(candidate =>
+                    string.Equals(candidate.ConnectionId.ToString(), id, StringComparison.OrdinalIgnoreCase))
+                ?.DisplayName ?? Ui.Connections.JumpHostUnlisted;
+
+    /// <summary>Keeps the chosen jump host as the id the draft is saved with.</summary>
+    private void ArmJumpHost(ConnectionFieldModel field) => field.Changed += (_, _) =>
+    {
+        if (string.Equals(field.Value, Ui.Connections.JumpHostUnlisted, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _values[ConnectionEditorDraftFactory.JumpConnectionIdKey] = _jumpCandidates
+            .FirstOrDefault(candidate => string.Equals(candidate.DisplayName, field.Value, StringComparison.Ordinal))
+            ?.ConnectionId.ToString() ?? string.Empty;
+    };
+
+    private string? Get(string key) => _values.TryGetValue(key, out var value) ? value : null;
+
+    /// <summary>
+    /// Reads the saved SFTP and SSH connections for the jump host drop-down. An agent that does not
+    /// answer leaves the drop-down as it was, the jump host the connection has kept in it.
+    /// </summary>
+    internal async Task LoadJumpHostsAsync(CancellationToken cancellationToken = default)
+    {
+        if (_storage is null) return;
+        try
+        {
+            await using var client = _storage();
+            var response = await client
+                .ListConnectionsAsync(
+                    new ConnectionListRequest(IncludeDisabled: false, Limit: StorageIpcLimits.MaximumConnectionResults),
+                    cancellationToken)
+                .ConfigureAwait(true);
+            if (response.Failure is not null) return;
+            _jumpCandidates =
+            [
+                .. response.Connections.Where(candidate =>
+                    candidate.Provider is StorageConnectionProvider.Sftp or StorageConnectionProvider.Ssh &&
+                    candidate.ConnectionId != _current?.ConnectionId)
+            ];
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception error) when (error is NotSupportedException || IsAgentFailure(error))
+        {
+            return;
+        }
+
+        if (_provider.Kind == StorageProviderKind.Sftp)
+        {
+            var dirty = IsDirty;
+            Capture();
+            Rebuild();
+            IsDirty = dirty;
+        }
+    }
+
     /// <summary>
     /// The saved connection's own values, when the provider chosen is the one it was saved with.
     /// </summary>
@@ -1208,6 +1321,13 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
             Add(Ui.Connections.SectionAdvanced, FtpAdvancedFields(), ConnectionEditorTab.General);
         }
 
+        if (_provider.Kind == StorageProviderKind.Sftp)
+        {
+            // The drop-down shows a name; the connection keeps the id, which a rename leaves alone.
+            _values[JumpHostKey] = JumpHostName(Get(ConnectionEditorDraftFactory.JumpConnectionIdKey));
+            Add(Ui.Connections.SectionAdvanced, SftpAdvancedFields(), ConnectionEditorTab.General);
+        }
+
         // Drawn even for a provider with nothing to authenticate, as 1.x's page was: its heading and
         // the vault hint on a tab that is always there, rather than a tab that comes and goes.
         Add(Ui.ConnectionEditor.TabAuthentication, _provider.AuthenticationFields,
@@ -1245,6 +1365,7 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
                 if (field.IsSecret) Arm(field);
                 if (field.IsFingerprint) ArmFingerprint(field);
                 if (field.IsIcon) ArmIcon(field);
+                if (field.Key == JumpHostKey) ArmJumpHost(field);
                 field.Editor = this;
                 fields.Add(field);
             }

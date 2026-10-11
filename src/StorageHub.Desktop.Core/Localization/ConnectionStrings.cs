@@ -231,6 +231,42 @@ internal sealed class ConnectionStrings : LocalizationModelBase
 
     public string ActiveAddressHint { get; set; } = "The public IP address to announce when this computer is behind NAT.";
 
+    public string FieldJumpHost { get; set; } = "Jump host";
+
+    public string JumpHostNone { get; set; } = "None (connect directly)";
+
+    public string JumpHostUnlisted { get; set; } = "A saved connection not listed";
+
+    public string JumpHostHint { get; set; } =
+        "A saved SFTP or SSH connection to reach this server through, with its own sign-in and pinned host key.";
+
+    public string FieldKeyExchangeAlgorithms { get; set; } = "Key exchange";
+
+    public string FieldCiphers { get; set; } = "Ciphers";
+
+    public string FieldMacAlgorithms { get; set; } = "MACs";
+
+    public string FieldHostKeyAlgorithms { get; set; } = "Host key types";
+
+    public string AlgorithmsPlaceholder { get; set; } = "Defaults";
+
+    public string AlgorithmsHint { get; set; } =
+        "Comma-separated, preferred first, such as curve25519-sha256. Empty offers every one the connection knows.";
+
+    public string FieldMaximumSessions { get; set; } = "Most sessions";
+
+    public string MaximumSessionsPlaceholder { get; set; } = "8";
+
+    public string MaximumSessionsHint { get; set; } =
+        "How many connections to the server may be open at once, from 1 to 64. Lower it for a server that limits them.";
+
+    public string FieldKeepAlive { get; set; } = "Keep-alive";
+
+    public string KeepAlivePlaceholder { get; set; } = "Off";
+
+    public string KeepAliveHint { get; set; } =
+        "Seconds between keep-alives on an idle connection, for a firewall that drops quiet ones.";
+
     public string FieldProxyAddress { get; set; } = "Proxy address";
 
     public string ProxyAddressPlaceholder { get; set; } = "Direct connection";

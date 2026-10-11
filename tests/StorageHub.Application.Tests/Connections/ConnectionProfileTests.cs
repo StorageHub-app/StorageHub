@@ -1,4 +1,4 @@
-using StorageHub.Application.Connections;
+﻿using StorageHub.Application.Connections;
 using StorageHub.Domain.Identifiers;
 using StorageHub.Security;
 using StorageHub.Testing;
@@ -67,6 +67,63 @@ public sealed class ConnectionProfileTests
             dataConnectionMode: FtpDataConnectionMode.Active, activePortMinimum: 80, activePortMaximum: 90));
         Assert.Throws<ArgumentException>(() => new FtpServerOptions(
             dataConnectionMode: FtpDataConnectionMode.Active, activePortMinimum: 60_000, activePortMaximum: 50_000));
+    }
+
+    [Fact]
+    public void Sftp_server_options_normalize_algorithm_lists_and_bound_their_limits()
+    {
+        var options = new SftpServerOptions(
+            keyExchangeAlgorithms: " curve25519-sha256 ,, curve25519-sha256, diffie-hellman-group14-sha256 ",
+            ciphers: "  ",
+            maximumSessions: 4,
+            keepAliveSeconds: 60);
+        Assert.Equal("curve25519-sha256,diffie-hellman-group14-sha256", options.KeyExchangeAlgorithms);
+        Assert.Null(options.Ciphers);
+        Assert.Equal(["curve25519-sha256", "diffie-hellman-group14-sha256"], SftpServerOptions.Split(options.KeyExchangeAlgorithms));
+        Assert.Equal(SftpServerOptions.Default, new SftpEndpoint("sftp.example.test", 22, SshHostKeyPolicy.Pinned).ServerOptions);
+        Assert.Equal(SftpServerOptions.Default, new SftpServerOptions(ciphers: " , "));
+
+        Assert.Throws<ArgumentException>(() => new SftpServerOptions(ciphers: "aes256-ctr;ls"));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SftpServerOptions(maximumSessions: 0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SftpServerOptions(maximumSessions: 65));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SftpServerOptions(keepAliveSeconds: 3_601));
+    }
+
+    [Fact]
+    public void An_sftp_connection_takes_a_key_and_password_but_cannot_be_its_own_jump_host()
+    {
+        var id = ConnectionProfileId.New();
+        var now = DateTimeOffset.UtcNow;
+        var keyAndPassword = new SshPrivateKeyPasswordAuthentication(
+            "operator", SecretReference.Create(), SecretReference.Create(), null, SftpPrivateKeyFormat.OpenSsh);
+        var options = new ConnectionOperationalOptions(
+            TimeSpan.FromSeconds(30),
+            TimeSpan.FromSeconds(30),
+            new ConnectionRetryPolicy(1, TimeSpan.Zero, TimeSpan.Zero),
+            null,
+            new ConnectionBandwidthLimits(null, null),
+            "utf-8");
+
+        var profile = ConnectionProfile.Create(
+            id,
+            new ConnectionProfileMetadata("Inner"),
+            new SftpEndpoint("sftp.example.test", 22, SshHostKeyPolicy.Pinned),
+            keyAndPassword,
+            options,
+            now);
+        Assert.IsType<SshPrivateKeyPasswordAuthentication>(profile.Authentication);
+
+        Assert.Throws<ArgumentException>(() => ConnectionProfile.Create(
+            id,
+            new ConnectionProfileMetadata("Loop"),
+            new SftpEndpoint(
+                "sftp.example.test",
+                22,
+                SshHostKeyPolicy.Pinned,
+                serverOptions: new SftpServerOptions(jumpConnectionId: id)),
+            keyAndPassword,
+            options,
+            now));
     }
 
     [Fact]
@@ -184,7 +241,7 @@ public sealed class ConnectionProfileTests
     }
 
     [Fact]
-    public void Ssh_supports_private_key_and_account_password_mfa()
+    public void Ssh_and_sftp_support_private_key_and_account_password_mfa()
     {
         var authentication = new SshPrivateKeyPasswordAuthentication(
             "operator",
@@ -201,13 +258,14 @@ public sealed class ConnectionProfileTests
             DateTimeOffset.UtcNow);
 
         Assert.Same(authentication, profile.Authentication);
-        Assert.Throws<ArgumentException>(() => ConnectionProfile.Create(
+        var sftp = ConnectionProfile.Create(
             ConnectionProfileId.New(),
-            Metadata("Invalid SFTP MFA"),
+            Metadata("SFTP MFA"),
             new SftpEndpoint("sftp.example.test", 22, SshHostKeyPolicy.Pinned),
             authentication,
             OperationalOptions(),
-            DateTimeOffset.UtcNow));
+            DateTimeOffset.UtcNow);
+        Assert.Same(authentication, sftp.Authentication);
     }
 
     [Fact]

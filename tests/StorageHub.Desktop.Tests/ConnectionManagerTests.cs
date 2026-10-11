@@ -1,4 +1,4 @@
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
@@ -129,9 +129,12 @@ public class ConnectionManagerTests
         }
     }
 
-    /// <summary>FTP and FTPS have an Advanced section, starting at the provider's own timeouts.</summary>
+    /// <summary>
+    /// FTP and FTPS have an Advanced section, starting at the provider's own timeouts; SFTP has
+    /// one too, for its jump host, sessions and algorithms, every field starting empty.
+    /// </summary>
     [AvaloniaFact]
-    public void OnlyFtpHasAdvancedSettings()
+    public void OnlyFtpAndSftpHaveAdvancedSettings()
     {
         var editor = new ConnectionEditorModel(() => Controller(new FakeProfiles()));
 
@@ -148,11 +151,62 @@ public class ConnectionManagerTests
                     advanced!.Fields.Single(f => f.Key == ConnectionEditorDraftFactory.ConnectTimeoutKey).Value);
                 Assert.Equal("utf-8", advanced.Fields.Single(f => f.Key == ConnectionEditorDraftFactory.EncodingKey).Value);
             }
+            else if (provider.Kind == StorageProviderKind.Sftp)
+            {
+                Assert.Equal(Ui.Connections.JumpHostNone, advanced!.Fields.Single(f => f.Key == ConnectionEditorModel.JumpHostKey).Value);
+                Assert.All(
+                    advanced.Fields.Where(f => f.Key != ConnectionEditorModel.JumpHostKey),
+                    f => Assert.Equal(string.Empty, f.Value));
+            }
             else
             {
                 Assert.Null(advanced);
             }
         }
+    }
+
+    /// <summary>
+    /// The jump host is chosen by name from the saved SFTP and SSH connections, and saved as the
+    /// chosen one's id, so renaming it later does not lose it. One the listing does not have is
+    /// kept rather than dropped by a save.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task AJumpHostIsChosenByNameAndSavedById()
+    {
+        var cancellation = TestContext.Current.CancellationToken;
+        var bastion = Summary("Bastion", StorageConnectionProvider.Ssh, client: true);
+        var listing = new[] { bastion, Summary("Archive"), Summary("Other SFTP", StorageConnectionProvider.Sftp) };
+        var profiles = new FakeProfiles();
+        var editor = new ConnectionEditorModel(() => Controller(profiles), () => new ListingAgent(listing));
+        editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Sftp);
+        await editor.LoadJumpHostsAsync(cancellation);
+
+        var jump = Field(editor, ConnectionEditorModel.JumpHostKey);
+        Assert.Equal([Ui.Connections.JumpHostNone, "Bastion", "Other SFTP"], jump.Choices);
+        jump.Value = "Bastion";
+        Field(editor, "authenticationMode").Value = "Password reference";
+        Field(editor, "passwordReference").Value = KeyStoreTests.Reference('p');
+        Fill(editor);
+        Field(editor, "hostKeyFingerprint").Value = new string('A', 64);
+        await editor.SaveAsync(cancellation);
+
+        Assert.Equal(bastion.ConnectionId, profiles.LastDraft?.Endpoint.Sftp?.JumpConnectionId);
+
+        // Opened again with a listing that no longer has it, the jump host is kept, not dropped.
+        var saved = editor.Current!.ConnectionId;
+        var reopened = new ConnectionEditorModel(() => Controller(profiles), () => new ListingAgent([]));
+        reopened.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Sftp);
+        await reopened.OpenAsync(saved, cancellation);
+        await reopened.LoadJumpHostsAsync(cancellation);
+        Assert.Equal(Ui.Connections.JumpHostUnlisted, Field(reopened, ConnectionEditorModel.JumpHostKey).Value);
+        Field(reopened, "hostKeyFingerprint").Value = new string('A', 64);
+        await reopened.SaveAsync(cancellation);
+        Assert.Equal(bastion.ConnectionId, profiles.LastDraft?.Endpoint.Sftp?.JumpConnectionId);
+
+        // And None takes it off.
+        Field(reopened, ConnectionEditorModel.JumpHostKey).Value = Ui.Connections.JumpHostNone;
+        await reopened.SaveAsync(cancellation);
+        Assert.Null(profiles.LastDraft?.Endpoint.Sftp);
     }
 
     /// <summary>Every provider lays out without a field the editor cannot draw.</summary>

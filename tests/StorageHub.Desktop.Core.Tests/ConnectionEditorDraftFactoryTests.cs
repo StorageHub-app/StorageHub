@@ -280,10 +280,82 @@ public sealed class ConnectionEditorDraftFactoryTests
         Assert.NotNull(draft.Authentication.PasswordReference);
         Assert.NotNull(draft.Authentication.PrivateKeyReference);
         Assert.NotNull(draft.Authentication.PrivateKeyPassphraseReference);
-        Assert.DoesNotContain(
+    }
+
+    /// <summary>
+    /// An SFTP server that wants a key and then the account password takes both, as an SSH
+    /// terminal's does, now that the storage library offers them together.
+    /// </summary>
+    [Fact]
+    public void BuildsSftpPrivateKeyAndPasswordDraft()
+    {
+        var values = ValidValues(StorageProviderKind.Sftp);
+        values["authenticationMode"] = "Private key + password (MFA)";
+        values["privateKeyReference"] = "shs_BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
+        values["passwordReference"] = "shs_DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD";
+
+        var draft = ConnectionEditorDraftFactory.Build(StorageProviderKind.Sftp, values);
+
+        Assert.True(draft.HasValidBounds);
+        Assert.Equal(ConnectionAuthenticationKind.SshPrivateKeyPassword, draft.Authentication.Kind);
+        Assert.Contains(
             "Private key + password (MFA)",
             ConnectionProviderCatalog.Get(StorageProviderKind.Sftp)
                 .AuthenticationFields.Single(field => field.Key == "authenticationMode").Choices!);
+    }
+
+    [Fact]
+    public void SftpAdvancedSettingsSurviveAnEdit()
+    {
+        var jump = Guid.NewGuid();
+        var values = ValidValues(StorageProviderKind.Sftp);
+        values[ConnectionEditorDraftFactory.JumpConnectionIdKey] = jump.ToString();
+        values[ConnectionEditorDraftFactory.KeyExchangeAlgorithmsKey] = " curve25519-sha256 , diffie-hellman-group14-sha256 ";
+        values[ConnectionEditorDraftFactory.CiphersKey] = "aes256-gcm@openssh.com";
+        values[ConnectionEditorDraftFactory.MacAlgorithmsKey] = "hmac-sha2-256";
+        values[ConnectionEditorDraftFactory.HostKeyAlgorithmsKey] = "ssh-ed25519";
+        values[ConnectionEditorDraftFactory.MaximumSessionsKey] = "2";
+        values[ConnectionEditorDraftFactory.KeepAliveKey] = "30";
+
+        var draft = ConnectionEditorDraftFactory.Build(StorageProviderKind.Sftp, values);
+        var reopened = ConnectionEditorDraftFactory.ToEditorValues(
+            new ConnectionProfileDocument(Guid.NewGuid(), 1, draft, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch));
+
+        Assert.True(draft.HasValidBounds);
+        var sftp = draft.Endpoint.Sftp!;
+        Assert.Equal(jump, sftp.JumpConnectionId);
+        Assert.Equal("curve25519-sha256,diffie-hellman-group14-sha256", sftp.KeyExchangeAlgorithms);
+        Assert.Equal("aes256-gcm@openssh.com", sftp.Ciphers);
+        Assert.Equal("hmac-sha2-256", sftp.MacAlgorithms);
+        Assert.Equal("ssh-ed25519", sftp.HostKeyAlgorithms);
+        Assert.Equal(2, sftp.MaximumSessions);
+        Assert.Equal(30, sftp.KeepAliveSeconds);
+        Assert.Equal(jump.ToString(), reopened[ConnectionEditorDraftFactory.JumpConnectionIdKey]);
+        Assert.Equal("curve25519-sha256,diffie-hellman-group14-sha256", reopened[ConnectionEditorDraftFactory.KeyExchangeAlgorithmsKey]);
+        Assert.Equal("2", reopened[ConnectionEditorDraftFactory.MaximumSessionsKey]);
+        Assert.Equal("30", reopened[ConnectionEditorDraftFactory.KeepAliveKey]);
+    }
+
+    [Fact]
+    public void SftpWithNoAdvancedSettingsCarriesNone()
+    {
+        var draft = ConnectionEditorDraftFactory.Build(StorageProviderKind.Sftp, ValidValues(StorageProviderKind.Sftp));
+
+        Assert.Null(draft.Endpoint.Sftp);
+    }
+
+    [Theory]
+    [InlineData(ConnectionEditorDraftFactory.KeyExchangeAlgorithmsKey, "curve25519-sha256; rm -rf")]
+    [InlineData(ConnectionEditorDraftFactory.MaximumSessionsKey, "0")]
+    [InlineData(ConnectionEditorDraftFactory.MaximumSessionsKey, "65")]
+    [InlineData(ConnectionEditorDraftFactory.KeepAliveKey, "3601")]
+    [InlineData(ConnectionEditorDraftFactory.JumpConnectionIdKey, "not-a-connection")]
+    public void SftpAdvancedSettingsOutsideTheirBoundsAreRefused(string key, string value)
+    {
+        var values = ValidValues(StorageProviderKind.Sftp);
+        values[key] = value;
+
+        Assert.Throws<ArgumentException>(() => ConnectionEditorDraftFactory.Build(StorageProviderKind.Sftp, values));
     }
 
     [Fact]

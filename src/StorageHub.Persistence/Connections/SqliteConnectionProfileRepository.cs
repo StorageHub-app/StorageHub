@@ -460,7 +460,8 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
                 RootPath: ftps.RootPath,
                 Ftp: PersistedFtpOptions.From(ftps.ServerOptions)),
             SftpEndpoint sftp => new PersistedEndpoint(
-                "sftp", RootPath: sftp.RootPath, Host: sftp.Host, Port: sftp.Port, HostKeyPolicy: sftp.HostKeyPolicy),
+                "sftp", RootPath: sftp.RootPath, Host: sftp.Host, Port: sftp.Port, HostKeyPolicy: sftp.HostKeyPolicy,
+                Sftp: PersistedSftpOptions.From(sftp.ServerOptions)),
             SshClientEndpoint ssh => new PersistedEndpoint(
                 "ssh", Host: ssh.Host, Port: ssh.Port, HostKeyPolicy: ssh.HostKeyPolicy),
             _ => throw new NotSupportedException($"Endpoint type {endpoint.GetType().Name} is not supported.")
@@ -499,7 +500,8 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
                 Required(value.Host, "SFTP host"),
                 Required(value.Port, "SFTP port"),
                 value.HostKeyPolicy ?? SshHostKeyPolicy.Unspecified,
-                value.RootPath),
+                value.RootPath,
+                value.Sftp?.ToOptions()),
             "ssh" => new SshClientEndpoint(
                 Required(value.Host, "SSH host"),
                 Required(value.Port, "SSH port"),
@@ -703,7 +705,8 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
         string? PfxReference = null,
         string? PfxPasswordReference = null,
         SshHostKeyPolicy? HostKeyPolicy = null,
-        PersistedFtpOptions? Ftp = null);
+        PersistedFtpOptions? Ftp = null,
+        PersistedSftpOptions? Sftp = null);
 
     /// <summary>An FTP server's options; absent from rows written before they existed, which read as the defaults.</summary>
     private sealed record PersistedFtpOptions(
@@ -732,6 +735,38 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
             ActivePortMinimum,
             ActivePortMaximum,
             ActiveExternalAddress is null ? null : System.Net.IPAddress.Parse(ActiveExternalAddress));
+    }
+
+    /// <summary>An SFTP server's options; absent from rows written before they existed, which read as the defaults.</summary>
+    private sealed record PersistedSftpOptions(
+        Guid? JumpConnectionId = null,
+        string? KeyExchangeAlgorithms = null,
+        string? Ciphers = null,
+        string? MacAlgorithms = null,
+        string? HostKeyAlgorithms = null,
+        int? MaximumSessions = null,
+        int? KeepAliveSeconds = null)
+    {
+        // Null for the defaults, so an ordinary SFTP row stays as it was written before.
+        public static PersistedSftpOptions? From(SftpServerOptions options) => options == SftpServerOptions.Default
+            ? null
+            : new(
+                options.JumpConnectionId?.Value,
+                options.KeyExchangeAlgorithms,
+                options.Ciphers,
+                options.MacAlgorithms,
+                options.HostKeyAlgorithms,
+                options.MaximumSessions,
+                options.KeepAliveSeconds);
+
+        public SftpServerOptions ToOptions() => new(
+            JumpConnectionId is { } jump ? new ConnectionProfileId(jump) : null,
+            KeyExchangeAlgorithms,
+            Ciphers,
+            MacAlgorithms,
+            HostKeyAlgorithms,
+            MaximumSessions,
+            KeepAliveSeconds);
     }
 
     private sealed record PersistedAuthentication(
