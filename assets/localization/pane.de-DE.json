@@ -138,5 +138,8 @@
   "filesCaption": "DATEIEN",
   "moreAvailableSuffix": " | weitere verfügbar",
   "indexingNextPageSuffix": " | nächste Seite wird indiziert…",
+  "freeSpaceFormat": "{0} frei",
+  "freeSpaceOfTotalFormat": "{0} von {1} frei",
+  "freeSpaceHint": "Freier Speicher auf dem Laufwerk oder Server, auf dem dieser Ordner liegt",
   "culture": "de-DE"
 }

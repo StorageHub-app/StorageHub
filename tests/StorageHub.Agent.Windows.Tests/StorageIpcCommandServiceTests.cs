@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using StorageHub.Application.Connections;
 using StorageHub.Contracts.Ipc;
+using StorageHub.Ipc;
 using StorageHub.Contracts.Results;
 using StorageHub.Domain.Capabilities;
 using StorageHub.Domain.Identifiers;
@@ -319,6 +320,80 @@ public sealed class StorageIpcCommandServiceTests
         Assert.DoesNotContain("leak.txt", response.Payload.GetRawText(), StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The free space behind a folder comes back as the session reported it, for the folder asked
+    /// about; a session that cannot say is an unsupported failure, which the pane shows as nothing.
+    /// </summary>
+    [Fact]
+    public async Task FreeSpaceIsReadForTheFolderAskedAboutAndRefusedWhereUnknown()
+    {
+        var profile = CreateS3Profile(SecretReference.Create(), SecretReference.Create());
+        var session = new SpaceSession(profile.Id, "root-test", StorageSpace.Create(1_000, 250, 750));
+        var service = new StorageIpcCommandService(
+            new FakeProfileRepository(profile),
+            new FakeSessionOpener(StorageResult<IStorageIpcSessionLease>.Success(new FakeSessionLease(session))));
+        Assert.True(service.CanHandle(StorageIpcMessageTypes.StorageSpaceRequest));
+
+        var response = await service.HandleAsync(SpaceRequest(profile.Id.Value, "renders/2026"));
+        var payload = Assert.IsType<StorageSpaceResponse>(response.Payload.Deserialize<StorageSpaceResponse>());
+
+        Assert.Equal(StorageIpcMessageTypes.StorageSpaceResponse, response.MessageType);
+        Assert.Null(payload.Failure);
+        Assert.Equal(new StorageSpaceDocument(1_000, 250, 750), payload.Space);
+        Assert.Equal("renders/2026", session.LastSpacePath);
+
+        var plain = new FakeSession(profile.Id, "root-test", StorageResult<StoragePage>.Success(new StoragePage([])));
+        var refusing = new StorageIpcCommandService(
+            new FakeProfileRepository(profile),
+            new FakeSessionOpener(StorageResult<IStorageIpcSessionLease>.Success(new FakeSessionLease(plain))));
+        var unknown = Assert.IsType<StorageSpaceResponse>(
+            (await refusing.HandleAsync(SpaceRequest(profile.Id.Value, string.Empty)))
+                .Payload.Deserialize<StorageSpaceResponse>());
+        Assert.Null(unknown.Space);
+        Assert.Equal(StorageIpcFailureCategory.Unsupported, unknown.Failure?.Category);
+    }
+
+    /// <summary>
+    /// A path the contract does not allow is refused before any connection is opened.
+    /// </summary>
+    [Fact]
+    public async Task AFreeSpaceRequestOutsideTheContractIsRefusedUnopened()
+    {
+        var profile = CreateS3Profile(SecretReference.Create(), SecretReference.Create());
+        var opener = new FakeSessionOpener();
+        var service = new StorageIpcCommandService(new FakeProfileRepository(profile), opener);
+
+        var response = await service.HandleAsync(SpaceRequest(profile.Id.Value, "bad\u0000path"));
+
+        Assert.Equal(IpcProtocol.ErrorResponseMessageType, response.MessageType);
+        Assert.Equal(0, opener.OpenCount);
+        Assert.False(new StorageSpaceDocument(100, 101, null).HasValidBounds);
+        Assert.False(new StorageSpaceDocument(null, null, null).HasValidBounds);
+        Assert.False(new StorageSpaceDocument(null, -1, null).HasValidBounds);
+        Assert.True(new StorageSpaceDocument(null, 5, null).HasValidBounds);
+    }
+
+    private static IpcEnvelope SpaceRequest(Guid connectionId, string path) => IpcEnvelope.Create(
+        StorageIpcMessageTypes.StorageSpaceRequest,
+        Guid.NewGuid(),
+        1,
+        new StorageSpaceRequest(StorageIpcContract.CurrentVersion, connectionId, path));
+
+    private sealed class SpaceSession(ConnectionProfileId profileId, string rootIdentity, StorageSpace space)
+        : FakeSession(profileId, rootIdentity, StorageResult<StoragePage>.Success(new StoragePage([]))),
+            IStorageSpaceSession
+    {
+        public string? LastSpacePath { get; private set; }
+
+        public ValueTask<StorageResult<StorageSpace>> GetSpaceAsync(
+            StorageAddress address,
+            CancellationToken cancellationToken = default)
+        {
+            LastSpacePath = address.CanonicalRelativePath;
+            return ValueTask.FromResult(StorageResult<StorageSpace>.Success(space));
+        }
+    }
+
     private static ConnectionProfile CreateLocalProfile() => ConnectionProfile.Create(
         ConnectionProfileId.New(),
         new ConnectionProfileMetadata("Local files", iconKey: "drive", accentColor: "#3366CC"),
@@ -438,7 +513,7 @@ public sealed class StorageIpcCommandServiceTests
         }
     }
 
-    private sealed class FakeSession(
+    private class FakeSession(
         ConnectionProfileId profileId,
         string rootIdentity,
         StorageResult<StoragePage> listResult) : IStorageEndpointSession

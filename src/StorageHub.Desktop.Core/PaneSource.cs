@@ -89,6 +89,13 @@ internal interface IPaneSource : IAsyncDisposable
     /// its first 40 and counted 40, and a paste into it was refused for not being fully read.
     /// </remarks>
     Task<PaneNavigationResult> LoadMoreAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The free space behind the folder being shown, for the status line, or null where it is
+    /// not known. Never fails: a figure that cannot be read is simply left out.
+    /// </summary>
+    Task<FolderSpace?> SpaceAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<FolderSpace?>(null);
 }
 
 /// <summary>A pane over a saved connection, through the agent.</summary>
@@ -175,6 +182,9 @@ internal sealed class RemotePaneSource(RemoteBrowserController controller, strin
                 snapshot.HasMore))
             : PaneNavigationResult.Failed(result.ErrorMessage, result.NeedsTrust);
     }
+
+    public Task<FolderSpace?> SpaceAsync(CancellationToken cancellationToken = default) =>
+        controller.GetSpaceAsync(cancellationToken);
 
     public ValueTask DisposeAsync() => controller.DisposeAsync();
 
@@ -268,6 +278,18 @@ internal sealed class LocalPaneSource(LocalBrowserController controller) : IPane
             [.. snapshot.Entries.Select(BrowserRowFactory.FromLocal)],
             snapshot.Location.IsThisPc,
             snapshot.HasMore));
+    }
+
+    public async Task<FolderSpace?> SpaceAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await controller.GetSpaceAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return null;
+        }
     }
 
     public ValueTask DisposeAsync() => controller.DisposeAsync();

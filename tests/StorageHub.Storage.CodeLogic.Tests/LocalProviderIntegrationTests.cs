@@ -3,6 +3,7 @@ using CL.Storage.Configuration;
 using CodeLogic;
 using StorageHub.Domain.Identifiers;
 using StorageHub.Domain.Storage;
+using StorageHub.Storage.Abstractions;
 using StorageHub.Storage.Models;
 
 namespace StorageHub.Storage.CodeLogic.Tests;
@@ -36,6 +37,66 @@ public sealed class LocalProviderIntegrationTests
         {
             Directory.Delete(root, recursive: true);
         }
+    }
+
+    /// <summary>
+    /// A local connection's folder reports the drive it is on, through the library, as the pane's
+    /// status line shows it; a path outside the root is refused as any other address would be.
+    /// </summary>
+    [Fact]
+    public async Task ALocalConnectionReportsTheFreeSpaceOfItsDrive()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"storagehub-cl-space-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(Path.Combine(root, "nested"));
+        try
+        {
+            var library = await CodeLogicTestFramework.EnsureStartedAsync();
+            var profileId = ConnectionProfileId.New();
+            var factory = new CodeLogicStorageSessionFactory(library);
+            var registration = await factory.RegisterLocalAsync(
+                profileId,
+                "space-root-v1",
+                new LocalConnectionConfig { RootPath = root, Enabled = true });
+            Assert.True(registration.IsSuccess);
+            await using var connection = registration.Value;
+            var spaces = Assert.IsAssignableFrom<IStorageSpaceSession>(connection.Session);
+
+            var space = await spaces.GetSpaceAsync(
+                StorageAddress.Create(profileId, "space-root-v1", "nested").Value,
+                CancellationToken.None);
+
+            Assert.True(space.IsSuccess, space.IsFailure ? space.Error.Code : null);
+            Assert.True(space.Value.TotalBytes > 0);
+            Assert.InRange(space.Value.AvailableBytes!.Value, 0, space.Value.TotalBytes!.Value);
+
+            var reserved = await spaces.GetSpaceAsync(
+                StorageAddress.Create(profileId, "space-root-v1", ".storagehub-internal").Value,
+                CancellationToken.None);
+            Assert.True(reserved.IsFailure);
+            Assert.Equal("storage.path.reserved", reserved.Error.Code);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// A figure that cannot be true is dropped rather than shown, and the rest kept: a server that
+    /// gets the used space wrong usually has the free space right.
+    /// </summary>
+    [Fact]
+    public void ImpossibleSpaceFiguresAreDroppedOneByOne()
+    {
+        var space = StorageSpace.Create(totalBytes: 100, availableBytes: 40, usedBytes: 160);
+        Assert.Equal(100, space.TotalBytes);
+        Assert.Equal(40, space.AvailableBytes);
+        Assert.Null(space.UsedBytes);
+
+        Assert.Null(StorageSpace.Create(-1, 5, null).TotalBytes);
+        Assert.Equal(5, StorageSpace.Create(-1, 5, null).AvailableBytes);
+        Assert.Null(StorageSpace.Create(10, 11, null).AvailableBytes);
+        Assert.False(StorageSpace.Create(null, -3, null).IsKnown);
     }
 
     [Fact]

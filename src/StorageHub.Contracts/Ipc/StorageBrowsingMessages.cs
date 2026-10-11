@@ -52,6 +52,8 @@ public static class StorageIpcMessageTypes
     public const string ConnectionDetailsResponse = "connection.details.response";
     public const string StorageListRequest = "storage.list.request";
     public const string StorageListResponse = "storage.list.response";
+    public const string StorageSpaceRequest = "storage.space.request";
+    public const string StorageSpaceResponse = "storage.space.response";
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<StorageConnectionProvider>))]
@@ -392,3 +394,49 @@ public sealed record StorageListPageResponse(
         RootIdentity.Length <= StorageIpcLimits.MaximumOpaqueIdentityLength &&
         !RootIdentity.Any(char.IsControl);
 }
+
+/// <summary>
+/// Asks how much room the volume or quota behind a folder of a saved connection has, for the
+/// pane's status line. Nothing is listed or written.
+/// </summary>
+public sealed record StorageSpaceRequest(
+    int ContractVersion,
+    Guid ConnectionId,
+    string RelativePath)
+{
+    public bool HasValidBounds =>
+        ContractVersion > 0 &&
+        ConnectionId != Guid.Empty &&
+        RelativePath is not null &&
+        RelativePath.Length <= StorageIpcLimits.MaximumRelativePathLength &&
+        !RelativePath.Any(char.IsControl);
+}
+
+/// <summary>
+/// The figures a server reported, each of which may be unknown. At least one is known, none is
+/// negative, and neither the free nor the used space is more than the total.
+/// </summary>
+public sealed record StorageSpaceDocument(
+    long? TotalBytes,
+    long? AvailableBytes,
+    long? UsedBytes)
+{
+    public bool HasValidBounds =>
+        (TotalBytes is not null || AvailableBytes is not null || UsedBytes is not null) &&
+        TotalBytes is null or >= 0 &&
+        AvailableBytes is null or >= 0 &&
+        UsedBytes is null or >= 0 &&
+        (TotalBytes is not { } total ||
+            (AvailableBytes is null || AvailableBytes <= total) &&
+            (UsedBytes is null || UsedBytes <= total));
+}
+
+/// <summary>
+/// The space, or why there is none: a provider that does not report it answers with an
+/// unsupported failure, which the pane takes as nothing to show rather than as a problem.
+/// </summary>
+public sealed record StorageSpaceResponse(
+    int ContractVersion,
+    Guid ConnectionId,
+    StorageSpaceDocument? Space,
+    StorageIpcFailure? Failure = null);

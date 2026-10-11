@@ -39,6 +39,78 @@ public class BrowserPaneTests
         Assert.Null(pane.Connections.Single(c => c.Name == Ui.Pane.ThisPc).Id);
     }
 
+    /// <summary>
+    /// The footer ends with the free space behind the folder, asked for each folder the pane
+    /// opens; where the server does not report it the footer simply has no figure.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task TheFooterShowsTheFreeSpaceWhereTheServerReportsIt()
+    {
+        var agent = new FakeBrowsingAgent();
+        var connection = Connection("Build Box", StorageConnectionProvider.Sftp);
+        agent.Connections.Add(connection);
+        agent.Listings[string.Empty] = [Entry("reports", container: true)];
+        agent.Listings["reports"] = [Entry("q1.pdf", size: 10)];
+        agent.Space = new StorageSpaceDocument(500L << 30, 12L << 30, null);
+
+        await using var pane = new BrowserPaneModel(agent);
+        await pane.LoadConnectionsAsync(TestContext.Current.CancellationToken);
+        await pane.OpenConnectionAsync(connection.ConnectionId, TestContext.Current.CancellationToken);
+
+        Assert.True(pane.HasFreeSpace);
+        Assert.Equal(
+            Ui.Format(Ui.Pane.FreeSpaceOfTotalFormat, UiFormatting.FormatBytes(12L << 30), UiFormatting.FormatBytes(500L << 30)),
+            pane.FreeSpace);
+        Assert.Equal(string.Empty, agent.SpacePaths.Last());
+
+        await pane.NavigateAsync("reports", TestContext.Current.CancellationToken);
+        Assert.Equal("reports", agent.SpacePaths.Last());
+
+        // An object store, or an agent too old to be asked: no figure, and no complaint either.
+        agent.Space = null;
+        await pane.RefreshAsync(TestContext.Current.CancellationToken);
+        Assert.False(pane.HasFreeSpace);
+        Assert.False(pane.HasStatus, pane.Status);
+    }
+
+    /// <summary>A listing with its free space in the footer, for a human to look at.</summary>
+    [AvaloniaFact]
+    public async Task AFooterWithFreeSpaceCanBePhotographed()
+    {
+        var agent = new FakeBrowsingAgent();
+        var connection = Connection("Build Box", StorageConnectionProvider.Sftp);
+        agent.Connections.Add(connection);
+        agent.Listings[string.Empty] =
+            [Entry("reports", container: true), Entry("render.exr", size: 193_204_224), Entry("notes.md", size: 2_048)];
+        agent.Space = new StorageSpaceDocument(500L << 30, 12_884_901_888, null);
+
+        await using var pane = new BrowserPaneModel(agent);
+        await pane.LoadConnectionsAsync(TestContext.Current.CancellationToken);
+        await pane.OpenConnectionAsync(connection.ConnectionId, TestContext.Current.CancellationToken);
+        pane.SelectedRows.Add(pane.Rows.Single(static row => row.Name == "render.exr"));
+
+        var view = new BrowserPaneView { DataContext = pane };
+        var window = new Avalonia.Controls.Window { Content = view, Width = 700, Height = 360 };
+        window.Show();
+        window.UpdateLayout();
+        var free = Avalonia.Controls.ControlExtensions.FindControl<Avalonia.Controls.TextBlock>(view, "PART_FreeSpace");
+        Assert.NotNull(free);
+        Assert.True(free.IsVisible);
+        Assert.Equal(pane.FreeSpace, free.Text);
+
+        var frame = Avalonia.Headless.HeadlessWindowExtensions.CaptureRenderedFrame(window);
+        Assert.NotNull(frame);
+        var directory = Environment.GetEnvironmentVariable("STORAGEHUB_SHOT_DIR");
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+            using var stream = File.Create(Path.Combine(directory, "pane-free-space.png"));
+            frame!.Save(stream, new Avalonia.Media.Imaging.PngBitmapEncoderOptions());
+        }
+
+        window.Close();
+    }
+
     [AvaloniaFact]
     public async Task OpeningAConnectionListsItsRoot()
     {
@@ -297,6 +369,29 @@ public class BrowserPaneTests
             new(StringComparer.Ordinal);
 
         internal bool Throw { get; set; }
+
+        /// <summary>What the server reports for free space; null answers as an object store does.</summary>
+        internal StorageSpaceDocument? Space { get; set; }
+
+        internal List<string> SpacePaths { get; } = [];
+
+        public Task<StorageSpaceResponse> GetSpaceAsync(
+            StorageSpaceRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            SpacePaths.Add(request.RelativePath);
+            return Task.FromResult(Space is { } space
+                ? new StorageSpaceResponse(StorageIpcContract.CurrentVersion, request.ConnectionId, space)
+                : new StorageSpaceResponse(
+                    StorageIpcContract.CurrentVersion,
+                    request.ConnectionId,
+                    Space: null,
+                    new StorageIpcFailure(
+                        "storage.space.unsupported",
+                        StorageIpcFailureCategory.Unsupported,
+                        "The provider does not support this operation safely.",
+                        IsTransient: false)));
+        }
 
         public Task<ConnectionListResponse> ListConnectionsAsync(
             ConnectionListRequest request,

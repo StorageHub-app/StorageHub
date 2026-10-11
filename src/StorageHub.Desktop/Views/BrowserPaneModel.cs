@@ -514,6 +514,46 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         }
     }
 
+    /// <summary>
+    /// "12.4 GiB free of 500 GiB", or only the free space where the server does not say the
+    /// total: the drive a local folder is on, or what an SFTP or FTP server reports. Empty where
+    /// nothing is known -- This PC, whose drive rows say it already, an object store, a server
+    /// that does not answer -- so the footer simply has no figure rather than a dash or an error.
+    /// </summary>
+    public string FreeSpace
+    {
+        get => _freeSpace;
+        private set
+        {
+            value ??= string.Empty;
+            if (string.Equals(_freeSpace, value, StringComparison.Ordinal)) return;
+            _freeSpace = value;
+            Raise(nameof(FreeSpace));
+            Raise(nameof(HasFreeSpace));
+        }
+    }
+
+    public bool HasFreeSpace => _freeSpace.Length > 0;
+
+    public static string FreeSpaceHint => Ui.Pane.FreeSpaceHint;
+
+    private string _freeSpace = string.Empty;
+
+    /// <summary>
+    /// Reads the free space behind the folder just listed, and shows it if the pane is still on
+    /// that folder when it arrives.
+    /// </summary>
+    /// <remarks>
+    /// After the listing rather than beside it, so the rows never wait for a figure. A quiet
+    /// re-read asks again, which is what keeps the figure moving while a copy fills the drive.
+    /// </remarks>
+    private async Task ReadSpaceAsync(long navigation, IPaneSource source)
+    {
+        var space = await source.SpaceAsync().ConfigureAwait(true);
+        if (navigation != _navigation || !ReferenceEquals(source, _source)) return;
+        FreeSpace = FolderSpace.Describe(space) ?? string.Empty;
+    }
+
     public static string FilesCaption => Ui.Pane.FilesCaption;
 
     public static string FilterLabel => Ui.Pane.FilterLabel;
@@ -1205,6 +1245,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         SyncView();
         FollowTree(listing.Rows, append: false);
         Raise(nameof(HasMorePages));
+        await ReadSpaceAsync(navigation, source).ConfigureAwait(true);
     }
 
     /// <summary>
@@ -1412,6 +1453,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         ArgumentNullException.ThrowIfNull(choice);
         var navigation = ++_navigation;
         _standingBy = false;
+        FreeSpace = string.Empty;
         IsBusy = true;
         try
         {
@@ -2213,6 +2255,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         if (result.Listing is not { } listing)
         {
             Status = result.Error ?? Ui.Pane.Disconnected;
+            FreeSpace = string.Empty;
             _failed = true;
             _needsTrust = result.NeedsTrust;
             RaiseConnectionState();
@@ -2240,6 +2283,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         ApplyView();
         Raise(nameof(Title));
         FollowTree(listing.Rows, append: false);
+        if (_source is { } source) _ = ReadSpaceAsync(navigation, source);
     }
 
     /// <summary>

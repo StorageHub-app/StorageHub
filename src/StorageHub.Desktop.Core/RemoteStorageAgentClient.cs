@@ -51,6 +51,13 @@ public interface IRemoteStorageAgentClient : IAsyncDisposable
         ConnectionDetailsRequest request,
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("This storage client cannot describe a connection.");
+
+    /// <summary>The free space behind a folder of a saved connection, where its server reports it.</summary>
+    /// <remarks>Not every client can; one that cannot says so, and the pane shows no figure.</remarks>
+    Task<StorageSpaceResponse> GetSpaceAsync(
+        StorageSpaceRequest request,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("This storage client cannot read free space.");
 }
 
 /// <summary>
@@ -186,6 +193,37 @@ public sealed class NamedPipeRemoteStorageAgentClient : IRemoteStorageAgentClien
             },
             cancellationToken,
             _listingTimeout);
+    }
+
+    public Task<StorageSpaceResponse> GetSpaceAsync(
+        StorageSpaceRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (!StorageIpcContract.IsSupported(request.ContractVersion) || !request.HasValidBounds)
+        {
+            throw new ArgumentException(Ui.Validation.TheStorageListRequestIsOutsideThe, nameof(request));
+        }
+
+        // A status call's budget, not a listing's: the figure is a nicety in the status line, and
+        // a server slow to give it should not hold the pane's pipe for a navigation behind it.
+        return ExecuteAsync<StorageSpaceRequest, StorageSpaceResponse>(
+            StorageIpcMessageTypes.StorageSpaceRequest,
+            StorageIpcMessageTypes.StorageSpaceResponse,
+            request,
+            response =>
+            {
+                ValidateContract(response.ContractVersion);
+                if (response.ContractVersion != request.ContractVersion ||
+                    response.ConnectionId != request.ConnectionId ||
+                    !IsValidFailure(response.Failure) ||
+                    (response.Space is null) == (response.Failure is null) ||
+                    response.Space is { HasValidBounds: false })
+                {
+                    throw InvalidResponse();
+                }
+            },
+            cancellationToken);
     }
 
     public Task<StorageListPageResponse> ListStorageAsync(

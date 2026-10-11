@@ -51,8 +51,9 @@ public interface IStorageIpcSessionOpener
 }
 
 /// <summary>
-/// Implements only saved-connection discovery, connection health checks, and bounded storage
-/// listing. It intentionally has no upload, mutation, delete, or secret-returning command.
+/// Implements only saved-connection discovery, connection health checks, bounded storage
+/// listing and free space. It intentionally has no upload, mutation, delete, or secret-returning
+/// command.
 /// </summary>
 public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDisposable
 {
@@ -127,7 +128,8 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDi
         StorageIpcMessageTypes.ConnectionTestRequest or
         StorageIpcMessageTypes.ConnectionDraftTestRequest or
         StorageIpcMessageTypes.ConnectionDetailsRequest or
-        StorageIpcMessageTypes.StorageListRequest;
+        StorageIpcMessageTypes.StorageListRequest or
+        StorageIpcMessageTypes.StorageSpaceRequest;
 
     public ValueTask<AgentIpcCommandResponse> HandleAsync(
         IpcEnvelope request,
@@ -146,6 +148,8 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDi
                 DescribeConnectionAsync(request, cancellationToken),
             StorageIpcMessageTypes.StorageListRequest =>
                 ListStorageAsync(request, cancellationToken),
+            StorageIpcMessageTypes.StorageSpaceRequest =>
+                ReadSpaceAsync(request, cancellationToken),
             _ => ValueTask.FromResult(AgentIpcCommandResponse.Error(
                 "ipc.message.unsupported",
                 "The requested IPC operation is not supported by this agent version."))
@@ -759,6 +763,99 @@ public sealed class StorageIpcCommandService : IAgentIpcCommandHandler, IAsyncDi
                     IsTransient: true));
         }
     }
+
+    /// <summary>
+    /// The free space behind a folder, for the pane's status line. A provider with no figures is
+    /// an unsupported failure, which the desktop shows as nothing; the figures that come back are
+    /// the ones <see cref="StorageSpace.Create"/> kept, so the contract's bounds always hold.
+    /// </summary>
+    private async ValueTask<AgentIpcCommandResponse> ReadSpaceAsync(
+        IpcEnvelope envelope,
+        CancellationToken cancellationToken)
+    {
+        var request = envelope.DeserializePayload<StorageSpaceRequest>();
+        var validation = ValidateRequest(request.ContractVersion, request.HasValidBounds);
+        if (validation is not null)
+        {
+            return validation;
+        }
+
+        try
+        {
+            var profile = await GetProfileAsync(request.ConnectionId, cancellationToken).ConfigureAwait(false);
+            if (profile is null)
+            {
+                return SpaceFailure(request, NotFoundFailure());
+            }
+
+            var opened = await _sessionOpener.OpenAsync(profile, cancellationToken).ConfigureAwait(false);
+            if (opened.IsFailure)
+            {
+                return SpaceFailure(request, SanitizeFailure(opened.Error));
+            }
+
+            await using var lease = opened.Value;
+            var session = lease.Session;
+            var sessionFailure = ValidateSession(session, profile.Id);
+            if (sessionFailure is not null)
+            {
+                return SpaceFailure(request, sessionFailure);
+            }
+
+            if (session is not IStorageSpaceSession spaces)
+            {
+                return SpaceFailure(request, new StorageIpcFailure(
+                    "storage.space.unsupported",
+                    StorageIpcFailureCategory.Unsupported,
+                    SafeFailureMessage(StorageIpcFailureCategory.Unsupported),
+                    IsTransient: false));
+            }
+
+            var address = StorageAddress.Create(profile.Id, session.RootIdentity, request.RelativePath);
+            if (address.IsFailure)
+            {
+                return SpaceFailure(request, SanitizeFailure(address.Error));
+            }
+
+            var read = await spaces.GetSpaceAsync(address.Value, cancellationToken).ConfigureAwait(false);
+            if (read.IsFailure)
+            {
+                return SpaceFailure(request, SanitizeFailure(read.Error));
+            }
+
+            var document = new StorageSpaceDocument(
+                read.Value.TotalBytes,
+                read.Value.AvailableBytes,
+                read.Value.UsedBytes);
+            return document.HasValidBounds
+                ? AgentIpcCommandResponse.Create(
+                    StorageIpcMessageTypes.StorageSpaceResponse,
+                    new StorageSpaceResponse(request.ContractVersion, request.ConnectionId, document))
+                : SpaceFailure(request, new StorageIpcFailure(
+                    "storage.space.unknown",
+                    StorageIpcFailureCategory.Unsupported,
+                    SafeFailureMessage(StorageIpcFailureCategory.Unsupported),
+                    IsTransient: false));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return SpaceFailure(request, new StorageIpcFailure(
+                "storage.space.unavailable",
+                StorageIpcFailureCategory.Unavailable,
+                SafeFailureMessage(StorageIpcFailureCategory.Unavailable),
+                IsTransient: true));
+        }
+    }
+
+    private static AgentIpcCommandResponse SpaceFailure(
+        StorageSpaceRequest request,
+        StorageIpcFailure failure) => AgentIpcCommandResponse.Create(
+        StorageIpcMessageTypes.StorageSpaceResponse,
+        new StorageSpaceResponse(request.ContractVersion, request.ConnectionId, Space: null, failure));
 
     private async ValueTask<ConnectionProfile?> GetProfileAsync(
         Guid connectionId,

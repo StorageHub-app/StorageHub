@@ -529,6 +529,48 @@ public sealed class CodeLogicStorageEndpointSessionTests
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error.Message : string.Empty);
     }
 
+    /// <summary>
+    /// An object store has no free space to report, and is answered without a round trip; a
+    /// server that reports some figures has them passed on, and one that reports none is no answer.
+    /// </summary>
+    [Fact]
+    public async Task FreeSpaceIsAskedForOnlyWhereTheProviderAdvertisesIt()
+    {
+        var bucket = new SpaceReportingStorageService(new CL.Storage.Abstractions.StorageSpaceInfo(null, 1, null));
+        await using (var session = CreateSession(bucket))
+        {
+            var refused = await session.GetSpaceAsync(Address(session.ProfileId, RootIdentity, "photos"));
+            Assert.True(refused.IsFailure);
+            Assert.Equal("storage.space.unsupported", refused.Error.Code);
+            Assert.Equal(StorageFailureKind.Unsupported, refused.Error.Kind);
+            Assert.Equal(0, bucket.SpaceCalls);
+        }
+
+        var server = new SpaceReportingStorageService(new CL.Storage.Abstractions.StorageSpaceInfo(null, 5_000, null))
+        {
+            Capabilities = new StorageCapabilities(ClStorageFeature.PhysicalDirectories | ClStorageFeature.SpaceInfo),
+        };
+        await using (var session = CreateSession(server))
+        {
+            var space = await session.GetSpaceAsync(Address(session.ProfileId, RootIdentity, "incoming"));
+            Assert.True(space.IsSuccess);
+            Assert.Null(space.Value.TotalBytes);
+            Assert.Equal(5_000, space.Value.AvailableBytes);
+            Assert.Equal("incoming", server.LastSpacePath);
+        }
+
+        var silent = new SpaceReportingStorageService(new CL.Storage.Abstractions.StorageSpaceInfo(null, null, null))
+        {
+            Capabilities = new StorageCapabilities(ClStorageFeature.PhysicalDirectories | ClStorageFeature.SpaceInfo),
+        };
+        await using (var session = CreateSession(silent))
+        {
+            var none = await session.GetSpaceAsync(Address(session.ProfileId, RootIdentity, string.Empty));
+            Assert.True(none.IsFailure);
+            Assert.Equal("storage.space.unknown", none.Error.Code);
+        }
+    }
+
     [Fact]
     public async Task PortableChecksumTakesTheServersDigestOnlyWhenAskedTo()
     {
@@ -1389,6 +1431,23 @@ public sealed class CodeLogicStorageEndpointSessionTests
             VersionId = versionId,
             ETag = entityTag
         };
+
+    private sealed class SpaceReportingStorageService(CL.Storage.Abstractions.StorageSpaceInfo figures)
+        : FakeStorageService, CL.Storage.Abstractions.IStorageSpaceService
+    {
+        public int SpaceCalls { get; private set; }
+
+        public string? LastSpacePath { get; private set; }
+
+        public Task<Result<CL.Storage.Abstractions.StorageSpaceInfo>> GetSpaceAsync(
+            string path = "",
+            CancellationToken cancellationToken = default)
+        {
+            SpaceCalls++;
+            LastSpacePath = path;
+            return Task.FromResult(Result<CL.Storage.Abstractions.StorageSpaceInfo>.Success(figures));
+        }
+    }
 
     private sealed class ChecksumReportingStorageService(string hexValue) : FakeStorageService, CL.Storage.Abstractions.IStorageChecksumService
     {

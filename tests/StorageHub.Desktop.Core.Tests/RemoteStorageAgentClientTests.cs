@@ -20,6 +20,41 @@ public sealed class RemoteStorageAgentClientTests
         Assert.Equal(1, transport.DisconnectCount);
     }
 
+    /// <summary>
+    /// Free space comes back for the connection asked about, and a response that claims more free
+    /// space than there is in all, or answers both with figures and a failure, is refused.
+    /// </summary>
+    [Fact]
+    public async Task FreeSpaceRoundTripsAndAnImpossibleFigureIsRefused()
+    {
+        var connectionId = Guid.NewGuid();
+        StorageSpaceResponse answer = new(
+            StorageIpcContract.CurrentVersion, connectionId, new StorageSpaceDocument(1_000, 400, null));
+        var transport = new FakeTransport(request =>
+        {
+            Assert.Equal(StorageIpcMessageTypes.StorageSpaceRequest, request.MessageType);
+            return IpcEnvelope.Create(StorageIpcMessageTypes.StorageSpaceResponse, request.RequestId, 1, answer);
+        });
+        await using var client = CreateClient(transport);
+        var ask = new StorageSpaceRequest(StorageIpcContract.CurrentVersion, connectionId, "photos");
+
+        var space = await client.GetSpaceAsync(ask, CancellationToken.None);
+        Assert.Equal(400, space.Space?.AvailableBytes);
+
+        answer = answer with { Space = new StorageSpaceDocument(1_000, 4_000, null) };
+        await Assert.ThrowsAsync<InvalidDataException>(() => client.GetSpaceAsync(ask, CancellationToken.None));
+
+        answer = answer with
+        {
+            Space = new StorageSpaceDocument(null, 4, null),
+            Failure = new StorageIpcFailure("storage.space.unsupported", StorageIpcFailureCategory.Unsupported, "No.", false)
+        };
+        await Assert.ThrowsAsync<InvalidDataException>(() => client.GetSpaceAsync(ask, CancellationToken.None));
+
+        await Assert.ThrowsAsync<ArgumentException>(() => client.GetSpaceAsync(
+            ask with { RelativePath = "a\nb" }, CancellationToken.None));
+    }
+
     [Fact]
     public async Task ClientRejectsAResourceIdentityMismatch()
     {
