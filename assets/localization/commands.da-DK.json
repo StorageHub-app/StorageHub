@@ -34,7 +34,7 @@
   "editInvertSelection": "Invertér markering",
   "editInvertSelectionDescription": "Invertér den synlige markering i den aktive rude.",
   "editProperties": "Egenskaber",
-  "editPropertiesDescription": "Se skrivebeskyttede versioner, metadata og mærkater for én fil på en gemt forbindelse.",
+  "editPropertiesDescription": "Vis rettigheder, ejer og tidspunkter for ét element på en gemt forbindelse, skift dets rettigheder eller ændringstidspunkt, hvor forbindelsen tillader det, og se en fils versioner, metadata og mærkater.",
   "viewRefresh": "Opdatér",
   "viewRefreshDescription": "Opdatér den fokuserede rude.",
   "viewConnectionsPanel": "Forbindelsespanel",
@@ -72,7 +72,7 @@
   "connectionsKeyStore": "Nøglelager...",
   "connectionsKeyStoreDescription": "Importér og administrér de certifikater og private nøgler, som gemte forbindelser deler.",
   "connectionsQuickConnect": "Hurtig forbindelse...",
-  "connectionsQuickConnectDescription": "Åbn en midlertidig forbindelse uden at gemme loginoplysninger i profilen.",
+  "connectionsQuickConnectDescription": "Find en gemt forbindelse efter navn, og åbn den i den aktive rude.",
   "connectionsReconnect": "Forbind igen",
   "connectionsReconnectDescription": "Åbn den aktive rudes forbindelse igen.",
   "connectionsDisconnect": "Afbryd forbindelse",
@@ -123,5 +123,9 @@
   "helpReportIssueDescription": "Rapportér en fejl i StorageHub.",
   "helpAboutStorageHub": "Om StorageHub",
   "helpAboutStorageHubDescription": "Vis StorageHubs version og oplysninger om programmet.",
+  "toolsCleanUpLeftovers": "Ryd op i efterladte filer...",
+  "toolsCleanUpLeftoversDescription": "Find de arbejdsfiler, som afbrudte overførsler og den eksterne editor har efterladt, og fjern dem, du vælger.",
+  "connectionsFtpConsole": "FTP-kommandokonsol…",
+  "connectionsFtpConsoleDescription": "Send rå kommandoer til FTP- eller FTPS-serveren i den aktive rude, og læs dens svar.",
   "culture": "da-DK"
 }

@@ -1,0 +1,49 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
+        x:Class="StorageHub.Desktop.Views.DiagnosticsWindow"
+        x:DataType="vm:DiagnosticsModel"
+        Title="{x:Static vm:DiagnosticsModel.Title}"
+        Width="760" Height="480"
+        MinWidth="560" MinHeight="340"
+        WindowStartupLocation="CenterOwner">
+
+  <!--
+    What the report is for, once; the report itself, selectable, in the mono face so its columns
+    stay put when pasted; and what can be done with it: copied, saved as a bundle, or the logs
+    opened beside it.
+  -->
+
+  <Border Classes="surface">
+    <DockPanel Margin="{StaticResource PaddingLg}">
+
+      <TextBlock DockPanel.Dock="Top" Classes="caption" Text="{x:Static vm:DiagnosticsModel.Intro}"
+                 TextWrapping="Wrap" Margin="0,0,0,8"/>
+
+      <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto,Auto,Auto,Auto"
+            ColumnSpacing="{StaticResource SpaceSm}" Margin="0,8,0,0">
+        <TextBlock Grid.Column="0" Classes="status"
+                   Classes.success="{Binding Status.IsSuccess}"
+                   Classes.warning="{Binding Status.IsWarning}"
+                   Classes.danger="{Binding Status.IsDanger}"
+                   Text="{Binding Status.Text}" TextWrapping="Wrap"
+                   VerticalAlignment="Center"/>
+        <Button Grid.Column="1" Content="{x:Static vm:DiagnosticsModel.OpenLogsLabel}"
+                Command="{Binding OpenLogsCommand}"/>
+        <Button Grid.Column="2" Content="{x:Static vm:DiagnosticsModel.CopyLabel}"
+                Command="{Binding CopyCommand}"/>
+        <Button Grid.Column="3" Classes="primary" Content="{x:Static vm:DiagnosticsModel.SaveBundleLabel}"
+                Command="{Binding SaveBundleCommand}"/>
+        <Button Grid.Column="4" Content="{x:Static vm:DiagnosticsModel.CloseLabel}"
+                Click="OnClose" IsCancel="True"/>
+      </Grid>
+
+      <Border Classes="card" Padding="{StaticResource PaddingMd}">
+        <ScrollViewer HorizontalScrollBarVisibility="Auto">
+          <SelectableTextBlock Text="{Binding Report}" FontFamily="{DynamicResource AppFontMono}"
+                               AutomationProperties.Name="{x:Static vm:DiagnosticsModel.Title}"/>
+        </ScrollViewer>
+      </Border>
+    </DockPanel>
+  </Border>
+</Window>

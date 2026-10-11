@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows.Input;
+using Avalonia.Threading;
 using Lucide.Avalonia;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Localization;
@@ -20,11 +21,16 @@ namespace StorageHub.Desktop.Views;
 /// and it is the only entry in the picker that is: carrying the answer on the choice means the
 /// pane never has to look a connection back up to find out what it is showing.
 /// </param>
+/// <param name="Provider">
+/// The saved connection's provider, as the agent listed it; null for This PC, Connections Home
+/// and a connection opened by id before the list arrived. What lights the FTP command console.
+/// </param>
 internal sealed record PaneConnection(
     Guid? Id,
     string Name,
     LucideIconKind Icon,
-    PaneContentKind Kind = PaneContentKind.SavedStorage);
+    PaneContentKind Kind = PaneContentKind.SavedStorage,
+    StorageConnectionProvider? Provider = null);
 
 /// <summary>
 /// One entry in a pane's Move or swap menu: another pane, and the four ways to reach it.
@@ -55,7 +61,7 @@ internal sealed record PaneMoveOption(string Title, ICommand Command);
 /// agent, which is the thing the WinForms pane could never be tested for.
 /// </para>
 /// </remarks>
-internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposable
+internal sealed partial class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposable
 {
     private readonly RemoteBrowserController _controller;
     private readonly Func<ILocalFileBrowserDataSource?> _localSource;
@@ -88,7 +94,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     /// </remarks>
     private readonly Func<PaneMutationController>? _mutations;
     private readonly IDialogService? _dialogs;
-    private readonly Func<ObjectInspectorAddress, Task>? _inspect;
+    private readonly Func<ObjectInspectorAddress, StorageItemKind, Task>? _inspect;
     private readonly Func<ObjectInspectorAddress, string, long?, Task>? _edit;
     private readonly Func<IReadOnlyList<string>, IReadOnlyList<string>, Task<IReadOnlyList<BatchRenameLine>?>>? _batchRename;
     private PagedListingIndex? _index;
@@ -100,6 +106,9 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     private string _filter = string.Empty;
     private bool _isAtRoot = true;
     private bool _failed;
+
+    /// <summary>Whether the last failure was the server's identity, which Review trust settles.</summary>
+    private bool _needsTrust;
     private Task<bool>? _loadingMore;
 
     /// <summary>
@@ -152,8 +161,9 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     /// it had no controller to hand.
     /// </param>
     /// <param name="inspect">
-    /// Opens the object inspector for a file. The shell supplies the window; a test supplies a
-    /// recorder. Null leaves Properties unavailable.
+    /// Opens the Properties window for an item, given its kind so a folder or link is not asked for
+    /// a file's versions. The shell supplies the window; a test supplies a recorder. Null leaves
+    /// Properties unavailable.
     /// </param>
     internal BrowserPaneModel(
         IRemoteStorageAgentClient? client = null,
@@ -162,7 +172,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         IDialogService? dialogs = null,
         Func<ISshTerminalAgentClient>? terminals = null,
         Func<IAgentLifecycleController?>? agentLifecycle = null,
-        Func<ObjectInspectorAddress, Task>? inspect = null,
+        Func<ObjectInspectorAddress, StorageItemKind, Task>? inspect = null,
         Func<ObjectInspectorAddress, string, long?, Task>? edit = null,
         Func<IReadOnlyList<string>, IReadOnlyList<string>, Task<IReadOnlyList<BatchRenameLine>?>>? batchRename = null)
     {
@@ -236,6 +246,33 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     /// change made in Settings reaches the next session without the pane being replaced.
     /// </remarks>
     internal Func<SshTerminalPreferences?>? TerminalPreferences { get; set; }
+
+    /// <summary>
+    /// The "Refresh a folder when it changes" settings. Null, as in the samples and most tests,
+    /// never refreshes by itself.
+    /// </summary>
+    /// <remarks>
+    /// Read after every listing and every <see cref="AutoRefreshSettingsReadEvery"/> while
+    /// following a folder, so turning it on reaches a pane at its next folder and turning it off
+    /// within seconds, without the pane being replaced.
+    /// </remarks>
+    internal Func<FolderAutoRefreshSettings>? AutoRefreshSettings { get; set; }
+
+    /// <summary>Starts watching a folder on this computer; a test gives its own.</summary>
+    internal Func<string, Action, IDisposable?> FolderWatch { get; set; } = LocalFolderWatch.Start;
+
+    /// <summary>What auto-refresh measures its waits against; a test gives its own.</summary>
+    internal Func<DateTimeOffset> Clock { get; set; } = static () => DateTimeOffset.UtcNow;
+
+    /// <summary>How often a following pane asks whether its folder is due to be read again.</summary>
+    internal static readonly TimeSpan AutoRefreshTick = TimeSpan.FromSeconds(1);
+
+    internal static readonly TimeSpan AutoRefreshSettingsReadEvery = TimeSpan.FromSeconds(15);
+
+    private FolderAutoRefresh? _autoRefresh;
+    private DispatcherTimer? _autoRefreshTimer;
+    private FolderAutoRefreshSettings _autoRefreshSettings = FolderAutoRefreshSettings.Off;
+    private DateTimeOffset _autoRefreshSettingsRead;
 
     /// <summary>The folder tree beside the list.</summary>
     public PaneTreeModel Tree { get; } = new();
@@ -406,8 +443,31 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
 
     public static string RetryHint => Ui.Commands.ViewRefresh;
 
+    /// <summary>
+    /// Opens the connection's Trust tab, where its host key can be fetched and checked or its
+    /// certificate pinned. Assigned by the workspace; without it there is nowhere to go.
+    /// </summary>
+    internal Action<Guid>? ReviewTrust { get; set; }
+
+    /// <summary>
+    /// Whether the banner offers Review trust: the connection failed on the server's identity, a
+    /// key or certificate that is not the trusted one or none trusted yet, where it happened.
+    /// </summary>
+    public bool ShowsReviewTrust =>
+        _failed && _needsTrust && _connection?.Id is not null && ReviewTrust is not null;
+
+    public ICommand ReviewTrustCommand => _reviewTrust ??= new RelayCommand(_ =>
+    {
+        if (_connection?.Id is { } id) ReviewTrust?.Invoke(id);
+    });
+
+    private RelayCommand? _reviewTrust;
+
+    public static string ReviewTrustLabel => Ui.Connections.DetailReviewTrust;
+
     private void RaiseListingState()
     {
+        Raise(nameof(ShowsReviewTrust));
         Raise(nameof(EmptyNotice));
         Raise(nameof(HasEmptyNotice));
         Raise(nameof(ShowsLoading));
@@ -480,12 +540,52 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             var shown = Rows.Count(static row => !row.IsParentNavigation);
             var count = HasFilter && _index is not null
                 ? Ui.Format(Ui.Pane.ItemCountFilteredFormat, shown,
-                    _index.CreateView(_sortColumn, _sortAscending, null).Count)
+                    _index.CreateView(_sortColumn, _sortAscending, null, _showHidden).Count)
                 : shown == 1 ? Ui.Pane.ItemCountOne : Ui.Format(Ui.Pane.ItemCountFormat, shown);
             return !_hasMore ? count
                 : _loadingMore is not null ? count + Ui.Pane.IndexingNextPageSuffix
                 : count + Ui.Pane.MoreAvailableSuffix;
         }
+    }
+
+    /// <summary>
+    /// "12.4 GiB free of 500 GiB", or only the free space where the server does not say the
+    /// total: the drive a local folder is on, or what an SFTP or FTP server reports. Empty where
+    /// nothing is known -- This PC, whose drive rows say it already, an object store, a server
+    /// that does not answer -- so the footer simply has no figure rather than a dash or an error.
+    /// </summary>
+    public string FreeSpace
+    {
+        get => _freeSpace;
+        private set
+        {
+            value ??= string.Empty;
+            if (string.Equals(_freeSpace, value, StringComparison.Ordinal)) return;
+            _freeSpace = value;
+            Raise(nameof(FreeSpace));
+            Raise(nameof(HasFreeSpace));
+        }
+    }
+
+    public bool HasFreeSpace => _freeSpace.Length > 0;
+
+    public static string FreeSpaceHint => Ui.Pane.FreeSpaceHint;
+
+    private string _freeSpace = string.Empty;
+
+    /// <summary>
+    /// Reads the free space behind the folder just listed, and shows it if the pane is still on
+    /// that folder when it arrives.
+    /// </summary>
+    /// <remarks>
+    /// After the listing rather than beside it, so the rows never wait for a figure. A quiet
+    /// re-read asks again, which is what keeps the figure moving while a copy fills the drive.
+    /// </remarks>
+    private async Task ReadSpaceAsync(long navigation, IPaneSource source)
+    {
+        var space = await source.SpaceAsync().ConfigureAwait(true);
+        if (navigation != _navigation || !ReferenceEquals(source, _source)) return;
+        FreeSpace = FolderSpace.Describe(space) ?? string.Empty;
     }
 
     public static string FilesCaption => Ui.Pane.FilesCaption;
@@ -517,6 +617,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         Raise(nameof(ProviderBadge));
         Raise(nameof(HasBadges));
         Raise(nameof(AccentBrush));
+        Raise(nameof(IsFtpConnection));
     }
 
     /// <summary>Whether this is the pane a pane command would act on.</summary>
@@ -707,6 +808,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     public bool HasMoveTargets => MoveTargets.Count > 0;
 
     public static string PaneActionsLabel => Ui.Shell.PaneActions;
+    public static string DragPaneHeadersHint => Ui.Shell.DragPaneHeadersHint;
 
     public static string SplitRightLabel => Ui.Shell.SplitRight;
 
@@ -902,7 +1004,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
 
     public static string BatchRenameLabel => Ui.Pane.BatchRename;
 
-    /// <summary>Opens the read-only object inspector on the one selected file.</summary>
+    /// <summary>Opens the Properties window on the one selected file, folder or link.</summary>
     public ICommand PropertiesCommand { get; }
 
     /// <summary>Opens the one selected file in the external editor.</summary>
@@ -1058,7 +1160,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     public static string PropertiesLabel => Ui.Commands.EditProperties;
 
     /// <summary>
-    /// Whether the selection is one file on a saved connection, which is what can be inspected.
+    /// Whether the selection is one item on a saved connection, which is what can be inspected.
     /// </summary>
     /// <remarks>
     /// The same rules as <see cref="InspectAsync"/> applies, so the button dims where the menu
@@ -1068,13 +1170,13 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         _inspect is not null &&
         !IsTerminal &&
         PaneTransferSnapshots.SelectionFor(_source, SelectedRows) is { IsSuccess: true } selection &&
-        PaneInspection.CanInspect(Here(), selection.Value.Items);
+        PaneInspection.CanInspect(Here(), selection.Value.Items, anyKind: true);
 
     /// <summary>
-    /// Opens the inspector on the selected file, or says why it cannot.
+    /// Opens the inspector on the selected item, or says why it cannot.
     /// </summary>
     /// <remarks>
-    /// The rules live in <see cref="PaneInspection"/>: exactly one file, on a saved connection the
+    /// The rules live in <see cref="PaneInspection"/>: exactly one item, on a saved connection the
     /// agent has identified, with an identity the contract accepts. Each refusal is a sentence in
     /// the status rather than a dialog, because it answers a menu click, not a question.
     /// </remarks>
@@ -1089,7 +1191,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             return;
         }
 
-        var address = PaneInspection.AddressFor(Here(), selection.Value.Items, out var problem);
+        var address = PaneInspection.AddressFor(Here(), selection.Value.Items, out var problem, anyKind: true);
         if (address is null)
         {
             Status = problem!;
@@ -1097,7 +1199,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        await _inspect(address).ConfigureAwait(true);
+        await _inspect(address, selection.Value.Items[0].Kind).ConfigureAwait(true);
     }
 
     public ICommand UpCommand { get; }
@@ -1163,22 +1265,92 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
     /// Skipped while the pane is busy with anything else, and a failure changes nothing: the next
     /// tick tries again, and a banner every five seconds for a flaky connection would be noise.
     /// </remarks>
-    internal async Task RefreshQuietlyAsync(CancellationToken cancellationToken = default)
+    /// <returns>Whether the folder was read; false when skipped, moved away from, or failed.</returns>
+    internal async Task<bool> RefreshQuietlyAsync(CancellationToken cancellationToken = default)
     {
-        if (_source is not { } source || IsTerminal || _busy || _loadingMore is not null) return;
+        if (!CanRefreshQuietly || _source is not { } source) return false;
 
         // Not a navigation of its own: the same folder read again, which anything that moves the
         // pane meanwhile makes stale.
         var navigation = _navigation;
         var result = await source.MoveAsync(PaneNavigationKind.Refresh, cancellationToken: cancellationToken)
             .ConfigureAwait(true);
-        if (navigation != _navigation || _busy || result.Listing is not { } listing) return;
+        if (navigation != _navigation || _busy || result.Listing is not { } listing) return false;
 
         _hasMore = listing.HasMore;
         Index.Reset(listing.Rows);
         SyncView();
         FollowTree(listing.Rows, append: false);
         Raise(nameof(HasMorePages));
+        await ReadSpaceAsync(navigation, source).ConfigureAwait(true);
+
+        // The folder may be gone and its parent shown instead, which is the one to follow now.
+        FollowFolder(readSettings: false);
+        return true;
+    }
+
+    /// <summary>Whether a quiet refresh would read the folder now, rather than wait.</summary>
+    private bool CanRefreshQuietly => _source is not null && !IsTerminal && !_busy && _loadingMore is null;
+
+    /// <summary>
+    /// Follows the folder the pane shows now for auto-refresh -- watched, polled or neither, as
+    /// the source and the settings say -- and runs the tick only while there is something to follow.
+    /// </summary>
+    private void FollowFolder(bool readSettings)
+    {
+        if (AutoRefreshSettings is not { } settings)
+        {
+            return;
+        }
+
+        if (readSettings)
+        {
+            _autoRefreshSettings = settings();
+            _autoRefreshSettingsRead = Clock();
+        }
+
+        var changes = IsTerminal ? PaneFolderChanges.None : _source?.Changes ?? PaneFolderChanges.None;
+        _autoRefresh ??= new FolderAutoRefresh(FolderWatch);
+        _autoRefresh.Follow(changes, _autoRefreshSettings, Clock);
+
+        if (_autoRefreshSettings.Enabled && changes != PaneFolderChanges.None)
+        {
+            _autoRefreshTimer ??= new DispatcherTimer(
+                AutoRefreshTick, DispatcherPriority.Background, (_, _) => _ = AutoRefreshAsync());
+            _autoRefreshTimer.Start();
+        }
+        else
+        {
+            _autoRefreshTimer?.Stop();
+        }
+    }
+
+    /// <summary>
+    /// One tick of auto-refresh: reads the folder again if it changed or is due, unless the pane
+    /// is busy, in which case it is still owed and read on a later tick.
+    /// </summary>
+    /// <returns>Whether the folder was read.</returns>
+    internal async Task<bool> AutoRefreshAsync()
+    {
+        if (_autoRefresh is null) return false;
+        var now = Clock();
+        if (now - _autoRefreshSettingsRead >= AutoRefreshSettingsReadEvery)
+        {
+            FollowFolder(readSettings: true);
+        }
+
+        if (!_autoRefresh.Due(now) || !CanRefreshQuietly) return false;
+
+        // Marked read before the listing goes, so a change while it is on its way is owed again.
+        _autoRefresh.Read(now);
+        return await RefreshQuietlyAsync().ConfigureAwait(true);
+    }
+
+    /// <summary>Stops following any folder, for a pane about to show something else or go away.</summary>
+    private void StopFollowingFolder()
+    {
+        _autoRefreshTimer?.Stop();
+        _autoRefresh?.Follow(PaneFolderChanges.None, _autoRefreshSettings, Clock);
     }
 
     /// <summary>
@@ -1253,7 +1425,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
 
         var target = new List<BrowserListItem>();
         if (!_isAtRoot) target.Add(BrowserParentNavigation.Item);
-        target.AddRange(Index.CreateView(_sortColumn, _sortAscending, NullIfEmpty(_filter)));
+        target.AddRange(Index.CreateView(_sortColumn, _sortAscending, NullIfEmpty(_filter), _showHidden));
         var wanted = target.ToHashSet();
 
         for (var index = Rows.Count - 1; index >= 0; index--)
@@ -1338,7 +1510,8 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
                         ConnectionIconCatalog.ResolveForConnection(
                             connection.IconKey, MapProvider(connection.Provider), connection.Type))
                         ?? LucideIconKind.Cloud,
-                    KindOf(connection)));
+                    KindOf(connection),
+                    connection.Provider));
             }
 
             if (navigation == _navigation) Status = string.Empty;
@@ -1386,6 +1559,8 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         ArgumentNullException.ThrowIfNull(choice);
         var navigation = ++_navigation;
         _standingBy = false;
+        FreeSpace = string.Empty;
+        StopFollowingFolder();
         IsBusy = true;
         try
         {
@@ -1600,7 +1775,8 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             _sortColumn,
             _sortAscending,
             HeaderHidden: !_showConnectionBar,
-            FilesBarHidden: !_showFilesBar);
+            FilesBarHidden: !_showFilesBar,
+            TreeHidden: !_showTree);
     }
 
     /// <summary>
@@ -1636,6 +1812,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         RaiseHeaders();
         ShowConnectionBar = !state.HeaderHidden;
         ShowFilesBar = !state.FilesBarHidden;
+        ShowTree = !state.TreeHidden;
 
         _restoring = true;
         try
@@ -1714,6 +1891,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         // is not being shown, and nothing is loading now.
         _navigation++;
         IsBusy = false;
+        StopFollowingFolder();
         await CloseTerminalAsync().ConfigureAwait(true);
         if (_source is LocalPaneSource local) await local.DisposeAsync().ConfigureAwait(true);
         _source = null;
@@ -1725,6 +1903,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         Raise(nameof(Connection));
         Raise(nameof(Title));
         Raise(nameof(ConnectionIcon));
+        Raise(nameof(IsFtpConnection));
         Status = Ui.Pane.AutoReconnectDisabled;
         _failed = false;
         _standingBy = true;
@@ -1970,6 +2149,36 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             : Ui.Format(Ui.Shell.DeletedThenStoppedFormat, outcome.Deleted, outcome.Failure!.Message)).ConfigureAwait(true);
     }
 
+    /// <summary>
+    /// Where this pane is, for Tools, Search and Checksums: null for a shell, or for a pane with
+    /// nothing open.
+    /// </summary>
+    internal PaneTransferContext? ToolLocation => IsTerminal ? null : Here();
+
+    /// <summary>The selected files and folders, as Tools, Checksums takes them; null when there are none to take.</summary>
+    internal PaneSelectionSnapshot? ToolSelection() =>
+        !IsTerminal && PaneTransferSnapshots.SelectionFor(_source, SelectedRows) is { IsSuccess: true } selection
+            ? selection.Value
+            : null;
+
+    /// <summary>
+    /// Opens a folder and selects an item in it, for a search result somebody chose: the pane goes
+    /// where the file is and shows it picked, as a file manager's "open containing folder" does.
+    /// </summary>
+    internal async Task RevealAsync(string folder, string name, CancellationToken cancellationToken = default)
+    {
+        await NavigateAsync(folder, cancellationToken).ConfigureAwait(true);
+        if (Rows.FirstOrDefault(row => !row.IsParentNavigation &&
+                string.Equals(row.Name, name, StringComparison.Ordinal)) is not { } found)
+        {
+            return;
+        }
+
+        SelectedRows.Clear();
+        SelectedRows.Add(found);
+        Selected = found;
+    }
+
     /// <summary>Where this pane is, as a location a mutation can act on.</summary>
     private PaneTransferContext? Here() =>
         PaneTransferSnapshots.ContextFor(_source) is { IsSuccess: true } context ? context.Value : null;
@@ -2150,6 +2359,8 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         // nothing: either would otherwise build a new index, and its SQLite file, for a pane that
         // is gone.
         _navigation++;
+        _autoRefreshTimer?.Stop();
+        _autoRefresh?.Dispose();
         await CloseTerminalAsync().ConfigureAwait(false);
         if (_source is LocalPaneSource local)
         {
@@ -2187,7 +2398,9 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         if (result.Listing is not { } listing)
         {
             Status = result.Error ?? Ui.Pane.Disconnected;
+            FreeSpace = string.Empty;
             _failed = true;
+            _needsTrust = result.NeedsTrust;
             RaiseConnectionState();
             RaiseListingState();
             RaiseCommands();
@@ -2213,6 +2426,9 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         ApplyView();
         Raise(nameof(Title));
         FollowTree(listing.Rows, append: false);
+        RecordVisit();
+        if (_source is { } source) _ = ReadSpaceAsync(navigation, source);
+        FollowFolder(readSettings: true);
     }
 
     /// <summary>
@@ -2252,7 +2468,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
             local ? Ui.Pane.ThisPc : Title,
             local,
             here.RelativePath,
-            rows,
+            _showHidden ? rows : [.. rows.Where(static row => !row.IsHidden)],
             append);
     }
 
@@ -2295,7 +2511,7 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         }
 
         var matched = 0;
-        foreach (var row in Index.CreateView(_sortColumn, _sortAscending, NullIfEmpty(_filter)))
+        foreach (var row in Index.CreateView(_sortColumn, _sortAscending, NullIfEmpty(_filter), _showHidden))
         {
             Rows.Add(row);
             matched++;
@@ -2410,6 +2626,10 @@ internal sealed class BrowserPaneModel : INotifyPropertyChanged, IAsyncDisposabl
         StorageConnectionProvider.S3 => StorageProviderKind.S3,
         StorageConnectionProvider.Ftp => StorageProviderKind.Ftp,
         StorageConnectionProvider.Ftps => StorageProviderKind.Ftps,
+        StorageConnectionProvider.WebDav => StorageProviderKind.WebDav,
+        StorageConnectionProvider.AzureBlob => StorageProviderKind.AzureBlob,
+        StorageConnectionProvider.GoogleCloudStorage => StorageProviderKind.GoogleCloudStorage,
+        StorageConnectionProvider.OpenStackSwift => StorageProviderKind.OpenStackSwift,
         StorageConnectionProvider.Sftp => StorageProviderKind.Sftp,
         StorageConnectionProvider.Ssh => StorageProviderKind.Ssh,
         _ => StorageProviderKind.Local

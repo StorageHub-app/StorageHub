@@ -58,6 +58,12 @@
                              Margin="{StaticResource DialogDetailMargin}"
                              TextWrapping="Wrap"
                              IsVisible="False"/>
+        <!-- A question with more answers than buttons, such as what to do with a file already
+             at a transfer's destination: the buttons answer, and this says with what. -->
+        <ComboBox Name="PART_Choices"
+                  Margin="{StaticResource DialogDetailMargin}"
+                  HorizontalAlignment="Stretch"
+                  IsVisible="False"/>
       </StackPanel>
     </Grid>
 

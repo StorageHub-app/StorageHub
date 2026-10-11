@@ -132,6 +132,17 @@ public sealed class ConnectionProfileIpcCommandService : IAgentIpcCommandHandler
                     mismatch);
             }
 
+            var jump = await ValidateJumpConnectionAsync(profile, cancellationToken).ConfigureAwait(false);
+            if (jump is not null)
+            {
+                return WriteFailure(
+                    ConnectionProfileIpcMessageTypes.CreateResponse,
+                    ContractWriteStatus.ValidationFailed,
+                    "connection.profile.jump_connection_invalid",
+                    StorageIpcFailureCategory.Validation,
+                    jump);
+            }
+
             var result = await _profiles.CreateAsync(profile, cancellationToken).ConfigureAwait(false);
             await SyncKeyStoreBindingsAsync(result, cancellationToken).ConfigureAwait(false);
             return MapWriteResult(ConnectionProfileIpcMessageTypes.CreateResponse, result);
@@ -202,6 +213,17 @@ public sealed class ConnectionProfileIpcCommandService : IAgentIpcCommandHandler
                     "connection.profile.key_store_kind_mismatch",
                     StorageIpcFailureCategory.Validation,
                     mismatch);
+            }
+
+            var jump = await ValidateJumpConnectionAsync(profile, cancellationToken).ConfigureAwait(false);
+            if (jump is not null)
+            {
+                return WriteFailure(
+                    ConnectionProfileIpcMessageTypes.UpdateResponse,
+                    ContractWriteStatus.ValidationFailed,
+                    "connection.profile.jump_connection_invalid",
+                    StorageIpcFailureCategory.Validation,
+                    jump);
             }
 
             var result = await _profiles.UpdateAsync(
@@ -373,6 +395,11 @@ public sealed class ConnectionProfileIpcCommandService : IAgentIpcCommandHandler
             yield return ("ftps.client-certificate", pfx.Value, KeyMaterialKind.Pkcs12Certificate);
         }
 
+        if (profile.Endpoint is WebDavEndpoint { ClientCertificatePfxReference: { } webDavPfx })
+        {
+            yield return ("webdav.client-certificate", webDavPfx.Value, KeyMaterialKind.Pkcs12Certificate);
+        }
+
         switch (profile.Authentication)
         {
             case SftpPrivateKeyAuthentication key:
@@ -382,6 +409,31 @@ public sealed class ConnectionProfileIpcCommandService : IAgentIpcCommandHandler
                 yield return ("ssh.private-key", key.PrivateKeyReference.Value, KeyMaterialKind.SshPrivateKey);
                 break;
         }
+    }
+
+    /// <summary>
+    /// Rejects an SFTP connection whose jump host is not a saved SFTP or SSH connection, or is
+    /// one that goes through a jump host of its own: the storage library opens one tunnel, not a
+    /// chain. Returns null when there is no jump host or it is usable.
+    /// </summary>
+    private async ValueTask<string?> ValidateJumpConnectionAsync(
+        ConnectionProfile profile,
+        CancellationToken cancellationToken)
+    {
+        if (profile.Endpoint is not SftpEndpoint { ServerOptions.JumpConnectionId: { } jumpId })
+        {
+            return null;
+        }
+
+        var jump = await _profiles.GetAsync(jumpId, includeDeleted: false, cancellationToken).ConfigureAwait(false);
+        return jump switch
+        {
+            null => "The jump host is not a saved connection.",
+            { Endpoint: SftpEndpoint { ServerOptions.JumpConnectionId: not null } } =>
+                $"'{jump.Metadata.DisplayName}' goes through a jump host of its own, so it cannot be one.",
+            { Endpoint: SftpEndpoint or SshClientEndpoint } => null,
+            _ => $"'{jump.Metadata.DisplayName}' is not an SFTP or SSH connection, so it cannot be a jump host."
+        };
     }
 
     /// <summary>
@@ -471,7 +523,7 @@ public sealed class ConnectionProfileIpcCommandService : IAgentIpcCommandHandler
     }
 
     private static readonly string[] AllKeyStoreSlots =
-        ["ftps.client-certificate", "sftp.private-key", "ssh.private-key"];
+        ["ftps.client-certificate", "webdav.client-certificate", "sftp.private-key", "ssh.private-key"];
 
     private DateTimeOffset UtcNow() => _timeProvider.GetUtcNow().ToUniversalTime();
 
@@ -595,9 +647,35 @@ internal static class ConnectionProfileIpcMapper
                 value.RootPath,
                 ToFtpOptions(value.Ftp)),
             StorageConnectionProvider.Sftp => new SftpEndpoint(
-                value.Host!, value.Port!.Value, MapSshPolicy(value.SshHostKeyPolicy), value.RootPath),
+                value.Host!, value.Port!.Value, MapSshPolicy(value.SshHostKeyPolicy), value.RootPath,
+                ToSftpOptions(value.Sftp)),
             StorageConnectionProvider.Ssh => new SshClientEndpoint(
                 value.Host!, value.Port!.Value, MapSshPolicy(value.SshHostKeyPolicy)),
+            StorageConnectionProvider.WebDav => new WebDavEndpoint(
+                new Uri(value.ServiceEndpoint!, UriKind.Absolute),
+                MapTlsPolicy(value.TlsPolicy),
+                value.AllowInsecureTransport,
+                MapCredentialScheme(value.HttpCredentialScheme),
+                ParseOptionalSecretReference(value.ClientCertificatePfxReference),
+                ParseOptionalSecretReference(value.ClientCertificatePasswordReference),
+                value.RootPath),
+            StorageConnectionProvider.AzureBlob => new AzureBlobEndpoint(
+                value.Bucket!,
+                ParseOptionalAbsoluteUri(value.ServiceEndpoint),
+                value.AllowInsecureTransport,
+                value.RootPath),
+            StorageConnectionProvider.GoogleCloudStorage => new GoogleCloudStorageEndpoint(
+                value.Bucket!,
+                ParseOptionalAbsoluteUri(value.ServiceEndpoint),
+                value.AllowInsecureTransport,
+                value.RootPath),
+            StorageConnectionProvider.OpenStackSwift => new SwiftEndpoint(
+                value.Bucket!,
+                ParseOptionalAbsoluteUri(value.ServiceEndpoint),
+                ParseOptionalAbsoluteUri(value.StorageUrl),
+                string.IsNullOrEmpty(value.Region) ? null : value.Region,
+                value.AllowInsecureTransport,
+                value.RootPath),
             _ => throw new ArgumentOutOfRangeException(nameof(value), "The provider is invalid.")
         };
     }
@@ -638,12 +716,42 @@ internal static class ConnectionProfileIpcMapper
             RootPath: endpoint.RootPath,
             Host: endpoint.Host,
             Port: endpoint.Port,
-            SshHostKeyPolicy: MapSshPolicy(endpoint.HostKeyPolicy)),
+            SshHostKeyPolicy: MapSshPolicy(endpoint.HostKeyPolicy),
+            Sftp: ToSftpOptionsDocument(endpoint.ServerOptions)),
         SshClientEndpoint endpoint => new(
             StorageConnectionProvider.Ssh,
             Host: endpoint.Host,
             Port: endpoint.Port,
             SshHostKeyPolicy: MapSshPolicy(endpoint.HostKeyPolicy)),
+        WebDavEndpoint endpoint => new(
+            StorageConnectionProvider.WebDav,
+            RootPath: endpoint.RootPath,
+            ServiceEndpoint: endpoint.ServerUrl.AbsoluteUri,
+            TlsPolicy: MapTlsPolicy(endpoint.TlsPolicy),
+            AllowInsecureTransport: endpoint.AllowInsecureHttp,
+            ClientCertificatePfxReference: endpoint.ClientCertificatePfxReference?.Value,
+            ClientCertificatePasswordReference: endpoint.ClientCertificatePasswordReference?.Value,
+            HttpCredentialScheme: MapCredentialScheme(endpoint.CredentialScheme)),
+        AzureBlobEndpoint endpoint => new(
+            StorageConnectionProvider.AzureBlob,
+            RootPath: endpoint.RootPrefix,
+            Bucket: endpoint.Container,
+            ServiceEndpoint: endpoint.ServiceUri?.AbsoluteUri,
+            AllowInsecureTransport: endpoint.AllowInsecureHttp),
+        GoogleCloudStorageEndpoint endpoint => new(
+            StorageConnectionProvider.GoogleCloudStorage,
+            RootPath: endpoint.RootPrefix,
+            Bucket: endpoint.Bucket,
+            ServiceEndpoint: endpoint.ServiceUri?.AbsoluteUri,
+            AllowInsecureTransport: endpoint.AllowInsecureHttp),
+        SwiftEndpoint endpoint => new(
+            StorageConnectionProvider.OpenStackSwift,
+            RootPath: endpoint.RootPrefix,
+            Bucket: endpoint.Container,
+            Region: endpoint.Region,
+            ServiceEndpoint: endpoint.AuthenticationUrl?.AbsoluteUri,
+            AllowInsecureTransport: endpoint.AllowInsecureHttp,
+            StorageUrl: endpoint.StorageUrl?.AbsoluteUri),
         _ => throw new NotSupportedException("The connection endpoint type is not supported by IPC.")
     };
 
@@ -667,6 +775,23 @@ internal static class ConnectionProfileIpcMapper
                 SecretReference.Parse(value.PrivateKeyReference!),
                 ParseOptionalSecretReference(value.PrivateKeyPassphraseReference),
                 MapPrivateKeyFormat(value.PrivateKeyFormat)),
+            ConnectionAuthenticationKind.BearerToken => new BearerTokenAuthentication(
+                SecretReference.Parse(value.SessionTokenReference!)),
+            ConnectionAuthenticationKind.AmbientCredential => new AmbientCredentialAuthentication(),
+            ConnectionAuthenticationKind.AzureSharedKey => new AzureSharedKeyAuthentication(
+                value.Username!, SecretReference.Parse(value.SecretKeyReference!)),
+            ConnectionAuthenticationKind.AzureSasToken => new AzureSasTokenAuthentication(
+                SecretReference.Parse(value.SessionTokenReference!)),
+            ConnectionAuthenticationKind.AzureConnectionString => new AzureConnectionStringAuthentication(
+                SecretReference.Parse(value.SecretKeyReference!)),
+            ConnectionAuthenticationKind.GoogleServiceAccount => new GoogleServiceAccountAuthentication(
+                SecretReference.Parse(value.SecretKeyReference!)),
+            ConnectionAuthenticationKind.KeystonePassword => new KeystonePasswordAuthentication(
+                value.Username!,
+                SecretReference.Parse(value.PasswordReference!),
+                value.Keystone!.ProjectName,
+                value.Keystone.UserDomainName,
+                value.Keystone.ProjectDomainName),
             ConnectionAuthenticationKind.SshPrivateKeyPassword => new SshPrivateKeyPasswordAuthentication(
                 value.Username!,
                 SecretReference.Parse(value.PasswordReference!),
@@ -699,6 +824,31 @@ internal static class ConnectionProfileIpcMapper
             PrivateKeyReference: authentication.PrivateKeyReference.Value,
             PrivateKeyPassphraseReference: authentication.PassphraseReference?.Value,
             PrivateKeyFormat: MapPrivateKeyFormat(authentication.KeyFormat)),
+        BearerTokenAuthentication authentication => new(
+            ConnectionAuthenticationKind.BearerToken,
+            SessionTokenReference: authentication.TokenReference.Value),
+        AmbientCredentialAuthentication => new(ConnectionAuthenticationKind.AmbientCredential),
+        AzureSharedKeyAuthentication authentication => new(
+            ConnectionAuthenticationKind.AzureSharedKey,
+            Username: authentication.AccountName,
+            SecretKeyReference: authentication.AccountKeyReference.Value),
+        AzureSasTokenAuthentication authentication => new(
+            ConnectionAuthenticationKind.AzureSasToken,
+            SessionTokenReference: authentication.SasTokenReference.Value),
+        AzureConnectionStringAuthentication authentication => new(
+            ConnectionAuthenticationKind.AzureConnectionString,
+            SecretKeyReference: authentication.ConnectionStringReference.Value),
+        GoogleServiceAccountAuthentication authentication => new(
+            ConnectionAuthenticationKind.GoogleServiceAccount,
+            SecretKeyReference: authentication.ServiceAccountJsonReference.Value),
+        KeystonePasswordAuthentication authentication => new(
+            ConnectionAuthenticationKind.KeystonePassword,
+            Username: authentication.Username,
+            PasswordReference: authentication.PasswordReference.Value,
+            Keystone: new ConnectionKeystoneDocument(
+                authentication.ProjectName,
+                authentication.UserDomainName,
+                authentication.ProjectDomainName)),
         SshPrivateKeyPasswordAuthentication authentication => new(
             ConnectionAuthenticationKind.SshPrivateKeyPassword,
             Username: authentication.Username,
@@ -738,6 +888,30 @@ internal static class ConnectionProfileIpcMapper
                 value.ActivePortMinimum,
                 value.ActivePortMaximum,
                 value.ActiveExternalAddress?.ToString());
+
+    private static SftpServerOptions? ToSftpOptions(ConnectionSftpOptionsDocument? value) => value is null
+        ? null
+        : new SftpServerOptions(
+            value.JumpConnectionId is { } jump ? new ConnectionProfileId(jump) : null,
+            value.KeyExchangeAlgorithms,
+            value.Ciphers,
+            value.MacAlgorithms,
+            value.HostKeyAlgorithms,
+            value.MaximumSessions,
+            value.KeepAliveSeconds);
+
+    // Null for the defaults, so a document about an ordinary SFTP server carries nothing extra.
+    private static ConnectionSftpOptionsDocument? ToSftpOptionsDocument(SftpServerOptions value) =>
+        value == SftpServerOptions.Default
+            ? null
+            : new ConnectionSftpOptionsDocument(
+                value.JumpConnectionId?.Value,
+                value.KeyExchangeAlgorithms,
+                value.Ciphers,
+                value.MacAlgorithms,
+                value.HostKeyAlgorithms,
+                value.MaximumSessions,
+                value.KeepAliveSeconds);
 
     private static ConnectionOperationalOptions ToOperationalOptions(ConnectionOperationalOptionsDocument value)
     {
@@ -804,10 +978,12 @@ internal static class ConnectionProfileIpcMapper
                 value.TlsPolicy == ConnectionTlsCertificatePolicy.SystemTrust &&
                 value.FtpsTlsMode == ConnectionFtpsTlsMode.Explicit &&
                 value.SshHostKeyPolicy == ConnectionSshHostKeyPolicy.Pinned,
+            // A PFX may carry no password, so the password is optional beside it; a password without
+            // a PFX describes nothing.
             StorageConnectionProvider.Ftps =>
                 Present(value.Host) && value.Port is not null && Empty(value.Bucket) && Empty(value.Region) &&
                 Empty(value.ServiceEndpoint) && !value.ForcePathStyle && !value.AllowInsecureTransport &&
-                (Empty(value.ClientCertificatePfxReference) == Empty(value.ClientCertificatePasswordReference)) &&
+                (Empty(value.ClientCertificatePasswordReference) || !Empty(value.ClientCertificatePfxReference)) &&
                 value.SshHostKeyPolicy == ConnectionSshHostKeyPolicy.Pinned,
             StorageConnectionProvider.Sftp =>
                 Present(value.Host) && value.Port is not null && Empty(value.Bucket) && Empty(value.Region) &&
@@ -821,8 +997,42 @@ internal static class ConnectionProfileIpcMapper
                 Empty(value.ClientCertificatePfxReference) && Empty(value.ClientCertificatePasswordReference) &&
                 value.TlsPolicy == ConnectionTlsCertificatePolicy.SystemTrust &&
                 value.FtpsTlsMode == ConnectionFtpsTlsMode.Explicit,
+            // A PFX may carry no password, as for FTPS; a password without a PFX describes nothing.
+            StorageConnectionProvider.WebDav =>
+                Present(value.ServiceEndpoint) && Empty(value.Host) && value.Port is null &&
+                Empty(value.Bucket) && Empty(value.Region) && !value.ForcePathStyle &&
+                (Empty(value.ClientCertificatePasswordReference) || !Empty(value.ClientCertificatePfxReference)) &&
+                value.FtpsTlsMode == ConnectionFtpsTlsMode.Explicit &&
+                value.SshHostKeyPolicy == ConnectionSshHostKeyPolicy.Pinned,
+            // Plain HTTP can only come from a connection string, which is when there is no service URL.
+            StorageConnectionProvider.AzureBlob =>
+                Present(value.Bucket) && Empty(value.Host) && value.Port is null && Empty(value.Region) &&
+                !value.ForcePathStyle && (!value.AllowInsecureTransport || Empty(value.ServiceEndpoint)) &&
+                Empty(value.ClientCertificatePfxReference) && Empty(value.ClientCertificatePasswordReference) &&
+                value.TlsPolicy == ConnectionTlsCertificatePolicy.SystemTrust &&
+                value.FtpsTlsMode == ConnectionFtpsTlsMode.Explicit &&
+                value.SshHostKeyPolicy == ConnectionSshHostKeyPolicy.Pinned,
+            // Somewhere to sign in, somewhere to send a token, or both.
+            StorageConnectionProvider.OpenStackSwift =>
+                Present(value.Bucket) && Empty(value.Host) && value.Port is null && !value.ForcePathStyle &&
+                (Present(value.ServiceEndpoint) || Present(value.StorageUrl)) &&
+                Empty(value.ClientCertificatePfxReference) && Empty(value.ClientCertificatePasswordReference) &&
+                value.TlsPolicy == ConnectionTlsCertificatePolicy.SystemTrust &&
+                value.FtpsTlsMode == ConnectionFtpsTlsMode.Explicit &&
+                value.SshHostKeyPolicy == ConnectionSshHostKeyPolicy.Pinned,
+            // Plain HTTP is a property of a service URL, so it means nothing without one.
+            StorageConnectionProvider.GoogleCloudStorage =>
+                Present(value.Bucket) && Empty(value.Host) && value.Port is null && Empty(value.Region) &&
+                !value.ForcePathStyle && (!value.AllowInsecureTransport || Present(value.ServiceEndpoint)) &&
+                Empty(value.ClientCertificatePfxReference) && Empty(value.ClientCertificatePasswordReference) &&
+                value.TlsPolicy == ConnectionTlsCertificatePolicy.SystemTrust &&
+                value.FtpsTlsMode == ConnectionFtpsTlsMode.Explicit &&
+                value.SshHostKeyPolicy == ConnectionSshHostKeyPolicy.Pinned,
             _ => false
         };
+        valid &= value.HttpCredentialScheme == ConnectionHttpCredentialScheme.Basic ||
+            value.Provider == StorageConnectionProvider.WebDav;
+        valid &= Empty(value.StorageUrl) || value.Provider == StorageConnectionProvider.OpenStackSwift;
         if (!valid)
         {
             throw new ArgumentException(
@@ -842,13 +1052,20 @@ internal static class ConnectionProfileIpcMapper
         var hasPassphrase = Present(value.PrivateKeyPassphraseReference);
         var valid = value.Kind switch
         {
-            ConnectionAuthenticationKind.None or ConnectionAuthenticationKind.S3DefaultCredentialChain =>
+            ConnectionAuthenticationKind.None or ConnectionAuthenticationKind.S3DefaultCredentialChain or
+                ConnectionAuthenticationKind.AmbientCredential =>
                 !hasUsername && !hasCredential && !hasPassword && !hasAccess && !hasSecret &&
+                !hasToken && !hasKey && !hasPassphrase,
+            ConnectionAuthenticationKind.AzureSharedKey =>
+                hasUsername && !hasCredential && !hasPassword && !hasAccess && hasSecret &&
+                !hasToken && !hasKey && !hasPassphrase,
+            ConnectionAuthenticationKind.AzureConnectionString or ConnectionAuthenticationKind.GoogleServiceAccount =>
+                !hasUsername && !hasCredential && !hasPassword && !hasAccess && hasSecret &&
                 !hasToken && !hasKey && !hasPassphrase,
             ConnectionAuthenticationKind.CredentialReference =>
                 !hasUsername && hasCredential && !hasPassword && !hasAccess && !hasSecret &&
                 !hasToken && !hasKey && !hasPassphrase,
-            ConnectionAuthenticationKind.UsernamePassword =>
+            ConnectionAuthenticationKind.UsernamePassword or ConnectionAuthenticationKind.KeystonePassword =>
                 hasUsername && !hasCredential && hasPassword && !hasAccess && !hasSecret &&
                 !hasToken && !hasKey && !hasPassphrase,
             ConnectionAuthenticationKind.S3AccessKey =>
@@ -860,8 +1077,15 @@ internal static class ConnectionProfileIpcMapper
             ConnectionAuthenticationKind.SshPrivateKeyPassword =>
                 hasUsername && !hasCredential && hasPassword && !hasAccess && !hasSecret &&
                 !hasToken && hasKey,
+            ConnectionAuthenticationKind.BearerToken or ConnectionAuthenticationKind.AzureSasToken =>
+                !hasUsername && !hasCredential && !hasPassword && !hasAccess && !hasSecret &&
+                hasToken && !hasKey && !hasPassphrase,
             _ => false
         };
+        // The project and domains belong to Keystone and to nothing else.
+        valid &= value.Keystone is null
+            ? value.Kind != ConnectionAuthenticationKind.KeystonePassword
+            : value.Kind == ConnectionAuthenticationKind.KeystonePassword && value.Keystone.HasValidBounds;
         if (!valid)
         {
             throw new ArgumentException(
@@ -889,7 +1113,29 @@ internal static class ConnectionProfileIpcMapper
         StorageConnectionProvider.Ftps => ConnectionProviderKind.Ftps,
         StorageConnectionProvider.Sftp => ConnectionProviderKind.Sftp,
         StorageConnectionProvider.Ssh => ConnectionProviderKind.Ssh,
+        StorageConnectionProvider.WebDav => ConnectionProviderKind.WebDav,
+        StorageConnectionProvider.AzureBlob => ConnectionProviderKind.AzureBlob,
+        StorageConnectionProvider.GoogleCloudStorage => ConnectionProviderKind.GoogleCloudStorage,
+        StorageConnectionProvider.OpenStackSwift => ConnectionProviderKind.OpenStackSwift,
         _ => throw new ArgumentOutOfRangeException(nameof(value), value, "The provider is invalid.")
+    };
+
+    private static HttpCredentialScheme MapCredentialScheme(ConnectionHttpCredentialScheme value) => value switch
+    {
+        ConnectionHttpCredentialScheme.Basic => HttpCredentialScheme.Basic,
+        ConnectionHttpCredentialScheme.Digest => HttpCredentialScheme.Digest,
+        ConnectionHttpCredentialScheme.Ntlm => HttpCredentialScheme.Ntlm,
+        ConnectionHttpCredentialScheme.Negotiate => HttpCredentialScheme.Negotiate,
+        _ => throw new ArgumentOutOfRangeException(nameof(value), value, "The HTTP credential scheme is invalid.")
+    };
+
+    private static ConnectionHttpCredentialScheme MapCredentialScheme(HttpCredentialScheme value) => value switch
+    {
+        HttpCredentialScheme.Basic => ConnectionHttpCredentialScheme.Basic,
+        HttpCredentialScheme.Digest => ConnectionHttpCredentialScheme.Digest,
+        HttpCredentialScheme.Ntlm => ConnectionHttpCredentialScheme.Ntlm,
+        HttpCredentialScheme.Negotiate => ConnectionHttpCredentialScheme.Negotiate,
+        _ => throw new ArgumentOutOfRangeException(nameof(value), value, "The HTTP credential scheme is invalid.")
     };
 
     private static TlsCertificatePolicy MapTlsPolicy(ConnectionTlsCertificatePolicy value) => value switch

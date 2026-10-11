@@ -85,7 +85,8 @@ internal sealed class CommandStrings : LocalizationModelBase
 
     public string EditProperties { get; set; } = "Properties";
 
-    public string EditPropertiesDescription { get; set; } = "Inspect read-only versions, metadata, and tags for one saved-connection file.";
+    public string EditPropertiesDescription { get; set; } =
+        "Show the permissions, owner and times of one item on a saved connection, change its permissions or modified time where the connection allows, and see a file's versions, metadata and tags.";
 
     public string ViewRefresh { get; set; } = "Refresh";
 
@@ -161,7 +162,7 @@ internal sealed class CommandStrings : LocalizationModelBase
 
     public string ConnectionsQuickConnect { get; set; } = "Quick Connect...";
 
-    public string ConnectionsQuickConnectDescription { get; set; } = "Open a temporary connection without saving credentials in the profile.";
+    public string ConnectionsQuickConnectDescription { get; set; } = "Find a saved connection by name and open it in the active pane.";
 
     public string ConnectionsReconnect { get; set; } = "Reconnect";
 
@@ -174,6 +175,11 @@ internal sealed class CommandStrings : LocalizationModelBase
     public string ConnectionsTestConnection { get; set; } = "Test Connection";
 
     public string ConnectionsTestConnectionDescription { get; set; } = "Check that the selected profile can reach its endpoint.";
+
+    public string ConnectionsFtpConsole { get; set; } = "FTP Command Console…";
+
+    public string ConnectionsFtpConsoleDescription { get; set; } =
+        "Send raw commands to the active pane's FTP or FTPS server and read its replies.";
 
     public string TransferStartQueue { get; set; } = "Start Queue";
 
@@ -218,6 +224,11 @@ internal sealed class CommandStrings : LocalizationModelBase
     public string ToolsBackgroundAgent { get; set; } = "Background Agent...";
 
     public string ToolsBackgroundAgentDescription { get; set; } = "Check whether the background agent is running and start, stop, or restart it.";
+
+    public string ToolsCleanUpLeftovers { get; set; } = "Clean Up Leftover Files...";
+
+    public string ToolsCleanUpLeftoversDescription { get; set; } =
+        "Find the working files interrupted transfers and the external editor left behind, and remove the ones you choose.";
 
     public string ToolsChecksums { get; set; } = "Checksums...";
 

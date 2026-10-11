@@ -64,6 +64,25 @@ public class PaneInspectionTests
         Assert.False(PaneInspection.CanInspect(Saved(), [Folder("shots")]));
     }
 
+    /// <summary>
+    /// Properties asks for any kind: a folder and a link have permissions and times too, while
+    /// external editing, which asks for the same address, still takes a file only.
+    /// </summary>
+    [Fact]
+    public void PropertiesTakesAFolderOrALink()
+    {
+        var folder = PaneInspection.AddressFor(Saved(), [Folder("shots")], out var problem, anyKind: true);
+        Assert.Null(problem);
+        Assert.Equal("shots", folder?.RelativePath);
+
+        var link = PaneTransferItem.Create("latest", "latest", StorageItemKind.SymbolicLink, null).Value;
+        Assert.True(PaneInspection.CanInspect(Saved(), [link], anyKind: true));
+        Assert.False(PaneInspection.CanInspect(Saved(), [link]));
+
+        Assert.Null(PaneInspection.AddressFor(Saved(), [Folder("a"), Folder("b")], out var two, anyKind: true));
+        Assert.Equal(Ui.Shell.SelectOneToInspect, two);
+    }
+
     private static PaneTransferContext Saved() =>
         PaneTransferContext.Create(PaneTransferContextKind.SavedConnection, Connection, "root", "shots").Value;
 

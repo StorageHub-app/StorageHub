@@ -46,7 +46,7 @@ public class RecentAndNewPaneTests
     }
 
     [AvaloniaFact]
-    public void AConnectionCardOffersOpenOpenInNewPaneToggleFavoriteEditAndDelete()
+    public void AConnectionCardOffersOpenOpenInNewPaneToggleFavoriteEditDuplicateAndDelete()
     {
         var sidebar = ShellPreview.CreateOnWorkspace().Sidebar;
         var row = new ConnectionRowModel(ConnectionCardFactory.Create(WorkspaceFakes.Summary("Studio")));
@@ -57,6 +57,7 @@ public class RecentAndNewPaneTests
             [Localization.Ui.Connections.ContextOpen, Localization.Ui.Connections.ContextOpenInNewPane,
              CommandEntry.SeparatorLabel,
              Localization.Ui.Connections.ContextToggleFavorite, Localization.Ui.Connections.ContextEdit,
+             Localization.Ui.Connections.ContextDuplicate,
              CommandEntry.SeparatorLabel,
              Localization.Ui.Connections.ContextDelete],
             labels);

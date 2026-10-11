@@ -46,7 +46,8 @@ public sealed record RemoteBrowserNavigationResult(
     RemoteBrowserSnapshot? Snapshot = null,
     string? ErrorMessage = null,
     string? UnavailablePath = null,
-    bool AppendedPage = false);
+    bool AppendedPage = false,
+    bool NeedsTrust = false);
 
 public static class RemoteBrowserPath
 {
@@ -272,7 +273,8 @@ public sealed class RemoteBrowserController : IAsyncDisposable
             {
                 return new(
                     RemoteBrowserOperationStatus.Failed,
-                    ErrorMessage: RemoteBrowserErrors.ForFailure(test.Failure));
+                    ErrorMessage: RemoteBrowserErrors.ForFailure(test.Failure),
+                    NeedsTrust: RemoteBrowserErrors.NeedsTrust(test.Failure));
             }
 
             var listed = await ListPageAsync(connection, string.Empty, null, DefaultPageSize, operation.Cancellation.Token)
@@ -289,7 +291,8 @@ public sealed class RemoteBrowserController : IAsyncDisposable
             {
                 return new(
                     RemoteBrowserOperationStatus.Failed,
-                    ErrorMessage: RemoteBrowserErrors.ForFailure(listed.Failure));
+                    ErrorMessage: RemoteBrowserErrors.ForFailure(listed.Failure),
+                    NeedsTrust: RemoteBrowserErrors.NeedsTrust(listed.Failure));
             }
 
             SelectedConnection = connection;
@@ -415,7 +418,8 @@ public sealed class RemoteBrowserController : IAsyncDisposable
 
                 return new(
                     RemoteBrowserOperationStatus.Failed,
-                    ErrorMessage: RemoteBrowserErrors.ForFailure(listed.Failure));
+                    ErrorMessage: RemoteBrowserErrors.ForFailure(listed.Failure),
+                    NeedsTrust: RemoteBrowserErrors.NeedsTrust(listed.Failure));
             }
 
             _history.Commit(kind, target);
@@ -472,7 +476,8 @@ public sealed class RemoteBrowserController : IAsyncDisposable
             {
                 return new(
                     RemoteBrowserOperationStatus.Failed,
-                    ErrorMessage: RemoteBrowserErrors.ForFailure(listed.Failure));
+                    ErrorMessage: RemoteBrowserErrors.ForFailure(listed.Failure),
+                    NeedsTrust: RemoteBrowserErrors.NeedsTrust(listed.Failure));
             }
 
             if (!string.Equals(listed.RootIdentity, current.RootIdentity, StringComparison.Ordinal) ||
@@ -510,6 +515,45 @@ public sealed class RemoteBrowserController : IAsyncDisposable
         finally
         {
             EndOperation(operation);
+        }
+    }
+
+    /// <summary>How long a free-space read may hold the pane's pipe before it is given up.</summary>
+    private static readonly TimeSpan SpaceTimeout = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// The free space behind the folder being shown, or null wherever it is not known: a provider
+    /// that does not report it, an agent too old to be asked, or one that did not answer in time.
+    /// </summary>
+    /// <remarks>
+    /// Not an operation of its own, so it neither cancels a navigation nor is cancelled by one: the
+    /// two queue on the pane's one pipe, and the deadline keeps a slow server from holding a
+    /// navigation behind a figure that is only a nicety. A failure is never reported; the status
+    /// line just leaves the figure out.
+    /// </remarks>
+    public async Task<FolderSpace?> GetSpaceAsync(CancellationToken cancellationToken = default)
+    {
+        if (_disposed || CurrentSnapshot is not { } snapshot) return null;
+
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(SpaceTimeout);
+        try
+        {
+            var response = await _client.GetSpaceAsync(
+                new StorageSpaceRequest(
+                    StorageIpcContract.CurrentVersion,
+                    snapshot.Connection.ConnectionId,
+                    snapshot.RelativePath),
+                deadline.Token).ConfigureAwait(false);
+            return FolderSpace.From(response.Space);
+        }
+        catch (OperationCanceledException)
+        {
+            return null;
+        }
+        catch (Exception error) when (error is NotSupportedException || RemoteBrowserErrors.IsExpected(error))
+        {
+            return null;
         }
     }
 
@@ -761,6 +805,15 @@ internal static class RemoteBrowserErrors
     /// under one category -- a login refused versus a folder refused, a server that cannot be
     /// reached versus one that dropped the connection -- and the agent passes the code through.
     /// </remarks>
+    /// <summary>
+    /// Whether the failure is the server's identity: a host key or certificate that is not the
+    /// trusted one, or none trusted yet. Somebody can fix that from the connection's Trust tab.
+    /// </summary>
+    public static bool NeedsTrust(StorageIpcFailure? failure) =>
+        failure is not null &&
+        (failure.Category == StorageIpcFailureCategory.Security ||
+            failure.Code.StartsWith("storage.trust.", StringComparison.Ordinal));
+
     public static string ForFailure(StorageIpcFailure? failure) => failure?.Code switch
     {
         "storage.permission_denied" => Ui.Validation.TheProviderAcceptedTheLoginButRefused,

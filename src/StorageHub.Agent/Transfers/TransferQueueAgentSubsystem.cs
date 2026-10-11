@@ -133,6 +133,35 @@ public sealed class TransferQueueAgentSubsystem
             : ActiveTransferCancellationResult.AlreadyRequested;
     }
 
+    /// <summary>
+    /// Stops a running transfer at its next safe point and leaves it paused, keeping what it staged
+    /// so Retry goes on from there. A cancel already asked for wins: it is the stronger request.
+    /// </summary>
+    public ActiveTransferCancellationResult TryRequestActivePause(
+        Domain.Identifiers.TransferJobId transferJobId,
+        long expectedRevision)
+    {
+        if (transferJobId.IsEmpty)
+        {
+            throw new ArgumentException("A transfer job ID is required.", nameof(transferJobId));
+        }
+
+        ArgumentOutOfRangeException.ThrowIfNegative(expectedRevision);
+        if (!_activeExecutions.TryGetValue(transferJobId, out var active))
+        {
+            return ActiveTransferCancellationResult.NotActive;
+        }
+
+        if (active.ExpectedRevision != expectedRevision)
+        {
+            return ActiveTransferCancellationResult.RevisionConflict;
+        }
+
+        return active.RequestPause()
+            ? ActiveTransferCancellationResult.Accepted
+            : ActiveTransferCancellationResult.AlreadyRequested;
+    }
+
     public async Task<SubsystemInitializationResult> InitializeAsync(CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -483,11 +512,22 @@ public sealed class TransferQueueAgentSubsystem
                         // writes. Without it nothing could be uploaded to SFTP or FTP at all,
                         // since neither can create a file atomically. An endpoint that can is
                         // written atomically as before.
+                        //
+                        // Resumable wherever both ends can: an interruption keeps what was
+                        // staged and the retry sends the rest, unless somebody cancelled the
+                        // transfer, whose staged bytes nobody will continue.
                         new TransferExecutionOptions(
                             Overwrite: context.Job.Intent.ExpectedDestinationVersionId is not null ||
                                        context.Job.Intent.ExpectedDestinationEntityTag is not null,
                             BufferSize: _options.BufferSize,
-                            AllowNonAtomicDestinationWrites: true),
+                            AllowNonAtomicDestinationWrites: true,
+                            Resumable: true,
+                            DiscardStagedOnCancellation: () => activeControl.IsCancellationRequestedByUser,
+                            ResumeReady: point =>
+                            {
+                                context.ResumePoint = point;
+                                progress.StartFrom(point.ResumedBytes);
+                            }),
                         progress,
                         executionLifetime.Token).ConfigureAwait(false);
                 }
@@ -531,6 +571,12 @@ public sealed class TransferQueueAgentSubsystem
                 if (activeControl.IsCancellationRequestedByUser)
                 {
                     await TransitionCancelledAsync(context).ConfigureAwait(false);
+                    return false;
+                }
+
+                if (activeControl.IsPauseRequestedByUser)
+                {
+                    await TransitionPausedAsync(context).ConfigureAwait(false);
                     return false;
                 }
 
@@ -751,6 +797,22 @@ public sealed class TransferQueueAgentSubsystem
         }
     }
 
+    /// <summary>
+    /// Leaves a transfer somebody paused where it stopped. Its staged bytes are kept, since only a
+    /// cancel discards them, so a Retry resumes it wherever both ends can.
+    /// </summary>
+    private async Task TransitionPausedAsync(ClaimContext context)
+    {
+        using var storeWriteTimeout = CreateStoreWriteTimeout();
+        if (!await TryTransitionAsync(
+                context,
+                TransferState.Paused,
+                cancellationToken: storeWriteTimeout.Token).ConfigureAwait(false))
+        {
+            RecordLeaseLoss();
+        }
+    }
+
     private async Task TransitionUncertainAsync(ClaimContext context, string summary)
     {
         using var storeWriteTimeout = CreateStoreWriteTimeout();
@@ -918,20 +980,24 @@ public sealed class TransferQueueAgentSubsystem
             bytesTransferred = Math.Min(bytesTransferred, length);
         }
 
+        // A resumable transfer records where its staged bytes are, as the source looked when they
+        // were read. The next attempt does not depend on it -- the endpoint measures what is
+        // staged -- but it says what an interrupted transfer has to continue from.
+        var resume = context.ResumePoint;
         var checkpoint = TransferCheckpoint.Create(
             context.Lease.TransferJobId,
             context.Lease.Attempt,
             Math.Max(0, bytesTransferred),
             expectedLength,
-            context.Job.Intent.Source,
+            resume?.Source ?? context.Job.Intent.Source,
             CreateCheckpointDestination(context.Job.Intent),
-            TransferResumeMode.None,
+            resume is null ? TransferResumeMode.None : TransferResumeMode.Offset,
             sourceDigest: context.Job.Intent.ExpectedSourceDigest is null
                 ? null
                 : new TransferContentDigest(
                     context.Job.Intent.ExpectedSourceDigest.AlgorithmName,
                     context.Job.Intent.ExpectedSourceDigest.Value),
-            providerResumeId: null,
+            providerResumeId: resume?.ResumeToken,
             completedParts: [],
             NextTransitionTime(context.Job.State));
         var saved = await _store.TrySaveCheckpointAsync(
@@ -1014,6 +1080,9 @@ public sealed class TransferQueueAgentSubsystem
         public TransferJobLease Lease { get; } = claim.Lease;
         public DurableTransferJob Job { get; set; } = claim.Job;
         public long? CheckpointVersion { get; set; }
+
+        /// <summary>Where a resumable execution stages its bytes, once the executor has said.</summary>
+        public TransferResumePoint? ResumePoint { get; set; }
     }
 
     private sealed class LatestTransferProgress(TimeProvider timeProvider) : IProgress<TransferProgress>
@@ -1024,6 +1093,21 @@ public sealed class TransferQueueAgentSubsystem
         public long BytesTransferred => Interlocked.Read(ref _bytesTransferred);
 
         public long? BytesPerSecond() => _rate.BytesPerSecond();
+
+        /// <summary>
+        /// Counts from what an earlier attempt staged, which this one does not send again, and
+        /// measures the speed from there.
+        /// </summary>
+        public void StartFrom(long resumedBytes)
+        {
+            if (resumedBytes <= 0)
+            {
+                return;
+            }
+
+            _rate.Restart(resumedBytes);
+            Report(new TransferProgress(resumedBytes, null));
+        }
 
         public void Report(TransferProgress value)
         {
@@ -1054,6 +1138,7 @@ public sealed class TransferQueueAgentSubsystem
         CancellationTokenSource executionLifetime)
     {
         private int _cancellationRequestedByUser;
+        private int _pauseRequestedByUser;
 
         public long ExpectedRevision { get; } = expectedRevision;
 
@@ -1069,6 +1154,20 @@ public sealed class TransferQueueAgentSubsystem
         public bool RequestCancellation()
         {
             if (Interlocked.Exchange(ref _cancellationRequestedByUser, 1) != 0)
+            {
+                return false;
+            }
+
+            executionLifetime.Cancel();
+            return true;
+        }
+
+        public bool IsPauseRequestedByUser =>
+            Volatile.Read(ref _pauseRequestedByUser) != 0;
+
+        public bool RequestPause()
+        {
+            if (IsCancellationRequestedByUser || Interlocked.Exchange(ref _pauseRequestedByUser, 1) != 0)
             {
                 return false;
             }
@@ -1118,6 +1217,14 @@ public interface IActiveTransferCancellation
     ActiveTransferCancellationResult TryRequestActiveCancellation(
         Domain.Identifiers.TransferJobId transferJobId,
         long expectedRevision);
+
+    /// <summary>
+    /// Asks a running transfer to stop and stay paused rather than cancelled. Defaulted so a host
+    /// that cannot pause one reports it as not running here, and the request is refused.
+    /// </summary>
+    ActiveTransferCancellationResult TryRequestActivePause(
+        Domain.Identifiers.TransferJobId transferJobId,
+        long expectedRevision) => ActiveTransferCancellationResult.NotActive;
 }
 
 /// <summary>

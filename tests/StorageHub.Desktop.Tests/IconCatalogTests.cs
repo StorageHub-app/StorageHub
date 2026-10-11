@@ -102,7 +102,8 @@ public class IconCatalogTests
             model.Toolbar.OfType<ToolbarSeparator>().Count());
         Assert.All(model.Toolbar.OfType<CommandEntry>(), entry => Assert.NotNull(entry.Icon));
 
-        // And the ones dropped really were unavailable, so this cannot pass by dropping everything.
-        Assert.True(offered.Length < ToolbarLayout.Resolve(null).Count);
+        // And Search, the one button of the default layout 1.4 left dead, is wired now, so nothing
+        // the default toolbar names is dropped.
+        Assert.Equal(ToolbarLayout.Resolve(null).Count, offered.Length);
     }
 }

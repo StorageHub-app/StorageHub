@@ -7,15 +7,44 @@ using StorageHub.Storage.Models;
 
 namespace StorageHub.Transfers;
 
+/// <param name="Resumable">
+/// Stage the bytes resumably where both ends can: the destination continues a staged write
+/// (<see cref="StorageFeature.ResumeUpload"/>) and the source reads from an offset
+/// (<see cref="StorageFeature.ResumeDownload"/>). An interrupted transfer then keeps what it
+/// staged, and the next one for the same source and destination sends only the rest.
+/// </param>
+/// <param name="DiscardStagedOnCancellation">
+/// Asked when the transfer is cancelled: true when the cancellation is somebody giving up on the
+/// transfer, whose staged bytes are then discarded, rather than the worker stopping, which keeps
+/// them. Null keeps them.
+/// </param>
+/// <param name="ResumeReady">
+/// Told, once the destination is open and the source has been read to the point it resumes from,
+/// what a checkpoint needs to describe the staged bytes.
+/// </param>
 public sealed record TransferExecutionOptions(
     bool Overwrite = false,
     int BufferSize = BoundedStreamCopier.DefaultBufferSize,
-    bool AllowNonAtomicDestinationWrites = false);
+    bool AllowNonAtomicDestinationWrites = false,
+    bool Resumable = false,
+    Func<bool>? DiscardStagedOnCancellation = null,
+    Action<TransferResumePoint>? ResumeReady = null);
 
+/// <param name="BytesTransferred">The bytes at the destination: the whole item.</param>
+/// <param name="BytesResumed">
+/// How many of them an earlier, interrupted attempt had already staged and were not sent again.
+/// </param>
 public sealed record TransferExecutionReport(
     StorageEntry Destination,
     long BytesTransferred,
-    bool SourceDeleted);
+    bool SourceDeleted,
+    long BytesResumed = 0);
+
+/// <summary>Where a resumable transfer's staged bytes are, and how many it continued from.</summary>
+/// <param name="Source">The source as it was read, with the identity the staged bytes belong to.</param>
+/// <param name="ResumeToken">The endpoint's non-secret name for the staged bytes.</param>
+/// <param name="ResumedBytes">How many bytes were already staged when this attempt began.</param>
+public sealed record TransferResumePoint(StorageAddress Source, string ResumeToken, long ResumedBytes);
 
 /// <summary>
 /// Executes an any-to-any transfer without loading the item into memory. Provider sessions own
@@ -162,21 +191,9 @@ public static class TransferExecutor
                 "The source length changed after the transfer was queued.");
         }
 
-        var read = await sourceSession.OpenReadAsync(
-            new StorageReadRequest(
-                intent.Source,
-                ExpectedVersionId: intent.Source.VersionId,
-                // ETag-only sources are checked immediately before and after streaming. This
-                // avoids pretending every adapter can apply an ETag download condition while
-                // still using the ETag strictly as a side-local mutation identity, never a hash.
-                ExpectedEntityTag: null),
-            cancellationToken).ConfigureAwait(false);
-        if (read.IsFailure)
-        {
-            return StorageResult<TransferExecutionReport>.Fail(read.Error);
-        }
-
-        await using var source = read.Value;
+        var computeCopyDigest = intent.ExpectedSourceDigest is not null ||
+                                intent.RequiredDestinationDigest is not null ||
+                                intent.VerificationPolicy != TransferVerificationPolicy.Size;
         var writeAddressResult = options.Overwrite && !directConditionalOverwrite && !nonAtomicDestinationWrite
             ? CreateStagingAddress(intent)
             : StorageResult<StorageAddress>.Success(intent.Destination);
@@ -186,51 +203,79 @@ public static class TransferExecutor
         }
 
         var writeAddress = writeAddressResult.Value;
-        var write = await destinationSession.OpenWriteAsync(
-            new StorageWriteRequest(
+        var resumeKey = ResumeKeyFor(intent, sourceInfo.Value, expectedLength, sourceSession, destinationSession, options);
+        var opened = resumeKey is null
+            ? await OpenAsync(
+                intent,
+                sourceSession,
+                destinationSession,
                 writeAddress,
-                directConditionalOverwrite || nonAtomicDestinationWrite
-                    ? StorageWriteMode.Overwrite
-                    : StorageWriteMode.CreateNew,
                 expectedLength,
-                expectedDestinationVersionId: directConditionalOverwrite
-                    ? intent.ExpectedDestinationVersionId
-                    : null,
-                expectedDestinationEntityTag: directConditionalOverwrite
-                    ? intent.ExpectedDestinationEntityTag
-                    : null),
-            cancellationToken).ConfigureAwait(false);
-        if (write.IsFailure)
+                directConditionalOverwrite,
+                nonAtomicDestinationWrite,
+                cancellationToken).ConfigureAwait(false)
+            : await OpenResumableAsync(
+                intent,
+                sourceSession,
+                destinationSession,
+                writeAddress,
+                expectedLength!.Value,
+                directConditionalOverwrite,
+                nonAtomicDestinationWrite,
+                resumeKey,
+                computeCopyDigest,
+                options,
+                cancellationToken).ConfigureAwait(false);
+        if (opened.IsFailure)
         {
-            return StorageResult<TransferExecutionReport>.Fail(write.Error);
+            return StorageResult<TransferExecutionReport>.Fail(opened.Error);
         }
 
-        await using var destination = write.Value;
+        var (source, destination, resumedBytes, prefixHash) = opened.Value;
+        await using var sourceLifetime = source;
+        await using var destinationLifetime = destination;
+        if (resumedBytes is not null)
+        {
+            options.ResumeReady?.Invoke(new TransferResumePoint(
+                sourceInfo.Value.Address,
+                destination.ResumeToken ?? resumeKey!,
+                resumedBytes.Value));
+        }
+
         StreamCopyResult copied;
-        var computeCopyDigest = intent.ExpectedSourceDigest is not null ||
-                                intent.RequiredDestinationDigest is not null ||
-                                intent.VerificationPolicy != TransferVerificationPolicy.Size;
         try
         {
-            copied = computeCopyDigest
-                ? await BoundedStreamCopier.CopyWithSha256Async(
+            copied = resumedBytes is { } resumed
+                ? await BoundedStreamCopier.CopyRemainderAsync(
                     source,
                     destination.Content,
-                    expectedLength,
+                    resumed,
+                    expectedLength!.Value,
+                    computeCopyDigest
+                        ? prefixHash ?? IncrementalHash.CreateHash(HashAlgorithmName.SHA256)
+                        : null,
                     options.BufferSize,
                     progress,
                     cancellationToken).ConfigureAwait(false)
-                : await BoundedStreamCopier.CopyAsync(
-                    source,
-                    destination.Content,
-                    expectedLength,
-                    options.BufferSize,
-                    progress,
-                    cancellationToken).ConfigureAwait(false);
+                : computeCopyDigest
+                    ? await BoundedStreamCopier.CopyWithSha256Async(
+                        source,
+                        destination.Content,
+                        expectedLength,
+                        options.BufferSize,
+                        progress,
+                        cancellationToken).ConfigureAwait(false)
+                    : await BoundedStreamCopier.CopyAsync(
+                        source,
+                        destination.Content,
+                        expectedLength,
+                        options.BufferSize,
+                        progress,
+                        cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            await BestEffortAbortAsync(destination).ConfigureAwait(false);
+            await BestEffortInterruptAsync(destination, options).ConfigureAwait(false);
             throw;
         }
         catch (EndOfStreamException)
@@ -251,7 +296,9 @@ public static class TransferExecutor
         }
         catch (IOException)
         {
-            await BestEffortAbortAsync(destination).ConfigureAwait(false);
+            // A stream that failed part way is the interruption resume exists for: what was
+            // staged is kept, and the retry sends only the rest.
+            await BestEffortInterruptAsync(destination, options).ConfigureAwait(false);
             return Fail(
                 "transfer.stream.failed",
                 StorageFailureKind.Provider,
@@ -393,8 +440,239 @@ public static class TransferExecutor
         return StorageResult<TransferExecutionReport>.Success(new TransferExecutionReport(
             committedDestination,
             copied.BytesCopied,
-            sourceDeleted));
+            sourceDeleted,
+            resumedBytes ?? 0));
     }
+
+    /// <summary>The key a resumable transfer stages under, or null when this one is not resumable.</summary>
+    private static string? ResumeKeyFor(
+        TransferIntent intent,
+        StorageEntry source,
+        long? expectedLength,
+        IStorageEndpointSession sourceSession,
+        IStorageEndpointSession destinationSession,
+        TransferExecutionOptions options) =>
+        options.Resumable &&
+        expectedLength is not null &&
+        source.Size == expectedLength &&
+        sourceSession.Capabilities[StorageFeature.ResumeDownload].Level == FeatureSupportLevel.Native &&
+        destinationSession.Capabilities[StorageFeature.ResumeUpload].Level == FeatureSupportLevel.Native
+            ? TransferResumeKey.Create(source, intent.Destination)
+            : null;
+
+    /// <summary>Opens the source, then the destination, for a transfer that starts at its first byte.</summary>
+    private static async ValueTask<StorageResult<OpenedTransfer>> OpenAsync(
+        TransferIntent intent,
+        IStorageEndpointSession sourceSession,
+        IStorageEndpointSession destinationSession,
+        StorageAddress writeAddress,
+        long? expectedLength,
+        bool directConditionalOverwrite,
+        bool nonAtomicDestinationWrite,
+        CancellationToken cancellationToken)
+    {
+        var read = await OpenSourceAsync(intent, sourceSession, offset: 0, cancellationToken).ConfigureAwait(false);
+        if (read.IsFailure)
+        {
+            return StorageResult<OpenedTransfer>.Fail(read.Error);
+        }
+
+        var write = await destinationSession.OpenWriteAsync(
+            WriteRequest(intent, writeAddress, expectedLength, directConditionalOverwrite, nonAtomicDestinationWrite, resumeKey: null),
+            cancellationToken).ConfigureAwait(false);
+        if (write.IsFailure)
+        {
+            await read.Value.DisposeAsync().ConfigureAwait(false);
+            return StorageResult<OpenedTransfer>.Fail(write.Error);
+        }
+
+        return StorageResult<OpenedTransfer>.Success(new OpenedTransfer(read.Value, write.Value, null, null));
+    }
+
+    /// <summary>
+    /// Opens the destination first, to learn how much an earlier attempt staged, then the source
+    /// from there. Staged bytes that cannot be accounted for are discarded and the transfer starts
+    /// again, rather than published unverified.
+    /// </summary>
+    private static async ValueTask<StorageResult<OpenedTransfer>> OpenResumableAsync(
+        TransferIntent intent,
+        IStorageEndpointSession sourceSession,
+        IStorageEndpointSession destinationSession,
+        StorageAddress writeAddress,
+        long expectedLength,
+        bool directConditionalOverwrite,
+        bool nonAtomicDestinationWrite,
+        string resumeKey,
+        bool computeCopyDigest,
+        TransferExecutionOptions options,
+        CancellationToken cancellationToken)
+    {
+        var request = WriteRequest(
+            intent, writeAddress, expectedLength, directConditionalOverwrite, nonAtomicDestinationWrite, resumeKey);
+        var write = await destinationSession.OpenWriteAsync(request, cancellationToken).ConfigureAwait(false);
+        if (write.IsFailure)
+        {
+            return StorageResult<OpenedTransfer>.Fail(write.Error);
+        }
+
+        var handle = write.Value;
+        IncrementalHash? prefixHash = null;
+        try
+        {
+            var accepted = handle.AcceptedOffset;
+            var usable = accepted >= 0 && accepted <= expectedLength;
+            if (usable && accepted > 0 && computeCopyDigest)
+            {
+                prefixHash = await HashAcceptedAsync(handle, accepted, options.BufferSize, cancellationToken)
+                    .ConfigureAwait(false);
+                usable = prefixHash is not null;
+            }
+
+            if (!usable)
+            {
+                // Discarding is what the abort does; the same key then opens on nothing staged.
+                await BestEffortAbortAsync(handle).ConfigureAwait(false);
+                await handle.DisposeAsync().ConfigureAwait(false);
+                write = await destinationSession.OpenWriteAsync(request, cancellationToken).ConfigureAwait(false);
+                if (write.IsFailure)
+                {
+                    return StorageResult<OpenedTransfer>.Fail(write.Error);
+                }
+
+                handle = write.Value;
+                if (handle.AcceptedOffset != 0)
+                {
+                    await BestEffortAbortAsync(handle).ConfigureAwait(false);
+                    await handle.DisposeAsync().ConfigureAwait(false);
+                    return StorageResult<OpenedTransfer>.Fail(new StorageFailure(
+                        "transfer.resume.discard_failed",
+                        StorageFailureKind.Integrity,
+                        "Bytes staged by an earlier attempt could not be verified or discarded."));
+                }
+            }
+
+            var read = await OpenSourceAsync(intent, sourceSession, handle.AcceptedOffset, cancellationToken)
+                .ConfigureAwait(false);
+            if (read.IsFailure)
+            {
+                prefixHash?.Dispose();
+                await BestEffortInterruptAsync(handle, options).ConfigureAwait(false);
+                await handle.DisposeAsync().ConfigureAwait(false);
+                return StorageResult<OpenedTransfer>.Fail(read.Error);
+            }
+
+            return StorageResult<OpenedTransfer>.Success(
+                new OpenedTransfer(read.Value, handle, handle.AcceptedOffset, prefixHash));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            prefixHash?.Dispose();
+            await BestEffortInterruptAsync(handle, options).ConfigureAwait(false);
+            await handle.DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    private static ValueTask<StorageResult<Stream>> OpenSourceAsync(
+        TransferIntent intent,
+        IStorageEndpointSession sourceSession,
+        long offset,
+        CancellationToken cancellationToken) => sourceSession.OpenReadAsync(
+        new StorageReadRequest(
+            intent.Source,
+            Offset: offset,
+            ExpectedVersionId: intent.Source.VersionId,
+            // ETag-only sources are checked immediately before and after streaming. This
+            // avoids pretending every adapter can apply an ETag download condition while
+            // still using the ETag strictly as a side-local mutation identity, never a hash.
+            ExpectedEntityTag: null),
+        cancellationToken);
+
+    private static StorageWriteRequest WriteRequest(
+        TransferIntent intent,
+        StorageAddress writeAddress,
+        long? expectedLength,
+        bool directConditionalOverwrite,
+        bool nonAtomicDestinationWrite,
+        string? resumeKey) => new(
+        writeAddress,
+        directConditionalOverwrite || nonAtomicDestinationWrite
+            ? StorageWriteMode.Overwrite
+            : StorageWriteMode.CreateNew,
+        expectedLength,
+        expectedDestinationVersionId: directConditionalOverwrite
+            ? intent.ExpectedDestinationVersionId
+            : null,
+        expectedDestinationEntityTag: directConditionalOverwrite
+            ? intent.ExpectedDestinationEntityTag
+            : null,
+        resumeKey: resumeKey);
+
+    /// <summary>
+    /// The SHA-256 of the bytes already staged, read back from the destination; null when they
+    /// cannot be read back in full, in which case they are not used.
+    /// </summary>
+    private static async ValueTask<IncrementalHash?> HashAcceptedAsync(
+        IStorageWriteHandle handle,
+        long accepted,
+        int bufferSize,
+        CancellationToken cancellationToken)
+    {
+        if (handle is not IResumableStorageWriteHandle resumable)
+        {
+            return null;
+        }
+
+        var opened = await resumable.OpenAcceptedContentAsync(cancellationToken).ConfigureAwait(false);
+        if (opened.IsFailure)
+        {
+            return null;
+        }
+
+        var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        var buffer = System.Buffers.ArrayPool<byte>.Shared.Rent(bufferSize);
+        try
+        {
+            await using var staged = opened.Value;
+            long total = 0;
+            while (total < accepted)
+            {
+                var read = await staged
+                    .ReadAsync(buffer.AsMemory(0, (int)Math.Min(bufferSize, accepted - total)), cancellationToken)
+                    .ConfigureAwait(false);
+                if (read == 0)
+                {
+                    hash.Dispose();
+                    return null;
+                }
+
+                hash.AppendData(buffer, 0, read);
+                total += read;
+            }
+
+            return hash;
+        }
+        catch (IOException)
+        {
+            hash.Dispose();
+            return null;
+        }
+        catch (OperationCanceledException)
+        {
+            hash.Dispose();
+            throw;
+        }
+        finally
+        {
+            System.Buffers.ArrayPool<byte>.Shared.Return(buffer, clearArray: true);
+        }
+    }
+
+    private sealed record OpenedTransfer(
+        Stream Source,
+        IStorageWriteHandle Destination,
+        long? ResumedBytes,
+        IncrementalHash? PrefixHash);
 
     private static StorageResult ValidateCapabilities(
         TransferIntent intent,
@@ -814,6 +1092,36 @@ public static class TransferExecutor
         catch (Exception)
         {
             // The original transfer failure remains authoritative; disposal retries cleanup.
+        }
+    }
+
+    /// <summary>
+    /// Stops a write that was interrupted rather than refused: a resumable one keeps its staged
+    /// bytes unless the cancellation is somebody giving up on the transfer; anything else is
+    /// aborted as before.
+    /// </summary>
+    private static async ValueTask BestEffortInterruptAsync(
+        IStorageWriteHandle handle,
+        TransferExecutionOptions options)
+    {
+        if (handle is not IResumableStorageWriteHandle resumable ||
+            options.DiscardStagedOnCancellation?.Invoke() == true)
+        {
+            await BestEffortAbortAsync(handle).ConfigureAwait(false);
+            return;
+        }
+
+        try
+        {
+            var suspended = await resumable.SuspendAsync().ConfigureAwait(false);
+            if (suspended.IsFailure)
+            {
+                await BestEffortAbortAsync(handle).ConfigureAwait(false);
+            }
+        }
+        catch (Exception)
+        {
+            await BestEffortAbortAsync(handle).ConfigureAwait(false);
         }
     }
 

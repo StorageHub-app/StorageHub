@@ -69,6 +69,8 @@ internal sealed class ConnectionStrings : LocalizationModelBase
 
     public string ContextDelete { get; set; } = "Delete…";
 
+    public string ContextDuplicate { get; set; } = "Duplicate";
+
     public string ContextToggleFavorite { get; set; } = "Toggle favorite";
 
     // ---------------------------------------------------------------- sidebar
@@ -142,6 +144,19 @@ internal sealed class ConnectionStrings : LocalizationModelBase
     public string DragConnectionHint { get; set; } = "Drag a connection to file it in another group";
 
     public string SidebarEmpty { get; set; } = "No saved connections yet";
+
+    /// <summary>A card's line while the library tries an operation on the connection again.</summary>
+    public string LinkRetrying { get; set; } = "Retrying…";
+
+    /// <summary>{0} = which retry this is.</summary>
+    public string LinkRetryingAttemptFormat { get; set; } = "Retrying, attempt {0}…";
+
+    public string LinkLost { get; set; } = "Connection lost";
+
+    public string LinkBack { get; set; } = "Connected again";
+
+    /// <summary>{0} = when the link last changed, as a short time; the card line's tooltip.</summary>
+    public string LinkSinceFormat { get; set; } = "Since {0:t}";
 
     public string SidebarNoMatches { get; set; } = "No connections match this search";
 
@@ -230,6 +245,42 @@ internal sealed class ConnectionStrings : LocalizationModelBase
     public string ActiveAddressPlaceholder { get; set; } = "This computer's address";
 
     public string ActiveAddressHint { get; set; } = "The public IP address to announce when this computer is behind NAT.";
+
+    public string FieldJumpHost { get; set; } = "Jump host";
+
+    public string JumpHostNone { get; set; } = "None (connect directly)";
+
+    public string JumpHostUnlisted { get; set; } = "A saved connection not listed";
+
+    public string JumpHostHint { get; set; } =
+        "A saved SFTP or SSH connection to reach this server through, with its own sign-in and pinned host key.";
+
+    public string FieldKeyExchangeAlgorithms { get; set; } = "Key exchange";
+
+    public string FieldCiphers { get; set; } = "Ciphers";
+
+    public string FieldMacAlgorithms { get; set; } = "MACs";
+
+    public string FieldHostKeyAlgorithms { get; set; } = "Host key types";
+
+    public string AlgorithmsPlaceholder { get; set; } = "Defaults";
+
+    public string AlgorithmsHint { get; set; } =
+        "Comma-separated, preferred first, such as curve25519-sha256. Empty offers every one the connection knows.";
+
+    public string FieldMaximumSessions { get; set; } = "Most sessions";
+
+    public string MaximumSessionsPlaceholder { get; set; } = "8";
+
+    public string MaximumSessionsHint { get; set; } =
+        "How many connections to the server may be open at once, from 1 to 64. Lower it for a server that limits them.";
+
+    public string FieldKeepAlive { get; set; } = "Keep-alive";
+
+    public string KeepAlivePlaceholder { get; set; } = "Off";
+
+    public string KeepAliveHint { get; set; } =
+        "Seconds between keep-alives on an idle connection, for a firewall that drops quiet ones.";
 
     public string FieldProxyAddress { get; set; } = "Proxy address";
 
@@ -375,6 +426,43 @@ internal sealed class ConnectionStrings : LocalizationModelBase
 
     public string AuthPrivateKeyAndPassword { get; set; } = "Private key and password (MFA)";
 
+    public string AuthBearerToken { get; set; } = "Bearer token";
+
+    public string AuthAmbientCredential { get; set; } = "The agent's cloud identity";
+
+    public string AuthAzureSharedKey { get; set; } = "Account name and shared key";
+
+    public string AuthAzureSasToken { get; set; } = "Shared access signature (SAS)";
+
+    public string AuthAzureConnectionString { get; set; } = "Connection string";
+
+    public string FieldContainer { get; set; } = "Container";
+
+    public string FieldStorageAccount { get; set; } = "Storage account";
+
+    public string FieldAccountKey { get; set; } = "Account key";
+
+    public string FieldSasToken { get; set; } = "SAS token";
+
+    public string AuthGoogleServiceAccount { get; set; } = "Service-account key";
+
+    public string AuthKeystonePassword { get; set; } = "Keystone password";
+
+    public string FieldProject { get; set; } = "Project";
+
+    public string FieldStorageUrl { get; set; } = "Storage URL";
+
+    public string FieldAuthenticationUrl { get; set; } = "Authentication URL";
+
+    public string FieldSwiftToken { get; set; } = "Auth token";
+
+    public string FieldHttpSignIn { get; set; } = "HTTP sign-in";
+
+    public string FieldRequestTimeout { get; set; } = "Request timeout";
+
+    public string RequestTimeoutHint { get; set; } =
+        "In seconds, for each whole request, an upload's file included. Raise it for large files on a slow line.";
+
     public string TlsSystemTrust { get; set; } = "System trust";
 
     public string TlsPinnedCertificate { get; set; } = "Pinned certificate";
@@ -392,9 +480,70 @@ internal sealed class ConnectionStrings : LocalizationModelBase
 
     public string DetailTesting { get; set; } = "Testing…";
 
+    public string DetailDescribe { get; set; } = "Live details";
+
+    public string DetailDescribing { get; set; } = "Reading the connection's details…";
+
+    public string DetailDescribeHint { get; set; } = "Connect and show what the server presents, runs and negotiated";
+
+    public string SectionLive { get; set; } = "Live connection";
+
+    public string FieldTransportSecurity { get; set; } = "Transport security";
+
+    public string LiveSecurityNone { get; set; } = "Not encrypted";
+
+    public string LiveSecurityTls { get; set; } = "TLS";
+
+    public string LiveSecuritySsh { get; set; } = "SSH";
+
+    public string LiveSecurityUnknown { get; set; } = "Unknown";
+
+    public string FieldServerSystem { get; set; } = "Server system";
+
+    public string FieldServerSoftware { get; set; } = "Server software";
+
+    public string FieldServerFeatures { get; set; } = "Server features";
+
+    public string FieldPresentedKey { get; set; } = "Presented host key";
+
+    public string FieldPresentedCertificate { get; set; } = "Presented certificate";
+
+    public string FieldKeyAlgorithm { get; set; } = "Key type";
+
+    public string FieldCertificateSubject { get; set; } = "Subject";
+
+    public string FieldCertificateIssuer { get; set; } = "Issuer";
+
+    public string FieldCertificateExpires { get; set; } = "Expires";
+
+    public string FieldIdentityTrusted { get; set; } = "Trusted";
+
+    public string FieldSessions { get; set; } = "Sessions";
+
+    public string SessionsFormat { get; set; } = "{0} in use, {1} idle, {2} opened, {3} closed";
+
+    public string FieldLastHealthCheck { get; set; } = "Last health check";
+
+    public string LastCheckHealthyFormat { get; set; } = "Healthy in {0} ms, {1}";
+
+    public string LastCheckFailedFormat { get; set; } = "Failed ({0}), {1}";
+
     public string DetailEdit { get; set; } = "Edit";
 
     public string DetailDelete { get; set; } = "Delete";
+
+    public string DetailDuplicate { get; set; } = "Duplicate";
+
+    /// <summary>{0} = the name of the connection that was copied.</summary>
+    public string CopyNameFormat { get; set; } = "{0} (copy)";
+
+    /// <summary>{0} = the name of the connection that was copied, {1} = which copy this is, from 2.</summary>
+    public string CopyNumberedNameFormat { get; set; } = "{0} (copy {1})";
+
+    public string DuplicateFailed { get; set; } = "The connection could not be duplicated.";
+
+    public string DuplicateFailedThroughAgent { get; set; } =
+        "The connection could not be duplicated through the background agent.";
 
     /// <summary>{0} = the connection name.</summary>
     public string DetailIsFavoriteFormat { get; set; } = "{0} is a favorite. Activate to remove it.";
@@ -486,7 +635,7 @@ internal sealed class ConnectionStrings : LocalizationModelBase
         "Could not send input to the background agent.";
 
     // ------------------------------------------------------------- agent groups
-    /// <summary>The section for connections filed in no group, shown only while it has any.</summary>
+    /// <summary>The section for connections filed in no group, last.</summary>
     public string Ungrouped { get; set; } = "Ungrouped";
 
     /// <summary>What an open group with nothing in it says, on one quiet line.</summary>

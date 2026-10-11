@@ -121,6 +121,21 @@ internal sealed class DesktopConfig : ConfigModelBase
 
     /// <summary>The zone a new schedule starts on; absent follows the operating system.</summary>
     public string? NewScheduleTimeZone { get; set; }
+
+    /// <summary>What a transfer does with a file already at its destination; absent asks.</summary>
+    public TransferConflictChoice? TransferConflictDefault { get; set; }
+
+    /// <summary>Whether panes refresh their folder when it changes; off by default.</summary>
+    public bool AutoRefreshFolders { get; set; }
+
+    /// <summary>How often, in seconds, a connection's folder is read again when it refreshes by itself.</summary>
+    public int RemoteRefreshSeconds { get; set; } = FolderAutoRefreshSettings.DefaultRemoteSeconds;
+
+    /// <summary>Whether the transfer queue is shown under the workspaces; shown by default.</summary>
+    public bool TransferQueueVisible { get; set; } = true;
+
+    /// <summary>Whether panes list hidden files and folders; they do by default.</summary>
+    public bool ShowHiddenFiles { get; set; } = true;
 }
 
 /// <summary>

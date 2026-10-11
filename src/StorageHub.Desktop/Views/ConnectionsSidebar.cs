@@ -83,6 +83,22 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     private IReadOnlyDictionary<Guid, string> _names = new Dictionary<Guid, string>();
     private string _search = string.Empty;
     private bool _showFavoritesInTheirFolders = true;
+    private bool _hideEmptyGroups;
+    private bool _hasGroups;
+
+    /// <summary>
+    /// Each connection's latest link change the agent reported, by id. Kept apart from the cards
+    /// so a listing, which rebuilds every card, does not wipe a "Connection lost" off one.
+    /// </summary>
+    private Dictionary<Guid, ConnectionLinkEvent> _links = [];
+
+    /// <summary>How often the cards ask the agent how their links are.</summary>
+    internal static readonly TimeSpan LinkPollInterval = TimeSpan.FromSeconds(5);
+
+    private DispatcherTimer? _linkPoll;
+
+    /// <summary>What "connected again" is measured against. A test sets its own.</summary>
+    internal Func<DateTimeOffset> Clock { get; set; } = static () => DateTimeOffset.UtcNow;
 
     /// <summary>What the Favorites group offers in place of rename and remove, which is nothing.</summary>
     private static readonly RelayCommand Inert = new(static _ => { }, static _ => false);
@@ -155,12 +171,17 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
             _ => _selected is not null && OpenConnection is not null);
         TestSelectedCommand = new RelayCommand(
             _ => _ = TestSelectedAsync(), _ => _selected is not null && _client is not null && !_testing);
+        DescribeSelectedCommand = new RelayCommand(
+            _ => _ = DescribeSelectedAsync(), _ => _selected is not null && _client is not null && !_testing);
         EditSelectedCommand = new RelayCommand(
             row => { if ((row as ConnectionRowModel ?? _selected) is { } chosen) EditConnection?.Invoke(chosen.Id, ConnectionEditorTab.General); },
             _ => EditConnection is not null);
         AttentionCommand = new RelayCommand(
             _ => { if (_selected is { } row && Attention is { } attention) EditConnection?.Invoke(row.Id, attention.Tab); },
             _ => EditConnection is not null);
+        DuplicateSelectedCommand = new RelayCommand(
+            row => { if ((row as ConnectionRowModel ?? _selected) is { } chosen) _ = DuplicateConnectionAsync(chosen.Id); },
+            _ => _profiles is not null);
         DeleteSelectedCommand = new RelayCommand(
             row => { if ((row as ConnectionRowModel ?? _selected) is { } chosen && DeleteConnection is { } delete) _ = DeleteAndRefreshAsync(delete, chosen.Id); },
             _ => DeleteConnection is not null);
@@ -193,6 +214,7 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
             foreach (var row in Rows()) row.IsSelected = value is not null && row.Id == value.Id;
             DetailStatus = string.Empty;
             _testedVersion = null;
+            _live = null;
             LoadProfile();
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Selected)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasSelection)));
@@ -207,6 +229,18 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
 
     /// <summary>Selects a card, as a single click does.</summary>
     internal void Select(ConnectionRowModel? row) => Selected = row;
+
+    /// <summary>
+    /// Selects a connection's card by its id, for Connections > Test Connection on the connection
+    /// the active pane has open, so its result lands under that card as the panel's own Test does.
+    /// </summary>
+    /// <returns>False when the panel does not list it.</returns>
+    internal bool SelectConnection(Guid connectionId)
+    {
+        if (Rows().FirstOrDefault(row => row.Id == connectionId) is not { } found) return false;
+        Selected = found;
+        return true;
+    }
 
     /// <summary>
     /// A saved connection's name, from the list the agent last gave, or null when it is not on it.
@@ -238,7 +272,11 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
             Connections.FirstOrDefault(listed => listed.ConnectionId == row.Id),
             _profile is { } profile && profile.ConnectionId == row.Id ? profile : null,
             _keyNames,
-            GroupNameOf(card.GroupId) ?? Ui.Connections.Ungrouped);
+            GroupNameOf(card.GroupId) ?? Ui.Connections.Ungrouped,
+            _live is { } live && live.Id == row.Id ? live.Details : null);
+
+    /// <summary>What the selected connection said about itself when last asked, until another is selected.</summary>
+    private (Guid Id, ConnectionDetailsDocument Details)? _live;
 
     /// <summary>
     /// The selected connection's saved profile, which the Server, Authentication, Security and
@@ -362,8 +400,14 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
 
     public ICommand TestSelectedCommand { get; }
 
+    /// <summary>Reads what the selected connection and its server look like now, under its details.</summary>
+    public ICommand DescribeSelectedCommand { get; }
+
     /// <summary>Edit, on the selected card and in the details panel. Its parameter is the row, if any.</summary>
     public ICommand EditSelectedCommand { get; }
+
+    /// <summary>Duplicate, likewise: a copy beside the original, named for it, and selected.</summary>
+    public ICommand DuplicateSelectedCommand { get; }
 
     /// <summary>Delete, likewise. The panel asks first, and lists again after.</summary>
     public ICommand DeleteSelectedCommand { get; }
@@ -518,6 +562,50 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     }
 
     /// <summary>
+    /// Asks the agent what the selected connection and its server look like now -- the key or
+    /// certificate presented, the server's software, what was negotiated, its sessions -- and adds
+    /// it to the details as a Live connection section. It opens the connection, as browsing does.
+    /// </summary>
+    internal async Task DescribeSelectedAsync(CancellationToken cancellationToken = default)
+    {
+        if (_selected is not { } row || _client is null) return;
+
+        _testing = true;
+        DetailStatus = Ui.Connections.DetailDescribing;
+        RaiseDetailCommands();
+        try
+        {
+            await using var client = _client();
+            var response = await client
+                .GetConnectionDetailsAsync(
+                    new ConnectionDetailsRequest(StorageIpcContract.CurrentVersion, row.Id),
+                    cancellationToken)
+                .ConfigureAwait(true);
+
+            if (_selected?.Id != row.Id) return;
+            if (response.Details is { } details)
+            {
+                _live = (row.Id, details);
+                DetailStatus = string.Empty;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Details)));
+            }
+            else
+            {
+                DetailStatus = response.Failure?.Message ?? Ui.Connections.ConnectionUnreachable;
+            }
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            DetailStatus = Ui.Shell.AgentNotConnected;
+        }
+        finally
+        {
+            _testing = false;
+            RaiseDetailCommands();
+        }
+    }
+
+    /// <summary>
     /// Makes a connection a favourite, or stops it being one, as 1.x's Toggle favorite did.
     /// </summary>
     /// <remarks>
@@ -572,11 +660,82 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         }
     }
 
+    /// <summary>
+    /// Saves a copy of a connection under a free name and selects it.
+    /// </summary>
+    /// <remarks>
+    /// The copy is the saved profile as it stands, so it carries the same references to the same
+    /// vault secrets and Key Store entries and the same pinned host key, and signs in the same way
+    /// without anything being typed again. It is not a favourite, so Favorites does not list both.
+    /// A name that turns out to be taken after all, because another window saved it since the panel
+    /// listed, is tried again with the next number.
+    /// </remarks>
+    internal async Task DuplicateConnectionAsync(Guid connectionId, CancellationToken cancellationToken = default)
+    {
+        if (_profiles is null) return;
+
+        try
+        {
+            ConnectionProfileWriteResponse? response = null;
+            await using (var profiles = _profiles())
+            {
+                var current = await profiles
+                    .GetAsync(
+                        new ConnectionProfileGetRequest(ConnectionProfileIpcContract.CurrentVersion, connectionId),
+                        cancellationToken)
+                    .ConfigureAwait(true);
+                if (current.Profile is not { } profile)
+                {
+                    Refused(current.Failure?.Message ?? Ui.Connections.LoadFailed);
+                    return;
+                }
+
+                var taken = Connections.Select(static listed => listed.DisplayName).ToList();
+                for (var attempt = 0; attempt < 5; attempt++)
+                {
+                    var name = ConnectionCopyNames.Next(profile.Draft.Metadata.DisplayName, taken);
+                    var draft = profile.Draft with
+                    {
+                        Metadata = profile.Draft.Metadata with { DisplayName = name, IsFavorite = false }
+                    };
+                    response = await profiles
+                        .CreateAsync(
+                            new ConnectionProfileCreateRequest(ConnectionProfileIpcContract.CurrentVersion, draft),
+                            cancellationToken)
+                        .ConfigureAwait(true);
+                    if (response.Status != ConnectionProfileWriteStatus.NameConflict) break;
+                    taken.Add(name);
+                }
+            }
+
+            if (response is not { Status: ConnectionProfileWriteStatus.Succeeded })
+            {
+                Refused(response?.Failure?.Message ?? Ui.Connections.DuplicateFailed);
+                return;
+            }
+
+            await RefreshAsync(cancellationToken).ConfigureAwait(true);
+            if (response.Profile is { } created &&
+                Groups.SelectMany(static group => group.Connections).FirstOrDefault(row => row.Id == created.ConnectionId) is { } copy)
+            {
+                Select(copy);
+            }
+
+            ConnectionsChanged?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            Refused(Ui.Connections.DuplicateFailedThroughAgent);
+        }
+    }
+
     private void RaiseDetailCommands()
     {
         (OpenSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
         (TestSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        (DescribeSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
         (EditSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        (DuplicateSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
         (DeleteSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
         (AttentionCommand as RelayCommand)?.RaiseCanExecuteChanged();
     }
@@ -595,7 +754,7 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     public ObservableCollection<ConnectionGroupModel> Groups { get; } = [];
 
     /// <summary>
-    /// The Favorites group above the others, or null when no favourite is showing.
+    /// The Favorites group above the others; null only when it is empty and empty groups are hidden.
     /// </summary>
     /// <remarks>
     /// 1.x's Favorites section: the enabled favourites, by name, flat, whatever group each is in.
@@ -628,6 +787,25 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         {
             if (_showFavoritesInTheirFolders == value) return;
             _showFavoritesInTheirFolders = value;
+            Rebuild();
+        }
+    }
+
+    /// <summary>
+    /// Whether a group with no connections is left out, as Settings' "Hide empty groups" says.
+    /// </summary>
+    /// <remarks>
+    /// Off by default: Favorites, every group somebody made and Ungrouped are always drawn, so the
+    /// panel keeps one shape and an empty group is somewhere to drop a connection. On, any of them
+    /// with nothing in it (or nothing matching a search) is not drawn.
+    /// </remarks>
+    internal bool HideEmptyGroups
+    {
+        get => _hideEmptyGroups;
+        set
+        {
+            if (_hideEmptyGroups == value) return;
+            _hideEmptyGroups = value;
             Rebuild();
         }
     }
@@ -706,6 +884,7 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         (CommandEntry.SeparatorLabel, static () => { }, false),
         (Ui.Connections.ContextToggleFavorite, () => _ = ToggleFavoriteAsync(row.Id), _profiles is not null),
         (Ui.Connections.ContextEdit, () => EditConnection?.Invoke(row.Id, ConnectionEditorTab.General), EditConnection is not null),
+        (Ui.Connections.ContextDuplicate, () => _ = DuplicateConnectionAsync(row.Id), _profiles is not null),
         (CommandEntry.SeparatorLabel, static () => { }, false),
         (Ui.Connections.ContextDelete, () => { if (DeleteConnection is { } delete) _ = DeleteAndRefreshAsync(delete, row.Id); }, DeleteConnection is not null),
     ];
@@ -755,9 +934,15 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
 
     public string TestLabel => Ui.Connections.DetailTest;
 
+    public string DescribeLabel => Ui.Connections.DetailDescribe;
+
+    public string DescribeHint => Ui.Connections.DetailDescribeHint;
+
     public string EditLabel => Ui.Connections.DetailEdit;
 
     public string DeleteLabel => Ui.Connections.DetailDelete;
+
+    public string DuplicateLabel => Ui.Connections.DetailDuplicate;
 #pragma warning restore CA1822
 
     /// <summary>
@@ -772,6 +957,16 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     {
         get => _status;
         private set => Set(ref _status, value, nameof(Status));
+    }
+
+    /// <summary>
+    /// Whether any group is drawn, which decides whether the list shows: with empty groups on,
+    /// even a panel with no connections has Favorites and Ungrouped, and says why above them.
+    /// </summary>
+    public bool HasGroups
+    {
+        get => _hasGroups;
+        private set => Set(ref _hasGroups, value, nameof(HasGroups));
     }
 
     public bool IsEmpty
@@ -1171,7 +1366,9 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
             .OrderBy(static card => card.Name, StringComparer.CurrentCultureIgnoreCase)
             .Select(card => new ConnectionRowModel(card, GroupNameOf(card.GroupId)))
             .ToArray();
-        Favorites = favorites.Length == 0
+        // Drawn with nothing in it too, so the panel always has the same shape, unless Settings
+        // says empty groups are to be left out.
+        Favorites = favorites.Length == 0 && _hideEmptyGroups
             ? null
             : new ConnectionGroupModel(Ui.Connections.GroupFavorites, favorites, ConnectionGroupKind.Favorites)
             {
@@ -1204,8 +1401,9 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
             var rows = RowsFor(card => card.GroupId == id, group.Name);
             matched += rows.Length;
 
-            // A search shows where it found something, not every group it found nothing in.
-            if (HasSearch && rows.Length == 0) continue;
+            // A group with nothing in it is still a group, and a search that finds nothing in one
+            // says so on its empty line; only Settings' "Hide empty groups" leaves it out.
+            if (_hideEmptyGroups && rows.Length == 0) continue;
 
             var first = position == 0;
             var last = position == ordered.Length - 1;
@@ -1222,12 +1420,12 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
             Groups.Add(drawn);
         }
 
-        // Ungrouped last, and only while something is in it: a connection in no group, or in one
-        // the agent no longer has.
+        // Ungrouped last: a connection in no group, or in one the agent no longer has. Drawn while
+        // empty too, where it is also somewhere to drop a connection to take it out of its group.
         var known = ordered.Select(static group => group.GroupId).ToHashSet();
         var loose = RowsFor(card => card.GroupId is not { } group || !known.Contains(group), null);
         matched += loose.Length;
-        if (loose.Length > 0)
+        if (loose.Length > 0 || !_hideEmptyGroups)
         {
             var ungrouped = new ConnectionGroupModel(Ui.Connections.Ungrouped, loose, ConnectionGroupKind.Ungrouped)
             {
@@ -1258,7 +1456,71 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         // thing to be told, and is still true whatever is typed in the box.
         var searchFoundNothing = HasSearch && matched == 0 && _cards.Count > 0;
         IsEmpty = _cards.Count == 0 || searchFoundNothing;
+        HasGroups = Favorites is not null || Groups.Count > 0;
         Status = searchFoundNothing ? Ui.Connections.NoMatches : _listingStatus;
+        ShowLinks();
+    }
+
+    /// <summary>
+    /// Asks the agent how the connections' links have changed, and puts each one's latest on its
+    /// card. Called every few seconds by the shell; quiet when the agent cannot say.
+    /// </summary>
+    /// <remarks>
+    /// Only the latest per connection is read here; the activity log reads the history. A card
+    /// keeps "Retrying" or "Connection lost" for as long as that stands, and "Connected again"
+    /// for <see cref="ConnectionLinkPresentation.BackShownFor"/>, which is why this runs even when
+    /// nothing new has happened: the green line has to go on its own.
+    /// </remarks>
+    internal async Task RefreshLinksAsync(CancellationToken cancellationToken = default)
+    {
+        if (_client is null) return;
+        IReadOnlyList<ConnectionLinkEvent> latest;
+        try
+        {
+            await using var client = _client();
+            var response = await client
+                .ListLinkEventsAsync(new ConnectionLinkEventsRequest(StorageIpcContract.CurrentVersion, Limit: 1), cancellationToken)
+                .ConfigureAwait(false);
+            if (response.Failure is not null) return;
+            latest = response.Latest;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception error) when (error is NotSupportedException || RemoteBrowserErrors.IsExpected(error))
+        {
+            return;
+        }
+
+        void Update()
+        {
+            var links = new Dictionary<Guid, ConnectionLinkEvent>();
+            foreach (var change in latest) links.TryAdd(change.ConnectionId, change);
+            _links = links;
+            ShowLinks();
+        }
+
+        if (Dispatcher.UIThread.CheckAccess()) Update();
+        else Dispatcher.UIThread.Post(Update);
+    }
+
+    /// <summary>Reads the links every <see cref="LinkPollInterval"/> from now on.</summary>
+    internal void FollowLinks()
+    {
+        _linkPoll ??= new DispatcherTimer(
+            LinkPollInterval, DispatcherPriority.Background, (_, _) => _ = RefreshLinksAsync());
+        _linkPoll.Start();
+        _ = RefreshLinksAsync();
+    }
+
+    private void ShowLinks()
+    {
+        var now = Clock();
+        foreach (var row in Rows())
+        {
+            row.Link = _links.TryGetValue(row.Id, out var change) ? ConnectionLinkPresentation.Badge(change, now) : null;
+        }
     }
 
     /// <summary>Remembers a group being closed or opened, and an opened one as where a new connection goes.</summary>

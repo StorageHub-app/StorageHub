@@ -8,6 +8,7 @@ using StorageHub.Desktop.Localization;
 using StorageHub.Desktop.Themes;
 using StorageHub.Desktop.Configuration;
 using StorageHub.Desktop.Framework;
+using StorageHub.Desktop.Shell;
 
 namespace StorageHub.Desktop.Views;
 
@@ -272,6 +273,119 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
     }
 
     /// <summary>
+    /// Points the Transfer menu at the queue: Start queue, Pause all and Resume all act on every
+    /// transfer the agent holds, and Cancel selected on the rows chosen in the queue.
+    /// </summary>
+    /// <remarks>
+    /// 1.4 declared all four, with F7 and F8, and wired none of them; its queue's own Cancel was the
+    /// only way to stop a transfer. Each entry is lit only while it has something to act on, by the
+    /// counts the queue reads on every poll, so the menu says what pressing it would do.
+    /// </remarks>
+    internal void RouteTransferCommands()
+    {
+        Router.Handle(UiCommandIds.TransferStartQueue, () => _ = Queue.StartQueueAsync());
+        Router.Handle(UiCommandIds.TransferPauseAll, () => _ = Queue.PauseAllAsync());
+        Router.Handle(UiCommandIds.TransferResumeAll, () => _ = Queue.ResumeAllAsync());
+        Router.Handle(UiCommandIds.TransferCancelSelected, Queue.CancelSelected);
+        Router.When(UiCommandIds.TransferStartQueue, () => Queue.CanStartQueue);
+        Router.When(UiCommandIds.TransferPauseAll, () => Queue.CanPauseAll);
+        Router.When(UiCommandIds.TransferResumeAll, () => Queue.CanResumeAll);
+        Router.When(UiCommandIds.TransferCancelSelected, () => Queue.CanCancelSelected);
+        Queue.ControlsChanged += (_, _) => Router.Reconsider();
+        Queue.CancelCommand.CanExecuteChanged += (_, _) => Router.Reconsider();
+    }
+
+    /// <summary>
+    /// Opens a web address in the browser, answering whether anything did. The application's is the
+    /// main window's launcher; left null, an address is shown rather than opened.
+    /// </summary>
+    internal Func<Uri, Task<bool>>? OpenUri { get; set; }
+
+    /// <summary>Opens a folder in the file manager, answering whether anything did; null shows the path.</summary>
+    internal Func<string, Task<bool>>? OpenFolder { get; set; }
+
+    /// <summary>Where Tools, Logs goes: the desktop's log folder. Settable so a test opens one of its own.</summary>
+    internal Func<string> LogFolder { get; set; } = static () => DesktopDiagnostics.LogFolder;
+
+    /// <summary>
+    /// Points the Tools and Help entries that need no window of their own: Logs, Documentation and
+    /// Report issue; and lights Search and Checksums by what the active pane shows.
+    /// </summary>
+    /// <remarks>
+    /// 1.4 declared all of them and wired none. Logs opens the folder its description named, the
+    /// desktop's own, where its error log and CodeLogic's logs are written. Documentation is the
+    /// project's README, and Report issue the repository's bug report form with its version and
+    /// environment boxes filled in, and nothing that names anybody. Search, Checksums, Diagnostics
+    /// and Keyboard shortcuts open windows, which App wires.
+    /// </remarks>
+    internal void RouteToolAndHelpCommands()
+    {
+        Router.Handle(UiCommandIds.ToolsLogs, () => _ = OpenLogsAsync());
+        Router.Handle(UiCommandIds.HelpDocumentation, () => _ = OpenLinkAsync(new Uri(StorageHubLinks.Documentation)));
+        Router.Handle(UiCommandIds.HelpReportIssue, () => _ = OpenLinkAsync(StorageHubLinks.BugReportFor(
+            DesktopApplicationVersion.Current,
+            DesktopDiagnostics.IssueEnvironment(DesktopDiagnostics.Collect(AgentStatus)))));
+        Router.When(UiCommandIds.ToolsSearch, () => SearchTarget() is not null);
+        Router.When(UiCommandIds.ToolsChecksums, () => ChecksumTarget() is not null);
+    }
+
+    /// <summary>
+    /// Opens the FTP command console on a pane's connection: App's, which owns the windows; left
+    /// null, as in a test of the shell alone, nothing opens.
+    /// </summary>
+    internal Action<BrowserPaneModel>? OpenFtpConsole { get; set; }
+
+    /// <summary>The active pane, when it has an FTP or FTPS connection the console can talk to.</summary>
+    internal BrowserPaneModel? FtpConsoleTarget() =>
+        ActivePane() is { IsFtpConnection: true } pane ? pane : null;
+
+    /// <summary>The active pane and its folder, when it has one Search can walk.</summary>
+    internal (BrowserPaneModel Pane, PaneTransferContext Where)? SearchTarget() =>
+        ActivePane() is { } pane && pane.ToolLocation is { } where && FileSearch.CanSearch(where)
+            ? (pane, where)
+            : null;
+
+    /// <summary>The active pane's selection, when it holds a file Checksums can read.</summary>
+    internal PaneSelectionSnapshot? ChecksumTarget() =>
+        ActivePane() is { HasSelection: true } pane && pane.ToolSelection() is { } selection &&
+        ChecksumCalculator.CanCompute(selection.Context, selection.Items)
+            ? selection
+            : null;
+
+    private async Task OpenLinkAsync(Uri address)
+    {
+        if (OpenUri is { } open && await open(address).ConfigureAwait(true)) return;
+
+        // A machine with no browser registered still gets the address, as About gives its own.
+        await Services.ShellServices.Dialogs.ShowAsync(new DialogRequest
+        {
+            Title = Ui.Shell.LinkNotOpenedTitle,
+            Message = address.AbsoluteUri
+        }).ConfigureAwait(true);
+    }
+
+    private async Task OpenLogsAsync()
+    {
+        var folder = LogFolder();
+        try
+        {
+            // Made if nothing has been logged yet, so there is a folder to open rather than an error.
+            Directory.CreateDirectory(folder);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            // Opening says it could not, below.
+        }
+
+        if (OpenFolder is { } open && await open(folder).ConfigureAwait(true)) return;
+        await Services.ShellServices.Dialogs.ShowAsync(new DialogRequest
+        {
+            Title = Ui.Shell.LogsTitle,
+            Message = Ui.Format(Ui.Shell.LogsFolderIsFormat, folder)
+        }).ConfigureAwait(true);
+    }
+
+    /// <summary>
     /// Makes the next pane in the arrangement the active one, wrapping at the end.
     /// </summary>
     /// <remarks>
@@ -384,6 +498,10 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
     /// </remarks>
     private void ReportThePane()
     {
+        // Search and Checksums are lit by the active pane's folder and selection, which is what
+        // just changed.
+        Router.Reconsider();
+
         var message = _said ?? _standing;
         if (ActivePane() is not { } pane)
         {
@@ -426,6 +544,36 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         if (ActivePane() is not { } pane) return;
         await pane.RefreshAsync().ConfigureAwait(true);
         Say(Ui.Shell.StatusEditedFileUploaded);
+    }
+
+    /// <summary>
+    /// Reloads the active pane after Properties changed an item's permissions or modified time.
+    /// </summary>
+    /// <remarks>
+    /// The active pane for the reason <see cref="EditedFileUploadedAsync"/> gives: Properties is
+    /// modal over the shell, so the pane it was opened from is still the active one.
+    /// </remarks>
+    internal async Task ItemAttributesChangedAsync()
+    {
+        if (ActivePane() is not { } pane) return;
+        await pane.RefreshAsync().ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Compare Folders for the workspace on screen: its active pane and the one beside it. Null,
+    /// with the reason said in the status bar, when there is nothing to compare.
+    /// </summary>
+    internal FolderCompareModel? CompareActivePanes()
+    {
+        if (ActiveWorkspace() is not { } workspace)
+        {
+            Say(Ui.Sync.CompareNeedsTwoPanes);
+            return null;
+        }
+
+        var compare = workspace.CreateFolderCompare(out var refusal);
+        if (refusal is not null) Say(refusal);
+        return compare;
     }
 
     internal BrowserPaneModel? ActivePane() =>
@@ -669,7 +817,9 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         Router.UseShortcuts(saved.Shortcuts);
         ArrangeToolbar(saved.ToolbarItems, saved.ToolbarLabels);
         ConnectionsPanel.FollowSettings(saved);
+        ViewToggles.FollowSettings(saved);
         Sidebar.ShowFavoritesInTheirFolders = saved.ShowFavoritesInTheirFolders;
+        Sidebar.HideEmptyGroups = saved.HideEmptyGroups;
     }
 
     /// <summary>
@@ -971,6 +1121,9 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
 
     /// <summary>Where the connections panel is docked, how wide, and whether it is showing.</summary>
     internal ConnectionsPanelLayout ConnectionsPanel { get; init; } = new();
+
+    /// <summary>The queue, the session log, hidden files and the theme, which the View menu turns on and off.</summary>
+    internal ShellViewToggles ViewToggles { get; init; } = new();
 
     /// <summary>What a pane's right-click menu offers after its own Open and Edit.</summary>
     internal IReadOnlyList<object> PaneContextEntries { get; init; } = [];
@@ -1510,7 +1663,8 @@ internal static class ShellPreview
             new ActivityLogModel(new ActivityLogReader(
                 static () => new NamedPipeTransferQueueAgentClient(),
                 static () => new NamedPipeSyncManagementAgentClient(),
-                drops.Snapshot).ReadAsync),
+                drops.Snapshot,
+                static () => new NamedPipeRemoteStorageAgentClient()).ReadAsync),
             // Clear all history asks first, as 1.x's did.
             Services.ShellServices.Dialogs)
         {
@@ -1529,10 +1683,21 @@ internal static class ShellPreview
         // Built before the menus, which tick View > Connections Panel while it shows, and the
         // toolbar, which draws that button pressed.
         var panel = new ConnectionsPanelLayout();
+
+        // And the View toggles 1.4 declared and never wired: the active pane's tree, the queue, its
+        // log and hidden files, ticked the same way.
+        var toggles = new ShellViewToggles();
         var checks = new Dictionary<string, CommandCheck>(StringComparer.Ordinal)
         {
             [UiCommandIds.ViewConnectionsPanel] = panel.Check,
+            [UiCommandIds.ViewDirectoryTree] = toggles.TreeCheck,
+            [UiCommandIds.ViewTransferQueue] = toggles.QueueCheck,
+            [UiCommandIds.ViewSessionLog] = toggles.LogCheck,
+            [UiCommandIds.ViewHiddenFiles] = toggles.HiddenCheck,
         };
+        // The shell the workspaces belong to, for a pane to reach the connections panel's editor:
+        // read when a pane asks, by which time it is there.
+        ShellPreviewModel? shell = null;
         var model = new ShellPreviewModel(router)
         {
             Menus = BuildMenus(router, checks),
@@ -1541,6 +1706,7 @@ internal static class ShellPreview
             SelectedWorkspace = selectedWorkspace,
             Sidebar = BuildSidebar(router),
             ConnectionsPanel = panel,
+            ViewToggles = toggles,
             NewWorkspaceCommand = router.For(UiCommandIds.WorkspaceNewWorkspace),
             NewWorkspaceLabel = Ui.Commands.WorkspaceNewWorkspace,
             Queue = queue,
@@ -1583,9 +1749,22 @@ internal static class ShellPreview
             {
                 PendingDrops = drops,
 
+                // What a transfer does with a file already where it is going, from Settings, read
+                // at each transfer; and "always do this" in the question saves its answer there.
+                // Only the application's own: a preview asks, as a fresh install does.
+                ConflictDefault = live ? static () => ReadPreferences()?.TransferConflictDefault : null,
+                RememberConflictChoice = live
+                    ? static choice => UpdatePreferences(preferences =>
+                        preferences with { TransferConflictDefault = choice })
+                    : null,
+
                 // A connection's rows dragged out to Explorer go through the drop broker the boot
                 // registered, and wait on the queue's Active tab for where they landed, as 1.x's
                 // did. Only the application's own shell: a preview's agent is a test's.
+                // A pane that failed on its server's identity offers the connection's Trust tab
+                // there, as the connections panel does once a check has found it.
+                ReviewTrust = id => shell?.Sidebar.EditConnection?.Invoke(id, ConnectionEditorTab.Trust),
+
                 DragOut = live
                     ? new ExplorerDragOut(
                         static () => new NamedPipeTransferQueueAgentClient(),
@@ -1599,6 +1778,7 @@ internal static class ShellPreview
         // listing them again on every poll. At startup the queue's first read can come back before
         // the sidebar's, so the rows are read again as the list comes in, rather than showing
         // short ids until the next poll. A rename shows as the Connection Manager closes, too.
+        shell = model;
         queue.ConnectionName = model.Sidebar.NameOf;
         model.Sidebar.Answered = () => _ = queue.RefreshAsync(background: true);
 
@@ -1673,6 +1853,8 @@ internal static class ShellPreview
         model.RouteToActivePane();
         model.DimWorkspaceCommandsOnPages();
         model.WatchTheStatusBar();
+        model.RouteTransferCommands();
+        model.RouteToolAndHelpCommands();
 
         // The keys and the toolbar as Settings saved them, as 1.x built its menus and toolbar from
         // the saved preferences. The samples have no settings file, and keep the catalog's.
@@ -1687,6 +1869,19 @@ internal static class ShellPreview
         model.Sidebar.MoveToOtherSideCommand = router.For(UiCommandIds.ViewMoveConnectionsPanel);
         model.Sidebar.HidePanelCommand = new RelayCommand(_ => panel.SetVisible(false));
 
+        // The rest of View, and Go and Connections: the queue and hidden files as they were left,
+        // and the theme put on screen as Settings puts it. Live only, as the panel's are: a
+        // preview has no settings file, and its colours are what the photographs compare.
+        if (live)
+        {
+            toggles.Restore(saved);
+            toggles.Persist = UpdatePreferences;
+            toggles.ApplyAppearance = static appearance => SettingsWindow.ApplyScheme(
+                (ReadPreferences() ?? DesktopUpdatePreferences.Defaults) with { Appearance = appearance });
+        }
+
+        ShellViewCommands.Wire(model, toggles);
+
         // Live, the panel opens the way it was left and every change is saved as it happens. It
         // reads the connections again when it comes back, as 1.x did: they may have changed while
         // it was hidden.
@@ -1695,10 +1890,15 @@ internal static class ShellPreview
             panel.Restore(saved);
             panel.Persist = UpdatePreferences;
             panel.Shown += (_, _) => _ = model.Sidebar.RefreshAsync();
+
+            // Each connection's link -- retrying, lost, back -- on its card, read every few
+            // seconds whether the panel shows or not, so it is right the moment it is opened.
+            model.Sidebar.FollowLinks();
         }
 
         // Favourites in their own group as well as under Favorites, or only there, as Settings says.
         model.Sidebar.ShowFavoritesInTheirFolders = saved.ShowFavoritesInTheirFolders;
+        model.Sidebar.HideEmptyGroups = saved.HideEmptyGroups;
 
         // Go > Favorites follows what the panel lists. Live only, as the Workspace menu's own
         // entries are: the samples list no connections and keep the catalog's menu.
@@ -1763,6 +1963,7 @@ internal static class ShellPreview
         pane.StopDeleteConfirmation = static () => UpdatePreferences(static preferences =>
             preferences with { ConfirmBeforeDeletingItems = false });
         pane.TerminalPreferences = static () => ReadPreferences()?.SshTerminal;
+        pane.AutoRefreshSettings = static () => ReadPreferences()?.FolderAutoRefresh ?? FolderAutoRefreshSettings.Off;
         _ = pane.LoadConnectionsAsync();
         return pane;
     }

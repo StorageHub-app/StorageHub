@@ -9,9 +9,11 @@
         WindowStartupLocation="CenterOwner">
 
   <!--
-    A heading that says what is being looked at and that nothing here changes it, three tabs, and
-    a status line. The tabs keep their own notice because the three sections fail independently:
-    a provider that has versions and refuses tags shows the versions and says so under Tags.
+    A heading that says what is being looked at and what here can change it, four tabs, and a
+    status line. General is the item's attributes and the two changes the connection may allow;
+    the other three are a file's only and are hidden for a folder or a link. Each tab keeps its own
+    notice because the sections fail independently: a provider that has versions and refuses tags
+    shows the versions and says so under Tags.
   -->
 
   <Border Classes="surface">
@@ -22,7 +24,7 @@
           <TextBlock Classes="title" Text="{Binding Path}" TextTrimming="CharacterEllipsis"
                      AutomationProperties.Name="{Binding PathAccessibleName}"/>
           <TextBlock Classes="muted" Text="{Binding Identity}" TextTrimming="CharacterEllipsis"/>
-          <TextBlock Classes="status success" Text="{Binding SafetyNotice}" TextWrapping="Wrap"
+          <TextBlock Classes="muted" Text="{Binding SafetyNotice}" TextWrapping="Wrap"
                      AutomationProperties.Name="{Binding SafetyAccessibleName}"/>
         </StackPanel>
       </Border>
@@ -44,7 +46,31 @@
 
       <TabControl Margin="{StaticResource PaddingLg}" SelectedIndex="{Binding SelectedTab, Mode=TwoWay}"
                   AutomationProperties.Name="{Binding TabsAccessibleName}">
-        <TabItem Header="{Binding VersionsTabLabel}">
+        <TabItem Header="{Binding GeneralTabLabel}">
+          <DockPanel>
+            <TextBlock DockPanel.Dock="Top" Classes="status"
+                       Classes.warning="{Binding GeneralNotice.IsWarning}"
+                       Text="{Binding GeneralNotice.Text}" TextWrapping="Wrap" Margin="0,8,0,8"/>
+            <StackPanel DockPanel.Dock="Bottom" Spacing="{StaticResource SpaceSm}" Margin="0,8,0,0">
+              <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                          Spacing="{StaticResource SpaceSm}">
+                <Button Content="{Binding ChangePermissionsLabel}" Command="{Binding ChangePermissionsCommand}"/>
+                <Button Content="{Binding SetModifiedTimeLabel}" Command="{Binding SetModifiedTimeCommand}"/>
+              </StackPanel>
+              <TextBlock Classes="muted" HorizontalAlignment="Right" TextWrapping="Wrap"
+                         IsVisible="{Binding HasChangesNotice}" Text="{Binding ChangesNotice}"/>
+            </StackPanel>
+            <TableView ItemsSource="{Binding General}"
+                       AutomationProperties.Name="{Binding GeneralAccessibleName}">
+              <TableView.Columns>
+                <TableViewColumn Header="{Binding ColumnName}" Binding="{Binding Name}" Width="30*"/>
+                <TableViewColumn Header="{Binding ColumnValue}" Binding="{Binding Value}" Width="70*"/>
+              </TableView.Columns>
+            </TableView>
+          </DockPanel>
+        </TabItem>
+
+        <TabItem Header="{Binding VersionsTabLabel}" IsVisible="{Binding IsFile}">
           <DockPanel>
             <TextBlock DockPanel.Dock="Top" Classes="status"
                        Classes.warning="{Binding VersionsNotice.IsWarning}"
@@ -67,7 +93,7 @@
           </DockPanel>
         </TabItem>
 
-        <TabItem Header="{Binding MetadataTabLabel}">
+        <TabItem Header="{Binding MetadataTabLabel}" IsVisible="{Binding IsFile}">
           <DockPanel>
             <TextBlock DockPanel.Dock="Top" Classes="status"
                        Classes.warning="{Binding MetadataNotice.IsWarning}"
@@ -82,7 +108,7 @@
           </DockPanel>
         </TabItem>
 
-        <TabItem Header="{Binding TagsTabLabel}">
+        <TabItem Header="{Binding TagsTabLabel}" IsVisible="{Binding IsFile}">
           <DockPanel>
             <TextBlock DockPanel.Dock="Top" Classes="status"
                        Classes.warning="{Binding TagsNotice.IsWarning}"
@@ -95,6 +121,24 @@
               </TableView.Columns>
             </TableView>
           </DockPanel>
+        </TabItem>
+        <TabItem Header="{Binding ChecksumTabLabel}" IsVisible="{Binding IsFile}">
+          <StackPanel Spacing="{StaticResource SpaceSm}" Margin="0,8,0,0">
+            <TextBlock Classes="status"
+                       Classes.success="{Binding ChecksumNotice.IsSuccess}"
+                       Classes.warning="{Binding ChecksumNotice.IsWarning}"
+                       Text="{Binding ChecksumNotice.Text}" TextWrapping="Wrap"/>
+            <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceSm}" IsVisible="{Binding HasChecksum}">
+              <TextBlock Classes="muted" Text="{Binding ChecksumAlgorithmLabel}" VerticalAlignment="Center"/>
+              <SelectableTextBlock FontFamily="{DynamicResource AppFontMono}" Text="{Binding Checksum}"
+                                   AutomationProperties.Name="{Binding ChecksumAccessibleName}"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceSm}">
+              <Button Content="{Binding GetChecksumLabel}" Command="{Binding GetChecksumCommand}"/>
+              <Button Content="{Binding ComputeChecksumLabel}" Command="{Binding ComputeChecksumCommand}"
+                      ToolTip.Tip="{Binding ComputeChecksumHint}"/>
+            </StackPanel>
+          </StackPanel>
         </TabItem>
       </TabControl>
     </DockPanel>

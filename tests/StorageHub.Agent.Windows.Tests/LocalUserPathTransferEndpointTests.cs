@@ -189,7 +189,7 @@ public sealed class LocalUserPathTransferEndpointTests
     }
 
     [WindowsOnlyFact]
-    public async Task AWriteOnlyCreatesAndWillNotOverwrite()
+    public async Task AWriteCreatesAndOnlyAnExplicitOverwriteReplaces()
     {
         using var folder = new TemporaryFolder();
         var created = LocalUserPathTransferEndpoint.CreateAddress(folder.Path, "new.txt");
@@ -210,12 +210,24 @@ public sealed class LocalUserPathTransferEndpointTests
 
         Assert.Equal(3, new FileInfo(Path.Combine(folder.Path, "new.txt")).Length);
 
-        // Overwriting a local file is a separate safety decision and is not offered here.
-        var overwrite = await connection.Session.OpenWriteAsync(
-            new Storage.Models.StorageWriteRequest(created.Value, Storage.Models.StorageWriteMode.Overwrite, 3));
+        var again = await connection.Session.OpenWriteAsync(
+            new Storage.Models.StorageWriteRequest(created.Value, Storage.Models.StorageWriteMode.CreateNew, 3));
+        Assert.True(again.IsFailure);
+        Assert.Equal("local-user.exists", again.Error.Code);
 
-        Assert.True(overwrite.IsFailure);
-        Assert.Equal("local-user.create-only", overwrite.Error.Code);
+        // Replacing is the user's explicit choice; the new content is staged and renamed into place whole.
+        var overwrite = await connection.Session.OpenWriteAsync(
+            new Storage.Models.StorageWriteRequest(created.Value, Storage.Models.StorageWriteMode.Overwrite, 2));
+        Assert.True(overwrite.IsSuccess);
+        await using (var writer = overwrite.Value)
+        {
+            await writer.Content.WriteAsync(new byte[] { 9, 9 });
+            var committed = await writer.CommitAsync();
+            Assert.True(committed.IsSuccess, committed.IsFailure ? committed.Error.Message : null);
+        }
+
+        Assert.Equal(new byte[] { 9, 9 }, await File.ReadAllBytesAsync(Path.Combine(folder.Path, "new.txt")));
+        Assert.Empty(Directory.EnumerateFiles(folder.Path, "*.partial"));
     }
 
     [WindowsOnlyFact]

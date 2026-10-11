@@ -57,6 +57,22 @@ public static class LocalTransferFolder
         }
     }
 
+    /// <summary>
+    /// The identity a file in a local folder is held to by a transfer that replaces it or reads
+    /// it: its last write time and its length.
+    /// </summary>
+    /// <remarks>
+    /// A local file has no version or entity tag, so without this an existing file on this PC
+    /// could not be replaced, nor one uploaded over a file already at the destination: both
+    /// need evidence that the file is still the one somebody looked at. The desktop computes it
+    /// from its listing and the agent from the file as it finds it, so the two agree exactly
+    /// until the file is written to. It is a change detector, never a content hash.
+    /// </remarks>
+    public static string FileIdentity(DateTimeOffset lastWriteTime, long length) =>
+        string.Create(
+            System.Globalization.CultureInfo.InvariantCulture,
+            $"local:{lastWriteTime.UtcTicks:x}:{length:x}");
+
     private static string Normalize(string folder) =>
         Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder));
 }

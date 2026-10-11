@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using StorageHub.Application.Connections;
 using StorageHub.Contracts.Ipc;
+using StorageHub.Ipc;
 using StorageHub.Contracts.Results;
 using StorageHub.Domain.Capabilities;
 using StorageHub.Domain.Identifiers;
@@ -319,6 +320,176 @@ public sealed class StorageIpcCommandServiceTests
         Assert.DoesNotContain("leak.txt", response.Payload.GetRawText(), StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The free space behind a folder comes back as the session reported it, for the folder asked
+    /// about; a session that cannot say is an unsupported failure, which the pane shows as nothing.
+    /// </summary>
+    [Fact]
+    public async Task FreeSpaceIsReadForTheFolderAskedAboutAndRefusedWhereUnknown()
+    {
+        var profile = CreateS3Profile(SecretReference.Create(), SecretReference.Create());
+        var session = new SpaceSession(profile.Id, "root-test", StorageSpace.Create(1_000, 250, 750));
+        var service = new StorageIpcCommandService(
+            new FakeProfileRepository(profile),
+            new FakeSessionOpener(StorageResult<IStorageIpcSessionLease>.Success(new FakeSessionLease(session))));
+        Assert.True(service.CanHandle(StorageIpcMessageTypes.StorageSpaceRequest));
+
+        var response = await service.HandleAsync(SpaceRequest(profile.Id.Value, "renders/2026"));
+        var payload = Assert.IsType<StorageSpaceResponse>(response.Payload.Deserialize<StorageSpaceResponse>());
+
+        Assert.Equal(StorageIpcMessageTypes.StorageSpaceResponse, response.MessageType);
+        Assert.Null(payload.Failure);
+        Assert.Equal(new StorageSpaceDocument(1_000, 250, 750), payload.Space);
+        Assert.Equal("renders/2026", session.LastSpacePath);
+
+        var plain = new FakeSession(profile.Id, "root-test", StorageResult<StoragePage>.Success(new StoragePage([])));
+        var refusing = new StorageIpcCommandService(
+            new FakeProfileRepository(profile),
+            new FakeSessionOpener(StorageResult<IStorageIpcSessionLease>.Success(new FakeSessionLease(plain))));
+        var unknown = Assert.IsType<StorageSpaceResponse>(
+            (await refusing.HandleAsync(SpaceRequest(profile.Id.Value, string.Empty)))
+                .Payload.Deserialize<StorageSpaceResponse>());
+        Assert.Null(unknown.Space);
+        Assert.Equal(StorageIpcFailureCategory.Unsupported, unknown.Failure?.Category);
+    }
+
+    /// <summary>
+    /// A path the contract does not allow is refused before any connection is opened.
+    /// </summary>
+    [Fact]
+    public async Task AFreeSpaceRequestOutsideTheContractIsRefusedUnopened()
+    {
+        var profile = CreateS3Profile(SecretReference.Create(), SecretReference.Create());
+        var opener = new FakeSessionOpener();
+        var service = new StorageIpcCommandService(new FakeProfileRepository(profile), opener);
+
+        var response = await service.HandleAsync(SpaceRequest(profile.Id.Value, "bad\u0000path"));
+
+        Assert.Equal(IpcProtocol.ErrorResponseMessageType, response.MessageType);
+        Assert.Equal(0, opener.OpenCount);
+        Assert.False(new StorageSpaceDocument(100, 101, null).HasValidBounds);
+        Assert.False(new StorageSpaceDocument(null, null, null).HasValidBounds);
+        Assert.False(new StorageSpaceDocument(null, -1, null).HasValidBounds);
+        Assert.True(new StorageSpaceDocument(null, 5, null).HasValidBounds);
+    }
+
+    /// <summary>
+    /// The link changes come back named as the connections are named now, newest first, with each
+    /// connection's latest beside them; a listing that comes back is what brings an object store
+    /// back, and a change for a connection since deleted is left out.
+    /// </summary>
+    [Fact]
+    public async Task LinkChangesAreReadNamedAndAListingBringsAConnectionBack()
+    {
+        var profile = CreateS3Profile(SecretReference.Create(), SecretReference.Create());
+        var deleted = ConnectionProfileId.New();
+        var tracker = new StorageHub.Storage.CodeLogic.ConnectionLinkTracker();
+        var journal = new ConnectionLinkJournal(tracker);
+        var at = DateTimeOffset.Parse("2026-10-11T08:00:00Z", CultureInfo.InvariantCulture);
+        tracker.Retrying(profile.Id, 2, "storage.timeout", at);
+        tracker.Lost(deleted, "storage.connection_lost", at);
+        tracker.Lost(profile.Id, "storage.not a safe code", at.AddSeconds(1));
+        var session = new FakeSession(profile.Id, "root-test", StorageResult<StoragePage>.Success(new StoragePage([])));
+        var service = new StorageIpcCommandService(
+            new FakeProfileRepository(profile),
+            new FakeSessionOpener(StorageResult<IStorageIpcSessionLease>.Success(new FakeSessionLease(session))),
+            links: journal);
+        Assert.True(service.CanHandle(StorageIpcMessageTypes.ConnectionLinkEventsRequest));
+
+        var listing = await service.HandleAsync(IpcEnvelope.Create(
+            StorageIpcMessageTypes.StorageListRequest,
+            Guid.NewGuid(),
+            1,
+            new StorageListPageRequest(StorageIpcContract.CurrentVersion, profile.Id.Value, string.Empty, PageSize: 25)));
+        Assert.Equal(StorageIpcMessageTypes.StorageListResponse, listing.MessageType);
+
+        var response = await service.HandleAsync(LinkRequest(10));
+        var payload = Assert.IsType<ConnectionLinkEventsResponse>(
+            response.Payload.Deserialize<ConnectionLinkEventsResponse>());
+
+        Assert.Null(payload.Failure);
+        Assert.Equal(
+            [ConnectionLinkEventKind.Back, ConnectionLinkEventKind.Lost, ConnectionLinkEventKind.Retrying],
+            payload.Events.Select(static change => change.Kind));
+        Assert.All(payload.Events, change =>
+        {
+            Assert.Equal(profile.Id.Value, change.ConnectionId);
+            Assert.Equal("Archive", change.DisplayName);
+            Assert.True(change.HasValidBounds);
+        });
+        Assert.Equal(2, payload.Events[2].Attempt);
+        Assert.Equal("storage.timeout", payload.Events[2].ErrorCode);
+        Assert.Null(payload.Events[1].ErrorCode);
+        var latest = Assert.Single(payload.Latest);
+        Assert.Equal(ConnectionLinkEventKind.Back, latest.Kind);
+
+        var limited = Assert.IsType<ConnectionLinkEventsResponse>(
+            (await service.HandleAsync(LinkRequest(1))).Payload.Deserialize<ConnectionLinkEventsResponse>());
+        Assert.Equal(ConnectionLinkEventKind.Back, Assert.Single(limited.Events).Kind);
+
+        var outside = await service.HandleAsync(LinkRequest(ConnectionLinkLimits.MaximumEvents + 1));
+        Assert.Equal(IpcProtocol.ErrorResponseMessageType, outside.MessageType);
+
+        // An agent without a journal has nothing to tell, which is not a failure.
+        var bare = new StorageIpcCommandService(new FakeProfileRepository(profile), new FakeSessionOpener());
+        var empty = Assert.IsType<ConnectionLinkEventsResponse>(
+            (await bare.HandleAsync(LinkRequest(10))).Payload.Deserialize<ConnectionLinkEventsResponse>());
+        Assert.Null(empty.Failure);
+        Assert.Empty(empty.Events);
+    }
+
+    /// <summary>
+    /// The journal keeps the newest changes in order and each connection's latest, and its sequence
+    /// numbers say which came first.
+    /// </summary>
+    [Fact]
+    public void TheJournalKeepsTheNewestChangesAndEachConnectionsLatest()
+    {
+        var tracker = new StorageHub.Storage.CodeLogic.ConnectionLinkTracker();
+        var journal = new ConnectionLinkJournal(tracker);
+        var at = DateTimeOffset.Parse("2026-10-11T08:00:00Z", CultureInfo.InvariantCulture);
+        var profiles = Enumerable.Range(0, ConnectionLinkJournal.Capacity + 3).Select(_ => ConnectionProfileId.New()).ToArray();
+        foreach (var profile in profiles) tracker.Lost(profile, null, at);
+        journal.Reached(profiles[^1]);
+
+        var (recent, latest) = journal.Read(5, 2);
+
+        Assert.Equal(5, recent.Count);
+        Assert.Equal(profiles[^1], recent[0].Change.ProfileId);
+        Assert.Equal(StorageHub.Storage.CodeLogic.ConnectionLinkState.Back, recent[0].Change.State);
+        Assert.True(recent.Zip(recent.Skip(1)).All(static pair => pair.First.Sequence > pair.Second.Sequence));
+        Assert.Equal([profiles[^1], profiles[^2]], latest.Select(static entry => entry.Change.ProfileId));
+        Assert.Equal(ConnectionLinkJournal.Capacity, journal.Read(int.MaxValue, 0).Recent.Count);
+        Assert.Equal(ConnectionLinkJournal.Capacity, journal.Read(0, int.MaxValue).Latest.Count);
+    }
+
+    private static IpcEnvelope LinkRequest(int limit) => IpcEnvelope.Create(
+        StorageIpcMessageTypes.ConnectionLinkEventsRequest,
+        Guid.NewGuid(),
+        1,
+        new ConnectionLinkEventsRequest(StorageIpcContract.CurrentVersion, limit));
+
+    private static IpcEnvelope SpaceRequest(Guid connectionId, string path) => IpcEnvelope.Create(
+        StorageIpcMessageTypes.StorageSpaceRequest,
+        Guid.NewGuid(),
+        1,
+        new StorageSpaceRequest(StorageIpcContract.CurrentVersion, connectionId, path));
+
+    private sealed class SpaceSession(ConnectionProfileId profileId, string rootIdentity, StorageSpace space)
+        : FakeSession(profileId, rootIdentity, StorageResult<StoragePage>.Success(new StoragePage([]))),
+            IStorageSpaceSession
+    {
+        public string? LastSpacePath { get; private set; }
+
+        public ValueTask<StorageResult<StorageSpace>> GetSpaceAsync(
+            StorageAddress address,
+            CancellationToken cancellationToken = default)
+        {
+            LastSpacePath = address.CanonicalRelativePath;
+            return ValueTask.FromResult(StorageResult<StorageSpace>.Success(space));
+        }
+    }
+
     private static ConnectionProfile CreateLocalProfile() => ConnectionProfile.Create(
         ConnectionProfileId.New(),
         new ConnectionProfileMetadata("Local files", iconKey: "drive", accentColor: "#3366CC"),
@@ -438,7 +609,7 @@ public sealed class StorageIpcCommandServiceTests
         }
     }
 
-    private sealed class FakeSession(
+    private class FakeSession(
         ConnectionProfileId profileId,
         string rootIdentity,
         StorageResult<StoragePage> listResult) : IStorageEndpointSession

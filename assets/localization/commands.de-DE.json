@@ -34,7 +34,7 @@
   "editInvertSelection": "Auswahl umkehren",
   "editInvertSelectionDescription": "Kehren Sie die sichtbare Auswahl im aktiven Bereich um.",
   "editProperties": "Eigenschaften",
-  "editPropertiesDescription": "Zeigen Sie schreibgeschützte Versionen, Metadaten und Tags für eine Datei einer gespeicherten Verbindung an.",
+  "editPropertiesDescription": "Zeigen Sie Berechtigungen, Besitzer und Zeiten eines Elements einer gespeicherten Verbindung an, ändern Sie Berechtigungen oder Änderungszeitpunkt, wo die Verbindung es erlaubt, und sehen Sie Versionen, Metadaten und Tags einer Datei.",
   "viewRefresh": "Aktualisieren",
   "viewRefreshDescription": "Aktualisieren Sie den fokussierten Bereich.",
   "viewConnectionsPanel": "Verbindungsbereich",
@@ -72,7 +72,7 @@
   "connectionsKeyStore": "Schlüsselspeicher...",
   "connectionsKeyStoreDescription": "Importieren und verwalten Sie die Zertifikate und privaten Schlüssel, die gespeicherte Verbindungen gemeinsam nutzen.",
   "connectionsQuickConnect": "Schnellverbindung...",
-  "connectionsQuickConnectDescription": "Öffnen Sie eine temporäre Verbindung, ohne Anmeldedaten im Profil zu speichern.",
+  "connectionsQuickConnectDescription": "Suchen Sie eine gespeicherte Verbindung nach ihrem Namen und öffnen Sie sie im aktiven Bereich.",
   "connectionsReconnect": "Erneut verbinden",
   "connectionsReconnectDescription": "Öffnen Sie die Verbindung des aktiven Bereichs erneut.",
   "connectionsDisconnect": "Verbindung trennen",
@@ -123,5 +123,9 @@
   "helpReportIssueDescription": "Melden Sie einen Fehler in StorageHub.",
   "helpAboutStorageHub": "Über StorageHub",
   "helpAboutStorageHubDescription": "Zeigen Sie die Version und Programminformationen von StorageHub an.",
+  "toolsCleanUpLeftovers": "Zurückgebliebene Dateien bereinigen...",
+  "toolsCleanUpLeftoversDescription": "Finden Sie die Arbeitsdateien, die unterbrochene Übertragungen und der externe Editor hinterlassen haben, und entfernen Sie die ausgewählten.",
+  "connectionsFtpConsole": "FTP-Befehlskonsole…",
+  "connectionsFtpConsoleDescription": "Rohe Befehle an den FTP- oder FTPS-Server des aktiven Bereichs senden und seine Antworten lesen.",
   "culture": "de-DE"
 }

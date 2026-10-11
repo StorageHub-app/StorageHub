@@ -44,16 +44,24 @@ internal static class LocalDrops
             else if (File.Exists(full))
             {
                 long? length;
+                DateTimeOffset? modified;
                 try
                 {
-                    length = new FileInfo(full).Length;
+                    var file = new FileInfo(full);
+                    length = file.Length;
+                    modified = new DateTimeOffset(file.LastWriteTime);
                 }
                 catch (Exception error) when (error is IOException or UnauthorizedAccessException)
                 {
                     length = null;
+                    modified = null;
                 }
 
-                item = PaneTransferItem.Create(Path.GetFileName(full), full, StorageItemKind.File, length);
+                // With the identity the agent finds it by, so a dropped file can replace one
+                // already at the destination when that is what was chosen.
+                item = PaneTransferItem.Create(
+                    Path.GetFileName(full), full, StorageItemKind.File, length, modifiedUtc: modified);
+                if (item.IsSuccess) item = StorageResult<PaneTransferItem>.Success(item.Value.WithLocalIdentity());
             }
             else
             {

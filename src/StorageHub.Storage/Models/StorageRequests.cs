@@ -91,9 +91,11 @@ public sealed class StorageWriteRequest
         string? contentType = null,
         IReadOnlyDictionary<string, string>? metadata = null,
         string? expectedDestinationVersionId = null,
-        string? expectedDestinationEntityTag = null)
+        string? expectedDestinationEntityTag = null,
+        string? resumeKey = null)
     {
         Destination = destination ?? throw new ArgumentNullException(nameof(destination));
+        ResumeKey = resumeKey;
         Mode = mode;
         ExpectedLength = expectedLength;
         RequestedOffset = requestedOffset;
@@ -117,6 +119,21 @@ public sealed class StorageWriteRequest
     public string? ExpectedDestinationVersionId { get; }
     public string? ExpectedDestinationEntityTag { get; }
 
+    /// <summary>
+    /// Asks the endpoint to stage the content resumably, under a partial object named by this
+    /// caller-chosen key, and to publish it to <see cref="Destination"/> only on commit.
+    /// </summary>
+    /// <remarks>
+    /// Only for an endpoint that advertises native <c>ResumeUpload</c>. The key has to identify
+    /// both the content and where it goes, because a later write with the same key continues
+    /// whatever an earlier one staged: the handle's <see cref="StorageHub.Storage.Abstractions.IStorageWriteHandle.AcceptedOffset"/>
+    /// then says how many bytes are already there, and the caller supplies the rest. A write with
+    /// a key is still <see cref="StorageWriteMode.CreateNew"/> or
+    /// <see cref="StorageWriteMode.Overwrite"/>: the key changes how the bytes are staged, never
+    /// whether an existing destination may be replaced.
+    /// </remarks>
+    public string? ResumeKey { get; }
+
     public StorageResult Validate()
     {
         if (ExpectedLength < 0 || RequestedOffset < 0)
@@ -139,6 +156,13 @@ public sealed class StorageWriteRequest
             return Invalid("Only resume mode can specify an offset or resume token.");
         }
 
+        if (ResumeKey is not null &&
+            (Mode == StorageWriteMode.Resume || !IsValidResumeKey(ResumeKey)))
+        {
+            return Invalid(
+                "A resume key is a bounded run of letters, digits and dashes, used with create-new or overwrite.");
+        }
+
         if (ResumeToken?.Any(char.IsControl) == true || Metadata.Any(pair =>
                 string.IsNullOrWhiteSpace(pair.Key) || pair.Key.Any(char.IsControl) || pair.Value.Any(char.IsControl)))
         {
@@ -153,6 +177,15 @@ public sealed class StorageWriteRequest
 
         return StorageResult.Success();
     }
+
+    /// <summary>
+    /// Whether a resume key can become part of a file name on every endpoint unchanged: letters,
+    /// digits and dashes, at most 128 of them.
+    /// </summary>
+    public static bool IsValidResumeKey(string? key) =>
+        !string.IsNullOrEmpty(key) &&
+        key.Length <= 128 &&
+        key.All(static character => char.IsAsciiLetterOrDigit(character) || character == '-');
 
     private static StorageResult Invalid(string message) => StorageResult.Fail(new StorageFailure(
         "storage.write.invalid_request",

@@ -151,6 +151,15 @@ internal sealed class SettingsImportService
         byte[] content;
         try
         {
+            // Checked before the read, so a file of any size is refused without being loaded.
+            if (new FileInfo(path).Length > SettingsExportEnvelopeLimits.MaximumFileBytes)
+            {
+                return new SettingsExportReadResult(
+                    null,
+                    SettingsExportReadFailure.TooLarge,
+                    Ui.Validation.ThatFileIsTooLargeToBe);
+            }
+
             content = File.ReadAllBytes(path);
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or NotSupportedException)

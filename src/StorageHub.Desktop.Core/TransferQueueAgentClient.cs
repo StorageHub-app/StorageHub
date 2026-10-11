@@ -37,6 +37,15 @@ public interface ITransferQueueAgentClient : IAsyncDisposable
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException(Ui.Validation.ThisTransferClientDoesNotSupportClearing);
 
+    /// <summary>
+    /// Pauses one transfer, as Transfer, Pause all does for each. Defaulted like clearing, so a
+    /// client written before pausing existed still builds; it refuses rather than pretends.
+    /// </summary>
+    Task<TransferMutationResponse> PauseAsync(
+        TransferPauseRequest request,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(Ui.Validation.ThisTransferClientDoesNotSupportPausing);
+
     Task<ShellImportPlanResponse> PlanShellImportAsync(
         ShellImportPlanRequest request,
         CancellationToken cancellationToken = default) => throw new NotSupportedException(Ui.Validation.ThisTransferClientDoesNotSupportShell2);
@@ -151,6 +160,20 @@ public sealed class NamedPipeTransferQueueAgentClient : ITransferQueueAgentClien
         return ExecuteMutationAsync(
             TransferQueueIpcMessageTypes.RetryRequest,
             TransferQueueIpcMessageTypes.RetryResponse,
+            request,
+            request.TransferId,
+            cancellationToken);
+    }
+
+    public Task<TransferMutationResponse> PauseAsync(
+        TransferPauseRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ValidateRequest(request.ContractVersion, request.HasValidBounds, nameof(request));
+        return ExecuteMutationAsync(
+            TransferQueueIpcMessageTypes.PauseRequest,
+            TransferQueueIpcMessageTypes.PauseResponse,
             request,
             request.TransferId,
             cancellationToken);

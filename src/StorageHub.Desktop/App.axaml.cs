@@ -1,6 +1,8 @@
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.Platform.Storage;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using StorageHub.Desktop.Localization;
 using StorageHub.Desktop.Settings;
@@ -43,11 +45,28 @@ public partial class App : global::Avalonia.Application
     }
 
     /// <summary>
+    /// Mirrors every window when the shell speaks a right-to-left language. One style on the window
+    /// rather than a property on each, so dialogs opened later are mirrored too; the terminal draws
+    /// its own text left to right regardless.
+    /// </summary>
+    private static void MirrorForRightToLeft()
+    {
+        if (Current is not { } application || !DesktopCulture.IsRightToLeft(Ui.Culture.Name)) return;
+        application.Styles.Add(new global::Avalonia.Styling.Style(x => x.OfType<global::Avalonia.Controls.Window>())
+        {
+            Setters = { new global::Avalonia.Styling.Setter(
+                global::Avalonia.Visual.FlowDirectionProperty,
+                global::Avalonia.Media.FlowDirection.RightToLeft) }
+        });
+    }
+
+    /// <summary>
     /// Builds the shell and wires every command that opens a window. Called by the boot once the
     /// agent is answering, with the splash still up.
     /// </summary>
     private static MainWindow OpenShell(IClassicDesktopStyleApplicationLifetime desktop)
     {
+        MirrorForRightToLeft();
         var model = ShellPreview.CreateLive();
         var window = new MainWindow { DataContext = model };
 
@@ -139,6 +158,9 @@ public partial class App : global::Avalonia.Application
         // And the schedule manager, which is what turns a profile into something that runs
         // without anybody present.
         model.Router.Handle(UiCommandIds.SyncSchedules, () => ShowSchedules(desktop, model));
+        // Compare Panes: the active pane's folder and its neighbour's, side by side, with the
+        // differences copied either way through the queue.
+        model.Router.Handle(UiCommandIds.SyncComparePanes, () => ShowFolderCompare(desktop, model));
 
         // Settings out to a file and back in again. Import is the one that can change what
         // the agent holds, so the shell refreshes itself when it reports that it did.
@@ -149,6 +171,25 @@ public partial class App : global::Avalonia.Application
         // stopped from, which matters most on Linux: the .deb installs the unit but leaves
         // enabling it to each user, and its own postinst points them here.
         model.Router.Handle(UiCommandIds.ToolsBackgroundAgent, () => ShowAgentControl(desktop, model));
+
+        // The working files interrupted transfers and the external editor left behind, listed with
+        // their sizes and removed only when somebody confirms it.
+        model.Router.Handle(UiCommandIds.ToolsCleanUpLeftovers, () => ShowStagingCleanup(desktop));
+
+        // The FTP command console, from Connections or a pane's own menu, on that pane's FTP or
+        // FTPS connection. The shell routes the command; the window is opened here.
+        model.OpenFtpConsole = pane => ShowFtpConsole(desktop, pane);
+
+        // Tools and Help, which 1.4 declared and left dead. Links and folders open through the main
+        // window's own launcher, the platform's, as About's link does. Keyboard shortcuts is the
+        // Settings page that lists and rebinds them, which is what 1.4's entry said it would show.
+        model.OpenUri = uri => window.Launcher.LaunchUriAsync(uri);
+        model.OpenFolder = folder => window.Launcher.LaunchDirectoryInfoAsync(new DirectoryInfo(folder));
+        model.Router.Handle(UiCommandIds.ToolsSearch, () => ShowSearch(desktop, model));
+        model.Router.Handle(UiCommandIds.ToolsChecksums, () => ShowChecksums(desktop, model));
+        model.Router.Handle(UiCommandIds.ToolsDiagnostics, () => ShowDiagnostics(desktop, model));
+        model.Router.Handle(
+            UiCommandIds.HelpKeyboardShortcuts, () => ShowSettings(SettingsPageCatalog.ShortcutsPageKey));
 
         // One updater for the session, shared with the window that shows it. Two would each
         // stage the same release into the same directory, and the second would find it taken.
@@ -199,6 +240,8 @@ public partial class App : global::Avalonia.Application
         _ = model.Overview?.RefreshAsync();
         // An edited file that was uploaded shows up in the pane it came from.
         Services.ShellServices.EditedFileUploaded += (_, _) => _ = model.EditedFileUploadedAsync();
+        // So does a permission or time changed in Properties.
+        Services.ShellServices.ItemAttributesChanged += (_, _) => _ = model.ItemAttributesChangedAsync();
 
         // The first time an installed build opens, it asks how StorageHub should run, as 1.4 did:
         // once the window is up, so the shell is usable behind the question.
@@ -421,6 +464,70 @@ public partial class App : global::Avalonia.Application
         DesktopUpdater updater)
     {
         var window = Views.UpdateCheckerWindow.For(updater);
+        if (desktop.MainWindow is { } owner) _ = window.ShowDialog(owner);
+        else window.Show();
+    }
+
+    /// <summary>
+    /// Opens Compare Folders beside the main window rather than over it, so the panes stay usable
+    /// and the transfer conflict question, which is asked over the main window, is not hidden.
+    /// </summary>
+    private static void ShowFolderCompare(IClassicDesktopStyleApplicationLifetime desktop, ShellPreviewModel model)
+    {
+        if (model.CompareActivePanes() is not { } compare) return;
+        var window = Views.FolderCompareWindow.For(compare);
+        if (desktop.MainWindow is { } owner) window.Show(owner);
+        else window.Show();
+    }
+
+    /// <summary>
+    /// Opens Search on the active pane's folder, beside the main window rather than over it, so a
+    /// match chosen with Go to can be looked at in the pane while the results stay open.
+    /// </summary>
+    private static void ShowSearch(IClassicDesktopStyleApplicationLifetime desktop, ShellPreviewModel model)
+    {
+        if (model.SearchTarget() is not { } target) return;
+        var window = Views.FileSearchWindow.For(target.Pane, target.Where);
+        if (desktop.MainWindow is { } owner) window.Show(owner);
+        else window.Show();
+    }
+
+    /// <summary>Opens Checksums on the active pane's selected files.</summary>
+    private static void ShowChecksums(IClassicDesktopStyleApplicationLifetime desktop, ShellPreviewModel model)
+    {
+        if (model.ChecksumTarget() is not { } selection) return;
+        var window = Views.ChecksumsWindow.For(selection);
+        if (desktop.MainWindow is { } owner) _ = window.ShowDialog(owner);
+        else window.Show();
+    }
+
+    /// <summary>Opens Diagnostics, describing the agent as the shell last heard it.</summary>
+    private static void ShowDiagnostics(IClassicDesktopStyleApplicationLifetime desktop, ShellPreviewModel model)
+    {
+        var window = Views.DiagnosticsWindow.For(
+            model.AgentStatus,
+            model.Queue.StateCountsByName,
+            folder => model.OpenFolder?.Invoke(folder) ?? Task.FromResult(false));
+        if (desktop.MainWindow is { } owner) _ = window.ShowDialog(owner);
+        else window.Show();
+    }
+
+    /// <summary>
+    /// Opens the FTP command console on a pane's connection, beside the main window rather than
+    /// over it, so the pane can be refreshed to see what a command changed.
+    /// </summary>
+    private static void ShowFtpConsole(IClassicDesktopStyleApplicationLifetime desktop, Views.BrowserPaneModel pane)
+    {
+        if (!pane.IsFtpConnection || pane.Connection is not { Id: { } id } connection) return;
+        var window = Views.FtpConsoleWindow.For(id, connection.Name);
+        if (desktop.MainWindow is { } owner) window.Show(owner);
+        else window.Show();
+    }
+
+    /// <summary>Opens Clean Up Leftover Files.</summary>
+    private static void ShowStagingCleanup(IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        var window = Views.StagingCleanupWindow.ForCurrentAgent();
         if (desktop.MainWindow is { } owner) _ = window.ShowDialog(owner);
         else window.Show();
     }

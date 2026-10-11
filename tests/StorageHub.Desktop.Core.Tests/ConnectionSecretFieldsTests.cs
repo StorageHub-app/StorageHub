@@ -24,6 +24,10 @@ public class ConnectionSecretFieldsTests
     [InlineData("clientCertificatePasswordReference", (int)SecretMaterialPurpose.ClientCertificatePassword)]
     [InlineData("credentialReference", (int)SecretMaterialPurpose.ProxyCredential)]
     [InlineData("proxyPasswordReference", (int)SecretMaterialPurpose.ProxyCredential)]
+    [InlineData("accountKeyReference", (int)SecretMaterialPurpose.SecretAccessKey)]
+    [InlineData("sasTokenReference", (int)SecretMaterialPurpose.SessionToken)]
+    [InlineData("connectionStringReference", (int)SecretMaterialPurpose.SecretAccessKey)]
+    [InlineData("serviceAccountKeyReference", (int)SecretMaterialPurpose.SecretAccessKey)]
     [InlineData("passwordReference", (int)SecretMaterialPurpose.Password)]
     public void EveryFieldEnrolsUnderItsOwnPurpose(string key, int purpose) =>
         Assert.Equal((SecretMaterialPurpose)purpose, ConnectionSecretFields.Purpose(key));
@@ -68,5 +72,8 @@ public class ConnectionSecretFieldsTests
         Assert.True(ConnectionSecretFields.IsFile("clientCertificateReference"));
         Assert.False(ConnectionSecretFields.IsFile("privateKeyPassphraseReference"));
         Assert.False(ConnectionSecretFields.IsFile("accessKeyReference"));
+        // A Google service-account key is a JSON file, though not one the key store keeps.
+        Assert.True(ConnectionSecretFields.IsFile("serviceAccountKeyReference"));
+        Assert.Null(ConnectionSecretFields.KeyStoreSlot("serviceAccountKeyReference"));
     }
 }

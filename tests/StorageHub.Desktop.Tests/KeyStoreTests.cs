@@ -543,6 +543,18 @@ public class KeyStoreTests
         /// <summary>How many questions were answered with <see cref="Choice"/>.</summary>
         internal int Asked { get; private set; }
 
+        /// <summary>
+        /// The drop-down entry an answer other than Cancel or No reports, for a question that has
+        /// one; null leaves the entry the question started on.
+        /// </summary>
+        internal int? ChoiceIndex { get; set; }
+
+        /// <summary>Whether the question's checkbox is reported ticked; null reports nothing.</summary>
+        internal bool? CheckBox { get; set; }
+
+        /// <summary>Every question asked, in order.</summary>
+        internal List<DialogRequest> Questions { get; } = [];
+
         public Task ShowAsync(DialogRequest request, CancellationToken cancellationToken = default)
         {
             LastRequest = request;
@@ -552,7 +564,17 @@ public class KeyStoreTests
         public Task<DialogChoice> ConfirmAsync(DialogRequest request, CancellationToken cancellationToken = default)
         {
             LastRequest = request;
+            Questions.Add(request);
             Asked++;
+            if (Choice is not (DialogChoice.Cancel or DialogChoice.No))
+            {
+                request.ChoiceAnswered?.Invoke(ChoiceIndex ?? request.SelectedChoice);
+                if (CheckBox is { } ticked)
+                {
+                    request.CheckBoxAnswered?.Invoke(ticked);
+                }
+            }
+
             return Task.FromResult(Choice);
         }
 

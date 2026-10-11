@@ -44,7 +44,8 @@ public sealed class TransferQueueIpcCommandService : IAgentIpcCommandHandler
         TransferQueueIpcMessageTypes.CancelRequest or
         TransferQueueIpcMessageTypes.RetryRequest or
         TransferQueueIpcMessageTypes.ReconcileRequest or
-        TransferQueueIpcMessageTypes.ClearHistoryRequest;
+        TransferQueueIpcMessageTypes.ClearHistoryRequest or
+        TransferQueueIpcMessageTypes.PauseRequest;
 
     public ValueTask<AgentIpcCommandResponse> HandleAsync(
         IpcEnvelope request,
@@ -60,6 +61,7 @@ public sealed class TransferQueueIpcCommandService : IAgentIpcCommandHandler
             TransferQueueIpcMessageTypes.RetryRequest => RetryAsync(request, cancellationToken),
             TransferQueueIpcMessageTypes.ReconcileRequest => ReconcileAsync(request, cancellationToken),
             TransferQueueIpcMessageTypes.ClearHistoryRequest => ClearHistoryAsync(request, cancellationToken),
+            TransferQueueIpcMessageTypes.PauseRequest => PauseAsync(request, cancellationToken),
             _ => ValueTask.FromResult(AgentIpcCommandResponse.Error(
                 "ipc.message.unsupported",
                 "The requested IPC operation is not supported by this agent version."))
@@ -379,6 +381,99 @@ public sealed class TransferQueueIpcCommandService : IAgentIpcCommandHandler
         {
             return MutationResponse(
                 TransferQueueIpcMessageTypes.CancelResponse,
+                request.TransferId,
+                TransferQueueMutationOutcome.InvalidState,
+                failure: UnavailableFailure());
+        }
+    }
+
+    /// <summary>
+    /// Pauses one transfer: a waiting one at once, a running one at its next safe point by the
+    /// worker that holds it, which answers Accepted and writes Paused when the copy has stopped.
+    /// </summary>
+    /// <remarks>
+    /// Shaped like Cancel, revision-checked the same way, so a pause meant for the transfer as it
+    /// was shown is refused once it has moved on. Only a waiting or a copying transfer can pause: one
+    /// still connecting, or already verifying what it wrote, is refused as not valid in its state,
+    /// and the next Pause all finds it copying or finished.
+    /// </remarks>
+    private async ValueTask<AgentIpcCommandResponse> PauseAsync(
+        IpcEnvelope envelope,
+        CancellationToken cancellationToken)
+    {
+        var request = envelope.DeserializePayload<TransferPauseRequest>();
+        var validation = ValidateRequest(request.ContractVersion, request.HasValidBounds);
+        if (validation is not null)
+        {
+            return validation;
+        }
+
+        var transferId = new TransferJobId(request.TransferId);
+        try
+        {
+            var current = await _store.FindAsync(transferId, cancellationToken).ConfigureAwait(false);
+            if (current is null)
+            {
+                return MutationResponse(
+                    TransferQueueIpcMessageTypes.PauseResponse,
+                    request.TransferId,
+                    TransferQueueMutationOutcome.NotFound,
+                    failure: NotFoundFailure());
+            }
+
+            if (current.State.Revision != request.ExpectedRevision)
+            {
+                return await RevisionConflictAsync(
+                    TransferQueueIpcMessageTypes.PauseResponse,
+                    current,
+                    cancellationToken).ConfigureAwait(false);
+            }
+
+            if (!TransferStateMachine.CanTransition(current.State.State, TransferState.Paused))
+            {
+                return await InvalidStateAsync(
+                    TransferQueueIpcMessageTypes.PauseResponse,
+                    current,
+                    cancellationToken).ConfigureAwait(false);
+            }
+
+            if (current.ActiveLease is not null)
+            {
+                var activeResult = _activeCancellation?.TryRequestActivePause(
+                    transferId,
+                    request.ExpectedRevision) ?? ActiveTransferCancellationResult.NotActive;
+                return activeResult switch
+                {
+                    ActiveTransferCancellationResult.Accepted or
+                    ActiveTransferCancellationResult.AlreadyRequested => MutationResponse(
+                        TransferQueueIpcMessageTypes.PauseResponse,
+                        request.TransferId,
+                        TransferQueueMutationOutcome.Accepted,
+                        await MapSummaryAsync(current, cancellationToken).ConfigureAwait(false)),
+                    _ => await RevisionConflictAsync(
+                        TransferQueueIpcMessageTypes.PauseResponse,
+                        current,
+                        cancellationToken).ConfigureAwait(false)
+                };
+            }
+
+            return await ApplyControlTransitionAsync(
+                TransferQueueIpcMessageTypes.PauseResponse,
+                current,
+                request.ExpectedRevision,
+                TransferState.Paused,
+                TransferStatusCode.None,
+                error: null,
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return MutationResponse(
+                TransferQueueIpcMessageTypes.PauseResponse,
                 request.TransferId,
                 TransferQueueMutationOutcome.InvalidState,
                 failure: UnavailableFailure());

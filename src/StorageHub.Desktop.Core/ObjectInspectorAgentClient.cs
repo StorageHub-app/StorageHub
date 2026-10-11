@@ -11,6 +11,13 @@ public sealed record ObjectInspectorAgentClientOptions
     public IpcEndpoint Endpoint { get; init; } = AgentStatusMonitor.DefaultEndpoint;
     public TimeSpan ConnectTimeout { get; init; } = TimeSpan.FromSeconds(2);
     public TimeSpan RequestTimeout { get; init; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// How long a checksum may take, which can read a file of up to
+    /// <see cref="ObjectInspectorIpcLimits.MaximumComputedChecksumBytes"/>; inside the agent's own
+    /// two-minute limit on a request.
+    /// </summary>
+    public TimeSpan ChecksumTimeout { get; init; } = TimeSpan.FromSeconds(110);
 }
 
 public interface IObjectInspectorAgentClient : IAsyncDisposable
@@ -26,6 +33,11 @@ public interface IObjectInspectorAgentClient : IAsyncDisposable
     Task<ObjectTagsGetResponse> GetTagsAsync(
         ObjectTagsGetRequest request,
         CancellationToken cancellationToken = default);
+
+    Task<ObjectChecksumGetResponse> GetChecksumAsync(
+        ObjectChecksumGetRequest request,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
 
     Task<EditableFileDownloadResponse> DownloadEditableFileAsync(
         EditableFileDownloadRequest request,
@@ -61,6 +73,21 @@ public interface IObjectInspectorAgentClient : IAsyncDisposable
         StorageItemDeleteRequest request,
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException(Ui.Validation.ThisInspectorClientDoesNotSupportDeleting);
+
+    Task<ItemAttributesGetResponse> GetItemAttributesAsync(
+        ItemAttributesGetRequest request,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(Ui.Validation.ThisInspectorClientDoesNotSupportAttributes);
+
+    Task<ItemPermissionsSetResponse> SetItemPermissionsAsync(
+        ItemPermissionsSetRequest request,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(Ui.Validation.ThisInspectorClientDoesNotSupportAttributes);
+
+    Task<ItemModifiedTimeSetResponse> SetItemModifiedTimeAsync(
+        ItemModifiedTimeSetRequest request,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException(Ui.Validation.ThisInspectorClientDoesNotSupportAttributes);
 }
 
 /// <summary>
@@ -71,6 +98,7 @@ public sealed class NamedPipeObjectInspectorAgentClient : IObjectInspectorAgentC
 {
     private readonly IStorageIpcTransport _transport;
     private readonly TimeSpan _requestTimeout;
+    private readonly TimeSpan _checksumTimeout;
     private readonly SemaphoreSlim _requestGate = new(1, 1);
     private long _sendSequence;
     private bool _disposed;
@@ -90,6 +118,7 @@ public sealed class NamedPipeObjectInspectorAgentClient : IObjectInspectorAgentC
         var effective = options ?? new ObjectInspectorAgentClientOptions();
         ValidateOptions(effective);
         _requestTimeout = effective.RequestTimeout;
+        _checksumTimeout = effective.ChecksumTimeout;
     }
 
     public Task<ObjectVersionListResponse> ListVersionsAsync(
@@ -129,6 +158,20 @@ public sealed class NamedPipeObjectInspectorAgentClient : IObjectInspectorAgentC
             request!,
             response => ValidateTagsResponse(request!, response),
             cancellationToken);
+    }
+
+    public Task<ObjectChecksumGetResponse> GetChecksumAsync(
+        ObjectChecksumGetRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateRequest(request, request?.HasValidBounds == true, nameof(request));
+        return ExecuteAsync<ObjectChecksumGetRequest, ObjectChecksumGetResponse>(
+            ObjectInspectorIpcMessageTypes.ChecksumGetRequest,
+            ObjectInspectorIpcMessageTypes.ChecksumGetResponse,
+            request!,
+            response => ValidateChecksumResponse(request!, response),
+            cancellationToken,
+            _checksumTimeout);
     }
 
     public Task<EditableFileDownloadResponse> DownloadEditableFileAsync(
@@ -222,6 +265,49 @@ public sealed class NamedPipeObjectInspectorAgentClient : IObjectInspectorAgentC
             cancellationToken);
     }
 
+    public Task<ItemAttributesGetResponse> GetItemAttributesAsync(
+        ItemAttributesGetRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateRequest(request, request?.HasValidBounds == true, nameof(request));
+        return ExecuteAsync<ItemAttributesGetRequest, ItemAttributesGetResponse>(
+            ItemAttributeIpcMessageTypes.GetRequest,
+            ItemAttributeIpcMessageTypes.GetResponse,
+            request!,
+            response => ValidateAttributesResponse(request!, response),
+            cancellationToken);
+    }
+
+    public Task<ItemPermissionsSetResponse> SetItemPermissionsAsync(
+        ItemPermissionsSetRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateRequest(request, request?.HasValidBounds == true, nameof(request));
+        return ExecuteAsync<ItemPermissionsSetRequest, ItemPermissionsSetResponse>(
+            ItemAttributeIpcMessageTypes.PermissionsSetRequest,
+            ItemAttributeIpcMessageTypes.PermissionsSetResponse,
+            request!,
+            response => ValidateChangeResponse(
+                request!.ContractVersion, request.Address,
+                response.ContractVersion, response.Address, response.Changed, response.Failure),
+            cancellationToken);
+    }
+
+    public Task<ItemModifiedTimeSetResponse> SetItemModifiedTimeAsync(
+        ItemModifiedTimeSetRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateRequest(request, request?.HasValidBounds == true, nameof(request));
+        return ExecuteAsync<ItemModifiedTimeSetRequest, ItemModifiedTimeSetResponse>(
+            ItemAttributeIpcMessageTypes.ModifiedTimeSetRequest,
+            ItemAttributeIpcMessageTypes.ModifiedTimeSetResponse,
+            request!,
+            response => ValidateChangeResponse(
+                request!.ContractVersion, request.Address,
+                response.ContractVersion, response.Address, response.Changed, response.Failure),
+            cancellationToken);
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (_disposed)
@@ -246,13 +332,14 @@ public sealed class NamedPipeObjectInspectorAgentClient : IObjectInspectorAgentC
         string responseMessageType,
         TRequest request,
         Action<TResponse> validateResponse,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        TimeSpan? timeout = null)
         where TRequest : class
         where TResponse : class
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        deadline.CancelAfter(_requestTimeout);
+        deadline.CancelAfter(timeout ?? _requestTimeout);
         try
         {
             await _requestGate.WaitAsync(deadline.Token).ConfigureAwait(false);
@@ -407,6 +494,21 @@ public sealed class NamedPipeObjectInspectorAgentClient : IObjectInspectorAgentC
         }
     }
 
+    private static void ValidateChecksumResponse(
+        ObjectChecksumGetRequest request,
+        ObjectChecksumGetResponse response)
+    {
+        if (response.ContractVersion != request.ContractVersion ||
+            !ObjectInspectorIpcContract.IsSupported(response.ContractVersion) ||
+            response.Address != request.Address ||
+            !response.HasValidResultBounds ||
+            !IsValidFailure(response.Failure) ||
+            !request.PreferServer && response.Failure is null && response.Source == ObjectChecksumSource.Server)
+        {
+            throw InvalidResponse();
+        }
+    }
+
     private static void ValidateDownloadResponse(
         EditableFileDownloadRequest request,
         EditableFileDownloadResponse response)
@@ -513,6 +615,42 @@ public sealed class NamedPipeObjectInspectorAgentClient : IObjectInspectorAgentC
         }
     }
 
+    /// <summary>
+    /// Attributes for the item asked about, inside the contract's bounds, or a failure and none.
+    /// </summary>
+    private static void ValidateAttributesResponse(
+        ItemAttributesGetRequest request,
+        ItemAttributesGetResponse response)
+    {
+        if (response.ContractVersion != request.ContractVersion ||
+            !ItemAttributeIpcContract.IsSupported(response.ContractVersion) ||
+            response.Address != request.Address ||
+            !IsValidFailure(response.Failure) ||
+            response.Failure is null == response.Attributes is null ||
+            response.Attributes is not null && !response.Attributes.HasValidBounds)
+        {
+            throw InvalidResponse();
+        }
+    }
+
+    /// <summary>A change answered for the item asked about: changed, or a failure saying why not.</summary>
+    private static void ValidateChangeResponse(
+        int requestVersion,
+        ObjectInspectorAddress requestAddress,
+        int responseVersion,
+        ObjectInspectorAddress responseAddress,
+        bool changed,
+        StorageIpcFailure? failure)
+    {
+        if (responseVersion != requestVersion ||
+            responseAddress != requestAddress ||
+            !IsValidFailure(failure) ||
+            failure is not null == changed)
+        {
+            throw InvalidResponse();
+        }
+    }
+
     private static void ValidateRequest<TRequest>(
         TRequest? request,
         bool validBounds,
@@ -580,6 +718,11 @@ public sealed class NamedPipeObjectInspectorAgentClient : IObjectInspectorAgentC
             throw new ArgumentOutOfRangeException(
                 nameof(options),
                 Ui.Validation.TheRequestTimeoutMustBeAtMost);
+        }
+
+        if (options.ChecksumTimeout <= TimeSpan.Zero || options.ChecksumTimeout > TimeSpan.FromMinutes(2))
+        {
+            throw new ArgumentOutOfRangeException(nameof(options));
         }
     }
 

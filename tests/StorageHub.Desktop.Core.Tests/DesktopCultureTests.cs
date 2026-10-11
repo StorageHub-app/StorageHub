@@ -25,8 +25,8 @@ public sealed class DesktopCultureTests
         Assert.Equal(expected, DesktopCulture.Resolve(null, new CultureInfo(uiCulture)));
 
     [Theory]
-    [InlineData("fr-FR")]
-    [InlineData("ja-JP")]
+    [InlineData("sv-SE")]
+    [InlineData("th-TH")]
     [InlineData("")]
     public void AnUnshippedLanguageFallsBackToEnglish(string uiCulture) =>
         Assert.Equal(DesktopCulture.DefaultCulture, DesktopCulture.Resolve(null, new CultureInfo(uiCulture)));
@@ -49,7 +49,24 @@ public sealed class DesktopCultureTests
     /// </summary>
     [Fact]
     public void AConfiguredLanguageThatIsNotShippedIsIgnored() =>
-        Assert.Equal("da-DK", DesktopCulture.Resolve("fr-FR", new CultureInfo("da-DK")));
+        Assert.Equal("da-DK", DesktopCulture.Resolve("sv-SE", new CultureInfo("da-DK")));
+
+    [Theory]
+    [InlineData("ar-SA", true)]
+    [InlineData("ar", true)]
+    [InlineData("he-IL", true)]
+    [InlineData("en-US", false)]
+    [InlineData("zh-CN", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void OnlyRightToLeftLanguagesAreMirrored(string? culture, bool expected) =>
+        Assert.Equal(expected, DesktopCulture.IsRightToLeft(culture));
+
+    [Fact]
+    public void EveryLanguageIsShippedOnce()
+    {
+        Assert.Equal(DesktopCulture.SupportedCultures.Count, DesktopCulture.SupportedCultures.Distinct().Count());
+    }
 
     [Fact]
     public void EnglishIsTheDefaultAndIsShipped()

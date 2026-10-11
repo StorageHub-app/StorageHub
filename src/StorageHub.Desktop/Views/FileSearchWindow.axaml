@@ -1,0 +1,64 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
+        x:Class="StorageHub.Desktop.Views.FileSearchWindow"
+        x:DataType="vm:FileSearchModel"
+        Title="{x:Static vm:FileSearchModel.Title}"
+        Width="900" Height="540"
+        MinWidth="640" MinHeight="360"
+        WindowStartupLocation="CenterOwner">
+
+  <!--
+    Where it looks, said once; the name to look for beside Search and Stop; every match with the
+    folder it is in; and Go to, which shows the chosen one in the pane. A double-click does the same.
+  -->
+
+  <Border Classes="surface">
+    <DockPanel Margin="{StaticResource PaddingLg}">
+
+      <TextBlock DockPanel.Dock="Top" Classes="caption" Text="{Binding Intro}"
+                 TextWrapping="Wrap" Margin="0,0,0,8"/>
+
+      <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto,Auto"
+            ColumnSpacing="{StaticResource SpaceSm}" Margin="0,0,0,8">
+        <TextBlock Grid.Column="0" Text="{x:Static vm:FileSearchModel.QueryLabel}" VerticalAlignment="Center"/>
+        <TextBox Grid.Column="1" x:Name="QueryBox" Text="{Binding Query, Mode=TwoWay}"
+                 PlaceholderText="{x:Static vm:FileSearchModel.QueryHint}"
+                 AutomationProperties.Name="{x:Static vm:FileSearchModel.QueryLabel}"/>
+        <Button Grid.Column="2" Classes="primary" Content="{x:Static vm:FileSearchModel.SearchLabel}"
+                Command="{Binding SearchCommand}" IsDefault="True"/>
+        <Button Grid.Column="3" Content="{x:Static vm:FileSearchModel.StopLabel}"
+                Command="{Binding StopCommand}"/>
+      </Grid>
+
+      <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto,Auto"
+            ColumnSpacing="{StaticResource SpaceSm}" Margin="0,8,0,0">
+        <TextBlock Grid.Column="0" Classes="status"
+                   Classes.primary="{Binding Status.IsPrimary}"
+                   Classes.success="{Binding Status.IsSuccess}"
+                   Classes.warning="{Binding Status.IsWarning}"
+                   Classes.danger="{Binding Status.IsDanger}"
+                   Text="{Binding Status.Text}" TextWrapping="Wrap"
+                   VerticalAlignment="Center"/>
+        <Button Grid.Column="1" Content="{x:Static vm:FileSearchModel.RevealLabel}"
+                Command="{Binding RevealCommand}"/>
+        <Button Grid.Column="2" Content="{x:Static vm:FileSearchModel.CloseLabel}"
+                Click="OnClose" IsCancel="True"/>
+      </Grid>
+
+      <TableView x:Name="Results"
+                 ItemsSource="{Binding Rows}"
+                 SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
+                 SelectionMode="Single"
+                 DoubleTapped="OnResultDoubleTapped"
+                 AutomationProperties.Name="{x:Static vm:FileSearchModel.Title}">
+        <TableView.Columns>
+          <TableViewColumn Header="{x:Static vm:FileSearchModel.ColumnName}" Binding="{Binding Name}" Width="220*"/>
+          <TableViewColumn Header="{x:Static vm:FileSearchModel.ColumnFolder}" Binding="{Binding Folder}" Width="360*"/>
+          <TableViewColumn Header="{x:Static vm:FileSearchModel.ColumnSize}" Binding="{Binding Size}" Width="90"/>
+          <TableViewColumn Header="{x:Static vm:FileSearchModel.ColumnModified}" Binding="{Binding Modified}" Width="140"/>
+        </TableView.Columns>
+      </TableView>
+    </DockPanel>
+  </Border>
+</Window>

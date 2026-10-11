@@ -47,11 +47,12 @@ So `main` always carries the *next* version, not the last one released. After
 
 ## Lines of development
 
-`main` is StorageHub 2.0: the Avalonia desktop, on Windows and Linux, declaring
-`2.0.0`. It publishes `2.0.0-rc.<run>.g<sha>` candidates until `v2.0.0` is
-tagged. The first, `2.0.0-rc.1`, was published by hand before the ARM64 and
-Linux CI jobs existed; every candidate since comes from CI. Until 2.0.0 is
-tagged, 1.4.5 stays the release marked Latest.
+`main` is StorageHub 2.0 and after it: the Avalonia desktop, on Windows and Linux.
+`v2.0.0` is the first stable release of it and is the release marked Latest. It
+followed a run of `2.0.0-rc.<run>.g<sha>` candidates, the first of which,
+`2.0.0-rc.1`, was published by hand before the ARM64 and Linux CI jobs existed;
+every candidate since came from CI. After a tag, `main` moves to the next version
+at once, because a candidate can never carry a lower version than a release.
 
 1.4 is preserved on the `1.x-archive` branch, the last commit of the WinForms
 line. It is kept for reference and is not built by CI: the workflow only

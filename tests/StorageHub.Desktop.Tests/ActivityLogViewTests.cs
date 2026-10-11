@@ -243,7 +243,13 @@ public sealed class ActivityLogViewTests
                     ErrorSummary = "The destination refused the write: quota exceeded."
                 }
             ],
-            []);
+            [],
+            links:
+            [
+                new ConnectionLinkEvent(2, Guid.NewGuid(), "Lab SFTP", ConnectionLinkEventKind.Back, Noon.AddMinutes(-1)),
+                new ConnectionLinkEvent(1, Guid.NewGuid(), "Lab SFTP", ConnectionLinkEventKind.Lost, Noon.AddMinutes(-6), ErrorCode: "storage.connection_lost")
+            ]);
+        Assert.Contains(entries, static entry => entry.Area == Ui.Transfer.ActivityAreaConnection);
         var log = new ActivityLogModel(_ => Task.FromResult(new ActivityLogResult(entries, 0)));
         await using var queue = new TransferQueueModel(
             () => throw new InvalidOperationException("Not polled in a photograph."), log);
@@ -252,8 +258,8 @@ public sealed class ActivityLogViewTests
 
         var window = new Window { Content = new TransferQueueView { DataContext = queue } };
         window.Show();
-        window.Measure(new Size(1000, 260));
-        window.Arrange(new Rect(0, 0, 1000, 260));
+        window.Measure(new Size(1000, 330));
+        window.Arrange(new Rect(0, 0, 1000, 330));
         window.UpdateLayout();
 
         var frame = window.CaptureRenderedFrame();

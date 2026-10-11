@@ -18,10 +18,35 @@ chosen is written down in [Versioning and merges](docs/versioning.md).
 
 ## Unreleased
 
-What follows is StorageHub 2.0, published as release candidates until 2.0.0 is
-tagged: `2.0.0-rc.1` by hand, then one for every push to `main`. 1.4.5 stays the
-release marked Latest until then, and the 1.4 source is kept on the
-`1.x-archive` branch.
+---
+
+## 2.0.0 — 2026-10-11
+
+The first stable StorageHub 2.0, released after a run of release candidates
+(`2.0.0-rc.1` by hand, then one for every push to `main`). It replaces 1.4.5 as
+the release marked Latest, and the 1.4 source is kept on the `1.x-archive`
+branch.
+
+**Duplicate a connection.** A connection's menu and its selected card have a
+Duplicate action: it saves a copy named "(copy)", then "(copy 2)" and on, with the same
+settings, the same saved passwords and keys and the same pinned host key, so it
+signs in without anything being typed again. The copy is not a favourite, and it
+is selected when it appears.
+
+**Key store audit.** PEM and PKCS#8 SSH keys can now be used by a connection:
+the editor never recorded a key's format, so every profile said OpenSSH and the
+connector refused the rest as malformed. The connector now reads the format from
+the key itself, a key borrowed from the Key Store brings its format with it, and
+the import dialog picks the format from the file. A client certificate with no
+password is accepted for FTPS, as it already was for WebDAV. A WebDAV client
+certificate is released when its connection stops using it or is deleted, where
+it used to keep the Key Store entry undeletable. Enrolling over, or deleting, a
+field that holds a Key Store entry no longer rewrites or destroys the shared
+entry for every connection using it. Keep-both sync conflicts could overwrite
+location B before saving its copy for most file types; the overwrite now runs
+last. An Explorer drop committed with an upper-case token no longer expires, a
+too-large settings import is refused before it is read, and runtime key files
+left by a crashed agent are removed at the next start instead of a day later.
 
 **StorageHub 2.0: a new shell, and one place its data lives.** The desktop is
 rewritten on AvaloniaUI and runs on Windows and Linux from the same source. The
@@ -85,6 +110,124 @@ and GitHub's size, and installs it once StorageHub has closed: through
 encrypted in the vault like any other, the library is handed no passphrase for
 it, and importing or choosing one warns that a passphrase is still recommended.
 
+**SFTP reaches more servers.** A connection can go through a jump host, chosen
+from your saved SFTP and SSH connections, each with its own sign-in and pinned
+host key. A server that only signs in through keyboard-interactive prompts is
+answered with the password, as OpenSSH answers it, and one that wants a key and
+then the account password takes both. The editor's Advanced section limits the
+key exchanges, ciphers, MACs and host key types offered, how many sessions are
+opened at once and how often an idle one is kept alive. The private key goes to
+the SSH library in memory rather than as a file in the runtime folder.
+
+**Test a connection before saving it.** The editor's Test connection button
+tests what is in the fields, saved or not, and lists how far it got: the
+settings, the server's identity, the credentials, reaching the server and
+listing the starting folder, each passed, failed, not needed or not reached,
+with what to check when one fails. A fingerprint typed or fetched into the
+editor is trusted for the test, so a new SFTP or FTPS connection can be tested
+before it exists, and an SFTP server with no key yet has its key fetched and
+shown to be checked first. A test refused on the host key offers the key the
+server presents. A pane that fails on a server's key or certificate offers
+Review trust there, which opens the connection's trust settings. Nothing is
+saved by a test and a saved connection's status is not changed by testing edits
+to it.
+
+**See what a connection is talking to.** Live details in the connections panel adds
+a Live connection section under the selected connection: how it is secured, the
+server's system and software, the host key or certificate it presented and
+whether it is trusted, the cipher and key exchange negotiated, the server's
+features, how many sessions are open and the last health check.
+
+**Azure Blob Storage, Google Cloud Storage and OpenStack Swift connections.**
+An Azure container signs in with a shared key, a SAS token, a connection string
+or the computer's own Azure identity. A Google Cloud Storage bucket signs in with
+a service-account key file, Application Default Credentials, or anonymously for
+a public bucket, and can name a private endpoint or an emulator. A Swift
+container signs in with Keystone v3 (user, password, project and optional
+region), TempAuth, or a token you already have plus the storage URL, with the
+request timeout under Advanced. Every key, password and token is kept in the
+encrypted vault, plain HTTP is refused unless you allow it for an emulator or a
+test cluster, and the new connections browse, transfer, export and import like
+any other.
+
+**Compare two panes and copy the differences, and clean up what interrupted
+transfers left behind.** Sync, Compare Panes (Ctrl+D) now opens a Compare
+Folders window that lists what only the left or right folder has, what differs
+by size, time or, if asked, SHA-256 contents, and what is the same. You can
+filter by kind and name, and copy selected differences in either direction as
+normal queued transfers that ask the usual conflict question and never overwrite
+a file that changed since the comparison. Folders on saved connections and on
+this PC can both be compared. A new Tools, Clean Up Leftover Files… lists the
+partial and staged copies, write tests and rename stand-ins left in folders
+StorageHub transferred to, plus copies of files no longer open in the external
+editor, each with its size. It removes only what you select and confirm, and
+leaves anything an unfinished transfer, a running sync or an open editor may
+still need.
+
+**Free space, connection trouble and folders that refresh themselves.** A
+pane's footer ends with the free space behind the folder it shows: for a folder
+on this PC from the drive, for SFTP and FTP connections from the server, and
+nothing where it is not known. Each connection's card in the connections panel
+says when its link to the server is retrying, has been lost or has come back,
+and each change is a Connection line in the activity log. A new setting under
+Settings, Workspace, "Refresh a folder when it changes", off by default, makes a
+pane show changes by itself: a folder on this PC as soon as something in it
+changes, a connection's folder on an interval you choose from 15 seconds to 5
+minutes. Selection and scroll position stay where they were, and a busy pane
+waits until it is done.
+
+**WebDAV connections.** StorageHub now connects to WebDAV servers such as
+Nextcloud, ownCloud, SharePoint and NAS boxes. Enter the folder's URL and sign
+in with Basic, Digest, NTLM, Negotiate, a bearer token or no sign-in at all. The
+server's HTTPS certificate is trusted by the system or pinned the same way as
+for FTPS, and a client certificate from the vault can be added. Plain HTTP works
+only after you allow it on the Trust tab. A request timeout under Advanced can
+be raised for large uploads on slow lines. Reopening a pinned FTPS connection
+for editing no longer loses its pin, and imported connections that rely on a
+client certificate now arrive disabled when that certificate is not available.
+
+**Properties shows permissions, owner and dates, and can change permissions
+and the modified time.** Properties now opens on a folder or a link as well as a
+file, with a General tab listing its kind, size, modified, created and
+last-accessed times, its permissions as both `rwxr-xr-x` and octal, its owner
+and group, and where a link points, each as far as the connection reports it.
+On SFTP and FTP connections, and on local folders, "Change permissions…" opens
+a dialog with read, write and execute boxes for owner, group and others beside
+the octal value, and "Set modified time…" asks for a new time in your own time
+zone. Both are dimmed, with a sentence saying why, where the connection cannot
+make the change, and a server that refuses one says so in words. The window and
+the pane show the new values as soon as the change is made.
+
+**Checksums the server already keeps.** The object inspector has a Checksum
+tab: Get checksum shows the file's SHA-256 and says whether the server reported
+it (S3, FTP, Azure, Google Cloud Storage and Swift can, without the file being
+downloaded) or it was computed from the bytes read, up to 256 MB. Compute from
+the file reads it to check what the server says. Sync scans take a server's
+SHA-256 instead of reading the file when it has one. A verified copy still
+reads back what it wrote, because a server's checksum is its word for the bytes
+rather than a check of them.
+
+**A file already at the destination is a choice.** A copy or a move that meets
+one asks once, at the first, what to do with it and with the rest: overwrite,
+skip, overwrite if the source is newer or if the sizes differ, keep both by
+naming the new one "name (1).ext", or resume a shorter file. Settings, under
+Transfers & sync, can name the answer instead, and the question can save it
+there. A folder copy asks at the first such file however deep it is. Files on
+this PC can now be replaced by a download and can replace a file on a
+connection, each still checked to be the file that was listed.
+
+**An interrupted transfer continues where it stopped.** A download to this
+PC, and an upload to a Local, FTP or SFTP connection, is written to a hidden
+`.storagehub-….partial` file and renamed into place only when it is whole, so
+the destination never holds half a file. When the connection drops, the agent
+restarts or the transfer is paused, the bytes that arrived stay, and the retry
+or the next queueing of the same file reads only the rest. The staged part is
+used only for the same version of the same source to the same place: a source
+that changed since, or staged bytes that no longer match it, start again from
+the beginning, and a checksum the transfer was planned with still covers the
+whole file. Cancelling a transfer removes what it staged. S3 has no append, so
+uploads to it still start again.
+
 **Smaller things that are new.** A pane's FILES bar can be hidden from Pane
 actions and is saved with the workspace, now that the list's right-click menu
 offers everything the bar does. The SSH terminal passes the mouse to a program
@@ -94,6 +237,54 @@ into the fingerprint field, and rejects a fingerprint for a saved connection,
 as 1.4 did. A new schedule starts on the time zone Settings names, following
 the system by default, and the schedule window says which one is in use; on
 Linux a machine on `Etc/UTC` no longer gets `Africa/Abidjan`.
+
+**Every menu entry now does what it says.** 1.4 listed 23 menu commands that
+did nothing; 2.0 builds all of them. In View, the folder tree beside a pane,
+the transfer queue, the session log and hidden files can each be shown or
+hidden, and StorageHub remembers which; Theme switches between light, dark and
+following the system. Go > Home takes a pane to the top of its connection or to
+your home folder, and Go > History and Go > Favorites list the folders the pane
+visited this session and your favourite connections, under the address bar.
+Quick Connect finds a saved connection as you type, and Reconnect, Disconnect
+and Test Connection act on the pane's connection or the one selected in the
+Connections panel. In Transfer, Start Queue (F7) retries everything stopped,
+Pause All (F8) pauses the whole queue, a running copy stopping at its next safe
+point and keeping what it has so far, Resume All carries on, and Cancel
+Selected cancels the rows chosen in the queue. Tools > Search finds files by
+name or wildcard under the active pane's folder, on this PC or a connection;
+Tools > Checksums shows the SHA-256 of the selected files, the server's own
+where it keeps one, compares them with each other or a checksum you paste, and
+copies them in `sha256sum` form; Tools > Logs opens the log folder; and Tools >
+Diagnostics shows a short report and saves a support bundle with your user
+name, computer name and home folder taken out. Help > Keyboard Shortcuts opens
+the shortcut settings, Documentation opens the README, and Report Issue opens
+the bug form with your version and system filled in. Each entry is greyed out
+when there is nothing for it to act on.
+
+**An FTP command console.** Connections, FTP Command Console (also in a pane's
+actions menu) opens a console on the active pane's FTP or FTPS server. Type a
+command such as SYST, FEAT, STAT or SITE CHMOD 644 file.txt and the server's
+reply appears below it, every line of a multi-line reply included, with failure
+codes in red; Up and Down bring back earlier commands. Each command runs on a
+short connection of its own, so nothing typed there can disturb the panes or the
+transfer queue, and for the same reason commands that would open a data
+connection, log in or out, change TLS or set something for the session (LIST,
+RETR, STOR, USER, PASS, AUTH, CWD, TYPE and the like) are not sent, and the
+console says why. The saved password stays in the agent.
+
+**More room for the panes.** The bar above the panes that said "Drag pane headers
+to swap or dock panes" beside an empty clipboard is only drawn while something is
+staged for a paste; the hint is now the tooltip on a pane's header. The frame
+round each pane is two pixels wide instead of three, the active pane still
+marked by its colour.
+
+**The connections panel now always shows its groups, even empty ones.** Favorites,
+every group you made and Ungrouped are always listed, each saying "No
+connections" (or "No favorite connections") when there is nothing in it, and a
+search keeps them instead of making them vanish. An empty Ungrouped is also
+somewhere to drop a connection to take it out of its group. If you prefer the
+quieter panel, turn on Settings > Hide empty groups, next to "Show favourites in
+their folders too"; it travels with Export and Import settings.
 
 The 1.4 line's last unreleased fixes, to updating and repairing a
 service-hosted agent, stay in `1.x-archive`'s changelog. 2.0 has no service for

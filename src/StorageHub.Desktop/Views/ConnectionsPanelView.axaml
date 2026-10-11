@@ -102,7 +102,8 @@
           first connection into is a group you cannot start using. An empty one says so on one
           quiet line under its name, which is part of the group and so takes a drop too.
         -->
-        <TextBlock Classes="group-empty" Text="{Binding EmptyLabel}" IsVisible="{Binding ShowsEmptyLine}"/>
+        <TextBlock Classes="group-empty" Text="{Binding EmptyLabel}" ToolTip.Tip="{Binding EmptyHint}"
+                   IsVisible="{Binding ShowsEmptyLine}"/>
         <ItemsControl ItemsSource="{Binding Connections}"
                       IsVisible="{Binding IsExpanded}">
           <ItemsControl.ItemsPanel>
@@ -142,6 +143,20 @@
                   <StackPanel Grid.Column="1" Grid.Row="1" Spacing="2">
                     <TextBlock Classes="caption" Text="{Binding Subtitle}"
                                TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Endpoint}"/>
+                    <!-- The link, while it is in trouble or has just come back: retrying in the
+                         warning colour, lost in the danger colour, connected again in green for a
+                         couple of minutes. Absent the rest of the time. -->
+                    <StackPanel x:Name="PART_Link" Orientation="Horizontal" Spacing="{StaticResource SpaceXs}"
+                                IsVisible="{Binding HasLink}" ToolTip.Tip="{Binding LinkSince}">
+                      <LucideIcon Kind="{Binding LinkIcon}" Size="{StaticResource IconSizeSm}"
+                                  Classes.warning="{Binding LinkIsWarning}"
+                                  Classes.danger="{Binding LinkIsDanger}"
+                                  Classes.success="{Binding LinkIsSuccess}"/>
+                      <TextBlock Classes="caption" Text="{Binding LinkText}" TextTrimming="CharacterEllipsis"
+                                 Classes.warning="{Binding LinkIsWarning}"
+                                 Classes.danger="{Binding LinkIsDanger}"
+                                 Classes.success="{Binding LinkIsSuccess}"/>
+                    </StackPanel>
                     <ItemsControl ItemsSource="{Binding Tags}" IsVisible="{Binding HasTags}"
                                   Margin="0,2,0,0">
                       <ItemsControl.ItemsPanel>
@@ -166,6 +181,12 @@
                             CommandParameter="{Binding}"
                             ToolTip.Tip="{Binding $parent[UserControl].((vm:ConnectionsSidebar)DataContext).EditLabel}">
                       <LucideIcon Kind="Pencil" Size="{StaticResource IconSizeSm}"/>
+                    </Button>
+                    <Button Classes="tool" Padding="{StaticResource CardActionPadding}"
+                            Command="{Binding $parent[UserControl].((vm:ConnectionsSidebar)DataContext).DuplicateSelectedCommand}"
+                            CommandParameter="{Binding}"
+                            ToolTip.Tip="{Binding $parent[UserControl].((vm:ConnectionsSidebar)DataContext).DuplicateLabel}">
+                      <LucideIcon Kind="Copy" Size="{StaticResource IconSizeSm}"/>
                     </Button>
                     <Button Classes="tool" Padding="{StaticResource CardActionPadding}"
                             Command="{Binding $parent[UserControl].((vm:ConnectionsSidebar)DataContext).DeleteSelectedCommand}"
@@ -337,6 +358,17 @@
               </StackPanel>
             </Button>
 
+            <!-- Under the saved facts rather than in the row of actions, which fits four labelled
+                 at the panel's usual width: what the live connection says about itself. -->
+            <Button DockPanel.Dock="Bottom" Classes="tool" HorizontalAlignment="Left" Margin="0,4,0,0"
+                    Command="{Binding DescribeSelectedCommand}"
+                    ToolTip.Tip="{Binding DescribeHint}" AutomationProperties.Name="{Binding DescribeLabel}">
+              <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+                <LucideIcon Kind="Info" Size="{StaticResource IconSizeSm}"/>
+                <TextBlock Text="{Binding DescribeLabel}"/>
+              </StackPanel>
+            </Button>
+
             <TextBlock DockPanel.Dock="Bottom" Classes="caption" TextWrapping="Wrap"
                        IsVisible="{Binding HasDetailStatus}" Text="{Binding DetailStatus}"/>
 
@@ -391,10 +423,11 @@
         </Panel>
       </Border>
 
-      <Panel Margin="12,12,12,0">
-        <TextBlock Classes="muted" Text="{Binding Status}"
-                   HorizontalAlignment="Center" VerticalAlignment="Top"
-                   Margin="0,24,0,0"
+      <DockPanel Margin="12,12,12,0">
+        <!-- Why the panel is empty, above the always-drawn groups when there are any. -->
+        <TextBlock DockPanel.Dock="Top" Classes="muted" Text="{Binding Status}"
+                   HorizontalAlignment="Center" TextWrapping="Wrap"
+                   Margin="0,12,0,12"
                    IsVisible="{Binding IsEmpty}"/>
         <!--
           Groups somebody made, rather than the Storage and Clients split 1.x had. That split
@@ -403,9 +436,9 @@
           inside two fixed lists gives that. The classification survives as a badge on the row,
           which is where it is actually useful.
         -->
-        <ScrollViewer x:Name="PART_Connections" IsVisible="{Binding !IsEmpty}">
+        <ScrollViewer x:Name="PART_Connections" IsVisible="{Binding HasGroups}">
           <!-- Favorites above the groups, as 1.x listed them above its sections (ui-reference 09),
-               drawn by the same template as a group and shown only while it has a card. -->
+               drawn by the same template as a group; always there unless Settings hides empty groups. -->
           <StackPanel Spacing="{StaticResource SpaceMd}">
             <ContentControl Content="{Binding Favorites}"
                             IsVisible="{Binding Favorites, Converter={x:Static ObjectConverters.IsNotNull}}"/>
@@ -418,6 +451,6 @@
             </ItemsControl>
           </StackPanel>
         </ScrollViewer>
-      </Panel>
+      </DockPanel>
     </DockPanel>
 </UserControl>

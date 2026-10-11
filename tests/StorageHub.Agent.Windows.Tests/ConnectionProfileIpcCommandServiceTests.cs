@@ -4,6 +4,7 @@ using StorageHub.Application.Connections;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Domain.Identifiers;
 using StorageHub.Persistence;
+using StorageHub.Security;
 using ContractWriteStatus = StorageHub.Contracts.Ipc.ConnectionProfileWriteStatus;
 using StorageHub.Testing;
 using StorageHub.Agent.Host;
@@ -79,6 +80,427 @@ public sealed class ConnectionProfileIpcCommandServiceTests
         Assert.Equal(password, authentication.PasswordReference.Value);
         Assert.Equal(key, authentication.PrivateKeyReference.Value);
         Assert.Equal(passphrase, authentication.PassphraseReference?.Value);
+    }
+
+    /// <summary>
+    /// An SFTP connection's jump host must be a saved SFTP or SSH connection: anything else is
+    /// refused before anything is written, and one that is accepted is kept by its id.
+    /// </summary>
+    [WindowsOnlyFact]
+    public async Task CreateKeepsAnSftpJumpHostOnlyWhenItIsAnSshConnection()
+    {
+        var jumpId = ConnectionProfileId.New();
+        var draft = new ConnectionProfileDraft(
+            new ConnectionProfileMetadataDocument("Inner", Tags: []),
+            new ConnectionEndpointDocument(
+                StorageConnectionProvider.Sftp,
+                Host: "inner.example.test",
+                Port: 22,
+                Sftp: new ConnectionSftpOptionsDocument(jumpId.Value, MaximumSessions: 2)),
+            new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.UsernamePassword,
+                Username: "operator",
+                PasswordReference: "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"),
+            new ConnectionOperationalOptionsDocument());
+        var bastion = ConnectionProfile.Create(
+            jumpId,
+            new ConnectionProfileMetadata("Bastion"),
+            new SshClientEndpoint("bastion.example.test", 22, SshHostKeyPolicy.Pinned),
+            new UsernamePasswordAuthentication("jumper", SecretReference.Create()),
+            Options(),
+            Now);
+        var local = ConnectionProfile.Create(
+            jumpId,
+            new ConnectionProfileMetadata("Local files"),
+            new LocalEndpoint("C:\\Data"),
+            new NoAuthentication(),
+            Options(),
+            Now);
+
+        foreach (var (existing, expected) in new[]
+        {
+            (bastion, ContractWriteStatus.Succeeded),
+            (local, ContractWriteStatus.ValidationFailed)
+        })
+        {
+            var repository = new RecordingProfileRepository(existing);
+            var service = new ConnectionProfileIpcCommandService(repository, new FixedTimeProvider(Now));
+
+            var result = await service.HandleAsync(IpcEnvelope.Create(
+                ConnectionProfileIpcMessageTypes.CreateRequest,
+                Guid.NewGuid(),
+                1,
+                new ConnectionProfileCreateRequest(ConnectionProfileIpcContract.CurrentVersion, draft)));
+
+            Assert.Equal(expected, result.Payload.Deserialize<ConnectionProfileWriteResponse>()?.Status);
+            if (expected == ContractWriteStatus.Succeeded)
+            {
+                var endpoint = Assert.IsType<SftpEndpoint>(repository.Created?.Endpoint);
+                Assert.Equal(jumpId, endpoint.ServerOptions.JumpConnectionId);
+                Assert.Equal(2, endpoint.ServerOptions.MaximumSessions);
+            }
+            else
+            {
+                Assert.Null(repository.Created);
+            }
+        }
+    }
+
+    /// <summary>
+    /// A WebDAV draft becomes a WebDAV profile with its URL, scheme, pin policy and certificate
+    /// references intact, and comes back out of the agent as the same draft it went in as.
+    /// </summary>
+    [Fact]
+    public async Task CreateMapsWebDavDraftsBothWaysForEachSignIn()
+    {
+        const string first = "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+        const string second = "shs_BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
+        var digest = new ConnectionProfileDraft(
+            new ConnectionProfileMetadataDocument("Files", Tags: []),
+            new ConnectionEndpointDocument(
+                StorageConnectionProvider.WebDav,
+                RootPath: "Projects",
+                ServiceEndpoint: "https://dav.example.test:8443/remote.php/dav/files/me/",
+                TlsPolicy: ConnectionTlsCertificatePolicy.Pinned,
+                ClientCertificatePfxReference: first,
+                ClientCertificatePasswordReference: second,
+                HttpCredentialScheme: ConnectionHttpCredentialScheme.Digest),
+            new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.UsernamePassword,
+                Username: "operator",
+                PasswordReference: first),
+            new ConnectionOperationalOptionsDocument());
+        var bearer = digest with
+        {
+            Endpoint = new ConnectionEndpointDocument(
+                StorageConnectionProvider.WebDav,
+                ServiceEndpoint: "http://nas.local:8080/",
+                AllowInsecureTransport: true),
+            Authentication = new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.BearerToken,
+                SessionTokenReference: second)
+        };
+
+        foreach (var draft in new[] { digest, bearer })
+        {
+            var repository = new RecordingProfileRepository();
+            var service = new ConnectionProfileIpcCommandService(repository, new FixedTimeProvider(Now));
+            var result = await service.HandleAsync(IpcEnvelope.Create(
+                ConnectionProfileIpcMessageTypes.CreateRequest,
+                Guid.NewGuid(),
+                1,
+                new ConnectionProfileCreateRequest(ConnectionProfileIpcContract.CurrentVersion, draft)));
+            var response = result.Payload.Deserialize<ConnectionProfileWriteResponse>();
+
+            Assert.Equal(ContractWriteStatus.Succeeded, response?.Status);
+            Assert.Equal(ConnectionProviderKind.WebDav, repository.Created?.Provider);
+            // An absent root comes back empty, as every provider's does.
+            Assert.Equal(
+                draft.Endpoint with { RootPath = draft.Endpoint.RootPath ?? string.Empty },
+                response!.Profile!.Draft.Endpoint);
+            Assert.Equal(draft.Authentication, response.Profile.Draft.Authentication);
+        }
+
+        var digestRepository = new RecordingProfileRepository();
+        await new ConnectionProfileIpcCommandService(digestRepository, new FixedTimeProvider(Now)).HandleAsync(
+            IpcEnvelope.Create(
+                ConnectionProfileIpcMessageTypes.CreateRequest,
+                Guid.NewGuid(),
+                1,
+                new ConnectionProfileCreateRequest(ConnectionProfileIpcContract.CurrentVersion, digest)));
+        var endpoint = Assert.IsType<WebDavEndpoint>(digestRepository.Created?.Endpoint);
+        Assert.Equal(HttpCredentialScheme.Digest, endpoint.CredentialScheme);
+        Assert.Equal(("dav.example.test", 8443), (endpoint.Host, endpoint.Port));
+        Assert.Equal(TlsCertificatePolicy.Pinned, endpoint.TlsPolicy);
+        Assert.Equal(first, endpoint.ClientCertificatePfxReference?.Value);
+        Assert.Equal("Projects", endpoint.RootPath);
+    }
+
+    /// <summary>
+    /// An Azure draft becomes an Azure profile for each sign-in, with the account name, key, token
+    /// and connection string in their slots, and comes back out as the draft it went in as.
+    /// </summary>
+    [Fact]
+    public async Task CreateMapsAzureDraftsBothWaysForEachSignIn()
+    {
+        const string reference = "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+        var service = new ConnectionEndpointDocument(
+            StorageConnectionProvider.AzureBlob,
+            RootPath: "team",
+            Bucket: "archive",
+            ServiceEndpoint: "https://account.blob.core.windows.net/");
+        var drafts = new[]
+        {
+            (service, new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.AzureSharedKey, Username: "account", SecretKeyReference: reference),
+                typeof(AzureSharedKeyAuthentication)),
+            (service, new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.AzureSasToken, SessionTokenReference: reference),
+                typeof(AzureSasTokenAuthentication)),
+            (service, new ConnectionAuthenticationDocument(ConnectionAuthenticationKind.AmbientCredential),
+                typeof(AmbientCredentialAuthentication)),
+            (new ConnectionEndpointDocument(
+                StorageConnectionProvider.AzureBlob, RootPath: string.Empty, Bucket: "archive", AllowInsecureTransport: true),
+                new ConnectionAuthenticationDocument(
+                    ConnectionAuthenticationKind.AzureConnectionString, SecretKeyReference: reference),
+                typeof(AzureConnectionStringAuthentication))
+        };
+
+        foreach (var (endpoint, authentication, expected) in drafts)
+        {
+            var repository = new RecordingProfileRepository();
+            var result = await new ConnectionProfileIpcCommandService(repository, new FixedTimeProvider(Now)).HandleAsync(
+                IpcEnvelope.Create(
+                    ConnectionProfileIpcMessageTypes.CreateRequest,
+                    Guid.NewGuid(),
+                    1,
+                    new ConnectionProfileCreateRequest(
+                        ConnectionProfileIpcContract.CurrentVersion,
+                        new ConnectionProfileDraft(
+                            new ConnectionProfileMetadataDocument("Archive", Tags: []),
+                            endpoint,
+                            authentication,
+                            new ConnectionOperationalOptionsDocument(30, 30)))));
+            var response = result.Payload.Deserialize<ConnectionProfileWriteResponse>();
+
+            Assert.Equal(ContractWriteStatus.Succeeded, response?.Status);
+            Assert.Equal(ConnectionProviderKind.AzureBlob, repository.Created?.Provider);
+            Assert.IsType(expected, repository.Created?.Authentication);
+            Assert.Equal("archive", Assert.IsType<AzureBlobEndpoint>(repository.Created?.Endpoint).Container);
+            Assert.Equal(endpoint, response!.Profile!.Draft.Endpoint);
+            Assert.Equal(authentication, response.Profile.Draft.Authentication);
+        }
+    }
+
+    /// <summary>A connection string offered with a service URL as well never reaches the repository.</summary>
+    [Fact]
+    public async Task CreateRefusesAnAzureConnectionStringBesideAServiceUrl()
+    {
+        var repository = new RecordingProfileRepository();
+        var draft = new ConnectionProfileDraft(
+            new ConnectionProfileMetadataDocument("Archive", Tags: []),
+            new ConnectionEndpointDocument(
+                StorageConnectionProvider.AzureBlob,
+                Bucket: "archive",
+                ServiceEndpoint: "https://account.blob.core.windows.net/"),
+            new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.AzureConnectionString,
+                SecretKeyReference: "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"),
+            new ConnectionOperationalOptionsDocument());
+
+        var result = await new ConnectionProfileIpcCommandService(repository, new FixedTimeProvider(Now)).HandleAsync(
+            IpcEnvelope.Create(
+                ConnectionProfileIpcMessageTypes.CreateRequest,
+                Guid.NewGuid(),
+                1,
+                new ConnectionProfileCreateRequest(ConnectionProfileIpcContract.CurrentVersion, draft)));
+
+        Assert.Equal(
+            ContractWriteStatus.ValidationFailed,
+            result.Payload.Deserialize<ConnectionProfileWriteResponse>()?.Status);
+        Assert.Null(repository.Created);
+    }
+
+    /// <summary>
+    /// A Cloud Storage draft becomes a Cloud Storage profile for each sign-in, the key in its slot,
+    /// and comes back out as the draft it went in as.
+    /// </summary>
+    [Fact]
+    public async Task CreateMapsCloudStorageDraftsBothWaysForEachSignIn()
+    {
+        var google = new ConnectionEndpointDocument(
+            StorageConnectionProvider.GoogleCloudStorage, RootPath: "team", Bucket: "archive");
+        var emulator = new ConnectionEndpointDocument(
+            StorageConnectionProvider.GoogleCloudStorage,
+            RootPath: string.Empty,
+            Bucket: "archive",
+            ServiceEndpoint: "http://127.0.0.1:4443/",
+            AllowInsecureTransport: true);
+        var drafts = new[]
+        {
+            (google, new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.GoogleServiceAccount,
+                SecretKeyReference: "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"),
+                typeof(GoogleServiceAccountAuthentication)),
+            (google, new ConnectionAuthenticationDocument(ConnectionAuthenticationKind.AmbientCredential),
+                typeof(AmbientCredentialAuthentication)),
+            (emulator, new ConnectionAuthenticationDocument(ConnectionAuthenticationKind.None),
+                typeof(NoAuthentication))
+        };
+
+        foreach (var (endpoint, authentication, expected) in drafts)
+        {
+            var repository = new RecordingProfileRepository();
+            var result = await new ConnectionProfileIpcCommandService(repository, new FixedTimeProvider(Now)).HandleAsync(
+                IpcEnvelope.Create(
+                    ConnectionProfileIpcMessageTypes.CreateRequest,
+                    Guid.NewGuid(),
+                    1,
+                    new ConnectionProfileCreateRequest(
+                        ConnectionProfileIpcContract.CurrentVersion,
+                        new ConnectionProfileDraft(
+                            new ConnectionProfileMetadataDocument("Archive", Tags: []),
+                            endpoint,
+                            authentication,
+                            new ConnectionOperationalOptionsDocument(100, 100, 0)))));
+            var response = result.Payload.Deserialize<ConnectionProfileWriteResponse>();
+
+            Assert.Equal(ContractWriteStatus.Succeeded, response?.Status);
+            Assert.Equal(ConnectionProviderKind.GoogleCloudStorage, repository.Created?.Provider);
+            Assert.IsType(expected, repository.Created?.Authentication);
+            Assert.Equal("archive", Assert.IsType<GoogleCloudStorageEndpoint>(repository.Created?.Endpoint).Bucket);
+            Assert.Equal(endpoint, response!.Profile!.Draft.Endpoint);
+            Assert.Equal(authentication, response.Profile.Draft.Authentication);
+        }
+    }
+
+    /// <summary>
+    /// A Swift draft becomes a Swift profile for each sign-in, Keystone's project and domains with
+    /// it, and comes back out as the draft it went in as.
+    /// </summary>
+    [Fact]
+    public async Task CreateMapsSwiftDraftsBothWaysForEachSignIn()
+    {
+        const string reference = "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+        var keystone = new ConnectionEndpointDocument(
+            StorageConnectionProvider.OpenStackSwift,
+            RootPath: "team",
+            Bucket: "archive",
+            Region: "RegionOne",
+            ServiceEndpoint: "https://keystone.example.test/v3",
+            StorageUrl: "https://swift.example.test/v1/AUTH_project");
+        var saio = new ConnectionEndpointDocument(
+            StorageConnectionProvider.OpenStackSwift,
+            RootPath: string.Empty,
+            Bucket: "archive",
+            ServiceEndpoint: "http://127.0.0.1:8080/auth/v1.0",
+            AllowInsecureTransport: true);
+        var token = new ConnectionEndpointDocument(
+            StorageConnectionProvider.OpenStackSwift,
+            RootPath: string.Empty,
+            Bucket: "archive",
+            StorageUrl: "https://swift.example.test/v1/AUTH_project");
+        var drafts = new[]
+        {
+            (keystone, new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.KeystonePassword,
+                Username: "operator",
+                PasswordReference: reference,
+                Keystone: new ConnectionKeystoneDocument("project", "Users", "Projects")),
+                typeof(KeystonePasswordAuthentication)),
+            (saio, new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.UsernamePassword, Username: "test:tester", PasswordReference: reference),
+                typeof(UsernamePasswordAuthentication)),
+            (token, new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.BearerToken, SessionTokenReference: reference),
+                typeof(BearerTokenAuthentication))
+        };
+
+        foreach (var (endpoint, authentication, expected) in drafts)
+        {
+            var repository = new RecordingProfileRepository();
+            var result = await new ConnectionProfileIpcCommandService(repository, new FixedTimeProvider(Now)).HandleAsync(
+                IpcEnvelope.Create(
+                    ConnectionProfileIpcMessageTypes.CreateRequest,
+                    Guid.NewGuid(),
+                    1,
+                    new ConnectionProfileCreateRequest(
+                        ConnectionProfileIpcContract.CurrentVersion,
+                        new ConnectionProfileDraft(
+                            new ConnectionProfileMetadataDocument("Archive", Tags: []),
+                            endpoint,
+                            authentication,
+                            new ConnectionOperationalOptionsDocument(30, 600, 0)))));
+            var response = result.Payload.Deserialize<ConnectionProfileWriteResponse>();
+
+            Assert.Equal(ContractWriteStatus.Succeeded, response?.Status);
+            Assert.Equal(ConnectionProviderKind.OpenStackSwift, repository.Created?.Provider);
+            Assert.IsType(expected, repository.Created?.Authentication);
+            Assert.Equal("archive", Assert.IsType<SwiftEndpoint>(repository.Created?.Endpoint).Container);
+            Assert.Equal(endpoint, response!.Profile!.Draft.Endpoint);
+            Assert.Equal(authentication, response.Profile.Draft.Authentication);
+        }
+    }
+
+    /// <summary>A Keystone sign-in without its project never reaches the repository.</summary>
+    [Fact]
+    public async Task CreateRefusesAKeystoneSignInWithoutItsProject()
+    {
+        var repository = new RecordingProfileRepository();
+        var draft = new ConnectionProfileDraft(
+            new ConnectionProfileMetadataDocument("Archive", Tags: []),
+            new ConnectionEndpointDocument(
+                StorageConnectionProvider.OpenStackSwift,
+                Bucket: "archive",
+                ServiceEndpoint: "https://keystone.example.test/v3"),
+            new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.KeystonePassword,
+                Username: "operator",
+                PasswordReference: "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"),
+            new ConnectionOperationalOptionsDocument());
+
+        var result = await new ConnectionProfileIpcCommandService(repository, new FixedTimeProvider(Now)).HandleAsync(
+            IpcEnvelope.Create(
+                ConnectionProfileIpcMessageTypes.CreateRequest,
+                Guid.NewGuid(),
+                1,
+                new ConnectionProfileCreateRequest(ConnectionProfileIpcContract.CurrentVersion, draft)));
+
+        Assert.Equal(
+            ContractWriteStatus.ValidationFailed,
+            result.Payload.Deserialize<ConnectionProfileWriteResponse>()?.Status);
+        Assert.Null(repository.Created);
+    }
+
+    /// <summary>A plain-HTTP Cloud Storage endpoint nobody acknowledged never reaches the repository.</summary>
+    [Fact]
+    public async Task CreateRefusesUnacknowledgedPlainHttpCloudStorage()
+    {
+        var repository = new RecordingProfileRepository();
+        var draft = new ConnectionProfileDraft(
+            new ConnectionProfileMetadataDocument("Archive", Tags: []),
+            new ConnectionEndpointDocument(
+                StorageConnectionProvider.GoogleCloudStorage,
+                Bucket: "archive",
+                ServiceEndpoint: "http://127.0.0.1:4443/"),
+            new ConnectionAuthenticationDocument(ConnectionAuthenticationKind.None),
+            new ConnectionOperationalOptionsDocument());
+
+        var result = await new ConnectionProfileIpcCommandService(repository, new FixedTimeProvider(Now)).HandleAsync(
+            IpcEnvelope.Create(
+                ConnectionProfileIpcMessageTypes.CreateRequest,
+                Guid.NewGuid(),
+                1,
+                new ConnectionProfileCreateRequest(ConnectionProfileIpcContract.CurrentVersion, draft)));
+
+        Assert.Equal(
+            ContractWriteStatus.ValidationFailed,
+            result.Payload.Deserialize<ConnectionProfileWriteResponse>()?.Status);
+        Assert.Null(repository.Created);
+    }
+
+    /// <summary>A plain-HTTP WebDAV URL nobody acknowledged never reaches the repository.</summary>
+    [Fact]
+    public async Task CreateRefusesUnacknowledgedPlainHttpWebDav()
+    {
+        var repository = new RecordingProfileRepository();
+        var service = new ConnectionProfileIpcCommandService(repository, new FixedTimeProvider(Now));
+        var draft = new ConnectionProfileDraft(
+            new ConnectionProfileMetadataDocument("NAS", Tags: []),
+            new ConnectionEndpointDocument(StorageConnectionProvider.WebDav, ServiceEndpoint: "http://nas.local/"),
+            new ConnectionAuthenticationDocument(ConnectionAuthenticationKind.None),
+            new ConnectionOperationalOptionsDocument());
+
+        var result = await service.HandleAsync(IpcEnvelope.Create(
+            ConnectionProfileIpcMessageTypes.CreateRequest,
+            Guid.NewGuid(),
+            1,
+            new ConnectionProfileCreateRequest(ConnectionProfileIpcContract.CurrentVersion, draft)));
+
+        Assert.Equal(
+            ContractWriteStatus.ValidationFailed,
+            result.Payload.Deserialize<ConnectionProfileWriteResponse>()?.Status);
+        Assert.Null(repository.Created);
     }
 
     [WindowsOnlyFact]

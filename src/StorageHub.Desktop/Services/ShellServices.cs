@@ -49,8 +49,18 @@ internal static class ShellServices
     /// over whichever main window is open, on the UI thread, since the pane's await may resume
     /// anywhere.
     /// </remarks>
-    internal static Task InspectObjectAsync(ObjectInspectorAddress address) =>
-        Dispatcher.UIThread.InvokeAsync(() => ObjectInspectorWindow.ShowAsync(MainWindow(), address));
+    internal static Task InspectObjectAsync(ObjectInspectorAddress address, StorageItemKind kind) =>
+        Dispatcher.UIThread.InvokeAsync(() => ObjectInspectorWindow.ShowAsync(
+            MainWindow(),
+            address,
+            kind,
+            static () => ItemAttributesChanged?.Invoke(null, EventArgs.Empty)));
+
+    /// <summary>
+    /// Raised on the UI thread after the Properties window changed an item's permissions or
+    /// modified time, which the pane it is listed in shows too.
+    /// </summary>
+    internal static event EventHandler? ItemAttributesChanged;
 
     private static ExternalEditController? _editing;
 
@@ -84,6 +94,15 @@ internal static class ShellServices
             }).ConfigureAwait(false);
         }
     }
+
+    /// <summary>
+    /// The folders of the files still being edited, which Clean Up Leftover Files must leave: each
+    /// is an editor's working copy until its session closes.
+    /// </summary>
+    internal static IReadOnlyCollection<string> OpenEditSessionDirectories() =>
+        _editing is { } editing
+            ? [.. editing.Sessions.Select(static session => Path.GetDirectoryName(session.LocalPath)!)]
+            : [];
 
     /// <summary>Stops watching every edited file, at shutdown.</summary>
     internal static async ValueTask CloseEditingAsync()

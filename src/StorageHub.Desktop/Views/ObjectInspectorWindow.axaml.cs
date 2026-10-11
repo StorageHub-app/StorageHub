@@ -2,11 +2,12 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Markup.Xaml;
 using StorageHub.Contracts.Ipc;
+using StorageHub.Desktop.Services;
 
 namespace StorageHub.Desktop.Views;
 
 /// <summary>
-/// The read-only object inspector, over one file on a saved connection.
+/// The Properties window, over one file, folder or link on a saved connection.
 /// </summary>
 /// <remarks>
 /// Loads when opened rather than when built, so a window that never opens never asks the agent,
@@ -49,14 +50,30 @@ public partial class ObjectInspectorWindow : Window
         }, global::Avalonia.Interactivity.RoutingStrategies.Tunnel);
     }
 
-    /// <summary>Opens the inspector for an object, over the shell or on its own.</summary>
-    internal static Task ShowAsync(Window? owner, ObjectInspectorAddress address)
+    /// <summary>Opens the Properties window for an item, over the shell or on its own.</summary>
+    /// <param name="changed">
+    /// Called after the permissions or the modified time were changed, so the shell can reload the
+    /// pane the item is listed in.
+    /// </param>
+    /// <remarks>
+    /// The permissions dialog and the modified-time prompt are owned by this window rather than the
+    /// shell's, so they open over it and it stays modal behind them.
+    /// </remarks>
+    internal static Task ShowAsync(
+        Window? owner,
+        ObjectInspectorAddress address,
+        StorageItemKind kind,
+        Action? changed = null)
     {
-        var window = new ObjectInspectorWindow
-        {
-            DataContext = ObjectInspectorModel.Create(
-                address, static () => new NamedPipeObjectInspectorAgentClient())
-        };
+        var window = new ObjectInspectorWindow();
+        var model = ObjectInspectorModel.Create(
+            address,
+            kind,
+            static () => new NamedPipeObjectInspectorAgentClient(),
+            new AvaloniaDialogService(() => window),
+            (name, mode) => PermissionsWindow.AskAsync(window, name, mode));
+        if (changed is not null) model.AttributesChanged += (_, _) => changed();
+        window.DataContext = model;
 
         if (owner is not null) return window.ShowDialog(owner);
         window.Show();

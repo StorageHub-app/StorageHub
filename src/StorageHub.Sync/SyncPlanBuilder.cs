@@ -570,7 +570,13 @@ public static class SyncPlanBuilder
         operations.Add(PendingOperation.Copy(locationA, Destination(request.RightRoot, aName), aDigest, null, false));
         operations.Add(PendingOperation.Copy(locationB, Destination(request.LeftRoot, bName), bDigest, null, false));
         operations.Add(PendingOperation.Copy(locationB, Destination(request.RightRoot, bName), bDigest, null, false));
-        operations.Add(PendingOperation.Copy(locationA, locationB.Address, aDigest, bDigest, true));
+        // Overwrites B with A, so it runs after every copy that preserves B's content. Ordering
+        // copies by destination path would put it first for most extensions, since "report.pdf"
+        // sorts before "report.storagehub-conflict-location-b.pdf".
+        operations.Add(PendingOperation.Copy(locationA, locationB.Address, aDigest, bDigest, true) with
+        {
+            AfterOtherCopies = true
+        });
     }
 
     private static void BuildTwoWayContainer(
@@ -630,7 +636,8 @@ public static class SyncPlanBuilder
             .ThenBy(operation => operation.RelativePath, StringComparer.Ordinal))
             .Concat(snapshot
                 .Where(operation => operation.Kind == SyncPlanOperationKind.Copy)
-                .OrderBy(operation => operation.RelativePath, StringComparer.Ordinal))
+                .OrderBy(operation => operation.AfterOtherCopies)
+                .ThenBy(operation => operation.RelativePath, StringComparer.Ordinal))
             .Concat(snapshot
                 .Where(operation => operation.Kind == SyncPlanOperationKind.Delete && !operation.BeforeWrites)
                 .OrderByDescending(operation => PathDepth(operation.RelativePath))
@@ -819,6 +826,9 @@ public static class SyncPlanBuilder
         string RelativePath,
         bool BeforeWrites)
     {
+        /// <summary>Runs after every other copy, because those still need what this overwrites.</summary>
+        public bool AfterOtherCopies { get; init; }
+
         public static PendingOperation Copy(
             StorageEntry source,
             StorageAddress destination,

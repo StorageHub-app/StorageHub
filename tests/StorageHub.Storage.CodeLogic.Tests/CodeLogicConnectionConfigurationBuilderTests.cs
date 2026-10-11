@@ -99,6 +99,26 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
         }
     }
 
+    [Theory]
+    [InlineData("-----BEGIN OPENSSH PRIVATE KEY-----\nAAAA\n", SftpPrivateKeyFormat.OpenSsh)]
+    [InlineData("\n  -----BEGIN OPENSSH PRIVATE KEY-----\r\nAAAA", SftpPrivateKeyFormat.OpenSsh)]
+    [InlineData("-----BEGIN PRIVATE KEY-----\nAAAA\n", SftpPrivateKeyFormat.Pkcs8)]
+    [InlineData("-----BEGIN ENCRYPTED PRIVATE KEY-----\nAAAA\n", SftpPrivateKeyFormat.Pkcs8)]
+    [InlineData("-----BEGIN RSA PRIVATE KEY-----\nAAAA\n", SftpPrivateKeyFormat.Pem)]
+    [InlineData("-----BEGIN EC PRIVATE KEY-----\nAAAA\n", SftpPrivateKeyFormat.Pem)]
+    [InlineData("-----BEGIN DSA PRIVATE KEY-----", SftpPrivateKeyFormat.Pem)]
+    public void The_envelope_is_read_from_the_key_header(string text, SftpPrivateKeyFormat expected) =>
+        Assert.Equal(expected, PrivateKeyEncryptionValidator.DetectFormat(Encoding.ASCII.GetBytes(text)));
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("# comment\n-----BEGIN OPENSSH PRIVATE KEY-----\n")]
+    [InlineData("-----BEGIN CERTIFICATE-----\n")]
+    [InlineData("ssh-ed25519 AAAA")]
+    public void An_unrecognised_header_has_no_envelope(string text) =>
+        Assert.Null(PrivateKeyEncryptionValidator.DetectFormat(Encoding.ASCII.GetBytes(text)));
+
     [Fact]
     public void Private_key_envelopes_reject_comments_multiple_blocks_and_trailing_markers()
     {
@@ -325,7 +345,7 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
     }
 
     [Fact]
-    public async Task Sftp_private_key_requires_a_pin_and_material_lives_with_prepared_connection()
+    public async Task Sftp_private_key_requires_a_pin_and_is_handed_over_in_memory()
     {
         _trust.Records.Add(TrustedRecord(TrustArtifactKind.SshHostKey, "sftp.example.test", 22));
         var encryptedKey = CreateEncryptedOpenSshPrivateKey();
@@ -344,15 +364,166 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
         Assert.Equal("operator", configuration.Username);
         Assert.Equal(TestPrivateKeyPassphrase, configuration.PrivateKeyPassphrase);
         Assert.Equal(Assert.Single(_trust.Records).Sha256Fingerprint, Assert.Single(configuration.HostKeyFingerprints));
-        var material = Assert.Single(_materializer.Materials);
-        Assert.False(material.IsDisposed);
-        Assert.Equal(".key", material.Extension);
-        Assert.Equal(encryptedKey, material.Bytes);
+        Assert.Equal(Encoding.UTF8.GetString(encryptedKey), configuration.PrivateKeyContent);
+        Assert.Null(configuration.PrivateKeyPath);
+        Assert.Empty(_materializer.Materials);
 
         await prepared.DisposeAsync();
 
-        Assert.True(material.IsDisposed);
+        Assert.Null(configuration.PrivateKeyContent);
         Assert.Null(configuration.PrivateKeyPassphrase);
+    }
+
+    /// <summary>
+    /// A password is offered to the server's keyboard-interactive prompt too, as OpenSSH offers it,
+    /// so a server that only signs in through PAM is reached.
+    /// </summary>
+    [Fact]
+    public async Task Sftp_password_is_also_offered_to_keyboard_interactive_prompts()
+    {
+        _trust.Records.Add(TrustedRecord(TrustArtifactKind.SshHostKey, "sftp.example.test", 22));
+        var password = await StoreTextAsync("sftp-password");
+        var profile = CreateProfile(
+            new SftpEndpoint("sftp.example.test", 22, SshHostKeyPolicy.Pinned),
+            new UsernamePasswordAuthentication("operator", password));
+
+        var result = await CreateBuilder().BuildAsync(profile);
+
+        Assert.True(result.IsSuccess, result.Error?.Message);
+        await using var prepared = result.Value;
+        var configuration = Assert.IsType<SftpConnectionConfig>(prepared.Configuration);
+        Assert.Equal(SftpAuthenticationMode.Auto, configuration.AuthenticationMode);
+        Assert.Equal("sftp-password", configuration.Password);
+        Assert.Null(configuration.PrivateKeyContent);
+    }
+
+    [Fact]
+    public async Task Sftp_key_and_password_offers_both()
+    {
+        _trust.Records.Add(TrustedRecord(TrustArtifactKind.SshHostKey, "sftp.example.test", 22));
+        var unencryptedKey = CreateUnencryptedOpenSshPrivateKey();
+        var key = await StoreBytesAsync(unencryptedKey);
+        var password = await StoreTextAsync("account-password");
+        var profile = CreateProfile(
+            new SftpEndpoint("sftp.example.test", 22, SshHostKeyPolicy.Pinned),
+            new SshPrivateKeyPasswordAuthentication("operator", password, key, null, SftpPrivateKeyFormat.OpenSsh));
+
+        var result = await CreateBuilder().BuildAsync(profile);
+
+        Assert.True(result.IsSuccess, result.Error?.Message);
+        await using var prepared = result.Value;
+        var configuration = Assert.IsType<SftpConnectionConfig>(prepared.Configuration);
+        Assert.Equal(SftpAuthenticationMode.Auto, configuration.AuthenticationMode);
+        Assert.Equal("account-password", configuration.Password);
+        Assert.Equal(Encoding.UTF8.GetString(unencryptedKey), configuration.PrivateKeyContent);
+        Assert.Null(configuration.PrivateKeyPassphrase);
+    }
+
+    [Fact]
+    public async Task Sftp_options_set_algorithms_and_session_limits()
+    {
+        _trust.Records.Add(TrustedRecord(TrustArtifactKind.SshHostKey, "sftp.example.test", 22));
+        var password = await StoreTextAsync("sftp-password");
+        var profile = CreateProfile(
+            new SftpEndpoint(
+                "sftp.example.test",
+                22,
+                SshHostKeyPolicy.Pinned,
+                serverOptions: new SftpServerOptions(
+                    keyExchangeAlgorithms: "curve25519-sha256, diffie-hellman-group14-sha256",
+                    ciphers: "aes256-ctr",
+                    macAlgorithms: "hmac-sha2-256",
+                    hostKeyAlgorithms: "ssh-ed25519",
+                    maximumSessions: 2,
+                    keepAliveSeconds: 30)),
+            new UsernamePasswordAuthentication("operator", password));
+
+        var result = await CreateBuilder().BuildAsync(profile);
+
+        Assert.True(result.IsSuccess, result.Error?.Message);
+        await using var prepared = result.Value;
+        var configuration = Assert.IsType<SftpConnectionConfig>(prepared.Configuration);
+        Assert.Equal(["curve25519-sha256", "diffie-hellman-group14-sha256"], configuration.KeyExchangeAlgorithms);
+        Assert.Equal(["aes256-ctr"], configuration.Ciphers);
+        Assert.Equal(["hmac-sha2-256"], configuration.MacAlgorithms);
+        Assert.Equal(["ssh-ed25519"], configuration.HostKeyAlgorithms);
+        Assert.Equal(2, configuration.Session.MaxSessions);
+        Assert.Equal(2, configuration.Session.MaxIdleSessions);
+        Assert.Equal(30, configuration.Session.KeepAliveSeconds);
+        Assert.Null(configuration.JumpHost);
+    }
+
+    [Fact]
+    public async Task Sftp_jump_host_comes_from_the_saved_connection_it_names()
+    {
+        _trust.Records.Add(TrustedRecord(TrustArtifactKind.SshHostKey, "sftp.example.test", 22));
+        _trust.Records.Add(TrustedRecord(TrustArtifactKind.SshHostKey, "bastion.example.test", 2222));
+        var password = await StoreTextAsync("sftp-password");
+        var jumpPassword = await StoreTextAsync("bastion-password");
+        var jump = CreateProfile(
+            new SshClientEndpoint("bastion.example.test", 2222, SshHostKeyPolicy.Pinned),
+            new UsernamePasswordAuthentication("jumper", jumpPassword));
+        var profile = CreateProfile(
+            new SftpEndpoint(
+                "sftp.example.test",
+                22,
+                SshHostKeyPolicy.Pinned,
+                serverOptions: new SftpServerOptions(jumpConnectionId: jump.Id)),
+            new UsernamePasswordAuthentication("operator", password));
+
+        var result = await CreateBuilder(jump).BuildAsync(profile);
+
+        Assert.True(result.IsSuccess, result.Error?.Message);
+        var prepared = result.Value;
+        var configuration = Assert.IsType<SftpConnectionConfig>(prepared.Configuration);
+        var jumpHost = Assert.IsType<SftpJumpHostConfig>(configuration.JumpHost);
+        Assert.Equal("bastion.example.test", jumpHost.Host);
+        Assert.Equal(2222, jumpHost.Port);
+        Assert.Equal("jumper", jumpHost.Username);
+        Assert.Equal("bastion-password", jumpHost.Password);
+        Assert.Equal(_trust.Records[1].Sha256Fingerprint, Assert.Single(jumpHost.HostKeyFingerprints));
+
+        await prepared.DisposeAsync();
+
+        Assert.Null(jumpHost.Password);
+    }
+
+    [Fact]
+    public async Task Sftp_jump_host_that_is_missing_unpinned_or_chained_is_refused()
+    {
+        _trust.Records.Add(TrustedRecord(TrustArtifactKind.SshHostKey, "sftp.example.test", 22));
+        var password = await StoreTextAsync("sftp-password");
+        var unpinned = CreateProfile(
+            new SshClientEndpoint("unpinned.example.test", 22, SshHostKeyPolicy.Pinned),
+            new UsernamePasswordAuthentication("jumper", password));
+        var chained = CreateProfile(
+            new SftpEndpoint(
+                "chained.example.test",
+                22,
+                SshHostKeyPolicy.Pinned,
+                serverOptions: new SftpServerOptions(jumpConnectionId: unpinned.Id)),
+            new UsernamePasswordAuthentication("jumper", password));
+
+        foreach (var (jumpId, code) in new[]
+        {
+            (ConnectionProfileId.New(), "storage.profile.unsupported"),
+            (unpinned.Id, "storage.trust.approval_required"),
+            (chained.Id, "storage.profile.unsupported")
+        })
+        {
+            var profile = CreateProfile(
+                new SftpEndpoint(
+                    "sftp.example.test",
+                    22,
+                    SshHostKeyPolicy.Pinned,
+                    serverOptions: new SftpServerOptions(jumpConnectionId: jumpId)),
+                new UsernamePasswordAuthentication("operator", password));
+
+            var result = await CreateBuilder(unpinned, chained).BuildAsync(profile);
+
+            Assert.True(result.IsFailure);
+            Assert.Equal(code, result.Error.Code);
+        }
     }
 
     [Fact]
@@ -403,7 +574,7 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
     /// passphrase, whether the profile has none or kept one that unlocks nothing.
     /// </summary>
     [Fact]
-    public async Task Unencrypted_private_key_is_materialized_without_a_passphrase()
+    public async Task Unencrypted_private_key_is_used_without_a_passphrase()
     {
         _trust.Records.Add(TrustedRecord(TrustArtifactKind.SshHostKey, "sftp.example.test", 22));
         var unencryptedKey = CreateUnencryptedOpenSshPrivateKey();
@@ -423,7 +594,7 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
             var configuration = Assert.IsType<SftpConnectionConfig>(prepared.Configuration);
             Assert.Equal(SftpAuthenticationMode.PrivateKey, configuration.AuthenticationMode);
             Assert.Null(configuration.PrivateKeyPassphrase);
-            Assert.Equal(unencryptedKey, _materializer.Materials[^1].Bytes);
+            Assert.Equal(Encoding.UTF8.GetString(unencryptedKey), configuration.PrivateKeyContent);
         }
     }
 
@@ -484,6 +655,437 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
         await prepared.DisposeAsync();
         Assert.True(material.IsDisposed);
         Assert.Null(configuration.ClientCertificatePassword);
+    }
+
+    /// <summary>
+    /// A pinned WebDAV server takes its fingerprints from the trust records for the URL's host and
+    /// port, as FTPS does; the client certificate goes over as bytes, so nothing is written to disk;
+    /// the one timeout is the operation timeout; and every secret is let go of afterwards.
+    /// </summary>
+    [Fact]
+    public async Task WebDav_pins_by_url_host_and_port_and_hands_over_the_pfx_without_a_file()
+    {
+        var password = await StoreTextAsync("dav-password");
+        var pfx = await StoreBytesAsync([1, 2, 3, 4, 5]);
+        var pfxPassword = await StoreTextAsync("pfx-password");
+        _trust.Records.Add(TrustedRecord(TrustArtifactKind.TlsCertificate, "dav.example.test", 8443));
+        _trust.Records.Add(TrustedRecord(TrustArtifactKind.TlsCertificate, "dav.example.test", 443));
+        var profile = CreateProfile(
+            new WebDavEndpoint(
+                new Uri("https://DAV.example.test:8443/remote.php/dav/files/me/"),
+                TlsCertificatePolicy.Pinned,
+                credentialScheme: HttpCredentialScheme.Digest,
+                clientCertificatePfxReference: pfx,
+                clientCertificatePasswordReference: pfxPassword,
+                rootPath: "Projects"),
+            new UsernamePasswordAuthentication("operator", password),
+            splitTimeouts: true);
+
+        var result = await CreateBuilder().BuildAsync(profile);
+
+        Assert.True(result.IsSuccess, result.Error?.Message);
+        var prepared = result.Value;
+        var configuration = Assert.IsType<WebDavConnectionConfig>(prepared.Configuration);
+        Assert.Equal("https://dav.example.test:8443/remote.php/dav/files/me/", configuration.Endpoint);
+        Assert.Equal("Projects", configuration.Root);
+        Assert.False(configuration.AllowInsecureHttp);
+        Assert.Equal([new string('A', 64)], configuration.TrustedCertificateSha256);
+        Assert.Equal(WebDavAuthenticationMode.Digest, configuration.AuthenticationMode);
+        Assert.Equal("operator", configuration.Username);
+        Assert.Equal("dav-password", configuration.Password);
+        Assert.Equal(120, configuration.TimeoutSeconds);
+        var content = configuration.ClientCertificateContent;
+        Assert.Equal([1, 2, 3, 4, 5], content);
+        Assert.Null(configuration.ClientCertificatePath);
+        Assert.Equal("pfx-password", configuration.ClientCertificatePassword);
+        Assert.Empty(_materializer.Materials);
+
+        await prepared.DisposeAsync();
+        Assert.Null(configuration.Password);
+        Assert.Null(configuration.ClientCertificatePassword);
+        Assert.Null(configuration.ClientCertificateContent);
+        Assert.All(content!, static value => Assert.Equal(0, value));
+    }
+
+    [Fact]
+    public async Task WebDav_signs_in_with_nothing_a_bearer_token_or_each_http_scheme()
+    {
+        var token = await StoreTextAsync("token-value");
+        var password = await StoreTextAsync("secret");
+        var anonymous = await CreateBuilder().BuildAsync(CreateProfile(
+            new WebDavEndpoint(new Uri("http://127.0.0.1:8080/"), TlsCertificatePolicy.SystemTrust, allowInsecureHttp: true),
+            new NoAuthentication()));
+        var bearer = await CreateBuilder().BuildAsync(CreateProfile(
+            new WebDavEndpoint(new Uri("https://dav.example.test/"), TlsCertificatePolicy.SystemTrust),
+            new BearerTokenAuthentication(token)));
+
+        await using (var prepared = anonymous.Value)
+        {
+            var configuration = Assert.IsType<WebDavConnectionConfig>(prepared.Configuration);
+            Assert.Equal(WebDavAuthenticationMode.None, configuration.AuthenticationMode);
+            Assert.True(configuration.AllowInsecureHttp);
+            Assert.Empty(configuration.TrustedCertificateSha256);
+        }
+
+        await using (var prepared = bearer.Value)
+        {
+            var configuration = Assert.IsType<WebDavConnectionConfig>(prepared.Configuration);
+            Assert.Equal(WebDavAuthenticationMode.BearerToken, configuration.AuthenticationMode);
+            Assert.Equal("token-value", configuration.BearerToken);
+        }
+
+        foreach (var (scheme, mode) in new[]
+                 {
+                     (HttpCredentialScheme.Basic, WebDavAuthenticationMode.Basic),
+                     (HttpCredentialScheme.Ntlm, WebDavAuthenticationMode.Ntlm),
+                     (HttpCredentialScheme.Negotiate, WebDavAuthenticationMode.Negotiate)
+                 })
+        {
+            var built = await CreateBuilder().BuildAsync(CreateProfile(
+                new WebDavEndpoint(new Uri("https://dav.example.test/"), TlsCertificatePolicy.SystemTrust,
+                    credentialScheme: scheme),
+                new UsernamePasswordAuthentication("operator", password)));
+            await using var prepared = built.Value;
+            Assert.Equal(mode, Assert.IsType<WebDavConnectionConfig>(prepared.Configuration).AuthenticationMode);
+        }
+    }
+
+    [Fact]
+    public async Task WebDav_without_a_pin_or_with_trust_on_first_use_fails_closed_and_takes_a_proxy()
+    {
+        var unpinned = await CreateBuilder().BuildAsync(CreateProfile(
+            new WebDavEndpoint(new Uri("https://dav.example.test/"), TlsCertificatePolicy.Pinned),
+            new NoAuthentication()));
+        var tofu = await CreateBuilder().BuildAsync(CreateProfile(
+            new WebDavEndpoint(new Uri("https://dav.example.test/"), TlsCertificatePolicy.TrustOnFirstUse),
+            new NoAuthentication()));
+        var proxied = await CreateBuilder().BuildAsync(CreateProfile(
+            new WebDavEndpoint(new Uri("https://dav.example.test/"), TlsCertificatePolicy.SystemTrust),
+            new NoAuthentication(),
+            proxy: new ConnectionProxy(new Uri("http://proxy.example.test:3128")),
+            bandwidth: true));
+
+        Assert.Equal("storage.trust.approval_required", unpinned.Error?.Code);
+        Assert.Equal("storage.profile.unsupported", tofu.Error?.Code);
+        await using var prepared = proxied.Value;
+        var configuration = Assert.IsType<WebDavConnectionConfig>(prepared.Configuration);
+        Assert.Equal(StorageProxyType.Http, configuration.Proxy.Type);
+        Assert.Equal("proxy.example.test", configuration.Proxy.Host);
+        Assert.Equal(1_000_000, configuration.TransferLimits.MaxUploadBytesPerSecond);
+    }
+
+    /// <summary>A WebDAV root is the URL and the folder below it: moving either is a different root.</summary>
+    [Fact]
+    public async Task WebDav_root_identity_follows_the_url_path_and_the_folder()
+    {
+        var first = CreateProfile(
+            new WebDavEndpoint(new Uri("https://dav.example.test/a/"), TlsCertificatePolicy.SystemTrust),
+            new NoAuthentication());
+        var otherPath = first with
+        {
+            Endpoint = new WebDavEndpoint(new Uri("https://dav.example.test/b/"), TlsCertificatePolicy.SystemTrust)
+        };
+        var otherFolder = first with
+        {
+            Endpoint = new WebDavEndpoint(new Uri("https://dav.example.test/a/"), TlsCertificatePolicy.SystemTrust,
+                rootPath: "inner")
+        };
+
+        await using var a = (await CreateBuilder().BuildAsync(first)).Value;
+        await using var b = (await CreateBuilder().BuildAsync(otherPath)).Value;
+        await using var c = (await CreateBuilder().BuildAsync(otherFolder)).Value;
+        Assert.Equal(3, new[] { a.RootIdentity, b.RootIdentity, c.RootIdentity }.Distinct(StringComparer.Ordinal).Count());
+    }
+
+    /// <summary>
+    /// Each Azure sign-in reaches CL.Storage as its own mode with its secret from the vault, the
+    /// timeout and retries as S3's are, a proxy and speed limits, and every secret let go afterwards.
+    /// </summary>
+    [Fact]
+    public async Task Azure_hands_each_sign_in_over_in_its_own_mode_and_lets_the_secrets_go()
+    {
+        var service = new AzureBlobEndpoint("archive", new Uri("https://account.blob.core.windows.net/"), rootPrefix: "team");
+        var key = await StoreTextAsync("account-key");
+        var sas = await StoreTextAsync("?sv=2024-11-04&sig=signature");
+        var connectionString = await StoreTextAsync(
+            "DefaultEndpointsProtocol=https;AccountName=account;AccountKey=a2V5;EndpointSuffix=core.windows.net");
+
+        var sharedKey = await CreateBuilder().BuildAsync(CreateProfile(
+            service,
+            new AzureSharedKeyAuthentication("account", key),
+            maximumAttempts: 4,
+            proxy: new ConnectionProxy(new Uri("socks5://proxy.example.test:1080")),
+            bandwidth: true));
+        var prepared = sharedKey.Value;
+        var configuration = Assert.IsType<AzureBlobConnectionConfig>(prepared.Configuration);
+        Assert.Equal("archive", configuration.Container);
+        Assert.Equal("team", configuration.Prefix);
+        Assert.Equal("https://account.blob.core.windows.net/", configuration.ServiceUri);
+        Assert.Equal(AzureBlobAuthenticationMode.SharedKey, configuration.AuthenticationMode);
+        Assert.Equal("account", configuration.AccountName);
+        Assert.Equal("account-key", configuration.AccountKey);
+        Assert.Equal(30, configuration.TimeoutSeconds);
+        Assert.Equal(3, configuration.MaxRetries);
+        Assert.Equal(StorageProxyType.Socks5, configuration.Proxy.Type);
+        Assert.Equal(2_000_000, configuration.TransferLimits.MaxDownloadBytesPerSecond);
+        await prepared.DisposeAsync();
+        Assert.Null(configuration.AccountKey);
+
+        await using (var token = (await CreateBuilder().BuildAsync(CreateProfile(
+            service, new AzureSasTokenAuthentication(sas)))).Value)
+        {
+            var built = Assert.IsType<AzureBlobConnectionConfig>(token.Configuration);
+            Assert.Equal(AzureBlobAuthenticationMode.SasToken, built.AuthenticationMode);
+            Assert.Equal("?sv=2024-11-04&sig=signature", built.SasToken);
+        }
+
+        await using (var identity = (await CreateBuilder().BuildAsync(CreateProfile(
+            service, new AmbientCredentialAuthentication()))).Value)
+        {
+            var built = Assert.IsType<AzureBlobConnectionConfig>(identity.Configuration);
+            Assert.Equal(AzureBlobAuthenticationMode.DefaultCredential, built.AuthenticationMode);
+            Assert.Null(built.AccountKey);
+        }
+
+        var fromString = (await CreateBuilder().BuildAsync(CreateProfile(
+            new AzureBlobEndpoint("archive"), new AzureConnectionStringAuthentication(connectionString)))).Value;
+        var stringConfiguration = Assert.IsType<AzureBlobConnectionConfig>(fromString.Configuration);
+        Assert.Equal(AzureBlobAuthenticationMode.ConnectionString, stringConfiguration.AuthenticationMode);
+        Assert.Null(stringConfiguration.ServiceUri);
+        Assert.StartsWith("DefaultEndpointsProtocol=https;", stringConfiguration.ConnectionString, StringComparison.Ordinal);
+        await fromString.DisposeAsync();
+        Assert.Null(stringConfiguration.ConnectionString);
+    }
+
+    /// <summary>
+    /// A connection string that sends blobs in plain HTTP, an emulator's, is refused until the
+    /// connection allows it, and the string is not kept; split timeouts are refused as for S3.
+    /// </summary>
+    [Fact]
+    public async Task Azure_refuses_a_plain_http_connection_string_nobody_allowed_and_split_timeouts()
+    {
+        var azurite = await StoreTextAsync(
+            "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=a2V5;" +
+            "BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;");
+        var refused = await CreateBuilder().BuildAsync(CreateProfile(
+            new AzureBlobEndpoint("archive"), new AzureConnectionStringAuthentication(azurite)));
+        Assert.Equal("storage.profile.unsupported", refused.Error?.Code);
+        Assert.DoesNotContain("a2V5", refused.Error!.Message, StringComparison.Ordinal);
+
+        await using (var allowed = (await CreateBuilder().BuildAsync(CreateProfile(
+            new AzureBlobEndpoint("archive", allowInsecureHttp: true),
+            new AzureConnectionStringAuthentication(azurite)))).Value)
+        {
+            Assert.Equal(
+                AzureBlobAuthenticationMode.ConnectionString,
+                Assert.IsType<AzureBlobConnectionConfig>(allowed.Configuration).AuthenticationMode);
+        }
+
+        var split = await CreateBuilder().BuildAsync(CreateProfile(
+            new AzureBlobEndpoint("archive", new Uri("https://account.blob.core.windows.net/")),
+            new AmbientCredentialAuthentication(),
+            splitTimeouts: true));
+        Assert.Equal("storage.timeout.unsupported", split.Error?.Code);
+    }
+
+    [Theory]
+    [InlineData("DefaultEndpointsProtocol=https;AccountName=a;AccountKey=k;EndpointSuffix=core.windows.net", false)]
+    [InlineData("DefaultEndpointsProtocol=http;AccountName=a;AccountKey=k", true)]
+    [InlineData("AccountName=a;AccountKey=k;BlobEndpoint=https://a.blob.core.windows.net/", false)]
+    [InlineData("DefaultEndpointsProtocol=http;AccountName=a;AccountKey=k;BlobEndpoint=https://a.example.test/", false)]
+    [InlineData("AccountName=a;AccountKey=k;blobendpoint=http://127.0.0.1:10000/a", true)]
+    [InlineData("UseDevelopmentStorage=true", true)]
+    [InlineData("AccountName=a;AccountKey=k;BlobEndpoint=not a url", true)]
+    [InlineData("AccountName=a;AccountKey=k", false)]
+    public void Azure_connection_strings_are_read_for_plain_http_as_the_sdk_reads_them(string value, bool plain) =>
+        Assert.Equal(plain, CodeLogicConnectionConfigurationBuilder.AzureConnectionStringNamesPlainHttp(value));
+
+    /// <summary>An Azure root is the service, the container and the prefix: changing any is a different root.</summary>
+    [Fact]
+    public async Task Azure_root_identity_follows_the_service_the_container_and_the_prefix()
+    {
+        var first = CreateProfile(
+            new AzureBlobEndpoint("archive", new Uri("https://one.blob.core.windows.net/")),
+            new AmbientCredentialAuthentication());
+        var others = new[]
+        {
+            new AzureBlobEndpoint("archive", new Uri("https://two.blob.core.windows.net/")),
+            new AzureBlobEndpoint("other", new Uri("https://one.blob.core.windows.net/")),
+            new AzureBlobEndpoint("archive", new Uri("https://one.blob.core.windows.net/"), rootPrefix: "inner")
+        };
+
+        var identities = new List<string>();
+        foreach (var profile in others.Select(endpoint => first with { Endpoint = endpoint }).Prepend(first))
+        {
+            await using var prepared = (await CreateBuilder().BuildAsync(profile)).Value;
+            identities.Add(prepared.RootIdentity);
+        }
+
+        Assert.Equal(4, identities.Distinct(StringComparer.Ordinal).Count());
+    }
+
+    /// <summary>
+    /// Each Cloud Storage sign-in reaches CL.Storage as its own mode, the key inline from the vault
+    /// (never as a file), the service URL and plain HTTP as given, a proxy, and the key let go afterwards.
+    /// </summary>
+    [Fact]
+    public async Task Cloud_storage_hands_each_sign_in_over_in_its_own_mode_and_lets_the_key_go()
+    {
+        const string json = """{"type":"service_account","client_email":"a@b.iam.gserviceaccount.com"}""";
+        var key = await StoreTextAsync(json);
+
+        var prepared = (await CreateBuilder().BuildAsync(CreateProfile(
+            new GoogleCloudStorageEndpoint("archive", rootPrefix: "team"),
+            new GoogleServiceAccountAuthentication(key),
+            proxy: new ConnectionProxy(new Uri("http://proxy.example.test:3128")),
+            bandwidth: true))).Value;
+        var configuration = Assert.IsType<GoogleCloudConnectionConfig>(prepared.Configuration);
+        Assert.Equal("archive", configuration.Bucket);
+        Assert.Equal("team", configuration.Prefix);
+        Assert.Null(configuration.ServiceUrl);
+        Assert.False(configuration.AllowInsecureHttp);
+        Assert.Equal(GoogleCloudAuthenticationMode.ServiceAccountJson, configuration.AuthenticationMode);
+        Assert.Equal(json, configuration.CredentialsJson);
+        Assert.Null(configuration.CredentialsJsonPath);
+        Assert.Equal(StorageProxyType.Http, configuration.Proxy.Type);
+        Assert.Equal(2_000_000, configuration.TransferLimits.MaxDownloadBytesPerSecond);
+        await prepared.DisposeAsync();
+        Assert.Null(configuration.CredentialsJson);
+
+        await using (var ambient = (await CreateBuilder().BuildAsync(CreateProfile(
+            new GoogleCloudStorageEndpoint("archive", new Uri("https://storage.example.test/")),
+            new AmbientCredentialAuthentication()))).Value)
+        {
+            var built = Assert.IsType<GoogleCloudConnectionConfig>(ambient.Configuration);
+            Assert.Equal(GoogleCloudAuthenticationMode.ApplicationDefaultCredentials, built.AuthenticationMode);
+            Assert.Equal("https://storage.example.test/", built.ServiceUrl);
+            Assert.Null(built.CredentialsJson);
+        }
+
+        await using (var emulator = (await CreateBuilder().BuildAsync(CreateProfile(
+            new GoogleCloudStorageEndpoint("archive", new Uri("http://127.0.0.1:4443/"), allowInsecureHttp: true),
+            new NoAuthentication()))).Value)
+        {
+            var built = Assert.IsType<GoogleCloudConnectionConfig>(emulator.Configuration);
+            Assert.Equal(GoogleCloudAuthenticationMode.Anonymous, built.AuthenticationMode);
+            Assert.Equal("http://127.0.0.1:4443/", built.ServiceUrl);
+            Assert.True(built.AllowInsecureHttp);
+        }
+    }
+
+    /// <summary>A Cloud Storage root is the service, the bucket and the prefix: changing any is a different root.</summary>
+    [Fact]
+    public async Task Cloud_storage_root_identity_follows_the_service_the_bucket_and_the_prefix()
+    {
+        var first = CreateProfile(new GoogleCloudStorageEndpoint("archive"), new AmbientCredentialAuthentication());
+        var others = new[]
+        {
+            new GoogleCloudStorageEndpoint("archive", new Uri("https://storage.example.test/")),
+            new GoogleCloudStorageEndpoint("other"),
+            new GoogleCloudStorageEndpoint("archive", rootPrefix: "inner")
+        };
+
+        var identities = new List<string>();
+        foreach (var profile in others.Select(endpoint => first with { Endpoint = endpoint }).Prepend(first))
+        {
+            await using var prepared = (await CreateBuilder().BuildAsync(profile)).Value;
+            identities.Add(prepared.RootIdentity);
+        }
+
+        Assert.Equal(4, identities.Distinct(StringComparer.Ordinal).Count());
+    }
+
+    /// <summary>
+    /// Each Swift sign-in reaches CL.Storage as its own mode with its secret from the vault, the
+    /// operation timeout as the request timeout, as WebDAV's is, and the secrets let go afterwards.
+    /// </summary>
+    [Fact]
+    public async Task Swift_hands_each_sign_in_over_in_its_own_mode_and_lets_the_secrets_go()
+    {
+        var password = await StoreTextAsync("keystone-password");
+        var token = await StoreTextAsync("AUTH_tk0123456789");
+        var keystoneUrl = new Uri("https://keystone.example.test/v3");
+        var storageUrl = new Uri("https://swift.example.test/v1/AUTH_project");
+        var options = new ConnectionOperationalOptions(
+            TimeSpan.FromSeconds(30),
+            TimeSpan.FromMinutes(10),
+            new ConnectionRetryPolicy(0, TimeSpan.Zero, TimeSpan.Zero),
+            new ConnectionProxy(new Uri("socks5://proxy.example.test:1080")),
+            new ConnectionBandwidthLimits(1_000_000, 2_000_000),
+            "utf-8");
+
+        var prepared = (await CreateBuilder().BuildAsync(CreateProfile(
+            new SwiftEndpoint("archive", keystoneUrl, region: "RegionOne", rootPrefix: "team"),
+            new KeystonePasswordAuthentication("operator", password, "project", "Users", "Projects"),
+            operationalOptions: options))).Value;
+        var configuration = Assert.IsType<SwiftConnectionConfig>(prepared.Configuration);
+        Assert.Equal("archive", configuration.Container);
+        Assert.Equal("team", configuration.Prefix);
+        Assert.Equal(SwiftAuthenticationMode.KeystoneV3Password, configuration.AuthenticationMode);
+        Assert.Equal("https://keystone.example.test/v3", configuration.AuthenticationUrl);
+        Assert.Null(configuration.StorageUrl);
+        Assert.Equal("RegionOne", configuration.Region);
+        Assert.Equal("operator", configuration.Username);
+        Assert.Equal("keystone-password", configuration.Password);
+        Assert.Equal("project", configuration.ProjectName);
+        Assert.Equal("Users", configuration.UserDomainName);
+        Assert.Equal("Projects", configuration.ProjectDomainName);
+        Assert.Equal(600, configuration.TimeoutSeconds);
+        Assert.False(configuration.AllowInsecureHttp);
+        Assert.Equal(StorageProxyType.Socks5, configuration.Proxy.Type);
+        Assert.Equal(2_000_000, configuration.TransferLimits.MaxDownloadBytesPerSecond);
+        await prepared.DisposeAsync();
+        Assert.Null(configuration.Password);
+
+        await using (var tempAuth = (await CreateBuilder().BuildAsync(CreateProfile(
+            new SwiftEndpoint("archive", new Uri("http://127.0.0.1:8080/auth/v1.0"), allowInsecureHttp: true),
+            new UsernamePasswordAuthentication("test:tester", password)))).Value)
+        {
+            var built = Assert.IsType<SwiftConnectionConfig>(tempAuth.Configuration);
+            Assert.Equal(SwiftAuthenticationMode.TempAuthV1, built.AuthenticationMode);
+            Assert.Equal("test:tester", built.Username);
+            Assert.True(built.AllowInsecureHttp);
+            Assert.Null(built.ProjectName);
+        }
+
+        var fromToken = (await CreateBuilder().BuildAsync(CreateProfile(
+            new SwiftEndpoint("archive", null, storageUrl), new BearerTokenAuthentication(token)))).Value;
+        var tokenConfiguration = Assert.IsType<SwiftConnectionConfig>(fromToken.Configuration);
+        Assert.Equal(SwiftAuthenticationMode.StaticToken, tokenConfiguration.AuthenticationMode);
+        Assert.Equal("https://swift.example.test/v1/AUTH_project", tokenConfiguration.StorageUrl);
+        Assert.Equal("AUTH_tk0123456789", tokenConfiguration.Token);
+        Assert.Null(tokenConfiguration.AuthenticationUrl);
+        await fromToken.DisposeAsync();
+        Assert.Null(tokenConfiguration.Token);
+    }
+
+    /// <summary>A Swift root is where it signs in, where it stores, the container, the prefix and the project.</summary>
+    [Fact]
+    public async Task Swift_root_identity_follows_the_urls_the_container_the_prefix_and_the_project()
+    {
+        var password = await StoreTextAsync("keystone-password");
+        var keystoneUrl = new Uri("https://keystone.example.test/v3");
+        var first = CreateProfile(
+            new SwiftEndpoint("archive", keystoneUrl),
+            new KeystonePasswordAuthentication("operator", password, "project"));
+        var others = new[]
+        {
+            first with { Endpoint = new SwiftEndpoint("archive", new Uri("https://other.example.test/v3")) },
+            first with { Endpoint = new SwiftEndpoint("archive", keystoneUrl, new Uri("https://swift.example.test/v1/AUTH_x")) },
+            first with { Endpoint = new SwiftEndpoint("archive", keystoneUrl, region: "RegionTwo") },
+            first with { Endpoint = new SwiftEndpoint("other", keystoneUrl) },
+            first with { Endpoint = new SwiftEndpoint("archive", keystoneUrl, rootPrefix: "inner") },
+            first with { Authentication = new KeystonePasswordAuthentication("operator", password, "elsewhere") }
+        };
+
+        var identities = new List<string>();
+        foreach (var profile in others.Prepend(first))
+        {
+            await using var prepared = (await CreateBuilder().BuildAsync(profile)).Value;
+            identities.Add(prepared.RootIdentity);
+        }
+
+        Assert.Equal(7, identities.Distinct(StringComparer.Ordinal).Count());
     }
 
     [Fact]
@@ -772,11 +1374,13 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
         Assert.Equal(300_000, retry.MaxDelayMs);
     }
 
-    private CodeLogicConnectionConfigurationBuilder CreateBuilder() => new(
+    /// <param name="saved">The other saved connections the builder can read, for a jump host.</param>
+    private CodeLogicConnectionConfigurationBuilder CreateBuilder(params ConnectionProfile[] saved) => new(
         _vault,
         _trust,
         _materializer,
-        TimeProvider.System);
+        TimeProvider.System,
+        (id, _) => ValueTask.FromResult(saved.FirstOrDefault(profile => profile.Id == id)));
 
     private async ValueTask<SecretReference> StoreTextAsync(string value) =>
         await StoreBytesAsync(Encoding.UTF8.GetBytes(value));

@@ -25,6 +25,11 @@ public sealed class DesktopPreferenceSectionMapperTests
         [nameof(DesktopUpdatePreferences.ConnectionsPanelWidth)] = "machine-specific window layout",
         [nameof(DesktopUpdatePreferences.ConnectionsPanelVisible)] = "machine-specific window layout",
         [nameof(DesktopUpdatePreferences.ConnectionsPanelSide)] = "machine-specific window layout",
+        [nameof(DesktopUpdatePreferences.TransferQueueVisible)] = "machine-specific window layout",
+
+        // A View menu toggle, kept where it was flipped like the panels beside it, rather than a
+        // setting somebody would expect a colleague's file to change.
+        [nameof(DesktopUpdatePreferences.ShowHiddenFiles)] = "View menu toggle",
 
         // Deliberately not exported. Importing a colleague's settings should not change which
         // language your copy of StorageHub speaks, and the export format is frozen anyway.
@@ -105,6 +110,84 @@ public sealed class DesktopPreferenceSectionMapperTests
             Customised().NewScheduleTimeZone,
             DesktopPreferenceSectionMapper.Apply(Customised(), unknown, [SettingsSectionId.DesktopGeneral])
                 .Preferences.NewScheduleTimeZone);
+    }
+
+    /// <summary>
+    /// Refreshing folders by themselves travels with its interval; a file from before it existed,
+    /// or with an interval this build would not use, leaves the setting as it was.
+    /// </summary>
+    [Fact]
+    public void AutoRefreshTravelsAndAnIntervalOutsideTheBoundsDoesNot()
+    {
+        var exported = Document() with { DesktopGeneral = DesktopPreferenceSectionMapper.CaptureGeneral(Customised()) };
+        Assert.True(exported.DesktopGeneral!.AutoRefreshFolders);
+        Assert.Equal(60, exported.DesktopGeneral.RemoteRefreshSeconds);
+        var imported = DesktopPreferenceSectionMapper.Apply(
+            DesktopUpdatePreferences.Defaults, exported, [SettingsSectionId.DesktopGeneral]).Preferences;
+        Assert.True(imported.AutoRefreshFolders);
+        Assert.Equal(60, imported.RemoteRefreshSeconds);
+
+        var older = exported with
+        {
+            DesktopGeneral = exported.DesktopGeneral with { AutoRefreshFolders = null, RemoteRefreshSeconds = 5 }
+        };
+        var kept = DesktopPreferenceSectionMapper.Apply(Customised(), older, [SettingsSectionId.DesktopGeneral]).Preferences;
+        Assert.True(kept.AutoRefreshFolders);
+        Assert.Equal(60, kept.RemoteRefreshSeconds);
+    }
+
+    /// <summary>
+    /// Hiding empty groups travels in an export; a file from before it existed leaves the
+    /// importing machine's choice alone, and the default is to show every group.
+    /// </summary>
+    [Fact]
+    public void HideEmptyGroupsTravelsAndAnOlderFileLeavesItAlone()
+    {
+        Assert.False(DesktopUpdatePreferences.Defaults.HideEmptyGroups);
+        var hiding = DesktopUpdatePreferences.Defaults with { HideEmptyGroups = true };
+        var exported = Document() with { DesktopGeneral = DesktopPreferenceSectionMapper.CaptureGeneral(hiding) };
+        Assert.True(exported.DesktopGeneral!.HideEmptyGroups);
+        Assert.True(DesktopPreferenceSectionMapper.Apply(
+            DesktopUpdatePreferences.Defaults, exported, [SettingsSectionId.DesktopGeneral]).Preferences.HideEmptyGroups);
+
+        var shown = Document() with { DesktopGeneral = DesktopPreferenceSectionMapper.CaptureGeneral(DesktopUpdatePreferences.Defaults) };
+        Assert.False(DesktopPreferenceSectionMapper.Apply(hiding, shown, [SettingsSectionId.DesktopGeneral]).Preferences.HideEmptyGroups);
+
+        var older = exported with { DesktopGeneral = exported.DesktopGeneral with { HideEmptyGroups = null } };
+        Assert.True(DesktopPreferenceSectionMapper.Apply(hiding, older, [SettingsSectionId.DesktopGeneral]).Preferences.HideEmptyGroups);
+        Assert.False(DesktopPreferenceSectionMapper.Apply(
+            DesktopUpdatePreferences.Defaults, older, [SettingsSectionId.DesktopGeneral]).Preferences.HideEmptyGroups);
+
+        // And through the file itself, where the key is simply absent.
+        var json = System.Text.Json.JsonSerializer.Serialize(DesktopPreferenceSectionMapper.CaptureGeneral(hiding));
+        var withoutKey = System.Text.Json.Nodes.JsonNode.Parse(json)!.AsObject();
+        withoutKey.Remove("HideEmptyGroups");
+        Assert.Null(System.Text.Json.JsonSerializer.Deserialize<DesktopGeneralSection>(withoutKey.ToJsonString())!.HideEmptyGroups);
+    }
+
+    /// <summary>
+    /// Asking is a choice of its own, so an export that asks imports as asking; a choice a newer
+    /// StorageHub has and this one does not leaves the setting as it was.
+    /// </summary>
+    [Fact]
+    public void TheExistingFileChoiceTravelsAndAskingIsAChoice()
+    {
+        var asks = Document() with
+        {
+            DesktopGeneral = DesktopPreferenceSectionMapper.CaptureGeneral(DesktopUpdatePreferences.Defaults)
+        };
+        Assert.Null(asks.DesktopGeneral!.TransferConflictDefault);
+        Assert.Null(DesktopPreferenceSectionMapper.Apply(Customised(), asks, [SettingsSectionId.DesktopGeneral])
+            .Preferences.TransferConflictDefault);
+
+        var newer = asks with
+        {
+            DesktopGeneral = asks.DesktopGeneral with { TransferConflictDefault = (TransferConflictChoice)99 }
+        };
+        Assert.Equal(
+            TransferConflictChoice.OverwriteIfNewer,
+            DesktopPreferenceSectionMapper.Apply(Customised(), newer, [SettingsSectionId.DesktopGeneral])
+                .Preferences.TransferConflictDefault);
     }
 
     [Fact]
@@ -347,7 +430,10 @@ public sealed class DesktopPreferenceSectionMapperTests
         SshTerminal = new SshTerminalPreferences("screen-256color"),
         TotalUploadBytesPerSecond = 512 * 1024,
         TotalDownloadBytesPerSecond = 2 * 1024 * 1024,
-        NewScheduleTimeZone = ScheduleTimeZones.Normalize("Asia/Tokyo")
+        NewScheduleTimeZone = ScheduleTimeZones.Normalize("Asia/Tokyo"),
+        TransferConflictDefault = TransferConflictChoice.OverwriteIfNewer,
+        AutoRefreshFolders = true,
+        RemoteRefreshSeconds = 60
     };
 
     private static DesktopUpdatePreferences WithPrivateKey(string reference) =>

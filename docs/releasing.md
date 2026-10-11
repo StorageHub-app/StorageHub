@@ -29,10 +29,14 @@ git push origin v2.0.0
 #    Directory.Build.props: <VersionPrefix>2.0.1</VersionPrefix>
 ```
 
-`main` is the 2.0 line. Until `v2.0.0` is pushed, 2.0 ships only as
-candidates and 1.4.5 stays Latest; 1.4 itself is kept on the `1.x-archive`
-branch, which CI does not build. See
+`main` is the 2.0 line. `v2.0.0` was its first stable release; 1.4 itself is
+kept on the `1.x-archive` branch, which CI does not build. See
 [Versioning and merges](versioning.md#lines-of-development).
+
+What a 1.4 user meets on installing 2.0 -- what carries over, the service that
+has to be removed first, and the way back to 1.4.5 -- is in
+[Upgrading from StorageHub 1.4](upgrading-from-1.x.md); the user-facing summary
+of the release is [the 2.0 release notes](release-notes-2.0.md).
 
 The tag must match the `VersionPrefix` declared by the commit it points at. A
 tag that disagrees fails the build rather than publishing a release whose

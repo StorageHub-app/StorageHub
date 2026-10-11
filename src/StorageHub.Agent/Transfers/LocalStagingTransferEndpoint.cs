@@ -64,6 +64,13 @@ public static class LocalStagingTransferEndpoint
             new Connection(new Session(address.ProfileId, root, address.RootIdentity)));
     }
 
+    /// <summary>
+    /// The folder on this PC an Explorer import writes into, for an address that names one; false
+    /// for the export staging root, which the shell transfer service purges itself.
+    /// </summary>
+    internal static bool TryReadDestinationRoot(StorageAddress address, out string root) =>
+        TryDecodeRoot(address, out root, out var staging) & !staging;
+
     private static bool TryDecodeRoot(StorageAddress address, out string root, out bool staging)
     {
         root = string.Empty;
@@ -114,7 +121,9 @@ public static class LocalStagingTransferEndpoint
         public string RootIdentity { get; } = rootIdentity;
         public EffectiveStorageCapabilities Capabilities { get; } = new([
             new KeyValuePair<StorageFeature, FeatureSupport>(StorageFeature.WriteStream, FeatureSupport.Native()),
-            new KeyValuePair<StorageFeature, FeatureSupport>(StorageFeature.ConditionalCreate, FeatureSupport.Native())]);
+            new KeyValuePair<StorageFeature, FeatureSupport>(StorageFeature.ConditionalCreate, FeatureSupport.Native()),
+            new KeyValuePair<StorageFeature, FeatureSupport>(StorageFeature.ResumeUpload, FeatureSupport.Native(
+                "A partial file beside the staged file is continued and renamed into place."))]);
 
         public ValueTask<StorageResult> CheckHealthAsync(CancellationToken cancellationToken = default) =>
             ValueTask.FromResult(Directory.Exists(root)
@@ -142,8 +151,8 @@ public static class LocalStagingTransferEndpoint
             try
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(resolved.Value)!);
-                IStorageWriteHandle handle = new WriteHandle(request.Destination, resolved.Value, request.ExpectedLength);
-                return ValueTask.FromResult(StorageResult<IStorageWriteHandle>.Success(handle));
+                return ValueTask.FromResult(LocalStagedFileWriteHandle.Open(
+                    request.Destination, resolved.Value, request, "local-stage"));
             }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException)
             {
@@ -182,69 +191,5 @@ public static class LocalStagingTransferEndpoint
                 return Fail<string>("local-stage.address", "The staged path is invalid.");
             }
         }
-    }
-
-    private sealed class WriteHandle : IStorageWriteHandle
-    {
-        private readonly string _path;
-        private readonly long? _expectedLength;
-        private FileStream? _stream;
-
-        public WriteHandle(StorageAddress destination, string path, long? expectedLength)
-        {
-            Destination = destination;
-            _path = path;
-            _expectedLength = expectedLength;
-            _stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.Read, 128 * 1024,
-                FileOptions.Asynchronous | FileOptions.SequentialScan);
-        }
-
-        public StorageAddress Destination { get; }
-        public Stream Content => _stream ?? throw new ObjectDisposedException(nameof(WriteHandle));
-        public long AcceptedOffset => 0;
-        public string? ResumeToken => null;
-        public StorageWriteHandleState State { get; private set; } = StorageWriteHandleState.Open;
-
-        public async ValueTask<StorageResult<StorageEntry>> CommitAsync(CancellationToken cancellationToken = default)
-        {
-            if (State != StorageWriteHandleState.Open)
-                return Fail<StorageEntry>("local-stage.state", "The staged write is no longer open.");
-            State = StorageWriteHandleState.Committing;
-            try
-            {
-                await _stream!.FlushAsync(cancellationToken).ConfigureAwait(false);
-                await _stream.DisposeAsync().ConfigureAwait(false);
-                _stream = null;
-                var file = new FileInfo(_path);
-                if (_expectedLength is { } length && file.Length != length)
-                    throw new IOException("The staged file length did not match the transfer plan.");
-                State = StorageWriteHandleState.Committed;
-                return StorageEntry.Create(Destination, StorageEntryKind.File, file.Length, file.LastWriteTimeUtc);
-            }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
-            {
-                State = StorageWriteHandleState.Faulted;
-                TryDelete();
-                return Fail<StorageEntry>("local-stage.commit", "The staged file could not be committed.", true);
-            }
-        }
-
-        public async ValueTask<StorageResult> AbortAsync(CancellationToken cancellationToken = default)
-        {
-            if (State is StorageWriteHandleState.Committed or StorageWriteHandleState.Aborted) return StorageResult.Success();
-            State = StorageWriteHandleState.Aborting;
-            if (_stream is not null) { await _stream.DisposeAsync().ConfigureAwait(false); _stream = null; }
-            TryDelete();
-            State = StorageWriteHandleState.Aborted;
-            return StorageResult.Success();
-        }
-
-        public async ValueTask DisposeAsync()
-        {
-            if (State == StorageWriteHandleState.Open) await AbortAsync().ConfigureAwait(false);
-            else if (_stream is not null) { await _stream.DisposeAsync().ConfigureAwait(false); _stream = null; }
-        }
-
-        private void TryDelete() { try { if (File.Exists(_path)) File.Delete(_path); } catch { } }
     }
 }

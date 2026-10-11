@@ -1,4 +1,4 @@
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
@@ -129,9 +129,13 @@ public class ConnectionManagerTests
         }
     }
 
-    /// <summary>FTP and FTPS have an Advanced section, starting at the provider's own timeouts.</summary>
+    /// <summary>
+    /// FTP and FTPS have an Advanced section, starting at the provider's own timeouts; SFTP has
+    /// one too, for its jump host, sessions and algorithms, every field starting empty; WebDAV and
+    /// Swift have their request timeout.
+    /// </summary>
     [AvaloniaFact]
-    public void OnlyFtpHasAdvancedSettings()
+    public void OnlyFtpSftpWebDavAndSwiftHaveAdvancedSettings()
     {
         var editor = new ConnectionEditorModel(() => Controller(new FakeProfiles()));
 
@@ -148,11 +152,277 @@ public class ConnectionManagerTests
                     advanced!.Fields.Single(f => f.Key == ConnectionEditorDraftFactory.ConnectTimeoutKey).Value);
                 Assert.Equal("utf-8", advanced.Fields.Single(f => f.Key == ConnectionEditorDraftFactory.EncodingKey).Value);
             }
+            else if (provider.Kind == StorageProviderKind.Sftp)
+            {
+                Assert.Equal(Ui.Connections.JumpHostNone, advanced!.Fields.Single(f => f.Key == ConnectionEditorModel.JumpHostKey).Value);
+                Assert.All(
+                    advanced.Fields.Where(f => f.Key != ConnectionEditorModel.JumpHostKey),
+                    f => Assert.Equal(string.Empty, f.Value));
+            }
+            else if (provider.Kind is StorageProviderKind.WebDav or StorageProviderKind.OpenStackSwift)
+            {
+                // WebDAV's and Swift's one timeout bounds a whole request, so it is all their Advanced section has.
+                var field = Assert.Single(advanced!.Fields);
+                Assert.Equal(ConnectionEditorDraftFactory.ReadTimeoutKey, field.Key);
+                Assert.Equal("600", field.Value);
+            }
             else
             {
                 Assert.Null(advanced);
             }
         }
+    }
+
+    /// <summary>
+    /// The jump host is chosen by name from the saved SFTP and SSH connections, and saved as the
+    /// chosen one's id, so renaming it later does not lose it. One the listing does not have is
+    /// kept rather than dropped by a save.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task AJumpHostIsChosenByNameAndSavedById()
+    {
+        var cancellation = TestContext.Current.CancellationToken;
+        var bastion = Summary("Bastion", StorageConnectionProvider.Ssh, client: true);
+        var listing = new[] { bastion, Summary("Archive"), Summary("Other SFTP", StorageConnectionProvider.Sftp) };
+        var profiles = new FakeProfiles();
+        var editor = new ConnectionEditorModel(() => Controller(profiles), () => new ListingAgent(listing));
+        editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Sftp);
+        await editor.LoadJumpHostsAsync(cancellation);
+
+        var jump = Field(editor, ConnectionEditorModel.JumpHostKey);
+        Assert.Equal([Ui.Connections.JumpHostNone, "Bastion", "Other SFTP"], jump.Choices);
+        jump.Value = "Bastion";
+        Field(editor, "authenticationMode").Value = "Password reference";
+        Field(editor, "passwordReference").Value = KeyStoreTests.Reference('p');
+        Fill(editor);
+        Field(editor, "hostKeyFingerprint").Value = new string('A', 64);
+        await editor.SaveAsync(cancellation);
+
+        Assert.Equal(bastion.ConnectionId, profiles.LastDraft?.Endpoint.Sftp?.JumpConnectionId);
+
+        // Opened again with a listing that no longer has it, the jump host is kept, not dropped.
+        var saved = editor.Current!.ConnectionId;
+        var reopened = new ConnectionEditorModel(() => Controller(profiles), () => new ListingAgent([]));
+        reopened.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Sftp);
+        await reopened.OpenAsync(saved, cancellation);
+        await reopened.LoadJumpHostsAsync(cancellation);
+        Assert.Equal(Ui.Connections.JumpHostUnlisted, Field(reopened, ConnectionEditorModel.JumpHostKey).Value);
+        Field(reopened, "hostKeyFingerprint").Value = new string('A', 64);
+        await reopened.SaveAsync(cancellation);
+        Assert.Equal(bastion.ConnectionId, profiles.LastDraft?.Endpoint.Sftp?.JumpConnectionId);
+
+        // And None takes it off.
+        Field(reopened, ConnectionEditorModel.JumpHostKey).Value = Ui.Connections.JumpHostNone;
+        await reopened.SaveAsync(cancellation);
+        Assert.Null(profiles.LastDraft?.Endpoint.Sftp);
+    }
+
+    /// <summary>
+    /// The Test button tests what is in the fields before anything is saved, the typed fingerprint
+    /// with it, and lists each step with what went wrong in the user's language.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task TheTestButtonTestsTheUnsavedDraftAndListsEachStep()
+    {
+        var cancellation = TestContext.Current.CancellationToken;
+        var profiles = new FakeProfiles();
+        var agent = new ListingAgent([]);
+        var editor = new ConnectionEditorModel(() => Controller(profiles), () => agent);
+        editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Sftp);
+        Field(editor, "authenticationMode").Value = "Password reference";
+        Field(editor, "passwordReference").Value = KeyStoreTests.Reference('p');
+        Fill(editor);
+        Assert.True(editor.TestCommand.CanExecute(null));
+
+        var fingerprint = new string('A', 64);
+        Field(editor, "hostKeyFingerprint").Value = fingerprint;
+        var trustFailure = new StorageIpcFailure(
+            "storage.trust.approval_required", StorageIpcFailureCategory.Security, "Trust needed.", false);
+        agent.DraftTest = new ConnectionDraftTestResponse(
+            StorageIpcContract.CurrentVersion,
+            Succeeded: false,
+            ElapsedMilliseconds: 4,
+            [
+                new(ConnectionTestStepKind.Settings, ConnectionTestStepOutcome.Passed),
+                new(ConnectionTestStepKind.ServerIdentity, ConnectionTestStepOutcome.Failed, trustFailure),
+                new(ConnectionTestStepKind.Credentials, ConnectionTestStepOutcome.NotReached),
+                new(ConnectionTestStepKind.Connect, ConnectionTestStepOutcome.NotReached),
+                new(ConnectionTestStepKind.Browse, ConnectionTestStepOutcome.NotReached)
+            ],
+            trustFailure);
+
+        await editor.TestAsync(cancellation);
+
+        Assert.True(editor.IsNew);
+        Assert.Null(profiles.LastDraft);
+        Assert.Null(agent.LastDraftTest?.ConnectionId);
+        Assert.Equal(fingerprint, agent.LastDraftTest?.Sha256Fingerprint);
+        Assert.Equal("sample", agent.LastDraftTest?.Draft.Endpoint.Host);
+        Assert.Equal(Ui.ConnectionEditor.TestIdentityMissing, editor.Status);
+        Assert.Equal(
+            [
+                (Ui.ConnectionEditor.TestStepSettings, Ui.ConnectionEditor.TestOutcomePassed),
+                (Ui.ConnectionEditor.TestStepServerIdentity, Ui.ConnectionEditor.TestOutcomeFailed),
+                (Ui.ConnectionEditor.TestStepCredentials, Ui.ConnectionEditor.TestOutcomeNotReached),
+                (Ui.ConnectionEditor.TestStepConnect, Ui.ConnectionEditor.TestOutcomeNotReached),
+                (Ui.ConnectionEditor.TestStepBrowse, Ui.ConnectionEditor.TestOutcomeNotReached)
+            ],
+            editor.TestSteps.Select(static step => (step.Label, step.Outcome)).ToArray());
+        Assert.Equal(
+            Ui.ConnectionEditor.TestIdentityMissing,
+            Assert.Single(editor.TestSteps, static step => step.IsFailed).Detail);
+
+        agent.DraftTest = new ConnectionDraftTestResponse(
+            StorageIpcContract.CurrentVersion,
+            Succeeded: true,
+            ElapsedMilliseconds: 12,
+            [.. Enum.GetValues<ConnectionTestStepKind>().Select(static kind =>
+                new ConnectionTestStep(kind, ConnectionTestStepOutcome.Passed))]);
+        await editor.TestAsync(cancellation);
+
+        Assert.Equal(Ui.Format(Ui.ConnectionEditor.ConnectionSucceededFormat, 12), editor.Status);
+        Assert.All(editor.TestSteps, static step => Assert.True(step.IsPassed));
+
+        // A required field left empty is nothing to test.
+        Field(editor, "host").Value = string.Empty;
+        Assert.False(editor.TestCommand.CanExecute(null));
+    }
+
+    /// <summary>
+    /// A test refused on the server's host key offers the key the server presents, as Fetch from
+    /// host does; a key accepted goes in the field and is tested at once, and nothing is pinned.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task AHostKeyRefusedByATestIsOfferedAndTestedAgain()
+    {
+        var cancellation = TestContext.Current.CancellationToken;
+        var profiles = new FakeProfiles();
+        var dialogs = new YesDialogs();
+        var agent = new ListingAgent([])
+        {
+            DraftAnswer = request =>
+            {
+                var trusted = request.Sha256Fingerprint == HostKey;
+                var failure = trusted ? null : new StorageIpcFailure(
+                    "storage.trust.approval_required", StorageIpcFailureCategory.Security, "Trust needed.", false);
+                return new ConnectionDraftTestResponse(
+                    StorageIpcContract.CurrentVersion,
+                    trusted,
+                    1,
+                    [
+                        new(ConnectionTestStepKind.Settings, ConnectionTestStepOutcome.Passed),
+                        new(
+                            ConnectionTestStepKind.ServerIdentity,
+                            trusted ? ConnectionTestStepOutcome.Passed : ConnectionTestStepOutcome.Failed,
+                            failure)
+                    ],
+                    failure);
+            }
+        };
+        var editor = new ConnectionEditorModel(() => Controller(profiles), () => agent, dialogs);
+        editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Sftp);
+        Field(editor, "authenticationMode").Value = "Password reference";
+        Field(editor, "passwordReference").Value = KeyStoreTests.Reference('p');
+        Fill(editor);
+        var hostKey = Field(editor, "hostKeyFingerprint");
+
+        // With no key yet the test can still start: the key is fetched and shown first, and one
+        // declined is not tested.
+        hostKey.Value = string.Empty;
+        Assert.True(editor.TestCommand.CanExecute(null));
+        dialogs.Choice = Desktop.Shell.DialogChoice.No;
+        await editor.TestAsync(cancellation);
+        Assert.Equal((0, 1, string.Empty), (agent.DraftTests, dialogs.Asked, hostKey.Value));
+
+        // A key typed that the server does not present is refused, and the one it does is offered.
+        var wrong = new string('B', 64);
+        hostKey.Value = wrong;
+        await editor.TestAsync(cancellation);
+        Assert.Equal((1, 2, wrong), (agent.DraftTests, dialogs.Asked, hostKey.Value));
+
+        // Accepted: the key is in the field and the test runs again with it, and passes.
+        dialogs.Choice = Desktop.Shell.DialogChoice.Yes;
+        await editor.TestAsync(cancellation);
+        Assert.Equal(3, agent.DraftTests);
+        Assert.Equal(HostKey, Field(editor, "hostKeyFingerprint").Value);
+        Assert.Equal(HostKey, agent.LastDraftTest?.Sha256Fingerprint);
+        Assert.All(editor.TestSteps, static step => Assert.True(step.IsPassed));
+        Assert.Empty(profiles.Pins);
+        Assert.True(editor.IsNew);
+    }
+
+    /// <summary>An agent that cannot test a draft still tests the saved connection, unchanged.</summary>
+    [AvaloniaFact]
+    public async Task AnAgentThatCannotTestADraftStillTestsTheSavedConnection()
+    {
+        var cancellation = TestContext.Current.CancellationToken;
+        var profiles = new FakeProfiles();
+        var agent = new ListingAgent([]);
+        var editor = new ConnectionEditorModel(() => Controller(profiles), () => agent);
+        editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Local);
+        Fill(editor);
+        await editor.SaveAsync(cancellation);
+        Assert.False(editor.IsNew);
+
+        await editor.TestAsync(cancellation);
+
+        Assert.Equal(Ui.Connections.ConnectionReachable, editor.Status);
+        Assert.Empty(editor.TestSteps);
+    }
+
+    /// <summary>
+    /// Details reads what the selected connection and its server look like now and lists it under
+    /// a Live connection section; selecting another connection drops it, and a failure says why.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task DetailsAddsWhatTheLiveConnectionSaysAboutItself()
+    {
+        var cancellation = TestContext.Current.CancellationToken;
+        var agent = new ListingAgent([Summary("Studio Assets"), Summary("Backups")])
+        {
+            LiveDetails = new ConnectionDetailsDocument(
+                "Sftp",
+                "files.example.test",
+                22,
+                "Ssh",
+                ServerSystem: null,
+                ServerSoftware: "OpenSSH_9.6",
+                ServerFeatures: [],
+                Negotiated: [new ConnectionNegotiatedSetting("cipher", "aes256-gcm@openssh.com")],
+                new ConnectionPresentedIdentityDocument(
+                    "ssh-host-key", "SHA256:abc", "ssh-ed25519", null, null, null, Trusted: true),
+                new ConnectionSessionCountsDocument(Idle: 1, InUse: 2, Opened: 3, Closed: 0, FailedProbes: 0))
+        };
+        var sidebar = new ConnectionsSidebar(new RelayCommand(static _ => { }), () => agent);
+        await sidebar.RefreshAsync(cancellation);
+        var first = sidebar.Groups.SelectMany(static g => g.Connections).First();
+        sidebar.Select(first);
+        Assert.DoesNotContain(sidebar.Details, static row => row.Key == Ui.Connections.SectionLive);
+        Assert.True(sidebar.DescribeSelectedCommand.CanExecute(null));
+
+        await sidebar.DescribeSelectedAsync(cancellation);
+
+        var live = sidebar.Details
+            .SkipWhile(static row => row.Key != Ui.Connections.SectionLive)
+            .ToArray();
+        Assert.NotEmpty(live);
+        Assert.Contains(new ConnectionDetailRow(Ui.Connections.FieldTransportSecurity, Ui.Connections.LiveSecuritySsh), live);
+        Assert.Contains(new ConnectionDetailRow(Ui.Connections.FieldServerSoftware, "OpenSSH_9.6"), live);
+        Assert.Contains(new ConnectionDetailRow(Ui.Connections.FieldPresentedKey, "SHA256:abc"), live);
+        Assert.Contains(new ConnectionDetailRow(Ui.Connections.FieldKeyAlgorithm, "ssh-ed25519"), live);
+        Assert.Contains(new ConnectionDetailRow("cipher", "aes256-gcm@openssh.com"), live);
+        Assert.Contains(
+            new ConnectionDetailRow(Ui.Connections.FieldSessions, Ui.Format(Ui.Connections.SessionsFormat, 2, 1, 3, 0)),
+            live);
+        Assert.Equal(string.Empty, sidebar.DetailStatus);
+
+        sidebar.Select(sidebar.Groups.SelectMany(static g => g.Connections).First(row => row.Id != first.Id));
+        Assert.DoesNotContain(sidebar.Details, static row => row.Key == Ui.Connections.SectionLive);
+
+        agent.LiveDetails = null;
+        await sidebar.DescribeSelectedAsync(cancellation);
+        Assert.Equal("Unreachable.", sidebar.DetailStatus);
+        Assert.DoesNotContain(sidebar.Details, static row => row.Key == Ui.Connections.SectionLive);
     }
 
     /// <summary>Every provider lays out without a field the editor cannot draw.</summary>
@@ -920,6 +1190,150 @@ public class ConnectionManagerTests
         }
     }
 
+    /// <summary>
+    /// Photographs the editor with WebDAV chosen: the URL on General with the request timeout under
+    /// Advanced, the sign-in modes on Authentication, and the certificate pin on the trust tab.
+    /// </summary>
+    /// <remarks>Set STORAGEHUB_SHOT_DIR to keep the files.</remarks>
+    [AvaloniaFact]
+    public async Task TheWebDavEditorCanBePhotographed()
+    {
+        ColorSchemeApplier.Apply(
+            global::Avalonia.Application.Current!,
+            ColorSchemeCatalog.Resolve(id: null, preferDark: false));
+        var manager = new ConnectionManagerModel(
+            () => Controller(new FakeProfiles()),
+            keyStore: () => new KeyStoreTests.StubKeyStoreAgent());
+        await manager.OpenAsync(null, cancellationToken: TestContext.Current.CancellationToken);
+        var window = new ConnectionManagerWindow { DataContext = manager };
+        window.Show();
+
+        manager.Editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.WebDav);
+        Name(manager.Editor, "Studio files");
+        Field(manager.Editor, "url").Value = "https://dav.example.test/remote.php/dav/files/me/";
+        Field(manager.Editor, "username").Value = "operator";
+        Field(manager.Editor, "trustMode").Value = "System trust + certificate pin";
+        Field(manager.Editor, "certificatePin").Value = new string('A', 64);
+        Assert.Equal("600", Field(manager.Editor, ConnectionEditorDraftFactory.ReadTimeoutKey).Value);
+
+        var directory = Environment.GetEnvironmentVariable("STORAGEHUB_SHOT_DIR");
+        Shoot(ConnectionEditorTab.General, "webdav-general", 1250);
+        Shoot(ConnectionEditorTab.Authentication, "webdav-authentication", 760);
+        Shoot(ConnectionEditorTab.Trust, "webdav-trust", 760);
+
+        void Shoot(ConnectionEditorTab tab, string name, int height)
+        {
+            window.FindControl<TabControl>("PART_Tabs")!.SelectedIndex = (int)tab;
+            window.Measure(new Size(880, height));
+            window.Arrange(new Rect(0, 0, 880, height));
+            window.UpdateLayout();
+            var shot = window.CaptureRenderedFrame();
+            Assert.NotNull(shot);
+            if (string.IsNullOrWhiteSpace(directory)) return;
+
+            Directory.CreateDirectory(directory);
+            using var stream = File.Create(Path.Combine(directory, $"connection-editor-{name}.png"));
+            shot!.Save(stream, new PngBitmapEncoderOptions());
+        }
+    }
+
+    /// <summary>
+    /// Photographs the editor with Azure Blob Storage chosen: the container and service URL on
+    /// General, the shared-key sign-in on Authentication, and the plain-HTTP switch on the trust tab.
+    /// </summary>
+    /// <remarks>Set STORAGEHUB_SHOT_DIR to keep the files.</remarks>
+    [AvaloniaFact]
+    public async Task TheAzureBlobEditorCanBePhotographed()
+    {
+        var (manager, window) = await OpenEditorAsync(StorageProviderKind.AzureBlob);
+        Name(manager.Editor, "Archive");
+        Field(manager.Editor, "container").Value = "archive";
+        Field(manager.Editor, "endpoint").Value = "https://studio.blob.core.windows.net/";
+        Field(manager.Editor, "prefix").Value = "team/reports";
+        Field(manager.Editor, "accountName").Value = "studio";
+        Assert.Equal("Shared key", Field(manager.Editor, "authenticationMode").Value);
+
+        ShootEditor(window, ConnectionEditorTab.General, "azure-general", 900);
+        ShootEditor(window, ConnectionEditorTab.Authentication, "azure-authentication", 900);
+        ShootEditor(window, ConnectionEditorTab.Trust, "azure-trust", 760);
+    }
+
+    /// <summary>
+    /// Photographs the editor with Google Cloud Storage chosen: the bucket and service URL on
+    /// General, the service-account key on Authentication, and the plain-HTTP switch on the trust tab.
+    /// </summary>
+    /// <remarks>Set STORAGEHUB_SHOT_DIR to keep the files.</remarks>
+    [AvaloniaFact]
+    public async Task TheCloudStorageEditorCanBePhotographed()
+    {
+        var (manager, window) = await OpenEditorAsync(StorageProviderKind.GoogleCloudStorage);
+        Name(manager.Editor, "Media archive");
+        Field(manager.Editor, "bucket").Value = "media-archive";
+        Field(manager.Editor, "prefix").Value = "2026/";
+        Assert.Equal("Service-account key", Field(manager.Editor, "authenticationMode").Value);
+
+        ShootEditor(window, ConnectionEditorTab.General, "gcs-general", 900);
+        ShootEditor(window, ConnectionEditorTab.Authentication, "gcs-authentication", 760);
+        ShootEditor(window, ConnectionEditorTab.Trust, "gcs-trust", 760);
+    }
+
+    /// <summary>
+    /// Photographs the editor with OpenStack Swift chosen: the container and both URLs on General,
+    /// the Keystone sign-in with its project and domains on Authentication, and the trust tab.
+    /// </summary>
+    /// <remarks>Set STORAGEHUB_SHOT_DIR to keep the files.</remarks>
+    [AvaloniaFact]
+    public async Task TheSwiftEditorCanBePhotographed()
+    {
+        var (manager, window) = await OpenEditorAsync(StorageProviderKind.OpenStackSwift);
+        Name(manager.Editor, "Research data");
+        Field(manager.Editor, "container").Value = "research";
+        Field(manager.Editor, "authenticationUrl").Value = "https://keystone.example.test:5000/v3";
+        Field(manager.Editor, "region").Value = "RegionOne";
+        Field(manager.Editor, "username").Value = "operator";
+        Field(manager.Editor, "projectName").Value = "research";
+        Assert.Equal("Keystone v3", Field(manager.Editor, "authenticationMode").Value);
+        Assert.Equal("600", Field(manager.Editor, ConnectionEditorDraftFactory.ReadTimeoutKey).Value);
+
+        ShootEditor(window, ConnectionEditorTab.General, "swift-general", 1300);
+        ShootEditor(window, ConnectionEditorTab.Authentication, "swift-authentication", 760);
+        ShootEditor(window, ConnectionEditorTab.Trust, "swift-trust", 760);
+    }
+
+    /// <summary>The manager open on a new connection of the given provider, in the light scheme.</summary>
+    private static async Task<(ConnectionManagerModel Manager, ConnectionManagerWindow Window)> OpenEditorAsync(
+        StorageProviderKind provider)
+    {
+        ColorSchemeApplier.Apply(
+            global::Avalonia.Application.Current!,
+            ColorSchemeCatalog.Resolve(id: null, preferDark: false));
+        var manager = new ConnectionManagerModel(
+            () => Controller(new FakeProfiles()),
+            keyStore: () => new KeyStoreTests.StubKeyStoreAgent());
+        await manager.OpenAsync(null, cancellationToken: TestContext.Current.CancellationToken);
+        var window = new ConnectionManagerWindow { DataContext = manager };
+        window.Show();
+        manager.Editor.Provider = ConnectionProviderCatalog.Get(provider);
+        return (manager, window);
+    }
+
+    /// <summary>Renders one editor tab, and keeps it as connection-editor-{name}.png when STORAGEHUB_SHOT_DIR is set.</summary>
+    private static void ShootEditor(ConnectionManagerWindow window, ConnectionEditorTab tab, string name, int height)
+    {
+        window.FindControl<TabControl>("PART_Tabs")!.SelectedIndex = (int)tab;
+        window.Measure(new Size(880, height));
+        window.Arrange(new Rect(0, 0, 880, height));
+        window.UpdateLayout();
+        var shot = window.CaptureRenderedFrame();
+        Assert.NotNull(shot);
+        var directory = Environment.GetEnvironmentVariable("STORAGEHUB_SHOT_DIR");
+        if (string.IsNullOrWhiteSpace(directory)) return;
+
+        Directory.CreateDirectory(directory);
+        using var stream = File.Create(Path.Combine(directory, $"connection-editor-{name}.png"));
+        shot!.Save(stream, new PngBitmapEncoderOptions());
+    }
+
     /// <summary>A host key as the agent reports one, which is what a pin is checked against.</summary>
     private static readonly string HostKey = "SHA256:" + Convert.ToBase64String(new byte[32]).TrimEnd('=');
 
@@ -941,6 +1355,75 @@ public class ConnectionManagerTests
         }
 
         Name(editor, "Studio Assets");
+    }
+
+    /// <summary>
+    /// Duplicate, from a card's menu and from the details: a copy of the saved profile under the
+    /// original's name and "(copy)", the same references and settings, not a favourite, selected.
+    /// A name that was taken in the meantime moves on to "(copy 2)" instead of failing.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task ADuplicateIsASavedCopyUnderAFreeNameAndIsSelected()
+    {
+        var cancellation = TestContext.Current.CancellationToken;
+        var profiles = new FakeProfiles();
+        var editor = new ConnectionEditorModel(() => Controller(profiles));
+        var saved = Guid.Empty;
+        editor.Saved += (_, id) => saved = id;
+        Fill(editor);
+        await editor.SaveAsync(cancellation);
+        var original = (await profiles.GetAsync(
+            new ConnectionProfileGetRequest(ConnectionProfileIpcContract.CurrentVersion, saved), cancellation)).Profile!;
+
+        var agent = new ListingAgent([Summary("Studio Assets") with { ConnectionId = saved, IsFavorite = true }]);
+        var sidebar = new ConnectionsSidebar(
+            new RelayCommand(static _ => { }),
+            () => agent,
+            profiles: () => profiles);
+        var changed = 0;
+        sidebar.ConnectionsChanged += (_, _) => changed++;
+        await sidebar.RefreshAsync(cancellation);
+        var creates = profiles.Creates;
+
+        Assert.Contains(
+            sidebar.ContextEntriesFor(sidebar.Groups.SelectMany(static g => g.Connections).First(row => row.Id == saved)),
+            static entry => entry.Label == Ui.Connections.ContextDuplicate && entry.Enabled);
+
+        // Another window saved "(copy)" since the panel listed, so the copy is the second.
+        profiles.Reserved.Add("Studio Assets (copy)");
+        await sidebar.DuplicateConnectionAsync(saved, cancellation);
+
+        Assert.Equal(creates + 1, profiles.Creates);
+        var copy = profiles.LastDraft!;
+        Assert.Equal("Studio Assets (copy 2)", copy.Metadata.DisplayName);
+        Assert.False(copy.Metadata.IsFavorite);
+        Assert.Equal(original.Draft.Endpoint, copy.Endpoint);
+        Assert.Equal(original.Draft.Authentication, copy.Authentication);
+        Assert.Equal(original.Draft.OperationalOptions, copy.OperationalOptions);
+        Assert.Equal(1, changed);
+    }
+
+    [AvaloniaFact]
+    public async Task ADuplicateOfAConnectionThatCannotBeLoadedSaysWhy()
+    {
+        var cancellation = TestContext.Current.CancellationToken;
+        var profiles = new FakeProfiles();
+        var editor = new ConnectionEditorModel(() => Controller(profiles));
+        var saved = Guid.Empty;
+        editor.Saved += (_, id) => saved = id;
+        Fill(editor);
+        await editor.SaveAsync(cancellation);
+
+        var failing = new FakeProfiles { Failure = new StorageIpcFailure("x", StorageIpcFailureCategory.Validation, "Nope.", false) };
+        var sidebar = new ConnectionsSidebar(
+            new RelayCommand(static _ => { }),
+            () => new ListingAgent([Summary("Studio Assets") with { ConnectionId = saved }]),
+            profiles: () => failing);
+
+        await sidebar.DuplicateConnectionAsync(saved, cancellation);
+
+        Assert.Equal(0, failing.Creates);
+        Assert.Equal(Ui.Connections.LoadFailed, sidebar.DetailStatus);
     }
 
     private static ConnectionSummary Summary(
@@ -984,6 +1467,9 @@ public class ConnectionManagerTests
 
         internal StorageIpcFailure? Failure { get; init; }
 
+        /// <summary>Names another window has saved since the panel listed, which a create is refused for.</summary>
+        internal HashSet<string> Reserved { get; } = new(StringComparer.OrdinalIgnoreCase);
+
         /// <summary>The fingerprint each connection is pinned to, one trusted record apiece.</summary>
         internal Dictionary<Guid, string> Pins { get; } = [];
 
@@ -1002,6 +1488,12 @@ public class ConnectionManagerTests
             CancellationToken cancellationToken = default)
         {
             if (Failure is not null) return Refused();
+            if (Reserved.Contains(request.Draft.Metadata.DisplayName))
+            {
+                return Task.FromResult(new ConnectionProfileWriteResponse(
+                    ConnectionProfileIpcContract.CurrentVersion, ConnectionProfileWriteStatus.NameConflict));
+            }
+
             Creates++;
             return Written(Guid.NewGuid(), 1, request.Draft);
         }
@@ -1217,6 +1709,41 @@ public class ConnectionManagerTests
             CancellationToken cancellationToken = default) =>
             Task.FromResult(new ConnectionTestResponse(
                 StorageIpcContract.CurrentVersion, request.ConnectionId, Succeeded: TestSucceeds, 1));
+
+        /// <summary>What describing a connection answers; none makes it fail as unreachable.</summary>
+        internal ConnectionDetailsDocument? LiveDetails { get; set; }
+
+        public Task<ConnectionDetailsResponse> GetConnectionDetailsAsync(
+            ConnectionDetailsRequest request,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ConnectionDetailsResponse(
+                request.ContractVersion,
+                request.ConnectionId,
+                LiveDetails,
+                LiveDetails is null
+                    ? new StorageIpcFailure("storage.provider.unreachable", StorageIpcFailureCategory.Unavailable, "Unreachable.", true)
+                    : null));
+
+        /// <summary>What a test of a draft answers; none makes this an agent that cannot test one.</summary>
+        internal ConnectionDraftTestResponse? DraftTest { get; set; }
+
+        internal ConnectionDraftTestRequest? LastDraftTest { get; private set; }
+
+        internal int DraftTests { get; private set; }
+
+        /// <summary>Answers each test of a draft from what it carries, ahead of <see cref="DraftTest"/>.</summary>
+        internal Func<ConnectionDraftTestRequest, ConnectionDraftTestResponse?>? DraftAnswer { get; set; }
+
+        public Task<ConnectionDraftTestResponse> TestDraftAsync(
+            ConnectionDraftTestRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            LastDraftTest = request;
+            DraftTests++;
+            return (DraftAnswer?.Invoke(request) ?? DraftTest) is { } response
+                ? Task.FromResult(response)
+                : throw new NotSupportedException();
+        }
 
         public Task<StorageListPageResponse> ListStorageAsync(
             StorageListPageRequest request,

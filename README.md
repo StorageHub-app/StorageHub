@@ -20,9 +20,9 @@ adapts the all-in-one `CL.Storage` (`CodeLogic.Storage`) provider library behind
 a provider-neutral contract.
 
 > [!IMPORTANT]
-> `main` is StorageHub 2.0, which ships as pre-releases until 2.0.0 is tagged.
-> StorageHub 1.4.5 is still the current stable release, marked Latest on the
-> releases page; the 1.4 source is kept on the
+> StorageHub 2.0.0 is the current stable release, marked Latest on the releases
+> page; `main` carries the next version and publishes pre-releases between
+> releases. The 1.4 source is kept on the
 > [`1.x-archive`](https://github.com/StorageHub-app/StorageHub/tree/1.x-archive)
 > branch. Release binaries are not yet code-signed, so Windows SmartScreen may
 > warn on first run; verify downloads against the published `SHA256SUMS`. As
@@ -99,8 +99,11 @@ exit. Resizing tells the remote its new size. ANSI, 256-color, and true-color
 with inverse, underline, and box drawing; the mouse is forwarded to programs
 that ask for it, with Shift to select locally.
 
-**In your language** — English, Danish, and German. Pick one in Settings or
-follow the system; StorageHub offers to restart so the change takes effect
+**In your language** — English plus eighteen translations: Arabic, Chinese
+(Simplified), Danish, Dutch, French, German, Hindi, Indonesian, Italian,
+Japanese, Korean, Polish, Portuguese (Brazil), Russian, Spanish, Turkish,
+Ukrainian, and Vietnamese. Arabic is laid out right to left. Pick one in
+Settings or follow the system; StorageHub offers to restart so the change takes effect
 everywhere at once.
 
 **Themes and settings** — Twenty-two colour schemes, from StorageHub's own light
@@ -120,7 +123,7 @@ reached parity with 1.4, screen by screen, is in the
 ## Install
 
 Download from [GitHub Releases](https://github.com/StorageHub-app/StorageHub/releases).
-1.4.5 is the release marked Latest; 2.0 builds are the newest pre-releases.
+2.0.0 is the release marked Latest; builds between releases are published as pre-releases.
 
 | | x64 (Intel and AMD) | ARM64 |
 | --- | --- | --- |
@@ -173,6 +176,8 @@ again. Workspace (`.shw`) files carry across. An installation that ran the 1.4
 agent as a Windows service must have that service removed before the 2.0 agent
 can use its data folder; `eng/remove-legacy-agent-service.ps1`, run elevated,
 does that and deletes the old service's data with it.
+[Upgrading from StorageHub 1.4](docs/upgrading-from-1.x.md) has what carries
+over, the steps, and how to go back to 1.4.5.
 
 ### How the background agent runs
 
@@ -317,6 +322,7 @@ restore the defaults. Conflicting shortcuts must be cleared before reassignment.
 ## Documentation
 
 - [Changelog](CHANGELOG.md)
+- [2.0 release notes](docs/release-notes-2.0.md) and [upgrading from 1.4](docs/upgrading-from-1.x.md)
 - [Architecture](docs/architecture.md)
 - [Versioning and merges](docs/versioning.md)
 - [Release engineering](docs/releasing.md)

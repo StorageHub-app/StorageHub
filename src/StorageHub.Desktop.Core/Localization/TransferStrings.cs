@@ -151,6 +151,18 @@ internal sealed class TransferStrings : LocalizationModelBase
     /// <summary>{0} = how many were updated, {1} = how many changed or need review.</summary>
     public string UpdatedWithConflictsFormat { get; set; } = "Updated {0}; {1} changed or require review.";
 
+    public string PausedTransfersFormat { get; set; } = "Paused {0} transfer(s).";
+
+    public string ResumedTransfersFormat { get; set; } = "Resumed {0} transfer(s).";
+
+    public string StartedTransfersFormat { get; set; } = "Started {0} transfer(s) again.";
+
+    public string NothingToPause { get; set; } = "Nothing is running or waiting to be paused.";
+
+    public string NothingToResume { get; set; } = "No paused transfers to resume.";
+
+    public string NothingToStart { get; set; } = "No paused, blocked or failed transfers to start.";
+
     /// <summary>{0} = the transfer state, {1} = what went wrong.</summary>
     public string TransferErrorFormat { get; set; } = "{0}: {1}";
 
@@ -208,6 +220,24 @@ internal sealed class TransferStrings : LocalizationModelBase
     public string ActivityAreaDrop { get; set; } = "Drop";
 
     public string ActivityAreaSync { get; set; } = "Sync";
+
+    /// <summary>The area of a log line about a connection's link: retrying, lost, back.</summary>
+    public string ActivityAreaConnection { get; set; } = "Connection";
+
+    public string ActivityLinkRetrying { get; set; } = "Retrying";
+
+    public string ActivityLinkLost { get; set; } = "Lost";
+
+    public string ActivityLinkBack { get; set; } = "Back";
+
+    public string ActivityLinkRetryingDetails { get; set; } = "Trying again after a failure that may pass";
+
+    /// <summary>{0} = which retry this is.</summary>
+    public string ActivityLinkRetryingFormat { get; set; } = "Trying again after a failure that may pass (attempt {0})";
+
+    public string ActivityLinkLostDetails { get; set; } = "The connection to the server was lost";
+
+    public string ActivityLinkBackDetails { get; set; } = "The connection works again";
 
     /// <summary>{0} = the operation, {1} = the source path, {2} = the destination path.</summary>
     public string ActivityTransferDetailsFormat { get; set; } = "{0}: {1} \u2192 {2}";
@@ -307,4 +337,23 @@ internal sealed class TransferStrings : LocalizationModelBase
 
     /// <summary>{0} = the state, {1} = what went wrong.</summary>
     public string StateWithErrorFormat { get; set; } = "{0}: {1}";
+
+    // ------------------------------------------------------- existing files (1.6)
+    // What a transfer does with a file already at its destination: the dialog that asks and the
+    // Settings default share these, so the two always name a choice the same way.
+    public string ConflictOverwrite { get; set; } = "Overwrite";
+
+    public string ConflictSkip { get; set; } = "Skip";
+
+    public string ConflictOverwriteIfNewer { get; set; } = "Overwrite if the source is newer";
+
+    public string ConflictOverwriteIfSizeDiffers { get; set; } = "Overwrite if the size differs";
+
+    public string ConflictRename { get; set; } = "Keep both, renaming the new file";
+
+    public string ConflictResume { get; set; } = "Resume a shorter file";
+
+    /// <summary>{0} = transfers queued, {1} = files skipped, {2} = files queued under a new name.</summary>
+    public string QueuedWithConflictsFormat { get; set; } =
+        "Queued {0:N0} transfer(s). {1:N0} already at the destination skipped, {2:N0} renamed.";
 }

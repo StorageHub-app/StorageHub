@@ -26,6 +26,12 @@ public static class ObjectInspectorIpcLimits
     public const int MaximumTagEntries = 10;
     public const int MaximumTagNameLength = 128;
     public const int MaximumTagValueLength = 256;
+
+    /// <summary>
+    /// The most the inspector reads to compute a checksum the server does not report. Larger files
+    /// are answered only by their server.
+    /// </summary>
+    public const long MaximumComputedChecksumBytes = 256L * 1_024 * 1_024;
 }
 
 public static class ObjectInspectorIpcMessageTypes
@@ -36,6 +42,8 @@ public static class ObjectInspectorIpcMessageTypes
     public const string MetadataGetResponse = "object-inspector.metadata.get.response";
     public const string TagsGetRequest = "object-inspector.tags.get.request";
     public const string TagsGetResponse = "object-inspector.tags.get.response";
+    public const string ChecksumGetRequest = "object-inspector.checksum.get.request";
+    public const string ChecksumGetResponse = "object-inspector.checksum.get.response";
 }
 
 /// <summary>An exact object identity captured from a root-scoped browsing session.</summary>
@@ -188,4 +196,49 @@ public sealed record ObjectTagsGetResponse(
         Tags.Length <= ObjectInspectorIpcLimits.MaximumTagEntries &&
         Tags.All(static entry => entry?.HasValidBounds == true) &&
         Tags.Select(static entry => entry.Name).Distinct(StringComparer.Ordinal).Count() == Tags.Length;
+}
+
+/// <summary>Where an inspected checksum came from.</summary>
+public enum ObjectChecksumSource
+{
+    /// <summary>Computed by the agent from the file's bytes.</summary>
+    Computed = 0,
+
+    /// <summary>Reported by the server for the whole file, without reading it.</summary>
+    Server = 1,
+}
+
+/// <summary>
+/// Asks for the file's SHA-256. With <paramref name="PreferServer"/> a digest the server keeps
+/// answers first; otherwise, or when it has none, the agent reads up to
+/// <see cref="ObjectInspectorIpcLimits.MaximumComputedChecksumBytes"/> and computes it.
+/// </summary>
+public sealed record ObjectChecksumGetRequest(
+    int ContractVersion,
+    ObjectInspectorAddress Address,
+    bool PreferServer = true)
+{
+    public bool HasValidBounds =>
+        ObjectInspectorIpcContract.IsSupported(ContractVersion) &&
+        Address?.HasValidBounds == true;
+}
+
+public sealed record ObjectChecksumGetResponse(
+    int ContractVersion,
+    ObjectInspectorAddress Address,
+    string? Algorithm,
+    string? Value,
+    ObjectChecksumSource Source,
+    long BytesCovered,
+    StorageIpcFailure? Failure = null)
+{
+    public const string Sha256 = "SHA256";
+
+    public bool HasValidResultBounds => Failure is null
+        ? Algorithm == Sha256 &&
+          Value is { Length: 64 } &&
+          Value.All(static character => character is >= '0' and <= '9' or >= 'a' and <= 'f') &&
+          Enum.IsDefined(Source) &&
+          BytesCovered >= 0
+        : Algorithm is null && Value is null && BytesCovered == 0;
 }

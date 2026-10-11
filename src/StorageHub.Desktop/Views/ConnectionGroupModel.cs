@@ -63,6 +63,51 @@ internal sealed class ConnectionRowModel(ConnectionCardModel card, string? group
 
     public bool HasTags => Card.DisplayTags.Count > 0;
 
+    private ConnectionLinkBadge? _link;
+
+    /// <summary>
+    /// "Retrying, attempt 2…", "Connection lost" or, for a while after, "Connected again": what
+    /// the agent last saw of the connection's link, on its own line under the subtitle in the
+    /// tone it deserves. Null for a connection with no trouble, which is most of them.
+    /// </summary>
+    internal ConnectionLinkBadge? Link
+    {
+        get => _link;
+        set
+        {
+            if (Equals(_link, value)) return;
+            _link = value;
+            foreach (var name in new[]
+            {
+                nameof(HasLink), nameof(LinkText), nameof(LinkSince), nameof(LinkIcon),
+                nameof(LinkIsWarning), nameof(LinkIsDanger), nameof(LinkIsSuccess)
+            })
+            {
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+            }
+        }
+    }
+
+    public bool HasLink => _link is not null;
+
+    public string LinkText => _link?.Text ?? string.Empty;
+
+    /// <summary>"Since 14:02", when the change happened, for the line's tooltip.</summary>
+    public string LinkSince => _link?.Since ?? string.Empty;
+
+    public Lucide.Avalonia.LucideIconKind LinkIcon => _link?.Tone switch
+    {
+        ConnectionLinkTone.Danger => Lucide.Avalonia.LucideIconKind.Unplug,
+        ConnectionLinkTone.Success => Lucide.Avalonia.LucideIconKind.CircleCheck,
+        _ => Lucide.Avalonia.LucideIconKind.RefreshCw
+    };
+
+    public bool LinkIsWarning => _link?.Tone == ConnectionLinkTone.Warning;
+
+    public bool LinkIsDanger => _link?.Tone == ConnectionLinkTone.Danger;
+
+    public bool LinkIsSuccess => _link?.Tone == ConnectionLinkTone.Success;
+
     /// <summary>The card the details panel is showing, which wears the accent border.</summary>
     public bool IsSelected
     {
@@ -84,7 +129,7 @@ internal enum ConnectionGroupKind
     /// <summary>A group the agent keeps, which somebody made and can rename, recolour and remove.</summary>
     Group,
 
-    /// <summary>The connections filed in no group, last, and only while there are any.</summary>
+    /// <summary>The connections filed in no group, last; drawn while empty unless Settings hides empty groups.</summary>
     Ungrouped,
 
     /// <summary>The favourites, above the groups: a state rather than a place, so nothing is filed in it.</summary>
@@ -219,7 +264,13 @@ internal sealed class ConnectionGroupModel : INotifyPropertyChanged
 
     public static string MoveDownLabel => Ui.Connections.MoveGroupDown;
 
-    public static string EmptyLabel => Ui.Connections.GroupEmpty;
+    /// <summary>
+    /// What an open empty group says: "No connections", or for Favorites 1.4's "No favorite
+    /// connections", whose hint on how to add one is its tooltip.
+    /// </summary>
+    public string EmptyLabel => IsFavorites ? Ui.Shell.NoFavoriteConnections : Ui.Connections.GroupEmpty;
+
+    public string? EmptyHint => IsFavorites ? Ui.Shell.FavoritesEmptyHint : null;
 
     public static string MenuLabel => Ui.Connections.GroupOptions;
 

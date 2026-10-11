@@ -44,7 +44,12 @@ public sealed class DesktopConfigStoreTests : IDisposable
             MaximumTransferConcurrency = 9,
             ConnectionsPanelWidth = 420,
             DefaultWorkspacePaneCount = 3,
-            TotalUploadBytesPerSecond = 256 * 1024
+            TotalUploadBytesPerSecond = 256 * 1024,
+            TransferConflictDefault = TransferConflictChoice.Resume,
+            AutoRefreshFolders = true,
+            RemoteRefreshSeconds = 120,
+            TransferQueueVisible = false,
+            ShowHiddenFiles = false
         };
         new DesktopConfigStore(_directory).Save(saved);
 
@@ -145,6 +150,50 @@ public sealed class DesktopConfigStoreTests : IDisposable
         Assert.True(report.Repaired);
         Assert.Null(store.Load().TotalUploadBytesPerSecond);
         Assert.Equal(65536, store.Load().TotalDownloadBytesPerSecond);
+    }
+
+    /// <summary>
+    /// A conflict choice this build does not have, from a hand edit or a newer StorageHub, asks
+    /// rather than doing something nobody chose.
+    /// </summary>
+    [Fact]
+    public void AnUnknownExistingFileChoiceAsks()
+    {
+        Directory.CreateDirectory(_directory);
+        var store = new DesktopConfigStore(_directory);
+        File.WriteAllText(store.GeneralPath, """{"schemaVersion":1,"transferConflictDefault":99}""");
+
+        Assert.True(store.Preflight().Repaired);
+        Assert.Null(store.Load().TransferConflictDefault);
+        _ = Assert.Throws<ArgumentException>(() =>
+            store.Save(DesktopUpdatePreferences.Defaults with { TransferConflictDefault = (TransferConflictChoice)99 }));
+    }
+
+    /// <summary>
+    /// Folders do not refresh by themselves until asked to, and an interval written by hand
+    /// outside the bounds is brought to the nearer one rather than asking a server every second.
+    /// </summary>
+    [Fact]
+    public void AutoRefreshIsOffByDefaultAndItsIntervalIsKeptInBounds()
+    {
+        Assert.False(DesktopUpdatePreferences.Defaults.AutoRefreshFolders);
+        Assert.Equal(
+            new FolderAutoRefreshSettings(false, TimeSpan.FromSeconds(30)),
+            DesktopUpdatePreferences.Defaults.FolderAutoRefresh);
+
+        Directory.CreateDirectory(_directory);
+        var store = new DesktopConfigStore(_directory);
+        File.WriteAllText(store.GeneralPath, """{"schemaVersion":1,"autoRefreshFolders":true,"remoteRefreshSeconds":1}""");
+
+        Assert.True(store.Preflight().Repaired);
+        var loaded = store.Load();
+        Assert.True(loaded.AutoRefreshFolders);
+        Assert.Equal(FolderAutoRefreshSettings.MinimumRemoteSeconds, loaded.RemoteRefreshSeconds);
+        _ = Assert.Throws<ArgumentException>(() =>
+            store.Save(DesktopUpdatePreferences.Defaults with { RemoteRefreshSeconds = 86_400 }));
+        Assert.Equal(
+            TimeSpan.FromSeconds(FolderAutoRefreshSettings.MaximumRemoteSeconds),
+            (DesktopUpdatePreferences.Defaults with { RemoteRefreshSeconds = 86_400 }).FolderAutoRefresh.RemoteInterval);
     }
 
     [Fact]

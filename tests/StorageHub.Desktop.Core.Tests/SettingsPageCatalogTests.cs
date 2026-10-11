@@ -250,6 +250,29 @@ public class SettingsPageCatalogTests
         Assert.Single(SettingsPageCatalog.AllRows, row => row.Key == "warn-unsafe-edit");
     }
 
+    /// <summary>
+    /// "Hide empty groups" is a toggle beside "Show favourites in their folders too", off by
+    /// default so every group is always shown, and writes only its own preference.
+    /// </summary>
+    [Fact]
+    public void HideEmptyGroupsIsAToggleNextToFavouritesInFoldersAndOffByDefault()
+    {
+        var page = SettingsPageCatalog.Pages.Single(p => p.Rows.Any(r => r.Key == "show-favourites-in-folders"));
+        var keys = page.Rows.Select(static r => r.Key).ToList();
+        Assert.Equal(keys.IndexOf("show-favourites-in-folders") + 1, keys.IndexOf("hide-empty-groups"));
+
+        var row = SettingsPageCatalog.AllRows.Single(r => r.Key == "hide-empty-groups");
+        Assert.Equal(SettingsControlKind.Toggle, row.Kind);
+        Assert.Equal(Localization.Ui.Settings.HideEmptyGroups, row.Label);
+        Assert.False(DesktopUpdatePreferences.Defaults.HideEmptyGroups);
+
+        var on = row.Write(DesktopUpdatePreferences.Defaults, "true");
+        Assert.Equal("false", row.Read(DesktopUpdatePreferences.Defaults));
+        Assert.Equal("true", row.Read(on));
+        Assert.True(on.HideEmptyGroups);
+        Assert.Equal(DesktopUpdatePreferences.Defaults with { HideEmptyGroups = true }, on);
+    }
+
     private static bool Editable(SettingsRowDefinition row) =>
         row.Enabled?.Invoke(DesktopUpdatePreferences.Defaults) ?? true;
 

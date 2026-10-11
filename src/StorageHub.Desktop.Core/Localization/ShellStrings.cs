@@ -197,7 +197,7 @@ internal sealed class ShellStrings : LocalizationModelBase
 
     public string SelectTwoToBatchRename { get; set; } = "Select at least two items to batch rename.";
 
-    public string SelectOneToInspect { get; set; } = "Select exactly one file to inspect.";
+    public string SelectOneToInspect { get; set; } = "Select exactly one file or folder to see its properties.";
 
     public string OperationCancelled { get; set; } = "The operation was cancelled.";
 
@@ -448,6 +448,24 @@ internal sealed class ShellStrings : LocalizationModelBase
     /// <summary>The pane's FILES row of file commands, which the list's right-click menu repeats.</summary>
     public string ShowFilesBar { get; set; } = "Show files bar";
 
+    public string ShowDirectoryTree { get; set; } = "Show directory tree";
+
+    public string NoOtherLocationsVisited { get; set; } = "No other locations visited yet";
+
+    public string HistoryHint { get; set; } = "Folders this pane has shown in this session, newest first.";
+
+    public string ThemeNowFormat { get; set; } = "Theme: {0}";
+
+    public string HiddenFilesShown { get; set; } = "Hidden files are shown.";
+
+    public string HiddenFilesNotShown { get; set; } = "Hidden files are not shown.";
+
+    public string DisconnectedFromFormat { get; set; } = "Disconnected from {0}.";
+
+    public string TestingConnectionFormat { get; set; } = "Testing {0}…";
+
+    public string TestedConnectionFormat { get; set; } = "{0}: {1}";
+
     public string MoveOrSwapPane { get; set; } = "Move or swap pane";
 
     public string SwapWithPane { get; set; } = "Swap";
@@ -524,4 +542,218 @@ internal sealed class ShellStrings : LocalizationModelBase
     /// <summary>Shown when the agent answered and refused, which is not a reconnect problem.</summary>
     public string AgentRequestFailed { get; set; } =
         "StorageHub could not complete that request.";
+
+    public string SearchTitle { get; set; } = "Search";
+
+    public string SearchIntroFormat { get; set; } = "Searches {0} and every folder under it for names that match.";
+
+    public string SearchQueryLabel { get; set; } = "Name:";
+
+    public string SearchQueryHint { get; set; } = "Part of a name, or a pattern such as *.jpg";
+
+    public string SearchButton { get; set; } = "Search";
+
+    public string SearchStop { get; set; } = "Stop";
+
+    public string SearchGoTo { get; set; } = "Go to";
+
+    public string SearchColumnName { get; set; } = "Name";
+
+    public string SearchColumnFolder { get; set; } = "Folder";
+
+    public string SearchColumnSize { get; set; } = "Size";
+
+    public string SearchColumnModified { get; set; } = "Modified";
+
+    public string SearchFolderKind { get; set; } = "Folder";
+
+    public string SearchReady { get; set; } = "Type a name and press Search.";
+
+    public string Searching { get; set; } = "Searching…";
+
+    public string SearchingFormat { get; set; } = "Searching… {0:N0} items looked at.";
+
+    public string SearchFoundFormat { get; set; } = "Found {0:N0} in {1:N0} items.";
+
+    public string SearchNothingFormat { get; set; } = "Nothing matches among {0:N0} items.";
+
+    public string SearchLimitFormat { get; set; } =
+        "Found {0:N0} in the first {1:N0} items; the search stopped at its limit. Search a folder further down for the rest.";
+
+    public string SearchStopped { get; set; } = "Search stopped.";
+
+    public string SearchNeedsAName { get; set; } = "Type part of a name to search for.";
+
+    public string SearchNeedsAFolder { get; set; } = "Open a folder in the pane to search it.";
+
+    public string SearchTimedOut { get; set; } = "The agent took too long to list a folder; the search stopped.";
+
+    public string ChecksumsTitle { get; set; } = "Checksums";
+
+    public string ChecksumsIntro { get; set; } =
+        "The SHA-256 of each selected file: the server's own where it keeps one, otherwise read and computed. Paste a checksum below to compare every file with it.";
+
+    public string ChecksumExpected { get; set; } = "Expected:";
+
+    public string ChecksumExpectedHint { get; set; } = "A SHA-256 to compare with, as shown on a download page";
+
+    public string ChecksumCopy { get; set; } = "Copy checksums";
+
+    public string ChecksumColumnSha256 { get; set; } = "SHA-256";
+
+    public string ChecksumColumnSource { get; set; } = "From";
+
+    public string ChecksumColumnMatch { get; set; } = "Comparison";
+
+    public string ChecksumPending { get; set; } = "Waiting…";
+
+    public string ChecksumFromServer { get; set; } = "The server";
+
+    public string ChecksumComputed { get; set; } = "Computed from the file";
+
+    public string ChecksumFilesOnly { get; set; } = "Only a file has a checksum.";
+
+    public string ChecksumTimedOut { get; set; } = "Reading the file took too long.";
+
+    public string ChecksumMatchesExpected { get; set; } = "Matches";
+
+    public string ChecksumDiffersFromExpected { get; set; } = "Differs";
+
+    public string ChecksumSameAsFormat { get; set; } = "Same as {0}";
+
+    public string ChecksumUnique { get; set; } = "Unique";
+
+    public string ChecksumWorking { get; set; } = "Reading checksums…";
+
+    public string ChecksumProgressFormat { get; set; } = "Read {0} of {1}…";
+
+    public string ChecksumReady { get; set; } = "Checksum ready.";
+
+    public string ChecksumAllIdenticalFormat { get; set; } = "All {0} files are identical.";
+
+    public string ChecksumDistinctFormat { get; set; } = "{0} different checksums among {1} files.";
+
+    public string ChecksumExpectedSummaryFormat { get; set; } = "{0} of {1} match the expected checksum.";
+
+    public string ChecksumFailedFormat { get; set; } = "{0} could not be read.";
+
+    public string ChecksumSkippedFormat { get; set; } = "{0} folder(s) or extra item(s) left out.";
+
+    public string ChecksumNoneRead { get; set; } = "No checksum could be read.";
+
+    public string FtpConsoleTitleFormat { get; set; } = "FTP Command Console — {0}";
+
+    public string FtpConsoleIntro { get; set; } =
+        "Commands go to the server one at a time, each on a short connection of its own, and the reply is shown below. Listings and transfers stay in the panes.";
+
+    public string FtpConsoleCommandLabel { get; set; } = "Command:";
+
+    public string FtpConsoleCommandHint { get; set; } =
+        "SYST, FEAT, STAT, SITE CHMOD 644 file.txt… Up and Down go through earlier commands";
+
+    public string FtpConsoleTranscript { get; set; } = "Transcript";
+
+    public string FtpConsoleSend { get; set; } = "Send";
+
+    public string FtpConsoleClear { get; set; } = "Clear";
+
+    public string FtpConsoleCopy { get; set; } = "Copy transcript";
+
+    public string FtpConsoleCopied { get; set; } = "Transcript copied.";
+
+    public string FtpConsoleReady { get; set; } = "Type a command and press Enter.";
+
+    public string FtpConsoleSending { get; set; } = "Waiting for the server…";
+
+    public string FtpConsoleRepliedFormat { get; set; } = "The server answered {0}.";
+
+    public string FtpConsoleNotSent { get; set; } = "Not sent.";
+
+    public string FtpConsoleRefusedDataConnection { get; set; } =
+        "Not sent: this command opens a data connection. Use the panes for listings and transfers.";
+
+    public string FtpConsoleRefusedLogin { get; set; } =
+        "Not sent: the connection logs in with its saved account, and the console does not log in or out.";
+
+    public string FtpConsoleRefusedSecurity { get; set; } = "Not sent: TLS is set by the connection's settings.";
+
+    public string FtpConsoleRefusedSessionSetting { get; set; } =
+        "Not sent: each command runs on a session of its own, so a setting such as CWD or TYPE would not last. Use the address bar to change folder.";
+
+    public string FtpConsoleRefusedMalformed { get; set; } =
+        "Not sent: a command is one line of at most 512 characters, starting with its verb.";
+
+    public string FtpConsoleTruncated { get; set; } = "(The reply was cut short at 16,384 characters.)";
+
+    public string FtpConsoleTimedOut { get; set; } = "The server did not answer in time.";
+
+    public string FtpConsoleUnavailable { get; set; } = "The server could not be reached, or it closed the connection.";
+
+    public string FtpConsoleUnauthorized { get; set; } =
+        "The server refused the saved account, or the connection is disabled.";
+
+    public string FtpConsoleSecurity { get; set; } =
+        "The connection needs a trust decision first; test it from the connections panel.";
+
+    public string FtpConsoleNotFound { get; set; } = "The saved connection was not found.";
+
+    public string FtpConsoleUnsupported { get; set; } = "Only FTP and FTPS connections take raw commands.";
+
+    public string FtpConsoleFailed { get; set; } = "The command could not be sent.";
+
+    public string FtpConsoleAgentUnavailable { get; set; } = "The background agent could not be reached.";
+
+    public string DiagnosticsTitle { get; set; } = "Diagnostics";
+
+    public string DiagnosticsIntro { get; set; } =
+        "This installation in a few lines, to copy into a report, and a support bundle to attach to one.";
+
+    public string DiagnosticsPrivacy { get; set; } =
+        "The bundle holds the version, the system, the agent's state and the error log with your user name, computer name and home folder taken out. No connection, password or key goes in it.";
+
+    public string DiagnosticsVersion { get; set; } = "StorageHub";
+
+    public string DiagnosticsOperatingSystem { get; set; } = "System";
+
+    public string DiagnosticsRuntime { get; set; } = "Runtime";
+
+    public string DiagnosticsLanguage { get; set; } = "Language";
+
+    public string DiagnosticsAgent { get; set; } = "Agent";
+
+    public string DiagnosticsAgentNotHeard { get; set; } = "not heard from yet";
+
+    public string DiagnosticsRunning { get; set; } = "Running";
+
+    public string DiagnosticsRunningFormat { get; set; } = "{0} transfer(s), {1} sync run(s)";
+
+    public string DiagnosticsQueue { get; set; } = "Queue";
+
+    public string DiagnosticsQueueNotRead { get; set; } = "not read yet";
+
+    public string DiagnosticsQueueEmpty { get; set; } = "empty";
+
+    public string DiagnosticsLogFolder { get; set; } = "Logs";
+
+    public string DiagnosticsCollected { get; set; } = "Collected";
+
+    public string DiagnosticsCopy { get; set; } = "Copy report";
+
+    public string DiagnosticsCopied { get; set; } = "The report is on the clipboard.";
+
+    public string DiagnosticsSaveBundle { get; set; } = "Save bundle…";
+
+    public string DiagnosticsBundleFilter { get; set; } = "Support bundle";
+
+    public string DiagnosticsSavedFormat { get; set; } = "Saved {0} with {1} file(s).";
+
+    public string DiagnosticsSaveFailedFormat { get; set; } = "The bundle could not be saved: {0}";
+
+    public string DiagnosticsOpenLogs { get; set; } = "Open logs";
+
+    public string LogsTitle { get; set; } = "Logs";
+
+    public string LogsFolderIsFormat { get; set; } = "The logs are in {0}";
+
+    public string LinkNotOpenedTitle { get; set; } = "Open this address in a browser";
 }

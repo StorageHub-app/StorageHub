@@ -19,6 +19,11 @@ internal static class ConnectionSecretFields
         "accessKeyReference" => SecretMaterialPurpose.AccessKey,
         "secretAccessKeyReference" => SecretMaterialPurpose.SecretAccessKey,
         "sessionTokenReference" => SecretMaterialPurpose.SessionToken,
+        ConnectionEditorDraftFactory.BearerTokenKey => SecretMaterialPurpose.SessionToken,
+        ConnectionEditorDraftFactory.AccountKeyKey => SecretMaterialPurpose.SecretAccessKey,
+        ConnectionEditorDraftFactory.SasTokenKey => SecretMaterialPurpose.SessionToken,
+        ConnectionEditorDraftFactory.ConnectionStringKey => SecretMaterialPurpose.SecretAccessKey,
+        ConnectionEditorDraftFactory.ServiceAccountKey => SecretMaterialPurpose.SecretAccessKey,
         "privateKeyReference" => SecretMaterialPurpose.SshPrivateKey,
         "privateKeyPassphraseReference" => SecretMaterialPurpose.SshPrivateKeyPassphrase,
         "clientCertificateReference" => SecretMaterialPurpose.ClientCertificatePfx,
@@ -54,8 +59,9 @@ internal static class ConnectionSecretFields
     /// Whether a field's secret comes from a file rather than from typing.
     /// </summary>
     /// <remarks>
-    /// A certificate and a private key are files; a password, an access key and a passphrase are
-    /// typed. The distinction decides which prompt enrolling opens.
+    /// A certificate, a private key and a Google service-account key are files; a password, an
+    /// access key and a passphrase are typed. The distinction decides which prompt enrolling opens.
     /// </remarks>
-    internal static bool IsFile(string fieldKey) => KeyStoreSlot(fieldKey) is not null;
+    internal static bool IsFile(string fieldKey) =>
+        KeyStoreSlot(fieldKey) is not null || fieldKey == ConnectionEditorDraftFactory.ServiceAccountKey;
 }

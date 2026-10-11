@@ -114,6 +114,9 @@
       "storagehub.contracts": {
         "type": "Project"
       },
+      "storagehub.diagnostics": {
+        "type": "Project"
+      },
       "storagehub.domain": {
         "type": "Project",
         "dependencies": {

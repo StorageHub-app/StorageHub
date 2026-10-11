@@ -25,7 +25,7 @@
         an arrangement is settled once and then wants the width back.
       -->
       <Border x:Name="PART_Header" DockPanel.Dock="Top" Classes="pane-header"
-              Cursor="SizeAll">
+              Cursor="SizeAll" ToolTip.Tip="{Binding DragPaneHeadersHint}">
         <Grid ColumnDefinitions="*,Auto">
           <TextBlock Grid.Column="0" VerticalAlignment="Center"
                      FontWeight="SemiBold" Text="{Binding PaneHeading}"/>
@@ -57,6 +57,21 @@
                           ToggleType="CheckBox"
                           IsEnabled="{Binding IsListing}"
                           IsChecked="{Binding ShowFilesBar, Mode=TwoWay}"/>
+                <!-- What View > Directory Tree turns on and off for the active pane. -->
+                <MenuItem Header="{Binding ShowTreeLabel}"
+                          ToggleType="CheckBox"
+                          IsEnabled="{Binding IsListing}"
+                          IsChecked="{Binding ShowTree, Mode=TwoWay}"/>
+                <Separator/>
+                <!-- What Connections > FTP Command Console opens, lit only on an FTP or FTPS connection. -->
+                <MenuItem x:Name="PART_FtpConsole"
+                          Header="{Binding FtpConsoleLabel}"
+                          IsEnabled="{Binding IsFtpConnection}"
+                          Click="OnFtpConsole">
+                  <MenuItem.Icon>
+                    <LucideIcon Kind="Terminal" Size="{StaticResource IconSizeSm}"/>
+                  </MenuItem.Icon>
+                </MenuItem>
                 <Separator/>
                 <MenuItem Header="{Binding MoveOrSwapLabel}"
                           IsEnabled="{Binding HasMoveTargets}"
@@ -303,8 +318,9 @@
         </Button>
       </Grid>
 
-      <!-- "12 items" and what is selected, under the listing, as 1.x's pane footer read. -->
-      <Grid x:Name="PART_Footer" DockPanel.Dock="Bottom" ColumnDefinitions="Auto,*"
+      <!-- "12 items" and what is selected, under the listing, as 1.x's pane footer read, and at
+           its end the free space behind the folder, where the drive or server says it. -->
+      <Grid x:Name="PART_Footer" DockPanel.Dock="Bottom" ColumnDefinitions="Auto,*,Auto"
             ColumnSpacing="{StaticResource SpaceLg}"
             IsVisible="{Binding IsListing}"
             Margin="8,4">
@@ -313,7 +329,11 @@
           <Button Classes="link" Content="{Binding LoadMoreLabel}" Command="{Binding LoadMoreCommand}"
                   IsVisible="{Binding HasMorePages}" VerticalAlignment="Center"/>
         </StackPanel>
-        <TextBlock Grid.Column="1" Classes="muted" Text="{Binding SelectionSummary}" VerticalAlignment="Center"/>
+        <TextBlock Grid.Column="1" Classes="muted" Text="{Binding SelectionSummary}" VerticalAlignment="Center"
+                   TextTrimming="CharacterEllipsis"/>
+        <TextBlock x:Name="PART_FreeSpace" Grid.Column="2" Classes="muted" Text="{Binding FreeSpace}"
+                   IsVisible="{Binding HasFreeSpace}" VerticalAlignment="Center"
+                   ToolTip.Tip="{Binding FreeSpaceHint}"/>
       </Grid>
 
       <!--
@@ -337,6 +357,17 @@
         </StackPanel>
       </Button>
 
+      <!-- Under a failure on the server's identity: the connection's Trust tab, where the key
+           can be fetched and checked or the certificate pinned, offered where it happened. -->
+      <Button DockPanel.Dock="Top" Classes="tool" HorizontalAlignment="Left"
+              IsVisible="{Binding ShowsReviewTrust}" Command="{Binding ReviewTrustCommand}"
+              AutomationProperties.Name="{Binding ReviewTrustLabel}">
+        <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
+          <LucideIcon Kind="ShieldAlert" Size="{StaticResource IconSizeSm}" Classes="warning"/>
+          <TextBlock Classes="warning" Text="{Binding ReviewTrustLabel}"/>
+        </StackPanel>
+      </Button>
+
       <!--
         The body is whichever of the two a pane is: a listing, or a terminal. Both live under the
         same chrome, so pointing a pane at an SSH client and back is the same gesture as switching
@@ -347,7 +378,9 @@
           The folder tree beside the list, as 1.x had it: the pane's root, the way down to where
           the pane is, and the folders around it that have been listed. Choosing one goes there.
         -->
-        <Grid ColumnDefinitions="185,Auto,*" IsVisible="{Binding IsListing}">
+        <!-- Hidden, the tree's column is sized to nothing in code-behind and given back the width
+             it was dragged to when it returns; a hidden child alone would leave its column. -->
+        <Grid x:Name="PART_Listing" ColumnDefinitions="185,Auto,*" IsVisible="{Binding IsListing}">
           <!-- No sideways scrolling: a deep folder would scroll the tree left until the top of
                the path was out of sight. Names past the edge end in an ellipsis instead. -->
           <TreeView x:Name="PART_Tree" Grid.Column="0" Classes="pane-tree"
@@ -378,7 +411,7 @@
               </TreeDataTemplate>
             </TreeView.ItemTemplate>
           </TreeView>
-          <GridSplitter Grid.Column="1" Width="{StaticResource SplitterThickness}"
+          <GridSplitter x:Name="PART_TreeSplitter" Grid.Column="1" Width="{StaticResource SplitterThickness}"
                         ResizeDirection="Columns"/>
           <Panel Grid.Column="2">
             <TableView x:Name="PART_Rows"

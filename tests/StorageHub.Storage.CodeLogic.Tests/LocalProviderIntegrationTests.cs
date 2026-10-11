@@ -3,13 +3,104 @@ using CL.Storage.Configuration;
 using CodeLogic;
 using StorageHub.Domain.Identifiers;
 using StorageHub.Domain.Storage;
+using StorageHub.Contracts.Results;
+using StorageHub.Storage.Abstractions;
 using StorageHub.Storage.Models;
+using DomainStorageFeature = StorageHub.Domain.Capabilities.StorageFeature;
 
 namespace StorageHub.Storage.CodeLogic.Tests;
 
 [Collection(ProviderIntegrationFixtureGroup.Name)]
 public sealed class LocalProviderIntegrationTests
 {
+    [Fact]
+    public async Task ARegisteredConnectionDescribesItselfThroughTheLibrary()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"storagehub-cl-details-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            var library = await CodeLogicTestFramework.EnsureStartedAsync();
+            var factory = new CodeLogicStorageSessionFactory(library);
+            var registration = await factory.RegisterLocalAsync(
+                ConnectionProfileId.New(),
+                "details-root-v1",
+                new LocalConnectionConfig { RootPath = root, Enabled = true });
+            Assert.True(registration.IsSuccess);
+            await using var connection = registration.Value;
+
+            var details = await connection.GetDetailsAsync();
+
+            Assert.True(details.IsSuccess, details.IsFailure ? details.Error.Code : null);
+            Assert.Equal("Local", details.Value.Provider);
+            Assert.Null(details.Value.PresentedIdentity);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// A local connection's folder reports the drive it is on, through the library, as the pane's
+    /// status line shows it; a path outside the root is refused as any other address would be.
+    /// </summary>
+    [Fact]
+    public async Task ALocalConnectionReportsTheFreeSpaceOfItsDrive()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"storagehub-cl-space-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(Path.Combine(root, "nested"));
+        try
+        {
+            var library = await CodeLogicTestFramework.EnsureStartedAsync();
+            var profileId = ConnectionProfileId.New();
+            var factory = new CodeLogicStorageSessionFactory(library);
+            var registration = await factory.RegisterLocalAsync(
+                profileId,
+                "space-root-v1",
+                new LocalConnectionConfig { RootPath = root, Enabled = true });
+            Assert.True(registration.IsSuccess);
+            await using var connection = registration.Value;
+            var spaces = Assert.IsAssignableFrom<IStorageSpaceSession>(connection.Session);
+
+            var space = await spaces.GetSpaceAsync(
+                StorageAddress.Create(profileId, "space-root-v1", "nested").Value,
+                CancellationToken.None);
+
+            Assert.True(space.IsSuccess, space.IsFailure ? space.Error.Code : null);
+            Assert.True(space.Value.TotalBytes > 0);
+            Assert.InRange(space.Value.AvailableBytes!.Value, 0, space.Value.TotalBytes!.Value);
+
+            var reserved = await spaces.GetSpaceAsync(
+                StorageAddress.Create(profileId, "space-root-v1", ".storagehub-internal").Value,
+                CancellationToken.None);
+            Assert.True(reserved.IsFailure);
+            Assert.Equal("storage.path.reserved", reserved.Error.Code);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// A figure that cannot be true is dropped rather than shown, and the rest kept: a server that
+    /// gets the used space wrong usually has the free space right.
+    /// </summary>
+    [Fact]
+    public void ImpossibleSpaceFiguresAreDroppedOneByOne()
+    {
+        var space = StorageSpace.Create(totalBytes: 100, availableBytes: 40, usedBytes: 160);
+        Assert.Equal(100, space.TotalBytes);
+        Assert.Equal(40, space.AvailableBytes);
+        Assert.Null(space.UsedBytes);
+
+        Assert.Null(StorageSpace.Create(-1, 5, null).TotalBytes);
+        Assert.Equal(5, StorageSpace.Create(-1, 5, null).AvailableBytes);
+        Assert.Null(StorageSpace.Create(10, 11, null).AvailableBytes);
+        Assert.False(StorageSpace.Create(null, -3, null).IsKnown);
+    }
+
     [Fact]
     public async Task RuntimeOnlyLocalConnection_WritesListsAndReadsThroughRealCodeLogicStorage()
     {
@@ -192,6 +283,72 @@ public sealed class LocalProviderIntegrationTests
             using var copied = new MemoryStream();
             await source.CopyToAsync(copied);
             Assert.Equal(payload, copied.ToArray());
+        }
+        finally
+        {
+            if (Directory.Exists(testRoot))
+            {
+                Directory.Delete(testRoot, recursive: true);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Properties over a real local folder: the attributes CL.Storage reports, a mode changed where
+    /// the platform has one, and a modified time set; then read back from the file system itself.
+    /// </summary>
+    [Fact]
+    public async Task LocalAttributesAreReadAndChangedThroughRealCodeLogicStorage()
+    {
+        var testRoot = Path.Combine(Path.GetTempPath(), $"storagehub-cl-attributes-{Guid.NewGuid():N}");
+        var providerRoot = Path.Combine(testRoot, "provider");
+        Directory.CreateDirectory(Path.Combine(providerRoot, "deploy"));
+        var file = Path.Combine(providerRoot, "deploy", "run.sh");
+        await File.WriteAllTextAsync(file, "#!/bin/sh\n");
+        try
+        {
+            var library = await CodeLogicTestFramework.EnsureStartedAsync();
+            var profileId = ConnectionProfileId.New();
+            const string rootIdentity = "attributes-root-v1";
+            var registration = await new CodeLogicStorageSessionFactory(library).RegisterLocalAsync(
+                profileId,
+                rootIdentity,
+                new LocalConnectionConfig { RootPath = providerRoot, Enabled = true });
+            Assert.True(registration.IsSuccess);
+            await using var connection = registration.Value;
+            var session = Assert.IsAssignableFrom<IStorageAttributeEndpointSession>(connection.Session);
+            var address = StorageAddress.Create(profileId, rootIdentity, "deploy/run.sh").Value;
+
+            var read = await session.GetAttributesAsync(address);
+            Assert.True(read.IsSuccess, read.IsFailure ? read.Error.Message : null);
+            Assert.Equal(StorageEntryKind.File, read.Value.Entry.Kind);
+            Assert.Equal(new FileInfo(file).Length, read.Value.Entry.Size);
+            Assert.NotNull(read.Value.Entry.LastModifiedUtc);
+            Assert.NotNull(read.Value.LastAccessedUtc);
+            Assert.True(connection.Session.Capabilities.Supports(DomainStorageFeature.SetModifiedTime));
+
+            var modified = new DateTimeOffset(2024, 2, 29, 12, 34, 56, TimeSpan.Zero);
+            Assert.True((await session.SetModifiedTimeAsync(address, modified)).IsSuccess);
+            Assert.Equal(modified.UtcDateTime, File.GetLastWriteTimeUtc(file));
+
+            var chmod = await session.SetPermissionsAsync(address, 0x1C0);
+            if (OperatingSystem.IsWindows())
+            {
+                Assert.False(connection.Session.Capabilities.Supports(DomainStorageFeature.Permissions));
+                Assert.Equal(StorageFailureKind.Unsupported, chmod.Error!.Kind);
+                Assert.Null(read.Value.UnixMode);
+            }
+            else
+            {
+                Assert.True(connection.Session.Capabilities.Supports(DomainStorageFeature.Permissions));
+                Assert.True(chmod.IsSuccess, chmod.IsFailure ? chmod.Error.Message : null);
+                Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute,
+                    File.GetUnixFileMode(file));
+                var after = await session.GetAttributesAsync(address);
+                Assert.Equal(0x1C0, after.Value.UnixMode);
+            }
+
+            Assert.Equal(StorageFailureKind.Validation, (await session.SetPermissionsAsync(address, 0x1000)).Error!.Kind);
         }
         finally
         {

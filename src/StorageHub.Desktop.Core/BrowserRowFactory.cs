@@ -41,7 +41,8 @@ internal static class BrowserRowFactory
             entry.NativeItemId,
             entry.VersionId,
             entry.EntityTag,
-            entry.LastModifiedUtc);
+            entry.LastModifiedUtc,
+            IsHidden: entry.Name.StartsWith('.'));
     }
 
     /// <summary>
@@ -66,7 +67,8 @@ internal static class BrowserRowFactory
             entry.IsContainer,
             entry.IsContainer ? StorageItemKind.Directory : StorageItemKind.File,
             entry.Length,
-            ModifiedUtc: entry.Modified);
+            ModifiedUtc: entry.Modified,
+            IsHidden: entry.IsHidden);
     }
 
     /// <summary>

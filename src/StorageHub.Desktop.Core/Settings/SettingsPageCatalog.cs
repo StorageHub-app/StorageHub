@@ -289,6 +289,9 @@ internal static class SettingsPageCatalog
             };
     }
 
+    /// <summary>The Choice value that stands for asking, which no conflict choice is named.</summary>
+    internal const string AskConflictChoice = "ask";
+
     private static SettingsPageDefinition TransfersPage() => new()
     {
         Key = PerformancePageKey,
@@ -371,6 +374,31 @@ internal static class SettingsPageCatalog
                         ? p with { NewScheduleTimeZone = null }
                         : ScheduleTimeZones.Normalize(v) is { } zone
                             ? p with { NewScheduleTimeZone = zone }
+                            : p
+                }
+            ]),
+
+            // New in 2.0 (roadmap 1.6). Only the default: a transfer that meets a file already
+            // there asks once, unless this names the answer, and the answer covers that transfer.
+            new(Ui.Settings.SectionExistingFiles,
+            [
+                new()
+                {
+                    Key = "existing-file-choice",
+                    Label = Ui.Settings.ExistingFileChoice,
+                    Hint = Ui.Settings.ExistingFileChoiceHint,
+                    Kind = SettingsControlKind.Choice,
+                    Choices =
+                    [
+                        new(AskConflictChoice, Ui.Settings.ConflictAsk),
+                        .. TransferConflictText.All.Select(choice =>
+                            new SettingsChoice(choice.ToString(), TransferConflictText.Label(choice)))
+                    ],
+                    Read = p => p.TransferConflictDefault?.ToString() ?? AskConflictChoice,
+                    Write = (p, v) => v == AskConflictChoice
+                        ? p with { TransferConflictDefault = null }
+                        : Enum.TryParse<TransferConflictChoice>(v, out var choice) && Enum.IsDefined(choice)
+                            ? p with { TransferConflictDefault = choice }
                             : p
                 }
             ]),
@@ -528,6 +556,15 @@ internal static class SettingsPageCatalog
                 },
                 new()
                 {
+                    Key = "hide-empty-groups",
+                    Label = Ui.Settings.HideEmptyGroups,
+                    Hint = Ui.Settings.HideEmptyGroupsHint,
+                    Kind = SettingsControlKind.Toggle,
+                    Read = p => Text(p.HideEmptyGroups),
+                    Write = (p, v) => p with { HideEmptyGroups = Flag(v) }
+                },
+                new()
+                {
                     Key = "connections-panel-side",
                     Label = Ui.Settings.ConnectionsPanelSide,
                     Kind = SettingsControlKind.Choice,
@@ -639,9 +676,48 @@ internal static class SettingsPageCatalog
                     Kind = SettingsControlKind.Toggle,
                     Read = p => Text(p.ReconnectRemotePanesAutomatically),
                     Write = (p, v) => p with { ReconnectRemotePanesAutomatically = Flag(v) }
+                },
+                // New in 2.0 (roadmap 4.4); 1.x read a folder only when asked. Off by default, as
+                // a timer that asks a server every so often is not something to start unasked.
+                new()
+                {
+                    Key = "auto-refresh-folders",
+                    Label = Ui.Settings.AutoRefreshFolders,
+                    Hint = Ui.Settings.AutoRefreshFoldersHint,
+                    Kind = SettingsControlKind.Toggle,
+                    Read = p => Text(p.AutoRefreshFolders),
+                    Write = (p, v) => p with { AutoRefreshFolders = Flag(v) }
+                },
+                new()
+                {
+                    Key = "remote-refresh-interval",
+                    Label = Ui.Settings.RemoteRefreshInterval,
+                    Hint = Ui.Settings.RemoteRefreshIntervalHint,
+                    Kind = SettingsControlKind.Choice,
+                    Choices = [.. RemoteRefreshChoices.Select(seconds => new SettingsChoice(Text(seconds), RefreshEvery(seconds)))],
+                    Enabled = p => p.AutoRefreshFolders,
+                    // A figure written into the file by hand shows as the nearest the row offers.
+                    Read = p => Text(RemoteRefreshChoices.MinBy(seconds => Math.Abs(seconds - p.RemoteRefreshSeconds))),
+                    Write = (p, v) => int.TryParse(v, NumberStyles.None, CultureInfo.InvariantCulture, out var seconds) &&
+                        FolderAutoRefreshSettings.IsValidRemoteSeconds(seconds)
+                            ? p with { RemoteRefreshSeconds = seconds }
+                            : p
                 }
             ])
         ]
+    };
+
+    /// <summary>
+    /// The intervals the remote refresh row offers, in seconds, all within the bounds. A property,
+    /// because the pages are built in a static initializer that runs before a field below it.
+    /// </summary>
+    private static int[] RemoteRefreshChoices => [15, 30, 60, 120, 300];
+
+    private static string RefreshEvery(int seconds) => seconds switch
+    {
+        60 => Ui.Settings.EveryMinute,
+        _ when seconds % 60 == 0 => Ui.Format(Ui.Settings.EveryMinutesFormat, seconds / 60),
+        _ => Ui.Format(Ui.Settings.EverySecondsFormat, seconds)
     };
 
     /// <summary>The new-workspace row's value for showing the chooser each time.</summary>
@@ -799,16 +875,18 @@ internal static class SettingsPageCatalog
     /// </remarks>
     private static IEnumerable<SettingsRowDefinition> ProviderBehaviourRows(StorageProviderKind provider)
     {
-        var local = provider == StorageProviderKind.Local;
+        var ownOperationTimeout = ConnectionDefaultSettings.HasOwnOperationTimeout(provider);
         var retries = ConnectionDefaultSettings.SupportsConfigurableRetries(provider);
+        var timeout = ConnectionDefaultSettings.HasConfigurableTimeout(provider);
 
         yield return ConnectionDefaultNumber(
-            provider, ConnectionDefaultSettings.ConnectTimeoutKey, Ui.Settings.ConnectionTimeout, null, 1, 600,
-            Ui.Settings.UnitSeconds, static defaults => defaults.ConnectTimeoutSeconds, editable: true);
+            provider, ConnectionDefaultSettings.ConnectTimeoutKey, Ui.Settings.ConnectionTimeout,
+            timeout ? null : Ui.Settings.TimeoutKeptByProvider, 1, 600,
+            Ui.Settings.UnitSeconds, static defaults => defaults.ConnectTimeoutSeconds, editable: timeout);
         yield return ConnectionDefaultNumber(
             provider, ConnectionDefaultSettings.OperationTimeoutKey, Ui.Settings.OperationTimeout,
-            local ? null : Ui.Settings.OperationTimeoutHint, 1, 86_400,
-            Ui.Settings.UnitSeconds, static defaults => defaults.OperationTimeoutSeconds, editable: local);
+            ownOperationTimeout ? null : Ui.Settings.OperationTimeoutHint, 1, 86_400,
+            Ui.Settings.UnitSeconds, static defaults => defaults.OperationTimeoutSeconds, editable: ownOperationTimeout);
         yield return ConnectionDefaultNumber(
             provider, ConnectionDefaultSettings.RetryAttemptsKey, Ui.Settings.RetryAttempts,
             retries ? null : Ui.Settings.RetriesUnsupported, 0, 20,

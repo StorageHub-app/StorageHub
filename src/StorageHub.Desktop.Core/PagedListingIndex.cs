@@ -60,7 +60,8 @@ internal sealed class PagedListingIndex : IDisposable
                 native_id TEXT NULL,
                 version_id TEXT NULL,
                 entity_tag TEXT NULL,
-                modified_ticks INTEGER NULL
+                modified_ticks INTEGER NULL,
+                is_hidden INTEGER NOT NULL DEFAULT 0
             );
             CREATE INDEX item_name ON item(is_container DESC, name COLLATE NOCASE, sequence);
             CREATE INDEX item_size ON item(is_container DESC, length, name COLLATE NOCASE, sequence);
@@ -72,15 +73,20 @@ internal sealed class PagedListingIndex : IDisposable
         _ = command.ExecuteNonQuery();
     }
 
+    /// <param name="includeHidden">
+    /// False leaves out the rows marked hidden, which is View > Hidden Files turned off. They stay
+    /// in the index, so turning it back on shows them without the folder being read again.
+    /// </param>
     public IReadOnlyList<BrowserListItem> CreateView(
         BrowserSortColumn sortColumn,
         bool ascending,
-        string? filter = null)
+        string? filter = null,
+        bool includeHidden = true)
     {
         lock (_gate)
         {
             ThrowIfDisposed();
-            return new IndexedView(this, ++_queryVersion, sortColumn, ascending, filter?.Trim());
+            return new IndexedView(this, ++_queryVersion, sortColumn, ascending, filter?.Trim(), includeHidden);
         }
     }
 
@@ -126,7 +132,7 @@ internal sealed class PagedListingIndex : IDisposable
         {
             ThrowIfDisposed();
             using var command = _connection.CreateCommand();
-            var where = WhereClause(filter?.Trim(), command);
+            var where = WhereClause(filter?.Trim(), includeHidden: true, command);
             var direction = ascending ? "ASC" : "DESC";
             var sort = SortExpression(sortColumn, direction);
             var parameters = new List<string>(locations.Count);
@@ -177,7 +183,8 @@ internal sealed class PagedListingIndex : IDisposable
             }
             command.CommandText = $"""
                 SELECT name, size_text, type_text, modified_text, status_text, location,
-                       is_container, kind, length, native_id, version_id, entity_tag, modified_ticks
+                       is_container, kind, length, native_id, version_id, entity_tag, modified_ticks,
+                       is_hidden
                 FROM item
                 WHERE name IN ({string.Join(",", parameters)});
                 """;
@@ -211,10 +218,11 @@ internal sealed class PagedListingIndex : IDisposable
         command.CommandText = """
             INSERT OR IGNORE INTO item (
                 name, size_text, type_text, modified_text, status_text, location,
-                is_container, kind, length, native_id, version_id, entity_tag, modified_ticks)
+                is_container, kind, length, native_id, version_id, entity_tag, modified_ticks,
+                is_hidden)
             VALUES (
                 $name, $size, $type, $modified, $status, $location,
-                $container, $kind, $length, $native, $version, $etag, $ticks);
+                $container, $kind, $length, $native, $version, $etag, $ticks, $hidden);
             """;
         var name = command.Parameters.Add("$name", SqliteType.Text);
         var size = command.Parameters.Add("$size", SqliteType.Text);
@@ -229,6 +237,7 @@ internal sealed class PagedListingIndex : IDisposable
         var version = command.Parameters.Add("$version", SqliteType.Text);
         var etag = command.Parameters.Add("$etag", SqliteType.Text);
         var ticks = command.Parameters.Add("$ticks", SqliteType.Integer);
+        var hidden = command.Parameters.Add("$hidden", SqliteType.Integer);
         foreach (var item in items)
         {
             if (item.IsParentNavigation) continue;
@@ -245,6 +254,7 @@ internal sealed class PagedListingIndex : IDisposable
             version.Value = DbValue(item.VersionId);
             etag.Value = DbValue(item.EntityTag);
             ticks.Value = DbValue(item.ModifiedUtc?.UtcTicks);
+            hidden.Value = item.IsHidden ? 1 : 0;
             _ = command.ExecuteNonQuery();
         }
         transaction.Commit();
@@ -256,7 +266,7 @@ internal sealed class PagedListingIndex : IDisposable
         {
             ThrowIfDisposed();
             using var command = _connection.CreateCommand();
-            command.CommandText = "SELECT COUNT(*) FROM item" + WhereClause(view.Filter, command) + ";";
+            command.CommandText = "SELECT COUNT(*) FROM item" + WhereClause(view.Filter, view.IncludeHidden, command) + ";";
             return checked((int)(long)command.ExecuteScalar()!);
         }
     }
@@ -287,12 +297,13 @@ internal sealed class PagedListingIndex : IDisposable
     private BrowserListItem[] ReadPage(IndexedView view, int pageNumber)
     {
         using var command = _connection.CreateCommand();
-        var where = WhereClause(view.Filter, command);
+        var where = WhereClause(view.Filter, view.IncludeHidden, command);
         var direction = view.Ascending ? "ASC" : "DESC";
         var sort = SortExpression(view.SortColumn, direction);
         command.CommandText = $"""
             SELECT name, size_text, type_text, modified_text, status_text, location,
-                   is_container, kind, length, native_id, version_id, entity_tag, modified_ticks
+                   is_container, kind, length, native_id, version_id, entity_tag, modified_ticks,
+                   is_hidden
             FROM item{where}
             ORDER BY is_container DESC, {sort}, name COLLATE NOCASE {direction}, sequence
             LIMIT {CachePageSize} OFFSET {pageNumber * CachePageSize};
@@ -314,13 +325,20 @@ internal sealed class PagedListingIndex : IDisposable
         reader.IsDBNull(9) ? null : reader.GetString(9),
         reader.IsDBNull(10) ? null : reader.GetString(10),
         reader.IsDBNull(11) ? null : reader.GetString(11),
-        reader.IsDBNull(12) ? null : new DateTimeOffset(reader.GetInt64(12), TimeSpan.Zero));
+        reader.IsDBNull(12) ? null : new DateTimeOffset(reader.GetInt64(12), TimeSpan.Zero),
+        IsHidden: reader.GetInt64(13) != 0);
 
-    private static string WhereClause(string? filter, SqliteCommand command)
+    private static string WhereClause(string? filter, bool includeHidden, SqliteCommand command)
     {
-        if (string.IsNullOrWhiteSpace(filter)) return string.Empty;
-        command.Parameters.AddWithValue("$filter", ToLikePattern(filter));
-        return " WHERE name LIKE $filter ESCAPE '\\' COLLATE NOCASE";
+        var conditions = new List<string>(2);
+        if (!string.IsNullOrWhiteSpace(filter))
+        {
+            command.Parameters.AddWithValue("$filter", ToLikePattern(filter));
+            conditions.Add("name LIKE $filter ESCAPE '\\' COLLATE NOCASE");
+        }
+
+        if (!includeHidden) conditions.Add("is_hidden = 0");
+        return conditions.Count == 0 ? string.Empty : " WHERE " + string.Join(" AND ", conditions);
     }
 
     private static string SortExpression(BrowserSortColumn column, string direction) => column switch
@@ -383,13 +401,15 @@ internal sealed class PagedListingIndex : IDisposable
             long version,
             BrowserSortColumn sortColumn,
             bool ascending,
-            string? filter)
+            string? filter,
+            bool includeHidden)
         {
             _owner = owner;
             Version = version;
             SortColumn = sortColumn;
             Ascending = ascending;
             Filter = filter;
+            IncludeHidden = includeHidden;
             Count = owner.Count(this);
         }
 
@@ -397,6 +417,7 @@ internal sealed class PagedListingIndex : IDisposable
         public BrowserSortColumn SortColumn { get; }
         public bool Ascending { get; }
         public string? Filter { get; }
+        public bool IncludeHidden { get; }
         public int Count { get; }
         public BrowserListItem this[int index] => _owner.Get(this, index);
         public IEnumerator<BrowserListItem> GetEnumerator() { for (var index = 0; index < Count; index++) yield return this[index]; }

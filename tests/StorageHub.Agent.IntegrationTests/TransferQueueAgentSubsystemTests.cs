@@ -198,6 +198,65 @@ public sealed class TransferQueueAgentSubsystemTests : IDisposable
     }
 
     /// <summary>
+    /// Transfer, Pause all on a running transfer: the worker stops it and records Paused, not
+    /// Cancelled, and a cancel asked for after the pause still wins nothing it has not already.
+    /// </summary>
+    [Fact]
+    public async Task Active_pause_stops_the_copy_and_records_paused_rather_than_cancelled()
+    {
+        var fixture = await CreateFixtureAsync();
+        var blockingStream = new BlockingReadStream { HoldUntilReleased = true };
+        var source = new FakeSession(
+            fixture.Intent.Source.ProfileId,
+            fixture.Intent.Source.RootIdentity,
+            Capabilities(StorageFeature.ReadStream))
+        {
+            Entry = StorageEntry.Create(
+                fixture.Intent.Source,
+                StorageEntryKind.File,
+                fixture.Intent.ExpectedLength).Value,
+            ReadStreamFactory = () => blockingStream
+        };
+        var destination = new FakeSession(
+            fixture.Intent.Destination.ProfileId,
+            fixture.Intent.Destination.RootIdentity,
+            Capabilities(StorageFeature.WriteStream, StorageFeature.ConditionalCreate));
+        var connector = new FakeConnector(new Dictionary<ConnectionProfileId, Func<FakeConnection>>
+        {
+            [source.ProfileId] = () => new FakeConnection(source),
+            [destination.ProfileId] = () => new FakeConnection(destination)
+        });
+        await using var worker = CreateWorker(fixture.Store, connector);
+        await worker.InitializeAsync(CancellationToken.None);
+
+        var execution = worker.RunClaimOnceAsync().AsTask();
+        await blockingStream.ReadStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var active = Assert.IsType<DurableTransferJob>(
+            await fixture.InnerStore.FindAsync(fixture.Intent.TransferJobId));
+
+        Assert.Equal(
+            ActiveTransferCancellationResult.RevisionConflict,
+            worker.TryRequestActivePause(fixture.Intent.TransferJobId, active.State.Revision - 1));
+        Assert.Equal(
+            ActiveTransferCancellationResult.Accepted,
+            worker.TryRequestActivePause(fixture.Intent.TransferJobId, active.State.Revision));
+        Assert.Equal(
+            ActiveTransferCancellationResult.AlreadyRequested,
+            worker.TryRequestActivePause(fixture.Intent.TransferJobId, active.State.Revision));
+
+        blockingStream.ReleaseRead.TrySetResult();
+        Assert.True(await execution.WaitAsync(TimeSpan.FromSeconds(5)));
+
+        var paused = Assert.IsType<DurableTransferJob>(
+            await fixture.InnerStore.FindAsync(fixture.Intent.TransferJobId));
+        Assert.Equal(TransferState.Paused, paused.State.State);
+        Assert.Null(paused.ActiveLease);
+        Assert.Equal(
+            ActiveTransferCancellationResult.NotActive,
+            worker.TryRequestActivePause(fixture.Intent.TransferJobId, paused.State.Revision));
+    }
+
+    /// <summary>
     /// A running transfer reports how fast it moves, measured by the worker from the bytes the copier
     /// reports, and the total across running transfers includes it.
     /// </summary>

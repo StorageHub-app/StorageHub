@@ -372,6 +372,14 @@ internal static class UiCommandCatalog
             UiGlyph.Test,
             UiIconTone.Success),
         new(
+            UiCommandIds.ConnectionsFtpConsole,
+            UiMenuId.Connections,
+            static strings => strings.ConnectionsFtpConsole,
+            static strings => strings.ConnectionsFtpConsoleDescription,
+            null,
+            UiGlyph.Terminal,
+            UiIconTone.Text),
+        new(
             UiCommandIds.TransferStartQueue,
             UiMenuId.Transfer,
             static strings => strings.TransferStartQueue,
@@ -458,6 +466,14 @@ internal static class UiCommandCatalog
             static strings => strings.ToolsBackgroundAgentDescription,
             null,
             UiGlyph.Server,
+            UiIconTone.Text),
+        new(
+            UiCommandIds.ToolsCleanUpLeftovers,
+            UiMenuId.Tools,
+            static strings => strings.ToolsCleanUpLeftovers,
+            static strings => strings.ToolsCleanUpLeftoversDescription,
+            null,
+            UiGlyph.Delete,
             UiIconTone.Text),
         new(
             UiCommandIds.ToolsChecksums,
@@ -626,16 +642,44 @@ internal static class UiCommandCatalog
         UiCommandIds.GoNextPane or
         UiCommandIds.ConnectionsNewConnection or
         UiCommandIds.ConnectionsKeyStore or
+        // The View, Go and Connections entries 1.4 declared and never wired (ShellViewCommands).
+        UiCommandIds.ViewDirectoryTree or
+        UiCommandIds.ViewTransferQueue or
+        UiCommandIds.ViewSessionLog or
+        UiCommandIds.ViewHiddenFiles or
+        UiCommandIds.ViewTheme or
+        UiCommandIds.GoHome or
+        UiCommandIds.GoHistory or
+        UiCommandIds.GoFavorites or
+        UiCommandIds.ConnectionsQuickConnect or
+        UiCommandIds.ConnectionsReconnect or
+        UiCommandIds.ConnectionsDisconnect or
+        UiCommandIds.ConnectionsTestConnection or
+        UiCommandIds.ConnectionsFtpConsole or
         UiCommandIds.ToolsBackgroundAgent or
+        UiCommandIds.ToolsCleanUpLeftovers or
         UiCommandIds.SyncReviewRun or
         UiCommandIds.SyncSyncProfiles or
         UiCommandIds.SyncSchedules or
+        UiCommandIds.SyncComparePanes or
         UiCommandIds.ToolsSettings or
         UiCommandIds.TransferSpeedLimits or
         UiCommandIds.ToolsExportSettings or
         UiCommandIds.ToolsImportSettings or
         UiCommandIds.HelpCheckForUpdates or
-        UiCommandIds.HelpAboutStorageHub;
+        UiCommandIds.HelpAboutStorageHub or
+        // Transfer, Tools and Help, wired after 1.4 had declared them and left them dead.
+        UiCommandIds.TransferStartQueue or
+        UiCommandIds.TransferPauseAll or
+        UiCommandIds.TransferResumeAll or
+        UiCommandIds.TransferCancelSelected or
+        UiCommandIds.ToolsSearch or
+        UiCommandIds.ToolsChecksums or
+        UiCommandIds.ToolsLogs or
+        UiCommandIds.ToolsDiagnostics or
+        UiCommandIds.HelpKeyboardShortcuts or
+        UiCommandIds.HelpDocumentation or
+        UiCommandIds.HelpReportIssue;
 
     internal static bool IsPaneCommand(UiCommandDefinition command)
     {

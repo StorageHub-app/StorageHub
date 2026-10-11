@@ -36,6 +36,43 @@ internal static class PrivateKeyEncryptionValidator
     private const string Pbkdf2Oid = "1.2.840.113549.1.5.12";
     private static ReadOnlySpan<byte> OpenSshMagic => "openssh-key-v1\0"u8;
 
+    /// <summary>
+    /// Reads which envelope a key uses from its first line, or null when it is none of the three.
+    /// </summary>
+    /// <remarks>
+    /// The header is unambiguous, so the envelope is a fact about the material and not a choice.
+    /// A profile only records the format it was told, which an editor that never asked cannot
+    /// have got right; this is what lets a PEM or PKCS#8 key connect all the same.
+    /// </remarks>
+    internal static SftpPrivateKeyFormat? DetectFormat(ReadOnlySpan<byte> key)
+    {
+        var start = 0;
+        while (start < key.Length && (key[start] is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n'))
+        {
+            start++;
+        }
+
+        var rest = key[start..];
+        var end = rest.IndexOfAny((byte)'\r', (byte)'\n');
+        var header = (end < 0 ? rest : rest[..end]).TrimEnd((byte)' ');
+        if (header.SequenceEqual("-----BEGIN OPENSSH PRIVATE KEY-----"u8))
+        {
+            return SftpPrivateKeyFormat.OpenSsh;
+        }
+
+        if (header.SequenceEqual("-----BEGIN PRIVATE KEY-----"u8) ||
+            header.SequenceEqual("-----BEGIN ENCRYPTED PRIVATE KEY-----"u8))
+        {
+            return SftpPrivateKeyFormat.Pkcs8;
+        }
+
+        return header.SequenceEqual("-----BEGIN RSA PRIVATE KEY-----"u8) ||
+            header.SequenceEqual("-----BEGIN DSA PRIVATE KEY-----"u8) ||
+            header.SequenceEqual("-----BEGIN EC PRIVATE KEY-----"u8)
+                ? SftpPrivateKeyFormat.Pem
+                : null;
+    }
+
     internal static PrivateKeyValidationResult Validate(
         ReadOnlySpan<byte> key,
         string? passphrase,

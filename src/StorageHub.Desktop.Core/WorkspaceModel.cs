@@ -50,7 +50,10 @@ public sealed record BrowserPaneState(
     bool HeaderHidden = false,
     // 2.0's own, appended the same way: 1.x had no way to hide the FILES row, and its reader skips
     // a member it does not know, so a workspace saved here still opens there, with the row shown.
-    bool FilesBarHidden = false);
+    bool FilesBarHidden = false,
+    // And the folder tree beside the list, which View > Directory Tree hides. Appended the same way,
+    // so a workspace saved before it opens with the tree shown, as every pane had it.
+    bool TreeHidden = false);
 
 public sealed class WorkspaceLayoutModel
 {

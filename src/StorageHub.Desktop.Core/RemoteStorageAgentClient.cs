@@ -34,9 +34,40 @@ public interface IRemoteStorageAgentClient : IAsyncDisposable
         ConnectionTestRequest request,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Tests a connection as it stands in the editor, step by step, saving nothing.</summary>
+    /// <remarks>Not every client can; one that cannot says so rather than testing something else.</remarks>
+    Task<ConnectionDraftTestResponse> TestDraftAsync(
+        ConnectionDraftTestRequest request,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("This storage client cannot test an unsaved connection.");
+
     Task<StorageListPageResponse> ListStorageAsync(
         StorageListPageRequest request,
         CancellationToken cancellationToken = default);
+
+    /// <summary>What a saved connection and its server look like now: never a secret.</summary>
+    /// <remarks>Not every client can; one that cannot says so.</remarks>
+    Task<ConnectionDetailsResponse> GetConnectionDetailsAsync(
+        ConnectionDetailsRequest request,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("This storage client cannot describe a connection.");
+
+    /// <summary>The free space behind a folder of a saved connection, where its server reports it.</summary>
+    /// <remarks>Not every client can; one that cannot says so, and the pane shows no figure.</remarks>
+    Task<StorageSpaceResponse> GetSpaceAsync(
+        StorageSpaceRequest request,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("This storage client cannot read free space.");
+
+    /// <summary>
+    /// The recent changes to the connections' links -- retrying, lost, back -- and each
+    /// connection's latest, for the activity log and the cards.
+    /// </summary>
+    /// <remarks>Not every client can; one that cannot says so, and nothing is shown.</remarks>
+    Task<ConnectionLinkEventsResponse> ListLinkEventsAsync(
+        ConnectionLinkEventsRequest request,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("This storage client cannot read connection link changes.");
 }
 
 /// <summary>
@@ -118,6 +149,123 @@ public sealed class NamedPipeRemoteStorageAgentClient : IRemoteStorageAgentClien
             StorageIpcMessageTypes.ConnectionTestResponse,
             request,
             response => ValidateConnectionTestResponse(request, response),
+            cancellationToken);
+    }
+
+    public Task<ConnectionDraftTestResponse> TestDraftAsync(
+        ConnectionDraftTestRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (!StorageIpcContract.IsSupported(request.ContractVersion) || !request.HasValidBounds)
+        {
+            throw new ArgumentException(Ui.Validation.TheConnectionTestRequestIsOutsideThe, nameof(request));
+        }
+
+        // A listing's budget: the test lists the starting folder after it connects, and a jump
+        // host or a slow server can take most of a status call's 15 seconds to answer at all.
+        return ExecuteAsync<ConnectionDraftTestRequest, ConnectionDraftTestResponse>(
+            StorageIpcMessageTypes.ConnectionDraftTestRequest,
+            StorageIpcMessageTypes.ConnectionDraftTestResponse,
+            request,
+            response => ValidateConnectionDraftTestResponse(request, response),
+            cancellationToken,
+            _listingTimeout);
+    }
+
+    public Task<ConnectionDetailsResponse> GetConnectionDetailsAsync(
+        ConnectionDetailsRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (!StorageIpcContract.IsSupported(request.ContractVersion) || !request.HasValidBounds)
+        {
+            throw new ArgumentException(Ui.Validation.TheConnectionTestRequestIsOutsideThe, nameof(request));
+        }
+
+        // A listing's budget: describing a connection opens it, and a server can ask for its
+        // details over a session of its own.
+        return ExecuteAsync<ConnectionDetailsRequest, ConnectionDetailsResponse>(
+            StorageIpcMessageTypes.ConnectionDetailsRequest,
+            StorageIpcMessageTypes.ConnectionDetailsResponse,
+            request,
+            response =>
+            {
+                ValidateContract(response.ContractVersion);
+                if (response.ContractVersion != request.ContractVersion ||
+                    response.ConnectionId != request.ConnectionId ||
+                    !IsValidFailure(response.Failure) ||
+                    (response.Details is null) == (response.Failure is null) ||
+                    response.Details is { HasValidBounds: false })
+                {
+                    throw InvalidResponse();
+                }
+            },
+            cancellationToken,
+            _listingTimeout);
+    }
+
+    public Task<StorageSpaceResponse> GetSpaceAsync(
+        StorageSpaceRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (!StorageIpcContract.IsSupported(request.ContractVersion) || !request.HasValidBounds)
+        {
+            throw new ArgumentException(Ui.Validation.TheStorageListRequestIsOutsideThe, nameof(request));
+        }
+
+        // A status call's budget, not a listing's: the figure is a nicety in the status line, and
+        // a server slow to give it should not hold the pane's pipe for a navigation behind it.
+        return ExecuteAsync<StorageSpaceRequest, StorageSpaceResponse>(
+            StorageIpcMessageTypes.StorageSpaceRequest,
+            StorageIpcMessageTypes.StorageSpaceResponse,
+            request,
+            response =>
+            {
+                ValidateContract(response.ContractVersion);
+                if (response.ContractVersion != request.ContractVersion ||
+                    response.ConnectionId != request.ConnectionId ||
+                    !IsValidFailure(response.Failure) ||
+                    (response.Space is null) == (response.Failure is null) ||
+                    response.Space is { HasValidBounds: false })
+                {
+                    throw InvalidResponse();
+                }
+            },
+            cancellationToken);
+    }
+
+    public Task<ConnectionLinkEventsResponse> ListLinkEventsAsync(
+        ConnectionLinkEventsRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (!StorageIpcContract.IsSupported(request.ContractVersion) || !request.HasValidBounds)
+        {
+            throw new ArgumentException(Ui.Validation.TheConnectionListRequestIsOutsideThe, nameof(request));
+        }
+
+        return ExecuteAsync<ConnectionLinkEventsRequest, ConnectionLinkEventsResponse>(
+            StorageIpcMessageTypes.ConnectionLinkEventsRequest,
+            StorageIpcMessageTypes.ConnectionLinkEventsResponse,
+            request,
+            response =>
+            {
+                ValidateContract(response.ContractVersion);
+                if (response.ContractVersion != request.ContractVersion ||
+                    response.Events is null ||
+                    response.Latest is null ||
+                    response.Events.Length > request.Limit ||
+                    response.Latest.Length > ConnectionLinkLimits.MaximumLatest ||
+                    !IsValidFailure(response.Failure) ||
+                    response.Failure is not null && (response.Events.Length != 0 || response.Latest.Length != 0) ||
+                    response.Events.Concat(response.Latest).Any(static change => change is not { HasValidBounds: true }) ||
+                    response.Latest.Select(static change => change.ConnectionId).Distinct().Count() != response.Latest.Length)
+                {
+                    throw InvalidResponse();
+                }
+            },
             cancellationToken);
     }
 
@@ -317,6 +465,26 @@ public sealed class NamedPipeRemoteStorageAgentClient : IRemoteStorageAgentClien
             response.ElapsedMilliseconds < 0 ||
             !IsValidFailure(response.Failure) ||
             response.Succeeded == (response.Failure is not null))
+        {
+            throw InvalidResponse();
+        }
+    }
+
+    private static void ValidateConnectionDraftTestResponse(
+        ConnectionDraftTestRequest request,
+        ConnectionDraftTestResponse response)
+    {
+        ValidateContract(response.ContractVersion);
+        if (response.ContractVersion != request.ContractVersion ||
+            response.ElapsedMilliseconds < 0 ||
+            !IsValidFailure(response.Failure) ||
+            response.Succeeded == (response.Failure is not null) ||
+            response.Steps is null ||
+            response.Steps.Length > 16 ||
+            response.Steps.Any(static step => step is null ||
+                !Enum.IsDefined(step.Kind) ||
+                !Enum.IsDefined(step.Outcome) ||
+                !IsValidFailure(step.Failure)))
         {
             throw InvalidResponse();
         }

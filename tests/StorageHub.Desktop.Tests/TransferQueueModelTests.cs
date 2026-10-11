@@ -439,6 +439,84 @@ public class TransferQueueModelTests
         throw new ArgumentOutOfRangeException(nameof(key), key, "No such tab.");
     }
 
+    /// <summary>
+    /// The Transfer menu acts on the whole queue, whichever tab shows: Pause all pauses what runs
+    /// and waits, Resume all retries what is paused, and Start queue retries everything stopped
+    /// that can be. Each is lit only while there is something for it, by the agent's counts.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task TheTransferMenuPausesResumesAndStartsTheWholeQueue()
+    {
+        var agent = new FakeQueueAgent();
+        var running = Summary(TransferQueueState.Transferring);
+        var waiting = Summary(TransferQueueState.Pending);
+        var paused = Summary(TransferQueueState.Paused, canRetry: true);
+        var failed = Summary(TransferQueueState.Failed, canRetry: true);
+        var done = Summary(TransferQueueState.Completed);
+        agent.Transfers.AddRange([running, waiting, paused, failed, done]);
+        await using var queue = new TransferQueueModel(() => agent);
+        var shell = new ShellPreviewModel(new ShellCommandRouter()) { Queue = queue };
+        shell.RouteTransferCommands();
+
+        // Nothing read yet, so nothing to act on.
+        Assert.False(shell.Router.CanRun(UiCommandIds.TransferPauseAll));
+        Assert.False(shell.Router.CanRun(UiCommandIds.TransferCancelSelected));
+
+        agent.Counts = new Dictionary<TransferQueueState, int>
+        {
+            [TransferQueueState.Transferring] = 1,
+            [TransferQueueState.Pending] = 1,
+            [TransferQueueState.Paused] = 1,
+            [TransferQueueState.Failed] = 1,
+            [TransferQueueState.Completed] = 1,
+        };
+        await queue.RefreshAsync();
+        Assert.True(shell.Router.CanRun(UiCommandIds.TransferPauseAll));
+        Assert.True(shell.Router.CanRun(UiCommandIds.TransferResumeAll));
+        Assert.True(shell.Router.CanRun(UiCommandIds.TransferStartQueue));
+
+        shell.Router.For(UiCommandIds.TransferPauseAll).Execute(null);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(new[] { running.TransferId, waiting.TransferId }.Order(), agent.Paused.Order());
+        Assert.Equal(Ui.Format(Ui.Transfer.PausedTransfersFormat, 2), queue.Message);
+
+        await queue.ResumeAllAsync();
+        Assert.Equal([paused.TransferId], agent.Retried);
+
+        agent.Retried.Clear();
+        await queue.StartQueueAsync();
+        Assert.Equal(new[] { paused.TransferId, failed.TransferId }.Order(), agent.Retried.Order());
+
+        // And when there is nothing, it says so rather than nothing.
+        agent.Transfers.Clear();
+        agent.Counts = new Dictionary<TransferQueueState, int>();
+        await queue.RefreshAsync();
+        Assert.False(shell.Router.CanRun(UiCommandIds.TransferResumeAll));
+        await queue.ResumeAllAsync();
+        Assert.Equal(Ui.Transfer.NothingToResume, queue.Message);
+    }
+
+    /// <summary>Cancel selected is the queue's own Cancel, on the rows chosen in it.</summary>
+    [AvaloniaFact]
+    public async Task CancelSelectedCancelsTheChosenRows()
+    {
+        var agent = new FakeQueueAgent();
+        var chosen = Summary(TransferQueueState.Transferring, revision: 7);
+        agent.Transfers.AddRange([chosen, Summary(TransferQueueState.Transferring)]);
+        await using var queue = new TransferQueueModel(() => agent);
+        var shell = new ShellPreviewModel(new ShellCommandRouter()) { Queue = queue };
+        shell.RouteTransferCommands();
+        await queue.RefreshAsync();
+        Assert.False(shell.Router.CanRun(UiCommandIds.TransferCancelSelected));
+
+        queue.SelectedRows.Add(queue.Rows.Single(row => row.Id == chosen.TransferId));
+        Assert.True(shell.Router.CanRun(UiCommandIds.TransferCancelSelected));
+        shell.Router.For(UiCommandIds.TransferCancelSelected).Execute(null);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal([(chosen.TransferId, 7L)], agent.Cancelled);
+    }
+
     /// <summary>Runs what input and a poll queued, and lays the window out again.</summary>
     private static void Settle(Window window)
     {
@@ -451,7 +529,8 @@ public class TransferQueueModelTests
         long? expected = 1000,
         long progress = 0,
         long revision = 1,
-        bool needsReconciliation = false) =>
+        bool needsReconciliation = false,
+        bool canRetry = false) =>
         new(
             Guid.NewGuid(),
             TransferQueueOperation.Copy,
@@ -470,7 +549,7 @@ public class TransferQueueModelTests
             ErrorCode: null,
             ErrorSummary: null,
             CanCancel: true,
-            CanRetry: false,
+            CanRetry: canRetry,
             needsReconciliation);
 
     /// <summary>A queue client that answers from memory and records what it was asked.</summary>
@@ -491,6 +570,21 @@ public class TransferQueueModelTests
         internal List<(Guid Id, long Revision)> Cancelled { get; } = [];
 
         internal List<TransferHistoryClearRequest> Cleared { get; } = [];
+
+        internal List<Guid> Paused { get; } = [];
+
+        internal List<Guid> Retried { get; } = [];
+
+        public Task<TransferMutationResponse> PauseAsync(
+            TransferPauseRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            Paused.Add(request.TransferId);
+            return Task.FromResult(new TransferMutationResponse(
+                TransferQueueIpcContract.CurrentVersion,
+                request.TransferId,
+                TransferQueueMutationOutcome.Accepted));
+        }
 
         public Task<TransferListResponse> ListAsync(
             TransferListRequest request,
@@ -536,11 +630,14 @@ public class TransferQueueModelTests
 
         public Task<TransferMutationResponse> RetryAsync(
             TransferRetryRequest request,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new TransferMutationResponse(
+            CancellationToken cancellationToken = default)
+        {
+            Retried.Add(request.TransferId);
+            return Task.FromResult(new TransferMutationResponse(
                 TransferQueueIpcContract.CurrentVersion,
                 request.TransferId,
                 TransferQueueMutationOutcome.Applied));
+        }
 
         public Task<TransferEnqueueResponse> EnqueueAsync(
             TransferEnqueueRequest request,

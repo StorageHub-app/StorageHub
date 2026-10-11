@@ -109,8 +109,7 @@ public sealed partial class LocalizationModelTests
     /// is shown, which is typically a rare error path. Catch it here instead.
     /// </summary>
     [Theory]
-    [InlineData("da-DK")]
-    [InlineData("de-DE")]
+    [MemberData(nameof(ShippedTranslationProvider.TranslatedCultures), MemberType = typeof(ShippedTranslationProvider))]
     public void ShippedTranslationsUseTheSamePlaceholdersAsEnglish(string culture)
     {
         foreach (var model in Models)
@@ -140,8 +139,7 @@ public sealed partial class LocalizationModelTests
     /// absent key: it produces a blank menu entry rather than an English one.
     /// </summary>
     [Theory]
-    [InlineData("da-DK")]
-    [InlineData("de-DE")]
+    [MemberData(nameof(ShippedTranslationProvider.TranslatedCultures), MemberType = typeof(ShippedTranslationProvider))]
     public void ShippedTranslationsContainNoEmptyValues(string culture)
     {
         foreach (var model in Models)
@@ -156,8 +154,7 @@ public sealed partial class LocalizationModelTests
     }
 
     [Theory]
-    [InlineData("da-DK")]
-    [InlineData("de-DE")]
+    [MemberData(nameof(ShippedTranslationProvider.TranslatedCultures), MemberType = typeof(ShippedTranslationProvider))]
     public void ShippedTranslationsDeclareTheirOwnCulture(string culture)
     {
         foreach (var model in Models)
@@ -179,8 +176,7 @@ public sealed partial class LocalizationModelTests
     /// The failure message names the keys, so the fix is to add them to the file it names.
     /// </remarks>
     [Theory]
-    [InlineData("da-DK")]
-    [InlineData("de-DE")]
+    [MemberData(nameof(ShippedTranslationProvider.TranslatedCultures), MemberType = typeof(ShippedTranslationProvider))]
     public void ShippedTranslationsCoverEveryString(string culture)
     {
         foreach (var model in Models)
@@ -200,8 +196,7 @@ public sealed partial class LocalizationModelTests
 
     /// <summary>Every key in a shipped file must still exist on the model it translates.</summary>
     [Theory]
-    [InlineData("da-DK")]
-    [InlineData("de-DE")]
+    [MemberData(nameof(ShippedTranslationProvider.TranslatedCultures), MemberType = typeof(ShippedTranslationProvider))]
     public void ShippedTranslationsHaveNoKeysTheModelDropped(string culture)
     {
         foreach (var model in Models)
