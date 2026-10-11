@@ -145,6 +145,30 @@ public sealed class ObjectInspectorController : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// The file's SHA-256, the server's own when <paramref name="preferServer"/> and it keeps one,
+    /// otherwise read and computed by the agent. Not part of a refresh, because it can read the file.
+    /// </summary>
+    public async Task<ObjectChecksumGetResponse> GetChecksumAsync(
+        bool preferServer,
+        CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        await _operationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            return await _client.GetChecksumAsync(new ObjectChecksumGetRequest(
+                ObjectInspectorIpcContract.CurrentVersion,
+                State.Address,
+                preferServer), cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _operationGate.Release();
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (_disposed)

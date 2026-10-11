@@ -497,8 +497,12 @@ public sealed class CodeLogicStorageEndpointSession :
             return StorageResult<PortableChecksumResult>.Fail(addressValidation);
         }
 
+        // The byte limit bounds reading, so a file over it can still be answered by its server.
         var requestValidation = request.Validate();
-        if (requestValidation.IsFailure)
+        var mayAskServer = request.AcceptServerDigest &&
+            request.ExpectedEntry is { Kind: StorageEntryKind.File, Size: not null } &&
+            request.ExpectedEntry.Address.VersionId is null;
+        if (requestValidation.IsFailure && !mayAskServer)
         {
             return StorageResult<PortableChecksumResult>.Fail(requestValidation.Error);
         }
@@ -525,6 +529,21 @@ public sealed class CodeLogicStorageEndpointSession :
             }
 
             var expectedLength = request.ExpectedEntry.Size!.Value;
+            if (mayAskServer)
+            {
+                var reported = await ServerDigestAsync(request.ExpectedEntry, before.Value, cancellationToken)
+                    .ConfigureAwait(false);
+                if (reported is not null)
+                {
+                    return reported;
+                }
+            }
+
+            if (requestValidation.IsFailure)
+            {
+                return StorageResult<PortableChecksumResult>.Fail(requestValidation.Error);
+            }
+
             var checksum = await _storage.ComputeChecksumAsync(
                 request.ExpectedEntry.Address.CanonicalRelativePath,
                 StorageChecksumAlgorithm.Sha256,
@@ -597,6 +616,53 @@ public sealed class CodeLogicStorageEndpointSession :
             return StorageResult<PortableChecksumResult>.Fail(
                 CodeLogicStorageMapper.Unexpected("portable checksum"));
         }
+    }
+
+    /// <summary>
+    /// The SHA-256 the server keeps for the whole file, when it reports one for the file as it was
+    /// observed; null to fall back to reading the bytes. Any refusal, an S3 composite checksum of a
+    /// multipart upload, or a file that changed meanwhile all fall back rather than fail.
+    /// </summary>
+    private async ValueTask<StorageResult<PortableChecksumResult>?> ServerDigestAsync(
+        StorageEntry expected,
+        StorageEntry before,
+        CancellationToken cancellationToken)
+    {
+        var reported = await _storage.ComputeChecksumAsync(
+            expected.Address.CanonicalRelativePath,
+            StorageChecksumAlgorithm.Sha256,
+            options: null,
+            progress: null,
+            mode: StorageChecksumMode.ServerOnly,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+        if (reported.IsFailure || reported.Value is not { Algorithm: StorageChecksumAlgorithm.Sha256 } value)
+        {
+            return null;
+        }
+
+        PortableContentDigest digest;
+        try
+        {
+            digest = new PortableContentDigest(PortableChecksumAlgorithm.Sha256, value.HexValue);
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
+
+        var after = await GetEntryAsync(expected.Address, cancellationToken).ConfigureAwait(false);
+        if (after.IsFailure)
+        {
+            return StorageResult<PortableChecksumResult>.Fail(after.Error);
+        }
+
+        if (!MatchesChecksumObservation(expected, after.Value) || !MatchesChecksumObservation(before, after.Value))
+        {
+            return ChecksumChanged();
+        }
+
+        return StorageResult<PortableChecksumResult>.Success(
+            new PortableChecksumResult(digest, expected.Size!.Value, PortableChecksumSource.Server));
     }
 
     public async ValueTask<StorageResult<StorageObjectVersionPage>> ListObjectVersionsAsync(

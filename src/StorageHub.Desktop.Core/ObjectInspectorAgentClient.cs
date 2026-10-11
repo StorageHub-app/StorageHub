@@ -11,6 +11,13 @@ public sealed record ObjectInspectorAgentClientOptions
     public IpcEndpoint Endpoint { get; init; } = AgentStatusMonitor.DefaultEndpoint;
     public TimeSpan ConnectTimeout { get; init; } = TimeSpan.FromSeconds(2);
     public TimeSpan RequestTimeout { get; init; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// How long a checksum may take, which can read a file of up to
+    /// <see cref="ObjectInspectorIpcLimits.MaximumComputedChecksumBytes"/>; inside the agent's own
+    /// two-minute limit on a request.
+    /// </summary>
+    public TimeSpan ChecksumTimeout { get; init; } = TimeSpan.FromSeconds(110);
 }
 
 public interface IObjectInspectorAgentClient : IAsyncDisposable
@@ -26,6 +33,11 @@ public interface IObjectInspectorAgentClient : IAsyncDisposable
     Task<ObjectTagsGetResponse> GetTagsAsync(
         ObjectTagsGetRequest request,
         CancellationToken cancellationToken = default);
+
+    Task<ObjectChecksumGetResponse> GetChecksumAsync(
+        ObjectChecksumGetRequest request,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException();
 
     Task<EditableFileDownloadResponse> DownloadEditableFileAsync(
         EditableFileDownloadRequest request,
@@ -71,6 +83,7 @@ public sealed class NamedPipeObjectInspectorAgentClient : IObjectInspectorAgentC
 {
     private readonly IStorageIpcTransport _transport;
     private readonly TimeSpan _requestTimeout;
+    private readonly TimeSpan _checksumTimeout;
     private readonly SemaphoreSlim _requestGate = new(1, 1);
     private long _sendSequence;
     private bool _disposed;
@@ -90,6 +103,7 @@ public sealed class NamedPipeObjectInspectorAgentClient : IObjectInspectorAgentC
         var effective = options ?? new ObjectInspectorAgentClientOptions();
         ValidateOptions(effective);
         _requestTimeout = effective.RequestTimeout;
+        _checksumTimeout = effective.ChecksumTimeout;
     }
 
     public Task<ObjectVersionListResponse> ListVersionsAsync(
@@ -129,6 +143,20 @@ public sealed class NamedPipeObjectInspectorAgentClient : IObjectInspectorAgentC
             request!,
             response => ValidateTagsResponse(request!, response),
             cancellationToken);
+    }
+
+    public Task<ObjectChecksumGetResponse> GetChecksumAsync(
+        ObjectChecksumGetRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateRequest(request, request?.HasValidBounds == true, nameof(request));
+        return ExecuteAsync<ObjectChecksumGetRequest, ObjectChecksumGetResponse>(
+            ObjectInspectorIpcMessageTypes.ChecksumGetRequest,
+            ObjectInspectorIpcMessageTypes.ChecksumGetResponse,
+            request!,
+            response => ValidateChecksumResponse(request!, response),
+            cancellationToken,
+            _checksumTimeout);
     }
 
     public Task<EditableFileDownloadResponse> DownloadEditableFileAsync(
@@ -246,13 +274,14 @@ public sealed class NamedPipeObjectInspectorAgentClient : IObjectInspectorAgentC
         string responseMessageType,
         TRequest request,
         Action<TResponse> validateResponse,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        TimeSpan? timeout = null)
         where TRequest : class
         where TResponse : class
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        deadline.CancelAfter(_requestTimeout);
+        deadline.CancelAfter(timeout ?? _requestTimeout);
         try
         {
             await _requestGate.WaitAsync(deadline.Token).ConfigureAwait(false);
@@ -402,6 +431,21 @@ public sealed class NamedPipeObjectInspectorAgentClient : IObjectInspectorAgentC
             !response.HasValidTagBounds ||
             !IsValidFailure(response.Failure) ||
             response.Failure is not null && response.Tags.Length != 0)
+        {
+            throw InvalidResponse();
+        }
+    }
+
+    private static void ValidateChecksumResponse(
+        ObjectChecksumGetRequest request,
+        ObjectChecksumGetResponse response)
+    {
+        if (response.ContractVersion != request.ContractVersion ||
+            !ObjectInspectorIpcContract.IsSupported(response.ContractVersion) ||
+            response.Address != request.Address ||
+            !response.HasValidResultBounds ||
+            !IsValidFailure(response.Failure) ||
+            !request.PreferServer && response.Failure is null && response.Source == ObjectChecksumSource.Server)
         {
             throw InvalidResponse();
         }
@@ -580,6 +624,11 @@ public sealed class NamedPipeObjectInspectorAgentClient : IObjectInspectorAgentC
             throw new ArgumentOutOfRangeException(
                 nameof(options),
                 Ui.Validation.TheRequestTimeoutMustBeAtMost);
+        }
+
+        if (options.ChecksumTimeout <= TimeSpan.Zero || options.ChecksumTimeout > TimeSpan.FromMinutes(2))
+        {
+            throw new ArgumentOutOfRangeException(nameof(options));
         }
     }
 

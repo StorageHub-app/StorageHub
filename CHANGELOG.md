@@ -113,6 +113,15 @@ server's system and software, the host key or certificate it presented and
 whether it is trusted, the cipher and key exchange negotiated, the server's
 features, how many sessions are open and the last health check.
 
+**Checksums the server already keeps.** The object inspector has a Checksum
+tab: Get checksum shows the file's SHA-256 and says whether the server reported
+it (S3, FTP, Azure, Google Cloud Storage and Swift can, without the file being
+downloaded) or it was computed from the bytes read, up to 256 MB. Compute from
+the file reads it to check what the server says. Sync scans take a server's
+SHA-256 instead of reading the file when it has one. A verified copy still
+reads back what it wrote, because a server's checksum is its word for the bytes
+rather than a check of them.
+
 **A file already at the destination is a choice.** A copy or a move that meets
 one asks once, at the first, what to do with it and with the rest: overwrite,
 skip, overwrite if the source is newer or if the sizes differ, keep both by

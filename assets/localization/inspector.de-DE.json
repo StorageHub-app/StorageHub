@@ -54,5 +54,15 @@
   "yes": "Ja",
   "no": "Nein",
   "notReported": "—",
+  "tabChecksum": "Prüfsumme",
+  "checksumNotLoaded": "Fordern Sie den SHA-256 der Datei an. Die eigene Prüfsumme des Servers wird verwendet, wenn er eine führt; sonst werden bis zu 256 MB der Datei gelesen, um sie zu berechnen.",
+  "getChecksum": "Prüfsumme abrufen",
+  "computeChecksum": "Aus der Datei berechnen",
+  "computeChecksumHint": "Liest die Datei und berechnet ihren SHA-256 hier, um zu prüfen, was der Server meldet.",
+  "gettingChecksum": "Prüfsumme wird abgerufen...",
+  "checksumAlgorithm": "SHA-256",
+  "checksumFromServerFormat": "Vom Server für die ganze Datei gemeldet ({0:N0} Byte); nichts wurde heruntergeladen. Es ist die Angabe des Servers zu den Bytes, keine Prüfung.",
+  "checksumComputedFormat": "Hier aus den {0:N0} gelesenen Bytes berechnet.",
+  "objectChecksum": "Prüfsumme des Objekts",
   "culture": "de-DE"
 }

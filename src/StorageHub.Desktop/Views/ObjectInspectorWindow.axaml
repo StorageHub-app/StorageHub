@@ -96,6 +96,24 @@
             </TableView>
           </DockPanel>
         </TabItem>
+        <TabItem Header="{Binding ChecksumTabLabel}">
+          <StackPanel Spacing="{StaticResource SpaceSm}" Margin="0,8,0,0">
+            <TextBlock Classes="status"
+                       Classes.success="{Binding ChecksumNotice.IsSuccess}"
+                       Classes.warning="{Binding ChecksumNotice.IsWarning}"
+                       Text="{Binding ChecksumNotice.Text}" TextWrapping="Wrap"/>
+            <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceSm}" IsVisible="{Binding HasChecksum}">
+              <TextBlock Classes="muted" Text="{Binding ChecksumAlgorithmLabel}" VerticalAlignment="Center"/>
+              <SelectableTextBlock FontFamily="{DynamicResource AppFontMono}" Text="{Binding Checksum}"
+                                   AutomationProperties.Name="{Binding ChecksumAccessibleName}"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceSm}">
+              <Button Content="{Binding GetChecksumLabel}" Command="{Binding GetChecksumCommand}"/>
+              <Button Content="{Binding ComputeChecksumLabel}" Command="{Binding ComputeChecksumCommand}"
+                      ToolTip.Tip="{Binding ComputeChecksumHint}"/>
+            </StackPanel>
+          </StackPanel>
+        </TabItem>
       </TabControl>
     </DockPanel>
   </Border>

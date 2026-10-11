@@ -643,8 +643,16 @@ The profile already stores these; `CodeLogicConnectionProfileConnector.BuildAsyn
       offset and the partial's name. Left open: S3 uploads (no append in CL.Storage), a source with
       only a size, appending to a foreign partial the way FileZilla does, and partials left by a
       job that is cancelled while it is not running, which go with 4.6.
-- [ ] 1.8 Server checksums (`PreferServer`): verify without re-downloading; the inspector shows where a
-      checksum came from; the sync scanner uses them.
+- [x] 1.8 Server checksums (`PreferServer`): the inspector shows where a checksum came from; the sync
+      scanner uses them. By decision a verified copy still re-reads what it wrote: a server's digest
+      is its word for the bytes, so it may compare and show but never prove a copy. A
+      `PortableChecksumRequest` with `AcceptServerDigest` asks the server for a whole-file SHA-256
+      first (S3, FTP `HASH`, Azure, GCS, Swift) and reads the file when it has none, when it reports
+      something that is not a SHA-256 (an S3 multipart composite), or for an exact version; the
+      result says which (`PortableChecksumSource`). Sync scans accept them by default
+      (`SyncSnapshotScanOptions.AcceptServerDigests`); the transfer executor never asks. The
+      inspector has a Checksum tab: Get checksum (the server's first, else up to 256 MB read) and
+      Compute from the file, each saying where the digest came from.
 - [ ] 1.9 Certificate pins for S3.
 - [x] 1.10 SSH keys without a passphrase: 1.4 refused them, and 2.0 accepts them by decision. The
       profile, the key store (schema v15 drops its check), IPC, the agent, the editor and the SSH

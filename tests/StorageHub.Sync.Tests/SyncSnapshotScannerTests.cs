@@ -235,4 +235,37 @@ public sealed class SyncSnapshotScannerTests
         Assert.Equal("sync.scan.portable_hash_limit_exceeded", result.Error.Code);
         Assert.Equal(0, calls);
     }
+
+    [Fact]
+    public async Task Scan_accepts_a_digest_the_server_keeps_unless_told_not_to()
+    {
+        var profileId = ConnectionProfileId.New();
+        const string rootIdentity = "fake-root";
+        var asked = new List<bool>();
+        await using var session = new FakeEndpointSession(
+            profileId,
+            rootIdentity,
+            [SyncTestEntries.File(profileId, rootIdentity, "a.bin", 3)],
+            checksumHandler: (request, _) =>
+            {
+                lock (asked) asked.Add(request.AcceptServerDigest);
+                return ValueTask.FromResult(StorageResult<PortableChecksumResult>.Success(new PortableChecksumResult(
+                    new PortableContentDigest(PortableChecksumAlgorithm.Sha256, new string('a', 64)),
+                    3,
+                    PortableChecksumSource.Server)));
+            });
+        var root = SyncTestEntries.Address(profileId, rootIdentity, string.Empty);
+
+        var preferred = await SyncSnapshotScanner.ScanAsync(
+            session, root, new SyncSnapshotScanOptions(portableHashMode: SyncPortableHashMode.AllFiles));
+        var computed = await SyncSnapshotScanner.ScanAsync(
+            session,
+            root,
+            new SyncSnapshotScanOptions(portableHashMode: SyncPortableHashMode.AllFiles, acceptServerDigests: false));
+
+        Assert.True(preferred.IsSuccess);
+        Assert.True(computed.IsSuccess);
+        Assert.Equal(new string('a', 64), preferred.Value.PortableDigests["a.bin"].Value);
+        Assert.Equal([true, false], asked);
+    }
 }

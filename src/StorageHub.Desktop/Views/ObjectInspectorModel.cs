@@ -43,6 +43,8 @@ internal sealed class ObjectInspectorModel : INotifyPropertyChanged, IAsyncDispo
     private StatusLine _versionsNotice = StatusLine.Muted(Ui.Inspector.VersionHistoryHasNotBeenLoaded);
     private StatusLine _metadataNotice = StatusLine.Muted(Ui.Inspector.MetadataHasNotBeenLoaded);
     private StatusLine _tagsNotice = StatusLine.Muted(Ui.Inspector.TagsHaveNotBeenLoaded);
+    private StatusLine _checksumNotice = StatusLine.Muted(Ui.Inspector.ChecksumNotLoaded);
+    private string _checksum = string.Empty;
     private bool _canLoadMore;
     private bool _isBusy;
     private int _selectedTab;
@@ -55,6 +57,8 @@ internal sealed class ObjectInspectorModel : INotifyPropertyChanged, IAsyncDispo
         RefreshCommand = new RelayCommand(_ => _ = LoadAsync(), _ => !IsBusy);
         LoadMoreCommand = new RelayCommand(_ => _ = LoadMoreAsync(), _ => !IsBusy && CanLoadMore);
         CloseCommand = new RelayCommand(_ => Closed?.Invoke(this, EventArgs.Empty));
+        GetChecksumCommand = new RelayCommand(_ => _ = GetChecksumAsync(preferServer: true), _ => !IsBusy);
+        ComputeChecksumCommand = new RelayCommand(_ => _ = GetChecksumAsync(preferServer: false), _ => !IsBusy);
         Show(controller.State);
     }
 
@@ -106,6 +110,25 @@ internal sealed class ObjectInspectorModel : INotifyPropertyChanged, IAsyncDispo
         private set => Set(ref _tagsNotice, value);
     }
 
+    /// <summary>Where the checksum came from, or why there is none.</summary>
+    public StatusLine ChecksumNotice
+    {
+        get => _checksumNotice;
+        private set => Set(ref _checksumNotice, value);
+    }
+
+    /// <summary>The SHA-256 in lowercase hex, empty until one has been fetched.</summary>
+    public string Checksum
+    {
+        get => _checksum;
+        private set
+        {
+            if (Set(ref _checksum, value)) Raise(nameof(HasChecksum));
+        }
+    }
+
+    public bool HasChecksum => Checksum.Length != 0;
+
     public StatusLine Status
     {
         get => _status;
@@ -130,10 +153,12 @@ internal sealed class ObjectInspectorModel : INotifyPropertyChanged, IAsyncDispo
             if (!Set(ref _isBusy, value)) return;
             (RefreshCommand as RelayCommand)?.RaiseCanExecuteChanged();
             (LoadMoreCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (GetChecksumCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (ComputeChecksumCommand as RelayCommand)?.RaiseCanExecuteChanged();
         }
     }
 
-    /// <summary>Which section is showing: versions, metadata or tags, in that order.</summary>
+    /// <summary>Which section is showing: versions, metadata, tags or checksum, in that order.</summary>
     public int SelectedTab
     {
         get => _selectedTab;
@@ -145,6 +170,10 @@ internal sealed class ObjectInspectorModel : INotifyPropertyChanged, IAsyncDispo
     public ICommand LoadMoreCommand { get; }
 
     public ICommand CloseCommand { get; }
+
+    public ICommand GetChecksumCommand { get; }
+
+    public ICommand ComputeChecksumCommand { get; }
 
     /// <summary>Raised when the window should close.</summary>
     internal event EventHandler? Closed;
@@ -190,6 +219,48 @@ internal sealed class ObjectInspectorModel : INotifyPropertyChanged, IAsyncDispo
         catch (Exception error) when (IsExpected(error))
         {
             ShowFailure(error);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    /// <summary>
+    /// Asks for the file's SHA-256: the server's own first when <paramref name="preferServer"/>,
+    /// otherwise read and computed, and says which it is.
+    /// </summary>
+    internal async Task GetChecksumAsync(bool preferServer, CancellationToken cancellationToken = default)
+    {
+        if (IsBusy) return;
+        IsBusy = true;
+        try
+        {
+            Checksum = string.Empty;
+            ChecksumNotice = StatusLine.Muted(Ui.Inspector.GettingChecksum);
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
+            var response = await _controller.GetChecksumAsync(preferServer, linked.Token).ConfigureAwait(true);
+            if (response.Failure is { } failure)
+            {
+                ChecksumNotice = new StatusLine(failure.Message, MetricTone.Warning);
+                return;
+            }
+
+            Checksum = response.Value ?? string.Empty;
+            ChecksumNotice = response.Source == ObjectChecksumSource.Server
+                ? StatusLine.Muted(Ui.Format(Ui.Inspector.ChecksumFromServerFormat, response.BytesCovered))
+                : new StatusLine(Ui.Format(Ui.Inspector.ChecksumComputedFormat, response.BytesCovered), MetricTone.Success);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested || _lifetime.IsCancellationRequested)
+        {
+        }
+        catch (Exception error) when (IsExpected(error) || error is NotSupportedException)
+        {
+            ChecksumNotice = new StatusLine(
+                error is TimeoutException
+                    ? Ui.Inspector.TheObjectInspectorRequestTimedOut
+                    : Ui.Inspector.TheObjectInspectorCouldNotLoadDetails,
+                MetricTone.Warning);
         }
         finally
         {
@@ -304,6 +375,18 @@ internal sealed class ObjectInspectorModel : INotifyPropertyChanged, IAsyncDispo
     public static string LoadMoreLabel => Ui.Inspector.LoadMoreVersions2;
 
     public static string CloseLabel => Ui.Inspector.Close;
+
+    public static string ChecksumTabLabel => Ui.Inspector.TabChecksum;
+
+    public static string ChecksumAlgorithmLabel => Ui.Inspector.ChecksumAlgorithm;
+
+    public static string GetChecksumLabel => Ui.Inspector.GetChecksum;
+
+    public static string ComputeChecksumLabel => Ui.Inspector.ComputeChecksum;
+
+    public static string ComputeChecksumHint => Ui.Inspector.ComputeChecksumHint;
+
+    public static string ChecksumAccessibleName => Ui.Inspector.ObjectChecksum;
 
     public static string ColumnCurrent => Ui.Inspector.Current;
 

@@ -209,6 +209,48 @@ public class ObjectInspectorTests
         Assert.False(pane.PropertiesCommand.CanExecute(null));
     }
 
+    /// <summary>
+    /// The checksum tab says whether the server reported the digest or it was read and computed,
+    /// and Compute from the file never takes the server's word.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task TheChecksumSaysWhereItCameFrom()
+    {
+        var agent = new ScriptedInspector { ServerChecksum = new string('a', 64), ComputedChecksum = new string('b', 64) };
+        await using var model = new ObjectInspectorModel(new ObjectInspectorController(agent, Address));
+        Assert.False(model.HasChecksum);
+
+        await model.GetChecksumAsync(preferServer: true, TestContext.Current.CancellationToken);
+        Assert.Equal(new string('a', 64), model.Checksum);
+        Assert.Equal(Ui.Format(Ui.Inspector.ChecksumFromServerFormat, 4096L), model.ChecksumNotice.Text);
+        Assert.False(model.ChecksumNotice.IsSuccess);
+
+        model.ComputeChecksumCommand.Execute(null);
+        await agent.LastChecksum!;
+        Assert.Equal(new string('b', 64), model.Checksum);
+        Assert.Equal(Ui.Format(Ui.Inspector.ChecksumComputedFormat, 4096L), model.ChecksumNotice.Text);
+        Assert.True(model.ChecksumNotice.IsSuccess);
+        Assert.Equal([true, false], agent.ChecksumAsks);
+    }
+
+    /// <summary>A file the server has no digest for and that is too large to read says so.</summary>
+    [AvaloniaFact]
+    public async Task AChecksumThatCannotBeHadSaysWhy()
+    {
+        var agent = new ScriptedInspector
+        {
+            ChecksumFailure = new StorageIpcFailure(
+                "storage.inspector.checksum_too_large", StorageIpcFailureCategory.Validation, "Too large to read.", false)
+        };
+        await using var model = new ObjectInspectorModel(new ObjectInspectorController(agent, Address));
+
+        await model.GetChecksumAsync(preferServer: true, TestContext.Current.CancellationToken);
+
+        Assert.False(model.HasChecksum);
+        Assert.Equal("Too large to read.", model.ChecksumNotice.Text);
+        Assert.True(model.ChecksumNotice.IsWarning);
+    }
+
     /// <summary>Photographs the inspector, for a human to look at.</summary>
     [AvaloniaTheory]
     [InlineData(true)]
@@ -249,6 +291,13 @@ public class ObjectInspectorTests
         var frame = window.CaptureRenderedFrame();
         Assert.NotNull(frame);
 
+        agent.ServerChecksum = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
+        await model.GetChecksumAsync(preferServer: true, TestContext.Current.CancellationToken);
+        model.SelectedTab = 3;
+        window.UpdateLayout();
+        var checksumFrame = window.CaptureRenderedFrame();
+        Assert.NotNull(checksumFrame);
+
         var directory = Environment.GetEnvironmentVariable("STORAGEHUB_SHOT_DIR");
         if (string.IsNullOrWhiteSpace(directory)) return;
 
@@ -256,6 +305,9 @@ public class ObjectInspectorTests
         using var stream = File.Create(
             Path.Combine(directory, $"object-inspector-{(dark ? "dark" : "light")}.png"));
         frame!.Save(stream, new PngBitmapEncoderOptions());
+        using var checksum = File.Create(
+            Path.Combine(directory, $"object-inspector-checksum-{(dark ? "dark" : "light")}.png"));
+        checksumFrame!.Save(checksum, new PngBitmapEncoderOptions());
     }
 
     private static ObjectVersionSummary Version(
@@ -298,6 +350,33 @@ public class ObjectInspectorTests
             ObjectTagsGetRequest request, CancellationToken cancellationToken = default) =>
             Task.FromResult(new ObjectTagsGetResponse(
                 ObjectInspectorIpcContract.CurrentVersion, request.Address, Tags, TagsFailure));
+
+        internal string? ServerChecksum { get; set; }
+
+        internal string ComputedChecksum { get; set; } = new string('0', 64);
+
+        internal StorageIpcFailure? ChecksumFailure { get; set; }
+
+        internal List<bool> ChecksumAsks { get; } = [];
+
+        internal Task<ObjectChecksumGetResponse>? LastChecksum { get; private set; }
+
+        public Task<ObjectChecksumGetResponse> GetChecksumAsync(
+            ObjectChecksumGetRequest request, CancellationToken cancellationToken = default)
+        {
+            ChecksumAsks.Add(request.PreferServer);
+            var server = request.PreferServer && ServerChecksum is not null;
+            LastChecksum = Task.FromResult(ChecksumFailure is { } failure
+                ? new ObjectChecksumGetResponse(
+                    ObjectInspectorIpcContract.CurrentVersion, request.Address, null, null,
+                    ObjectChecksumSource.Computed, 0, failure)
+                : new ObjectChecksumGetResponse(
+                    ObjectInspectorIpcContract.CurrentVersion, request.Address, ObjectChecksumGetResponse.Sha256,
+                    server ? ServerChecksum : ComputedChecksum,
+                    server ? ObjectChecksumSource.Server : ObjectChecksumSource.Computed,
+                    4096));
+            return LastChecksum;
+        }
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }

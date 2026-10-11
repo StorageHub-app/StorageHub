@@ -530,6 +530,62 @@ public sealed class CodeLogicStorageEndpointSessionTests
     }
 
     [Fact]
+    public async Task PortableChecksumTakesTheServersDigestOnlyWhenAskedTo()
+    {
+        var content = new byte[] { 5, 6, 7, 8 };
+        var reported = Convert.ToHexStringLower(SHA256.HashData([9, 9]));
+        var service = new ChecksumReportingStorageService(reported)
+        {
+            GetInfoHandler = (path, _) => Task.FromResult(Result<StorageItem>.Success(
+                Item(path, StorageItemType.File, size: content.LongLength))),
+            DownloadHandler = (_, _, _) => Task.FromResult(Result<Stream>.Success(
+                new MemoryStream(content, writable: false))),
+        };
+        await using var session = CreateSession(service);
+        var entry = await session.GetEntryAsync(Address(session.ProfileId, RootIdentity, "reported.bin"));
+        var checksums = session;
+
+        var computed = await checksums.ComputePortableChecksumAsync(
+            new PortableChecksumRequest(entry.Value, content.LongLength));
+        var server = await checksums.ComputePortableChecksumAsync(
+            new PortableChecksumRequest(entry.Value, maximumBytes: 1) { AcceptServerDigest = true });
+
+        Assert.Equal(PortableChecksumSource.Computed, computed.Value.Source);
+        Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(content)), computed.Value.Digest.Value);
+        Assert.Equal(1, service.ServerChecksumCalls);
+        Assert.Equal(PortableChecksumSource.Server, server.Value.Source);
+        Assert.Equal(reported, server.Value.Digest.Value);
+        Assert.Equal(content.LongLength, server.Value.BytesProcessed);
+    }
+
+    [Fact]
+    public async Task PortableChecksumReadsTheFileWhenTheServerHasNoUsableDigest()
+    {
+        var content = new byte[] { 1, 2, 3 };
+        // An S3 multipart upload reports a composite checksum, which is not the file's SHA-256.
+        var service = new ChecksumReportingStorageService("not-a-sha256-1")
+        {
+            GetInfoHandler = (path, _) => Task.FromResult(Result<StorageItem>.Success(
+                Item(path, StorageItemType.File, size: content.LongLength))),
+            DownloadHandler = (_, _, _) => Task.FromResult(Result<Stream>.Success(
+                new MemoryStream(content, writable: false))),
+        };
+        await using var session = CreateSession(service);
+        var entry = await session.GetEntryAsync(Address(session.ProfileId, RootIdentity, "multipart.bin"));
+        var checksums = session;
+
+        var fallback = await checksums.ComputePortableChecksumAsync(
+            new PortableChecksumRequest(entry.Value, content.LongLength) { AcceptServerDigest = true });
+        var tooLarge = await checksums.ComputePortableChecksumAsync(
+            new PortableChecksumRequest(entry.Value, maximumBytes: 1) { AcceptServerDigest = true });
+
+        Assert.Equal(PortableChecksumSource.Computed, fallback.Value.Source);
+        Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(content)), fallback.Value.Digest.Value);
+        Assert.True(tooLarge.IsFailure);
+        Assert.Equal("storage.checksum.invalid_request", tooLarge.Error.Code);
+    }
+
+    [Fact]
     public async Task RejectsExactVersionReadWhenVersioningCapabilityIsAbsent()
     {
         var service = new FakeStorageService();
@@ -1333,4 +1389,19 @@ public sealed class CodeLogicStorageEndpointSessionTests
             VersionId = versionId,
             ETag = entityTag
         };
+
+    private sealed class ChecksumReportingStorageService(string hexValue) : FakeStorageService, CL.Storage.Abstractions.IStorageChecksumService
+    {
+        public int ServerChecksumCalls { get; private set; }
+
+        public Task<Result<StorageChecksum>> GetServerChecksumAsync(
+            string path,
+            StorageChecksumAlgorithm algorithm,
+            CancellationToken cancellationToken = default)
+        {
+            ServerChecksumCalls++;
+            return Task.FromResult(Result<StorageChecksum>.Success(
+                new StorageChecksum(algorithm, hexValue, 0, StorageChecksumSource.Server)));
+        }
+    }
 }

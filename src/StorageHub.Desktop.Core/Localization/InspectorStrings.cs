@@ -137,4 +137,27 @@ internal sealed class InspectorStrings : LocalizationModelBase
 
     /// <summary>What a cell shows when the provider reported nothing for it.</summary>
     public string NotReported { get; set; } = "—";
+
+    public string TabChecksum { get; set; } = "Checksum";
+
+    public string ChecksumNotLoaded { get; set; } =
+        "Ask for the file's SHA-256. The server's own checksum is used when it keeps one; otherwise up to 256 MB of the file is read to compute it.";
+
+    public string GetChecksum { get; set; } = "Get checksum";
+
+    public string ComputeChecksum { get; set; } = "Compute from the file";
+
+    public string ComputeChecksumHint { get; set; } =
+        "Reads the file and computes its SHA-256 here, to check what the server reports.";
+
+    public string GettingChecksum { get; set; } = "Getting the checksum...";
+
+    public string ChecksumAlgorithm { get; set; } = "SHA-256";
+
+    public string ChecksumFromServerFormat { get; set; } =
+        "Reported by the server for the whole file ({0:N0} bytes); nothing was downloaded. It is the server's word for the bytes, not a check of them.";
+
+    public string ChecksumComputedFormat { get; set; } = "Computed here from the {0:N0} bytes read.";
+
+    public string ObjectChecksum { get; set; } = "Object checksum";
 }

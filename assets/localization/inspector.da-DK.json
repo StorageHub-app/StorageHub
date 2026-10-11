@@ -54,5 +54,15 @@
   "yes": "Ja",
   "no": "Nej",
   "notReported": "—",
+  "tabChecksum": "Kontrolsum",
+  "checksumNotLoaded": "Bed om filens SHA-256. Serverens egen kontrolsum bruges, når den har en; ellers læses op til 256 MB af filen for at beregne den.",
+  "getChecksum": "Hent kontrolsum",
+  "computeChecksum": "Beregn ud fra filen",
+  "computeChecksumHint": "Læser filen og beregner dens SHA-256 her for at kontrollere, hvad serveren oplyser.",
+  "gettingChecksum": "Henter kontrolsummen...",
+  "checksumAlgorithm": "SHA-256",
+  "checksumFromServerFormat": "Oplyst af serveren for hele filen ({0:N0} byte); intet blev hentet. Det er serverens ord for indholdet, ikke en kontrol af det.",
+  "checksumComputedFormat": "Beregnet her ud fra de {0:N0} læste byte.",
+  "objectChecksum": "Objektets kontrolsum",
   "culture": "da-DK"
 }
