@@ -138,4 +138,25 @@ internal sealed class ProviderStrings : LocalizationModelBase
     public string TheServerCertificateMustPassHostnameAnd { get; set; } = "The server certificate must pass hostname and chain validation. An optional SHA-256 pin adds protection; client PFX material remains in the vault.";
 
     public string UpdateLeftRight { get; set; } = "Update left → right";
+
+    public string WebDavSummary { get; set; } =
+        "Files on a WebDAV server, such as Nextcloud, ownCloud, SharePoint or a NAS.";
+
+    public string WebDavTrustNotice { get; set; } =
+        "The server certificate must pass system validation or match a verified SHA-256 pin. Basic sign-in sends the password with every request, so use HTTPS.";
+
+    public string ServerUrl { get; set; } = "Server URL";
+
+    public string WebDavUrlHelp { get; set; } =
+        "The address of the WebDAV folder, path included. A host name alone is taken as https://.";
+
+    public string WebDavAuthenticationHelp { get; set; } =
+        "Basic, Digest, NTLM and Negotiate sign in with the user name and password; a bearer token is sent as it is.";
+
+    public string BearerTokenReference { get; set; } = "Bearer token reference";
+
+    public string OnlyForBearerTokenSignIn { get; set; } = "Only for bearer-token sign-in";
+
+    public string WebDavPlainHttpHelp { get; set; } =
+        "For a server you run yourself on your own network. The password and the files travel unencrypted.";
 }

@@ -218,5 +218,9 @@
   "iconPickerColor": "Farbe",
   "iconPickerNoColor": "Keine Farbe",
   "iconPickerGroupTitleFormat": "Symbol und Farbe für {0}",
+  "authBearerToken": "Bearer-Token",
+  "fieldHttpSignIn": "HTTP-Anmeldung",
+  "fieldRequestTimeout": "Anfrage-Zeitlimit",
+  "requestTimeoutHint": "In Sekunden, für jede ganze Anfrage einschließlich der Datei beim Hochladen. Erhöhen Sie den Wert für große Dateien auf einer langsamen Leitung.",
   "culture": "de-DE"
 }

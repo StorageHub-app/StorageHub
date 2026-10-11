@@ -242,5 +242,10 @@
   "chooseCtrlAltWithAKeyFormat": "Wählen Sie Strg/Alt mit einer Taste, eine Funktionstaste oder Entf für {0}.",
   "isAlreadyAssignedToClearThatFormat": "{0} ist bereits {1} zugewiesen. Heben Sie diese Zuweisung zuerst auf.",
   "aGroupNameIsRequired": "Ein Gruppenname ist erforderlich.",
+  "aWebDavUrlIsRequired": "Eine WebDAV-Server-URL ist erforderlich.",
+  "theWebDavUrlIsInvalid": "Die WebDAV-URL muss eine http://- oder https://-Adresse ohne Benutzername, Abfrage oder Fragment sein.",
+  "webDavPlainHttpNeedsAcknowledgement": "Eine unverschlüsselte http://-Adresse erfordert „Unverschlüsselten HTTP-Endpunkt zulassen“ unter Transport und Serveridentität.",
+  "webDavTlsNeedsHttps": "Eine Zertifikatsfixierung oder ein Clientzertifikat erfordert eine https://-Adresse.",
+  "aBearerTokenIsRequired": "Für die Anmeldung mit Bearer-Token ist ein Bearer-Token erforderlich.",
   "culture": "de-DE"
 }

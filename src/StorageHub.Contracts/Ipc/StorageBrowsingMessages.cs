@@ -58,7 +58,8 @@ public enum StorageConnectionProvider
     Ftp = 3,
     Ftps = 4,
     Sftp = 5,
-    Ssh = 6
+    Ssh = 6,
+    WebDav = 7
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<StorageIpcFailureCategory>))]

@@ -68,6 +68,7 @@ internal static class ConnectionCardFactory
         StorageConnectionProvider.S3 => StorageProviderKind.S3,
         StorageConnectionProvider.Ftp => StorageProviderKind.Ftp,
         StorageConnectionProvider.Ftps => StorageProviderKind.Ftps,
+        StorageConnectionProvider.WebDav => StorageProviderKind.WebDav,
         StorageConnectionProvider.Sftp => StorageProviderKind.Sftp,
         StorageConnectionProvider.Ssh => StorageProviderKind.Ssh,
         _ => throw new ArgumentOutOfRangeException(nameof(provider))

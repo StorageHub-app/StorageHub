@@ -820,7 +820,7 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     /// </summary>
     private static string? PinField(ConnectionProfileDocument profile) => profile.Draft.Endpoint switch
     {
-        { Provider: StorageConnectionProvider.Ftps, TlsPolicy: ConnectionTlsCertificatePolicy.Pinned } =>
+        { Provider: StorageConnectionProvider.Ftps or StorageConnectionProvider.WebDav, TlsPolicy: ConnectionTlsCertificatePolicy.Pinned } =>
             "certificatePin",
         { Provider: StorageConnectionProvider.Sftp or StorageConnectionProvider.Ssh, SshHostKeyPolicy: ConnectionSshHostKeyPolicy.Pinned } =>
             HostKeyFingerprintKey,
@@ -1088,6 +1088,21 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     /// What an FTP server may need beyond where it is. Defaults suit almost every server, so the
     /// section sits last and every field starts at what it would be anyway.
     /// </summary>
+    /// <summary>
+    /// WebDAV's one timeout, which bounds each whole request: an upload's file is sent inside it, so
+    /// it is what somebody sending large files over a slow line has to raise.
+    /// </summary>
+    private IReadOnlyList<ConnectionFieldDescriptor> WebDavAdvancedFields()
+    {
+        var defaults = ConnectionDefaultSettings.Get(_provider.Kind, _connectionDefaults);
+        return
+        [
+            new(ConnectionEditorDraftFactory.ReadTimeoutKey, Ui.Connections.FieldRequestTimeout, ConnectionFieldKind.Text,
+                DefaultValue: defaults.OperationTimeoutSeconds.ToString(CultureInfo.InvariantCulture),
+                HelpText: Ui.Connections.RequestTimeoutHint)
+        ];
+    }
+
     private IReadOnlyList<ConnectionFieldDescriptor> FtpAdvancedFields()
     {
         var defaults = ConnectionDefaultSettings.Get(_provider.Kind, _connectionDefaults);
@@ -1206,6 +1221,11 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         if (_provider.Kind is StorageProviderKind.Ftp or StorageProviderKind.Ftps)
         {
             Add(Ui.Connections.SectionAdvanced, FtpAdvancedFields(), ConnectionEditorTab.General);
+        }
+
+        if (_provider.Kind == StorageProviderKind.WebDav)
+        {
+            Add(Ui.Connections.SectionAdvanced, WebDavAdvancedFields(), ConnectionEditorTab.General);
         }
 
         // Drawn even for a provider with nothing to authenticate, as 1.x's page was: its heading and
@@ -1855,6 +1875,7 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         StorageConnectionProvider.Ftps => StorageProviderKind.Ftps,
         StorageConnectionProvider.Sftp => StorageProviderKind.Sftp,
         StorageConnectionProvider.Ssh => StorageProviderKind.Ssh,
+        StorageConnectionProvider.WebDav => StorageProviderKind.WebDav,
         _ => StorageProviderKind.S3
     };
 

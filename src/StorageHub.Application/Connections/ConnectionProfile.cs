@@ -20,7 +20,8 @@ public enum ConnectionProviderKind
     Ftp = 3,
     Ftps = 4,
     Sftp = 5,
-    Ssh = 6
+    Ssh = 6,
+    WebDav = 7
 }
 
 public enum TlsCertificatePolicy
@@ -62,6 +63,19 @@ public enum FtpDataConnectionMode
 {
     Passive = 0,
     Active = 1
+}
+
+/// <summary>
+/// How a WebDAV server wants a user name and password presented. Basic sends them with every
+/// request, which is why it needs HTTPS or an acknowledged plain-HTTP endpoint; the others answer
+/// the server's challenge instead.
+/// </summary>
+public enum HttpCredentialScheme
+{
+    Basic = 1,
+    Digest = 2,
+    Ntlm = 3,
+    Negotiate = 4
 }
 
 public enum SftpPrivateKeyFormat
@@ -743,6 +757,113 @@ public sealed record SshClientEndpoint : ConnectionEndpoint
     public SshHostKeyPolicy HostKeyPolicy { get; }
 }
 
+/// <summary>
+/// A WebDAV server: the URL of the collection the connection opens on, and how its HTTPS
+/// certificate is trusted, as an FTPS server's is.
+/// </summary>
+/// <remarks>
+/// The URL keeps its path, because a WebDAV share usually lives below the server root (Nextcloud's
+/// <c>/remote.php/dav/files/me/</c>, for one). Its host and port are where a pinned certificate is
+/// recorded, as for FTPS. Plain HTTP is refused unless acknowledged, and a pin or a client
+/// certificate on a plain-HTTP endpoint is refused outright: neither protects anything there.
+/// </remarks>
+public sealed record WebDavEndpoint : ConnectionEndpoint
+{
+    public WebDavEndpoint(
+        Uri serverUrl,
+        TlsCertificatePolicy tlsPolicy,
+        bool allowInsecureHttp = false,
+        HttpCredentialScheme credentialScheme = HttpCredentialScheme.Basic,
+        SecretReference? clientCertificatePfxReference = null,
+        SecretReference? clientCertificatePasswordReference = null,
+        string? rootPath = null)
+        : base(ConnectionProviderKind.WebDav)
+    {
+        ArgumentNullException.ThrowIfNull(serverUrl);
+        if (!serverUrl.IsAbsoluteUri ||
+            (serverUrl.Scheme != Uri.UriSchemeHttp && serverUrl.Scheme != Uri.UriSchemeHttps) ||
+            string.IsNullOrEmpty(serverUrl.Host))
+        {
+            throw new ArgumentException("The WebDAV URL must be an absolute HTTP or HTTPS URL.", nameof(serverUrl));
+        }
+
+        RejectCredentialBearingUri(serverUrl, nameof(serverUrl));
+        if (serverUrl.AbsoluteUri.Length > 2_048)
+        {
+            throw new ArgumentOutOfRangeException(nameof(serverUrl), "The WebDAV URL cannot exceed 2,048 characters.");
+        }
+
+        var isHttp = serverUrl.Scheme == Uri.UriSchemeHttp;
+        if (isHttp && !allowInsecureHttp)
+        {
+            throw new ArgumentException(
+                "A plain-HTTP WebDAV endpoint is insecure and requires explicit acknowledgement.",
+                nameof(allowInsecureHttp));
+        }
+
+        if (!Enum.IsDefined(tlsPolicy) || tlsPolicy == TlsCertificatePolicy.Unspecified)
+        {
+            throw new ArgumentOutOfRangeException(nameof(tlsPolicy), "A WebDAV TLS certificate policy is required.");
+        }
+
+        if (!Enum.IsDefined(credentialScheme))
+        {
+            throw new ArgumentOutOfRangeException(nameof(credentialScheme));
+        }
+
+        ValidateReference(clientCertificatePfxReference, nameof(clientCertificatePfxReference));
+        ValidateReference(clientCertificatePasswordReference, nameof(clientCertificatePasswordReference));
+        if (clientCertificatePasswordReference is not null && clientCertificatePfxReference is null)
+        {
+            throw new ArgumentException(
+                "A client-certificate password reference requires a PFX reference.",
+                nameof(clientCertificatePasswordReference));
+        }
+
+        if (isHttp && (tlsPolicy != TlsCertificatePolicy.SystemTrust || clientCertificatePfxReference is not null))
+        {
+            throw new ArgumentException(
+                "A certificate pin or a client certificate needs an HTTPS WebDAV URL.",
+                nameof(tlsPolicy));
+        }
+
+        ServerUrl = serverUrl;
+        Host = ValidateHost(serverUrl.IdnHost);
+        Port = serverUrl.Port;
+        TlsPolicy = tlsPolicy;
+        AllowInsecureHttp = isHttp;
+        CredentialScheme = credentialScheme;
+        ClientCertificatePfxReference = clientCertificatePfxReference;
+        ClientCertificatePasswordReference = clientCertificatePasswordReference;
+        RootPath = NormalizeProviderRoot(rootPath, nameof(rootPath));
+    }
+
+    public Uri ServerUrl { get; }
+
+    /// <summary>The URL's host, normalised as other endpoints' are, where a certificate pin is kept.</summary>
+    public string Host { get; }
+
+    /// <summary>The URL's port, its scheme's default when it names none.</summary>
+    public int Port { get; }
+
+    public TlsCertificatePolicy TlsPolicy { get; }
+    public bool AllowInsecureHttp { get; }
+    public HttpCredentialScheme CredentialScheme { get; }
+    public SecretReference? ClientCertificatePfxReference { get; }
+    public SecretReference? ClientCertificatePasswordReference { get; }
+
+    /// <summary>A folder below the URL that the connection treats as its root, or empty for the URL itself.</summary>
+    public string RootPath { get; }
+
+    private static void ValidateReference(SecretReference? reference, string parameterName)
+    {
+        if (reference is { } value && !SecretReference.TryParse(value.Value, out _))
+        {
+            throw new ArgumentException("The PFX secret reference is invalid.", parameterName);
+        }
+    }
+}
+
 public abstract record ConnectionAuthentication;
 
 public sealed record NoAuthentication : ConnectionAuthentication;
@@ -790,6 +911,25 @@ public sealed record UsernamePasswordAuthentication : ConnectionAuthentication
             throw new ArgumentException("The username is invalid.", nameof(username));
         }
     }
+}
+
+/// <summary>
+/// An HTTP bearer token, sent as <c>Authorization: Bearer</c> on every request. Only WebDAV takes
+/// one; the token itself lives in the vault like a password.
+/// </summary>
+public sealed record BearerTokenAuthentication : ConnectionAuthentication
+{
+    public BearerTokenAuthentication(SecretReference tokenReference)
+    {
+        if (!SecretReference.TryParse(tokenReference.Value, out _))
+        {
+            throw new ArgumentException("The bearer-token secret reference is invalid.", nameof(tokenReference));
+        }
+
+        TokenReference = tokenReference;
+    }
+
+    public SecretReference TokenReference { get; }
 }
 
 public sealed record S3AccessKeyAuthentication : ConnectionAuthentication
@@ -1055,6 +1195,12 @@ public sealed record ConnectionProfile
             ConnectionProviderKind.Ssh =>
                 Authentication is UsernamePasswordAuthentication or SftpPrivateKeyAuthentication or
                     SshPrivateKeyPasswordAuthentication,
+            // Digest, NTLM and Negotiate answer a challenge with a user name and password, so a
+            // scheme other than Basic means nothing without them.
+            ConnectionProviderKind.WebDav =>
+                Authentication is UsernamePasswordAuthentication ||
+                (Authentication is NoAuthentication or BearerTokenAuthentication &&
+                    Endpoint is WebDavEndpoint { CredentialScheme: HttpCredentialScheme.Basic }),
             _ => false
         };
         if (!valid)

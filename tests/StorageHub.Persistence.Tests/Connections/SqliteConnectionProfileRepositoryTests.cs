@@ -82,7 +82,20 @@ public sealed class SqliteConnectionProfileRepositoryTests : IDisposable
                     password,
                     SecretReference.Create(),
                     SecretReference.Create(),
-                    SftpPrivateKeyFormat.OpenSsh), OptionsForConnection(), now)
+                    SftpPrivateKeyFormat.OpenSsh), OptionsForConnection(), now),
+            ConnectionProfile.Create(ConnectionProfileId.New(), new ConnectionProfileMetadata("WebDAV pinned"),
+                new WebDavEndpoint(new Uri("https://dav.example.test:8443/remote.php/dav/files/me/"),
+                    TlsCertificatePolicy.Pinned, credentialScheme: HttpCredentialScheme.Digest,
+                    clientCertificatePfxReference: SecretReference.Create(),
+                    clientCertificatePasswordReference: SecretReference.Create(), rootPath: "Projects/2026"),
+                new UsernamePasswordAuthentication("dav-user", password), OptionsForConnection(), now),
+            ConnectionProfile.Create(ConnectionProfileId.New(), new ConnectionProfileMetadata("WebDAV bearer"),
+                new WebDavEndpoint(new Uri("http://127.0.0.1:8080/"), TlsCertificatePolicy.SystemTrust,
+                    allowInsecureHttp: true),
+                new BearerTokenAuthentication(SecretReference.Create()), OptionsForConnection(), now),
+            ConnectionProfile.Create(ConnectionProfileId.New(), new ConnectionProfileMetadata("WebDAV anonymous"),
+                new WebDavEndpoint(new Uri("https://public.example.test/dav"), TlsCertificatePolicy.SystemTrust),
+                new NoAuthentication(), OptionsForConnection(), now)
         };
 
         foreach (var profile in profiles)
@@ -114,6 +127,28 @@ public sealed class SqliteConnectionProfileRepositoryTests : IDisposable
 
         var match = Assert.Single(matches);
         Assert.Equal("Production SFTP", match.Metadata.DisplayName);
+    }
+
+    [Fact]
+    public async Task A_WebDav_profile_is_stored_as_itself_and_found_by_its_provider()
+    {
+        var repository = Repository();
+        await repository.CreateAsync(SftpProfile("Production SFTP", "Partners/Acme", ["partner"]));
+        var webDav = ConnectionProfile.Create(
+            ConnectionProfileId.New(),
+            new ConnectionProfileMetadata("Nextcloud"),
+            new WebDavEndpoint(new Uri("https://cloud.example.test/remote.php/dav/files/me/"), TlsCertificatePolicy.SystemTrust),
+            new UsernamePasswordAuthentication("me", SecretReference.Create()),
+            OptionsForConnection(),
+            DateTimeOffset.UtcNow);
+        Assert.Equal(ConnectionProfileWriteStatus.Succeeded, (await repository.CreateAsync(webDav)).Status);
+
+        var found = Assert.Single(await repository.SearchAsync(new ConnectionProfileSearch(
+            Provider: ConnectionProviderKind.WebDav)));
+        Assert.Equal(webDav.Id, found.Id);
+        Assert.Equal(webDav.Endpoint, found.Endpoint);
+        Assert.Empty(await repository.SearchAsync(new ConnectionProfileSearch(
+            Text: "Nextcloud", Provider: ConnectionProviderKind.Sftp)));
     }
 
     [Fact]

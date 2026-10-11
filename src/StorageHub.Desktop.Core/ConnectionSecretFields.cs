@@ -19,6 +19,7 @@ internal static class ConnectionSecretFields
         "accessKeyReference" => SecretMaterialPurpose.AccessKey,
         "secretAccessKeyReference" => SecretMaterialPurpose.SecretAccessKey,
         "sessionTokenReference" => SecretMaterialPurpose.SessionToken,
+        ConnectionEditorDraftFactory.BearerTokenKey => SecretMaterialPurpose.SessionToken,
         "privateKeyReference" => SecretMaterialPurpose.SshPrivateKey,
         "privateKeyPassphraseReference" => SecretMaterialPurpose.SshPrivateKeyPassphrase,
         "clientCertificateReference" => SecretMaterialPurpose.ClientCertificatePfx,

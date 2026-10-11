@@ -57,6 +57,19 @@ internal sealed class ValidationStrings : LocalizationModelBase
 
     public string AnFTPSHostIsRequired { get; set; } = "An FTPS host is required.";
 
+    public string AWebDavUrlIsRequired { get; set; } = "A WebDAV server URL is required.";
+
+    public string TheWebDavUrlIsInvalid { get; set; } =
+        "The WebDAV URL must be an http:// or https:// address without a user name, query or fragment.";
+
+    public string WebDavPlainHttpNeedsAcknowledgement { get; set; } =
+        "A plain http:// address needs \"Allow a plain HTTP endpoint\" under Transport and server identity.";
+
+    public string WebDavTlsNeedsHttps { get; set; } =
+        "A certificate pin or a client certificate needs an https:// address.";
+
+    public string ABearerTokenIsRequired { get; set; } = "A bearer token is required for bearer-token sign-in.";
+
     public string AnHTTPSS3ServiceEndpointIsRequired { get; set; } = "An HTTPS S3 service endpoint is required.";
 
     public string AnS3BucketIsRequired { get; set; } = "An S3 bucket is required.";

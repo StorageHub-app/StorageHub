@@ -486,6 +486,146 @@ public sealed class CodeLogicConnectionConfigurationBuilderTests : IAsyncLifetim
         Assert.Null(configuration.ClientCertificatePassword);
     }
 
+    /// <summary>
+    /// A pinned WebDAV server takes its fingerprints from the trust records for the URL's host and
+    /// port, as FTPS does; the client certificate goes over as bytes, so nothing is written to disk;
+    /// the one timeout is the operation timeout; and every secret is let go of afterwards.
+    /// </summary>
+    [Fact]
+    public async Task WebDav_pins_by_url_host_and_port_and_hands_over_the_pfx_without_a_file()
+    {
+        var password = await StoreTextAsync("dav-password");
+        var pfx = await StoreBytesAsync([1, 2, 3, 4, 5]);
+        var pfxPassword = await StoreTextAsync("pfx-password");
+        _trust.Records.Add(TrustedRecord(TrustArtifactKind.TlsCertificate, "dav.example.test", 8443));
+        _trust.Records.Add(TrustedRecord(TrustArtifactKind.TlsCertificate, "dav.example.test", 443));
+        var profile = CreateProfile(
+            new WebDavEndpoint(
+                new Uri("https://DAV.example.test:8443/remote.php/dav/files/me/"),
+                TlsCertificatePolicy.Pinned,
+                credentialScheme: HttpCredentialScheme.Digest,
+                clientCertificatePfxReference: pfx,
+                clientCertificatePasswordReference: pfxPassword,
+                rootPath: "Projects"),
+            new UsernamePasswordAuthentication("operator", password),
+            splitTimeouts: true);
+
+        var result = await CreateBuilder().BuildAsync(profile);
+
+        Assert.True(result.IsSuccess, result.Error?.Message);
+        var prepared = result.Value;
+        var configuration = Assert.IsType<WebDavConnectionConfig>(prepared.Configuration);
+        Assert.Equal("https://dav.example.test:8443/remote.php/dav/files/me/", configuration.Endpoint);
+        Assert.Equal("Projects", configuration.Root);
+        Assert.False(configuration.AllowInsecureHttp);
+        Assert.Equal([new string('A', 64)], configuration.TrustedCertificateSha256);
+        Assert.Equal(WebDavAuthenticationMode.Digest, configuration.AuthenticationMode);
+        Assert.Equal("operator", configuration.Username);
+        Assert.Equal("dav-password", configuration.Password);
+        Assert.Equal(120, configuration.TimeoutSeconds);
+        var content = configuration.ClientCertificateContent;
+        Assert.Equal([1, 2, 3, 4, 5], content);
+        Assert.Null(configuration.ClientCertificatePath);
+        Assert.Equal("pfx-password", configuration.ClientCertificatePassword);
+        Assert.Empty(_materializer.Materials);
+
+        await prepared.DisposeAsync();
+        Assert.Null(configuration.Password);
+        Assert.Null(configuration.ClientCertificatePassword);
+        Assert.Null(configuration.ClientCertificateContent);
+        Assert.All(content!, static value => Assert.Equal(0, value));
+    }
+
+    [Fact]
+    public async Task WebDav_signs_in_with_nothing_a_bearer_token_or_each_http_scheme()
+    {
+        var token = await StoreTextAsync("token-value");
+        var password = await StoreTextAsync("secret");
+        var anonymous = await CreateBuilder().BuildAsync(CreateProfile(
+            new WebDavEndpoint(new Uri("http://127.0.0.1:8080/"), TlsCertificatePolicy.SystemTrust, allowInsecureHttp: true),
+            new NoAuthentication()));
+        var bearer = await CreateBuilder().BuildAsync(CreateProfile(
+            new WebDavEndpoint(new Uri("https://dav.example.test/"), TlsCertificatePolicy.SystemTrust),
+            new BearerTokenAuthentication(token)));
+
+        await using (var prepared = anonymous.Value)
+        {
+            var configuration = Assert.IsType<WebDavConnectionConfig>(prepared.Configuration);
+            Assert.Equal(WebDavAuthenticationMode.None, configuration.AuthenticationMode);
+            Assert.True(configuration.AllowInsecureHttp);
+            Assert.Empty(configuration.TrustedCertificateSha256);
+        }
+
+        await using (var prepared = bearer.Value)
+        {
+            var configuration = Assert.IsType<WebDavConnectionConfig>(prepared.Configuration);
+            Assert.Equal(WebDavAuthenticationMode.BearerToken, configuration.AuthenticationMode);
+            Assert.Equal("token-value", configuration.BearerToken);
+        }
+
+        foreach (var (scheme, mode) in new[]
+                 {
+                     (HttpCredentialScheme.Basic, WebDavAuthenticationMode.Basic),
+                     (HttpCredentialScheme.Ntlm, WebDavAuthenticationMode.Ntlm),
+                     (HttpCredentialScheme.Negotiate, WebDavAuthenticationMode.Negotiate)
+                 })
+        {
+            var built = await CreateBuilder().BuildAsync(CreateProfile(
+                new WebDavEndpoint(new Uri("https://dav.example.test/"), TlsCertificatePolicy.SystemTrust,
+                    credentialScheme: scheme),
+                new UsernamePasswordAuthentication("operator", password)));
+            await using var prepared = built.Value;
+            Assert.Equal(mode, Assert.IsType<WebDavConnectionConfig>(prepared.Configuration).AuthenticationMode);
+        }
+    }
+
+    [Fact]
+    public async Task WebDav_without_a_pin_or_with_trust_on_first_use_fails_closed_and_takes_a_proxy()
+    {
+        var unpinned = await CreateBuilder().BuildAsync(CreateProfile(
+            new WebDavEndpoint(new Uri("https://dav.example.test/"), TlsCertificatePolicy.Pinned),
+            new NoAuthentication()));
+        var tofu = await CreateBuilder().BuildAsync(CreateProfile(
+            new WebDavEndpoint(new Uri("https://dav.example.test/"), TlsCertificatePolicy.TrustOnFirstUse),
+            new NoAuthentication()));
+        var proxied = await CreateBuilder().BuildAsync(CreateProfile(
+            new WebDavEndpoint(new Uri("https://dav.example.test/"), TlsCertificatePolicy.SystemTrust),
+            new NoAuthentication(),
+            proxy: new ConnectionProxy(new Uri("http://proxy.example.test:3128")),
+            bandwidth: true));
+
+        Assert.Equal("storage.trust.approval_required", unpinned.Error?.Code);
+        Assert.Equal("storage.profile.unsupported", tofu.Error?.Code);
+        await using var prepared = proxied.Value;
+        var configuration = Assert.IsType<WebDavConnectionConfig>(prepared.Configuration);
+        Assert.Equal(StorageProxyType.Http, configuration.Proxy.Type);
+        Assert.Equal("proxy.example.test", configuration.Proxy.Host);
+        Assert.Equal(1_000_000, configuration.TransferLimits.MaxUploadBytesPerSecond);
+    }
+
+    /// <summary>A WebDAV root is the URL and the folder below it: moving either is a different root.</summary>
+    [Fact]
+    public async Task WebDav_root_identity_follows_the_url_path_and_the_folder()
+    {
+        var first = CreateProfile(
+            new WebDavEndpoint(new Uri("https://dav.example.test/a/"), TlsCertificatePolicy.SystemTrust),
+            new NoAuthentication());
+        var otherPath = first with
+        {
+            Endpoint = new WebDavEndpoint(new Uri("https://dav.example.test/b/"), TlsCertificatePolicy.SystemTrust)
+        };
+        var otherFolder = first with
+        {
+            Endpoint = new WebDavEndpoint(new Uri("https://dav.example.test/a/"), TlsCertificatePolicy.SystemTrust,
+                rootPath: "inner")
+        };
+
+        await using var a = (await CreateBuilder().BuildAsync(first)).Value;
+        await using var b = (await CreateBuilder().BuildAsync(otherPath)).Value;
+        await using var c = (await CreateBuilder().BuildAsync(otherFolder)).Value;
+        Assert.Equal(3, new[] { a.RootIdentity, b.RootIdentity, c.RootIdentity }.Distinct(StringComparer.Ordinal).Count());
+    }
+
     [Fact]
     public async Task Tofu_and_s3_pinning_fail_closed_when_provider_cannot_capture_or_enforce_them()
     {

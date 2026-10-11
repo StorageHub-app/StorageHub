@@ -135,6 +135,70 @@ public sealed class IpcContractTests
     }
 
     [Fact]
+    public void WebDav_draft_carries_a_url_and_a_bearer_token_only_as_an_opaque_reference()
+    {
+        const string reference = "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+        var endpoint = new ConnectionEndpointDocument(
+            StorageConnectionProvider.WebDav,
+            RootPath: "Projects",
+            ServiceEndpoint: "https://dav.example.test/remote.php/dav/files/me/",
+            TlsPolicy: ConnectionTlsCertificatePolicy.Pinned,
+            ClientCertificatePfxReference: reference,
+            ClientCertificatePasswordReference: reference);
+        var bearer = new ConnectionAuthenticationDocument(
+            ConnectionAuthenticationKind.BearerToken,
+            SessionTokenReference: reference);
+        var draft = new ConnectionProfileDraft(
+            new ConnectionProfileMetadataDocument("Files", Tags: []),
+            endpoint,
+            bearer,
+            new ConnectionOperationalOptionsDocument());
+
+        Assert.True(draft.HasValidBounds);
+        var json = JsonSerializer.Serialize(draft);
+        Assert.Contains("\"HttpCredentialScheme\":\"Basic\"", json, StringComparison.Ordinal);
+        Assert.Equal(draft.Endpoint, JsonSerializer.Deserialize<ConnectionProfileDraft>(json)!.Endpoint);
+
+        // A token is a reference and nothing else, and it is never offered under another scheme.
+        Assert.False((bearer with { SessionTokenReference = "raw-token" }).HasValidBounds);
+        Assert.False((bearer with { Username = "operator" }).HasValidBounds);
+        Assert.False((draft with
+        {
+            Endpoint = endpoint with { HttpCredentialScheme = ConnectionHttpCredentialScheme.Ntlm }
+        }).HasValidBounds);
+        Assert.True((draft with
+        {
+            Endpoint = endpoint with { HttpCredentialScheme = ConnectionHttpCredentialScheme.Ntlm },
+            Authentication = new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.UsernamePassword,
+                Username: "operator",
+                PasswordReference: reference)
+        }).HasValidBounds);
+    }
+
+    [Fact]
+    public void WebDav_endpoint_has_a_url_and_nothing_that_belongs_to_another_provider()
+    {
+        var endpoint = new ConnectionEndpointDocument(
+            StorageConnectionProvider.WebDav,
+            ServiceEndpoint: "https://dav.example.test/");
+
+        Assert.True(endpoint.HasValidBounds);
+        Assert.False((endpoint with { ServiceEndpoint = null }).HasValidBounds);
+        Assert.False((endpoint with { Host = "dav.example.test" }).HasValidBounds);
+        Assert.False((endpoint with { Port = 443 }).HasValidBounds);
+        Assert.False((endpoint with { Bucket = "archive" }).HasValidBounds);
+        Assert.False((endpoint with { ForcePathStyle = true }).HasValidBounds);
+        Assert.False((endpoint with { ClientCertificatePasswordReference = "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" }).HasValidBounds);
+        Assert.False((endpoint with { HttpCredentialScheme = (ConnectionHttpCredentialScheme)99 }).HasValidBounds);
+        Assert.False(new ConnectionEndpointDocument(
+            StorageConnectionProvider.Ftps,
+            Host: "ftps.example.test",
+            Port: 21,
+            HttpCredentialScheme: ConnectionHttpCredentialScheme.Digest).HasValidBounds);
+    }
+
+    [Fact]
     public void Secret_request_requires_operation_specific_material_and_bounds()
     {
         const string reference = "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";

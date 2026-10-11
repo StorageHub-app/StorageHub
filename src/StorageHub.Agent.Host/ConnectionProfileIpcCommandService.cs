@@ -373,6 +373,11 @@ public sealed class ConnectionProfileIpcCommandService : IAgentIpcCommandHandler
             yield return ("ftps.client-certificate", pfx.Value, KeyMaterialKind.Pkcs12Certificate);
         }
 
+        if (profile.Endpoint is WebDavEndpoint { ClientCertificatePfxReference: { } webDavPfx })
+        {
+            yield return ("webdav.client-certificate", webDavPfx.Value, KeyMaterialKind.Pkcs12Certificate);
+        }
+
         switch (profile.Authentication)
         {
             case SftpPrivateKeyAuthentication key:
@@ -598,6 +603,14 @@ internal static class ConnectionProfileIpcMapper
                 value.Host!, value.Port!.Value, MapSshPolicy(value.SshHostKeyPolicy), value.RootPath),
             StorageConnectionProvider.Ssh => new SshClientEndpoint(
                 value.Host!, value.Port!.Value, MapSshPolicy(value.SshHostKeyPolicy)),
+            StorageConnectionProvider.WebDav => new WebDavEndpoint(
+                new Uri(value.ServiceEndpoint!, UriKind.Absolute),
+                MapTlsPolicy(value.TlsPolicy),
+                value.AllowInsecureTransport,
+                MapCredentialScheme(value.HttpCredentialScheme),
+                ParseOptionalSecretReference(value.ClientCertificatePfxReference),
+                ParseOptionalSecretReference(value.ClientCertificatePasswordReference),
+                value.RootPath),
             _ => throw new ArgumentOutOfRangeException(nameof(value), "The provider is invalid.")
         };
     }
@@ -644,6 +657,15 @@ internal static class ConnectionProfileIpcMapper
             Host: endpoint.Host,
             Port: endpoint.Port,
             SshHostKeyPolicy: MapSshPolicy(endpoint.HostKeyPolicy)),
+        WebDavEndpoint endpoint => new(
+            StorageConnectionProvider.WebDav,
+            RootPath: endpoint.RootPath,
+            ServiceEndpoint: endpoint.ServerUrl.AbsoluteUri,
+            TlsPolicy: MapTlsPolicy(endpoint.TlsPolicy),
+            AllowInsecureTransport: endpoint.AllowInsecureHttp,
+            ClientCertificatePfxReference: endpoint.ClientCertificatePfxReference?.Value,
+            ClientCertificatePasswordReference: endpoint.ClientCertificatePasswordReference?.Value,
+            HttpCredentialScheme: MapCredentialScheme(endpoint.CredentialScheme)),
         _ => throw new NotSupportedException("The connection endpoint type is not supported by IPC.")
     };
 
@@ -667,6 +689,8 @@ internal static class ConnectionProfileIpcMapper
                 SecretReference.Parse(value.PrivateKeyReference!),
                 ParseOptionalSecretReference(value.PrivateKeyPassphraseReference),
                 MapPrivateKeyFormat(value.PrivateKeyFormat)),
+            ConnectionAuthenticationKind.BearerToken => new BearerTokenAuthentication(
+                SecretReference.Parse(value.SessionTokenReference!)),
             ConnectionAuthenticationKind.SshPrivateKeyPassword => new SshPrivateKeyPasswordAuthentication(
                 value.Username!,
                 SecretReference.Parse(value.PasswordReference!),
@@ -699,6 +723,9 @@ internal static class ConnectionProfileIpcMapper
             PrivateKeyReference: authentication.PrivateKeyReference.Value,
             PrivateKeyPassphraseReference: authentication.PassphraseReference?.Value,
             PrivateKeyFormat: MapPrivateKeyFormat(authentication.KeyFormat)),
+        BearerTokenAuthentication authentication => new(
+            ConnectionAuthenticationKind.BearerToken,
+            SessionTokenReference: authentication.TokenReference.Value),
         SshPrivateKeyPasswordAuthentication authentication => new(
             ConnectionAuthenticationKind.SshPrivateKeyPassword,
             Username: authentication.Username,
@@ -821,8 +848,17 @@ internal static class ConnectionProfileIpcMapper
                 Empty(value.ClientCertificatePfxReference) && Empty(value.ClientCertificatePasswordReference) &&
                 value.TlsPolicy == ConnectionTlsCertificatePolicy.SystemTrust &&
                 value.FtpsTlsMode == ConnectionFtpsTlsMode.Explicit,
+            // A PFX may carry no password, as for FTPS; a password without a PFX describes nothing.
+            StorageConnectionProvider.WebDav =>
+                Present(value.ServiceEndpoint) && Empty(value.Host) && value.Port is null &&
+                Empty(value.Bucket) && Empty(value.Region) && !value.ForcePathStyle &&
+                (Empty(value.ClientCertificatePasswordReference) || !Empty(value.ClientCertificatePfxReference)) &&
+                value.FtpsTlsMode == ConnectionFtpsTlsMode.Explicit &&
+                value.SshHostKeyPolicy == ConnectionSshHostKeyPolicy.Pinned,
             _ => false
         };
+        valid &= value.HttpCredentialScheme == ConnectionHttpCredentialScheme.Basic ||
+            value.Provider == StorageConnectionProvider.WebDav;
         if (!valid)
         {
             throw new ArgumentException(
@@ -860,6 +896,9 @@ internal static class ConnectionProfileIpcMapper
             ConnectionAuthenticationKind.SshPrivateKeyPassword =>
                 hasUsername && !hasCredential && hasPassword && !hasAccess && !hasSecret &&
                 !hasToken && hasKey,
+            ConnectionAuthenticationKind.BearerToken =>
+                !hasUsername && !hasCredential && !hasPassword && !hasAccess && !hasSecret &&
+                hasToken && !hasKey && !hasPassphrase,
             _ => false
         };
         if (!valid)
@@ -889,7 +928,26 @@ internal static class ConnectionProfileIpcMapper
         StorageConnectionProvider.Ftps => ConnectionProviderKind.Ftps,
         StorageConnectionProvider.Sftp => ConnectionProviderKind.Sftp,
         StorageConnectionProvider.Ssh => ConnectionProviderKind.Ssh,
+        StorageConnectionProvider.WebDav => ConnectionProviderKind.WebDav,
         _ => throw new ArgumentOutOfRangeException(nameof(value), value, "The provider is invalid.")
+    };
+
+    private static HttpCredentialScheme MapCredentialScheme(ConnectionHttpCredentialScheme value) => value switch
+    {
+        ConnectionHttpCredentialScheme.Basic => HttpCredentialScheme.Basic,
+        ConnectionHttpCredentialScheme.Digest => HttpCredentialScheme.Digest,
+        ConnectionHttpCredentialScheme.Ntlm => HttpCredentialScheme.Ntlm,
+        ConnectionHttpCredentialScheme.Negotiate => HttpCredentialScheme.Negotiate,
+        _ => throw new ArgumentOutOfRangeException(nameof(value), value, "The HTTP credential scheme is invalid.")
+    };
+
+    private static ConnectionHttpCredentialScheme MapCredentialScheme(HttpCredentialScheme value) => value switch
+    {
+        HttpCredentialScheme.Basic => ConnectionHttpCredentialScheme.Basic,
+        HttpCredentialScheme.Digest => ConnectionHttpCredentialScheme.Digest,
+        HttpCredentialScheme.Ntlm => ConnectionHttpCredentialScheme.Ntlm,
+        HttpCredentialScheme.Negotiate => ConnectionHttpCredentialScheme.Negotiate,
+        _ => throw new ArgumentOutOfRangeException(nameof(value), value, "The HTTP credential scheme is invalid.")
     };
 
     private static TlsCertificatePolicy MapTlsPolicy(ConnectionTlsCertificatePolicy value) => value switch

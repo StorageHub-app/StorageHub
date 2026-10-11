@@ -5,7 +5,7 @@ Real servers, on loopback, for the integration fixtures to talk to.
 ## Why this exists
 
 The fixtures were already written. `SftpProviderIntegrationTests`, `SshTerminalIntegrationTests`,
-`SshHostKeyDiscoveryIntegrationTests` and the FTP and MinIO suites all read their endpoints from
+`SshHostKeyDiscoveryIntegrationTests` and the FTP, WebDAV and MinIO suites all read their endpoints from
 `STORAGEHUB_*` environment variables and return early when those are unset — so on any machine that
 had not been set up by hand, they silently did nothing. What was missing was never the tests. It was
 anything for them to point at.
@@ -90,6 +90,40 @@ client-certificate assertions would pass against a server that never looked.
 Each endpoint gets its own published passive port range. A data connection is a second socket on a
 port the server nominates, so the range has to be published as well as configured, and two servers
 sharing one would hand out each other's ports.
+
+### WebDAV
+
+rclone (`rclone serve webdav`, pinned) twice: once in plain HTTP and once over HTTPS with the
+lab's server certificate, the same one the FTPS endpoints present.
+
+| Service | Port | TLS |
+|---|---|---|
+| `webdav` | 18080 | none |
+| `webdav-tls` | 18443 | HTTPS, lab certificate |
+
+`WebDavProviderIntegrationTests` reads:
+
+| Variable | Meaning |
+|---|---|
+| `STORAGEHUB_REQUIRE_WEBDAV` | `1` makes a missing or malformed setting a failure instead of a skip |
+| `STORAGEHUB_WEBDAV_URL` | the plain server, an `http://` URL |
+| `STORAGEHUB_WEBDAV_TLS_URL` | the HTTPS server, an `https://` URL |
+| `STORAGEHUB_WEBDAV_USERNAME`, `STORAGEHUB_WEBDAV_PASSWORD` | the one user both servers accept |
+| `STORAGEHUB_WEBDAV_SERVER_SHA256` | the HTTPS certificate's SHA-256, as hex — the FTPS fingerprint |
+
+With none of them set the fixture does nothing. Set, it runs the conformance pass over plain HTTP,
+the round trip over pinned HTTPS, a saved profile through the real connector (password in a vault,
+pin in a trust store), and the failures: a wrong pin and an unpinned connection to the lab's
+certificate are both TLS failures, a wrong password is *unauthorized* and is never repeated back, and
+plain HTTP that nobody acknowledged is refused before anything is sent.
+
+Every run writes below its own `mounted/run-<id>` folder, which it makes first: a WebDAV root has
+to exist, as a mount point does, and a reused lab still holds what the last run wrote. The two
+servers keep separate data, but nothing depends on that.
+
+Any WebDAV server will do. Without Docker, `pip install wsgidav cheroot` and a config with a
+`simple_dc` user, `accept_basic: true` and, for the HTTPS one, `ssl_certificate`/`ssl_private_key`
+pointing at the lab certificate, is what the fixture was first run against.
 
 ### S3
 

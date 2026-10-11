@@ -15,6 +15,20 @@ public static class ConnectionEditorDraftFactory
     internal const string CloudflareR2ServiceType = "Cloudflare R2";
     internal const string OtherS3ServiceType = "Other S3-compatible";
 
+    /// <summary>WebDAV's URL field, path and all; S3's "endpoint" is a default worth reusing, this is not.</summary>
+    internal const string WebDavUrlKey = "url";
+
+    /// <summary>The bearer token's vault reference, which the IPC draft carries in its token slot.</summary>
+    internal const string BearerTokenKey = "bearerTokenReference";
+
+    // WebDAV's sign-in choices that the switches below match on; the rest are the HTTP scheme names.
+    internal const string WebDavBasic = "Basic";
+    internal const string WebDavBearerToken = "Bearer token";
+    internal const string WebDavAnonymous = "Anonymous";
+
+    private const string PinnedTrustMode = "System trust + certificate pin";
+    private const string HostnameTrustMode = "System trust + hostname";
+
     public static ConnectionProfileDraft Build(
         StorageProviderKind provider,
         IReadOnlyDictionary<string, string> values,
@@ -109,10 +123,12 @@ public static class ConnectionEditorDraftFactory
     {
         defaults ??= ConnectionDefaultSettings.Get(provider, stored: null);
         var isFtp = provider is StorageProviderKind.Ftp or StorageProviderKind.Ftps;
+        // WebDAV has one timeout, for each whole request, so its editor offers that one only.
+        var hasRequestTimeout = isFtp || provider == StorageProviderKind.WebDav;
         return new ConnectionOperationalOptionsDocument(
             // Only FTP keeps a connect and a read timeout apart, so only its editor offers them.
             ConnectTimeoutSeconds: isFtp ? ParseSeconds(values, ConnectTimeoutKey, 600, defaults.ConnectTimeoutSeconds) : defaults.ConnectTimeoutSeconds,
-            OperationTimeoutSeconds: isFtp ? ParseSeconds(values, ReadTimeoutKey, 86_400, defaults.OperationTimeoutSeconds) : defaults.OperationTimeoutSeconds,
+            OperationTimeoutSeconds: hasRequestTimeout ? ParseSeconds(values, ReadTimeoutKey, 86_400, defaults.OperationTimeoutSeconds) : defaults.OperationTimeoutSeconds,
             EncodingName: isFtp ? ParseEncoding(values) : "utf-8",
             MaximumRetryAttempts: defaults.MaximumRetryAttempts,
             ProxyEndpoint: ParseProxyAddress(values, out var scheme),
@@ -319,6 +335,22 @@ public static class ConnectionEditorDraftFactory
             values[ReadTimeoutKey] = options.OperationTimeoutSeconds.ToString(CultureInfo.InvariantCulture);
         }
 
+        if (profile.Draft.Endpoint.Provider == StorageConnectionProvider.WebDav)
+        {
+            values[ReadTimeoutKey] = profile.Draft.OperationalOptions.OperationTimeoutSeconds
+                .ToString(CultureInfo.InvariantCulture);
+            values["authenticationMode"] = profile.Draft.Authentication.Kind switch
+            {
+                ConnectionAuthenticationKind.None => WebDavAnonymous,
+                ConnectionAuthenticationKind.BearerToken => WebDavBearerToken,
+                _ => WebDavAuthenticationModeOf(profile.Draft.Endpoint.HttpCredentialScheme)
+            };
+            values[BearerTokenKey] = profile.Draft.Authentication.Kind == ConnectionAuthenticationKind.BearerToken
+                ? profile.Draft.Authentication.SessionTokenReference ?? string.Empty
+                : string.Empty;
+            values.Remove("sessionTokenReference");
+        }
+
         values[ProxyAddressKey] = profile.Draft.OperationalOptions.ProxyEndpoint?.TrimEnd('/') ?? string.Empty;
         values[ProxyUsernameKey] = profile.Draft.OperationalOptions.ProxyUsername ?? string.Empty;
         values[ProxyPasswordKey] = profile.Draft.OperationalOptions.ProxyPasswordReference ?? string.Empty;
@@ -339,7 +371,99 @@ public static class ConnectionEditorDraftFactory
             StorageProviderKind.Ftps => BuildFtpsEndpoint(values),
             StorageProviderKind.Sftp => BuildSftpEndpoint(values),
             StorageProviderKind.Ssh => BuildSshEndpoint(values),
+            StorageProviderKind.WebDav => BuildWebDavEndpoint(values),
             _ => throw new ArgumentOutOfRangeException(nameof(provider))
+        };
+
+    /// <summary>
+    /// A WebDAV server's URL and how it is trusted, checked here so a mistake is said beside the
+    /// field rather than refused by the agent.
+    /// </summary>
+    /// <remarks>
+    /// A host name alone is taken as https://, as S3's endpoint is. Plain HTTP has to be allowed on
+    /// the trust tab, and a pin or a client certificate on it is refused: neither protects anything
+    /// without TLS.
+    /// </remarks>
+    private static ConnectionEndpointDocument BuildWebDavEndpoint(IReadOnlyDictionary<string, string> values)
+    {
+        var text = Require(values, WebDavUrlKey, Ui.Validation.AWebDavUrlIsRequired);
+        var candidate = text.Contains("://", StringComparison.Ordinal) ? text : "https://" + text;
+        if (!Uri.TryCreate(candidate, UriKind.Absolute, out var url) ||
+            url.Scheme is not ("http" or "https") ||
+            string.IsNullOrWhiteSpace(url.Host) ||
+            !string.IsNullOrEmpty(url.UserInfo) ||
+            !string.IsNullOrEmpty(url.Query) ||
+            !string.IsNullOrEmpty(url.Fragment))
+        {
+            throw new ArgumentException(Ui.Validation.TheWebDavUrlIsInvalid, nameof(values));
+        }
+
+        var isHttp = url.Scheme == Uri.UriSchemeHttp;
+        if (isHttp && !ParseBoolean(values, "acknowledgePlaintext"))
+        {
+            throw new ArgumentException(Ui.Validation.WebDavPlainHttpNeedsAcknowledgement, nameof(values));
+        }
+
+        var pinned = string.Equals(Get(values, "trustMode"), PinnedTrustMode, StringComparison.Ordinal);
+        var certificate = Get(values, "clientCertificateReference");
+        if (isHttp && (pinned || certificate is not null))
+        {
+            throw new ArgumentException(Ui.Validation.WebDavTlsNeedsHttps, nameof(values));
+        }
+
+        if (pinned)
+        {
+            ValidateFingerprint(Require(
+                values,
+                "certificatePin",
+                Ui.Validation.AVerifiedCertificateSHA256PinIs));
+        }
+
+        var mode = Get(values, "authenticationMode") ?? WebDavBasic;
+        return new ConnectionEndpointDocument(
+            StorageConnectionProvider.WebDav,
+            RootPath: NormalizeProviderRoot(Get(values, "initialPath")),
+            ServiceEndpoint: url.AbsoluteUri,
+            TlsPolicy: pinned
+                ? ConnectionTlsCertificatePolicy.Pinned
+                : ConnectionTlsCertificatePolicy.SystemTrust,
+            AllowInsecureTransport: isHttp,
+            ClientCertificatePfxReference: certificate,
+            ClientCertificatePasswordReference: certificate is null
+                ? null
+                : Get(values, "clientCertificatePasswordReference"),
+            HttpCredentialScheme: mode switch
+            {
+                "Digest" => ConnectionHttpCredentialScheme.Digest,
+                "NTLM" => ConnectionHttpCredentialScheme.Ntlm,
+                "Negotiate (Kerberos)" => ConnectionHttpCredentialScheme.Negotiate,
+                _ => ConnectionHttpCredentialScheme.Basic
+            });
+    }
+
+    private static string WebDavAuthenticationModeOf(ConnectionHttpCredentialScheme scheme) => scheme switch
+    {
+        ConnectionHttpCredentialScheme.Digest => "Digest",
+        ConnectionHttpCredentialScheme.Ntlm => "NTLM",
+        ConnectionHttpCredentialScheme.Negotiate => "Negotiate (Kerberos)",
+        _ => WebDavBasic
+    };
+
+    /// <summary>
+    /// WebDAV's sign-in: nothing, a bearer token, or a user name and password for whichever HTTP
+    /// scheme the endpoint names. The fields of the modes not chosen are left out of the draft.
+    /// </summary>
+    private static ConnectionAuthenticationDocument BuildWebDavAuthentication(
+        IReadOnlyDictionary<string, string> values) => (Get(values, "authenticationMode") ?? WebDavBasic) switch
+        {
+            WebDavAnonymous => new ConnectionAuthenticationDocument(ConnectionAuthenticationKind.None),
+            WebDavBearerToken => new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.BearerToken,
+                SessionTokenReference: Require(values, BearerTokenKey, Ui.Validation.ABearerTokenIsRequired)),
+            _ => new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.UsernamePassword,
+                Username: Require(values, "username", Ui.Validation.AUsernameIsRequired),
+                PasswordReference: Require(values, "passwordReference", Ui.Validation.AVaultPasswordReferenceIsRequired))
         };
 
     private static ConnectionEndpointDocument BuildSftpEndpoint(IReadOnlyDictionary<string, string> values)
@@ -480,7 +604,7 @@ public static class ConnectionEditorDraftFactory
     {
         var pinned = string.Equals(
             Get(values, "trustMode"),
-            "System trust + certificate pin",
+            PinnedTrustMode,
             StringComparison.Ordinal);
         if (pinned)
         {
@@ -522,6 +646,7 @@ public static class ConnectionEditorDraftFactory
                     PasswordReference: Require(values, "passwordReference", Ui.Validation.AVaultPasswordReferenceIsRequired)),
             StorageProviderKind.Sftp => BuildSshAuthentication(values, allowMultiFactor: false),
             StorageProviderKind.Ssh => BuildSshAuthentication(values, allowMultiFactor: true),
+            StorageProviderKind.WebDav => BuildWebDavAuthentication(values),
             _ => throw new ArgumentOutOfRangeException(nameof(provider))
         };
 
@@ -611,7 +736,10 @@ public static class ConnectionEditorDraftFactory
     {
         Add(values, "rootPath", endpoint.Provider == StorageConnectionProvider.Local ? endpoint.RootPath : null);
         Add(values, "initialPath", endpoint.Provider is StorageConnectionProvider.Ftp or
-            StorageConnectionProvider.Ftps or StorageConnectionProvider.Sftp ? endpoint.RootPath : null);
+            StorageConnectionProvider.Ftps or StorageConnectionProvider.Sftp or StorageConnectionProvider.WebDav
+                ? endpoint.RootPath
+                : null);
+        Add(values, WebDavUrlKey, endpoint.Provider == StorageConnectionProvider.WebDav ? endpoint.ServiceEndpoint : null);
         Add(values, "prefix", endpoint.Provider == StorageConnectionProvider.S3 ? endpoint.RootPath : null);
         Add(values, "host", endpoint.Host);
         Add(values, "port", endpoint.Port?.ToString(CultureInfo.InvariantCulture));
@@ -632,6 +760,11 @@ public static class ConnectionEditorDraftFactory
         Add(values, "tlsMode", endpoint.FtpsTlsMode == ConnectionFtpsTlsMode.Implicit
             ? "Implicit TLS"
             : "Explicit TLS (recommended)");
+        // Without this a pinned connection opened again showed hostname trust, and saving it, even
+        // only to rename it, quietly dropped the pin.
+        Add(values, "trustMode", endpoint.Provider is StorageConnectionProvider.Ftps or StorageConnectionProvider.WebDav
+            ? endpoint.TlsPolicy == ConnectionTlsCertificatePolicy.Pinned ? PinnedTrustMode : HostnameTrustMode
+            : null);
         Add(values, "clientCertificateReference", endpoint.ClientCertificatePfxReference);
         Add(values, "clientCertificatePasswordReference", endpoint.ClientCertificatePasswordReference);
         if (endpoint.Provider is StorageConnectionProvider.Ftp or StorageConnectionProvider.Ftps)

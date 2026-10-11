@@ -81,6 +81,100 @@ public sealed class ConnectionProfileIpcCommandServiceTests
         Assert.Equal(passphrase, authentication.PassphraseReference?.Value);
     }
 
+    /// <summary>
+    /// A WebDAV draft becomes a WebDAV profile with its URL, scheme, pin policy and certificate
+    /// references intact, and comes back out of the agent as the same draft it went in as.
+    /// </summary>
+    [Fact]
+    public async Task CreateMapsWebDavDraftsBothWaysForEachSignIn()
+    {
+        const string first = "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+        const string second = "shs_BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
+        var digest = new ConnectionProfileDraft(
+            new ConnectionProfileMetadataDocument("Files", Tags: []),
+            new ConnectionEndpointDocument(
+                StorageConnectionProvider.WebDav,
+                RootPath: "Projects",
+                ServiceEndpoint: "https://dav.example.test:8443/remote.php/dav/files/me/",
+                TlsPolicy: ConnectionTlsCertificatePolicy.Pinned,
+                ClientCertificatePfxReference: first,
+                ClientCertificatePasswordReference: second,
+                HttpCredentialScheme: ConnectionHttpCredentialScheme.Digest),
+            new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.UsernamePassword,
+                Username: "operator",
+                PasswordReference: first),
+            new ConnectionOperationalOptionsDocument());
+        var bearer = digest with
+        {
+            Endpoint = new ConnectionEndpointDocument(
+                StorageConnectionProvider.WebDav,
+                ServiceEndpoint: "http://nas.local:8080/",
+                AllowInsecureTransport: true),
+            Authentication = new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.BearerToken,
+                SessionTokenReference: second)
+        };
+
+        foreach (var draft in new[] { digest, bearer })
+        {
+            var repository = new RecordingProfileRepository();
+            var service = new ConnectionProfileIpcCommandService(repository, new FixedTimeProvider(Now));
+            var result = await service.HandleAsync(IpcEnvelope.Create(
+                ConnectionProfileIpcMessageTypes.CreateRequest,
+                Guid.NewGuid(),
+                1,
+                new ConnectionProfileCreateRequest(ConnectionProfileIpcContract.CurrentVersion, draft)));
+            var response = result.Payload.Deserialize<ConnectionProfileWriteResponse>();
+
+            Assert.Equal(ContractWriteStatus.Succeeded, response?.Status);
+            Assert.Equal(ConnectionProviderKind.WebDav, repository.Created?.Provider);
+            // An absent root comes back empty, as every provider's does.
+            Assert.Equal(
+                draft.Endpoint with { RootPath = draft.Endpoint.RootPath ?? string.Empty },
+                response!.Profile!.Draft.Endpoint);
+            Assert.Equal(draft.Authentication, response.Profile.Draft.Authentication);
+        }
+
+        var digestRepository = new RecordingProfileRepository();
+        await new ConnectionProfileIpcCommandService(digestRepository, new FixedTimeProvider(Now)).HandleAsync(
+            IpcEnvelope.Create(
+                ConnectionProfileIpcMessageTypes.CreateRequest,
+                Guid.NewGuid(),
+                1,
+                new ConnectionProfileCreateRequest(ConnectionProfileIpcContract.CurrentVersion, digest)));
+        var endpoint = Assert.IsType<WebDavEndpoint>(digestRepository.Created?.Endpoint);
+        Assert.Equal(HttpCredentialScheme.Digest, endpoint.CredentialScheme);
+        Assert.Equal(("dav.example.test", 8443), (endpoint.Host, endpoint.Port));
+        Assert.Equal(TlsCertificatePolicy.Pinned, endpoint.TlsPolicy);
+        Assert.Equal(first, endpoint.ClientCertificatePfxReference?.Value);
+        Assert.Equal("Projects", endpoint.RootPath);
+    }
+
+    /// <summary>A plain-HTTP WebDAV URL nobody acknowledged never reaches the repository.</summary>
+    [Fact]
+    public async Task CreateRefusesUnacknowledgedPlainHttpWebDav()
+    {
+        var repository = new RecordingProfileRepository();
+        var service = new ConnectionProfileIpcCommandService(repository, new FixedTimeProvider(Now));
+        var draft = new ConnectionProfileDraft(
+            new ConnectionProfileMetadataDocument("NAS", Tags: []),
+            new ConnectionEndpointDocument(StorageConnectionProvider.WebDav, ServiceEndpoint: "http://nas.local/"),
+            new ConnectionAuthenticationDocument(ConnectionAuthenticationKind.None),
+            new ConnectionOperationalOptionsDocument());
+
+        var result = await service.HandleAsync(IpcEnvelope.Create(
+            ConnectionProfileIpcMessageTypes.CreateRequest,
+            Guid.NewGuid(),
+            1,
+            new ConnectionProfileCreateRequest(ConnectionProfileIpcContract.CurrentVersion, draft)));
+
+        Assert.Equal(
+            ContractWriteStatus.ValidationFailed,
+            result.Payload.Deserialize<ConnectionProfileWriteResponse>()?.Status);
+        Assert.Null(repository.Created);
+    }
+
     [WindowsOnlyFact]
     public async Task CreateRejectsProviderIrrelevantFieldsBeforeRepositoryCall()
     {

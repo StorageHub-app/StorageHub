@@ -242,5 +242,10 @@
   "chooseCtrlAltWithAKeyFormat": "Vælg Ctrl/Alt sammen med en tast, en funktionstast eller Delete til {0}.",
   "isAlreadyAssignedToClearThatFormat": "{0} er allerede tildelt {1}. Ryd den tildeling først.",
   "aGroupNameIsRequired": "Et gruppenavn er påkrævet.",
+  "aWebDavUrlIsRequired": "Der kræves en URL til WebDAV-serveren.",
+  "theWebDavUrlIsInvalid": "WebDAV-URL'en skal være en http://- eller https://-adresse uden brugernavn, forespørgsel eller fragment.",
+  "webDavPlainHttpNeedsAcknowledgement": "En ukrypteret http://-adresse kræver \"Tillad et ukrypteret HTTP-endepunkt\" under Transport og serveridentitet.",
+  "webDavTlsNeedsHttps": "En certifikatfastlåsning eller et klientcertifikat kræver en https://-adresse.",
+  "aBearerTokenIsRequired": "Login med bearer-token kræver et bearer-token.",
   "culture": "da-DK"
 }

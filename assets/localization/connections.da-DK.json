@@ -218,5 +218,9 @@
   "iconPickerColor": "Farve",
   "iconPickerNoColor": "Ingen farve",
   "iconPickerGroupTitleFormat": "Ikon og farve for {0}",
+  "authBearerToken": "Bearer-token",
+  "fieldHttpSignIn": "HTTP-login",
+  "fieldRequestTimeout": "Tidsgrænse for forespørgsel",
+  "requestTimeoutHint": "I sekunder, for hver hel forespørgsel, inklusive filen ved en upload. Hæv den til store filer på en langsom forbindelse.",
   "culture": "da-DK"
 }

@@ -11,6 +11,7 @@ public sealed class ConnectionEditorDraftFactoryTests
     [InlineData(StorageProviderKind.Ftps, 30, 0)]
     [InlineData(StorageProviderKind.Sftp, 30, 0)]
     [InlineData(StorageProviderKind.Ssh, 30, 0)]
+    [InlineData(StorageProviderKind.WebDav, 600, 0)]
     public void RemoteDraftsUseOnlyOperationalDefaultsTheirProviderCanEnforce(
         StorageProviderKind provider,
         int operationTimeoutSeconds,
@@ -286,6 +287,118 @@ public sealed class ConnectionEditorDraftFactoryTests
                 .AuthenticationFields.Single(field => field.Key == "authenticationMode").Choices!);
     }
 
+    /// <summary>
+    /// A WebDAV address typed without a scheme is HTTPS; its sign-in scheme, pin, client
+    /// certificate, folder and request timeout all come back when the connection is edited, and
+    /// saving it again unchanged gives the same draft.
+    /// </summary>
+    [Fact]
+    public void APinnedWebDavConnectionSurvivesAnEdit()
+    {
+        var values = ValidValues(StorageProviderKind.WebDav);
+        values["url"] = " dav.example.test:8443/remote.php/dav/files/me/ ";
+        values["initialPath"] = "Projects";
+        values["authenticationMode"] = "Digest";
+        values["trustMode"] = "System trust + certificate pin";
+        values["certificatePin"] = new string('A', 64);
+        values["clientCertificateReference"] = "shs_BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
+        values["clientCertificatePasswordReference"] = "shs_CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC";
+        values[ConnectionEditorDraftFactory.ReadTimeoutKey] = "1800";
+
+        var draft = ConnectionEditorDraftFactory.Build(StorageProviderKind.WebDav, values);
+        var reopened = ConnectionEditorDraftFactory.ToEditorValues(
+            new ConnectionProfileDocument(Guid.NewGuid(), 1, draft, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch));
+
+        Assert.True(draft.HasValidBounds);
+        Assert.Equal("https://dav.example.test:8443/remote.php/dav/files/me/", draft.Endpoint.ServiceEndpoint);
+        Assert.Equal("Projects", draft.Endpoint.RootPath);
+        Assert.Equal(ConnectionHttpCredentialScheme.Digest, draft.Endpoint.HttpCredentialScheme);
+        Assert.Equal(ConnectionTlsCertificatePolicy.Pinned, draft.Endpoint.TlsPolicy);
+        Assert.False(draft.Endpoint.AllowInsecureTransport);
+        Assert.Null(draft.Endpoint.Host);
+        Assert.Equal(1800, draft.OperationalOptions.OperationTimeoutSeconds);
+        Assert.Equal(ConnectionAuthenticationKind.UsernamePassword, draft.Authentication.Kind);
+
+        Assert.Equal("https://dav.example.test:8443/remote.php/dav/files/me/", reopened["url"]);
+        Assert.Equal("Digest", reopened["authenticationMode"]);
+        Assert.Equal("System trust + certificate pin", reopened["trustMode"]);
+        Assert.Equal("1800", reopened[ConnectionEditorDraftFactory.ReadTimeoutKey]);
+        // The pin itself lives in the trust store, so the editor is handed it again as it would be.
+        var resaved = new Dictionary<string, string>(reopened, StringComparer.Ordinal)
+        {
+            ["certificatePin"] = new string('A', 64)
+        };
+        Assert.Equal(draft, ConnectionEditorDraftFactory.Build(StorageProviderKind.WebDav, resaved) with
+        {
+            Metadata = draft.Metadata
+        });
+    }
+
+    [Theory]
+    [InlineData("Bearer token", ConnectionAuthenticationKind.BearerToken)]
+    [InlineData("Anonymous", ConnectionAuthenticationKind.None)]
+    [InlineData("NTLM", ConnectionAuthenticationKind.UsernamePassword)]
+    public void EachWebDavSignInBuildsOnlyItsOwnFieldsAndReopensAsItself(
+        string mode,
+        ConnectionAuthenticationKind kind)
+    {
+        var values = ValidValues(StorageProviderKind.WebDav);
+        values["authenticationMode"] = mode;
+        values["bearerTokenReference"] = "shs_DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD";
+
+        var draft = ConnectionEditorDraftFactory.Build(StorageProviderKind.WebDav, values);
+        var reopened = ConnectionEditorDraftFactory.ToEditorValues(
+            new ConnectionProfileDocument(Guid.NewGuid(), 1, draft, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch));
+
+        Assert.True(draft.HasValidBounds);
+        Assert.Equal(kind, draft.Authentication.Kind);
+        Assert.Equal(kind == ConnectionAuthenticationKind.BearerToken, draft.Authentication.SessionTokenReference is not null);
+        Assert.Equal(kind == ConnectionAuthenticationKind.UsernamePassword, draft.Authentication.PasswordReference is not null);
+        Assert.Equal(mode, reopened["authenticationMode"]);
+    }
+
+    [Fact]
+    public void WebDavRefusesUnacknowledgedHttpAndProtectionsHttpCannotGive()
+    {
+        var values = ValidValues(StorageProviderKind.WebDav);
+        values["url"] = "http://nas.local:8080/";
+
+        var unacknowledged = Assert.Throws<ArgumentException>(() =>
+            ConnectionEditorDraftFactory.Build(StorageProviderKind.WebDav, values));
+        Assert.StartsWith(Ui.Validation.WebDavPlainHttpNeedsAcknowledgement, unacknowledged.Message, StringComparison.Ordinal);
+
+        values["acknowledgePlaintext"] = "true";
+        Assert.True(ConnectionEditorDraftFactory.Build(StorageProviderKind.WebDav, values).Endpoint.AllowInsecureTransport);
+
+        values["trustMode"] = "System trust + certificate pin";
+        values["certificatePin"] = new string('A', 64);
+        var pinned = Assert.Throws<ArgumentException>(() =>
+            ConnectionEditorDraftFactory.Build(StorageProviderKind.WebDav, values));
+        Assert.StartsWith(Ui.Validation.WebDavTlsNeedsHttps, pinned.Message, StringComparison.Ordinal);
+
+        foreach (var url in new[] { "ftp://nas.local/", "https://user:secret@nas.local/", "https://nas.local/?a=b", "" })
+        {
+            values["url"] = url;
+            Assert.Throws<ArgumentException>(() => ConnectionEditorDraftFactory.Build(StorageProviderKind.WebDav, values));
+        }
+    }
+
+    /// <summary>A pinned FTPS connection reopened for editing keeps its pin, rather than reverting to system trust.</summary>
+    [Fact]
+    public void APinnedFtpsConnectionKeepsItsTrustModeWhenEdited()
+    {
+        var values = ValidValues(StorageProviderKind.Ftps);
+        values["trustMode"] = "System trust + certificate pin";
+        values["certificatePin"] = new string('A', 64);
+
+        var draft = ConnectionEditorDraftFactory.Build(StorageProviderKind.Ftps, values);
+        var reopened = ConnectionEditorDraftFactory.ToEditorValues(
+            new ConnectionProfileDocument(Guid.NewGuid(), 1, draft, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch));
+
+        Assert.Equal(ConnectionTlsCertificatePolicy.Pinned, draft.Endpoint.TlsPolicy);
+        Assert.Equal("System trust + certificate pin", reopened["trustMode"]);
+    }
+
     [Fact]
     public void PlainFtpRequiresExplicitAcknowledgement()
     {
@@ -409,6 +522,14 @@ public sealed class ConnectionEditorDraftFactoryTests
             ["authenticationMode"] = "Password reference",
             ["passwordReference"] = "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
             ["hostKeyFingerprint"] = new string('A', 64)
+        },
+        StorageProviderKind.WebDav => new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["profileName"] = "WebDAV",
+            ["url"] = "https://dav.example.test/",
+            ["username"] = "operator",
+            ["passwordReference"] = "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            ["trustMode"] = "System trust + hostname"
         },
         _ => throw new ArgumentOutOfRangeException(nameof(provider))
     };

@@ -375,6 +375,15 @@ internal sealed class ConnectionStrings : LocalizationModelBase
 
     public string AuthPrivateKeyAndPassword { get; set; } = "Private key and password (MFA)";
 
+    public string AuthBearerToken { get; set; } = "Bearer token";
+
+    public string FieldHttpSignIn { get; set; } = "HTTP sign-in";
+
+    public string FieldRequestTimeout { get; set; } = "Request timeout";
+
+    public string RequestTimeoutHint { get; set; } =
+        "In seconds, for each whole request, an upload's file included. Raise it for large files on a slow line.";
+
     public string TlsSystemTrust { get; set; } = "System trust";
 
     public string TlsPinnedCertificate { get; set; } = "Pinned certificate";
