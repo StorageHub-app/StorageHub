@@ -12,6 +12,7 @@ public sealed class ConnectionEditorDraftFactoryTests
     [InlineData(StorageProviderKind.Sftp, 30, 0)]
     [InlineData(StorageProviderKind.Ssh, 30, 0)]
     [InlineData(StorageProviderKind.WebDav, 600, 0)]
+    [InlineData(StorageProviderKind.AzureBlob, 30, 3)]
     public void RemoteDraftsUseOnlyOperationalDefaultsTheirProviderCanEnforce(
         StorageProviderKind provider,
         int operationTimeoutSeconds,
@@ -401,6 +402,101 @@ public sealed class ConnectionEditorDraftFactoryTests
         }
     }
 
+    /// <summary>
+    /// A shared key with no service URL gets the account's public one; each Azure sign-in carries
+    /// only its own secret, reopens as itself, and saving it again unchanged gives the same draft.
+    /// </summary>
+    [Theory]
+    [InlineData("Shared key", ConnectionAuthenticationKind.AzureSharedKey)]
+    [InlineData("SAS token", ConnectionAuthenticationKind.AzureSasToken)]
+    [InlineData("Connection string", ConnectionAuthenticationKind.AzureConnectionString)]
+    [InlineData("Azure identity", ConnectionAuthenticationKind.AmbientCredential)]
+    public void EachAzureSignInBuildsOnlyItsOwnFieldsAndSurvivesAnEdit(string mode, ConnectionAuthenticationKind kind)
+    {
+        var values = ValidValues(StorageProviderKind.AzureBlob);
+        values["authenticationMode"] = mode;
+        values["prefix"] = "/team/reports/";
+        values["sasTokenReference"] = "shs_BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
+        values["connectionStringReference"] = "shs_CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC";
+        if (mode is "SAS token" or "Azure identity")
+        {
+            values["endpoint"] = "account.blob.core.windows.net";
+        }
+
+        var draft = ConnectionEditorDraftFactory.Build(StorageProviderKind.AzureBlob, values);
+        var reopened = ConnectionEditorDraftFactory.ToEditorValues(
+            new ConnectionProfileDocument(Guid.NewGuid(), 1, draft, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch));
+
+        Assert.True(draft.HasValidBounds);
+        Assert.Equal(kind, draft.Authentication.Kind);
+        Assert.Equal("archive", draft.Endpoint.Bucket);
+        Assert.Equal("team/reports", draft.Endpoint.RootPath);
+        Assert.Equal(
+            kind == ConnectionAuthenticationKind.AzureConnectionString ? null : "https://account.blob.core.windows.net/",
+            draft.Endpoint.ServiceEndpoint);
+        Assert.Equal(kind == ConnectionAuthenticationKind.AzureSharedKey ? "account" : null, draft.Authentication.Username);
+        Assert.Equal(
+            kind switch
+            {
+                ConnectionAuthenticationKind.AzureSharedKey => "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+                ConnectionAuthenticationKind.AzureConnectionString => "shs_CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+                _ => null
+            },
+            draft.Authentication.SecretKeyReference);
+        Assert.Equal(
+            kind == ConnectionAuthenticationKind.AzureSasToken ? "shs_BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB" : null,
+            draft.Authentication.SessionTokenReference);
+
+        Assert.Equal(mode, reopened["authenticationMode"]);
+        Assert.Equal("archive", reopened["container"]);
+        Assert.False(reopened.ContainsKey("bucket"));
+        Assert.Equal(draft, ConnectionEditorDraftFactory.Build(StorageProviderKind.AzureBlob, reopened) with
+        {
+            Metadata = draft.Metadata
+        });
+    }
+
+    /// <summary>Plain HTTP comes only with a connection string, and a service URL is only ever HTTPS.</summary>
+    [Fact]
+    public void AzureAllowsPlainHttpOnlyForAConnectionStringAndChecksNamesBesideTheFields()
+    {
+        var values = ValidValues(StorageProviderKind.AzureBlob);
+        values["acknowledgePlaintext"] = "true";
+        var sharedKey = Assert.Throws<ArgumentException>(() =>
+            ConnectionEditorDraftFactory.Build(StorageProviderKind.AzureBlob, values));
+        Assert.StartsWith(Ui.Validation.AzurePlainHttpNeedsConnectionString, sharedKey.Message, StringComparison.Ordinal);
+
+        values["authenticationMode"] = "Connection string";
+        values["connectionStringReference"] = "shs_CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC";
+        values["endpoint"] = "http://127.0.0.1:10000/devstoreaccount1";
+        var emulator = ConnectionEditorDraftFactory.Build(StorageProviderKind.AzureBlob, values);
+        Assert.True(emulator.Endpoint.AllowInsecureTransport);
+        Assert.Null(emulator.Endpoint.ServiceEndpoint);
+
+        values = ValidValues(StorageProviderKind.AzureBlob);
+        foreach (var (key, value, message) in new[]
+        {
+            ("endpoint", "http://account.blob.core.windows.net/", Ui.Validation.AzurePlainHttpNeedsConnectionString),
+            ("endpoint", "https://account.blob.core.windows.net/?sv=1&sig=secret", Ui.Validation.TheAzureServiceUrlIsInvalid),
+            ("container", "Archive", Ui.Validation.TheAzureContainerNameIsInvalid),
+            ("container", "two--hyphens", Ui.Validation.TheAzureContainerNameIsInvalid),
+            ("accountName", "Account_1", Ui.Validation.TheAzureAccountNameIsInvalid),
+            ("accountKeyReference", "", Ui.Validation.AnAzureAccountKeyIsRequired)
+        })
+        {
+            var attempt = new Dictionary<string, string>(values, StringComparer.Ordinal) { [key] = value };
+            var error = Assert.Throws<ArgumentException>(() =>
+                ConnectionEditorDraftFactory.Build(StorageProviderKind.AzureBlob, attempt));
+            Assert.StartsWith(message, error.Message, StringComparison.Ordinal);
+        }
+
+        values["authenticationMode"] = "SAS token";
+        values["sasTokenReference"] = "shs_BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
+        var noUrl = Assert.Throws<ArgumentException>(() =>
+            ConnectionEditorDraftFactory.Build(StorageProviderKind.AzureBlob, values));
+        Assert.StartsWith(Ui.Validation.AnAzureServiceUrlIsRequired, noUrl.Message, StringComparison.Ordinal);
+    }
+
     /// <summary>A pinned FTPS connection reopened for editing keeps its pin, rather than reverting to system trust.</summary>
     [Fact]
     public void APinnedFtpsConnectionKeepsItsTrustModeWhenEdited()
@@ -602,6 +698,14 @@ public sealed class ConnectionEditorDraftFactoryTests
             ["username"] = "operator",
             ["passwordReference"] = "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
             ["trustMode"] = "System trust + hostname"
+        },
+        StorageProviderKind.AzureBlob => new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["profileName"] = "Azure",
+            ["container"] = "archive",
+            ["authenticationMode"] = "Shared key",
+            ["accountName"] = "account",
+            ["accountKeyReference"] = "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
         },
         _ => throw new ArgumentOutOfRangeException(nameof(provider))
     };

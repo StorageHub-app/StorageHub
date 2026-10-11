@@ -26,6 +26,23 @@ public static class ConnectionEditorDraftFactory
     internal const string WebDavBearerToken = "Bearer token";
     internal const string WebDavAnonymous = "Anonymous";
 
+    /// <summary>Azure's fields: the container, and the account name and secrets of each sign-in.</summary>
+    internal const string ContainerKey = "container";
+
+    internal const string AccountNameKey = "accountName";
+
+    internal const string AccountKeyKey = "accountKeyReference";
+
+    internal const string SasTokenKey = "sasTokenReference";
+
+    internal const string ConnectionStringKey = "connectionStringReference";
+
+    // Azure's sign-in choices, matched below as written.
+    internal const string AzureSharedKey = "Shared key";
+    internal const string AzureSasToken = "SAS token";
+    internal const string AzureConnectionString = "Connection string";
+    internal const string AzureIdentity = "Azure identity";
+
     private const string PinnedTrustMode = "System trust + certificate pin";
     private const string HostnameTrustMode = "System trust + hostname";
 
@@ -431,6 +448,36 @@ public static class ConnectionEditorDraftFactory
             values.Remove("sessionTokenReference");
         }
 
+        if (profile.Draft.Endpoint.Provider == StorageConnectionProvider.AzureBlob)
+        {
+            // The IPC draft's generic slots, put back in the fields each Azure sign-in has.
+            var authentication = profile.Draft.Authentication;
+            values[ContainerKey] = profile.Draft.Endpoint.Bucket ?? string.Empty;
+            values["authenticationMode"] = authentication.Kind switch
+            {
+                ConnectionAuthenticationKind.AzureSasToken => AzureSasToken,
+                ConnectionAuthenticationKind.AzureConnectionString => AzureConnectionString,
+                ConnectionAuthenticationKind.AmbientCredential => AzureIdentity,
+                _ => AzureSharedKey
+            };
+            values[AccountNameKey] = authentication.Kind == ConnectionAuthenticationKind.AzureSharedKey
+                ? authentication.Username ?? string.Empty
+                : string.Empty;
+            values[AccountKeyKey] = authentication.Kind == ConnectionAuthenticationKind.AzureSharedKey
+                ? authentication.SecretKeyReference ?? string.Empty
+                : string.Empty;
+            values[SasTokenKey] = authentication.Kind == ConnectionAuthenticationKind.AzureSasToken
+                ? authentication.SessionTokenReference ?? string.Empty
+                : string.Empty;
+            values[ConnectionStringKey] = authentication.Kind == ConnectionAuthenticationKind.AzureConnectionString
+                ? authentication.SecretKeyReference ?? string.Empty
+                : string.Empty;
+            values.Remove("bucket");
+            values.Remove("username");
+            values.Remove("secretAccessKeyReference");
+            values.Remove("sessionTokenReference");
+        }
+
         values[ProxyAddressKey] = profile.Draft.OperationalOptions.ProxyEndpoint?.TrimEnd('/') ?? string.Empty;
         values[ProxyUsernameKey] = profile.Draft.OperationalOptions.ProxyUsername ?? string.Empty;
         values[ProxyPasswordKey] = profile.Draft.OperationalOptions.ProxyPasswordReference ?? string.Empty;
@@ -452,7 +499,101 @@ public static class ConnectionEditorDraftFactory
             StorageProviderKind.Sftp => BuildSftpEndpoint(values),
             StorageProviderKind.Ssh => BuildSshEndpoint(values),
             StorageProviderKind.WebDav => BuildWebDavEndpoint(values),
+            StorageProviderKind.AzureBlob => BuildAzureBlobEndpoint(values),
             _ => throw new ArgumentOutOfRangeException(nameof(provider))
+        };
+
+    /// <summary>
+    /// An Azure container and the Blob service it is in, checked here so a mistake is said beside
+    /// the field rather than refused by the agent.
+    /// </summary>
+    /// <remarks>
+    /// A connection string names its own endpoint, so with one the service URL is left out, and
+    /// plain HTTP, which only a connection string can lead to, is allowed only with one. A shared
+    /// key with no service URL gets the account's public one; a host name alone is taken as https://.
+    /// </remarks>
+    private static ConnectionEndpointDocument BuildAzureBlobEndpoint(IReadOnlyDictionary<string, string> values)
+    {
+        var container = Require(values, ContainerKey, Ui.Validation.AnAzureContainerIsRequired);
+        if (container.Length is < 3 or > 63 ||
+            !container.All(static character => char.IsAsciiLetterLower(character) || char.IsAsciiDigit(character) || character == '-') ||
+            container[0] == '-' || container[^1] == '-' ||
+            container.Contains("--", StringComparison.Ordinal))
+        {
+            throw new ArgumentException(Ui.Validation.TheAzureContainerNameIsInvalid, nameof(values));
+        }
+
+        var mode = Get(values, "authenticationMode") ?? AzureSharedKey;
+        var allowHttp = ParseBoolean(values, "acknowledgePlaintext");
+        string? serviceUrl = null;
+        if (mode == AzureConnectionString)
+        {
+            // The string names the endpoint; whatever was left in the URL field is not used.
+        }
+        else if (allowHttp)
+        {
+            throw new ArgumentException(Ui.Validation.AzurePlainHttpNeedsConnectionString, nameof(values));
+        }
+        else if (Get(values, "endpoint") is { } text)
+        {
+            var candidate = text.Contains("://", StringComparison.Ordinal) ? text : "https://" + text;
+            if (!Uri.TryCreate(candidate, UriKind.Absolute, out var url) ||
+                url.Scheme != Uri.UriSchemeHttps ||
+                string.IsNullOrWhiteSpace(url.Host) ||
+                !string.IsNullOrEmpty(url.UserInfo) ||
+                !string.IsNullOrEmpty(url.Query) ||
+                !string.IsNullOrEmpty(url.Fragment))
+            {
+                throw new ArgumentException(
+                    url?.Scheme == Uri.UriSchemeHttp
+                        ? Ui.Validation.AzurePlainHttpNeedsConnectionString
+                        : Ui.Validation.TheAzureServiceUrlIsInvalid,
+                    nameof(values));
+            }
+
+            serviceUrl = url.AbsoluteUri;
+        }
+        else if (mode == AzureSharedKey)
+        {
+            serviceUrl = $"https://{ValidAccountName(values)}.blob.core.windows.net/";
+        }
+        else
+        {
+            throw new ArgumentException(Ui.Validation.AnAzureServiceUrlIsRequired, nameof(values));
+        }
+
+        return new ConnectionEndpointDocument(
+            StorageConnectionProvider.AzureBlob,
+            RootPath: NormalizeProviderRoot(Get(values, "prefix")),
+            Bucket: container,
+            ServiceEndpoint: serviceUrl,
+            AllowInsecureTransport: mode == AzureConnectionString && allowHttp);
+    }
+
+    private static string ValidAccountName(IReadOnlyDictionary<string, string> values)
+    {
+        var name = Require(values, AccountNameKey, Ui.Validation.AnAzureAccountNameIsRequired);
+        return name.Length is >= 3 and <= 24 &&
+            name.All(static character => char.IsAsciiLetterLower(character) || char.IsAsciiDigit(character))
+                ? name
+                : throw new ArgumentException(Ui.Validation.TheAzureAccountNameIsInvalid, nameof(values));
+    }
+
+    /// <summary>Azure's sign-in; the fields of the modes not chosen are left out of the draft.</summary>
+    private static ConnectionAuthenticationDocument BuildAzureAuthentication(
+        IReadOnlyDictionary<string, string> values) => (Get(values, "authenticationMode") ?? AzureSharedKey) switch
+        {
+            AzureSasToken => new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.AzureSasToken,
+                SessionTokenReference: Require(values, SasTokenKey, Ui.Validation.AnAzureSasTokenIsRequired)),
+            AzureConnectionString => new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.AzureConnectionString,
+                SecretKeyReference: Require(values, ConnectionStringKey, Ui.Validation.AnAzureConnectionStringIsRequired)),
+            AzureIdentity => new ConnectionAuthenticationDocument(ConnectionAuthenticationKind.AmbientCredential),
+            _ => new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.AzureSharedKey,
+                Username: ValidAccountName(values),
+                SecretKeyReference: Require(values, AccountKeyKey, Ui.Validation.AnAzureAccountKeyIsRequired))
         };
 
     /// <summary>
@@ -727,6 +868,7 @@ public static class ConnectionEditorDraftFactory
                     PasswordReference: Require(values, "passwordReference", Ui.Validation.AVaultPasswordReferenceIsRequired)),
             StorageProviderKind.Sftp or StorageProviderKind.Ssh => BuildSshAuthentication(values),
             StorageProviderKind.WebDav => BuildWebDavAuthentication(values),
+            StorageProviderKind.AzureBlob => BuildAzureAuthentication(values),
             _ => throw new ArgumentOutOfRangeException(nameof(provider))
         };
 
@@ -819,7 +961,9 @@ public static class ConnectionEditorDraftFactory
                 ? endpoint.RootPath
                 : null);
         Add(values, WebDavUrlKey, endpoint.Provider == StorageConnectionProvider.WebDav ? endpoint.ServiceEndpoint : null);
-        Add(values, "prefix", endpoint.Provider == StorageConnectionProvider.S3 ? endpoint.RootPath : null);
+        Add(values, "prefix", endpoint.Provider is StorageConnectionProvider.S3 or StorageConnectionProvider.AzureBlob
+            ? endpoint.RootPath
+            : null);
         Add(values, "host", endpoint.Host);
         Add(values, "port", endpoint.Port?.ToString(CultureInfo.InvariantCulture));
         Add(values, "bucket", endpoint.Bucket);

@@ -2198,6 +2198,7 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         StorageConnectionProvider.Sftp => StorageProviderKind.Sftp,
         StorageConnectionProvider.Ssh => StorageProviderKind.Ssh,
         StorageConnectionProvider.WebDav => StorageProviderKind.WebDav,
+        StorageConnectionProvider.AzureBlob => StorageProviderKind.AzureBlob,
         _ => StorageProviderKind.S3
     };
 

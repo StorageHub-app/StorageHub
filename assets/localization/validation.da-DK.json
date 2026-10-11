@@ -255,5 +255,15 @@
   "webDavPlainHttpNeedsAcknowledgement": "En ukrypteret http://-adresse kræver \"Tillad et ukrypteret HTTP-endepunkt\" under Transport og serveridentitet.",
   "webDavTlsNeedsHttps": "En certifikatfastlåsning eller et klientcertifikat kræver en https://-adresse.",
   "aBearerTokenIsRequired": "Login med bearer-token kræver et bearer-token.",
+  "anAzureContainerIsRequired": "En Azure-container er påkrævet.",
+  "theAzureContainerNameIsInvalid": "Containernavnet skal være 3 til 63 små bogstaver, cifre og enkelte bindestreger og skal begynde og slutte med et bogstav eller ciffer.",
+  "anAzureServiceUrlIsRequired": "En URL til Blob-tjenesten er påkrævet ved login med SAS-token og Azure-identitet.",
+  "theAzureServiceUrlIsInvalid": "URL'en til Blob-tjenesten skal være en https://-adresse uden brugernavn, forespørgsel eller fragment.",
+  "azurePlainHttpNeedsConnectionString": "Almindelig HTTP er kun til en forbindelsesstreng, som Azurites; en URL til Blob-tjenesten skal være https://.",
+  "anAzureAccountNameIsRequired": "Et navn på lagerkontoen er påkrævet ved login med delt nøgle.",
+  "theAzureAccountNameIsInvalid": "Navnet på lagerkontoen skal være 3 til 24 små bogstaver og cifre.",
+  "anAzureAccountKeyIsRequired": "En kontonøgle er påkrævet ved login med delt nøgle.",
+  "anAzureSasTokenIsRequired": "Et SAS-token er påkrævet ved login med SAS-token.",
+  "anAzureConnectionStringIsRequired": "En forbindelsesstreng er påkrævet ved login med forbindelsesstreng.",
   "culture": "da-DK"
 }

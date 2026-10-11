@@ -45,7 +45,7 @@ public sealed class ConnectionGroupsMigrationTests : IDisposable
 
         var upgraded = await new StorageHubDatabaseInitializer(options).InitializeAsync();
         Assert.True(upgraded.IsReady, upgraded.Message);
-        Assert.Equal(WebDavProviderSchemaMigration.SchemaVersion, upgraded.SchemaVersion);
+        Assert.Equal(AzureBlobProviderSchemaMigration.SchemaVersion, upgraded.SchemaVersion);
 
         var profiles = new SqliteConnectionProfileRepository(options);
         var groups = new SqliteConnectionGroupRepository(options);

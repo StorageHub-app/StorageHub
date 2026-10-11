@@ -347,11 +347,13 @@ internal static class SettingsAgentTransfer
         bool sameMachine,
         out bool needsCredentials)
     {
+        // A cloud identity is the agent's own wherever it runs, so it needs nothing brought along.
         // A proxy's password is a vault reference too, and resolves to nothing elsewhere just the same,
         // as does a client certificate: an anonymous WebDAV or FTPS server can still demand one.
         needsCredentials = !sameMachine &&
             (draft.Authentication.Kind is not
-                (ConnectionAuthenticationKind.None or ConnectionAuthenticationKind.S3DefaultCredentialChain) ||
+                (ConnectionAuthenticationKind.None or ConnectionAuthenticationKind.S3DefaultCredentialChain or
+                    ConnectionAuthenticationKind.AmbientCredential) ||
              draft.OperationalOptions.ProxyPasswordReference is not null ||
              draft.Endpoint.ClientCertificatePfxReference is not null);
         if (!needsCredentials) return draft;

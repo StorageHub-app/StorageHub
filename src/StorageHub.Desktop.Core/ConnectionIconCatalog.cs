@@ -84,6 +84,8 @@ internal static class ConnectionIconCatalog
             StorageProviderKind.Ssh => UiGlyph.Terminal,
             // A folder reached by a web address: the link, rather than S3's bucket in the cloud.
             StorageProviderKind.WebDav => UiGlyph.Link,
+            // Object storage in somebody's cloud, as S3 is.
+            StorageProviderKind.AzureBlob => UiGlyph.Cloud,
             _ => UiGlyph.Cloud
         };
     }

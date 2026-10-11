@@ -471,6 +471,9 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
                 PfxReference: webDav.ClientCertificatePfxReference?.Value,
                 PfxPasswordReference: webDav.ClientCertificatePasswordReference?.Value,
                 CredentialScheme: webDav.CredentialScheme),
+            AzureBlobEndpoint azure => new PersistedEndpoint(
+                "azureblob", RootPath: azure.RootPrefix, Bucket: azure.Container,
+                ServiceEndpoint: azure.ServiceUri?.AbsoluteUri, AllowInsecureHttp: azure.AllowInsecureHttp),
             _ => throw new NotSupportedException($"Endpoint type {endpoint.GetType().Name} is not supported.")
         };
         return JsonSerializer.Serialize(value, JsonOptions);
@@ -521,6 +524,11 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
                 ParseSecretReference(value.PfxReference),
                 ParseSecretReference(value.PfxPasswordReference),
                 value.RootPath),
+            "azureblob" => new AzureBlobEndpoint(
+                Required(value.Bucket, "Azure container"),
+                value.ServiceEndpoint is null ? null : new Uri(value.ServiceEndpoint, UriKind.Absolute),
+                value.AllowInsecureHttp,
+                value.RootPath),
             _ => throw new InvalidDataException("The stored connection endpoint kind is unknown.")
         };
     }
@@ -545,6 +553,13 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
                 PassphraseReference: key.PassphraseReference?.Value, KeyFormat: key.KeyFormat),
             BearerTokenAuthentication bearer => new PersistedAuthentication(
                 "bearer-token", TokenReference: bearer.TokenReference.Value),
+            AmbientCredentialAuthentication => new PersistedAuthentication("ambient"),
+            AzureSharedKeyAuthentication azureKey => new PersistedAuthentication(
+                "azure-shared-key", azureKey.AccountName, SecretKeyReference: azureKey.AccountKeyReference.Value),
+            AzureSasTokenAuthentication sas => new PersistedAuthentication(
+                "azure-sas", TokenReference: sas.SasTokenReference.Value),
+            AzureConnectionStringAuthentication connectionString => new PersistedAuthentication(
+                "azure-connection-string", SecretKeyReference: connectionString.ConnectionStringReference.Value),
             SshPrivateKeyPasswordAuthentication mfa => new PersistedAuthentication(
                 "ssh-key-password",
                 mfa.Username,
@@ -581,6 +596,14 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
                 value.KeyFormat ?? 0),
             "bearer-token" => new BearerTokenAuthentication(
                 SecretReference.Parse(Required(value.TokenReference, "bearer-token reference"))),
+            "ambient" => new AmbientCredentialAuthentication(),
+            "azure-shared-key" => new AzureSharedKeyAuthentication(
+                Required(value.Username, "Azure account name"),
+                SecretReference.Parse(Required(value.SecretKeyReference, "Azure account-key reference"))),
+            "azure-sas" => new AzureSasTokenAuthentication(
+                SecretReference.Parse(Required(value.TokenReference, "Azure SAS-token reference"))),
+            "azure-connection-string" => new AzureConnectionStringAuthentication(
+                SecretReference.Parse(Required(value.SecretKeyReference, "Azure connection-string reference"))),
             "ssh-key-password" => new SshPrivateKeyPasswordAuthentication(
                 Required(value.Username, "username"),
                 SecretReference.Parse(Required(value.PasswordReference, "password reference")),
@@ -655,6 +678,8 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
         ConnectionProviderKind.Ssh => "sftp",
         // Allowed in the column from schema v17 (WebDavProviderSchemaMigration).
         ConnectionProviderKind.WebDav => "webdav",
+        // Allowed in the column from schema v18 (AzureBlobProviderSchemaMigration).
+        ConnectionProviderKind.AzureBlob => "azureblob",
         _ => throw new ArgumentOutOfRangeException(nameof(provider))
     };
 
@@ -666,6 +691,7 @@ public sealed class SqliteConnectionProfileRepository : IConnectionProfileReposi
         "ftps" => ConnectionProviderKind.Ftps,
         "sftp" => ConnectionProviderKind.Sftp,
         "webdav" => ConnectionProviderKind.WebDav,
+        "azureblob" => ConnectionProviderKind.AzureBlob,
         _ => throw new InvalidDataException("The stored connection provider is unknown.")
     };
 

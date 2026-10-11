@@ -18,6 +18,7 @@ public sealed class PresentationModelTests
                 StorageProviderKind.Ftps,
                 StorageProviderKind.Sftp,
                 StorageProviderKind.WebDav,
+                StorageProviderKind.AzureBlob,
                 StorageProviderKind.Ssh
             ],
             ConnectionProviderCatalog.All.Select(provider => provider.Kind));
@@ -27,6 +28,7 @@ public sealed class PresentationModelTests
         Assert.Equal(21, ConnectionProviderCatalog.Get(StorageProviderKind.Ftps).DefaultPort);
         Assert.Equal(22, ConnectionProviderCatalog.Get(StorageProviderKind.Sftp).DefaultPort);
         Assert.Equal(443, ConnectionProviderCatalog.Get(StorageProviderKind.WebDav).DefaultPort);
+        Assert.Equal(443, ConnectionProviderCatalog.Get(StorageProviderKind.AzureBlob).DefaultPort);
         var ssh = ConnectionProviderCatalog.Get(StorageProviderKind.Ssh);
         Assert.Equal(22, ssh.DefaultPort);
         Assert.Equal(ConnectionProfileType.Client, ssh.Type);

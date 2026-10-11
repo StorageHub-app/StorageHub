@@ -659,6 +659,11 @@ internal static class ConnectionProfileIpcMapper
                 ParseOptionalSecretReference(value.ClientCertificatePfxReference),
                 ParseOptionalSecretReference(value.ClientCertificatePasswordReference),
                 value.RootPath),
+            StorageConnectionProvider.AzureBlob => new AzureBlobEndpoint(
+                value.Bucket!,
+                ParseOptionalAbsoluteUri(value.ServiceEndpoint),
+                value.AllowInsecureTransport,
+                value.RootPath),
             _ => throw new ArgumentOutOfRangeException(nameof(value), "The provider is invalid.")
         };
     }
@@ -715,6 +720,12 @@ internal static class ConnectionProfileIpcMapper
             ClientCertificatePfxReference: endpoint.ClientCertificatePfxReference?.Value,
             ClientCertificatePasswordReference: endpoint.ClientCertificatePasswordReference?.Value,
             HttpCredentialScheme: MapCredentialScheme(endpoint.CredentialScheme)),
+        AzureBlobEndpoint endpoint => new(
+            StorageConnectionProvider.AzureBlob,
+            RootPath: endpoint.RootPrefix,
+            Bucket: endpoint.Container,
+            ServiceEndpoint: endpoint.ServiceUri?.AbsoluteUri,
+            AllowInsecureTransport: endpoint.AllowInsecureHttp),
         _ => throw new NotSupportedException("The connection endpoint type is not supported by IPC.")
     };
 
@@ -740,6 +751,13 @@ internal static class ConnectionProfileIpcMapper
                 MapPrivateKeyFormat(value.PrivateKeyFormat)),
             ConnectionAuthenticationKind.BearerToken => new BearerTokenAuthentication(
                 SecretReference.Parse(value.SessionTokenReference!)),
+            ConnectionAuthenticationKind.AmbientCredential => new AmbientCredentialAuthentication(),
+            ConnectionAuthenticationKind.AzureSharedKey => new AzureSharedKeyAuthentication(
+                value.Username!, SecretReference.Parse(value.SecretKeyReference!)),
+            ConnectionAuthenticationKind.AzureSasToken => new AzureSasTokenAuthentication(
+                SecretReference.Parse(value.SessionTokenReference!)),
+            ConnectionAuthenticationKind.AzureConnectionString => new AzureConnectionStringAuthentication(
+                SecretReference.Parse(value.SecretKeyReference!)),
             ConnectionAuthenticationKind.SshPrivateKeyPassword => new SshPrivateKeyPasswordAuthentication(
                 value.Username!,
                 SecretReference.Parse(value.PasswordReference!),
@@ -775,6 +793,17 @@ internal static class ConnectionProfileIpcMapper
         BearerTokenAuthentication authentication => new(
             ConnectionAuthenticationKind.BearerToken,
             SessionTokenReference: authentication.TokenReference.Value),
+        AmbientCredentialAuthentication => new(ConnectionAuthenticationKind.AmbientCredential),
+        AzureSharedKeyAuthentication authentication => new(
+            ConnectionAuthenticationKind.AzureSharedKey,
+            Username: authentication.AccountName,
+            SecretKeyReference: authentication.AccountKeyReference.Value),
+        AzureSasTokenAuthentication authentication => new(
+            ConnectionAuthenticationKind.AzureSasToken,
+            SessionTokenReference: authentication.SasTokenReference.Value),
+        AzureConnectionStringAuthentication authentication => new(
+            ConnectionAuthenticationKind.AzureConnectionString,
+            SecretKeyReference: authentication.ConnectionStringReference.Value),
         SshPrivateKeyPasswordAuthentication authentication => new(
             ConnectionAuthenticationKind.SshPrivateKeyPassword,
             Username: authentication.Username,
@@ -928,6 +957,14 @@ internal static class ConnectionProfileIpcMapper
                 (Empty(value.ClientCertificatePasswordReference) || !Empty(value.ClientCertificatePfxReference)) &&
                 value.FtpsTlsMode == ConnectionFtpsTlsMode.Explicit &&
                 value.SshHostKeyPolicy == ConnectionSshHostKeyPolicy.Pinned,
+            // Plain HTTP can only come from a connection string, which is when there is no service URL.
+            StorageConnectionProvider.AzureBlob =>
+                Present(value.Bucket) && Empty(value.Host) && value.Port is null && Empty(value.Region) &&
+                !value.ForcePathStyle && (!value.AllowInsecureTransport || Empty(value.ServiceEndpoint)) &&
+                Empty(value.ClientCertificatePfxReference) && Empty(value.ClientCertificatePasswordReference) &&
+                value.TlsPolicy == ConnectionTlsCertificatePolicy.SystemTrust &&
+                value.FtpsTlsMode == ConnectionFtpsTlsMode.Explicit &&
+                value.SshHostKeyPolicy == ConnectionSshHostKeyPolicy.Pinned,
             _ => false
         };
         valid &= value.HttpCredentialScheme == ConnectionHttpCredentialScheme.Basic ||
@@ -951,8 +988,15 @@ internal static class ConnectionProfileIpcMapper
         var hasPassphrase = Present(value.PrivateKeyPassphraseReference);
         var valid = value.Kind switch
         {
-            ConnectionAuthenticationKind.None or ConnectionAuthenticationKind.S3DefaultCredentialChain =>
+            ConnectionAuthenticationKind.None or ConnectionAuthenticationKind.S3DefaultCredentialChain or
+                ConnectionAuthenticationKind.AmbientCredential =>
                 !hasUsername && !hasCredential && !hasPassword && !hasAccess && !hasSecret &&
+                !hasToken && !hasKey && !hasPassphrase,
+            ConnectionAuthenticationKind.AzureSharedKey =>
+                hasUsername && !hasCredential && !hasPassword && !hasAccess && hasSecret &&
+                !hasToken && !hasKey && !hasPassphrase,
+            ConnectionAuthenticationKind.AzureConnectionString =>
+                !hasUsername && !hasCredential && !hasPassword && !hasAccess && hasSecret &&
                 !hasToken && !hasKey && !hasPassphrase,
             ConnectionAuthenticationKind.CredentialReference =>
                 !hasUsername && hasCredential && !hasPassword && !hasAccess && !hasSecret &&
@@ -969,7 +1013,7 @@ internal static class ConnectionProfileIpcMapper
             ConnectionAuthenticationKind.SshPrivateKeyPassword =>
                 hasUsername && !hasCredential && hasPassword && !hasAccess && !hasSecret &&
                 !hasToken && hasKey,
-            ConnectionAuthenticationKind.BearerToken =>
+            ConnectionAuthenticationKind.BearerToken or ConnectionAuthenticationKind.AzureSasToken =>
                 !hasUsername && !hasCredential && !hasPassword && !hasAccess && !hasSecret &&
                 hasToken && !hasKey && !hasPassphrase,
             _ => false
@@ -1002,6 +1046,7 @@ internal static class ConnectionProfileIpcMapper
         StorageConnectionProvider.Sftp => ConnectionProviderKind.Sftp,
         StorageConnectionProvider.Ssh => ConnectionProviderKind.Ssh,
         StorageConnectionProvider.WebDav => ConnectionProviderKind.WebDav,
+        StorageConnectionProvider.AzureBlob => ConnectionProviderKind.AzureBlob,
         _ => throw new ArgumentOutOfRangeException(nameof(value), value, "The provider is invalid.")
     };
 

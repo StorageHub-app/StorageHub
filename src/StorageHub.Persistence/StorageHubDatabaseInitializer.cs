@@ -37,7 +37,8 @@ public sealed class StorageHubDatabaseInitializer
                 new OptionalKeyPassphraseSchemaMigration(),
                 new OptionalSshKeyPassphraseSchemaMigration(),
                 new ConnectionGroupsSchemaMigration(),
-                new WebDavProviderSchemaMigration()
+                new WebDavProviderSchemaMigration(),
+                new AzureBlobProviderSchemaMigration()
             ],
             timeProvider);
     }

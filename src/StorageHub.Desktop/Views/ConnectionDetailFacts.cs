@@ -55,7 +55,11 @@ internal static class ConnectionDetailFacts
         {
             Fact(Ui.Connections.FieldHost, endpoint.Host);
             Fact(Ui.Connections.FieldPort, endpoint.Port?.ToString(CultureInfo.CurrentCulture));
-            Fact(Ui.Connections.FieldBucket, endpoint.Bucket);
+            Fact(
+                endpoint.Provider == StorageConnectionProvider.AzureBlob
+                    ? Ui.Connections.FieldContainer
+                    : Ui.Connections.FieldBucket,
+                endpoint.Bucket);
             Fact(Ui.Connections.FieldRegion, endpoint.Region);
             Fact(Ui.Connections.FieldService, endpoint.ServiceEndpoint);
             Fact(Ui.Connections.FieldPathStyle, endpoint.ForcePathStyle ? Ui.Connections.DetailForced : null);
@@ -70,7 +74,11 @@ internal static class ConnectionDetailFacts
         else
         {
             Fact(Ui.Connections.FieldMethod, DescribeAuthentication(auth.Kind));
-            Fact(Ui.Connections.FieldUsername, auth.Username);
+            Fact(
+                auth.Kind == ConnectionAuthenticationKind.AzureSharedKey
+                    ? Ui.Connections.FieldStorageAccount
+                    : Ui.Connections.FieldUsername,
+                auth.Username);
             Fact(
                 Ui.Connections.FieldKeyFormatLabel,
                 auth.Kind is ConnectionAuthenticationKind.SftpPrivateKey or ConnectionAuthenticationKind.SshPrivateKeyPassword
@@ -78,12 +86,23 @@ internal static class ConnectionDetailFacts
                     : null);
             Secret(Ui.Connections.FieldPassword, auth.PasswordReference);
             Secret(Ui.Connections.FieldAccessKey, auth.AccessKeyReference);
-            Secret(Ui.Connections.FieldSecretKey, auth.SecretKeyReference);
-            // A bearer token travels in the token slot too, and is named for what it is.
+            // Azure's key and connection string travel in the secret-key slot, and a bearer or SAS
+            // token in the token slot; each is named for what it is.
             Secret(
-                auth.Kind == ConnectionAuthenticationKind.BearerToken
-                    ? Ui.Connections.AuthBearerToken
-                    : Ui.Connections.FieldSessionToken,
+                auth.Kind switch
+                {
+                    ConnectionAuthenticationKind.AzureSharedKey => Ui.Connections.FieldAccountKey,
+                    ConnectionAuthenticationKind.AzureConnectionString => Ui.Connections.AuthAzureConnectionString,
+                    _ => Ui.Connections.FieldSecretKey
+                },
+                auth.SecretKeyReference);
+            Secret(
+                auth.Kind switch
+                {
+                    ConnectionAuthenticationKind.BearerToken => Ui.Connections.AuthBearerToken,
+                    ConnectionAuthenticationKind.AzureSasToken => Ui.Connections.FieldSasToken,
+                    _ => Ui.Connections.FieldSessionToken
+                },
                 auth.SessionTokenReference);
             Secret(Ui.Connections.FieldPrivateKey, auth.PrivateKeyReference);
             Secret(Ui.Connections.FieldKeyPassphrase, auth.PrivateKeyPassphraseReference);
@@ -201,6 +220,9 @@ internal static class ConnectionDetailFacts
             case StorageConnectionProvider.S3:
                 rows.Add((Ui.Connections.FieldTls, DescribeTls(endpoint.TlsPolicy)));
                 break;
+            case StorageConnectionProvider.AzureBlob when !endpoint.AllowInsecureTransport:
+                rows.Add((Ui.Connections.FieldTls, DescribeTls(endpoint.TlsPolicy)));
+                break;
             case StorageConnectionProvider.WebDav:
                 // Plain HTTP has no certificate to trust; the transport row below says so instead.
                 if (!endpoint.AllowInsecureTransport)
@@ -244,6 +266,10 @@ internal static class ConnectionDetailFacts
         ConnectionAuthenticationKind.SftpPrivateKey => Ui.Connections.AuthPrivateKey,
         ConnectionAuthenticationKind.SshPrivateKeyPassword => Ui.Connections.AuthPrivateKeyAndPassword,
         ConnectionAuthenticationKind.BearerToken => Ui.Connections.AuthBearerToken,
+        ConnectionAuthenticationKind.AmbientCredential => Ui.Connections.AuthAmbientCredential,
+        ConnectionAuthenticationKind.AzureSharedKey => Ui.Connections.AuthAzureSharedKey,
+        ConnectionAuthenticationKind.AzureSasToken => Ui.Connections.AuthAzureSasToken,
+        ConnectionAuthenticationKind.AzureConnectionString => Ui.Connections.AuthAzureConnectionString,
         _ => kind.ToString()
     };
 

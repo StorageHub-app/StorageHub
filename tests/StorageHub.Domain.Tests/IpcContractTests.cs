@@ -180,6 +180,79 @@ public sealed class IpcContractTests
     }
 
     [Fact]
+    public void Azure_draft_carries_its_container_and_each_sign_in_only_as_opaque_references()
+    {
+        const string reference = "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+        var endpoint = new ConnectionEndpointDocument(
+            StorageConnectionProvider.AzureBlob,
+            RootPath: "team",
+            Bucket: "archive",
+            ServiceEndpoint: "https://account.blob.core.windows.net/");
+        var sharedKey = new ConnectionAuthenticationDocument(
+            ConnectionAuthenticationKind.AzureSharedKey,
+            Username: "account",
+            SecretKeyReference: reference);
+        var draft = new ConnectionProfileDraft(
+            new ConnectionProfileMetadataDocument("Archive", Tags: []),
+            endpoint,
+            sharedKey,
+            new ConnectionOperationalOptionsDocument());
+
+        Assert.True(draft.HasValidBounds);
+        var read = JsonSerializer.Deserialize<ConnectionProfileDraft>(JsonSerializer.Serialize(draft))!;
+        Assert.Equal(draft.Endpoint, read.Endpoint);
+        Assert.Equal(draft.Authentication, read.Authentication);
+        Assert.True((draft with
+        {
+            Authentication = new ConnectionAuthenticationDocument(
+                ConnectionAuthenticationKind.AzureSasToken, SessionTokenReference: reference)
+        }).HasValidBounds);
+        Assert.True((draft with
+        {
+            Authentication = new ConnectionAuthenticationDocument(ConnectionAuthenticationKind.AmbientCredential)
+        }).HasValidBounds);
+
+        // A connection string names its own endpoint, and only it may lead to plain HTTP.
+        var connectionString = new ConnectionAuthenticationDocument(
+            ConnectionAuthenticationKind.AzureConnectionString, SecretKeyReference: reference);
+        Assert.False((draft with { Authentication = connectionString }).HasValidBounds);
+        Assert.True((draft with
+        {
+            Endpoint = endpoint with { ServiceEndpoint = null, AllowInsecureTransport = true },
+            Authentication = connectionString
+        }).HasValidBounds);
+        Assert.False((draft with { Endpoint = endpoint with { ServiceEndpoint = null } }).HasValidBounds);
+        Assert.False((endpoint with { AllowInsecureTransport = true }).HasValidBounds);
+
+        // Secrets are references and nothing else, each in its own kind's slot.
+        Assert.False((sharedKey with { SecretKeyReference = "raw-account-key" }).HasValidBounds);
+        Assert.False((sharedKey with { Username = null }).HasValidBounds);
+        Assert.False((sharedKey with { PasswordReference = reference }).HasValidBounds);
+        Assert.False((connectionString with { Username = "account" }).HasValidBounds);
+        Assert.False(new ConnectionAuthenticationDocument(
+            ConnectionAuthenticationKind.AmbientCredential, SecretKeyReference: reference).HasValidBounds);
+        Assert.False((draft with
+        {
+            Authentication = new ConnectionAuthenticationDocument(ConnectionAuthenticationKind.S3DefaultCredentialChain)
+        }).HasValidBounds);
+    }
+
+    [Fact]
+    public void Azure_endpoint_has_a_container_and_nothing_that_belongs_to_another_provider()
+    {
+        var endpoint = new ConnectionEndpointDocument(StorageConnectionProvider.AzureBlob, Bucket: "archive");
+
+        Assert.True(endpoint.HasValidBounds);
+        Assert.False((endpoint with { Bucket = null }).HasValidBounds);
+        Assert.False((endpoint with { Host = "account.blob.core.windows.net" }).HasValidBounds);
+        Assert.False((endpoint with { Port = 443 }).HasValidBounds);
+        Assert.False((endpoint with { Region = "westeurope" }).HasValidBounds);
+        Assert.False((endpoint with { ForcePathStyle = true }).HasValidBounds);
+        Assert.False((endpoint with { TlsPolicy = ConnectionTlsCertificatePolicy.Pinned }).HasValidBounds);
+        Assert.False((endpoint with { ClientCertificatePfxReference = "shs_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" }).HasValidBounds);
+    }
+
+    [Fact]
     public void WebDav_endpoint_has_a_url_and_nothing_that_belongs_to_another_provider()
     {
         var endpoint = new ConnectionEndpointDocument(

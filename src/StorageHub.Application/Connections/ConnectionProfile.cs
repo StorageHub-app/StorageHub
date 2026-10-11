@@ -21,7 +21,8 @@ public enum ConnectionProviderKind
     Ftps = 4,
     Sftp = 5,
     Ssh = 6,
-    WebDav = 7
+    WebDav = 7,
+    AzureBlob = 8
 }
 
 public enum TlsCertificatePolicy
@@ -970,6 +971,84 @@ public sealed record WebDavEndpoint : ConnectionEndpoint
     }
 }
 
+/// <summary>
+/// An Azure Blob Storage container: its name, the Blob service it lives in, and a prefix below it
+/// that the connection treats as its root.
+/// </summary>
+/// <remarks>
+/// The service URL is absent exactly when the connection signs in with a connection string, which
+/// names its own endpoint. Otherwise it is an HTTPS URL such as
+/// <c>https://account.blob.core.windows.net/</c>: CL.Storage sends a shared key, a SAS token or an
+/// Azure identity only over HTTPS. Plain HTTP can therefore only come from a connection string,
+/// such as an Azurite emulator's, and has to be acknowledged here before the connector lets one
+/// through.
+/// </remarks>
+public sealed record AzureBlobEndpoint : ConnectionEndpoint
+{
+    public AzureBlobEndpoint(
+        string container,
+        Uri? serviceUri = null,
+        bool allowInsecureHttp = false,
+        string? rootPrefix = null)
+        : base(ConnectionProviderKind.AzureBlob)
+    {
+        Container = ValidateContainer(container);
+        if (serviceUri is not null)
+        {
+            if (!serviceUri.IsAbsoluteUri || serviceUri.Scheme != Uri.UriSchemeHttps ||
+                string.IsNullOrEmpty(serviceUri.Host))
+            {
+                throw new ArgumentException("The Azure Blob service URL must be an absolute HTTPS URL.", nameof(serviceUri));
+            }
+
+            RejectCredentialBearingUri(serviceUri, nameof(serviceUri));
+            if (serviceUri.AbsoluteUri.Length > 2_048)
+            {
+                throw new ArgumentOutOfRangeException(nameof(serviceUri), "The Azure Blob service URL cannot exceed 2,048 characters.");
+            }
+
+            if (allowInsecureHttp)
+            {
+                throw new ArgumentException(
+                    "Plain HTTP can only come from a connection string; a service URL is always HTTPS.",
+                    nameof(allowInsecureHttp));
+            }
+        }
+
+        ServiceUri = serviceUri;
+        AllowInsecureHttp = allowInsecureHttp;
+        RootPrefix = NormalizeProviderRoot(rootPrefix, nameof(rootPrefix));
+    }
+
+    /// <summary>The container, named as Azure requires: 3 to 63 lower-case letters, digits and single hyphens.</summary>
+    public string Container { get; }
+
+    /// <summary>The Blob service URL, or null when a connection string supplies it.</summary>
+    public Uri? ServiceUri { get; }
+
+    /// <summary>Whether a connection string may name a plain-HTTP endpoint, as a local emulator's does.</summary>
+    public bool AllowInsecureHttp { get; }
+
+    public string RootPrefix { get; }
+
+    private static string ValidateContainer(string container)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(container);
+        var value = container.Trim();
+        if (value.Length is < 3 or > 63 ||
+            !value.All(static character => char.IsAsciiLetterLower(character) || char.IsAsciiDigit(character) || character == '-') ||
+            value[0] == '-' || value[^1] == '-' ||
+            value.Contains("--", StringComparison.Ordinal))
+        {
+            throw new ArgumentException(
+                "The Azure container name must be 3 to 63 lower-case letters, digits and single hyphens.",
+                nameof(container));
+        }
+
+        return value;
+    }
+}
+
 public abstract record ConnectionAuthentication;
 
 public sealed record NoAuthentication : ConnectionAuthentication;
@@ -1036,6 +1115,81 @@ public sealed record BearerTokenAuthentication : ConnectionAuthentication
     }
 
     public SecretReference TokenReference { get; }
+}
+
+/// <summary>
+/// The agent's own identity on a cloud platform, with nothing stored in the profile: for Azure,
+/// the Azure identity chain (a service principal in the environment, a managed or workload
+/// identity, or the Azure CLI's sign-in).
+/// </summary>
+public sealed record AmbientCredentialAuthentication : ConnectionAuthentication;
+
+/// <summary>An Azure storage account's name and one of its shared keys, the key kept in the vault.</summary>
+public sealed record AzureSharedKeyAuthentication : ConnectionAuthentication
+{
+    public AzureSharedKeyAuthentication(string accountName, SecretReference accountKeyReference)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(accountName);
+        var name = accountName.Trim();
+        if (name.Length is < 3 or > 24 ||
+            !name.All(static character => char.IsAsciiLetterLower(character) || char.IsAsciiDigit(character)))
+        {
+            throw new ArgumentException(
+                "The Azure storage account name must be 3 to 24 lower-case letters and digits.",
+                nameof(accountName));
+        }
+
+        if (!SecretReference.TryParse(accountKeyReference.Value, out _))
+        {
+            throw new ArgumentException("The account-key secret reference is invalid.", nameof(accountKeyReference));
+        }
+
+        AccountName = name;
+        AccountKeyReference = accountKeyReference;
+    }
+
+    public string AccountName { get; }
+    public SecretReference AccountKeyReference { get; }
+}
+
+/// <summary>
+/// An Azure shared access signature, the query string that grants access to the container, kept
+/// in the vault: anyone holding it has whatever it grants until it expires.
+/// </summary>
+public sealed record AzureSasTokenAuthentication : ConnectionAuthentication
+{
+    public AzureSasTokenAuthentication(SecretReference sasTokenReference)
+    {
+        if (!SecretReference.TryParse(sasTokenReference.Value, out _))
+        {
+            throw new ArgumentException("The SAS-token secret reference is invalid.", nameof(sasTokenReference));
+        }
+
+        SasTokenReference = sasTokenReference;
+    }
+
+    public SecretReference SasTokenReference { get; }
+}
+
+/// <summary>
+/// An Azure Storage connection string, kept whole in the vault because it carries the account key.
+/// It names its own endpoint, so an endpoint signed in to with one has no service URL.
+/// </summary>
+public sealed record AzureConnectionStringAuthentication : ConnectionAuthentication
+{
+    public AzureConnectionStringAuthentication(SecretReference connectionStringReference)
+    {
+        if (!SecretReference.TryParse(connectionStringReference.Value, out _))
+        {
+            throw new ArgumentException(
+                "The connection-string secret reference is invalid.",
+                nameof(connectionStringReference));
+        }
+
+        ConnectionStringReference = connectionStringReference;
+    }
+
+    public SecretReference ConnectionStringReference { get; }
 }
 
 public sealed record S3AccessKeyAuthentication : ConnectionAuthentication
@@ -1315,6 +1469,13 @@ public sealed record ConnectionProfile
                 Authentication is UsernamePasswordAuthentication ||
                 (Authentication is NoAuthentication or BearerTokenAuthentication &&
                     Endpoint is WebDavEndpoint { CredentialScheme: HttpCredentialScheme.Basic }),
+            // A connection string names its own endpoint, so it comes without a service URL, and
+            // every other sign-in needs one; plain HTTP can only come from a connection string.
+            ConnectionProviderKind.AzureBlob => Endpoint is AzureBlobEndpoint azure &&
+                (Authentication is AzureConnectionStringAuthentication
+                    ? azure.ServiceUri is null
+                    : Authentication is AzureSharedKeyAuthentication or AzureSasTokenAuthentication or
+                        AmbientCredentialAuthentication && azure.ServiceUri is not null),
             _ => false
         };
         if (!valid)

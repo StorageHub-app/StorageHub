@@ -150,7 +150,22 @@ public enum ConnectionAuthenticationKind
     /// <see cref="ConnectionAuthenticationDocument.SessionTokenReference"/>, the document's slot for a
     /// token, so no new field can be filled for any other kind.
     /// </summary>
-    BearerToken = 8
+    BearerToken = 8,
+
+    /// <summary>The agent's own platform identity (Azure's identity chain); nothing travels with it.</summary>
+    AmbientCredential = 9,
+
+    /// <summary>
+    /// An Azure account's name and shared key: the name in <see cref="ConnectionAuthenticationDocument.Username"/>,
+    /// the key's vault reference in <see cref="ConnectionAuthenticationDocument.SecretKeyReference"/>.
+    /// </summary>
+    AzureSharedKey = 10,
+
+    /// <summary>An Azure SAS token, its vault reference in the document's token slot.</summary>
+    AzureSasToken = 11,
+
+    /// <summary>An Azure connection string, its vault reference in the document's secret-key slot.</summary>
+    AzureConnectionString = 12
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter<ConnectionSftpPrivateKeyFormat>))]
@@ -221,7 +236,9 @@ public sealed record ConnectionProfileMetadataDocument(
 /// <remarks>
 /// WebDAV's URL travels in <see cref="ServiceEndpoint"/>, path and all, and plain HTTP in
 /// <see cref="AllowInsecureTransport"/>, as S3's do; its certificate trust and client certificate
-/// use the same fields as FTPS.
+/// use the same fields as FTPS. An Azure container travels in <see cref="Bucket"/>, its prefix in
+/// <see cref="RootPath"/> and its Blob service URL, absent for a connection string, in
+/// <see cref="ServiceEndpoint"/>.
 /// </remarks>
 public sealed record ConnectionEndpointDocument(
     StorageConnectionProvider Provider,
@@ -308,6 +325,12 @@ public sealed record ConnectionEndpointDocument(
             (!Empty(ClientCertificatePasswordReference) ? !Empty(ClientCertificatePfxReference) : true) &&
             FtpsTlsMode == ConnectionFtpsTlsMode.Explicit &&
             SshHostKeyPolicy == ConnectionSshHostKeyPolicy.Pinned,
+        // Plain HTTP can only come from a connection string, which is when there is no service URL.
+        StorageConnectionProvider.AzureBlob =>
+            Present(Bucket) && Empty(Host) && Port is null && Empty(Region) && !ForcePathStyle &&
+            (!AllowInsecureTransport || Empty(ServiceEndpoint)) &&
+            Empty(ClientCertificatePfxReference) && Empty(ClientCertificatePasswordReference) &&
+            HasDefaultNonProviderPolicies(),
         _ => false
     };
 
@@ -360,7 +383,8 @@ public sealed record ConnectionAuthenticationDocument(
         var hasPassphrase = Present(PrivateKeyPassphraseReference);
         return Kind switch
         {
-            ConnectionAuthenticationKind.None or ConnectionAuthenticationKind.S3DefaultCredentialChain =>
+            ConnectionAuthenticationKind.None or ConnectionAuthenticationKind.S3DefaultCredentialChain or
+                ConnectionAuthenticationKind.AmbientCredential =>
                 !hasUsername && !hasCredential && !hasPassword && !hasAccess && !hasSecret &&
                 !hasToken && !hasKey && !hasPassphrase,
             ConnectionAuthenticationKind.CredentialReference =>
@@ -378,9 +402,15 @@ public sealed record ConnectionAuthenticationDocument(
             ConnectionAuthenticationKind.SshPrivateKeyPassword =>
                 hasUsername && !hasCredential && hasPassword && !hasAccess && !hasSecret &&
                 !hasToken && hasKey,
-            ConnectionAuthenticationKind.BearerToken =>
+            ConnectionAuthenticationKind.BearerToken or ConnectionAuthenticationKind.AzureSasToken =>
                 !hasUsername && !hasCredential && !hasPassword && !hasAccess && !hasSecret &&
                 hasToken && !hasKey && !hasPassphrase,
+            ConnectionAuthenticationKind.AzureSharedKey =>
+                hasUsername && !hasCredential && !hasPassword && !hasAccess && hasSecret &&
+                !hasToken && !hasKey && !hasPassphrase,
+            ConnectionAuthenticationKind.AzureConnectionString =>
+                !hasUsername && !hasCredential && !hasPassword && !hasAccess && hasSecret &&
+                !hasToken && !hasKey && !hasPassphrase,
             _ => false
         };
     }
@@ -458,6 +488,12 @@ public sealed record ConnectionProfileDraft(
         StorageConnectionProvider.WebDav => Authentication.Kind == ConnectionAuthenticationKind.UsernamePassword ||
             (Authentication.Kind is ConnectionAuthenticationKind.None or ConnectionAuthenticationKind.BearerToken &&
                 Endpoint.HttpCredentialScheme == ConnectionHttpCredentialScheme.Basic),
+        // A connection string names its own endpoint; every other Azure sign-in needs the service URL.
+        StorageConnectionProvider.AzureBlob => Authentication.Kind == ConnectionAuthenticationKind.AzureConnectionString
+            ? string.IsNullOrEmpty(Endpoint.ServiceEndpoint)
+            : Authentication.Kind is ConnectionAuthenticationKind.AzureSharedKey or
+                ConnectionAuthenticationKind.AzureSasToken or ConnectionAuthenticationKind.AmbientCredential &&
+                !string.IsNullOrWhiteSpace(Endpoint.ServiceEndpoint),
         _ => false
     };
 }

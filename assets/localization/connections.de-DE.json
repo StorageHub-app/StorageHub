@@ -262,5 +262,13 @@
   "fieldHttpSignIn": "HTTP-Anmeldung",
   "fieldRequestTimeout": "Anfrage-Zeitlimit",
   "requestTimeoutHint": "In Sekunden, für jede ganze Anfrage einschließlich der Datei beim Hochladen. Erhöhen Sie den Wert für große Dateien auf einer langsamen Leitung.",
+  "authAmbientCredential": "Cloud-Identität des Agenten",
+  "authAzureSharedKey": "Kontoname und gemeinsamer Schlüssel",
+  "authAzureSasToken": "Shared Access Signature (SAS)",
+  "authAzureConnectionString": "Verbindungszeichenfolge",
+  "fieldContainer": "Container",
+  "fieldStorageAccount": "Speicherkonto",
+  "fieldAccountKey": "Kontoschlüssel",
+  "fieldSasToken": "SAS-Token",
   "culture": "de-DE"
 }

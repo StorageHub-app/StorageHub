@@ -139,6 +139,35 @@ public sealed class SettingsAgentTransferTests
         Assert.Equal(draft.Endpoint, created.Endpoint);
     }
 
+    /// <summary>
+    /// An Azure container that signs in with the machine's own Azure identity carries no vault
+    /// reference at all, so like a Local folder it arrives ready to use.
+    /// </summary>
+    [Fact]
+    public async Task AConnectionThatSignsInWithTheMachinesAzureIdentityArrivesEnabled()
+    {
+        var agent = Agent();
+        var draft = new ConnectionProfileDraft(
+            new ConnectionProfileMetadataDocument("Archive", Tags: []),
+            new ConnectionEndpointDocument(
+                StorageConnectionProvider.AzureBlob,
+                Bucket: "archive",
+                ServiceEndpoint: "https://account.blob.core.windows.net/"),
+            new ConnectionAuthenticationDocument(ConnectionAuthenticationKind.AmbientCredential),
+            new ConnectionOperationalOptionsDocument());
+        var document = Document() with
+        {
+            Connections = [new ConnectionExportEntry(Guid.NewGuid(), draft)]
+        };
+
+        var result = await SettingsAgentTransfer.ApplyAsync(
+            document, [SettingsSectionId.Connections], agent.Clients,
+            SettingsConflictPolicy.Skip, sameMachine: false, default);
+
+        Assert.False(Assert.Single(result.Connections).NeedsCredentials);
+        Assert.True(Assert.Single(agent.Profiles.Created).IsEnabled);
+    }
+
     [Fact]
     public async Task ASkippedConnectionIsLeftAloneButStillFoundBySyncTasks()
     {

@@ -13,7 +13,8 @@ public enum StorageProviderKind
     Ftps,
     Sftp,
     Ssh,
-    WebDav
+    WebDav,
+    AzureBlob
 }
 
 public enum ConnectionFieldKind
@@ -101,6 +102,16 @@ public static class ConnectionProviderCatalog
             "Negotiate (Kerberos)",
             ConnectionEditorDraftFactory.WebDavBearerToken,
             ConnectionEditorDraftFactory.WebDavAnonymous
+        });
+
+    // Azure's sign-ins, the first the default because it is what the portal's Access keys page gives.
+    private static readonly ReadOnlyCollection<string> AzureAuthenticationModes =
+        Array.AsReadOnly(new[]
+        {
+            ConnectionEditorDraftFactory.AzureSharedKey,
+            ConnectionEditorDraftFactory.AzureSasToken,
+            ConnectionEditorDraftFactory.AzureConnectionString,
+            ConnectionEditorDraftFactory.AzureIdentity
         });
 
     private static readonly ReadOnlyCollection<string> SshClientAuthenticationModes =
@@ -285,6 +296,31 @@ public static class ConnectionProviderCatalog
                 Field("certificatePin", Ui.Providers.CertificateSHA256Pin, ConnectionFieldKind.Fingerprint, placeholder: Ui.Providers.OptionalVerifyOutOfBand),
                 Field("clientCertificateReference", Ui.Providers.ClientPFXCertificateReference, ConnectionFieldKind.CertificateReference, placeholder: Ui.Providers.SelectAnImportedCertificate),
                 Field("clientCertificatePasswordReference", Ui.Providers.PFXPasswordReference, ConnectionFieldKind.SecretReference, placeholder: Ui.Providers.RequiredForImportedPFX, help: Ui.Providers.StorageHubDoesNotMaterializeUnprotectedClientPrivate)
+            ]),
+        new(
+            StorageProviderKind.AzureBlob,
+            Ui.Providers.AzureBlobStorage,
+            "AZURE",
+            "#0078D4",
+            443,
+            true,
+            Ui.Providers.AzureBlobSummary,
+            "https://account.blob.core.windows.net/",
+            Ui.Providers.AzureBlobTrustNotice,
+            [
+                Field(ConnectionEditorDraftFactory.ContainerKey, Ui.Providers.Container, ConnectionFieldKind.Text, required: true, placeholder: "documents", help: Ui.Providers.AzureContainerHelp),
+                Field("endpoint", Ui.Providers.BlobServiceUrl, ConnectionFieldKind.Text, placeholder: "https://account.blob.core.windows.net/", help: Ui.Providers.AzureServiceUrlHelp),
+                Field("prefix", Ui.Providers.InitialPrefix, ConnectionFieldKind.Text, placeholder: "team/archive/")
+            ],
+            [
+                Field("authenticationMode", Ui.Providers.Authentication, ConnectionFieldKind.Choice, defaultValue: AzureAuthenticationModes[0], choices: AzureAuthenticationModes, help: Ui.Providers.AzureAuthenticationHelp),
+                Field(ConnectionEditorDraftFactory.AccountNameKey, Ui.Providers.StorageAccountName, ConnectionFieldKind.Text, placeholder: Ui.Providers.OnlyForSharedKeySignIn),
+                Field(ConnectionEditorDraftFactory.AccountKeyKey, Ui.Providers.AccountKeyReference, ConnectionFieldKind.SecretReference, placeholder: Ui.Providers.OnlyForSharedKeySignIn),
+                Field(ConnectionEditorDraftFactory.SasTokenKey, Ui.Providers.SasTokenReference, ConnectionFieldKind.SecretReference, placeholder: Ui.Providers.OnlyForSasSignIn),
+                Field(ConnectionEditorDraftFactory.ConnectionStringKey, Ui.Providers.ConnectionStringReference, ConnectionFieldKind.SecretReference, placeholder: Ui.Providers.OnlyForConnectionStringSignIn)
+            ],
+            [
+                Field("acknowledgePlaintext", Ui.Providers.AllowPlainHttpConnectionString, ConnectionFieldKind.Toggle, defaultValue: "false", help: Ui.Providers.AzurePlainHttpHelp)
             ]),
         new(
             StorageProviderKind.Ssh,

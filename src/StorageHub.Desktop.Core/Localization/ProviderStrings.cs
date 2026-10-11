@@ -159,4 +159,44 @@ internal sealed class ProviderStrings : LocalizationModelBase
 
     public string WebDavPlainHttpHelp { get; set; } =
         "For a server you run yourself on your own network. The password and the files travel unencrypted.";
+
+    public string AzureBlobStorage { get; set; } = "Azure Blob Storage";
+
+    public string AzureBlobSummary { get; set; } =
+        "Files in an Azure Blob Storage container, or in the Azurite emulator.";
+
+    public string AzureBlobTrustNotice { get; set; } =
+        "The Blob service's certificate must pass system validation. A shared key, a SAS token or an Azure identity is only ever sent over HTTPS.";
+
+    public string Container { get; set; } = "Container";
+
+    public string AzureContainerHelp { get; set; } =
+        "3 to 63 lower-case letters, digits and single hyphens, as Azure names it.";
+
+    public string BlobServiceUrl { get; set; } = "Blob service URL";
+
+    public string AzureServiceUrlHelp { get; set; } =
+        "For a shared key it defaults to https://account.blob.core.windows.net/. A connection string names its own, so this is left out with one.";
+
+    public string AzureAuthenticationHelp { get; set; } =
+        "A shared key needs the account name; Azure identity uses the agent's own sign-in (an environment service principal, a managed identity or the Azure CLI).";
+
+    public string StorageAccountName { get; set; } = "Storage account name";
+
+    public string AccountKeyReference { get; set; } = "Account key reference";
+
+    public string SasTokenReference { get; set; } = "SAS token reference";
+
+    public string ConnectionStringReference { get; set; } = "Connection string reference";
+
+    public string OnlyForSharedKeySignIn { get; set; } = "Only for shared-key sign-in";
+
+    public string OnlyForSasSignIn { get; set; } = "Only for SAS-token sign-in";
+
+    public string OnlyForConnectionStringSignIn { get; set; } = "Only for connection-string sign-in";
+
+    public string AllowPlainHttpConnectionString { get; set; } = "Allow a plain-HTTP connection string";
+
+    public string AzurePlainHttpHelp { get; set; } =
+        "For the Azurite emulator on your own computer. Requests are still signed, but the files travel unencrypted.";
 }

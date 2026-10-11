@@ -133,7 +133,7 @@ internal static class ConnectionDefaultSettings
         provider is StorageProviderKind.Local or StorageProviderKind.WebDav;
 
     internal static bool SupportsConfigurableRetries(StorageProviderKind provider) => provider is
-        StorageProviderKind.Local or StorageProviderKind.S3 or StorageProviderKind.Ssh;
+        StorageProviderKind.Local or StorageProviderKind.S3 or StorageProviderKind.Ssh or StorageProviderKind.AzureBlob;
 
     private static ConnectionProviderDefaults BuiltInOperationalDefaults(StorageProviderKind provider) => provider switch
     {
@@ -144,6 +144,8 @@ internal static class ConnectionDefaultSettings
         // Ten minutes a request: the timeout covers an upload's whole body, so FTP's 30 seconds
         // would fail any file that takes longer than that to send.
         StorageProviderKind.WebDav => new(30, 600, 0, new Dictionary<string, string>()),
+        // The Azure SDK retries on its own and bounds each read or write, as S3's does.
+        StorageProviderKind.AzureBlob => new(30, 30, 3, new Dictionary<string, string>()),
         _ => throw new ArgumentOutOfRangeException(nameof(provider))
     };
 

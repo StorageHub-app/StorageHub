@@ -101,7 +101,19 @@ public sealed class SqliteConnectionProfileRepositoryTests : IDisposable
                 new BearerTokenAuthentication(SecretReference.Create()), OptionsForConnection(), now),
             ConnectionProfile.Create(ConnectionProfileId.New(), new ConnectionProfileMetadata("WebDAV anonymous"),
                 new WebDavEndpoint(new Uri("https://public.example.test/dav"), TlsCertificatePolicy.SystemTrust),
-                new NoAuthentication(), OptionsForConnection(), now)
+                new NoAuthentication(), OptionsForConnection(), now),
+            ConnectionProfile.Create(ConnectionProfileId.New(), new ConnectionProfileMetadata("Azure shared key"),
+                new AzureBlobEndpoint("archive", new Uri("https://account.blob.core.windows.net/"), rootPrefix: "team"),
+                new AzureSharedKeyAuthentication("account", SecretReference.Create()), OptionsForConnection(), now),
+            ConnectionProfile.Create(ConnectionProfileId.New(), new ConnectionProfileMetadata("Azure SAS"),
+                new AzureBlobEndpoint("archive", new Uri("https://account.blob.core.windows.net/")),
+                new AzureSasTokenAuthentication(SecretReference.Create()), OptionsForConnection(), now),
+            ConnectionProfile.Create(ConnectionProfileId.New(), new ConnectionProfileMetadata("Azure identity"),
+                new AzureBlobEndpoint("archive", new Uri("https://account.blob.core.windows.net/")),
+                new AmbientCredentialAuthentication(), OptionsForConnection(), now),
+            ConnectionProfile.Create(ConnectionProfileId.New(), new ConnectionProfileMetadata("Azurite"),
+                new AzureBlobEndpoint("archive", allowInsecureHttp: true),
+                new AzureConnectionStringAuthentication(SecretReference.Create()), OptionsForConnection(), now)
         };
 
         foreach (var profile in profiles)

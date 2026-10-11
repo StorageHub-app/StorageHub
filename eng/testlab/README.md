@@ -5,7 +5,7 @@ Real servers, on loopback, for the integration fixtures to talk to.
 ## Why this exists
 
 The fixtures were already written. `SftpProviderIntegrationTests`, `SshTerminalIntegrationTests`,
-`SshHostKeyDiscoveryIntegrationTests` and the FTP, WebDAV and MinIO suites all read their endpoints from
+`SshHostKeyDiscoveryIntegrationTests` and the FTP, WebDAV, MinIO and cloud suites all read their endpoints from
 `STORAGEHUB_*` environment variables and return early when those are unset — so on any machine that
 had not been set up by hand, they silently did nothing. What was missing was never the tests. It was
 anything for them to point at.
@@ -130,6 +130,33 @@ pointing at the lab certificate, is what the fixture was first run against.
 MinIO, on 9000, with a console on 9001 and the bucket created before anything else starts. MinIO no
 longer publishes public images (neither `quay.io` nor Docker Hub), so the lab uses `pgsty/minio`, a
 community build pinned to one release, for the server and for the bucket job (it carries `mc`).
+
+### Azure Blob Storage
+
+Azurite (`mcr.microsoft.com/azure-storage/azurite`, pinned to 3.37.0, the release the fixture was run against), blob service only, on 10000. It has one
+account, Microsoft's published `devstoreaccount1`, and speaks plain HTTP.
+
+| Service | Port | TLS |
+|---|---|---|
+| `azurite` | 10000 | none |
+
+`AzureBlobProviderIntegrationTests` reads:
+
+| Variable | Meaning |
+|---|---|
+| `STORAGEHUB_REQUIRE_AZURITE` | `1` makes a missing setting a failure instead of a skip |
+| `STORAGEHUB_AZURE_CONNECTION_STRING` | a connection string naming the emulator's blob endpoint |
+| `STORAGEHUB_AZURE_CONTAINER` | the container to work in; the fixture creates it |
+
+Set, it runs the conformance pass signed in with the connection string, then a saved profile through
+the real connector (the string in a vault, plain HTTP acknowledged on the profile), and the failures:
+the same string without the acknowledgement is refused before anything is sent, a wrong account key
+is *unauthorized*, and a shared key aimed at an `http://` service URL is refused outright. A sentinel
+blob outside the run's prefix has to survive every run.
+
+Without Docker, `npm install -g azurite` and
+`azurite-blob --blobHost 127.0.0.1 --blobPort 10000 --skipApiVersionCheck --loose` is what the
+fixture was first run against.
 
 ### Proxy
 

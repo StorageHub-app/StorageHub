@@ -381,6 +381,67 @@ public sealed class ConnectionProfileTests
     }
 
     [Fact]
+    public void Azure_names_its_container_as_azure_does_and_sends_secrets_only_to_https()
+    {
+        var endpoint = new AzureBlobEndpoint(
+            " archive-2026 ",
+            new Uri("https://account.blob.core.windows.net/"),
+            rootPrefix: "/team/reports/");
+
+        Assert.Equal(ConnectionProviderKind.AzureBlob, endpoint.Provider);
+        Assert.Equal("archive-2026", endpoint.Container);
+        Assert.Equal("team/reports", endpoint.RootPrefix);
+        Assert.False(endpoint.AllowInsecureHttp);
+        Assert.True(new AzureBlobEndpoint("emulated", allowInsecureHttp: true).AllowInsecureHttp);
+
+        foreach (var name in new[] { "ab", "Archive", "two--hyphens", "-edge", "edge-", "under_score", new string('a', 64) })
+        {
+            Assert.ThrowsAny<ArgumentException>(() => new AzureBlobEndpoint(name));
+        }
+
+        // A key or a token is only ever sent to HTTPS, so a plain-HTTP service URL is refused, and
+        // plain HTTP can only be acknowledged for a connection string, which has no service URL.
+        Assert.ThrowsAny<ArgumentException>(() => new AzureBlobEndpoint(
+            "archive", new Uri("http://127.0.0.1:10000/devstoreaccount1")));
+        Assert.ThrowsAny<ArgumentException>(() => new AzureBlobEndpoint(
+            "archive", new Uri("https://account.blob.core.windows.net/"), allowInsecureHttp: true));
+        Assert.ThrowsAny<ArgumentException>(() => new AzureBlobEndpoint(
+            "archive", new Uri("https://account.blob.core.windows.net/?sv=2024&sig=secret")));
+        Assert.ThrowsAny<ArgumentException>(() => new AzureBlobEndpoint(
+            "archive", rootPrefix: "team/../other"));
+    }
+
+    [Fact]
+    public void Azure_takes_a_connection_string_without_a_service_url_and_every_other_sign_in_with_one()
+    {
+        var service = new AzureBlobEndpoint("archive", new Uri("https://account.blob.core.windows.net/"));
+        var emulator = new AzureBlobEndpoint("archive", allowInsecureHttp: true);
+        var connectionString = new AzureConnectionStringAuthentication(SecretReference.Create());
+
+        Assert.IsType<AzureConnectionStringAuthentication>(Create(emulator, connectionString).Authentication);
+        Assert.IsType<AzureSharedKeyAuthentication>(
+            Create(service, new AzureSharedKeyAuthentication("account", SecretReference.Create())).Authentication);
+        Assert.IsType<AzureSasTokenAuthentication>(
+            Create(service, new AzureSasTokenAuthentication(SecretReference.Create())).Authentication);
+        Assert.IsType<AmbientCredentialAuthentication>(
+            Create(service, new AmbientCredentialAuthentication()).Authentication);
+
+        Assert.Throws<ArgumentException>(() => Create(service, connectionString));
+        Assert.Throws<ArgumentException>(() => Create(emulator, new AmbientCredentialAuthentication()));
+        Assert.Throws<ArgumentException>(() => Create(service, new NoAuthentication()));
+        Assert.Throws<ArgumentException>(() => Create(service, new S3DefaultCredentialChainAuthentication()));
+        Assert.Throws<ArgumentException>(() => Create(service, new UsernamePasswordAuthentication("account", Password)));
+        Assert.ThrowsAny<ArgumentException>(() => new AzureSharedKeyAuthentication("Account", SecretReference.Create()));
+        Assert.ThrowsAny<ArgumentException>(() => new AzureSharedKeyAuthentication("ab", SecretReference.Create()));
+        Assert.ThrowsAny<ArgumentException>(() => new AzureSasTokenAuthentication(default));
+        Assert.ThrowsAny<ArgumentException>(() => new AzureConnectionStringAuthentication(default));
+
+        static ConnectionProfile Create(AzureBlobEndpoint endpoint, ConnectionAuthentication authentication) =>
+            ConnectionProfile.Create(ConnectionProfileId.New(), Metadata("Azure"), endpoint, authentication,
+                OperationalOptions(), DateTimeOffset.UtcNow);
+    }
+
+    [Fact]
     public void Provider_and_endpoint_must_match()
     {
         Assert.Throws<ArgumentException>(() => ConnectionProfile.Create(
@@ -419,6 +480,9 @@ public sealed class ConnectionProfileTests
             ConnectionProfile.Create(ConnectionProfileId.New(), Metadata("WebDAV"),
                 new WebDavEndpoint(new Uri("https://dav.example.test/files/"), TlsCertificatePolicy.SystemTrust),
                 new UsernamePasswordAuthentication("operator", Password), OperationalOptions(), now),
+            ConnectionProfile.Create(ConnectionProfileId.New(), Metadata("Azure"),
+                new AzureBlobEndpoint("archive", new Uri("https://account.blob.core.windows.net/")),
+                new AzureSharedKeyAuthentication("account", SecretReference.Create()), OperationalOptions(), now),
             ConnectionProfile.Create(ConnectionProfileId.New(), Metadata("SSH"),
                 new SshClientEndpoint("ssh.example.test", 22, SshHostKeyPolicy.Pinned),
                 new UsernamePasswordAuthentication("operator", Password), OperationalOptions(), now)

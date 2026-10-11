@@ -262,5 +262,13 @@
   "fieldHttpSignIn": "HTTP-login",
   "fieldRequestTimeout": "Tidsgrænse for forespørgsel",
   "requestTimeoutHint": "I sekunder, for hver hel forespørgsel, inklusive filen ved en upload. Hæv den til store filer på en langsom forbindelse.",
+  "authAmbientCredential": "Agentens cloud-identitet",
+  "authAzureSharedKey": "Kontonavn og delt nøgle",
+  "authAzureSasToken": "Signatur til delt adgang (SAS)",
+  "authAzureConnectionString": "Forbindelsesstreng",
+  "fieldContainer": "Container",
+  "fieldStorageAccount": "Lagerkonto",
+  "fieldAccountKey": "Kontonøgle",
+  "fieldSasToken": "SAS-token",
   "culture": "da-DK"
 }

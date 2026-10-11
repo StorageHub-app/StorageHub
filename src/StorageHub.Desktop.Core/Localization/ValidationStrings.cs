@@ -70,6 +70,33 @@ internal sealed class ValidationStrings : LocalizationModelBase
 
     public string ABearerTokenIsRequired { get; set; } = "A bearer token is required for bearer-token sign-in.";
 
+    public string AnAzureContainerIsRequired { get; set; } = "An Azure container is required.";
+
+    public string TheAzureContainerNameIsInvalid { get; set; } =
+        "The container name must be 3 to 63 lower-case letters, digits and single hyphens, starting and ending with a letter or digit.";
+
+    public string AnAzureServiceUrlIsRequired { get; set; } =
+        "A Blob service URL is required for SAS-token and Azure-identity sign-in.";
+
+    public string TheAzureServiceUrlIsInvalid { get; set; } =
+        "The Blob service URL must be an https:// address without a user name, query or fragment.";
+
+    public string AzurePlainHttpNeedsConnectionString { get; set; } =
+        "Plain HTTP is only for a connection string, such as Azurite's; a Blob service URL must be https://.";
+
+    public string AnAzureAccountNameIsRequired { get; set; } =
+        "A storage account name is required for shared-key sign-in.";
+
+    public string TheAzureAccountNameIsInvalid { get; set; } =
+        "The storage account name must be 3 to 24 lower-case letters and digits.";
+
+    public string AnAzureAccountKeyIsRequired { get; set; } = "An account key is required for shared-key sign-in.";
+
+    public string AnAzureSasTokenIsRequired { get; set; } = "A SAS token is required for SAS-token sign-in.";
+
+    public string AnAzureConnectionStringIsRequired { get; set; } =
+        "A connection string is required for connection-string sign-in.";
+
     public string AnHTTPSS3ServiceEndpointIsRequired { get; set; } = "An HTTPS S3 service endpoint is required.";
 
     public string AnS3BucketIsRequired { get; set; } = "An S3 bucket is required.";

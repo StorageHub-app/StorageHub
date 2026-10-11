@@ -413,6 +413,22 @@ internal sealed class ConnectionStrings : LocalizationModelBase
 
     public string AuthBearerToken { get; set; } = "Bearer token";
 
+    public string AuthAmbientCredential { get; set; } = "The agent's cloud identity";
+
+    public string AuthAzureSharedKey { get; set; } = "Account name and shared key";
+
+    public string AuthAzureSasToken { get; set; } = "Shared access signature (SAS)";
+
+    public string AuthAzureConnectionString { get; set; } = "Connection string";
+
+    public string FieldContainer { get; set; } = "Container";
+
+    public string FieldStorageAccount { get; set; } = "Storage account";
+
+    public string FieldAccountKey { get; set; } = "Account key";
+
+    public string FieldSasToken { get; set; } = "SAS token";
+
     public string FieldHttpSignIn { get; set; } = "HTTP sign-in";
 
     public string FieldRequestTimeout { get; set; } = "Request timeout";
