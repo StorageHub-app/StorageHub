@@ -272,6 +272,29 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
     }
 
     /// <summary>
+    /// Points the Transfer menu at the queue: Start queue, Pause all and Resume all act on every
+    /// transfer the agent holds, and Cancel selected on the rows chosen in the queue.
+    /// </summary>
+    /// <remarks>
+    /// 1.4 declared all four, with F7 and F8, and wired none of them; its queue's own Cancel was the
+    /// only way to stop a transfer. Each entry is lit only while it has something to act on, by the
+    /// counts the queue reads on every poll, so the menu says what pressing it would do.
+    /// </remarks>
+    internal void RouteTransferCommands()
+    {
+        Router.Handle(UiCommandIds.TransferStartQueue, () => _ = Queue.StartQueueAsync());
+        Router.Handle(UiCommandIds.TransferPauseAll, () => _ = Queue.PauseAllAsync());
+        Router.Handle(UiCommandIds.TransferResumeAll, () => _ = Queue.ResumeAllAsync());
+        Router.Handle(UiCommandIds.TransferCancelSelected, Queue.CancelSelected);
+        Router.When(UiCommandIds.TransferStartQueue, () => Queue.CanStartQueue);
+        Router.When(UiCommandIds.TransferPauseAll, () => Queue.CanPauseAll);
+        Router.When(UiCommandIds.TransferResumeAll, () => Queue.CanResumeAll);
+        Router.When(UiCommandIds.TransferCancelSelected, () => Queue.CanCancelSelected);
+        Queue.ControlsChanged += (_, _) => Router.Reconsider();
+        Queue.CancelCommand.CanExecuteChanged += (_, _) => Router.Reconsider();
+    }
+
+    /// <summary>
     /// Makes the next pane in the arrangement the active one, wrapping at the end.
     /// </summary>
     /// <remarks>
@@ -1721,6 +1744,7 @@ internal static class ShellPreview
         model.RouteToActivePane();
         model.DimWorkspaceCommandsOnPages();
         model.WatchTheStatusBar();
+        model.RouteTransferCommands();
 
         // The keys and the toolbar as Settings saved them, as 1.x built its menus and toolbar from
         // the saved preferences. The samples have no settings file, and keep the catalog's.

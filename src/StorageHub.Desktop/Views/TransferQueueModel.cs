@@ -338,6 +338,13 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
     /// <summary>What the first read after a tab change chooses again, once its rows are there.</summary>
     private Guid[]? _restore;
 
+    /// <summary>
+    /// How many transfers the agent holds in each state, from the last read that said, which is
+    /// what the Transfer menu's queue-wide entries are lit by.
+    /// </summary>
+    private IReadOnlyDictionary<TransferQueueState, int> _stateCounts =
+        new Dictionary<TransferQueueState, int>();
+
     /// <param name="activity">
     /// What the Logs tab shows. Optional so a test of the queue itself need not stand up a sync
     /// client; without it the tab says the log is not loaded, as it did before the log was ported.
@@ -801,6 +808,8 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
                 each.Count = each.States.Sum(state => counts.TryGetValue(state, out var value) ? value : 0);
             }
 
+            CountsRead(counts);
+
             BytesPerSecond = response.TotalBytesPerSecond ?? 0;
             Raise(nameof(ActiveCount));
             Raise(nameof(QueuedCount));
@@ -907,6 +916,8 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
             {
                 each.Count = each.States.Sum(state => counts.TryGetValue(state, out var value) ? value : 0);
             }
+
+            CountsRead(counts);
         }
 
         // A failure part-way through still shows the pages that were read; it is only said when
@@ -1158,6 +1169,174 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
 
         Say(refused == 0
             ? Ui.Format(Ui.Transfer.UpdatedTransfersFormat, applied)
+            : Ui.Format(Ui.Transfer.UpdatedWithConflictsFormat, applied, refused));
+        ShowFromStart();
+        await RefreshAsync().ConfigureAwait(true);
+    }
+
+    /// <summary>The states Pause all sets aside: everything running or waiting its turn.</summary>
+    internal static IReadOnlyList<TransferQueueState> PausableStates { get; } =
+        [TransferQueueState.Transferring, TransferQueueState.Pending, TransferQueueState.Retrying];
+
+    /// <summary>The states Resume all puts back in the queue: the ones somebody paused.</summary>
+    internal static IReadOnlyList<TransferQueueState> ResumableStates { get; } = [TransferQueueState.Paused];
+
+    /// <summary>
+    /// The states Start queue puts back in the queue: everything stopped and waiting on a person
+    /// that a Retry can start again, which is the Paused and Failed tabs.
+    /// </summary>
+    internal static IReadOnlyList<TransferQueueState> StartableStates { get; } =
+    [
+        TransferQueueState.Paused,
+        TransferQueueState.BlockedCredential,
+        TransferQueueState.BlockedTrust,
+        TransferQueueState.RestartRequired,
+        TransferQueueState.Failed
+    ];
+
+    /// <summary>How many transfers, among every tab, Pause all would pause.</summary>
+    internal bool CanPauseAll => CountOf(PausableStates) > 0;
+
+    /// <summary>Whether there is anything paused for Resume all.</summary>
+    internal bool CanResumeAll => CountOf(ResumableStates) > 0;
+
+    /// <summary>Whether there is anything stopped for Start queue.</summary>
+    internal bool CanStartQueue => CountOf(StartableStates) > 0;
+
+    /// <summary>Raised when what the queue-wide entries are lit by may have changed.</summary>
+    internal event EventHandler? ControlsChanged;
+
+    private int CountOf(IReadOnlyList<TransferQueueState> states) =>
+        states.Sum(state => _stateCounts.TryGetValue(state, out var count) ? count : 0);
+
+    private void CountsRead(IReadOnlyDictionary<TransferQueueState, int> counts)
+    {
+        _stateCounts = counts;
+        ControlsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Transfer, Pause all: every transfer running or waiting, on every tab, is paused. A waiting
+    /// one at once, a running one at its next safe point, keeping what it staged.
+    /// </summary>
+    /// <remarks>
+    /// 1.4 declared the entry, "Pause active transfers at safe checkpoints", and never wired it.
+    /// Everything is read before anything is sent, since each pause moves its transfer to the top
+    /// of the agent's order and a page read between them would skip some and repeat others.
+    /// </remarks>
+    internal Task PauseAllAsync() => ControlAllAsync(
+        PausableStates,
+        static (client, transfer, token) => client.PauseAsync(
+            new TransferPauseRequest(TransferQueueIpcContract.CurrentVersion, transfer.TransferId, transfer.Revision),
+            token),
+        Ui.Transfer.PausedTransfersFormat,
+        Ui.Transfer.NothingToPause);
+
+    /// <summary>Transfer, Resume all: every paused transfer goes back in the queue, as Retry puts one.</summary>
+    internal Task ResumeAllAsync() => ControlAllAsync(
+        ResumableStates,
+        static (client, transfer, token) => client.RetryAsync(
+            new TransferRetryRequest(TransferQueueIpcContract.CurrentVersion, transfer.TransferId, transfer.Revision),
+            token),
+        Ui.Transfer.ResumedTransfersFormat,
+        Ui.Transfer.NothingToResume);
+
+    /// <summary>
+    /// Transfer, Start queue: every transfer that stopped and waits on somebody -- paused, blocked,
+    /// needing a restart or failed -- goes back in the queue, as Retry on all of them would.
+    /// </summary>
+    /// <remarks>
+    /// The agent runs whatever is queued on its own, so there is no queue to switch on; what is left
+    /// to start is what stopped. Conflicts are left to their own decision, which only Apply makes.
+    /// </remarks>
+    internal Task StartQueueAsync() => ControlAllAsync(
+        StartableStates,
+        static (client, transfer, token) => client.RetryAsync(
+            new TransferRetryRequest(TransferQueueIpcContract.CurrentVersion, transfer.TransferId, transfer.Revision),
+            token),
+        Ui.Transfer.StartedTransfersFormat,
+        Ui.Transfer.NothingToStart,
+        static transfer => transfer.CanRetry);
+
+    /// <summary>
+    /// Transfer, Cancel selected: the queue's own Cancel, on the rows chosen in it, so the menu and
+    /// the button cancel the same transfers and decline in the same cases.
+    /// </summary>
+    internal void CancelSelected()
+    {
+        if (CancelCommand.CanExecute(null)) CancelCommand.Execute(null);
+    }
+
+    /// <summary>Whether Cancel selected has anything to cancel.</summary>
+    internal bool CanCancelSelected => CancelCommand.CanExecute(null);
+
+    /// <summary>The most transfers a queue-wide action reads, so one press cannot walk without end.</summary>
+    private const int MaximumControlled = TransferQueueIpcLimits.MaximumPageSize * 40;
+
+    /// <summary>Reads every transfer in the states, then sends each its request, and says how many took.</summary>
+    private async Task ControlAllAsync(
+        IReadOnlyList<TransferQueueState> states,
+        Func<ITransferQueueAgentClient, TransferQueueSummary, CancellationToken, Task<TransferMutationResponse>> send,
+        string doneFormat,
+        string nothing,
+        Func<TransferQueueSummary, bool>? applies = null)
+    {
+        Say(Ui.Transfer.ApplyingAction);
+        var applied = 0;
+        var refused = 0;
+        try
+        {
+            var client = _client ??= _connect();
+            var targets = new List<TransferQueueSummary>();
+            string? continuation = null;
+            do
+            {
+                var page = await client.ListAsync(
+                    new TransferListRequest(
+                        TransferQueueIpcContract.CurrentVersion,
+                        [.. states],
+                        PageSize: TransferQueueIpcLimits.MaximumPageSize,
+                        ContinuationToken: continuation),
+                    _lifetime.Token).ConfigureAwait(true);
+                if (page.Failure is not null)
+                {
+                    Say(page.Failure.Message);
+                    return;
+                }
+
+                targets.AddRange(page.Transfers.Where(transfer => applies?.Invoke(transfer) != false));
+                continuation = page.ContinuationToken;
+            }
+            while (continuation is not null && targets.Count < MaximumControlled);
+
+            if (targets.Count == 0)
+            {
+                Say(nothing);
+                return;
+            }
+
+            // Oldest first, as the queue's own buttons send them, so transfers go back into the
+            // queue in the order they first came.
+            foreach (var transfer in targets
+                .DistinctBy(static transfer => transfer.TransferId)
+                .OrderBy(static transfer => transfer.UpdatedUtc))
+            {
+                if (IsApplied(await send(client, transfer, _lifetime.Token).ConfigureAwait(true))) applied++;
+                else refused++;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (Exception error) when (IsUnavailable(error) || IsRefusal(error) || error is NotSupportedException)
+        {
+            await FailedAsync(error).ConfigureAwait(true);
+            return;
+        }
+
+        Say(refused == 0
+            ? Ui.Format(doneFormat, applied)
             : Ui.Format(Ui.Transfer.UpdatedWithConflictsFormat, applied, refused));
         ShowFromStart();
         await RefreshAsync().ConfigureAwait(true);

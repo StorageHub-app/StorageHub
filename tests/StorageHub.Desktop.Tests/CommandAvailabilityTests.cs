@@ -21,6 +21,14 @@ namespace StorageHub.Desktop.Tests;
 /// </remarks>
 public class CommandAvailabilityTests
 {
+    private static readonly string[] TransferEntriesWaitingOnTheQueue =
+    [
+        UiCommandIds.TransferStartQueue,
+        UiCommandIds.TransferPauseAll,
+        UiCommandIds.TransferResumeAll,
+        UiCommandIds.TransferCancelSelected,
+    ];
+
     [AvaloniaFact]
     public void ACommandWithNoHandlerIsNotOffered()
     {
@@ -73,10 +81,17 @@ public class CommandAvailabilityTests
             .Select(static entry => ((ShellCommand)entry.Command).Id)
             .ToArray();
 
-        Assert.Equal(model.Router.HandledCount, enabled.Length);
+        // Less the Transfer menu's, which are handled but lit only while the queue holds something
+        // for them, and a sample's queue has never been read.
+        Assert.Equal(model.Router.HandledCount - TransferEntriesWaitingOnTheQueue.Length, enabled.Length);
         Assert.All(enabled, id => Assert.True(
             model.Router.IsHandled(id),
             $"{id} is offered but has no handler."));
+        Assert.All(TransferEntriesWaitingOnTheQueue, id =>
+        {
+            Assert.True(model.Router.IsHandled(id));
+            Assert.DoesNotContain(id, enabled);
+        });
     }
 
     /// <summary>

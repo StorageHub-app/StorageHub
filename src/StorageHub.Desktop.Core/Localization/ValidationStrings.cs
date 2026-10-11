@@ -559,6 +559,9 @@ internal sealed class ValidationStrings : LocalizationModelBase
 
     public string ThisTransferClientDoesNotSupportClearing { get; set; } = "This transfer client does not support clearing history.";
 
+    public string ThisTransferClientDoesNotSupportPausing { get; set; } =
+        "This transfer client does not support pausing transfers.";
+
     public string ThisTransferClientDoesNotSupportShell { get; set; } = "This transfer client does not support shell exports.";
 
     public string ThisTransferClientDoesNotSupportShell2 { get; set; } = "This transfer client does not support shell imports.";
