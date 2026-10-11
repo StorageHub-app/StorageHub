@@ -744,8 +744,26 @@ The profile already stores these; `CodeLogicConnectionProfileConnector.BuildAsyn
       export. Local folders are watched with a `FileSystemWatcher` (1 s settle, 5 s ceiling);
       connections are read again on the interval. Both use the quiet refresh, so filter, selection and
       scroll are kept, and a busy pane is caught up on the next tick. 1.4 had no such feature.
-- [ ] 4.5 Compare folders: a two-pane diff from `CompareAsync`; differences copied through our queue.
-- [ ] 4.6 Clean up leftover staging files, as a maintenance action.
+- [x] 4.5 Compare folders: a two-pane diff from `CompareAsync`; differences copied through our queue.
+      Done: Sync, Compare Panes (Ctrl+D) opens a Compare Folders window for the active pane and its
+      neighbour. The agent (`FolderCompareIpcCommandService`, `folder-compare.start/status/release`,
+      read a page at a time) compares them with `FolderComparison` over the sync scanner, because
+      CL.Storage's `CompareAsync` takes only connections registered in the library and a folder on
+      this PC is not one; it keeps CL's rules (size, newer with a 2 s tolerance, file against folder,
+      optional SHA-256 for same-size pairs). It shows only left / only right / different / same, with
+      filters, and names matched ignoring case keep each side's spelling. Selected differences are
+      copied either way as ordinary queued transfers that ask the usual conflict question, held to
+      the listed version, with missing folders created first. Not done: copying between two folders
+      on this PC, which the queue refuses.
+- [x] 4.6 Clean up leftover staging files, as a maintenance action.
+      Done: Tools, Clean Up Leftover Files… (`StagingCleanupIpcCommandService`) lists the resume
+      partials, staged copies, write probes and rename stand-ins in the folders the queue wrote to (up
+      to 64, this PC and saved connections), plus closed external-editor sessions, with sizes. It
+      removes only what is selected and confirmed; anything an unfinished transfer, a running sync, a
+      live partial write or an open editor session may need is shown in use and checked again at
+      removal. A failed transfer counts as finished, so its partial can go and a retry starts over.
+      Self-cleaning folders (the Local provider's staging, Explorer export and drop folders) are left
+      alone. Not done: update downloads, which would need the updater's word on what it still holds.
 - [ ] 4.7 (Optional) FTP raw command console.
 - [x] 4.8 Hide a pane's FILES row from Pane actions, as the connection bar can be (1.4 could not).
       Done: "Show files bar" sits under "Show connection bar", is saved with the pane as

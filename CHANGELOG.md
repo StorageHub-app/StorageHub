@@ -113,6 +113,20 @@ server's system and software, the host key or certificate it presented and
 whether it is trusted, the cipher and key exchange negotiated, the server's
 features, how many sessions are open and the last health check.
 
+**Compare two panes and copy the differences, and clean up what interrupted
+transfers left behind.** Sync, Compare Panes (Ctrl+D) now opens a Compare
+Folders window that lists what only the left or right folder has, what differs
+by size, time or, if asked, SHA-256 contents, and what is the same. You can
+filter by kind and name, and copy selected differences in either direction as
+normal queued transfers that ask the usual conflict question and never overwrite
+a file that changed since the comparison. Folders on saved connections and on
+this PC can both be compared. A new Tools, Clean Up Leftover Files… lists the
+partial and staged copies, write tests and rename stand-ins left in folders
+StorageHub transferred to, plus copies of files no longer open in the external
+editor, each with its size. It removes only what you select and confirm, and
+leaves anything an unfinished transfer, a running sync or an open editor may
+still need.
+
 **Free space, connection trouble and folders that refresh themselves.** A
 pane's footer ends with the free space behind the folder it shows: for a folder
 on this PC from the drive, for SFTP and FTP connections from the server, and
