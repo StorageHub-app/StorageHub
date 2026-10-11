@@ -91,6 +91,13 @@ internal interface IInstallationProbe
     long? FileLength(string path);
 
     /// <summary>
+    /// Whether a database file holds anything somebody saved, or null when it cannot be read. A
+    /// database the agent created and nobody used has a schema and no rows, and is not worth a
+    /// warning: there is nothing in it to be out of reach. Where it cannot be told, assume there is.
+    /// </summary>
+    bool? HoldsSavedData(string path) => null;
+
+    /// <summary>
     /// What the agent says about itself when asked right now, or Disconnected when nothing answers.
     /// </summary>
     Task<AgentConnectionState> AgentStateAsync(CancellationToken cancellationToken);
@@ -327,7 +334,8 @@ internal static class AgentInstallationCheck
                 Path.GetFullPath(layout.Paths.DatabasePath),
                 OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal) ||
             probe.InspectFile(path) != PathVisibility.Present ||
-            probe.FileLength(path) is null or 0)
+            probe.FileLength(path) is null or 0 ||
+            probe.HoldsSavedData(path) == false)
         {
             return null;
         }
@@ -461,6 +469,48 @@ internal sealed class MachineInstallationProbe : IInstallationProbe
             return new FileInfo(path).Length;
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return null;
+        }
+    }
+
+    public bool? HoldsSavedData(string path)
+    {
+        try
+        {
+            using var connection = new Microsoft.Data.Sqlite.SqliteConnection(
+                new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder
+                {
+                    DataSource = path,
+                    Mode = Microsoft.Data.Sqlite.SqliteOpenMode.ReadOnly,
+                    Pooling = false,
+                }.ToString());
+            connection.Open();
+
+            var tables = new List<string>();
+            using (var list = connection.CreateCommand())
+            {
+                list.CommandText =
+                    "SELECT name FROM sqlite_master WHERE type = 'table' " +
+                    "AND name NOT LIKE 'sqlite_%' AND name <> 'schema_migrations';";
+                using var reader = list.ExecuteReader();
+                while (reader.Read()) tables.Add(reader.GetString(0));
+            }
+
+            foreach (var table in tables)
+            {
+                using var count = connection.CreateCommand();
+                count.CommandText = "SELECT EXISTS (SELECT 1 FROM \"" + table.Replace("\"", "\"\"") + "\");";
+                if (Convert.ToInt64(count.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture) == 1)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+        catch (Exception error) when (error is Microsoft.Data.Sqlite.SqliteException or IOException or
+            UnauthorizedAccessException or InvalidOperationException)
         {
             return null;
         }

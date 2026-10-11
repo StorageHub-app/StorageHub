@@ -18,7 +18,8 @@ public sealed record AgentStatusSnapshot(
     DateTimeOffset ObservedAtUtc,
     int ActiveTransfers,
     int ActiveSyncRuns,
-    string? Detail);
+    string? Detail,
+    string? AgentVersion = null);
 
 public sealed record AgentStatusRequest;
 

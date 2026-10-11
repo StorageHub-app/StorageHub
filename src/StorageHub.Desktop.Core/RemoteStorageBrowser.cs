@@ -791,7 +791,23 @@ internal static class RemoteBrowserErrors
         JsonException or
         ArgumentException;
 
-    public static string ForException(Exception error) => error switch
+    /// <summary>
+    /// What to tell somebody about a failed call, and a note to the desktop that the agent could
+    /// not be reached when that is what it was. The pane showing this text and the status bar have
+    /// to agree: without the report the bar kept saying "connected" until its next poll, which
+    /// found a healthy agent on a fresh connection and never saw the broken one the pane used.
+    /// </summary>
+    public static string ForException(Exception error)
+    {
+        if (DesktopAgentAvailability.IsTransportFault(error))
+        {
+            _ = DesktopAgentAvailability.ReportFailure(error);
+        }
+
+        return Describe(error);
+    }
+
+    private static string Describe(Exception error) => error switch
     {
         TimeoutException => Ui.Validation.TheBackgroundAgentDidNotRespondIn,
         UnauthorizedAccessException => Ui.Validation.StorageHubCouldNotAuthenticateToTheLocal,

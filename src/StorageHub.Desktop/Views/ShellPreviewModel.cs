@@ -1129,17 +1129,49 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
     internal IReadOnlyList<object> PaneContextEntries { get; init; } = [];
 
     /// <summary>
-    /// Brings a stopped agent back, the same way startup does. Set by the application; null in a
-    /// preview, which has nothing to start.
+    /// Brings a stopped agent back, the same way startup does, but leaves one that is running and
+    /// merely not answering alone. Set by the application; null in a preview, which has nothing to
+    /// start.
     /// </summary>
     internal Func<CancellationToken, Task<AgentEnsureResult>>? RecoverAgent { get; set; }
+
+    /// <summary>
+    /// As <see cref="RecoverAgent"/>, but ending a running agent that is not answering and starting
+    /// another. Used only once the agent has been silent for longer than a busy one would be.
+    /// </summary>
+    internal Func<CancellationToken, Task<AgentEnsureResult>>? ForceRecoverAgent { get; set; }
+
+    /// <summary>
+    /// The build the agent must be, or null where it is not checked. An agent answering from an
+    /// older build, which is what an update leaves behind if the old one outlived it, has not run
+    /// this build's database migrations and does not speak its protocol; it is restarted once idle.
+    /// </summary>
+    internal string? ExpectedAgentVersion { get; set; }
 
     /// <summary>How long after a failed attempt the next one waits, so an absent agent is not
     /// relaunched on every eight-second poll.</summary>
     private static readonly TimeSpan RecoveryBackoff = TimeSpan.FromSeconds(30);
 
+    /// <summary>The wait before looking again at an agent that is running but silent.</summary>
+    private static readonly TimeSpan UnresponsiveBackoff = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// How long a running agent may stay silent before it is called hung and replaced. A busy one
+    /// misses a poll or two; with work known to be running when it went quiet it is given longer,
+    /// since ending it ends that work.
+    /// </summary>
+    internal static readonly TimeSpan HungAfter = TimeSpan.FromSeconds(60);
+
+    internal static readonly TimeSpan HungAfterWithWork = TimeSpan.FromMinutes(5);
+
+    /// <summary>How long after a restart for the wrong build the next one waits.</summary>
+    private static readonly TimeSpan StaleRestartBackoff = TimeSpan.FromMinutes(5);
+
     private bool _recovering;
     private DateTimeOffset _nextRecovery = DateTimeOffset.MinValue;
+    private DateTimeOffset? _silentSince;
+    private int _lastKnownWork;
+    private DateTimeOffset _nextStaleRestart = DateTimeOffset.MinValue;
 
     /// <summary>
     /// Restarts the agent when it drops, as 1.x did, and reloads everything once it answers.
@@ -1148,12 +1180,22 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
     {
         if (RecoverAgent is not { } recover || _recovering || DateTimeOffset.UtcNow < _nextRecovery) return;
 
+        var silentFor = DateTimeOffset.UtcNow - (_silentSince ?? DateTimeOffset.UtcNow);
+        var hungAfter = _lastKnownWork > 0 ? HungAfterWithWork : HungAfter;
+        var mayTerminate = silentFor >= hungAfter && ForceRecoverAgent is not null;
+        if (mayTerminate) recover = ForceRecoverAgent!;
+
         _recovering = true;
         ShellStatus = ShellStatus with { AgentState = AgentConnectionState.Starting };
         AgentToolTip = Ui.Shell.AgentReconnectingTooltip;
+        Framework.DesktopErrorLog.Note(
+            "agent",
+            $"The agent has not answered for {silentFor.TotalSeconds:0} seconds; recovering it" +
+            (mayTerminate ? ", ending it first if it is still running." : "."));
         try
         {
             var result = await recover(CancellationToken.None).ConfigureAwait(true);
+            Framework.DesktopErrorLog.Note("agent", $"Recovery finished: {result.Status}.");
             if (result.IsReady)
             {
                 ShellStatus = ShellStatus with { AgentState = AgentConnectionState.Connected };
@@ -1164,17 +1206,58 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
             }
             else
             {
-                _nextRecovery = DateTimeOffset.UtcNow + RecoveryBackoff;
+                _nextRecovery = DateTimeOffset.UtcNow + (result.Status == AgentEnsureStatus.Unresponsive
+                    ? UnresponsiveBackoff
+                    : RecoveryBackoff);
                 ShellStatus = ShellStatus with { AgentState = AgentConnectionState.Disconnected };
             }
         }
         catch (Exception error) when (error is not OperationCanceledException)
         {
+            Framework.DesktopErrorLog.Write("agent", error);
             _nextRecovery = DateTimeOffset.UtcNow + RecoveryBackoff;
         }
         finally
         {
             _recovering = false;
+        }
+    }
+
+    /// <summary>
+    /// Restarts an agent that is answering from a different build than this one, once it has no
+    /// work running. Tried once in a while rather than every poll, so an agent that comes back as
+    /// the same build does not become a restart loop.
+    /// </summary>
+    private async Task RestartStaleAgentAsync(AgentMonitorStatus status)
+    {
+        if (ExpectedAgentVersion is not { } expected ||
+            string.Equals(status.AgentVersion, expected, StringComparison.Ordinal) ||
+            status.State is not (AgentConnectionState.Connected or AgentConnectionState.RecoveryOnly) ||
+            _restartingAgent || _recovering || _closing ||
+            RunningWork > 0 || DateTimeOffset.UtcNow < _nextStaleRestart ||
+            AgentLifecycle?.Invoke() is not { } agent)
+        {
+            return;
+        }
+
+        _nextStaleRestart = DateTimeOffset.UtcNow + StaleRestartBackoff;
+        Framework.DesktopErrorLog.Note(
+            "agent",
+            $"The agent reports build {status.AgentVersion ?? "(none, an older build)"} and this is {expected}; restarting it.");
+        _restartingAgent = true;
+        try
+        {
+            var result = await agent.ExecuteAsync(AgentLifecycleAction.Restart).ConfigureAwait(true);
+            Framework.DesktopErrorLog.Note("agent", $"Restart for the build finished: succeeded {result.Succeeded}.");
+        }
+        catch (Exception error) when (error is InvalidOperationException or IOException or
+            UnauthorizedAccessException or TimeoutException)
+        {
+            Framework.DesktopErrorLog.Write("agent", error);
+        }
+        finally
+        {
+            _restartingAgent = false;
         }
     }
 
@@ -1562,6 +1645,11 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         // agent is in recovery, which is the one thing a single word cannot carry. A running
         // synchronization is work in progress as much as a transfer is, as 1.4 counted it.
         AgentStatus = status;
+        if (status.State != AgentConnectionState.Disconnected)
+        {
+            _lastKnownWork = status.ActiveTransfers + status.ActiveSyncRuns;
+        }
+
         ShellStatus = ShellStatus with
         {
             AgentState = status.State,
@@ -1577,7 +1665,17 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         // one left behind by a closing shell is not relaunched beside the shutdown.
         if (_restartingAgent || _closing) return;
 
-        if (status.State == AgentConnectionState.Disconnected) _ = RecoverAgentAsync();
+        if (status.State == AgentConnectionState.Disconnected)
+        {
+            _silentSince ??= DateTimeOffset.UtcNow;
+            _ = RecoverAgentAsync();
+        }
+        else
+        {
+            _silentSince = null;
+            _ = RestartStaleAgentAsync(status);
+        }
+
         if (_agentRestartPending && status.ActiveTransfers + status.ActiveSyncRuns == 0)
         {
             AgentSettingsRestart = RestartAgentForSettingsAsync();

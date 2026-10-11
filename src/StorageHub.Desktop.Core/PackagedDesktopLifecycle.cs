@@ -9,7 +9,13 @@ public enum AgentEnsureStatus
     Started,
     MissingExecutable,
     LaunchFailed,
-    StartupTimedOut
+    StartupTimedOut,
+
+    /// <summary>
+    /// The agent process is alive but is not answering, and the caller did not allow it to be
+    /// terminated. Not a failure to start: whatever it is doing may be work worth waiting for.
+    /// </summary>
+    Unresponsive
 }
 
 public sealed record AgentEnsureResult(AgentEnsureStatus Status)
@@ -284,8 +290,20 @@ public sealed class PackagedDesktopLifecycle : IDisposable
         }
     }
 
+    /// <param name="mayTerminateUnresponsive">
+    /// Whether an agent that is running but not answering may be terminated and replaced. A
+    /// start-up wants that, to clear whatever a previous session left behind. A recovery while the
+    /// window is open does not, until the caller has waited long enough to call the agent hung:
+    /// one that is merely busy misses a one-second probe, and ending it ends the transfers it runs.
+    /// </param>
+    public ValueTask<AgentEnsureResult> EnsureAgentAsync(CancellationToken cancellationToken = default) =>
+        EnsureAgentAsync(mayTerminateUnresponsive: true, cancellationToken);
+
+    /// <inheritdoc cref="EnsureAgentAsync(CancellationToken)"/>
+    /// <param name="mayTerminateUnresponsive">See above.</param>
     public async ValueTask<AgentEnsureResult> EnsureAgentAsync(
-        CancellationToken cancellationToken = default)
+        bool mayTerminateUnresponsive,
+        CancellationToken cancellationToken)
     {
         await _ensureGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -319,6 +337,10 @@ public sealed class PackagedDesktopLifecycle : IDisposable
 
             if (available)
             {
+                Framework.DesktopErrorLog.Note(
+                    "agent",
+                    "The agent answers but is not the packaged one at " + _agentExecutablePath +
+                    ", so it is being asked to shut down and be replaced.");
                 var stopped = await _agentClient.RequestShutdownAndWaitAsync(
                     AgentShutdownReason.Restart,
                     _options.ShutdownTimeout,
@@ -342,6 +364,17 @@ public sealed class PackagedDesktopLifecycle : IDisposable
                     return new AgentEnsureResult(AgentEnsureStatus.AlreadyRunning);
                 }
 
+                if (!mayTerminateUnresponsive)
+                {
+                    Framework.DesktopErrorLog.Note(
+                        "agent",
+                        $"The agent process is running but did not answer for {(int)_options.StartupTimeout.TotalSeconds} seconds. It was left running.");
+                    return new AgentEnsureResult(AgentEnsureStatus.Unresponsive);
+                }
+
+                Framework.DesktopErrorLog.Note(
+                    "agent",
+                    $"The agent process is running but did not answer for {(int)_options.StartupTimeout.TotalSeconds} seconds. It is being terminated to be started again.");
                 if (!await _processMonitor
                     .TryTerminateAsync(
                         _agentExecutablePath,
@@ -358,6 +391,7 @@ public sealed class PackagedDesktopLifecycle : IDisposable
                 return new AgentEnsureResult(AgentEnsureStatus.MissingExecutable);
             }
 
+            Framework.DesktopErrorLog.Note("agent", "Starting the agent at " + _agentExecutablePath + ".");
             if (!_processLauncher.TryLaunchHidden(
                     _agentExecutablePath,
                     _agentDirectory,

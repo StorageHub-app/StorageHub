@@ -26,11 +26,26 @@ internal static class DesktopErrorLog
     internal static void Write(string source, Exception error)
     {
         ArgumentNullException.ThrowIfNull(error);
+        Append(source, error.ToString());
+    }
+
+    /// <summary>
+    /// Records something that happened rather than something that threw, such as the agent being
+    /// restarted or stopped and why. Without it a restart leaves nothing behind to explain it.
+    /// </summary>
+    internal static void Note(string source, string message)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(message);
+        Append(source, message);
+    }
+
+    private static void Append(string source, string body)
+    {
         var entry = new StringBuilder()
             .Append(DateTimeOffset.Now.ToString("yyyy-MM-dd HH:mm:ss zzz", CultureInfo.InvariantCulture))
             .Append(" [").Append(source).Append("] StorageHub ").Append(DesktopApplicationVersion.Current)
             .AppendLine()
-            .AppendLine(error.ToString())
+            .AppendLine(body)
             .AppendLine()
             .ToString();
 

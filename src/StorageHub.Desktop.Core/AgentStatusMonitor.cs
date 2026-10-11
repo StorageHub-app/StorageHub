@@ -9,7 +9,8 @@ public sealed record AgentMonitorStatus(
     int ActiveTransfers,
     int ActiveSyncRuns,
     string Detail,
-    DateTimeOffset ObservedAtUtc);
+    DateTimeOffset ObservedAtUtc,
+    string? AgentVersion = null);
 
 public sealed class AgentMonitorStatusEventArgs(AgentMonitorStatus status) : EventArgs
 {
@@ -172,6 +173,7 @@ public sealed class AgentStatusMonitor : IAsyncDisposable
             snapshot.ActiveTransfers,
             snapshot.ActiveSyncRuns,
             snapshot.Detail ?? string.Empty,
-            snapshot.ObservedAtUtc);
+            snapshot.ObservedAtUtc,
+            snapshot.AgentVersion);
     }
 }

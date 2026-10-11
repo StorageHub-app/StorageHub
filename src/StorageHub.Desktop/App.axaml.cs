@@ -74,7 +74,13 @@ public partial class App : global::Avalonia.Application
         window.FitToScreen();
 
         // When the agent drops, the shell brings it back the way startup did.
-        model.RecoverAgent = DesktopAgentStartup.EnsureAsync;
+        // Gently: a running agent that is merely slow to answer is left alone, and only one silent
+        // for long enough to be called hung is ended and replaced.
+        model.RecoverAgent = cancellation => DesktopAgentStartup.EnsureAsync(false, cancellation);
+        model.ForceRecoverAgent = cancellation => DesktopAgentStartup.EnsureAsync(true, cancellation);
+
+        // An agent left over from before an update is replaced once it is idle.
+        model.ExpectedAgentVersion = DesktopApplicationVersion.Current;
 
         // And restarts it for a saved change to what it reads only as it starts, the concurrency
         // and total speed limits, once the transfers running then have finished.

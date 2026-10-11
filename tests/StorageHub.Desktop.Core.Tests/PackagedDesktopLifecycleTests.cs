@@ -169,6 +169,30 @@ public sealed class PackagedDesktopLifecycleTests
     }
 
     /// <summary>
+    /// A recovery while the window is open must not end an agent that is running but busy: it
+    /// misses a one-second probe, and ending it ends the transfers it runs.
+    /// </summary>
+    [Fact]
+    public async Task EnsureAgentLeavesARunningButSilentAgentAloneWhenNotAllowedToEndIt()
+    {
+        var fixture = CreateFixture(
+            agentAvailable: false,
+            waitResult: false,
+            enforceExpectedProcess: true,
+            expectedProcessRunning: true,
+            terminateResult: true);
+
+        var result = await fixture.Lifecycle.EnsureAgentAsync(
+            mayTerminateUnresponsive: false,
+            CancellationToken.None);
+
+        Assert.Equal(AgentEnsureStatus.Unresponsive, result.Status);
+        Assert.False(result.IsReady);
+        Assert.Equal(0, fixture.ProcessMonitor!.TerminateCalls);
+        Assert.Empty(fixture.Launcher.Launches);
+    }
+
+    /// <summary>
     /// The sign-in race under a service. Windows starts the auto-start service alongside the
     /// session that starts the desktop, and the service answers the control manager long before its
     /// pipe exists. Asking once and giving up turned that ordinary ordering into "the background

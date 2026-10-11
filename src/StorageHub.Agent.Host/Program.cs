@@ -295,7 +295,8 @@ var requestHandler = new AgentIpcRequestHandler(
         coordinator,
         agentInstanceId,
         transferQueueSubsystem.ActiveExecutionCount,
-        syncOutboxSubsystem.ActiveCount),
+        syncOutboxSubsystem.ActiveCount,
+        applicationVersion),
     BuildCommandHandlers(
         storageCommands,
         profileCommands,
@@ -429,7 +430,8 @@ static AgentStatusSnapshot CreateStatusSnapshot(
     AgentRuntimeCoordinator? coordinator,
     Guid agentInstanceId,
     int activeTransfers,
-    int activeSyncRuns)
+    int activeSyncRuns,
+    string agentVersion)
 {
     var state = coordinator?.State switch
     {
@@ -446,5 +448,6 @@ static AgentStatusSnapshot CreateStatusSnapshot(
         DateTimeOffset.UtcNow,
         ActiveTransfers: activeTransfers,
         ActiveSyncRuns: activeSyncRuns,
-        coordinator?.HealthMessage);
+        coordinator?.HealthMessage,
+        agentVersion);
 }

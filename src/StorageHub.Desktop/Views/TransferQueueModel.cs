@@ -764,7 +764,7 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
             // Said, logged once, and survived -- not thrown out of a timer callback.
             if (!_readFailureLogged) Framework.DesktopErrorLog.Write("queue", error);
             _readFailureLogged = true;
-            Unavailable();
+            Unavailable(error);
             return null;
         }
         catch (OperationCanceledException)
@@ -776,7 +776,7 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
             // The agent is starting, stopped, or mid-restart. Drop the client so the next poll
             // reconnects rather than reusing a broken one.
             await DropClientAsync().ConfigureAwait(true);
-            Unavailable();
+            Unavailable(error);
             Rows.Clear();
             SelectedRows.Clear();
             Raise(nameof(HasMessage));
@@ -820,6 +820,7 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
         }
         catch (Exception error) when (IsUnavailable(error) || IsRefusal(error))
         {
+            _ = DesktopAgentAvailability.ReportFailure(error);
             await DropClientAsync().ConfigureAwait(true);
         }
     }
@@ -848,7 +849,7 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
         {
             // Drop the client so the next request reconnects rather than reusing a broken one.
             await DropClientAsync().ConfigureAwait(true);
-            Unavailable();
+            Unavailable(error);
             return;
         }
 
@@ -1053,8 +1054,10 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
     }
 
     /// <summary>The agent could not be reached; there is no next page to go to, either.</summary>
-    private void Unavailable()
+    private void Unavailable(Exception error)
     {
+        // Tells the status bar too, which would otherwise go on saying "connected".
+        _ = DesktopAgentAvailability.ReportFailure(error);
         _notice = null;
         _nextPage = null;
         Message = Ui.Transfer.QueueUnavailable;

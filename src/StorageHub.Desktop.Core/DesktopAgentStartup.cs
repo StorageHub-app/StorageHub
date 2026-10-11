@@ -22,14 +22,23 @@ internal static class DesktopAgentStartup
     /// <summary>How long a started unit, or an agent from source, is given to begin answering.</summary>
     internal static readonly TimeSpan ReadyTimeout = TimeSpan.FromSeconds(12);
 
-    internal static async Task<AgentEnsureResult> EnsureAsync(CancellationToken cancellationToken)
+    internal static Task<AgentEnsureResult> EnsureAsync(CancellationToken cancellationToken) =>
+        EnsureAsync(mayTerminateUnresponsive: true, cancellationToken);
+
+    /// <param name="mayTerminateUnresponsive">
+    /// Whether a running agent that is not answering may be ended and replaced; see
+    /// <see cref="PackagedDesktopLifecycle.EnsureAgentAsync"/>.
+    /// </param>
+    internal static async Task<AgentEnsureResult> EnsureAsync(
+        bool mayTerminateUnresponsive,
+        CancellationToken cancellationToken)
     {
         if (OperatingSystem.IsWindows())
         {
             using var lifecycle = WindowsDesktopLifecycle.Create();
             if (!RunsAnAgentStartedByHand(lifecycle))
             {
-                return await lifecycle.EnsureAgentAsync(cancellationToken).ConfigureAwait(false);
+                return await lifecycle.EnsureAgentAsync(mayTerminateUnresponsive, cancellationToken).ConfigureAwait(false);
             }
 
             return new AgentEnsureResult(

@@ -243,6 +243,57 @@ public class ShellStatusTests
         Assert.Equal(4, agent.Restarts);
     }
 
+    /// <summary>
+    /// A quiet agent is left alone for a while before it is called hung, and one from another build
+    /// is restarted once, when idle: an update that left the old agent running would otherwise
+    /// leave it with the old database migrations and protocol for good.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task ASilentAgentIsRecoveredGentlyAndAnAgentFromAnotherBuildIsRestartedWhenIdle()
+    {
+        var model = ShellPreview.CreateOnWorkspace();
+        var gentle = 0;
+        var forceful = 0;
+        model.RecoverAgent = _ =>
+        {
+            gentle++;
+            return Task.FromResult(new AgentEnsureResult(AgentEnsureStatus.Unresponsive));
+        };
+        model.ForceRecoverAgent = _ =>
+        {
+            forceful++;
+            return Task.FromResult(new AgentEnsureResult(AgentEnsureStatus.Started));
+        };
+
+        // Silent for the first time: the agent is not ended, and a refusal to answer is not retried
+        // on the next poll.
+        model.Observe(Running(transfers: 2, syncRuns: 0) with { State = AgentConnectionState.Disconnected });
+        await RunJobsUntil(() => model.ShellStatus.AgentState == AgentConnectionState.Disconnected);
+        model.Observe(Running(transfers: 0, syncRuns: 0) with { State = AgentConnectionState.Disconnected });
+        Assert.Equal(1, gentle);
+        Assert.Equal(0, forceful);
+
+        // An agent that answers but is not this build waits for the work to finish, then restarts
+        // once, and is not restarted again on every poll after.
+        var agent = new CountingLifecycle();
+        model.AgentLifecycle = () => agent;
+        model.ExpectedAgentVersion = "2.0.0";
+        model.Observe(Running(transfers: 1, syncRuns: 0) with { AgentVersion = "1.9.0" });
+        Assert.Equal(0, agent.Restarts);
+        model.Observe(Running(transfers: 0, syncRuns: 0) with { AgentVersion = null });
+        Assert.Equal(1, agent.Restarts);
+        model.Observe(Running(transfers: 0, syncRuns: 0) with { AgentVersion = null });
+        Assert.Equal(1, agent.Restarts);
+
+        // The right build is never restarted.
+        var current = ShellPreview.CreateOnWorkspace();
+        var other = new CountingLifecycle();
+        current.AgentLifecycle = () => other;
+        current.ExpectedAgentVersion = "2.0.0";
+        current.Observe(Running(transfers: 0, syncRuns: 0) with { AgentVersion = "2.0.0" });
+        Assert.Equal(0, other.Restarts);
+    }
+
     private static AgentMonitorStatus Running(int transfers, int syncRuns) =>
         new(AgentConnectionState.Connected, transfers, syncRuns, string.Empty, DateTimeOffset.UnixEpoch);
 
