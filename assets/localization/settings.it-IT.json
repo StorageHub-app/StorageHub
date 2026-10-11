@@ -282,5 +282,7 @@
   "cleanupSelectFirst": "Seleziona i file da rimuovere. I file in uso non possono essere rimossi.",
   "cleanupRemovedFormat": "Rimossi {0} file e liberati {1}.",
   "cleanupKeptFormat": "{0} sono rimasti: {1}",
+  "scanSubfolders": "Analizza le sottocartelle per l'albero delle cartelle",
+  "scanSubfoldersHint": "L'albero delle cartelle di un riquadro legge le cartelle sotto quella in cui ti trovi, per alcuni livelli, così puoi aprirle senza visitare prima ciascuna. Su un server comporta alcune richieste aggiuntive, al massimo cento per ogni cartella che apri, e si ferma quando passi oltre. Disattiva per mostrare solo le cartelle elencate dal riquadro.",
   "culture": "it-IT"
 }

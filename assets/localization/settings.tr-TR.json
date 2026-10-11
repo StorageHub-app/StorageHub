@@ -282,5 +282,7 @@
   "cleanupSelectFirst": "Kaldırılacak dosyaları seçin. Kullanımdaki dosyalar kaldırılamaz.",
   "cleanupRemovedFormat": "{0} dosya kaldırıldı ve {1} boşaltıldı.",
   "cleanupKeptFormat": "{0} bırakıldı: {1}",
+  "scanSubfolders": "Klasör ağacı için alt klasörleri tara",
+  "scanSubfoldersHint": "Bir bölmenin klasör ağacı, bulunduğunuz klasörün altındaki klasörleri birkaç düzey aşağıya kadar okur; böylece her birini önce ziyaret etmeden açabilirsiniz. Sunucuda bu, açtığınız her klasör için en fazla yüz olmak üzere birkaç ek istek yapar ve siz başka yere geçince durur. Yalnızca bölmenin listelediği klasörleri göstermek için kapatın.",
   "culture": "tr-TR"
 }

@@ -136,6 +136,15 @@ internal sealed class DesktopConfig : ConfigModelBase
 
     /// <summary>Whether panes list hidden files and folders; they do by default.</summary>
     public bool ShowHiddenFiles { get; set; } = true;
+
+    /// <summary>Whether a favourite is also listed in the folder it lives in; it is by default.</summary>
+    public bool ShowFavoritesInTheirFolders { get; set; } = true;
+
+    /// <summary>Whether the connections panel leaves out empty groups; it does not by default.</summary>
+    public bool HideEmptyGroups { get; set; }
+
+    /// <summary>Whether a pane's folder tree reads the folders below the current one; it does by default.</summary>
+    public bool ScanSubfolders { get; set; } = true;
 }
 
 /// <summary>

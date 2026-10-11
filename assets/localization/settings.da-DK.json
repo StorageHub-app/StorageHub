@@ -282,5 +282,7 @@
   "conflictAsk": "Spørg hver gang",
   "hideEmptyGroups": "Skjul tomme grupper",
   "hideEmptyGroupsHint": "Forbindelsespanelet viser altid Favoritter, alle grupper og Uden gruppe, også når de er tomme. Slå til for at udelade de tomme.",
+  "scanSubfolders": "Scan undermapper til mappetræet",
+  "scanSubfoldersHint": "Et felts mappetræ læser mapperne under den, du står i, nogle niveauer ned, så du kan åbne dem uden først at besøge hver enkelt. På en server giver det nogle ekstra forespørgsler, højst hundrede pr. mappe du åbner, og det stopper, når du går videre. Slå fra for kun at vise de mapper, feltet har listet.",
   "culture": "da-DK"
 }

@@ -179,6 +179,12 @@ internal sealed partial class BrowserPaneModel : INotifyPropertyChanged, IAsyncD
         _terminals = terminals;
         _agentLifecycle = agentLifecycle;
         _controller = new RemoteBrowserController(client);
+        Tree.ScanEnabled = () => ScanSubfolders?.Invoke() == true;
+        Tree.ShowHidden = () => _showHidden;
+        Tree.ListFolders = (target, maximum, cancellation) =>
+            _source is { } source
+                ? source.ListFoldersAsync(target, maximum, cancellation)
+                : Task.FromResult<IReadOnlyList<PaneFolder>?>(null);
         _localSource = localSource ?? (static () => null);
         _mutations = mutations;
         _dialogs = dialogs;
@@ -276,6 +282,13 @@ internal sealed partial class BrowserPaneModel : INotifyPropertyChanged, IAsyncD
 
     /// <summary>The folder tree beside the list.</summary>
     public PaneTreeModel Tree { get; } = new();
+
+    /// <summary>
+    /// Whether the tree reads the folders below the one the pane is in, which the Scan subfolders
+    /// setting decides. Read when a folder is shown and when one is opened in the tree, so a change
+    /// in Settings reaches a pane at its next folder. Null, as in a preview, is off.
+    /// </summary>
+    internal Func<bool>? ScanSubfolders { get; set; }
 
     /// <summary>
     /// The same connections as cards, for the picker: name, endpoint, group, and what it is.

@@ -1,0 +1,138 @@
+using StorageHub.Desktop.Views;
+using Xunit;
+
+namespace StorageHub.Desktop.Tests;
+
+/// <summary>
+/// The folder tree reads the folders below the one the pane is in, within limits that are gentler
+/// on a server than on a disk, and only while the Scan subfolders setting is on.
+/// </summary>
+public sealed class PaneTreeScanTests
+{
+    private static BrowserListItem Folder(string name, string location) =>
+        new(name, string.Empty, "Folder", string.Empty, string.Empty, location, IsContainer: true);
+
+    [Fact]
+    public async Task TheTreeScansWithinItsLimitsStopsWhenThePaneMovesOnAndReadsNothingWhenOff()
+    {
+        await ReadsAFewLevelsAndOpensWhatIsBeyondReach();
+        await StaysWithinItsRequestBudgetAndNumberAtOnce();
+        await MovingOnStopsAScanAndTheSettingOffReadsNothing();
+    }
+
+    private static async Task ReadsAFewLevelsAndOpensWhatIsBeyondReach()
+    {
+        // a -> b (b1 -> b1x, b2), c (c1)
+        var folders = new Dictionary<string, string[]>
+        {
+            ["a/b"] = ["b1", "b2"],
+            ["a/c"] = ["c1"],
+            ["a/b/b1"] = ["b1x"],
+        };
+        var requests = new List<string>();
+        var model = new PaneTreeModel
+        {
+            ScanEnabled = () => true,
+            ListFolders = (target, _, _) =>
+            {
+                lock (requests) requests.Add(target);
+                return Task.FromResult<IReadOnlyList<PaneFolder>?>(folders.TryGetValue(target, out var names)
+                    ? [.. names.Select(name => new PaneFolder(name, $"{target}/{name}", false))]
+                    : []);
+            },
+        };
+
+        model.Follow("conn", "Server", local: false, "a", [Folder("b", "a/b"), Folder("c", "a/c")]);
+        var a = model.Roots[0].Children.Single(node => node.Target == "a");
+        await WaitUntil(() => a.Children.All(child => child.Children.Count > 0));
+
+        // Two levels down, and no further: the folders it lists, and what is inside them.
+        Assert.Equal(["a/b", "a/c"], requests.Order().ToArray());
+        var b = a.Children.Single(node => node.Name == "b");
+        Assert.Equal(["b1", "b2"], b.Children.Select(node => node.Name).ToArray());
+        var b1 = b.Children.Single(node => node.Name == "b1");
+
+        // What is beyond reach can still be opened: a stand-in gives it an expander, and opening
+        // it reads that one folder, once.
+        var standIn = Assert.Single(b1.Children);
+        Assert.True(standIn.IsPlaceholder);
+        model.Chosen(standIn);
+        b1.IsExpanded = true;
+        await WaitUntil(() => b1.Children.Any(node => node.Name == "b1x"));
+        Assert.DoesNotContain(b1.Children, node => node.IsPlaceholder);
+        Assert.Equal(3, requests.Count);
+        b1.IsExpanded = false;
+        b1.IsExpanded = true;
+        await Task.Delay(100, TestContext.Current.CancellationToken);
+        Assert.Equal(3, requests.Count);
+    }
+
+    private static async Task StaysWithinItsRequestBudgetAndNumberAtOnce()
+    {
+        var inFlight = 0;
+        var mostAtOnce = 0;
+        var requests = 0;
+        var model = new PaneTreeModel
+        {
+            ScanEnabled = () => true,
+            ListFolders = async (_, _, _) =>
+            {
+                Interlocked.Increment(ref requests);
+                var now = Interlocked.Increment(ref inFlight);
+                lock (Gate) mostAtOnce = Math.Max(mostAtOnce, now);
+                await Task.Delay(2, CancellationToken.None);
+                Interlocked.Decrement(ref inFlight);
+                return [];
+            },
+        };
+
+        var rows = Enumerable.Range(0, 250).Select(number => Folder($"f{number:000}", $"a/f{number:000}")).ToArray();
+        model.Follow("conn", "Server", local: false, "a", rows);
+        await WaitUntil(() => Volatile.Read(ref requests) >= PaneTreeModel.ScanLimits.Remote.Requests);
+        await Task.Delay(300, TestContext.Current.CancellationToken);
+
+        Assert.Equal(PaneTreeModel.ScanLimits.Remote.Requests, Volatile.Read(ref requests));
+        Assert.True(mostAtOnce <= PaneTreeModel.ScanLimits.Remote.Parallel, $"{mostAtOnce} at once");
+    }
+
+    private static async Task MovingOnStopsAScanAndTheSettingOffReadsNothing()
+    {
+        var hold = new TaskCompletionSource();
+        var requests = 0;
+        var scanning = true;
+        var model = new PaneTreeModel
+        {
+            ScanEnabled = () => scanning,
+            ListFolders = async (target, _, _) =>
+            {
+                Interlocked.Increment(ref requests);
+                await hold.Task;
+                return [new PaneFolder("deeper", target + "/deeper", false)];
+            },
+        };
+
+        model.Follow("one", "One", local: false, "a", [Folder("b", "a/b")]);
+        await WaitUntil(() => Volatile.Read(ref requests) == 1);
+
+        // The pane has moved on to somewhere else before the read answered, so it is dropped.
+        scanning = false;
+        model.Follow("two", "Two", local: false, "x", [Folder("y", "x/y")]);
+        hold.SetResult();
+        await Task.Delay(200, TestContext.Current.CancellationToken);
+        Assert.Equal("Two", model.Roots[0].Name);
+        Assert.Equal(1, Volatile.Read(ref requests));
+
+        // With the setting off nothing is read and nothing has a stand-in.
+        var x = model.Roots[0].Children.Single(node => node.Target == "x");
+        Assert.All(x.Children, child => Assert.Empty(child.Children));
+    }
+
+    private static readonly Lock Gate = new();
+
+    private static async Task WaitUntil(Func<bool> condition)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (!condition() && DateTime.UtcNow < deadline) await Task.Delay(10, TestContext.Current.CancellationToken);
+        Assert.True(condition(), "The condition was not met in time.");
+    }
+}

@@ -300,7 +300,10 @@ internal sealed class DesktopConfigStore
             AutoRefreshFolders: general.AutoRefreshFolders,
             RemoteRefreshSeconds: general.RemoteRefreshSeconds,
             TransferQueueVisible: general.TransferQueueVisible,
-            ShowHiddenFiles: general.ShowHiddenFiles);
+            ShowHiddenFiles: general.ShowHiddenFiles,
+            ShowFavoritesInTheirFolders: general.ShowFavoritesInTheirFolders,
+            HideEmptyGroups: general.HideEmptyGroups,
+            ScanSubfolders: general.ScanSubfolders);
     }
 
     /// <summary>
@@ -387,7 +390,10 @@ internal sealed class DesktopConfigStore
             AutoRefreshFolders = preferences.AutoRefreshFolders,
             RemoteRefreshSeconds = preferences.RemoteRefreshSeconds,
             TransferQueueVisible = preferences.TransferQueueVisible,
-            ShowHiddenFiles = preferences.ShowHiddenFiles
+            ShowHiddenFiles = preferences.ShowHiddenFiles,
+            ShowFavoritesInTheirFolders = preferences.ShowFavoritesInTheirFolders,
+            HideEmptyGroups = preferences.HideEmptyGroups,
+            ScanSubfolders = preferences.ScanSubfolders
         };
 
         var shortcuts = new DesktopShortcutsConfig

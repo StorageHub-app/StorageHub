@@ -677,6 +677,17 @@ internal static class SettingsPageCatalog
                     Read = p => Text(p.ReconnectRemotePanesAutomatically),
                     Write = (p, v) => p with { ReconnectRemotePanesAutomatically = Flag(v) }
                 },
+                // On by default, and bounded: a few levels, a few at a time, and only for the folder
+                // the pane is in. Turned off, the tree shows only what the pane has listed.
+                new()
+                {
+                    Key = "scan-subfolders",
+                    Label = Ui.Settings.ScanSubfolders,
+                    Hint = Ui.Settings.ScanSubfoldersHint,
+                    Kind = SettingsControlKind.Toggle,
+                    Read = p => Text(p.ScanSubfolders),
+                    Write = (p, v) => p with { ScanSubfolders = Flag(v) }
+                },
                 // New in 2.0 (roadmap 4.4); 1.x read a folder only when asked. Off by default, as
                 // a timer that asks a server every so often is not something to start unasked.
                 new()

@@ -213,7 +213,13 @@ internal sealed record DesktopUpdatePreferences(
     /// Whether the connections panel leaves out a group with nothing in it: Favorites, a group
     /// somebody made, Ungrouped. Off by default, so the panel always shows every group.
     /// </summary>
-    bool HideEmptyGroups = false)
+    bool HideEmptyGroups = false,
+    /// <summary>
+    /// Whether a pane's folder tree reads the folders below the one it is showing, a few levels
+    /// down, so they can be opened without visiting each first. On by default; off keeps the tree
+    /// to what the pane has listed, which costs no request of its own.
+    /// </summary>
+    bool ScanSubfolders = true)
 {
     /// <summary>The auto-refresh settings as a pane follows them, the interval within its bounds.</summary>
     internal FolderAutoRefreshSettings FolderAutoRefresh =>

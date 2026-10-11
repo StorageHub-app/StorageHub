@@ -282,5 +282,7 @@
   "cleanupSelectFirst": "Selecione os arquivos a remover. Arquivos em uso não podem ser removidos.",
   "cleanupRemovedFormat": "{0} arquivos removidos e {1} liberados.",
   "cleanupKeptFormat": "{0} foram mantidos: {1}",
+  "scanSubfolders": "Verificar subpastas para a árvore de pastas",
+  "scanSubfoldersHint": "A árvore de pastas de um painel lê as pastas abaixo da atual, alguns níveis para baixo, para que você possa abri-las sem visitar cada uma antes. Em um servidor, isso gera algumas solicitações extras, no máximo cem por pasta aberta, e para quando você segue adiante. Desative para mostrar apenas as pastas que o painel listou.",
   "culture": "pt-BR"
 }

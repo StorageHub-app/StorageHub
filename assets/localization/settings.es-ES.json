@@ -282,5 +282,7 @@
   "cleanupSelectFirst": "Seleccione los archivos que quitar. Los archivos en uso no se pueden quitar.",
   "cleanupRemovedFormat": "Se quitaron {0} archivos y se liberaron {1}.",
   "cleanupKeptFormat": "Quedaron {0}: {1}",
+  "scanSubfolders": "Explorar subcarpetas para el árbol de carpetas",
+  "scanSubfoldersHint": "El árbol de carpetas de un panel lee las carpetas que hay debajo de la actual, unos cuantos niveles, para que puedas abrirlas sin visitar cada una antes. En un servidor supone algunas solicitudes adicionales, como máximo cien por cada carpeta que abres, y se detiene cuando sigues adelante. Desactívalo para mostrar solo las carpetas que el panel ha listado.",
   "culture": "es-ES"
 }

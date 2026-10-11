@@ -275,6 +275,59 @@ public sealed class RemoteStorageBrowserTests
         Assert.Equal(string.Empty, controller.CurrentSnapshot.RelativePath);
     }
 
+    /// <summary>
+    /// The folder tree's read of the folders inside one: only folders, a bounded number, across a
+    /// few pages, and never a navigation. A refusal or no connection is an answer of null rather
+    /// than an error, because the read was made ahead of being asked for.
+    /// </summary>
+    [Fact]
+    public async Task ReadingTheFoldersInsideOneIsNotANavigationAndIsBounded()
+    {
+        var connection = CreateConnection("Archive");
+        var paths = new List<string>();
+        var client = CreateSelectableClient(connection, (request, _) =>
+        {
+            paths.Add(request.RelativePath);
+            if (request.RelativePath == "denied")
+            {
+                return Task.FromResult(new StorageListPageResponse(
+                    StorageIpcContract.CurrentVersion,
+                    request.ConnectionId,
+                    request.RelativePath,
+                    [],
+                    ContinuationToken: null,
+                    new StorageIpcFailure(
+                        "storage.permission_denied", StorageIpcFailureCategory.Unauthorized, "No.", false),
+                    "root-browser"));
+            }
+
+            // Folders and files mixed, over two pages.
+            return Task.FromResult(request.ContinuationToken is null
+                ? Response(request, [Item("docs", "x/docs", true), Item("a.txt", "x/a.txt"), Item(".git", "x/.git", true)], "next")
+                : Response(request, [Item("src", "x/src", true), Item("b.txt", "x/b.txt")], null));
+        });
+        await using var controller = new RemoteBrowserController(client);
+
+        // Nothing selected yet: nothing to read.
+        Assert.Null(await controller.ListFoldersAsync("x", 10));
+
+        _ = await controller.LoadConnectionsAsync();
+        _ = await controller.SelectConnectionAsync(connection.ConnectionId);
+        var before = controller.CurrentSnapshot;
+        var folders = Assert.IsAssignableFrom<IReadOnlyList<PaneFolder>>(await controller.ListFoldersAsync("x", 10));
+
+        Assert.Equal(["docs", ".git", "src"], folders.Select(folder => folder.Name).ToArray());
+        Assert.Equal(["x/docs", "x/.git", "x/src"], folders.Select(folder => folder.Target).ToArray());
+        Assert.Equal([false, true, false], folders.Select(folder => folder.IsHidden).ToArray());
+
+        // Bounded by what the caller asked for, and not a navigation.
+        Assert.Equal(2, (await controller.ListFoldersAsync("x", 2))!.Count);
+        Assert.Same(before, controller.CurrentSnapshot);
+        Assert.False(controller.CanGoBack);
+
+        Assert.Null(await controller.ListFoldersAsync("denied", 10));
+    }
+
     private static StorageListPageResponse NotFound(StorageListPageRequest request) => new(
         StorageIpcContract.CurrentVersion,
         request.ConnectionId,

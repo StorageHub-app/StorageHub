@@ -55,7 +55,10 @@ internal sealed record DesktopGeneralSection(
     int? RemoteRefreshSeconds = null,
     // Whether empty connection groups are left out of the panel. Absent in an older file, which
     // leaves the importing machine's choice alone.
-    bool? HideEmptyGroups = null);
+    bool? HideEmptyGroups = null,
+    // Whether a pane's folder tree reads the folders below the current one. Absent in an older
+    // file, which leaves the importing machine's choice alone.
+    bool? ScanSubfolders = null);
 
 /// <summary>
 /// Settings that name something on one computer: a path, or a reference into that machine's

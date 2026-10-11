@@ -282,5 +282,7 @@
   "conflictAsk": "Jedes Mal fragen",
   "hideEmptyGroups": "Leere Gruppen ausblenden",
   "hideEmptyGroupsHint": "Das Verbindungsfenster zeigt immer Favoriten, alle Gruppen und Ohne Gruppe, auch wenn sie leer sind. Einschalten, um leere Gruppen auszublenden.",
+  "scanSubfolders": "Unterordner für den Ordnerbaum einlesen",
+  "scanSubfoldersHint": "Der Ordnerbaum eines Bereichs liest die Ordner unterhalb des aktuellen einige Ebenen tief ein, damit sie sich öffnen lassen, ohne jeden vorher zu besuchen. Auf einem Server entstehen dadurch einige zusätzliche Anfragen, höchstens hundert pro geöffnetem Ordner, und sie enden, sobald Sie weitergehen. Ausschalten, um nur die Ordner zu zeigen, die der Bereich aufgelistet hat.",
   "culture": "de-DE"
 }

@@ -282,5 +282,7 @@
   "cleanupSelectFirst": "Sélectionnez les fichiers à supprimer. Les fichiers utilisés ne peuvent pas être supprimés.",
   "cleanupRemovedFormat": "{0} fichiers supprimés, {1} libérés.",
   "cleanupKeptFormat": "{0} ont été conservés : {1}",
+  "scanSubfolders": "Analyser les sous-dossiers pour l'arborescence",
+  "scanSubfoldersHint": "L'arborescence d'un volet lit les dossiers situés sous celui où vous êtes, sur quelques niveaux, afin de pouvoir les ouvrir sans visiter chacun d'abord. Sur un serveur, cela ajoute quelques requêtes, cent au plus par dossier ouvert, et s'arrête dès que vous passez à autre chose. Désactivez cette option pour n'afficher que les dossiers listés par le volet.",
   "culture": "fr-FR"
 }

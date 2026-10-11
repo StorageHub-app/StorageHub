@@ -18,6 +18,18 @@ chosen is written down in [Versioning and merges](docs/versioning.md).
 
 ## Unreleased
 
+**Subfolders in the folder tree.** A pane's folder tree now reads the folders below the one you are
+in, so you can open them without visiting each first. It goes two levels down on a connection and
+three on this computer, reads at most 100 folders for a connection (500 locally), two at a time on a
+server, and stops when you move on. Folders beyond that show an expander and are read when you open
+them. It runs on its own pipe to the agent, so it never makes the pane's own navigation wait. Settings >
+Scan subfolders for the folder tree, on by default, turns it off, which leaves the tree showing only
+what the pane has listed. The scan never follows a link and never reads the drives under This PC.
+
+**Two settings that were not saved.** Hide empty groups and Show favourites in their folders went back
+to their defaults every time StorageHub started, because the settings file never stored them. They
+are saved now.
+
 **Files in the root of a drive.** Copying a file that sits directly in the root of a drive, such as
 `D:\Z-wave.txt`, failed every time with "The local path escapes its approved folder". The check that
 a path is inside its folder looked for the folder and a separator, and a drive root already ends in

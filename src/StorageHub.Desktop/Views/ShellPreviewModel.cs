@@ -2062,6 +2062,7 @@ internal static class ShellPreview
             preferences with { ConfirmBeforeDeletingItems = false });
         pane.TerminalPreferences = static () => ReadPreferences()?.SshTerminal;
         pane.AutoRefreshSettings = static () => ReadPreferences()?.FolderAutoRefresh ?? FolderAutoRefreshSettings.Off;
+        pane.ScanSubfolders = static () => ReadPreferences()?.ScanSubfolders ?? true;
         _ = pane.LoadConnectionsAsync();
         return pane;
     }

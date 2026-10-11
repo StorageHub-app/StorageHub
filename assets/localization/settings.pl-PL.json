@@ -282,5 +282,7 @@
   "cleanupSelectFirst": "Zaznacz pliki do usunięcia. Plików w użyciu nie można usunąć.",
   "cleanupRemovedFormat": "Usunięte pliki: {0}, zwolniono {1}.",
   "cleanupKeptFormat": "Pozostawiono: {0}. {1}",
+  "scanSubfolders": "Skanuj podfoldery dla drzewa folderów",
+  "scanSubfoldersHint": "Drzewo folderów panelu odczytuje foldery znajdujące się pod bieżącym, na kilka poziomów w głąb, aby można je było otwierać bez odwiedzania każdego z osobna. Na serwerze oznacza to kilka dodatkowych żądań, najwyżej sto na każdy otwierany folder, a skanowanie kończy się, gdy przejdziesz dalej. Wyłącz, aby pokazywać tylko foldery wyświetlone przez panel.",
   "culture": "pl-PL"
 }

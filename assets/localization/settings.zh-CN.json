@@ -282,5 +282,7 @@
   "cleanupSelectFirst": "请选择要删除的文件。使用中的文件无法删除。",
   "cleanupRemovedFormat": "已删除 {0} 个文件，释放 {1}。",
   "cleanupKeptFormat": "保留了 {0} 个：{1}",
+  "scanSubfolders": "为文件夹树扫描子文件夹",
+  "scanSubfoldersHint": "窗格的文件夹树会读取当前文件夹下方几层的文件夹，这样无需先逐个访问就能展开它们。在服务器上，这会产生一些额外请求，每打开一个文件夹最多一百个，并在您转到别处时停止。关闭后只显示窗格已列出的文件夹。",
   "culture": "zh-CN"
 }

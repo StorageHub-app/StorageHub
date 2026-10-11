@@ -282,5 +282,7 @@
   "cleanupSelectFirst": "Pilih file yang akan dihapus. File yang sedang dipakai tidak dapat dihapus.",
   "cleanupRemovedFormat": "{0} file dihapus dan {1} dibebaskan.",
   "cleanupKeptFormat": "{0} tertinggal: {1}",
+  "scanSubfolders": "Pindai subfolder untuk pohon folder",
+  "scanSubfoldersHint": "Pohon folder sebuah panel membaca folder di bawah folder Anda saat ini, beberapa tingkat ke bawah, sehingga Anda dapat membukanya tanpa mengunjungi masing-masing terlebih dahulu. Di server, ini menambah beberapa permintaan, paling banyak seratus untuk setiap folder yang Anda buka, dan berhenti saat Anda pindah. Matikan untuk hanya menampilkan folder yang sudah didaftar panel.",
   "culture": "id-ID"
 }

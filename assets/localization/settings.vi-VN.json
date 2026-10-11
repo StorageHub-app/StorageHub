@@ -282,5 +282,7 @@
   "cleanupSelectFirst": "Chọn các tệp cần xóa. Không thể xóa tệp đang dùng.",
   "cleanupRemovedFormat": "Đã xóa {0} tệp và giải phóng {1}.",
   "cleanupKeptFormat": "Còn lại {0}: {1}",
+  "scanSubfolders": "Quét thư mục con cho cây thư mục",
+  "scanSubfoldersHint": "Cây thư mục của một ngăn đọc các thư mục bên dưới thư mục hiện tại vài cấp, để bạn mở chúng mà không phải ghé qua từng thư mục trước. Trên máy chủ, việc này tạo thêm một vài yêu cầu, tối đa một trăm cho mỗi thư mục bạn mở, và dừng khi bạn chuyển sang nơi khác. Tắt để chỉ hiển thị các thư mục mà ngăn đã liệt kê.",
   "culture": "vi-VN"
 }

@@ -38,6 +38,12 @@ internal sealed record PaneNavigationResult(PaneListing? Listing, string? Error,
     internal static PaneNavigationResult Ok(PaneListing listing) => new(listing, null);
 }
 
+/// <summary>A folder found inside another, for the folder tree.</summary>
+/// <param name="Name">What the tree says.</param>
+/// <param name="Target">Where the pane goes when it is chosen, in the same form the listing's rows give.</param>
+/// <param name="IsHidden">Whether the pane's Hidden Files setting can leave it out.</param>
+internal sealed record PaneFolder(string Name, string Target, bool IsHidden);
+
 /// <summary>
 /// One place a pane can be pointed at: a saved connection, or this computer.
 /// </summary>
@@ -102,6 +108,21 @@ internal interface IPaneSource : IAsyncDisposable
     /// nothing, by default, for a list that is not a folder.
     /// </summary>
     PaneFolderChanges Changes => PaneFolderChanges.None;
+
+    /// <summary>
+    /// The folders directly inside <paramref name="target"/>, for the tree to fill in below the one
+    /// the pane is showing, or null where they cannot be read.
+    /// </summary>
+    /// <remarks>
+    /// Not a navigation: the pane's history, its current folder and its listing are not touched, so
+    /// a scan can run while somebody goes on using the pane. At most <paramref name="maximum"/>
+    /// are returned; a folder with more than that is not read to the end for the tree's sake.
+    /// </remarks>
+    Task<IReadOnlyList<PaneFolder>?> ListFoldersAsync(
+        string target,
+        int maximum,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<PaneFolder>?>(null);
 }
 
 /// <summary>A pane over a saved connection, through the agent.</summary>
@@ -191,6 +212,12 @@ internal sealed class RemotePaneSource(RemoteBrowserController controller, strin
 
     public Task<FolderSpace?> SpaceAsync(CancellationToken cancellationToken = default) =>
         controller.GetSpaceAsync(cancellationToken);
+
+    public Task<IReadOnlyList<PaneFolder>?> ListFoldersAsync(
+        string target,
+        int maximum,
+        CancellationToken cancellationToken = default) =>
+        controller.ListFoldersAsync(target, maximum, cancellationToken);
 
     /// <summary>A server reports nothing to the pane, so its folders are read again on a timer.</summary>
     public PaneFolderChanges Changes =>
@@ -289,6 +316,12 @@ internal sealed class LocalPaneSource(LocalBrowserController controller) : IPane
             snapshot.Location.IsThisPc,
             snapshot.HasMore));
     }
+
+    public Task<IReadOnlyList<PaneFolder>?> ListFoldersAsync(
+        string target,
+        int maximum,
+        CancellationToken cancellationToken = default) =>
+        Task.Run(() => LocalFolderLister.List(target, maximum, cancellationToken), cancellationToken);
 
     public async Task<FolderSpace?> SpaceAsync(CancellationToken cancellationToken = default)
     {

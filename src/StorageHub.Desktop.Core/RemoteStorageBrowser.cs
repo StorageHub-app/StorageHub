@@ -158,6 +158,13 @@ public sealed class RemoteBrowserController : IAsyncDisposable
     public const int DefaultPageSize = StorageIpcLimits.MaximumStableIdentityPageSize;
 
     private readonly IRemoteStorageAgentClient _client;
+
+    /// <summary>
+    /// A pipe of its own for the folder tree's scan, so reading folders ahead never queues in front
+    /// of the pane's own next navigation, which waits its turn on <see cref="_client"/>. Where a
+    /// client was handed in, as a test does, the scan shares it.
+    /// </summary>
+    private readonly NamedPipeRemoteStorageAgentClient? _scanClient;
     private readonly object _operationLock = new();
     private readonly RemoteBrowserHistory _history = new();
     private CancellationTokenSource? _activeOperation;
@@ -167,6 +174,7 @@ public sealed class RemoteBrowserController : IAsyncDisposable
     public RemoteBrowserController(IRemoteStorageAgentClient? client = null)
     {
         _client = client ?? new NamedPipeRemoteStorageAgentClient();
+        _scanClient = client is null ? new NamedPipeRemoteStorageAgentClient() : null;
     }
 
     public IReadOnlyList<ConnectionSummary> Connections { get; private set; } = [];
@@ -588,7 +596,67 @@ public sealed class RemoteBrowserController : IAsyncDisposable
 
         TryCancel(operation);
 
+        if (_scanClient is not null) await _scanClient.DisposeAsync().ConfigureAwait(false);
         await _client.DisposeAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// The folders directly inside a folder of the selected connection, for the folder tree. Never
+    /// a navigation: nothing here touches the history or the current listing.
+    /// </summary>
+    /// <remarks>
+    /// A few pages at most, so one folder of a million entries is not read to the end for the sake
+    /// of a tree. A failure is an answer of null, not an error: it is a read made ahead of being
+    /// asked for, and a server that refuses it should not put a message in front of anybody.
+    /// </remarks>
+    internal async Task<IReadOnlyList<PaneFolder>?> ListFoldersAsync(
+        string path,
+        int maximum,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        if (_disposed || SelectedConnection is not { } connection) return null;
+
+        const int MaximumPages = 5;
+        var folders = new List<PaneFolder>();
+        string? continuation = null;
+        try
+        {
+            for (var page = 0; page < MaximumPages && folders.Count < maximum; page++)
+            {
+                var listed = await (_scanClient ?? _client).ListStorageAsync(
+                    new StorageListPageRequest(
+                        StorageIpcContract.CurrentVersion,
+                        connection.ConnectionId,
+                        path,
+                        DefaultPageSize,
+                        continuation,
+                        IncludeVersions: false,
+                        Recursive: false),
+                    cancellationToken).ConfigureAwait(false);
+                if (listed.Failure is not null) return folders.Count == 0 ? null : folders;
+
+                foreach (var entry in listed.Entries)
+                {
+                    if (!entry.IsContainer) continue;
+                    folders.Add(new PaneFolder(entry.Name, entry.RelativePath, entry.Name.StartsWith('.')));
+                    if (folders.Count >= maximum) break;
+                }
+
+                continuation = listed.ContinuationToken;
+                if (string.IsNullOrEmpty(continuation)) break;
+            }
+
+            return folders;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception error) when (RemoteBrowserErrors.IsExpected(error))
+        {
+            return null;
+        }
     }
 
     private Task<StorageListPageResponse> ListPageAsync(

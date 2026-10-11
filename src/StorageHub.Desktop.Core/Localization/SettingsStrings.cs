@@ -485,6 +485,14 @@ internal sealed class SettingsStrings : LocalizationModelBase
     public string HideEmptyGroupsHint { get; set; } =
         "The connections panel always shows Favourites, every group and Ungrouped, even with nothing in them. Turn this on to leave out the ones that are empty.";
 
+    public string ScanSubfolders { get; set; } = "Scan subfolders for the folder tree";
+
+    public string ScanSubfoldersHint { get; set; } =
+        "A pane's folder tree reads the folders below the one you are in, a few levels down, so you can "
+        + "open them without visiting each first. On a server it makes a few extra requests, at most a "
+        + "hundred per folder you open, and stops when you move on. Turn this off to show only the folders "
+        + "the pane has listed.";
+
     public string RenderBoldText { get; set; } = "Render ANSI bold text";
 
     public string RenderBoldTextHint { get; set; } =

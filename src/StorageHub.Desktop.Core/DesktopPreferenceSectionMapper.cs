@@ -59,7 +59,8 @@ internal static class DesktopPreferenceSectionMapper
             preferences.TransferConflictDefault,
             preferences.AutoRefreshFolders,
             preferences.RemoteRefreshSeconds,
-            preferences.HideEmptyGroups);
+            preferences.HideEmptyGroups,
+            preferences.ScanSubfolders);
     }
 
     /// <summary>
@@ -232,7 +233,8 @@ internal static class DesktopPreferenceSectionMapper
                 FolderAutoRefreshSettings.IsValidRemoteSeconds(seconds)
                     ? seconds
                     : current.RemoteRefreshSeconds,
-            HideEmptyGroups = general.HideEmptyGroups ?? current.HideEmptyGroups
+            HideEmptyGroups = general.HideEmptyGroups ?? current.HideEmptyGroups,
+            ScanSubfolders = general.ScanSubfolders ?? current.ScanSubfolders
         };
 
     private static DesktopUpdatePreferences ApplyMachineSpecific(

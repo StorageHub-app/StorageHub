@@ -282,5 +282,7 @@
   "cleanupSelectFirst": "Selecteer de te verwijderen bestanden. Bestanden die in gebruik zijn, kunnen niet worden verwijderd.",
   "cleanupRemovedFormat": "{0} bestanden verwijderd en {1} vrijgemaakt.",
   "cleanupKeptFormat": "{0} zijn overgebleven: {1}",
+  "scanSubfolders": "Submappen scannen voor de mappenstructuur",
+  "scanSubfoldersHint": "De mappenstructuur van een paneel leest de mappen onder de map waarin u zich bevindt, enkele niveaus diep, zodat u ze kunt openen zonder eerst elke map te bezoeken. Op een server geeft dat enkele extra verzoeken, ten hoogste honderd per map die u opent, en het stopt zodra u verdergaat. Zet dit uit om alleen de mappen te tonen die het paneel heeft weergegeven.",
   "culture": "nl-NL"
 }

@@ -34,6 +34,40 @@ public sealed class DesktopConfigStoreTests : IDisposable
         Assert.Equal(DesktopUpdatePreferences.Defaults, store.Load());
     }
 
+    /// <summary>
+    /// The view settings are kept, which two of them were not: Hide empty groups and Show favourites
+    /// in their folders went back to their defaults at every start, because the store did not write
+    /// them. The new Scan subfolders setting is on by default and travels with an export, and an
+    /// older export that lacks it leaves the importing machine's choice alone.
+    /// </summary>
+    [Fact]
+    public void TheViewSettingsAreKeptAndScanSubfoldersTravelsWithAnExport()
+    {
+        Assert.True(DesktopUpdatePreferences.Defaults.ScanSubfolders);
+
+        var saved = DesktopUpdatePreferences.Defaults with
+        {
+            HideEmptyGroups = true,
+            ShowFavoritesInTheirFolders = false,
+            ScanSubfolders = false,
+        };
+        new DesktopConfigStore(_directory).Save(saved);
+
+        var loaded = new DesktopConfigStore(_directory).Load();
+        Assert.True(loaded.HideEmptyGroups);
+        Assert.False(loaded.ShowFavoritesInTheirFolders);
+        Assert.False(loaded.ScanSubfolders);
+
+        var exported = DesktopPreferenceSectionMapper.CaptureGeneral(saved);
+        Assert.False(exported.ScanSubfolders);
+        var older = exported with { ScanSubfolders = null };
+        var document = SettingsExportSerializer.Create(DateTimeOffset.UnixEpoch, "StorageHub", null) with { DesktopGeneral = older };
+        Assert.True(DesktopPreferenceSectionMapper.Apply(
+            DesktopUpdatePreferences.Defaults, document, [SettingsSectionId.DesktopGeneral]).Preferences.ScanSubfolders);
+        Assert.False(DesktopPreferenceSectionMapper.Apply(
+            saved, document, [SettingsSectionId.DesktopGeneral]).Preferences.ScanSubfolders);
+    }
+
     [Fact]
     public void SettingsRoundTripAcrossStoreInstances()
     {
