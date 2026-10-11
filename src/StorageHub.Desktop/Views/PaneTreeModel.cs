@@ -10,12 +10,24 @@ namespace StorageHub.Desktop.Views;
 /// Where the pane goes when this is chosen: a full path on this computer, a path relative to the
 /// connection's root, or empty for the root itself (This PC, or the connection's top level).
 /// </param>
-internal sealed class PaneTreeNode(string name, string target, LucideIconKind icon) : INotifyPropertyChanged
+internal sealed class PaneTreeNode : INotifyPropertyChanged
 {
     private bool _isExpanded;
     private bool _isSelected;
+    private bool _isLoading;
 
-    public string Name { get; set; } = name;
+    public PaneTreeNode(string name, string target, LucideIconKind icon)
+    {
+        Name = name;
+        Target = target;
+        Icon = icon;
+        Children.CollectionChanged += (_, _) =>
+        {
+            if (_isLoading) PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowsSpinner)));
+        };
+    }
+
+    public string Name { get; set; }
 
     /// <summary>When this folder's own folders were last read for the tree; null if they never were.</summary>
     internal DateTimeOffset? ScannedUtc { get; set; }
@@ -26,14 +38,40 @@ internal sealed class PaneTreeNode(string name, string target, LucideIconKind ic
     /// <summary>Told when the node is opened, so the tree can read what is inside it.</summary>
     internal Action<PaneTreeNode>? Expanded { get; set; }
 
-    public string Target { get; } = target;
+    public string Target { get; }
 
-    public LucideIconKind Icon { get; } = icon;
+    public LucideIconKind Icon { get; }
 
     /// <summary>This PC or the connection itself, drawn in the text colour rather than as a folder.</summary>
     public bool IsRoot => Target.Length == 0;
 
     public ObservableCollection<PaneTreeNode> Children { get; } = [];
+
+    /// <summary>The icon of the spinner drawn while the folders inside this one are being read.</summary>
+    public static LucideIconKind SpinnerIcon => LucideIconKind.LoaderCircle;
+
+    /// <summary>
+    /// Whether the folders inside this one are being read for the tree. Only ever changed on the
+    /// window's thread, because the tree is bound to it.
+    /// </summary>
+    public bool IsLoading
+    {
+        get => _isLoading;
+        internal set
+        {
+            if (_isLoading == value) return;
+            _isLoading = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsLoading)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowsSpinner)));
+        }
+    }
+
+    /// <summary>
+    /// Whether to draw a spinner in the place the expander will take. Not while the folder already
+    /// has an expander, which would be drawn over it: a folder with folders in it that is read
+    /// again says nothing, because there is nothing to wait for.
+    /// </summary>
+    public bool ShowsSpinner => _isLoading && Children.Count == 0;
 
     public bool IsExpanded
     {
@@ -262,6 +300,7 @@ internal sealed class PaneTreeModel
         ScanLimits limits,
         CancellationToken cancellationToken)
     {
+        var spinning = new List<PaneTreeNode>();
         try
         {
             var list = ListFolders!;
@@ -271,6 +310,14 @@ internal sealed class PaneTreeModel
             {
                 var batch = level.Take(requests).ToList();
                 requests -= batch.Count;
+
+                // Say which are being read, so each shows a spinner where its expander will be,
+                // rather than nothing until the whole batch is in.
+                foreach (var node in batch)
+                {
+                    node.IsLoading = true;
+                    spinning.Add(node);
+                }
                 using var gate = new SemaphoreSlim(limits.Parallel);
                 var found = await Task.WhenAll(batch.Select(async node =>
                 {
@@ -284,6 +331,7 @@ internal sealed class PaneTreeModel
                         _ = gate.Release();
                     }
                 })).ConfigureAwait(true);
+                foreach (var node in batch) node.IsLoading = false;
                 cancellationToken.ThrowIfCancellationRequested();
 
                 // Applied here, one at a time, rather than as each answer arrives: the tree is read
@@ -319,6 +367,11 @@ internal sealed class PaneTreeModel
         catch (OperationCanceledException)
         {
             // Moved on, or closed. Whatever was read is applied or dropped as a whole.
+        }
+        finally
+        {
+            // Whatever stopped the scan, nothing it started is left spinning.
+            foreach (var node in spinning) node.IsLoading = false;
         }
     }
 

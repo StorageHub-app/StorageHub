@@ -396,6 +396,23 @@
               <SolidColorBrush x:Key="TreeViewItemForegroundSelectedPointerOver" Color="{DynamicResource TextColor}"/>
             </TreeView.Resources>
             <TreeView.Styles>
+              <!-- Turns while the folders inside a folder are being read, in the place the expander
+                   will take once they are known. -->
+              <Style Selector="LucideIcon.tree-spinner">
+                <Setter Property="RenderTransform">
+                  <RotateTransform/>
+                </Setter>
+                <Style.Animations>
+                  <Animation Duration="0:0:0.9" IterationCount="Infinite">
+                    <KeyFrame Cue="0%">
+                      <Setter Property="RotateTransform.Angle" Value="0"/>
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                      <Setter Property="RotateTransform.Angle" Value="360"/>
+                    </KeyFrame>
+                  </Animation>
+                </Style.Animations>
+              </Style>
               <Style Selector="TreeViewItem" x:DataType="vm:PaneTreeNode">
                 <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}"/>
                 <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
@@ -404,7 +421,14 @@
             <TreeView.ItemTemplate>
               <TreeDataTemplate DataType="vm:PaneTreeNode" ItemsSource="{Binding Children}">
                 <StackPanel Orientation="Horizontal" Spacing="6" ToolTip.Tip="{Binding Target}">
-                  <LucideIcon Kind="{Binding Icon}" Size="16" Classes.folder="{Binding !IsRoot}"/>
+                  <!-- The spinner is drawn in the room the expander leaves, to the left of the icon,
+                       and takes none of its own, so the icon does not move when it comes and goes. -->
+                  <Grid>
+                    <LucideIcon Kind="{Binding Icon}" Size="16" Classes.folder="{Binding !IsRoot}"/>
+                    <LucideIcon Classes="tree-spinner" Kind="{x:Static vm:PaneTreeNode.SpinnerIcon}" Size="14"
+                                HorizontalAlignment="Left" VerticalAlignment="Center" Margin="-22,0,0,0"
+                                IsVisible="{Binding ShowsSpinner}" IsHitTestVisible="False"/>
+                  </Grid>
                   <TextBlock Text="{Binding Name}" VerticalAlignment="Center"
                              TextTrimming="CharacterEllipsis"/>
                 </StackPanel>

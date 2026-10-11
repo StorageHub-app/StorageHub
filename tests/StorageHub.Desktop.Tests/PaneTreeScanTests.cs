@@ -154,11 +154,21 @@ public sealed class PaneTreeScanTests
         model.Follow("one", "One", local: false, "a", [Folder("b", "a/b")]);
         await WaitUntil(() => Volatile.Read(ref requests) == 1);
 
+        // While a folder is being read it says so, so it can show a spinner where its expander
+        // will be; it has no expander yet, so nothing is drawn over one.
+        var reading = model.Roots[0].Children.Single(node => node.Target == "a").Children.Single();
+        Assert.True(reading.IsLoading);
+        Assert.True(reading.ShowsSpinner);
+
         // The pane has moved on to somewhere else before the read answered, so it is dropped.
         scanning = false;
         model.Follow("two", "Two", local: false, "x", [Folder("y", "x/y")]);
         hold.SetResult();
         await Task.Delay(200, TestContext.Current.CancellationToken);
+
+        // And nothing is left spinning once the scan has ended, moved on from or not.
+        Assert.False(reading.IsLoading);
+        Assert.False(reading.ShowsSpinner);
         Assert.Equal("Two", model.Roots[0].Name);
         Assert.Equal(1, Volatile.Read(ref requests));
 

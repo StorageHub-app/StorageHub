@@ -31,7 +31,8 @@ folders, so there is never one that opens onto nothing; opening a folder reads t
 the ones now in view are right too. A read that fails is tried again after a minute instead of being
 taken for an empty folder. At This PC the fixed drives are read, one level, so they show whether they
 hold folders; card readers, optical drives and network shares are left alone. It runs on its own pipe
-to the agent, so it never makes the pane's own navigation wait. Settings > Scan subfolders for the
+to the agent, so it never makes the pane's own navigation wait. A folder that is being read shows a
+turning circle where its expander will be, which the expander replaces if it holds folders. Settings > Scan subfolders for the
 folder tree, on by default, turns it off, which leaves the tree showing only what the pane has
 listed. The scan never follows a link.
 
