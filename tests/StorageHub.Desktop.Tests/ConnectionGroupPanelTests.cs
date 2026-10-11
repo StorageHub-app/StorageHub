@@ -137,7 +137,7 @@ public class ConnectionGroupPanelTests
         Assert.True(sidebar.Groups[0].HasColor);
 
         await sidebar.MoveGroupAsync(team.GroupId, 1, cancellation);
-        Assert.Equal(["Lab", "Crew"], sidebar.Groups.Select(static g => g.Name));
+        Assert.Equal(["Lab", "Crew", Ui.Connections.Ungrouped], sidebar.Groups.Select(static g => g.Name));
 
         // Choosing the defaults clears both back to a plain folder.
         choice = new IconChoice(true, null, null);
@@ -350,6 +350,153 @@ public class ConnectionGroupPanelTests
     }
 
     /// <summary>
+    /// Favorites, every group and Ungrouped are drawn whether or not anything is in them, in that
+    /// order, each saying so; Favorites and Ungrouped offer no menu, and an empty Ungrouped is
+    /// still somewhere to drop a connection to take it out of its group.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task EveryGroupIsDrawnEvenWithNothingInIt()
+    {
+        var cancellation = TestContext.Current.CancellationToken;
+        var studio = Summary("Studio Assets");
+        var agent = new GroupAgent();
+        var team = agent.AddGroup("Team");
+        agent.AddGroup("Archive");
+        agent.File(studio, team.GroupId);
+        var sidebar = Sidebar(agent);
+        await sidebar.RefreshAsync(cancellation);
+
+        Assert.True(sidebar.HasGroups);
+        Assert.True(sidebar.Favorites!.IsFavorites);
+        Assert.True(sidebar.Favorites.ShowsEmptyLine);
+        Assert.Equal(Ui.Shell.NoFavoriteConnections, sidebar.Favorites.EmptyLabel);
+        Assert.Equal(Ui.Shell.FavoritesEmptyHint, sidebar.Favorites.EmptyHint);
+        Assert.False(sidebar.Favorites.HasMenu);
+        Assert.Equal(["Team", "Archive", Ui.Connections.Ungrouped], sidebar.Groups.Select(static g => g.Name));
+        Assert.True(sidebar.Groups[1].ShowsEmptyLine);
+        var ungrouped = sidebar.Groups[2];
+        Assert.True(ungrouped.IsUngrouped);
+        Assert.True(ungrouped.ShowsEmptyLine);
+        Assert.Equal(Ui.Connections.GroupEmpty, ungrouped.EmptyLabel);
+        Assert.False(ungrouped.HasMenu);
+        Assert.Null(ungrouped.RenameCommand);
+        Assert.Null(ungrouped.RemoveCommand);
+
+        // Selection is untouched by the empty groups, and a drop on the empty Ungrouped files out.
+        sidebar.Select(sidebar.Groups[0].Connections[0]);
+        Assert.Equal(studio.ConnectionId, sidebar.Selected?.Id);
+        await sidebar.MoveToGroupAsync(studio.ConnectionId, ungrouped, cancellation);
+        Assert.Equal(["Studio Assets"], sidebar.Groups[2].Connections.Select(static r => r.Name));
+        Assert.True(sidebar.Groups[0].ShowsEmptyLine);
+        Assert.Equal(studio.ConnectionId, sidebar.Selected?.Id);
+
+        // Not even an agent with no connections at all empties the panel of its groups.
+        var bare = Sidebar(new GroupAgent());
+        await bare.RefreshAsync(cancellation);
+        Assert.True(bare.IsEmpty);
+        Assert.True(bare.HasGroups);
+        Assert.Equal([Ui.Connections.Ungrouped], bare.Groups.Select(static g => g.Name));
+    }
+
+    /// <summary>
+    /// "Hide empty groups" leaves out Favorites, a group somebody made and Ungrouped while each has
+    /// nothing in it, and brings them back when they have something or the setting goes off.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task HideEmptyGroupsLeavesOutTheOnesWithNothingInThem()
+    {
+        var cancellation = TestContext.Current.CancellationToken;
+        var agent = new GroupAgent();
+        var team = agent.AddGroup("Team");
+        agent.AddGroup("Archive");
+        agent.File(Summary("Studio Assets"), team.GroupId);
+        var sidebar = Sidebar(agent);
+        sidebar.HideEmptyGroups = true;
+        await sidebar.RefreshAsync(cancellation);
+
+        Assert.Null(sidebar.Favorites);
+        Assert.Equal(["Team"], sidebar.Groups.Select(static g => g.Name));
+        Assert.True(sidebar.HasGroups);
+
+        // Something in Favorites and Ungrouped brings each back, Favorites first and Ungrouped last.
+        agent.Connections.Add(Summary("Scratch") with { IsFavorite = true });
+        await sidebar.RefreshAsync(cancellation);
+        Assert.Equal(["Scratch"], sidebar.Favorites!.Connections.Select(static r => r.Name));
+        Assert.Equal(["Team", Ui.Connections.Ungrouped], sidebar.Groups.Select(static g => g.Name));
+
+        // Turned off, it redraws at once with the empty one back.
+        sidebar.HideEmptyGroups = false;
+        Assert.Equal(["Team", "Archive", Ui.Connections.Ungrouped], sidebar.Groups.Select(static g => g.Name));
+
+        // With nothing at all and the setting on, the panel is bare again, as it used to be.
+        var bare = Sidebar(new GroupAgent());
+        bare.HideEmptyGroups = true;
+        await bare.RefreshAsync(cancellation);
+        Assert.False(bare.HasGroups);
+        Assert.Empty(bare.Groups);
+        Assert.Null(bare.Favorites);
+    }
+
+    /// <summary>A search keeps the empty groups, which say so, unless they are being hidden.</summary>
+    [AvaloniaFact]
+    public async Task ASearchKeepsTheGroupsItFoundNothingIn()
+    {
+        var cancellation = TestContext.Current.CancellationToken;
+        var agent = new GroupAgent(Summary("Scratch"));
+        agent.File(Summary("Studio Assets"), agent.AddGroup("Team").GroupId);
+        agent.AddGroup("Archive");
+        var sidebar = Sidebar(agent);
+        await sidebar.RefreshAsync(cancellation);
+
+        sidebar.Search = "Studio";
+        Assert.NotNull(sidebar.Favorites);
+        Assert.Equal(["Team", "Archive", Ui.Connections.Ungrouped], sidebar.Groups.Select(static g => g.Name));
+        Assert.True(sidebar.Groups[1].ShowsEmptyLine);
+        Assert.True(sidebar.Groups[2].ShowsEmptyLine);
+        Assert.Single(sidebar.Groups[0].Connections);
+
+        // Nothing matching anywhere still says so, above the groups.
+        sidebar.Search = "zzz";
+        Assert.True(sidebar.IsEmpty);
+        Assert.Equal(Ui.Connections.NoMatches, sidebar.Status);
+        Assert.Equal(3, sidebar.Groups.Count);
+
+        sidebar.HideEmptyGroups = true;
+        Assert.Empty(sidebar.Groups);
+        Assert.Null(sidebar.Favorites);
+        sidebar.Search = "Studio";
+        Assert.Equal(["Team"], sidebar.Groups.Select(static g => g.Name));
+    }
+
+    /// <summary>Photographs the panel with empty Favorites, an empty group and an empty Ungrouped.</summary>
+    /// <remarks>Set STORAGEHUB_SHOT_DIR to keep connections-empty-groups-{dark,light}.png.</remarks>
+    [AvaloniaTheory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task EmptyGroupsCanBePhotographed(bool dark)
+    {
+        ColorSchemeApplier.Apply(
+            global::Avalonia.Application.Current!,
+            ColorSchemeCatalog.Resolve(id: null, preferDark: dark));
+        var agent = new GroupAgent();
+        agent.File(Summary("Studio Assets"), agent.AddGroup("Team", "layers", "#2563EB").GroupId);
+        agent.AddGroup("Archive");
+        var window = await PanelAsync(agent, height: 760);
+
+        var empties = window.GetVisualDescendants().OfType<TextBlock>()
+            .Where(static text => text.Classes.Contains("group-empty") && text.IsEffectivelyVisible)
+            .Select(static text => text.Text!)
+            .ToArray();
+        Assert.Equal([Ui.Shell.NoFavoriteConnections, Ui.Connections.GroupEmpty, Ui.Connections.GroupEmpty], empties);
+
+        var directory = Environment.GetEnvironmentVariable("STORAGEHUB_SHOT_DIR");
+        if (string.IsNullOrWhiteSpace(directory)) return;
+        Directory.CreateDirectory(directory);
+        using var stream = File.Create(Path.Combine(directory, $"connections-empty-groups-{(dark ? "dark" : "light")}.png"));
+        window.CaptureRenderedFrame()!.Save(stream, new PngBitmapEncoderOptions());
+    }
+
+    /// <summary>
     /// Clicking a card selects it and fills the details panel, as 1.x's sidebar did (ui-reference 09),
     /// with the group it is in among its facts.
     /// </summary>
@@ -367,12 +514,12 @@ public class ConnectionGroupPanelTests
         Assert.True(row.IsSelected);
         Assert.Contains(new ConnectionDetailRow(Ui.Connections.FieldGroup, "Team"), sidebar.Details);
 
-        // A search that still shows the card keeps it selected, on the new row object, and shows
-        // only the groups it found something in.
+        // A search that still shows the card keeps it selected, on the new row object; the groups
+        // it found nothing in stay, empty, rather than vanishing.
         sidebar.Search = "Studio";
         Assert.Equal(row.Id, sidebar.Selected?.Id);
         Assert.True(sidebar.Selected!.IsSelected);
-        Assert.Equal(["Team"], sidebar.Groups.Select(static g => g.Name));
+        Assert.Equal(["Team", Ui.Connections.Ungrouped], sidebar.Groups.Select(static g => g.Name));
 
         // One that hides it lets the selection go, rather than describing something off screen.
         sidebar.Search = "Scratch";
@@ -438,7 +585,7 @@ public class ConnectionGroupPanelTests
         var window = Show(sidebar, 260, 900);
         var lines = window.GetVisualDescendants().OfType<TextBlock>()
             .Where(static text => text.IsEffectivelyVisible)
-            .Select(static text => text.Text)
+            .Select(static text => text.Text!)
             .ToArray();
         Assert.Contains(Ui.Connections.LinkLost, lines);
         Assert.Contains(Ui.Connections.LinkBack, lines);

@@ -129,7 +129,7 @@ internal enum ConnectionGroupKind
     /// <summary>A group the agent keeps, which somebody made and can rename, recolour and remove.</summary>
     Group,
 
-    /// <summary>The connections filed in no group, last, and only while there are any.</summary>
+    /// <summary>The connections filed in no group, last; drawn while empty unless Settings hides empty groups.</summary>
     Ungrouped,
 
     /// <summary>The favourites, above the groups: a state rather than a place, so nothing is filed in it.</summary>
@@ -264,7 +264,13 @@ internal sealed class ConnectionGroupModel : INotifyPropertyChanged
 
     public static string MoveDownLabel => Ui.Connections.MoveGroupDown;
 
-    public static string EmptyLabel => Ui.Connections.GroupEmpty;
+    /// <summary>
+    /// What an open empty group says: "No connections", or for Favorites 1.4's "No favorite
+    /// connections", whose hint on how to add one is its tooltip.
+    /// </summary>
+    public string EmptyLabel => IsFavorites ? Ui.Shell.NoFavoriteConnections : Ui.Connections.GroupEmpty;
+
+    public string? EmptyHint => IsFavorites ? Ui.Shell.FavoritesEmptyHint : null;
 
     public static string MenuLabel => Ui.Connections.GroupOptions;
 
