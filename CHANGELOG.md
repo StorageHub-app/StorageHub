@@ -20,13 +20,17 @@ chosen is written down in [Versioning and merges](docs/versioning.md).
 
 ---
 
-## 2.1.0 — 2026-10-12
+## 2.1.1 — 2026-10-12
 
 The folder tree reads ahead and shows a spinner while it does, the background agent starts more
 steadily and says what it is doing, and several things that went wrong after 2.0.0 are fixed: a
-connection with no host key could not be saved, files in the root of a drive could not be copied, and
-two settings were forgotten at every start. Files can be dropped onto a folder. There is a new
-setting, Scan subfolders for the folder tree, on by default.
+connection with no host key could not be saved, files in the root of a drive could not be copied,
+cancelling a copy made the connection look lost, and two settings were forgotten at every start.
+Files can be dropped onto a folder, and a drag from a connection to Explorer no longer leaves a
+"Queued" row behind. There is a new setting, Scan subfolders for the folder tree, on by default.
+
+(There is no 2.1.0 release: it was only ever published as candidates, and 2.1.1 is the first stable
+release of this line.)
 
 **Dropping onto a folder.** Dragging files from one pane onto a folder, in the folder tree or in the
 list, now puts them in that folder. Every drop used to land in the folder the pane was showing,
