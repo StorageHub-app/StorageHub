@@ -24,6 +24,7 @@ namespace StorageHub.Storage.CodeLogic;
 public sealed class CodeLogicStorageEndpointSession :
     IStorageEndpointSession,
     IStorageAdvancedEndpointSession,
+    IStorageAttributeEndpointSession,
     IStoragePortableChecksumSession
 {
     private static readonly TimeSpan SignedUrlExpiryTolerance = TimeSpan.FromMinutes(1);
@@ -1169,6 +1170,170 @@ public sealed class CodeLogicStorageEndpointSession :
         {
             return StorageResult<ContractStorageSignedUrl>.Fail(
                 CodeLogicStorageMapper.Unexpected("signed URL"));
+        }
+    }
+
+    /// <remarks>
+    /// The item's own information call carries everything CL.Storage knows about it. A link whose
+    /// target the listing left out is asked once more through ReadLink where the provider can
+    /// answer it, and a link it cannot read keeps its other attributes rather than failing.
+    /// </remarks>
+    public async ValueTask<StorageResult<StorageItemAttributes>> GetAttributesAsync(
+        StorageAddress address,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        var validation = ValidateExactObject(address);
+        if (validation is not null)
+        {
+            return StorageResult<StorageItemAttributes>.Fail(validation);
+        }
+
+        try
+        {
+            var result = await _storage
+                .GetInfoAsync(address.CanonicalRelativePath, cancellationToken)
+                .ConfigureAwait(false);
+            if (result.IsFailure || result.Value is null)
+            {
+                return StorageResult<StorageItemAttributes>.Fail(CodeLogicStorageMapper.MapFailure(
+                    result.Error,
+                    "storage.attributes.read_failed",
+                    "The item's attributes could not be read."));
+            }
+
+            var item = result.Value;
+            var entry = CodeLogicStorageMapper.MapEntry(item, ProfileId, RootIdentity);
+            if (entry.IsFailure)
+            {
+                return StorageResult<StorageItemAttributes>.Fail(entry.Error);
+            }
+
+            var linkTarget = item.LinkTarget;
+            if (item.ItemType == StorageItemType.Link &&
+                string.IsNullOrEmpty(linkTarget) &&
+                _storage.Capabilities.Supports(ClStorageFeature.ReadLinks) &&
+                _storage is IStorageAttributeService links)
+            {
+                var read = await links.ReadLinkAsync(address.CanonicalRelativePath, cancellationToken)
+                    .ConfigureAwait(false);
+                if (read.IsSuccess && read.Value is not null) linkTarget = read.Value.RawTarget;
+            }
+
+            return StorageResult<StorageItemAttributes>.Success(new StorageItemAttributes(
+                entry.Value,
+                item.UnixMode,
+                item.Owner,
+                item.Group,
+                item.OwnerId,
+                item.GroupId,
+                linkTarget,
+                item.Created?.ToUniversalTime(),
+                item.LastAccessed?.ToUniversalTime()));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return StorageResult<StorageItemAttributes>.Fail(CodeLogicStorageMapper.Unexpected("attribute read"));
+        }
+    }
+
+    public async ValueTask<StorageResult> SetPermissionsAsync(
+        StorageAddress address,
+        int unixMode,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        var validation = ValidateExactObject(address);
+        if (validation is not null)
+        {
+            return StorageResult.Fail(validation);
+        }
+
+        if (unixMode is < 0 or > UnixPermissions.MaxMode)
+        {
+            return StorageResult.Fail(new StorageFailure(
+                "storage.permissions.invalid_mode",
+                StorageFailureKind.Validation,
+                "Permission bits must be between octal 0000 and 7777."));
+        }
+
+        if (!Capabilities.Supports(DomainStorageFeature.Permissions) ||
+            _storage is not IStorageAttributeService attributes)
+        {
+            return StorageResult.Fail(CodeLogicStorageMapper.Unsupported(
+                "storage.permissions.unsupported",
+                "The provider does not support changing permissions."));
+        }
+
+        try
+        {
+            var result = await attributes
+                .SetPermissionsAsync(address.CanonicalRelativePath, unixMode, cancellationToken)
+                .ConfigureAwait(false);
+            return result.IsSuccess
+                ? StorageResult.Success()
+                : StorageResult.Fail(CodeLogicStorageMapper.MapFailure(
+                    result.Error,
+                    "storage.permissions.failed",
+                    "The permissions could not be changed."));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return StorageResult.Fail(CodeLogicStorageMapper.Unexpected("permission change"));
+        }
+    }
+
+    public async ValueTask<StorageResult> SetModifiedTimeAsync(
+        StorageAddress address,
+        DateTimeOffset modifiedUtc,
+        CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        var validation = ValidateExactObject(address);
+        if (validation is not null)
+        {
+            return StorageResult.Fail(validation);
+        }
+
+        if (!Capabilities.Supports(DomainStorageFeature.SetModifiedTime) ||
+            _storage is not IStorageAttributeService attributes)
+        {
+            return StorageResult.Fail(CodeLogicStorageMapper.Unsupported(
+                "storage.timestamps.unsupported",
+                "The provider does not support setting the modified time."));
+        }
+
+        try
+        {
+            var result = await attributes
+                .SetTimestampsAsync(
+                    address.CanonicalRelativePath,
+                    modifiedUtc.ToUniversalTime(),
+                    lastAccessed: null,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            return result.IsSuccess
+                ? StorageResult.Success()
+                : StorageResult.Fail(CodeLogicStorageMapper.MapFailure(
+                    result.Error,
+                    "storage.timestamps.failed",
+                    "The modified time could not be set."));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            return StorageResult.Fail(CodeLogicStorageMapper.Unexpected("modified-time change"));
         }
     }
 

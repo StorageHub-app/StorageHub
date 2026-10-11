@@ -428,6 +428,19 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         Say(Ui.Shell.StatusEditedFileUploaded);
     }
 
+    /// <summary>
+    /// Reloads the active pane after Properties changed an item's permissions or modified time.
+    /// </summary>
+    /// <remarks>
+    /// The active pane for the reason <see cref="EditedFileUploadedAsync"/> gives: Properties is
+    /// modal over the shell, so the pane it was opened from is still the active one.
+    /// </remarks>
+    internal async Task ItemAttributesChangedAsync()
+    {
+        if (ActivePane() is not { } pane) return;
+        await pane.RefreshAsync().ConfigureAwait(true);
+    }
+
     internal BrowserPaneModel? ActivePane() =>
         ActiveWorkspace() is { Panes.Count: > 0 } workspace ? workspace.Active : null;
 

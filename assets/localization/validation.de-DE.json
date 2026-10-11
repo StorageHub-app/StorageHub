@@ -242,5 +242,6 @@
   "chooseCtrlAltWithAKeyFormat": "Wählen Sie Strg/Alt mit einer Taste, eine Funktionstaste oder Entf für {0}.",
   "isAlreadyAssignedToClearThatFormat": "{0} ist bereits {1} zugewiesen. Heben Sie diese Zuweisung zuerst auf.",
   "aGroupNameIsRequired": "Ein Gruppenname ist erforderlich.",
+  "thisInspectorClientDoesNotSupportAttributes": "Dieser Inspektor-Client unterstützt keine Elementattribute.",
   "culture": "de-DE"
 }

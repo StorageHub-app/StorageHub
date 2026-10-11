@@ -261,6 +261,7 @@ var syncCommands = new SyncManagementIpcCommandService(
     syncConflicts);
 var scheduleCommands = new ScheduleManagementIpcCommandService(scheduleManagementRepository);
 var objectInspectorCommands = new ObjectInspectorIpcCommandService(syncConnector);
+var itemAttributeCommands = new ItemAttributeIpcCommandService(syncConnector);
 await using var sshTerminalCommands = new SshTerminalIpcCommandService(
     transferProfiles,
     () => vaultSubsystem.Vault,
@@ -281,6 +282,7 @@ var requestHandler = new AgentIpcRequestHandler(
         syncCommands,
         scheduleCommands,
         objectInspectorCommands,
+        itemAttributeCommands,
         sshTerminalCommands,
         new AgentControlIpcCommandService(
             () => shutdown.TrySetResult(),

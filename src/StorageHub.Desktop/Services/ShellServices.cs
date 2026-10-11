@@ -49,8 +49,18 @@ internal static class ShellServices
     /// over whichever main window is open, on the UI thread, since the pane's await may resume
     /// anywhere.
     /// </remarks>
-    internal static Task InspectObjectAsync(ObjectInspectorAddress address) =>
-        Dispatcher.UIThread.InvokeAsync(() => ObjectInspectorWindow.ShowAsync(MainWindow(), address));
+    internal static Task InspectObjectAsync(ObjectInspectorAddress address, StorageItemKind kind) =>
+        Dispatcher.UIThread.InvokeAsync(() => ObjectInspectorWindow.ShowAsync(
+            MainWindow(),
+            address,
+            kind,
+            static () => ItemAttributesChanged?.Invoke(null, EventArgs.Empty)));
+
+    /// <summary>
+    /// Raised on the UI thread after the Properties window changed an item's permissions or
+    /// modified time, which the pane it is listed in shows too.
+    /// </summary>
+    internal static event EventHandler? ItemAttributesChanged;
 
     private static ExternalEditController? _editing;
 

@@ -574,7 +574,12 @@ public sealed class ObjectInspectorIpcCommandService : IAgentIpcCommandHandler
         }
     }
 
-    private static AddressValidation ValidateAndCreateAddress(
+    /// <summary>
+    /// Checks that the opened session is the requested connection and root, and that the path is
+    /// exactly canonical and not the root. Shared with the item-attribute handler, which reaches
+    /// the same items by the same address.
+    /// </summary>
+    internal static AddressValidation ValidateAndCreateAddress(
         IStorageEndpointSession? session,
         ObjectInspectorAddress requested)
     {
@@ -853,7 +858,7 @@ public sealed class ObjectInspectorIpcCommandService : IAgentIpcCommandHandler
         return null;
     }
 
-    private static AgentIpcCommandResponse InvalidPayload() => AgentIpcCommandResponse.Error(
+    internal static AgentIpcCommandResponse InvalidPayload() => AgentIpcCommandResponse.Error(
         "ipc.payload.invalid",
         "The inspector request payload was invalid.");
 
@@ -1053,5 +1058,5 @@ public sealed class ObjectInspectorIpcCommandService : IAgentIpcCommandHandler
         AgentIpcCommandResponse.Create(EditableFileIpcMessageTypes.RenameResponse,
             new StorageItemRenameResponse(request.ContractVersion, request.Source, request.Destination, Renamed: false, failure));
 
-    private sealed record AddressValidation(StorageAddress? Address, StorageIpcFailure? Failure);
+    internal sealed record AddressValidation(StorageAddress? Address, StorageIpcFailure? Failure);
 }

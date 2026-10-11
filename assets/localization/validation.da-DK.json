@@ -242,5 +242,6 @@
   "chooseCtrlAltWithAKeyFormat": "Vælg Ctrl/Alt sammen med en tast, en funktionstast eller Delete til {0}.",
   "isAlreadyAssignedToClearThatFormat": "{0} er allerede tildelt {1}. Ryd den tildeling først.",
   "aGroupNameIsRequired": "Et gruppenavn er påkrævet.",
+  "thisInspectorClientDoesNotSupportAttributes": "Denne inspektørklient understøtter ikke elementattributter.",
   "culture": "da-DK"
 }

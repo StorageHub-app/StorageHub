@@ -199,6 +199,8 @@ public partial class App : global::Avalonia.Application
         _ = model.Overview?.RefreshAsync();
         // An edited file that was uploaded shows up in the pane it came from.
         Services.ShellServices.EditedFileUploaded += (_, _) => _ = model.EditedFileUploadedAsync();
+        // So does a permission or time changed in Properties.
+        Services.ShellServices.ItemAttributesChanged += (_, _) => _ = model.ItemAttributesChangedAsync();
 
         // The first time an installed build opens, it asks how StorageHub should run, as 1.4 did:
         // once the window is up, so the shell is usable behind the question.
