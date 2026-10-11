@@ -18,6 +18,11 @@ chosen is written down in [Versioning and merges](docs/versioning.md).
 
 ## Unreleased
 
+**Saving a connection with no host key pinned.** In the Edit Connection window Save stayed grey for any
+SFTP or SSH connection that had no host key pinned yet, whatever was changed, until Test connection
+happened to fetch one. Save now lights up as soon as something has changed, and clicking it fetches
+the missing host key first and shows it to be checked, as Test does. A key you decline saves nothing.
+
 **Subfolders in the folder tree.** A pane's folder tree now reads the folders below the one you are
 in, so you can open them without visiting each first. It goes two levels down on a connection and
 three on this computer, reads at most 100 folders for a connection (500 locally), two at a time on a

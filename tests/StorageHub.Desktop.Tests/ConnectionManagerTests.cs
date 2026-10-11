@@ -289,6 +289,47 @@ public class ConnectionManagerTests
     }
 
     /// <summary>
+    /// A connection with no host key pinned can still be saved after a change: Save lights up as
+    /// Test does, and fetches the key first. It stayed grey for every such connection, whatever
+    /// was changed, until Test connection happened to fetch one. A key declined saves nothing.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task SavingAConnectionWithNoHostKeyYetFetchesItInsteadOfStayingGrey()
+    {
+        var cancellation = TestContext.Current.CancellationToken;
+        var profiles = new FakeProfiles();
+        var dialogs = new YesDialogs();
+        var editor = new ConnectionEditorModel(() => Controller(profiles), () => new ListingAgent([]), dialogs);
+        editor.Provider = ConnectionProviderCatalog.Get(StorageProviderKind.Sftp);
+        Field(editor, "authenticationMode").Value = "Password reference";
+        Field(editor, "passwordReference").Value = KeyStoreTests.Reference('p');
+        Fill(editor);
+        var hostKey = Field(editor, "hostKeyFingerprint");
+        hostKey.Value = string.Empty;
+
+        // Something changed and the key is the only thing missing: Save is available.
+        Assert.True(editor.IsDirty);
+        Assert.True(editor.SaveCommand.CanExecute(null));
+
+        // The key is fetched and shown first, and one declined writes nothing.
+        dialogs.Choice = Desktop.Shell.DialogChoice.No;
+        await editor.SaveAsync(cancellation);
+        Assert.Equal((0, 1, string.Empty), (profiles.Creates, dialogs.Asked, hostKey.Value));
+        Assert.True(editor.IsDirty);
+
+        // Accepted: the key goes in the field, the profile is written and pinned to it.
+        dialogs.Choice = Desktop.Shell.DialogChoice.Yes;
+        await editor.SaveAsync(cancellation);
+        Assert.Equal(1, profiles.Creates);
+        Assert.Equal(HostKey, Assert.Single(profiles.Pins.Values));
+        Assert.False(editor.IsDirty);
+
+        // Another required field left empty still keeps it grey: only the key is excused.
+        Field(editor, "host").Value = string.Empty;
+        Assert.False(editor.SaveCommand.CanExecute(null));
+    }
+
+    /// <summary>
     /// A test refused on the server's host key offers the key the server presents, as Fetch from
     /// host does; a key accepted goes in the field and is tested at once, and nothing is pinned.
     /// </summary>

@@ -859,8 +859,17 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
         _ => null
     };
 
-    /// <summary>Whether the editor holds something that could be saved.</summary>
-    internal bool CanSave => !_isBusy && _isDirty && HasRequiredFields;
+    /// <summary>
+    /// Whether the editor holds something that could be saved.
+    /// </summary>
+    /// <remarks>
+    /// An SFTP or SSH connection with no host key yet can be saved, as it can be tested: saving
+    /// fetches the key first and shows it to be checked. Without that the button stayed grey for
+    /// any connection that had no key pinned, whatever was changed, until Test connection had
+    /// fetched one, which nothing said.
+    /// </remarks>
+    internal bool CanSave => !_isBusy && _isDirty &&
+        HasRequiredFieldsBut(_storage is null ? null : UnfetchedHostKey());
 
     /// <summary>Whether there is enough in the fields to test, saved or not.</summary>
     internal bool CanTest => !_isBusy && _storage is not null && HasRequiredFieldsForTest;
@@ -922,6 +931,16 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     internal async Task SaveAsync(CancellationToken cancellationToken = default)
     {
         Capture();
+
+        // With no host key yet, one is fetched and shown first, as a test does, and a key declined
+        // saves nothing: the profile cannot be written without the identity it is pinned to.
+        if (_storage is not null && UnfetchedHostKey() is { } empty)
+        {
+            await FetchHostKeyAsync(cancellationToken).ConfigureAwait(true);
+            if (empty.Value.Trim().Length == 0) return;
+            Capture();
+        }
+
         if (BuildDraft() is not { } draft) return;
 
         IsBusy = true;
