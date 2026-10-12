@@ -434,25 +434,25 @@ jobs:
       # This privileged job deliberately does not check out or execute
       # repository code. It only consumes the artifacts produced in this run.
       - name: Download Windows x64 release bundle
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: windows-release-x64-${{ github.run_attempt }}
           path: windows-x64
 
       - name: Download Windows ARM64 release bundle
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: windows-release-arm64-${{ github.run_attempt }}
           path: windows-arm64
 
       - name: Download Linux x64 release package
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: linux-release-x64-${{ github.run_attempt }}
           path: linux-x64
 
       - name: Download Linux ARM64 release package
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: linux-release-arm64-${{ github.run_attempt }}
           path: linux-arm64
@@ -495,25 +495,25 @@ jobs:
       # This is the only contents:write job. It never checks out or executes
       # repository code and only publishes the validated same-run artifacts.
       - name: Download attested Windows x64 release bundle
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: windows-release-x64-${{ github.run_attempt }}
           path: windows-release
 
       - name: Download attested Windows ARM64 release bundle
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: windows-release-arm64-${{ github.run_attempt }}
           path: windows-arm64
 
       - name: Download attested Linux x64 release package
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: linux-release-x64-${{ github.run_attempt }}
           path: linux-x64
 
       - name: Download attested Linux ARM64 release package
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: linux-release-arm64-${{ github.run_attempt }}
           path: linux-arm64
