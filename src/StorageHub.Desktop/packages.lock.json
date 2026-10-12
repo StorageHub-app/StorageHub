@@ -47,9 +47,9 @@
       },
       "Lucide.Avalonia": {
         "type": "Direct",
-        "requested": "[0.2.23, )",
-        "resolved": "0.2.23",
-        "contentHash": "+sHMP+iyjSAQXI3bgquaiC2e150OU1qiPyrxnhMlvbt8xy7icGjagmrFc0/Y2XLAfWSiAVPVE/mwOJmhSjSpUA==",
+        "requested": "[0.2.26, )",
+        "resolved": "0.2.26",
+        "contentHash": "WVYELMjvgx+x8khH+WureFXlsv0x/CEBfK5UaawC/E8T2mKibXebAU/Wv6rq4KU+Qjw/gOQDhyoe7rtatAlRlQ==",
         "dependencies": {
           "Avalonia": "11.3.17"
         }
@@ -237,15 +237,15 @@
         "type": "Project",
         "dependencies": {
           "Cronos": "[0.13.0, )",
-          "StorageHub.Application": "[2.0.0, )",
-          "StorageHub.Contracts": "[2.0.0, )",
-          "StorageHub.Domain": "[2.0.0, )",
-          "StorageHub.Infrastructure": "[2.0.0, )",
-          "StorageHub.Ipc": "[2.0.0, )",
-          "StorageHub.Security": "[2.0.0, )",
-          "StorageHub.Storage": "[2.0.0, )",
-          "StorageHub.Sync": "[2.0.0, )",
-          "StorageHub.Transfers": "[2.0.0, )",
+          "StorageHub.Application": "[2.1.2, )",
+          "StorageHub.Contracts": "[2.1.2, )",
+          "StorageHub.Domain": "[2.1.2, )",
+          "StorageHub.Infrastructure": "[2.1.2, )",
+          "StorageHub.Ipc": "[2.1.2, )",
+          "StorageHub.Security": "[2.1.2, )",
+          "StorageHub.Storage": "[2.1.2, )",
+          "StorageHub.Sync": "[2.1.2, )",
+          "StorageHub.Transfers": "[2.1.2, )",
           "System.ServiceProcess.ServiceController": "[10.0.12, )"
         }
       },
@@ -254,8 +254,8 @@
         "dependencies": {
           "CodeLogic": "[4.8.20, )",
           "Cronos": "[0.13.0, )",
-          "StorageHub.Domain": "[2.0.0, )",
-          "StorageHub.Security": "[2.0.0, )"
+          "StorageHub.Domain": "[2.1.2, )",
+          "StorageHub.Security": "[2.1.2, )"
         }
       },
       "storagehub.contracts": {
@@ -268,11 +268,11 @@
           "CodeLogic": "[4.8.20, )",
           "Microsoft.Data.Sqlite": "[9.0.18, )",
           "SQLitePCLRaw.bundle_e_sqlite3": "[2.1.12, )",
-          "StorageHub.Agent": "[2.0.0, )",
-          "StorageHub.Contracts": "[2.0.0, )",
-          "StorageHub.Diagnostics": "[2.0.0, )",
-          "StorageHub.Ipc": "[2.0.0, )",
-          "StorageHub.Security": "[2.0.0, )"
+          "StorageHub.Agent": "[2.1.2, )",
+          "StorageHub.Contracts": "[2.1.2, )",
+          "StorageHub.Diagnostics": "[2.1.2, )",
+          "StorageHub.Ipc": "[2.1.2, )",
+          "StorageHub.Security": "[2.1.2, )"
         }
       },
       "storagehub.diagnostics": {
@@ -281,20 +281,20 @@
       "storagehub.domain": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[2.0.0, )"
+          "StorageHub.Contracts": "[2.1.2, )"
         }
       },
       "storagehub.infrastructure": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Security": "[2.0.0, )"
+          "StorageHub.Security": "[2.1.2, )"
         }
       },
       "storagehub.ipc": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[2.0.0, )",
-          "StorageHub.Infrastructure": "[2.0.0, )"
+          "StorageHub.Contracts": "[2.1.2, )",
+          "StorageHub.Infrastructure": "[2.1.2, )"
         }
       },
       "storagehub.security": {
@@ -303,23 +303,23 @@
       "storagehub.storage": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[2.0.0, )",
-          "StorageHub.Domain": "[2.0.0, )"
+          "StorageHub.Contracts": "[2.1.2, )",
+          "StorageHub.Domain": "[2.1.2, )"
         }
       },
       "storagehub.sync": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Domain": "[2.0.0, )",
-          "StorageHub.Storage": "[2.0.0, )",
-          "StorageHub.Transfers": "[2.0.0, )"
+          "StorageHub.Domain": "[2.1.2, )",
+          "StorageHub.Storage": "[2.1.2, )",
+          "StorageHub.Transfers": "[2.1.2, )"
         }
       },
       "storagehub.transfers": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Domain": "[2.0.0, )",
-          "StorageHub.Storage": "[2.0.0, )"
+          "StorageHub.Domain": "[2.1.2, )",
+          "StorageHub.Storage": "[2.1.2, )"
         }
       },
       "Avalonia.Skia": {
