@@ -6,9 +6,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageVersion Include="Avalonia" Version="12.1.2" />
+    <PackageVersion Include="Avalonia" Version="12.1.4" />
     <PackageVersion Include="Avalonia.Desktop" Version="12.1.2" />
-    <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.2" />
+    <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.4" />
     <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.1.2" />
     <!-- Lucide, MIT: ~1500 stroked 24x24 glyphs with round caps, the same authoring model the
          hand-drawn UiIconFactory set used, at twenty times the coverage. -->
