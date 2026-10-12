@@ -4,12 +4,12 @@
     "net10.0": {
       "Avalonia": {
         "type": "Direct",
-        "requested": "[12.1.2, )",
-        "resolved": "12.1.2",
-        "contentHash": "GHSe4qxjbqqxB570xuB4KtoD+Qhk3uKXJUXbelGYhGz/ti8xEoL7e5DGun8hcsXHondszPPBEdcC68szw7vUKg==",
+        "requested": "[12.1.4, )",
+        "resolved": "12.1.4",
+        "contentHash": "Vlz+ebY0PBVsTFXAPIpM+7ySgezMtyJ3GMMGmccHwxXXjgLF2x5+NMwO4AqrdM/lrUPZremnYNO6MSg1r1vuxw==",
         "dependencies": {
           "Avalonia.BuildServices": "11.3.2",
-          "Avalonia.Remote.Protocol": "12.1.2",
+          "Avalonia.Remote.Protocol": "12.1.4",
           "MicroCom.Runtime": "0.11.6"
         }
       },
@@ -47,8 +47,8 @@
       },
       "Avalonia.Remote.Protocol": {
         "type": "Transitive",
-        "resolved": "12.1.2",
-        "contentHash": "DdLTe9xKXxxfRcXmUw1trXZpBpz1YiZYWXx0DfMVPFAnkCszKsHLi67kaZfGJqtfQq2EySKd2qgRYX2QYkSxcg=="
+        "resolved": "12.1.4",
+        "contentHash": "9ajC+Ff+U9S21JJKGbJgnwp9fY+zwJG+bSEC//o/vJU2M6IEMRGp+D1+AUoqTR79FAA/iDYgf4f4EF4PZKhZsg=="
       },
       "MicroCom.Runtime": {
         "type": "Transitive",
@@ -90,15 +90,15 @@
         "type": "Project",
         "dependencies": {
           "Cronos": "[0.13.0, )",
-          "StorageHub.Application": "[2.0.0, )",
-          "StorageHub.Contracts": "[2.0.0, )",
-          "StorageHub.Domain": "[2.0.0, )",
-          "StorageHub.Infrastructure": "[2.0.0, )",
-          "StorageHub.Ipc": "[2.0.0, )",
-          "StorageHub.Security": "[2.0.0, )",
-          "StorageHub.Storage": "[2.0.0, )",
-          "StorageHub.Sync": "[2.0.0, )",
-          "StorageHub.Transfers": "[2.0.0, )",
+          "StorageHub.Application": "[2.1.2, )",
+          "StorageHub.Contracts": "[2.1.2, )",
+          "StorageHub.Domain": "[2.1.2, )",
+          "StorageHub.Infrastructure": "[2.1.2, )",
+          "StorageHub.Ipc": "[2.1.2, )",
+          "StorageHub.Security": "[2.1.2, )",
+          "StorageHub.Storage": "[2.1.2, )",
+          "StorageHub.Sync": "[2.1.2, )",
+          "StorageHub.Transfers": "[2.1.2, )",
           "System.ServiceProcess.ServiceController": "[10.0.12, )"
         }
       },
@@ -107,8 +107,8 @@
         "dependencies": {
           "CodeLogic": "[4.8.20, )",
           "Cronos": "[0.13.0, )",
-          "StorageHub.Domain": "[2.0.0, )",
-          "StorageHub.Security": "[2.0.0, )"
+          "StorageHub.Domain": "[2.1.2, )",
+          "StorageHub.Security": "[2.1.2, )"
         }
       },
       "storagehub.contracts": {
@@ -120,20 +120,20 @@
       "storagehub.domain": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[2.0.0, )"
+          "StorageHub.Contracts": "[2.1.2, )"
         }
       },
       "storagehub.infrastructure": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Security": "[2.0.0, )"
+          "StorageHub.Security": "[2.1.2, )"
         }
       },
       "storagehub.ipc": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[2.0.0, )",
-          "StorageHub.Infrastructure": "[2.0.0, )"
+          "StorageHub.Contracts": "[2.1.2, )",
+          "StorageHub.Infrastructure": "[2.1.2, )"
         }
       },
       "storagehub.security": {
@@ -142,23 +142,23 @@
       "storagehub.storage": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[2.0.0, )",
-          "StorageHub.Domain": "[2.0.0, )"
+          "StorageHub.Contracts": "[2.1.2, )",
+          "StorageHub.Domain": "[2.1.2, )"
         }
       },
       "storagehub.sync": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Domain": "[2.0.0, )",
-          "StorageHub.Storage": "[2.0.0, )",
-          "StorageHub.Transfers": "[2.0.0, )"
+          "StorageHub.Domain": "[2.1.2, )",
+          "StorageHub.Storage": "[2.1.2, )",
+          "StorageHub.Transfers": "[2.1.2, )"
         }
       },
       "storagehub.transfers": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Domain": "[2.0.0, )",
-          "StorageHub.Storage": "[2.0.0, )"
+          "StorageHub.Domain": "[2.1.2, )",
+          "StorageHub.Storage": "[2.1.2, )"
         }
       },
       "Cronos": {
