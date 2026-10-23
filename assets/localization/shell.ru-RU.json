@@ -110,6 +110,8 @@
   "mainToolbar": "Главная панель инструментов",
   "moreToolbarCommands": "Другие команды панели инструментов",
   "applicationStatus": "Состояние приложения",
+  "startupStatus": "Состояние запуска",
+  "startupDetails": "Сведения о запуске",
   "agentStatus": "Состояние агента",
   "updateStatus": "Состояние обновления",
   "currentLocation": "Текущее расположение",

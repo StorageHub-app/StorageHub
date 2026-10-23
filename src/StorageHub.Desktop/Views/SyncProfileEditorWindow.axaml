@@ -5,7 +5,7 @@
         x:Class="StorageHub.Desktop.Views.SyncProfileEditorWindow"
         x:DataType="vm:SyncProfileEditorModel"
         Title="{Binding Heading}"
-        Width="1040" Height="760"
+        Width="{StaticResource SyncProfileEditorWindowWidth}" Height="{StaticResource SyncProfileEditorWindowHeight}"
         WindowStartupLocation="CenterOwner">
 
   <!--
@@ -28,7 +28,7 @@
         </StackPanel>
         <ComboBox Grid.Column="1" ItemsSource="{Binding Profiles}"
                   SelectedItem="{Binding SelectedProfile, Mode=TwoWay}"
-                  MinWidth="260" VerticalAlignment="Center"
+                  MinWidth="{StaticResource ProfileChoiceMinWidth}" VerticalAlignment="Center"
                   AutomationProperties.Name="{Binding SavedProfileLabel}"
                   Margin="{StaticResource PaddingMd}"/>
         <Button Grid.Column="2" Content="{Binding NewProfileLabel}"
@@ -70,7 +70,7 @@
             <TextBlock Classes="title" Text="{Binding ProfileNameLabel}"/>
             <!-- Stretched to its maximum rather than sized to its content: a box that grows as
                  you type starts the width of the word in it, which reads as a disabled field. -->
-            <TextBox Text="{Binding Name, Mode=TwoWay}" Width="520"
+            <TextBox Text="{Binding Name, Mode=TwoWay}" Width="{StaticResource ProfileNameWidth}"
                      HorizontalAlignment="Left"
                      AutomationProperties.Name="{Binding ProfileNameLabel}"/>
             <TextBlock Classes="status danger" Text="{Binding NameProblem}"
@@ -85,7 +85,7 @@
             <TextBlock Classes="title" Text="{Binding StepLocations}"/>
             <TextBlock Classes="muted" Text="{Binding LocationsRelativeHint}" TextWrapping="Wrap"/>
 
-            <Grid ColumnDefinitions="*,Auto,*" Margin="0,8,0,0">
+            <Grid ColumnDefinitions="*,Auto,*" Margin="{StaticResource GapAboveMd}">
               <StackPanel Grid.Column="0" Spacing="{StaticResource SpaceXs}">
                 <TextBlock Classes="caption" Text="{Binding LocationALabel}"/>
                 <ComboBox ItemsSource="{Binding Connections}"
@@ -141,7 +141,7 @@
             -->
             <ListBox ItemsSource="{Binding Behaviors}"
                      SelectedItem="{Binding Behavior, Mode=TwoWay}"
-                     MaxHeight="260"
+                     MaxHeight="{StaticResource BehaviorListMaxHeight}"
                      AutomationProperties.Name="{Binding BehaviorAccessibleName}">
               <ListBox.ItemTemplate>
                 <DataTemplate DataType="core:SyncBehaviorOption">
@@ -161,10 +161,10 @@
               </ListBox.ItemTemplate>
             </ListBox>
 
-            <TextBlock Classes="caption" Text="{Binding ConflictPolicyLabel}" Margin="0,8,0,0"/>
+            <TextBlock Classes="caption" Text="{Binding ConflictPolicyLabel}" Margin="{StaticResource GapAboveMd}"/>
             <ComboBox ItemsSource="{Binding ConflictPolicies}"
                       SelectedItem="{Binding ConflictPolicy, Mode=TwoWay}"
-                      MinWidth="280" HorizontalAlignment="Left"
+                      MinWidth="{StaticResource ConflictChoiceMinWidth}" HorizontalAlignment="Left"
                       AutomationProperties.Name="{Binding ConflictPolicyLabel}"/>
             <TextBlock Classes="muted" Text="{Binding ConflictPolicyHint}" TextWrapping="Wrap"/>
           </StackPanel>
@@ -173,12 +173,12 @@
           <StackPanel Spacing="{StaticResource SpaceSm}">
             <TextBlock Classes="title" Text="{Binding StepSafety}"/>
 
-            <Grid ColumnDefinitions="*,*" Margin="0,4,0,0">
+            <Grid ColumnDefinitions="*,*" Margin="{StaticResource GapAboveSm}">
               <StackPanel Grid.Column="0" Spacing="{StaticResource SpaceXs}"
                           Margin="{StaticResource PaddingSm}">
                 <TextBlock Classes="caption" Text="{Binding IncludeGlobsLabel}"/>
                 <TextBox Text="{Binding IncludeGlobs, Mode=TwoWay}"
-                         AcceptsReturn="True" Height="96"
+                         AcceptsReturn="True" Height="{StaticResource GlobListHeight}"
                          AutomationProperties.Name="{Binding IncludeGlobsLabel}"/>
                 <TextBlock Classes="status danger" Text="{Binding IncludeGlobsProblem}"
                            IsVisible="{Binding HasIncludeGlobsProblem}" TextWrapping="Wrap"/>
@@ -187,7 +187,7 @@
                           Margin="{StaticResource PaddingSm}">
                 <TextBlock Classes="caption" Text="{Binding ExcludeGlobsLabel}"/>
                 <TextBox Text="{Binding ExcludeGlobs, Mode=TwoWay}"
-                         AcceptsReturn="True" Height="96"
+                         AcceptsReturn="True" Height="{StaticResource GlobListHeight}"
                          AutomationProperties.Name="{Binding ExcludeGlobsLabel}"/>
                 <TextBlock Classes="status danger" Text="{Binding ExcludeGlobsProblem}"
                            IsVisible="{Binding HasExcludeGlobsProblem}" TextWrapping="Wrap"/>
@@ -197,12 +197,12 @@
             <TextBlock Classes="muted" Text="{Binding FiltersHint}" TextWrapping="Wrap"/>
 
             <CheckBox Content="{Binding IncludeHiddenFilesLabel}"
-                      IsChecked="{Binding IncludeHiddenFiles, Mode=TwoWay}" Margin="0,8,0,0"/>
+                      IsChecked="{Binding IncludeHiddenFiles, Mode=TwoWay}" Margin="{StaticResource GapAboveMd}"/>
             <TextBlock Classes="muted" Text="{Binding HiddenFilesHint}" TextWrapping="Wrap"/>
 
             <!-- The three limits step by 1.4's increments: one at a time for the counts, a
                  quarter for the percentage. -->
-            <Grid ColumnDefinitions="*,*,*" Margin="0,8,0,0">
+            <Grid ColumnDefinitions="*,*,*" Margin="{StaticResource GapAboveMd}">
               <StackPanel Grid.Column="0" Spacing="{StaticResource SpaceXs}"
                           Margin="{StaticResource PaddingSm}">
                 <TextBlock Classes="caption" Text="{Binding MaximumDeletesLabel}"/>
@@ -241,7 +241,7 @@
             </Grid>
 
             <CheckBox Content="{Binding NonAtomicLabel}"
-                      IsChecked="{Binding AllowNonAtomicWrites, Mode=TwoWay}" Margin="0,8,0,0"/>
+                      IsChecked="{Binding AllowNonAtomicWrites, Mode=TwoWay}" Margin="{StaticResource GapAboveMd}"/>
             <TextBlock Classes="muted" Text="{Binding NonAtomicHint}" TextWrapping="Wrap"/>
             <TextBlock Classes="status warning" Text="{Binding NonAtomicWarning}"
                        IsVisible="{Binding NonAtomicWarningVisible}" TextWrapping="Wrap"/>

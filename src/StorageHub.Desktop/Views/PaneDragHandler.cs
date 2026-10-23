@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
@@ -68,9 +69,10 @@ internal sealed record PaneDragPayload(
 /// </para>
 /// <para>
 /// A drag starts from a press on a row that is already selected, so a click still selects and a
-/// press-and-drag on the selection carries it. It lands as the same transfer a paste would --
-/// same snapshots, same confirmation, same queue -- through the receiver the workspace gives each
-/// pane. Copy unless Shift is held and the rows can be moved, as in 1.x.
+/// press-and-drag on the selection carries it, or from a press on a folder in the tree, which
+/// carries that folder. It lands as the same transfer a paste would -- same snapshots, same
+/// confirmation, same queue -- through the receiver the workspace gives each pane. Copy unless
+/// Shift is held and the rows can be moved, as in 1.x.
 /// </para>
 /// <para>
 /// Out of StorageHub, as 1.x's did: This PC's rows go as their own paths, so Explorer, Nautilus
@@ -111,13 +113,29 @@ internal static class PaneDragHandler
         // double-click on a selected row, which is how a folder is opened.
         PointerPressedEventArgs? pending = null;
         BrowserListItem? pressedRow = null;
+        BrowserListItem[]? pressedSelection = null;
+        PaneTreeNode? pressedNode = null;
         Point origin = default;
 
         view.AddHandler(InputElement.PointerPressedEvent, (_, e) =>
         {
             pending = null;
-            if (pane() is not { IsTerminal: false }) return;
+            pressedRow = null;
+            pressedSelection = null;
+            pressedNode = null;
+            if (pane() is not { IsTerminal: false } model) return;
             if (e.ClickCount != 1 || !e.GetCurrentPoint(view).Properties.IsLeftButtonPressed) return;
+
+            // A folder in the tree is dragged on its own, as 1.x's tree let it be: the tree has no
+            // selection to carry beyond the folder under the pointer.
+            if (NodeAt(view, e.Source) is { } node)
+            {
+                pending = e;
+                pressedNode = node;
+                origin = e.GetPosition(view);
+                return;
+            }
+
             if (RowAt(e.Source) is not { IsParentNavigation: false } row) return;
 
             // Not required to be selected yet. This runs before the list has handled the press, so a
@@ -127,6 +145,17 @@ internal static class PaneDragHandler
             pending = e;
             pressedRow = row;
             origin = e.GetPosition(view);
+
+            // The list answers a plain press on one of several selected rows by making that row the
+            // whole selection, before the pointer has moved. A drag that followed carried that one
+            // row, so three files dragged out arrived as one. The selection as it stood is kept here,
+            // ahead of the list, and a drag puts it back; a click without a drag is left to the list.
+            // Not with a modifier held: Ctrl or Shift is changing the selection, not dragging it.
+            if ((e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Shift | KeyModifiers.Meta)) == 0 &&
+                model.SelectedRows.Contains(row))
+            {
+                pressedSelection = [.. model.SelectedRows];
+            }
         }, RoutingStrategies.Tunnel);
 
         view.AddHandler(InputElement.PointerMovedEvent, (_, e) =>
@@ -141,10 +170,24 @@ internal static class PaneDragHandler
             var moved = e.GetPosition(view) - origin;
             if (Math.Abs(moved.X) < DragThreshold && Math.Abs(moved.Y) < DragThreshold) return;
 
+            pending = null;
+            if (pressedNode is { } node)
+            {
+                if (Payload(model, node) is { } folder) _ = DragAsync(view, press, model, folder);
+                return;
+            }
+
             // A press that left its row unselected, such as a Ctrl-click that took it out of the
             // selection, is not the start of a drag.
-            pending = null;
             if (pressedRow is null || !model.SelectedRows.Contains(pressedRow)) return;
+            if (pressedSelection is { Length: > 1 } kept)
+            {
+                foreach (var row in kept)
+                {
+                    if (!model.SelectedRows.Contains(row)) model.SelectedRows.Add(row);
+                }
+            }
+
             if (Payload(model) is not { } payload) return;
 
             _ = DragAsync(view, press, model, payload);
@@ -189,7 +232,11 @@ internal static class PaneDragHandler
 
             e.DragEffects = effect;
             e.Handled = true;
-            _ = ReceiveAsync(e, model, effect, FolderAt(view, e.Source), folder?.Target);
+
+            // Into the folder that was lit, whichever it was: a drop of files on a folder row in
+            // the list used to land in the pane's folder, and one on the root of the tree at the
+            // connection's root, while the row or the whole tree was lit as the place it would go.
+            _ = ReceiveAsync(e, model, effect, folder?.Target);
         });
     }
 
@@ -204,6 +251,20 @@ internal static class PaneDragHandler
             selection.Value,
             model.Title,
             PaneClipboardRules.CanMove(model.SelectedRows));
+    }
+
+    /// <summary>
+    /// A folder in the pane's tree, as a drag would carry it, or nothing: a drive, the root, and
+    /// a tree that is not a folder's (Connections Home) are not dragged. Copy only, as a folder
+    /// from the list is.
+    /// </summary>
+    internal static PaneDragPayload? Payload(BrowserPaneModel model, PaneTreeNode node)
+    {
+        if (node.IsRoot) return null;
+        var selection = PaneTransferSnapshots.FolderFor(model.Source, node.Name, node.Target);
+        if (selection.IsFailure) return null;
+
+        return new PaneDragPayload(model, selection.Value, model.Title, CanMove: false);
     }
 
     /// <summary>
@@ -274,12 +335,12 @@ internal static class PaneDragHandler
         var drag = ExplorerDrag.Nothing;
         if (payload.Selection.Context.Kind == PaneTransferContextKind.ThisPc)
         {
-            // Real paths, a plain file drop, as 1.x's was.
-            foreach (var row in model.SelectedRows.Where(static row => !row.IsParentNavigation).ToArray())
+            // Real paths, a plain file drop, as 1.x's was. This PC's items are their own full paths.
+            foreach (var item in payload.Selection.Items)
             {
-                if (await LocalItemAsync(storage, row.Location, row.IsContainer).ConfigureAwait(true) is { } item)
+                if (await LocalItemAsync(storage, item.RelativePath, item.IsContainer).ConfigureAwait(true) is { } local)
                 {
-                    outside.Add(item);
+                    outside.Add(local);
                 }
             }
         }
@@ -348,8 +409,9 @@ internal static class PaneDragHandler
     }
 
     /// <summary>Hands what landed to the pane: another pane's rows, or the desktop's files.</summary>
+    /// <param name="folder">The folder under the pointer, in the tree or the list; null for the pane's own.</param>
     private static async Task ReceiveAsync(
-        DragEventArgs e, BrowserPaneModel model, DragDropEffects effect, string? folder, string? intoFolder = null)
+        DragEventArgs e, BrowserPaneModel model, DragDropEffects effect, string? folder)
     {
         if (PaneDragPayloads.Find(e.DataTransfer?.TryGetValue(Format)) is { } payload)
         {
@@ -358,7 +420,7 @@ internal static class PaneDragHandler
                 ? TransferQueueOperation.Move
                 : TransferQueueOperation.Copy;
             await model.ReceiveDropAsync(
-                new PaneClipboard(payload.Selection, operation, payload.SourceName), intoFolder)
+                new PaneClipboard(payload.Selection, operation, payload.SourceName), folder)
                 .ConfigureAwait(true);
             return;
         }
@@ -413,13 +475,16 @@ internal static class PaneDragHandler
         return null;
     }
 
-    /// <summary>The folder in the tree a drop is over, as 1.x took it for a drop from Explorer.</summary>
-    private static string? FolderAt(Control view, object? source)
+    /// <summary>
+    /// The folder in the tree a press landed on, as a drag would carry it: never the root, which
+    /// is This PC or the connection itself, and never the expander, which opens the folder.
+    /// </summary>
+    private static PaneTreeNode? NodeAt(Control view, object? source)
     {
         for (Visual? step = source as Visual; step is not null && !ReferenceEquals(step, view); step = step.GetVisualParent())
         {
-            if (step is StyledElement { DataContext: PaneTreeNode node }) return node.Target;
-            if (step is TreeView) return null;
+            if (step is ToggleButton) return null;
+            if (step is TreeViewItem { DataContext: PaneTreeNode { IsRoot: false } node }) return node;
         }
 
         return null;

@@ -4,8 +4,8 @@
         x:Class="StorageHub.Desktop.Views.ChecksumsWindow"
         x:DataType="vm:ChecksumsModel"
         Title="{x:Static vm:ChecksumsModel.Title}"
-        Width="1000" Height="480"
-        MinWidth="720" MinHeight="320"
+        Width="{StaticResource ChecksumsWindowWidth}" Height="{StaticResource ChecksumsWindowHeight}"
+        MinWidth="{StaticResource ChecksumsWindowMinWidth}" MinHeight="{StaticResource ChecksumsWindowMinHeight}"
         WindowStartupLocation="CenterOwner">
 
   <!--
@@ -17,10 +17,10 @@
     <DockPanel Margin="{StaticResource PaddingLg}">
 
       <TextBlock DockPanel.Dock="Top" Classes="caption" Text="{x:Static vm:ChecksumsModel.Intro}"
-                 TextWrapping="Wrap" Margin="0,0,0,8"/>
+                 TextWrapping="Wrap" Margin="{StaticResource GapBelowMd}"/>
 
       <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*"
-            ColumnSpacing="{StaticResource SpaceSm}" Margin="0,0,0,8">
+            ColumnSpacing="{StaticResource SpaceSm}" Margin="{StaticResource GapBelowMd}">
         <TextBlock Grid.Column="0" Text="{x:Static vm:ChecksumsModel.ExpectedLabel}" VerticalAlignment="Center"/>
         <TextBox Grid.Column="1" Text="{Binding Expected, Mode=TwoWay}"
                  FontFamily="{DynamicResource AppFontMono}"
@@ -29,7 +29,7 @@
       </Grid>
 
       <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto,Auto"
-            ColumnSpacing="{StaticResource SpaceSm}" Margin="0,8,0,0">
+            ColumnSpacing="{StaticResource SpaceSm}" Margin="{StaticResource GapAboveMd}">
         <TextBlock Grid.Column="0" Classes="status"
                    Classes.primary="{Binding Status.IsPrimary}"
                    Classes.success="{Binding Status.IsSuccess}"
@@ -48,8 +48,8 @@
                  AutomationProperties.Name="{x:Static vm:ChecksumsModel.Title}">
         <TableView.Columns>
           <TableViewColumn Header="{x:Static vm:ChecksumsModel.ColumnName}" Binding="{Binding Name}" Width="180*"/>
-          <TableViewColumn Header="{x:Static vm:ChecksumsModel.ColumnSize}" Binding="{Binding Size}" Width="80"/>
-          <TableViewColumn Header="{x:Static vm:ChecksumsModel.ColumnSha256}" Width="470">
+          <TableViewColumn Header="{x:Static vm:ChecksumsModel.ColumnSize}" Binding="{Binding Size}" Width="{StaticResource ChecksumSizeColumnWidth}"/>
+          <TableViewColumn Header="{x:Static vm:ChecksumsModel.ColumnSha256}" Width="{StaticResource ChecksumHashColumnWidth}">
             <TableViewColumn.CellTemplate>
               <DataTemplate DataType="vm:ChecksumRow">
                 <SelectableTextBlock FontFamily="{DynamicResource AppFontMono}" Text="{Binding Sha256}"

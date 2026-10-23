@@ -159,6 +159,45 @@
   <Thickness x:Key="PagePadding">16</Thickness>
 
   <!--
+    Gaps between stacked blocks, on the same steps: a margin on one side only, so a block is moved
+    clear of its neighbour without moving away from its container's edges. Above, below, on both
+    vertical sides ("Around"), or after it in a row.
+  -->
+  <Thickness x:Key="GapAboveXs">0,2,0,0</Thickness>
+  <Thickness x:Key="GapAboveSm">0,4,0,0</Thickness>
+  <Thickness x:Key="GapAboveMd">0,8,0,0</Thickness>
+  <Thickness x:Key="GapAboveLg">0,12,0,0</Thickness>
+  <Thickness x:Key="GapBelowXs">0,0,0,2</Thickness>
+  <Thickness x:Key="GapBelowSm">0,0,0,4</Thickness>
+  <Thickness x:Key="GapBelowMd">0,0,0,8</Thickness>
+  <Thickness x:Key="GapBelowLg">0,0,0,12</Thickness>
+  <Thickness x:Key="GapAroundSm">0,4</Thickness>
+  <Thickness x:Key="GapAroundMd">0,8</Thickness>
+  <Thickness x:Key="GapAroundLg">0,12</Thickness>
+  <Thickness x:Key="GapAfterSm">0,0,4,0</Thickness>
+  <Thickness x:Key="GapAfterMd">0,0,8,0</Thickness>
+  <!-- Off the scale, as those screens were laid out: a dialog's heading or footer block and the
+       body between them, a little more than SpaceMd apart. -->
+  <Thickness x:Key="BlockGapAbove">0,10,0,0</Thickness>
+  <Thickness x:Key="BlockGapBelow">0,0,0,10</Thickness>
+  <!-- Below one entry of a checklist, a search box over its list, and the splash's logo: between
+       SpaceSm and SpaceMd. -->
+  <Thickness x:Key="ItemGapBelow">0,0,0,6</Thickness>
+  <!-- A heading over a short list inside a dialog: clear of what is above, close to its list. -->
+  <Thickness x:Key="ListHeadingMargin">0,8,0,4</Thickness>
+  <!-- A row of controls or a status line inset from its panel's edges: the pane's address row and
+       footer, the activity log's status. SpaceMd across, SpaceSm above and below. -->
+  <Thickness x:Key="RowInsetMargin">8,4</Thickness>
+  <!-- A glyph inside a text box, clear of its left edge: the search glyph in a pane's filter. -->
+  <Thickness x:Key="InnerGlyphMargin">6,0,0,0</Thickness>
+  <!-- Fields that only apply while the checkbox above them is ticked, indented under it. -->
+  <Thickness x:Key="DependentFieldIndent">20,0,0,0</Thickness>
+  <!-- A progress bar that only says something is happening: a thin line. -->
+  <sys:Double x:Key="IndeterminateBarHeight">4</sys:Double>
+  <!-- Between an icon and the name beside it in a list or tree row. -->
+  <sys:Double x:Key="IconLabelSpacing">6</sys:Double>
+
+  <!--
     Field metrics, from StorageHubFieldChrome. The dense variant is what the toolbar used, and it
     exists so a field hosted in a toolbar sits on the same baseline as one in a dialog.
   -->
@@ -344,9 +383,293 @@
   <Thickness x:Key="InstallationFindingsMargin">12,4,12,12</Thickness>
 
   <!--
+    The browser pane (BrowserPaneView). Its minimum size is measured from what it is drawn with,
+    so these can change without the layout limits being told.
+  -->
+  <!-- The connection's colour across the pane under its title bar, as 1.x drew it. -->
+  <sys:Double x:Key="PaneAccentThickness">3</sys:Double>
+  <!-- Every pane's border, focused or not: 1.x's was three, which took more room than it earned. -->
+  <Thickness x:Key="PaneBorderThickness">2</Thickness>
+  <!-- The chips in the connection bar; the name in the first is trimmed past its maximum. -->
+  <Thickness x:Key="PaneChipPadding">10,4</Thickness>
+  <sys:Double x:Key="PaneChipMinHeight">34</sys:Double>
+  <sys:Double x:Key="PaneChipNameMaxWidth">260</sys:Double>
+  <!-- The connection picker beside the state: 280 when there is room, down to 140 when not. -->
+  <sys:Double x:Key="PanePickerMinWidth">140</sys:Double>
+  <sys:Double x:Key="PanePickerMaxWidth">280</sys:Double>
+  <sys:Double x:Key="PaneFilterWidth">170</sys:Double>
+  <!-- The folder tree's width when a pane opens, and when it is shown again before being dragged. -->
+  <GridLength x:Key="PaneTreeWidth">185</GridLength>
+  <Thickness x:Key="PaneTreePadding">0,4</Thickness>
+  <!-- The tree's loading spinner, drawn in the room the expander leaves left of the icon. -->
+  <Thickness x:Key="TreeSpinnerOutset">-22,0,0,0</Thickness>
+  <!-- The narrowest the Name column gets before the fixed columns give way (TableColumnRules). -->
+  <sys:Double x:Key="PaneNameColumnMinWidth">160</sys:Double>
+  <!-- Size, right-aligned, kept clear of the divider after it. -->
+  <Thickness x:Key="SizeCellMargin">0,0,6,0</Thickness>
+  <!-- "Fetching folder" and its bar over the list while a folder is read. -->
+  <sys:Double x:Key="PaneLoadingWidth">200</sys:Double>
+  <Thickness x:Key="PaneBannerPadding">10,6</Thickness>
+  <!-- The pane's FILES bar and its small captions. -->
+  <Thickness x:Key="PaneCommandsPadding">8,2</Thickness>
+  <Thickness x:Key="PaneCaptionMargin">2,0,4,0</Thickness>
+  <!-- A dense field's height (ComboBox.dense, TextBox.dense), and a dense drop-down's padding. -->
+  <sys:Double x:Key="DenseFieldMinHeight">26</sys:Double>
+  <Thickness x:Key="DenseChoicePadding">8,2</Thickness>
+  <!-- A workspace tab's close button: a small X, a step clear of the title. -->
+  <sys:Double x:Key="TabCloseIconSize">12</sys:Double>
+  <Thickness x:Key="TabClosePadding">3</Thickness>
+  <Thickness x:Key="TabCloseMargin">12,0,0,0</Thickness>
+  <!-- A transfer's progress bar inside its cell: rounded a little, and inset from the row's edges. -->
+  <CornerRadius x:Key="TransferBarRadius">3</CornerRadius>
+  <Thickness x:Key="ProgressCellMargin">0,3</Thickness>
+  <!-- The queue's message at the end of its toolbar, clear of the buttons and the window's edge. -->
+  <Thickness x:Key="QueueMessageMargin">12,0,8,0</Thickness>
+
+  <!--
+    The connections panel, its cards, and the connection picker.
+  -->
+  <!-- The search box across the top, with room inside for its glyph and its clear button. -->
+  <Thickness x:Key="SidebarSearchMargin">12,0</Thickness>
+  <Thickness x:Key="SidebarSearchPadding">30,8,32,8</Thickness>
+  <Thickness x:Key="SidebarListMargin">12,12,12,0</Thickness>
+  <!-- The selected connection's details under the list. -->
+  <sys:Double x:Key="ConnectionDetailsHeight">230</sys:Double>
+  <Thickness x:Key="ConnectionRowPadding">10,8</Thickness>
+  <!-- The rounded square holding a connection's icon. -->
+  <sys:Double x:Key="IconTileSize">34</sys:Double>
+  <CornerRadius x:Key="IconTileRadius">8</CornerRadius>
+  <!-- A group's disclosure arrow. -->
+  <Thickness x:Key="DisclosurePadding">2</Thickness>
+  <sys:Double x:Key="DisclosureSize">18</sys:Double>
+  <!-- Small labels: a card's tags, the details' provider badge, a pane's type and provider pills,
+       and the bordered badge. -->
+  <CornerRadius x:Key="TagRadius">4</CornerRadius>
+  <Thickness x:Key="TagPadding">6,1</Thickness>
+  <Thickness x:Key="DetailBadgePadding">6,2</Thickness>
+  <CornerRadius x:Key="PillRadius">10</CornerRadius>
+  <Thickness x:Key="PillPadding">8,1</Thickness>
+  <Thickness x:Key="BadgePadding">4,1</Thickness>
+  <!-- One fact in the connection details, a pixel clear of the next. -->
+  <Thickness x:Key="DetailRowMargin">0,1</Thickness>
+  <!-- The connection picker's group headings and its cards. -->
+  <Thickness x:Key="PickerHeadingMargin">6,10,6,2</Thickness>
+  <Thickness x:Key="PickerCardMargin">2</Thickness>
+
+  <!--
+    The connection editor (ConnectionManagerWindow).
+  -->
+  <Thickness x:Key="EditorHeaderPadding">16,12</Thickness>
+  <Thickness x:Key="EditorFooterPadding">16,10</Thickness>
+  <Thickness x:Key="EditorTabsMargin">8,6,0,0</Thickness>
+  <Thickness x:Key="EditorSectionMargin">16,16,24,8</Thickness>
+  <!-- A section's hint under its title: close to the title, clear of the first field. -->
+  <Thickness x:Key="SectionHintMargin">0,2,0,10</Thickness>
+  <!-- A field's label column, and the label wrapping inside it. -->
+  <GridLength x:Key="EditorLabelColumnWidth">190</GridLength>
+  <sys:Double x:Key="EditorLabelMaxWidth">180</sys:Double>
+  <!-- The Type and Provider drop-downs in the header. -->
+  <sys:Double x:Key="EditorTypeChoiceWidth">260</sys:Double>
+  <!-- The accent colour swatches: round, wrapping within a short row, a ring on hover and choice. -->
+  <sys:Double x:Key="SwatchSize">18</sys:Double>
+  <CornerRadius x:Key="SwatchRadius">9</CornerRadius>
+  <Thickness x:Key="SwatchRingThickness">2</Thickness>
+  <sys:Double x:Key="SwatchSpacing">6</sys:Double>
+  <sys:Double x:Key="SwatchPanelMaxWidth">200</sys:Double>
+  <Thickness x:Key="BadgePreviewPadding">10,6</Thickness>
+  <Thickness x:Key="TrustNoticePadding">14,10</Thickness>
+  <Thickness x:Key="TrustNoticeMargin">16,16,24,0</Thickness>
+  <!-- A connection test's steps: the step, its outcome, then the detail. -->
+  <GridLength x:Key="TestStepLabelColumnWidth">180</GridLength>
+  <GridLength x:Key="TestStepOutcomeColumnWidth">110</GridLength>
+
+  <!--
+    Other windows' own parts.
+  -->
+  <!-- The app's logo on About and the splash, and the splash's frame. -->
+  <sys:Double x:Key="AboutLogoSize">56</sys:Double>
+  <sys:Double x:Key="AboutButtonMinWidth">88</sys:Double>
+  <sys:Double x:Key="SplashLogoSize">64</sys:Double>
+  <Thickness x:Key="SplashPadding">28,28,28,24</Thickness>
+  <!-- One choice in the icon picker, and its glyph. -->
+  <sys:Double x:Key="IconChoiceSize">40</sys:Double>
+  <sys:Double x:Key="IconChoiceGlyphSize">22</sys:Double>
+  <!-- A layout preset's picture in New Workspace. -->
+  <sys:Double x:Key="PresetThumbnailHeight">96</sys:Double>
+  <!-- An overview metric card: a coloured rail down its left edge, a hairline elsewhere. -->
+  <Thickness x:Key="MetricBorderThickness">2,1,1,1</Thickness>
+  <!-- The tables on Welcome and Sync tasks, a few rows tall each. -->
+  <sys:Double x:Key="OverviewTableHeight">140</sys:Double>
+  <sys:Double x:Key="SyncTasksTableHeight">170</sys:Double>
+  <sys:Double x:Key="LastSyncsTableHeight">120</sys:Double>
+  <!-- The sync location picker: its heading band, the address row and the folder list. -->
+  <Thickness x:Key="PickerHeaderPadding">18,12,18,10</Thickness>
+  <Thickness x:Key="PickerAddressMargin">12,10,12,8</Thickness>
+  <Thickness x:Key="PickerListMargin">12,0,12,8</Thickness>
+  <sys:Double x:Key="PickerPathMaxWidth">280</sys:Double>
+  <!-- A settings file's password: a short label column and a field long enough for a passphrase.
+       PasswordFieldWidth and PasswordFieldColumnWidth are the same field on two screens. -->
+  <GridLength x:Key="PasswordLabelColumnWidth">90</GridLength>
+  <GridLength x:Key="PasswordFieldColumnWidth">280</GridLength>
+  <sys:Double x:Key="PasswordFieldWidth">280</sys:Double>
+  <!-- Settings import's conflict policy drop-down. -->
+  <sys:Double x:Key="ImportChoiceWidth">320</sys:Double>
+  <!-- The buttons between the toolbar settings' two lists. -->
+  <sys:Double x:Key="ToolbarSettingsButtonsWidth">150</sys:Double>
+  <!-- A filter or search box at the end of a tool window's top row. -->
+  <GridLength x:Key="CompareFilterColumnWidth">220</GridLength>
+  <GridLength x:Key="KeyStoreSearchColumnWidth">240</GridLength>
+  <!-- Permissions' octal field: four digits. -->
+  <GridLength x:Key="OctalFieldColumnWidth">96</GridLength>
+  <!-- The schedule editor beside the list, and its fields. -->
+  <GridLength x:Key="ScheduleEditorWidth">440</GridLength>
+  <sys:Double x:Key="ScheduleDayChoiceMinWidth">180</sys:Double>
+  <sys:Double x:Key="ScheduleDayNumberMinWidth">140</sys:Double>
+  <sys:Double x:Key="ScheduleGraceMinWidth">160</sys:Double>
+  <sys:Double x:Key="TimeZoneDropDownMaxHeight">320</sys:Double>
+  <!-- The sync profile editor's fields. -->
+  <sys:Double x:Key="ProfileChoiceMinWidth">260</sys:Double>
+  <sys:Double x:Key="ProfileNameWidth">520</sys:Double>
+  <sys:Double x:Key="BehaviorListMaxHeight">260</sys:Double>
+  <sys:Double x:Key="ConflictChoiceMinWidth">280</sys:Double>
+  <!-- A multi-line glob list: about five lines. -->
+  <sys:Double x:Key="GlobListHeight">96</sys:Double>
+  <!-- Sync run history's run id box. -->
+  <sys:Double x:Key="RunIdMinWidth">320</sys:Double>
+  <sys:Double x:Key="RunIdMaxWidth">360</sys:Double>
+
+  <!--
+    Fixed table column widths (docs/ui-rules.md, Tables: a column is * or a number). One token per
+    kind of column where several tables show the same kind, so a date reads the same width
+    everywhere; the rest are the one table's own.
+  -->
+  <GridLength x:Key="SizeColumnWidth">90</GridLength>
+  <GridLength x:Key="DateColumnWidth">140</GridLength>
+  <GridLength x:Key="KindColumnWidth">140</GridLength>
+  <GridLength x:Key="StateColumnWidth">120</GridLength>
+  <!-- A pane's list, narrow enough that the name keeps room in a quarter-width pane. -->
+  <GridLength x:Key="PaneSizeColumnWidth">80</GridLength>
+  <GridLength x:Key="PaneTypeColumnWidth">110</GridLength>
+  <GridLength x:Key="PaneModifiedColumnWidth">120</GridLength>
+  <GridLength x:Key="PaneStatusColumnWidth">90</GridLength>
+  <GridLength x:Key="ActivityAreaColumnWidth">90</GridLength>
+  <GridLength x:Key="ActivityItemColumnWidth">100</GridLength>
+  <GridLength x:Key="ActivityStateColumnWidth">140</GridLength>
+  <GridLength x:Key="ChecksumSizeColumnWidth">80</GridLength>
+  <!-- A SHA-256 in hex, whole. -->
+  <GridLength x:Key="ChecksumHashColumnWidth">470</GridLength>
+  <GridLength x:Key="KeyPickerUsedByColumnWidth">70</GridLength>
+  <GridLength x:Key="KeyStoreUsedByColumnWidth">80</GridLength>
+  <GridLength x:Key="InspectorCurrentColumnWidth">70</GridLength>
+  <GridLength x:Key="InspectorModifiedColumnWidth">170</GridLength>
+  <GridLength x:Key="InspectorDeleteMarkerColumnWidth">100</GridLength>
+  <GridLength x:Key="OverviewWorkspaceNameColumnWidth">176</GridLength>
+  <GridLength x:Key="OverviewLocationColumnWidth">336</GridLength>
+  <GridLength x:Key="OverviewProviderColumnWidth">120</GridLength>
+  <GridLength x:Key="RunIndexColumnWidth">60</GridLength>
+  <GridLength x:Key="RunActionColumnWidth">100</GridLength>
+  <GridLength x:Key="RunExpectedBytesColumnWidth">105</GridLength>
+  <GridLength x:Key="RunSafetyColumnWidth">210</GridLength>
+  <GridLength x:Key="SyncTaskBehaviorColumnWidth">180</GridLength>
+  <GridLength x:Key="SyncTaskStateColumnWidth">180</GridLength>
+  <GridLength x:Key="LastSyncStateColumnWidth">240</GridLength>
+  <GridLength x:Key="QueueOperationColumnWidth">140</GridLength>
+  <GridLength x:Key="QueueProgressColumnWidth">160</GridLength>
+  <GridLength x:Key="QueueAttemptColumnWidth">90</GridLength>
+
+  <!--
+    Window sizes: each window's opening size and the smallest it can be made. A window sized to its
+    content has only a width.
+  -->
+  <sys:Double x:Key="MainWindowWidth">1500</sys:Double>
+  <sys:Double x:Key="MainWindowHeight">920</sys:Double>
+  <sys:Double x:Key="MainWindowMinWidth">1120</sys:Double>
+  <sys:Double x:Key="MainWindowMinHeight">720</sys:Double>
+  <sys:Double x:Key="SettingsWindowWidth">1160</sys:Double>
+  <sys:Double x:Key="SettingsWindowHeight">780</sys:Double>
+  <sys:Double x:Key="SettingsWindowMinWidth">1080</sys:Double>
+  <sys:Double x:Key="SettingsWindowMinHeight">720</sys:Double>
+  <sys:Double x:Key="ConnectionEditorWidth">880</sys:Double>
+  <sys:Double x:Key="ConnectionEditorHeight">760</sys:Double>
+  <sys:Double x:Key="ConnectionEditorMinWidth">720</sys:Double>
+  <sys:Double x:Key="ConnectionEditorMinHeight">620</sys:Double>
+  <sys:Double x:Key="ConnectionPickerWidth">380</sys:Double>
+  <sys:Double x:Key="ConnectionPickerHeight">380</sys:Double>
+  <sys:Double x:Key="BatchRenameWindowWidth">620</sys:Double>
+  <sys:Double x:Key="BatchRenameWindowHeight">460</sys:Double>
+  <sys:Double x:Key="BatchRenameWindowMinWidth">480</sys:Double>
+  <sys:Double x:Key="BatchRenameWindowMinHeight">360</sys:Double>
+  <sys:Double x:Key="ChecksumsWindowWidth">1000</sys:Double>
+  <sys:Double x:Key="ChecksumsWindowHeight">480</sys:Double>
+  <sys:Double x:Key="ChecksumsWindowMinWidth">720</sys:Double>
+  <sys:Double x:Key="ChecksumsWindowMinHeight">320</sys:Double>
+  <sys:Double x:Key="DiagnosticsWindowWidth">760</sys:Double>
+  <sys:Double x:Key="DiagnosticsWindowHeight">480</sys:Double>
+  <sys:Double x:Key="DiagnosticsWindowMinWidth">560</sys:Double>
+  <sys:Double x:Key="DiagnosticsWindowMinHeight">340</sys:Double>
+  <sys:Double x:Key="FileSearchWindowWidth">900</sys:Double>
+  <sys:Double x:Key="FileSearchWindowHeight">540</sys:Double>
+  <sys:Double x:Key="FileSearchWindowMinWidth">640</sys:Double>
+  <sys:Double x:Key="FileSearchWindowMinHeight">360</sys:Double>
+  <sys:Double x:Key="FolderCompareWindowWidth">1040</sys:Double>
+  <sys:Double x:Key="FolderCompareWindowHeight">620</sys:Double>
+  <sys:Double x:Key="FolderCompareWindowMinWidth">760</sys:Double>
+  <sys:Double x:Key="FolderCompareWindowMinHeight">420</sys:Double>
+  <sys:Double x:Key="FtpConsoleWindowWidth">820</sys:Double>
+  <sys:Double x:Key="FtpConsoleWindowHeight">520</sys:Double>
+  <sys:Double x:Key="FtpConsoleWindowMinWidth">560</sys:Double>
+  <sys:Double x:Key="FtpConsoleWindowMinHeight">340</sys:Double>
+  <sys:Double x:Key="InstallationCheckWindowWidth">680</sys:Double>
+  <sys:Double x:Key="InstallationCheckWindowHeight">560</sys:Double>
+  <sys:Double x:Key="InstallationCheckWindowMinWidth">560</sys:Double>
+  <sys:Double x:Key="InstallationCheckWindowMinHeight">420</sys:Double>
+  <sys:Double x:Key="KeyStorePickerWindowWidth">820</sys:Double>
+  <sys:Double x:Key="KeyStorePickerWindowHeight">420</sys:Double>
+  <sys:Double x:Key="KeyStorePickerWindowMinWidth">680</sys:Double>
+  <sys:Double x:Key="KeyStorePickerWindowMinHeight">360</sys:Double>
+  <sys:Double x:Key="KeyStoreWindowWidth">980</sys:Double>
+  <sys:Double x:Key="KeyStoreWindowHeight">560</sys:Double>
+  <sys:Double x:Key="KeyStoreWindowMinWidth">820</sys:Double>
+  <sys:Double x:Key="KeyStoreWindowMinHeight">460</sys:Double>
+  <sys:Double x:Key="ObjectInspectorWindowWidth">1120</sys:Double>
+  <sys:Double x:Key="ObjectInspectorWindowHeight">720</sys:Double>
+  <sys:Double x:Key="ObjectInspectorWindowMinWidth">860</sys:Double>
+  <sys:Double x:Key="ObjectInspectorWindowMinHeight">560</sys:Double>
+  <sys:Double x:Key="ScheduleManagerWindowWidth">1180</sys:Double>
+  <sys:Double x:Key="ScheduleManagerWindowHeight">720</sys:Double>
+  <sys:Double x:Key="SettingsExportWindowWidth">660</sys:Double>
+  <sys:Double x:Key="SettingsExportWindowHeight">640</sys:Double>
+  <sys:Double x:Key="SettingsExportWindowMinWidth">560</sys:Double>
+  <sys:Double x:Key="SettingsExportWindowMinHeight">480</sys:Double>
+  <sys:Double x:Key="SettingsImportWindowWidth">660</sys:Double>
+  <sys:Double x:Key="SettingsImportWindowHeight">560</sys:Double>
+  <sys:Double x:Key="SettingsImportWindowMinWidth">560</sys:Double>
+  <sys:Double x:Key="SettingsImportWindowMinHeight">460</sys:Double>
+  <sys:Double x:Key="StagingCleanupWindowWidth">960</sys:Double>
+  <sys:Double x:Key="StagingCleanupWindowHeight">540</sys:Double>
+  <sys:Double x:Key="StagingCleanupWindowMinWidth">720</sys:Double>
+  <sys:Double x:Key="StagingCleanupWindowMinHeight">380</sys:Double>
+  <sys:Double x:Key="SyncLocationPickerWindowWidth">720</sys:Double>
+  <sys:Double x:Key="SyncLocationPickerWindowHeight">540</sys:Double>
+  <sys:Double x:Key="SyncLocationPickerWindowMinWidth">560</sys:Double>
+  <sys:Double x:Key="SyncLocationPickerWindowMinHeight">400</sys:Double>
+  <sys:Double x:Key="SyncProfileEditorWindowWidth">1040</sys:Double>
+  <sys:Double x:Key="SyncProfileEditorWindowHeight">760</sys:Double>
+  <sys:Double x:Key="AboutWindowWidth">500</sys:Double>
+  <sys:Double x:Key="AgentControlWindowWidth">520</sys:Double>
+  <sys:Double x:Key="AgentHostModeWindowWidth">580</sys:Double>
+  <sys:Double x:Key="IconPickerWindowWidth">420</sys:Double>
+  <sys:Double x:Key="KeyStoreImportWindowWidth">560</sys:Double>
+  <sys:Double x:Key="NewWorkspaceWindowWidth">660</sys:Double>
+  <sys:Double x:Key="SplashWindowWidth">420</sys:Double>
+  <sys:Double x:Key="UpdateCheckerWindowWidth">520</sys:Double>
+
+  <!--
     Type scale. Sizes are in device-independent pixels; the WinForms shell wrote points, and its
     9pt and 10pt Segoe UI become 12 and 13 here (points x 96/72).
   -->
+  <!-- Badges, pills and the pane's captions: a step below FontSizeCaption. -->
+  <sys:Double x:Key="FontSizeMicro">10</sys:Double>
   <sys:Double x:Key="FontSizeCaption">11</sys:Double>
   <sys:Double x:Key="FontSizeBody">12</sys:Double>
   <sys:Double x:Key="FontSizeSubtitle">13</sys:Double>
@@ -358,10 +681,14 @@
     than rasterised per scaling, so these are the only sizes the shell needs to name - and nothing
     re-rasterises when the display scaling changes.
   -->
+  <!-- A glyph beside a label in a button, and the pane tree's loading spinner. -->
+  <sys:Double x:Key="IconSizeXs">14</sys:Double>
   <sys:Double x:Key="IconSizeSm">16</sys:Double>
   <sys:Double x:Key="IconSizeMd">18</sys:Double>
   <sys:Double x:Key="IconSizeLg">20</sys:Double>
   <sys:Double x:Key="IconSizeXl">24</sys:Double>
+  <!-- Every Lucide glyph's line weight, a little lighter than the library's 2. -->
+  <sys:Double x:Key="IconStrokeWidth">1.75</sys:Double>
 
   <!-- Long enough to read as movement, short enough never to be waited on. -->
   <sys:TimeSpan x:Key="DurationFast">0:0:0.12</sys:TimeSpan>

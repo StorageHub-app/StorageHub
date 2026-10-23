@@ -3,6 +3,8 @@
   "aDestinationFolderOrNonFileItem2": "En destinationsmappe eller et ikke-fil-element er i konflikt med en kildefil.",
   "aDestinationIsRequiredForDirectNavigation": "Der kræves en destination til direkte navigation.",
   "aFileCannotBeCopiedOrMoved": "En fil kan ikke kopieres eller flyttes oven i sig selv.",
+  "aFolderCannotBeCopiedIntoItself": "En mappe kan ikke kopieres ind i sig selv eller ind i en mappe i den.",
+  "theDestinationMovedBeforeQueueing": "Destinationsruden gik til en anden mappe, før overførslen blev sat i kø, så intet blev sat i kø.",
   "aProfileNameIsRequired": "Der kræves et profilnavn.",
   "aSavedConnectionIDAndVerifiedRoot": "Der kræves et gemt forbindelses-ID og en kontrolleret rodidentitet.",
   "aSavedConnectionPaneMustUseA": "En rude med en gemt forbindelse skal bruge en kanonisk rodrelativ sti.",

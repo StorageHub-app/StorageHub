@@ -128,7 +128,8 @@ public class AddressBarTests
     public async Task AFailureIsAWarningThatCanBeRetried()
     {
         var connection = WorkspaceFakes.Summary("Offline bucket");
-        await using var pane = new BrowserPaneModel(new Refusing(connection));
+        var refusing = new Refusing(connection);
+        await using var pane = new BrowserPaneModel(refusing);
         await pane.LoadConnectionsAsync(TestContext.Current.CancellationToken);
         await pane.OpenConnectionAsync(connection.ConnectionId, TestContext.Current.CancellationToken);
 
@@ -136,6 +137,20 @@ public class AddressBarTests
         Assert.True(pane.HasStatus);
         Assert.False(pane.HasEmptyNotice);
         Assert.True(pane.RetryCommand.CanExecute(null));
+
+        // Retry opens the connection again, keeping the reason it failed, rather than refreshing a
+        // folder it never reached and saying "Disconnected". A pane that never opened takes nothing.
+        var reason = pane.Status;
+        Assert.False(pane.CanReceiveDrop);
+        pane.RetryCommand.Execute(null);
+        for (var wait = 0; wait < 50 && refusing.Tests < 2; wait++)
+        {
+            await Task.Delay(20, TestContext.Current.CancellationToken);
+        }
+
+        Assert.Equal(2, refusing.Tests);
+        Assert.Equal(reason, pane.Status);
+        Assert.NotEqual(Ui.Pane.Disconnected, pane.Status);
     }
 
     /// <summary>
@@ -342,10 +357,16 @@ public class AddressBarTests
             ConnectionListRequest request, CancellationToken cancellationToken = default) =>
             Task.FromResult(new ConnectionListResponse(StorageIpcContract.CurrentVersion, [connection]));
 
+        /// <summary>How many times the connection was tried.</summary>
+        internal int Tests { get; private set; }
+
         public Task<ConnectionTestResponse> TestConnectionAsync(
-            ConnectionTestRequest request, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new ConnectionTestResponse(
+            ConnectionTestRequest request, CancellationToken cancellationToken = default)
+        {
+            Tests++;
+            return Task.FromResult(new ConnectionTestResponse(
                 StorageIpcContract.CurrentVersion, request.ConnectionId, Succeeded: false, 0, _failure));
+        }
 
         public Task<StorageListPageResponse> ListStorageAsync(
             StorageListPageRequest request, CancellationToken cancellationToken = default) =>

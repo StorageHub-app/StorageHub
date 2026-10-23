@@ -4,7 +4,8 @@
         x:Class="StorageHub.Desktop.Views.BatchRenameWindow"
         x:DataType="vm:BatchRenameModel"
         Title="{Binding Title}"
-        Width="620" Height="460" MinWidth="480" MinHeight="360"
+        Width="{StaticResource BatchRenameWindowWidth}" Height="{StaticResource BatchRenameWindowHeight}"
+        MinWidth="{StaticResource BatchRenameWindowMinWidth}" MinHeight="{StaticResource BatchRenameWindowMinHeight}"
         WindowStartupLocation="CenterOwner">
 
   <!--
@@ -17,7 +18,7 @@
     <DockPanel>
       <Grid DockPanel.Dock="Top" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto"
             ColumnSpacing="{StaticResource SpaceMd}" RowSpacing="{StaticResource SpaceXs}"
-            Margin="0,0,0,12">
+            Margin="{StaticResource GapBelowLg}">
         <TextBlock Grid.Row="0" Grid.Column="0" Classes="caption" Text="{Binding FindLabel}"/>
         <TextBlock Grid.Row="0" Grid.Column="1" Classes="caption" Text="{Binding ReplaceLabel}"/>
         <TextBox x:Name="PART_Find" Grid.Row="1" Grid.Column="0"
@@ -28,7 +29,7 @@
                  AutomationProperties.Name="{Binding ReplaceAccessibleName}"/>
       </Grid>
 
-      <StackPanel DockPanel.Dock="Bottom" Spacing="{StaticResource SpaceSm}" Margin="0,10,0,0">
+      <StackPanel DockPanel.Dock="Bottom" Spacing="{StaticResource SpaceSm}" Margin="{StaticResource BlockGapAbove}">
         <TextBlock Classes="caption"
                    Classes.danger="{Binding HasProblem}"
                    Text="{Binding Summary}" TextWrapping="Wrap"/>
@@ -39,7 +40,7 @@
         </StackPanel>
       </StackPanel>
 
-      <Border Classes="card" Padding="4">
+      <Border Classes="card" Padding="{StaticResource PaddingSm}">
         <ListBox ItemsSource="{Binding Lines}" Background="Transparent" BorderThickness="0"
                  AutomationProperties.Name="{Binding PreviewAccessibleName}">
           <ListBox.ItemTemplate>

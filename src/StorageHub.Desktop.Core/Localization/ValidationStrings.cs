@@ -20,6 +20,11 @@ internal sealed class ValidationStrings : LocalizationModelBase
 
     public string AFileCannotBeCopiedOrMoved { get; set; } = "A file cannot be copied or moved onto itself.";
 
+    public string AFolderCannotBeCopiedIntoItself { get; set; } = "A folder cannot be copied into itself or into a folder inside it.";
+
+    public string TheDestinationMovedBeforeQueueing { get; set; } =
+        "The destination pane went to another folder before the transfer was queued, so nothing was queued.";
+
     public string AGroupNameIsRequired { get; set; } = "A group name is required.";
 
     public string AProfileNameIsRequired { get; set; } = "A profile name is required.";

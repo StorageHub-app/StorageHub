@@ -302,6 +302,16 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
     private bool _again;
 
     /// <summary>
+    /// How many actions are sending their requests one after another: a Cancel, Retry or Apply on
+    /// the chosen rows, a queue-wide Pause, Resume or Start, a Clear. The polls stand aside while
+    /// there are any. They share one client, which takes a request at a time, so a poll queued
+    /// behind a long run of them timed out waiting its turn, took that for an agent that had gone,
+    /// and disposed the client under the action, which then stopped part-way as "unavailable".
+    /// Each action reads the queue again when it is done.
+    /// </summary>
+    private int _batches;
+
+    /// <summary>
     /// A folder being read moved on while a read was in flight, to be read again, quietly, when
     /// it is done. Skipped like a tick, a reading that had stopped went on showing, with Cancel
     /// still on, until the next poll.
@@ -634,7 +644,7 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
     /// </param>
     internal async Task RefreshAsync(bool background = false)
     {
-        if (_lifetime.IsCancellationRequested) return;
+        if (_lifetime.IsCancellationRequested || _batches > 0) return;
 
         // One request in flight. The client is strictly correlated, and a second poll landing on
         // top of a slow one is how a response gets attributed to the wrong tab. A press or a tab
@@ -913,6 +923,15 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
     /// transfers than when the row was first seen is what says they have appeared; a drop whose
     /// transfers appeared first, or none do, leaves the row to expire as it always did.
     /// </summary>
+    /// <remarks>
+    /// The rows of the agent's transfers carry nothing that names the drop they came from, and a
+    /// small file's has usually finished, and left the Active tab, before a poll sees it; so it is
+    /// the count that is watched. Each new transfer is taken by one drop only, the earliest seen
+    /// first: two drops first seen in the same poll used to share one starting count, and the
+    /// first's transfer took both rows away. A count that falls, as Clear history makes it, lowers
+    /// the starting counts with it, or a row first seen before the clear would never see growth
+    /// past a count the queue no longer reached.
+    /// </remarks>
     private void SettleHandedOverDrops(IReadOnlyDictionary<TransferQueueState, int> counts)
     {
         if (_pendingDrops is not { } drops) return;
@@ -926,14 +945,29 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
 
         foreach (var entry in handedOver)
         {
-            if (!_handedOverAt.TryGetValue(entry.Token, out var before))
+            if (!_handedOverAt.TryGetValue(entry.Token, out var before) || before > total)
             {
                 _handedOverAt[entry.Token] = total;
             }
-            else if (total > before)
+        }
+
+        var waiting = handedOver
+            .OrderBy(entry => _handedOverAt[entry.Token])
+            .ThenBy(static entry => entry.UpdatedUtc)
+            .Select(static entry => entry.Token)
+            .ToList();
+        for (var index = 0; index < waiting.Count; index++)
+        {
+            var before = _handedOverAt[waiting[index]];
+            if (total <= before) continue;
+
+            _handedOverAt.Remove(waiting[index]);
+            drops.Discard(waiting[index]);
+
+            // The transfer this drop took was counted by every drop seen at the same count too.
+            for (var later = index + 1; later < waiting.Count; later++)
             {
-                _handedOverAt.Remove(entry.Token);
-                drops.Discard(entry.Token);
+                if (_handedOverAt[waiting[later]] <= before) _handedOverAt[waiting[later]]++;
             }
         }
     }
@@ -1179,6 +1213,7 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
         Say(Ui.Transfer.ApplyingAction);
         var applied = 0;
         var refused = 0;
+        _batches++;
         try
         {
             var client = _client ??= _connect();
@@ -1209,6 +1244,10 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
         {
             await FailedAsync(error).ConfigureAwait(true);
             return;
+        }
+        finally
+        {
+            _batches--;
         }
 
         Say(refused == 0
@@ -1332,6 +1371,7 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
         Say(Ui.Transfer.ApplyingAction);
         var applied = 0;
         var refused = 0;
+        _batches++;
         try
         {
             var client = _client ??= _connect();
@@ -1382,6 +1422,10 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
             await FailedAsync(error).ConfigureAwait(true);
             return;
         }
+        finally
+        {
+            _batches--;
+        }
 
         Say(refused == 0
             ? Ui.Format(doneFormat, applied)
@@ -1417,6 +1461,7 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
 
         Say(Ui.Transfer.ApplyingAction);
         var cancelled = new List<Guid>(targets.Length);
+        _batches++;
         try
         {
             var client = _client ??= _connect();
@@ -1436,6 +1481,10 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
         {
             await FailedAsync(error).ConfigureAwait(true);
             return;
+        }
+        finally
+        {
+            _batches--;
         }
 
         if (cancelled.Count == 0)
@@ -1507,6 +1556,7 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
         Say(Ui.Transfer.ClearingHistory);
         var cleared = 0;
         StorageIpcFailure? failure = null;
+        _batches++;
         try
         {
             var client = _client ??= _connect();
@@ -1532,6 +1582,10 @@ internal sealed class TransferQueueModel : INotifyPropertyChanged, IAsyncDisposa
         {
             await FailedAsync(error).ConfigureAwait(true);
             return;
+        }
+        finally
+        {
+            _batches--;
         }
 
         Say(failure?.Message ?? (cleared == 0

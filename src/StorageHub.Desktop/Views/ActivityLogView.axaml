@@ -11,7 +11,7 @@
   -->
 
   <DockPanel>
-    <TextBlock DockPanel.Dock="Top" Classes="status" Margin="8,4"
+    <TextBlock DockPanel.Dock="Top" Classes="status" Margin="{StaticResource RowInsetMargin}"
                Classes.success="{Binding Status.IsSuccess}"
                Classes.danger="{Binding Status.IsDanger}"
                Text="{Binding Status.Text}" TextWrapping="Wrap"
@@ -21,10 +21,10 @@
                SelectedItem="{Binding Selected, Mode=TwoWay}"
                AutomationProperties.Name="{Binding GridAccessibleName}">
       <TableView.Columns>
-        <TableViewColumn Header="{Binding ColumnUpdated}" Binding="{Binding Updated}" Width="140"/>
-        <TableViewColumn Header="{Binding ColumnArea}" Binding="{Binding Area}" Width="90"/>
-        <TableViewColumn Header="{Binding ColumnItem}" Binding="{Binding Item}" Width="100"/>
-        <TableViewColumn Header="{Binding ColumnState}" Binding="{Binding State}" Width="140"/>
+        <TableViewColumn Header="{Binding ColumnUpdated}" Binding="{Binding Updated}" Width="{StaticResource DateColumnWidth}"/>
+        <TableViewColumn Header="{Binding ColumnArea}" Binding="{Binding Area}" Width="{StaticResource ActivityAreaColumnWidth}"/>
+        <TableViewColumn Header="{Binding ColumnItem}" Binding="{Binding Item}" Width="{StaticResource ActivityItemColumnWidth}"/>
+        <TableViewColumn Header="{Binding ColumnState}" Binding="{Binding State}" Width="{StaticResource ActivityStateColumnWidth}"/>
         <TableViewColumn Header="{Binding ColumnDetails}" Binding="{Binding Details}" Width="*"/>
       </TableView.Columns>
     </TableView>

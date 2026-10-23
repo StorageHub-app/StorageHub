@@ -1202,7 +1202,12 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
                 AgentToolTip = result.Status == AgentEnsureStatus.Started
                     ? Ui.Shell.AgentRestarted
                     : Ui.Shell.AgentReconnected;
-                ReloadEverything();
+
+                // Said to the availability rather than reloading here. Reloading here as well left
+                // the monitor's next poll to find the agent online and announce the recovery a
+                // second time, and everything loaded twice. The announcement is the one reload:
+                // made now, or already made if a probe saw the agent back while this ran.
+                DesktopAgentAvailability.ReportSuccess();
             }
             else
             {
@@ -1624,7 +1629,11 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
                 AgentAvailability.Offline => AgentConnectionState.Disconnected,
                 _ => ShellStatus.AgentState,
             };
-            if (ShellStatus.AgentState != state) ShellStatus = ShellStatus with { AgentState = state };
+
+            // A recovery takes eight to twelve seconds and says "starting" for all of it; only the
+            // agent answering ends that early, not a failure that is what the recovery is about.
+            var starting = _recovering && state != AgentConnectionState.Connected;
+            if (!starting && ShellStatus.AgentState != state) ShellStatus = ShellStatus with { AgentState = state };
 
             if (e.Recovered) ReloadEverything();
         });
@@ -1650,9 +1659,13 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
             _lastKnownWork = status.ActiveTransfers + status.ActiveSyncRuns;
         }
 
+        // A poll that finds the agent still gone while it is being recovered leaves "starting" up,
+        // for the same reason the availability handler does.
         ShellStatus = ShellStatus with
         {
-            AgentState = status.State,
+            AgentState = _recovering && status.State == AgentConnectionState.Disconnected
+                ? ShellStatus.AgentState
+                : status.State,
             ActiveJobs = status.ActiveTransfers + status.ActiveSyncRuns,
         };
 

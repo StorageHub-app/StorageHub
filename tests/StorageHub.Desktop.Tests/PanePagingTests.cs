@@ -29,9 +29,12 @@ public class PanePagingTests
         Assert.True(await pane.LoadMoreAsync(TestContext.Current.CancellationToken));
         Assert.Equal(80, pane.Rows.Count);
 
+        // "Load all", beside it, reads the rest in one go and then has nothing left to offer.
+        Assert.True(pane.LoadAllCommand.CanExecute(null));
         Assert.True(await pane.LoadAllAsync(TestContext.Current.CancellationToken));
         Assert.Equal(100, pane.Rows.Count);
         Assert.False(pane.HasMorePages);
+        Assert.False(pane.LoadAllCommand.CanExecute(null));
         Assert.Equal(Localization.Ui.Format(Localization.Ui.Pane.ItemCountFormat, 100), pane.ItemCount);
     }
 
@@ -49,6 +52,27 @@ public class PanePagingTests
         Assert.Same(first, pane.Rows[0]);
         Assert.Contains(first, pane.SelectedRows);
         Assert.Equal(pane.Rows.OrderBy(static row => row.Name, StringComparer.OrdinalIgnoreCase), pane.Rows);
+    }
+
+    /// <summary>
+    /// A quiet re-read, as the shell does every few seconds while transfers run, reads again every
+    /// page that had been read. It used to stop at the first, so a folder loaded to its end lost
+    /// the rest, and what was selected in it, on every tick.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task AQuietRefreshKeepsEveryPageThatHadBeenReadAndWhatIsSelectedThere()
+    {
+        var (pane, _) = await OpenAsync(entries: 100);
+        await using var _pane = pane;
+        await pane.LoadAllAsync(TestContext.Current.CancellationToken);
+        var far = pane.Rows.Single(static row => row.Name == "file-090.bin");
+        pane.SelectedRows.Add(far);
+
+        Assert.True(await pane.RefreshQuietlyAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal(100, pane.Rows.Count);
+        Assert.False(pane.HasMorePages);
+        Assert.Equal("file-090.bin", Assert.Single(pane.SelectedRows).Name);
     }
 
     /// <summary>What a paste checks for clashes is the whole folder, not what a filter is showing.</summary>

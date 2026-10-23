@@ -115,6 +115,42 @@ public sealed class ExternalEditingTests : IDisposable
         Assert.False(Store().Load().WarnBeforeUnsafeExternalEdit);
     }
 
+    /// <summary>
+    /// Settings changed after the controller was made are what the next open uses, and stopping
+    /// the warning keeps them.
+    /// </summary>
+    /// <remarks>
+    /// The shell keeps one controller for the session, and it used to keep the settings it read at
+    /// the first edit too: a new editor was not used until a restart, and "don't show again" wrote
+    /// that old copy back over everything changed in Settings since.
+    /// </remarks>
+    [Fact]
+    public async Task SettingsChangedSinceTheFirstOpenAreUsedAndKept()
+    {
+        var unsupported = true;
+        _agent.DownloadFor = request =>
+        {
+            if (!unsupported) return Content("unguarded") with { Address = request.Address };
+            unsupported = false;
+            return Failed<EditableFileDownloadResponse>("No conditional reads.", StorageIpcFailureCategory.Unsupported);
+        };
+        await using var editing = Controller(editor: TestPaths.Rooted("tools/first"));
+        _prompts.Unsafe = new UnsafeExternalEditDecision(Continue: true, DontShowAgain: false);
+        Assert.NotNull(await editing.OpenAsync(Address, "readme.txt", 5));
+
+        // Changed in Settings, which saves through a store of its own.
+        var second = TestPaths.Rooted("tools/second");
+        Store().Save(Store().Load() with { ExternalEditorPath = second, Appearance = DesktopAppearance.Dark });
+        unsupported = true;
+        _prompts.Unsafe = new UnsafeExternalEditDecision(Continue: true, DontShowAgain: true);
+        Assert.NotNull(await editing.OpenAsync(Address, "readme.txt", 5));
+
+        Assert.Equal(second, _launcher.Editor);
+        var saved = Store().Load();
+        Assert.False(saved.WarnBeforeUnsafeExternalEdit);
+        Assert.Equal((second, DesktopAppearance.Dark), (saved.ExternalEditorPath, saved.Appearance));
+    }
+
     [Fact]
     public async Task WithTheWarningOffNoOneIsAsked()
     {
@@ -350,7 +386,7 @@ public sealed class ExternalEditingTests : IDisposable
             MaximumEditableFileBytes = maximumBytes ?? preferences.MaximumEditableFileBytes
         });
         return new ExternalEditController(
-            store, () => _agent, _prompts, _launcher, Path.Combine(_directory, "sessions"), debounce ?? NoWatcherCheck);
+            Store, () => _agent, _prompts, _launcher, Path.Combine(_directory, "sessions"), debounce ?? NoWatcherCheck);
     }
 
     /// <summary>

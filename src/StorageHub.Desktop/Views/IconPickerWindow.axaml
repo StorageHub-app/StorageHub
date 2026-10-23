@@ -4,7 +4,7 @@
         x:Class="StorageHub.Desktop.Views.IconPickerWindow"
         x:DataType="vm:IconPickerModel"
         Title="{Binding Title}"
-        Width="420" SizeToContent="Height"
+        Width="{StaticResource IconPickerWindowWidth}" SizeToContent="Height"
         CanResize="False"
         WindowStartupLocation="CenterOwner">
 
@@ -26,9 +26,9 @@
         </ListBox.ItemsPanel>
         <ListBox.ItemTemplate>
           <DataTemplate DataType="vm:IconChoiceModel">
-            <Border Width="40" Height="40" ToolTip.Tip="{Binding Key}"
+            <Border Width="{StaticResource IconChoiceSize}" Height="{StaticResource IconChoiceSize}" ToolTip.Tip="{Binding Key}"
                     AutomationProperties.Name="{Binding Key}">
-              <LucideIcon Kind="{Binding Icon}" Size="22"
+              <LucideIcon Kind="{Binding Icon}" Size="{StaticResource IconChoiceGlyphSize}"
                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </Border>
           </DataTemplate>

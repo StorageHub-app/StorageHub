@@ -7,6 +7,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Lucide.Avalonia;
 using StorageHub.Desktop.Localization;
@@ -114,7 +115,7 @@ public partial class BrowserPaneView : UserControl
             };
         }
         // The name is the column somebody reads, so it keeps room for one before the others do.
-        if (Table is { } table) Themes.TableColumnRules.SetFlexibleMinimum(table, 160);
+        if (Table is { } table) TableColumnRules.SetFlexibleMinimum(table, DesignTokens.Get<double>("PaneNameColumnMinWidth"));
         PaneDragHandler.Attach(this, () => Model);
         if (this.FindControl<Border>("PART_Header") is { } header)
         {
@@ -199,6 +200,7 @@ public partial class BrowserPaneView : UserControl
             _bound.FocusAddressRequested -= OnFocusAddress;
             _bound.ChoicesRequested -= OnChoicesRequested;
             _bound.ConnectionPickerRequested -= OnConnectionPickerRequested;
+            _bound.Tree.Selected -= OnTreeSelected;
         }
 
         _bound = model;
@@ -208,14 +210,35 @@ public partial class BrowserPaneView : UserControl
             _bound.FocusAddressRequested += OnFocusAddress;
             _bound.ChoicesRequested += OnChoicesRequested;
             _bound.ConnectionPickerRequested += OnConnectionPickerRequested;
+            _bound.Tree.Selected += OnTreeSelected;
         }
 
         RefreshHeadings();
         ArrangeTree();
     }
 
+    /// <summary>
+    /// Scrolls the tree to the folder the pane is in, once the tree has laid it out.
+    /// </summary>
+    /// <remarks>
+    /// The tree followed the pane to a folder, but did not scroll there: a folder reached through
+    /// the address bar, a double-click or Back sat below the bottom of the tree as often as not,
+    /// with the tree still showing the top of the drive. Asked for after layout, because the node
+    /// may have just been made, or its parents just opened, and has no item to scroll to until
+    /// the tree has been laid out with it.
+    /// </remarks>
+    private void OnTreeSelected(object? sender, PaneTreeNode node)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (this.FindControl<TreeView>("PART_Tree") is not { IsVisible: true } tree) return;
+            if (!node.IsSelected || tree.TreeContainerFromItem(node) is not { } item) return;
+            item.BringIntoView();
+        }, DispatcherPriority.Loaded);
+    }
+
     /// <summary>The width the tree was dragged to, given back when it is shown again.</summary>
-    private GridLength _treeWidth = new(185);
+    private GridLength _treeWidth = DesignTokens.Get<GridLength>("PaneTreeWidth");
 
     /// <summary>
     /// Shows or hides the folder tree with its splitter, as View > Directory Tree and the pane's
@@ -431,13 +454,13 @@ public partial class BrowserPaneView : UserControl
                 Header = model.Selected is { IsParentNavigation: true } ? Ui.Pane.GoUpOneLevel : Ui.Pane.Open,
                 Command = model.OpenCommand,
                 FontWeight = Avalonia.Media.FontWeight.SemiBold,
-                Icon = new LucideIcon { Kind = LucideIconKind.FolderOpen, Size = 16 },
+                Icon = new LucideIcon { Kind = LucideIconKind.FolderOpen, Size = DesignTokens.Get<double>("IconSizeSm") },
             },
             new MenuItem
             {
                 Header = Ui.Pane.EditInExternalEditor,
                 Command = model.EditCommand,
-                Icon = new LucideIcon { Kind = LucideIconKind.FilePen, Size = 16 },
+                Icon = new LucideIcon { Kind = LucideIconKind.FilePen, Size = DesignTokens.Get<double>("IconSizeSm") },
             },
             new Separator(),
         };
@@ -453,7 +476,7 @@ public partial class BrowserPaneView : UserControl
                         Command = command.Command,
                         IsEnabled = CanRun(model, command.Id),
                         InputGesture = command.Shortcut.Gesture,
-                        Icon = command.Icon is { } icon ? new LucideIcon { Kind = icon, Size = 16 } : null,
+                        Icon = command.Icon is { } icon ? new LucideIcon { Kind = icon, Size = DesignTokens.Get<double>("IconSizeSm") } : null,
                     }
                     : new Separator());
             }

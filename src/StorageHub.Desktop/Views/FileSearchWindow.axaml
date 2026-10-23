@@ -4,8 +4,8 @@
         x:Class="StorageHub.Desktop.Views.FileSearchWindow"
         x:DataType="vm:FileSearchModel"
         Title="{x:Static vm:FileSearchModel.Title}"
-        Width="900" Height="540"
-        MinWidth="640" MinHeight="360"
+        Width="{StaticResource FileSearchWindowWidth}" Height="{StaticResource FileSearchWindowHeight}"
+        MinWidth="{StaticResource FileSearchWindowMinWidth}" MinHeight="{StaticResource FileSearchWindowMinHeight}"
         WindowStartupLocation="CenterOwner">
 
   <!--
@@ -17,10 +17,10 @@
     <DockPanel Margin="{StaticResource PaddingLg}">
 
       <TextBlock DockPanel.Dock="Top" Classes="caption" Text="{Binding Intro}"
-                 TextWrapping="Wrap" Margin="0,0,0,8"/>
+                 TextWrapping="Wrap" Margin="{StaticResource GapBelowMd}"/>
 
       <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto,Auto"
-            ColumnSpacing="{StaticResource SpaceSm}" Margin="0,0,0,8">
+            ColumnSpacing="{StaticResource SpaceSm}" Margin="{StaticResource GapBelowMd}">
         <TextBlock Grid.Column="0" Text="{x:Static vm:FileSearchModel.QueryLabel}" VerticalAlignment="Center"/>
         <TextBox Grid.Column="1" x:Name="QueryBox" Text="{Binding Query, Mode=TwoWay}"
                  PlaceholderText="{x:Static vm:FileSearchModel.QueryHint}"
@@ -32,7 +32,7 @@
       </Grid>
 
       <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto,Auto"
-            ColumnSpacing="{StaticResource SpaceSm}" Margin="0,8,0,0">
+            ColumnSpacing="{StaticResource SpaceSm}" Margin="{StaticResource GapAboveMd}">
         <TextBlock Grid.Column="0" Classes="status"
                    Classes.primary="{Binding Status.IsPrimary}"
                    Classes.success="{Binding Status.IsSuccess}"
@@ -55,8 +55,8 @@
         <TableView.Columns>
           <TableViewColumn Header="{x:Static vm:FileSearchModel.ColumnName}" Binding="{Binding Name}" Width="220*"/>
           <TableViewColumn Header="{x:Static vm:FileSearchModel.ColumnFolder}" Binding="{Binding Folder}" Width="360*"/>
-          <TableViewColumn Header="{x:Static vm:FileSearchModel.ColumnSize}" Binding="{Binding Size}" Width="90"/>
-          <TableViewColumn Header="{x:Static vm:FileSearchModel.ColumnModified}" Binding="{Binding Modified}" Width="140"/>
+          <TableViewColumn Header="{x:Static vm:FileSearchModel.ColumnSize}" Binding="{Binding Size}" Width="{StaticResource SizeColumnWidth}"/>
+          <TableViewColumn Header="{x:Static vm:FileSearchModel.ColumnModified}" Binding="{Binding Modified}" Width="{StaticResource DateColumnWidth}"/>
         </TableView.Columns>
       </TableView>
     </DockPanel>

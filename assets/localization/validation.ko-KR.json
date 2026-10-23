@@ -3,6 +3,8 @@
   "aDestinationFolderOrNonFileItem2": "대상 폴더 또는 파일이 아닌 항목이 원본 파일과 충돌합니다.",
   "aDestinationIsRequiredForDirectNavigation": "직접 이동하려면 대상이 필요합니다.",
   "aFileCannotBeCopiedOrMoved": "파일을 자기 자신에게 복사하거나 이동할 수 없습니다.",
+  "aFolderCannotBeCopiedIntoItself": "폴더를 자기 자신이나 그 안의 폴더로 복사할 수 없습니다.",
+  "theDestinationMovedBeforeQueueing": "전송을 대기열에 추가하기 전에 대상 창이 다른 폴더로 이동하여 아무것도 추가되지 않았습니다.",
   "aGroupNameIsRequired": "그룹 이름이 필요합니다.",
   "aProfileNameIsRequired": "프로필 이름이 필요합니다.",
   "aSavedConnectionIDAndVerifiedRoot": "저장된 연결 ID와 확인된 루트 ID가 필요합니다.",

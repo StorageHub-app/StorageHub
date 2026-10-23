@@ -110,6 +110,8 @@
   "mainToolbar": "मुख्य टूलबार",
   "moreToolbarCommands": "और टूलबार कमांड",
   "applicationStatus": "एप्लिकेशन की स्थिति",
+  "startupStatus": "स्टार्टअप स्थिति",
+  "startupDetails": "स्टार्टअप विवरण",
   "agentStatus": "एजेंट की स्थिति",
   "updateStatus": "अपडेट की स्थिति",
   "currentLocation": "वर्तमान स्थान",

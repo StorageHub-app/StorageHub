@@ -299,6 +299,10 @@ internal sealed class ShellStrings : LocalizationModelBase
 
     public string ApplicationStatus { get; set; } = "Application status";
 
+    public string StartupStatus { get; set; } = "Startup status";
+
+    public string StartupDetails { get; set; } = "Startup details";
+
     public string AgentStatus { get; set; } = "Agent status";
 
     public string UpdateStatus { get; set; } = "Update status";

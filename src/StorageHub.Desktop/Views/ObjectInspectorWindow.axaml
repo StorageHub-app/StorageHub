@@ -4,8 +4,8 @@
         x:Class="StorageHub.Desktop.Views.ObjectInspectorWindow"
         x:DataType="vm:ObjectInspectorModel"
         Title="{Binding Title}"
-        Width="1120" Height="720"
-        MinWidth="860" MinHeight="560"
+        Width="{StaticResource ObjectInspectorWindowWidth}" Height="{StaticResource ObjectInspectorWindowHeight}"
+        MinWidth="{StaticResource ObjectInspectorWindowMinWidth}" MinHeight="{StaticResource ObjectInspectorWindowMinHeight}"
         WindowStartupLocation="CenterOwner">
 
   <!--
@@ -50,8 +50,8 @@
           <DockPanel>
             <TextBlock DockPanel.Dock="Top" Classes="status"
                        Classes.warning="{Binding GeneralNotice.IsWarning}"
-                       Text="{Binding GeneralNotice.Text}" TextWrapping="Wrap" Margin="0,8,0,8"/>
-            <StackPanel DockPanel.Dock="Bottom" Spacing="{StaticResource SpaceSm}" Margin="0,8,0,0">
+                       Text="{Binding GeneralNotice.Text}" TextWrapping="Wrap" Margin="{StaticResource GapAroundMd}"/>
+            <StackPanel DockPanel.Dock="Bottom" Spacing="{StaticResource SpaceSm}" Margin="{StaticResource GapAboveMd}">
               <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
                           Spacing="{StaticResource SpaceSm}">
                 <Button Content="{Binding ChangePermissionsLabel}" Command="{Binding ChangePermissionsCommand}"/>
@@ -74,19 +74,19 @@
           <DockPanel>
             <TextBlock DockPanel.Dock="Top" Classes="status"
                        Classes.warning="{Binding VersionsNotice.IsWarning}"
-                       Text="{Binding VersionsNotice.Text}" TextWrapping="Wrap" Margin="0,8,0,8"/>
+                       Text="{Binding VersionsNotice.Text}" TextWrapping="Wrap" Margin="{StaticResource GapAroundMd}"/>
             <Button DockPanel.Dock="Bottom" Content="{Binding LoadMoreLabel}"
                     Command="{Binding LoadMoreCommand}" HorizontalAlignment="Right"
-                    Margin="0,8,0,0"
+                    Margin="{StaticResource GapAboveMd}"
                     AutomationProperties.Name="{Binding LoadMoreAccessibleName}"/>
             <TableView ItemsSource="{Binding Versions}"
                        AutomationProperties.Name="{Binding VersionsAccessibleName}">
               <TableView.Columns>
-                <TableViewColumn Header="{Binding ColumnCurrent}" Binding="{Binding Current}" Width="70"/>
+                <TableViewColumn Header="{Binding ColumnCurrent}" Binding="{Binding Current}" Width="{StaticResource InspectorCurrentColumnWidth}"/>
                 <TableViewColumn Header="{Binding ColumnVersion}" Binding="{Binding VersionId}" Width="150*"/>
-                <TableViewColumn Header="{Binding ColumnSize}" Binding="{Binding Size}" Width="90"/>
-                <TableViewColumn Header="{Binding ColumnModified}" Binding="{Binding Modified}" Width="170"/>
-                <TableViewColumn Header="{Binding ColumnDeleteMarker}" Binding="{Binding DeleteMarker}" Width="100"/>
+                <TableViewColumn Header="{Binding ColumnSize}" Binding="{Binding Size}" Width="{StaticResource SizeColumnWidth}"/>
+                <TableViewColumn Header="{Binding ColumnModified}" Binding="{Binding Modified}" Width="{StaticResource InspectorModifiedColumnWidth}"/>
+                <TableViewColumn Header="{Binding ColumnDeleteMarker}" Binding="{Binding DeleteMarker}" Width="{StaticResource InspectorDeleteMarkerColumnWidth}"/>
                 <TableViewColumn Header="{Binding ColumnEntityTag}" Binding="{Binding EntityTag}" Width="120*"/>
               </TableView.Columns>
             </TableView>
@@ -97,7 +97,7 @@
           <DockPanel>
             <TextBlock DockPanel.Dock="Top" Classes="status"
                        Classes.warning="{Binding MetadataNotice.IsWarning}"
-                       Text="{Binding MetadataNotice.Text}" TextWrapping="Wrap" Margin="0,8,0,8"/>
+                       Text="{Binding MetadataNotice.Text}" TextWrapping="Wrap" Margin="{StaticResource GapAroundMd}"/>
             <TableView ItemsSource="{Binding Metadata}"
                        AutomationProperties.Name="{Binding MetadataAccessibleName}">
               <TableView.Columns>
@@ -112,7 +112,7 @@
           <DockPanel>
             <TextBlock DockPanel.Dock="Top" Classes="status"
                        Classes.warning="{Binding TagsNotice.IsWarning}"
-                       Text="{Binding TagsNotice.Text}" TextWrapping="Wrap" Margin="0,8,0,8"/>
+                       Text="{Binding TagsNotice.Text}" TextWrapping="Wrap" Margin="{StaticResource GapAroundMd}"/>
             <TableView ItemsSource="{Binding Tags}"
                        AutomationProperties.Name="{Binding TagsAccessibleName}">
               <TableView.Columns>
@@ -123,7 +123,7 @@
           </DockPanel>
         </TabItem>
         <TabItem Header="{Binding ChecksumTabLabel}" IsVisible="{Binding IsFile}">
-          <StackPanel Spacing="{StaticResource SpaceSm}" Margin="0,8,0,0">
+          <StackPanel Spacing="{StaticResource SpaceSm}" Margin="{StaticResource GapAboveMd}">
             <TextBlock Classes="status"
                        Classes.success="{Binding ChecksumNotice.IsSuccess}"
                        Classes.warning="{Binding ChecksumNotice.IsWarning}"

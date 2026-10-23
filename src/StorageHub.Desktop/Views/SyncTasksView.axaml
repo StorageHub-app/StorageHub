@@ -80,7 +80,7 @@
                         VerticalAlignment="Center"/>
             <TextBlock Classes="title" Text="{Binding SavedTasksTitle}" VerticalAlignment="Center"/>
           </StackPanel>
-          <TableView ItemsSource="{Binding Tasks}" Height="170">
+          <TableView ItemsSource="{Binding Tasks}" Height="{StaticResource SyncTasksTableHeight}">
             <TableView.Columns>
               <TableViewColumn Header="{Binding ColumnName}" Width="*">
                 <TableViewColumn.CellTemplate>
@@ -93,8 +93,8 @@
                   </DataTemplate>
                 </TableViewColumn.CellTemplate>
               </TableViewColumn>
-              <TableViewColumn Header="{Binding ColumnBehavior}" Binding="{Binding Behavior}" Width="180"/>
-              <TableViewColumn Header="{Binding ColumnState}" Binding="{Binding State}" Width="180"/>
+              <TableViewColumn Header="{Binding ColumnBehavior}" Binding="{Binding Behavior}" Width="{StaticResource SyncTaskBehaviorColumnWidth}"/>
+              <TableViewColumn Header="{Binding ColumnState}" Binding="{Binding State}" Width="{StaticResource SyncTaskStateColumnWidth}"/>
               <TableViewColumn Header="{Binding ColumnUpdated}" Binding="{Binding Updated}" Width="*"/>
             </TableView.Columns>
           </TableView>
@@ -109,7 +109,7 @@
                         VerticalAlignment="Center"/>
             <TextBlock Classes="title" Text="{Binding LastSyncsTitle}" VerticalAlignment="Center"/>
           </StackPanel>
-          <TableView ItemsSource="{Binding LastSyncs}" Height="120">
+          <TableView ItemsSource="{Binding LastSyncs}" Height="{StaticResource LastSyncsTableHeight}">
             <TableView.Columns>
               <TableViewColumn Header="{Binding ColumnName}" Width="*">
                 <TableViewColumn.CellTemplate>
@@ -122,7 +122,7 @@
                   </DataTemplate>
                 </TableViewColumn.CellTemplate>
               </TableViewColumn>
-              <TableViewColumn Header="{Binding ColumnState}" Binding="{Binding State}" Width="240"/>
+              <TableViewColumn Header="{Binding ColumnState}" Binding="{Binding State}" Width="{StaticResource LastSyncStateColumnWidth}"/>
               <TableViewColumn Header="{Binding ColumnUpdated}" Binding="{Binding Updated}" Width="*"/>
             </TableView.Columns>
           </TableView>

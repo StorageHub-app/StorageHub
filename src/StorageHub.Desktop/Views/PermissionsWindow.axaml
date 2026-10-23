@@ -31,7 +31,7 @@
 
       <Grid ColumnDefinitions="Auto,*,*,*" RowDefinitions="Auto,Auto,Auto,Auto"
             ColumnSpacing="{StaticResource SpaceMd}" RowSpacing="{StaticResource SpaceXs}"
-            Margin="0,4,0,4"
+            Margin="{StaticResource GapAroundSm}"
             AutomationProperties.Name="{Binding CheckboxesAccessibleName}">
         <TextBlock Grid.Row="0" Grid.Column="1" Classes="muted" Text="{Binding ReadLabel}"/>
         <TextBlock Grid.Row="0" Grid.Column="2" Classes="muted" Text="{Binding WriteLabel}"/>
@@ -62,7 +62,12 @@
                   AutomationProperties.Name="{Binding OthersLabel}"/>
       </Grid>
 
-      <Grid ColumnDefinitions="Auto,96,*" ColumnSpacing="{StaticResource SpaceMd}">
+      <Grid ColumnSpacing="{StaticResource SpaceMd}">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="{StaticResource OctalFieldColumnWidth}"/>
+          <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
         <TextBlock Grid.Column="0" Text="{Binding OctalLabel}" VerticalAlignment="Center"/>
         <TextBox Grid.Column="1" x:Name="PART_Octal" Text="{Binding Octal, Mode=TwoWay}"
                  MaxLength="4" FontFamily="{DynamicResource AppFontMono}"

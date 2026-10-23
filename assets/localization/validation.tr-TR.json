@@ -3,6 +3,8 @@
   "aDestinationFolderOrNonFileItem2": "Bir hedef klasörü veya dosya olmayan öğe, bir kaynak dosyayla çakışıyor.",
   "aDestinationIsRequiredForDirectNavigation": "Doğrudan gezinme için bir hedef gereklidir.",
   "aFileCannotBeCopiedOrMoved": "Bir dosya kendi üzerine kopyalanamaz veya taşınamaz.",
+  "aFolderCannotBeCopiedIntoItself": "Bir klasör kendi içine veya içindeki bir klasöre kopyalanamaz.",
+  "theDestinationMovedBeforeQueueing": "Aktarım kuyruğa alınmadan önce hedef bölme başka bir klasöre geçti, bu yüzden hiçbir şey kuyruğa alınmadı.",
   "aGroupNameIsRequired": "Bir grup adı gereklidir.",
   "aProfileNameIsRequired": "Bir profil adı gereklidir.",
   "aSavedConnectionIDAndVerifiedRoot": "Bir kayıtlı bağlantı kimliği ve doğrulanmış kök kimliği gereklidir.",

@@ -181,6 +181,11 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
             static item => item.RelativePath,
             StringComparer.Ordinal);
         var batch = new List<(PaneTransferItem Item, string DestinationPath)>();
+
+        // Files to be renamed wait for the end of the walk, when every name the source will bring
+        // is claimed. Renamed as they were met, "a.txt" took "a (1).txt" from a sibling the walk had
+        // not reached yet, and that sibling then stopped the transfer as a duplicate target.
+        var deferredRenames = new List<(PaneTransferItem Item, string DestinationPath)>();
         long combinedPathCharacters = 0;
         var entryCount = 0;
 
@@ -197,7 +202,7 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
         {
             var flushed = await FlushAsync(
                 batch, source, destination, operation, conflicts, targetPaths, ensuredDirectories,
-                destinationEntries, accepted, cancellationToken).ConfigureAwait(false);
+                destinationEntries, accepted, deferredRenames, cancellationToken).ConfigureAwait(false);
             if (flushed is not null)
             {
                 return new ManualTransferEnqueueResult(accepted, flushed.AmbiguousTransferIds, flushed.Failure);
@@ -336,7 +341,7 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
                 {
                     var flushed = await FlushAsync(
                         batch, source, destination, operation, conflicts, targetPaths, ensuredDirectories,
-                        destinationEntries, accepted, cancellationToken).ConfigureAwait(false);
+                        destinationEntries, accepted, deferredRenames, cancellationToken).ConfigureAwait(false);
                     if (flushed is not null)
                     {
                         return new ManualTransferEnqueueResult(accepted, flushed.AmbiguousTransferIds, flushed.Failure);
@@ -349,12 +354,27 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
             }
         }
 
+        if (deferredRenames.Count > 0)
+        {
+            var flushed = await FlushAsync(
+                deferredRenames, source, destination, operation, conflicts, targetPaths, ensuredDirectories,
+                destinationEntries, accepted, deferredRenames: null, cancellationToken).ConfigureAwait(false);
+            if (flushed is not null)
+            {
+                return new ManualTransferEnqueueResult(accepted, flushed.AmbiguousTransferIds, flushed.Failure);
+            }
+
+            progress?.Invoke(accepted.Count, ensuredDirectories.Count);
+        }
+
         return new ManualTransferEnqueueResult(accepted, [], failure: null);
     }
 
     /// <summary>
     /// Turns one page of files into requests and hands them to the queue. Returns the failing result
     /// to stop on, or null when the page was accepted; what it accepted is appended either way.
+    /// A file to be renamed goes to <paramref name="deferredRenames"/> while the walk is still
+    /// running, and is renamed only on the last call, which passes null.
     /// </summary>
     private async Task<ManualTransferEnqueueResult?> FlushAsync(
         List<(PaneTransferItem Item, string DestinationPath)> batch,
@@ -366,6 +386,7 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
         HashSet<string> ensuredDirectories,
         Dictionary<string, PaneTransferItem> destinationEntries,
         List<TransferEnqueueResponse> accepted,
+        List<(PaneTransferItem Item, string DestinationPath)>? deferredRenames,
         CancellationToken cancellationToken)
     {
         var requests = new List<TransferEnqueueRequest>(batch.Count);
@@ -412,6 +433,12 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
                 {
                     case TransferConflictOutcome.Skip:
                         skipped++;
+                        continue;
+                    case TransferConflictOutcome.Rename when deferredRenames is not null:
+                        // The planned path is the existing file's, so it stays claimed by the
+                        // destination listing; the target set gets it back on the last call.
+                        targetPaths.Remove(destinationPath);
+                        deferredRenames.Add((item, destinationPath));
                         continue;
                     case TransferConflictOutcome.Rename:
                         var separator = destinationPath.LastIndexOf('/');

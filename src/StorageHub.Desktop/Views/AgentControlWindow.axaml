@@ -4,7 +4,7 @@
         x:Class="StorageHub.Desktop.Views.AgentControlWindow"
         x:DataType="vm:AgentControlModel"
         Title="{Binding Title}"
-        Width="520" SizeToContent="Height"
+        Width="{StaticResource AgentControlWindowWidth}" SizeToContent="Height"
         CanResize="False"
         WindowStartupLocation="CenterOwner">
 
@@ -39,7 +39,7 @@
                  AutomationProperties.Name="{Binding OutcomeAccessibleName}"/>
 
       <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
-                  Spacing="{StaticResource SpaceSm}" Margin="0,8,0,0">
+                  Spacing="{StaticResource SpaceSm}" Margin="{StaticResource GapAboveMd}">
         <Button Content="{Binding StartLabel}" Command="{Binding StartCommand}"/>
         <Button Content="{Binding StopLabel}" Command="{Binding StopCommand}"/>
         <Button Classes="primary" Content="{Binding RestartLabel}" Command="{Binding RestartCommand}"/>

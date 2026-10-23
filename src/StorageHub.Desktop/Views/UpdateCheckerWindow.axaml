@@ -4,7 +4,7 @@
         x:Class="StorageHub.Desktop.Views.UpdateCheckerWindow"
         x:DataType="vm:UpdateCheckerModel"
         Title="{Binding Title}"
-        Width="520" SizeToContent="Height"
+        Width="{StaticResource UpdateCheckerWindowWidth}" SizeToContent="Height"
         CanResize="False"
         WindowStartupLocation="CenterOwner">
 
@@ -37,7 +37,7 @@
       </StackPanel>
 
       <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
-                  Spacing="{StaticResource SpaceSm}" Margin="0,8,0,0">
+                  Spacing="{StaticResource SpaceSm}" Margin="{StaticResource GapAboveMd}">
         <Button Classes="primary" Content="{Binding PrimaryLabel}" Command="{Binding PrimaryCommand}"/>
         <Button Content="{Binding CloseLabel}" Command="{Binding CloseCommand}" IsCancel="True"/>
       </StackPanel>

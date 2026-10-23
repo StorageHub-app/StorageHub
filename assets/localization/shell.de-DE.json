@@ -108,6 +108,8 @@
   "mainToolbar": "Hauptsymbolleiste",
   "moreToolbarCommands": "Weitere Symbolleistenbefehle",
   "applicationStatus": "Anwendungsstatus",
+  "startupStatus": "Startstatus",
+  "startupDetails": "Startdetails",
   "agentStatus": "Agentstatus",
   "updateStatus": "Updatestatus",
   "currentLocation": "Aktueller Speicherort",

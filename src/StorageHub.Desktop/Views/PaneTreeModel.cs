@@ -123,6 +123,9 @@ internal sealed class PaneTreeModel
     private bool _local;
     private CancellationTokenSource? _scan;
 
+    /// <summary>The folder the pane is in, which the tree selected itself.</summary>
+    private PaneTreeNode? _current;
+
     /// <summary>How far and how hard a scan goes, which is gentler on a server than on a disk.</summary>
     /// <param name="Depth">Levels below the folder the pane is in; the folders it lists are the first.</param>
     /// <param name="Requests">The most folders read for one scan.</param>
@@ -159,10 +162,21 @@ internal sealed class PaneTreeModel
     /// <summary>Raised when somebody chooses a node, with where the pane should go.</summary>
     internal event EventHandler<string>? NavigateRequested;
 
+    /// <summary>
+    /// Raised when the tree selects the folder the pane is in, so the view can scroll it into
+    /// sight: a folder reached by the address bar or a double-click may be well below the top.
+    /// </summary>
+    internal event EventHandler<PaneTreeNode>? Selected;
+
     /// <summary>Called by the view when the tree's selection changes.</summary>
+    /// <remarks>
+    /// Not for the folder the pane is already in. The tree selects that one itself, and the view
+    /// hears of it again when the item is made on a later layout pass, after the selection was
+    /// made: the pane then read the folder it had just listed a second time, losing its scroll.
+    /// </remarks>
     internal void Chosen(PaneTreeNode? node)
     {
-        if (_updating || node is null) return;
+        if (_updating || node is null || ReferenceEquals(node, _current)) return;
         NavigateRequested?.Invoke(this, node.Target);
     }
 
@@ -228,7 +242,7 @@ internal sealed class PaneTreeModel
                 .Take(MaximumChildren)
                 .Select(row => (row.Name, Target: row.Location!, Drive: local && node == root))
                 .ToArray();
-            var wanted = folders.Select(static folder => folder.Target).ToHashSet(StringComparer.Ordinal);
+            var wanted = folders.Select(static folder => folder.Target).ToHashSet(TargetComparer(local));
 
             if (!append)
             {
@@ -242,7 +256,7 @@ internal sealed class PaneTreeModel
 
             foreach (var folder in folders)
             {
-                if (node.Children.Any(child => string.Equals(child.Target, folder.Target, StringComparison.Ordinal))) continue;
+                if (node.Children.Any(child => TargetComparer(local).Equals(child.Target, folder.Target))) continue;
                 Insert(node, new PaneTreeNode(folder.Name, folder.Target,
                     folder.Drive ? LucideIconKind.HardDrive : LucideIconKind.Folder));
             }
@@ -260,7 +274,7 @@ internal sealed class PaneTreeModel
 
     // ------------------------------------------------------------------ the scan
 
-    private void CancelScan()
+    internal void CancelScan()
     {
         var scan = Interlocked.Exchange(ref _scan, null);
         if (scan is null) return;
@@ -413,7 +427,7 @@ internal sealed class PaneTreeModel
         foreach (var folder in folders)
         {
             if (folder.IsHidden && !showHidden) continue;
-            if (node.Children.Any(child => string.Equals(child.Target, folder.Target, StringComparison.Ordinal))) continue;
+            if (node.Children.Any(child => TargetComparer(_local).Equals(child.Target, folder.Target))) continue;
             Insert(node, new PaneTreeNode(folder.Name, folder.Target, LucideIconKind.Folder));
         }
     }
@@ -455,7 +469,7 @@ internal sealed class PaneTreeModel
         var node = root;
         foreach (var (name, path) in Ancestry(target, local))
         {
-            var next = node.Children.FirstOrDefault(child => string.Equals(child.Target, path, StringComparison.Ordinal));
+            var next = node.Children.FirstOrDefault(child => TargetComparer(local).Equals(child.Target, path));
             if (next is null)
             {
                 next = new PaneTreeNode(name, path,
@@ -469,6 +483,16 @@ internal sealed class PaneTreeModel
 
         return node;
     }
+
+    /// <summary>
+    /// How two targets are told apart. This PC's paths compare without case on Windows, as
+    /// everywhere else in the app compares them (the pane's own "same folder" test, the history):
+    /// typing "c:\temp" where the listing had said "C:\" otherwise grew a second drive node. On
+    /// Linux "Photos" and "photos" are two folders, and a connection's paths are the server's,
+    /// where case is part of the name.
+    /// </summary>
+    private static StringComparer TargetComparer(bool local) =>
+        local && OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
 
     /// <summary>Each folder from the root down to <paramref name="target"/>, with its name.</summary>
     private static IEnumerable<(string Name, string Path)> Ancestry(string target, bool local)
@@ -513,7 +537,9 @@ internal sealed class PaneTreeModel
 
     private void Select(PaneTreeNode node)
     {
+        _current = node;
         foreach (var other in Flatten(Roots)) other.IsSelected = ReferenceEquals(other, node);
+        Selected?.Invoke(this, node);
     }
 
     private static IEnumerable<PaneTreeNode> Flatten(IEnumerable<PaneTreeNode> nodes)

@@ -110,6 +110,8 @@
   "mainToolbar": "メインツールバー",
   "moreToolbarCommands": "ツールバーのその他のコマンド",
   "applicationStatus": "アプリケーションの状態",
+  "startupStatus": "起動の状態",
+  "startupDetails": "起動の詳細",
   "agentStatus": "エージェントの状態",
   "updateStatus": "更新の状態",
   "currentLocation": "現在の場所",

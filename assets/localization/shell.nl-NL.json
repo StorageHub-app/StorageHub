@@ -110,6 +110,8 @@
   "mainToolbar": "Hoofdwerkbalk",
   "moreToolbarCommands": "Meer werkbalkopdrachten",
   "applicationStatus": "Toepassingsstatus",
+  "startupStatus": "Opstartstatus",
+  "startupDetails": "Opstartdetails",
   "agentStatus": "Agentstatus",
   "updateStatus": "Updatestatus",
   "currentLocation": "Huidige locatie",

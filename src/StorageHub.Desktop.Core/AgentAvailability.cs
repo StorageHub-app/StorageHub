@@ -138,6 +138,14 @@ public static class DesktopAgentAvailability
     /// Reports a failed agent call. Returns what to show for it, so a caller does both in one
     /// line and cannot report the failure without telling the person, or the other way round.
     /// </summary>
+    /// <remarks>
+    /// A failure moves an agent believed online to reconnecting, but leaves one already known to
+    /// be offline where it is. The queue polls every two seconds whether the agent is there or
+    /// not, so while it was down each poll said "reconnecting" and the next probe said "not
+    /// connected" again, and the status bar flickered between the two for as long as the outage
+    /// lasted. A failure while offline is not news; the probe it asks for is still made, within
+    /// its interval, and that is what notices the agent coming back.
+    /// </remarks>
     public static string ReportFailure(Exception error)
     {
         ArgumentNullException.ThrowIfNull(error);
@@ -146,7 +154,7 @@ public static class DesktopAgentAvailability
             return Ui.Shell.AgentRequestFailed;
         }
 
-        Set(AgentAvailability.Reconnecting);
+        Set(AgentAvailability.Reconnecting, unlessOffline: true);
         StartProbe();
         return Describe(error);
     }
@@ -180,12 +188,13 @@ public static class DesktopAgentAvailability
         Changed = null;
     }
 
-    private static void Set(AgentAvailability availability)
+    private static void Set(AgentAvailability availability, bool unlessOffline = false)
     {
         bool changed;
         bool recovered;
         lock (Gate)
         {
+            if (unlessOffline && _current == AgentAvailability.Offline) return;
             changed = _current != availability;
             recovered = changed &&
                 availability == AgentAvailability.Online &&

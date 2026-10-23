@@ -3,6 +3,8 @@
   "aDestinationFolderOrNonFileItem2": "Тека призначення або нефайловий елемент конфліктує з вихідним файлом.",
   "aDestinationIsRequiredForDirectNavigation": "Для прямої навігації потрібне призначення.",
   "aFileCannotBeCopiedOrMoved": "Файл не можна скопіювати чи перемістити сам на себе.",
+  "aFolderCannotBeCopiedIntoItself": "Папку не можна скопіювати в саму себе або у вкладену в неї папку.",
+  "theDestinationMovedBeforeQueueing": "Панель призначення перейшла до іншої папки до того, як передачу додано до черги, тому нічого не додано.",
   "aGroupNameIsRequired": "Потрібна назва групи.",
   "aProfileNameIsRequired": "Потрібна назва профілю.",
   "aSavedConnectionIDAndVerifiedRoot": "Потрібні ID збереженого підключення та перевірена ідентичність кореня.",

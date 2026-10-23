@@ -3,6 +3,8 @@
   "aDestinationFolderOrNonFileItem2": "Folder docelowy lub element niebędący plikiem koliduje z plikiem źródłowym.",
   "aDestinationIsRequiredForDirectNavigation": "Do bezpośredniej nawigacji wymagane jest miejsce docelowe.",
   "aFileCannotBeCopiedOrMoved": "Pliku nie można skopiować ani przenieść na samego siebie.",
+  "aFolderCannotBeCopiedIntoItself": "Folderu nie można skopiować do niego samego ani do folderu w nim zawartego.",
+  "theDestinationMovedBeforeQueueing": "Panel docelowy przeszedł do innego folderu, zanim transfer został dodany do kolejki, więc nic nie dodano.",
   "aGroupNameIsRequired": "Wymagana jest nazwa grupy.",
   "aProfileNameIsRequired": "Wymagana jest nazwa profilu.",
   "aSavedConnectionIDAndVerifiedRoot": "Wymagany jest identyfikator zapisanego połączenia i zweryfikowana tożsamość katalogu głównego.",

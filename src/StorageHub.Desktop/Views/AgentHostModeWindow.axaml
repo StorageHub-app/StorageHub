@@ -4,7 +4,7 @@
         x:Class="StorageHub.Desktop.Views.AgentHostModeWindow"
         x:DataType="vm:AgentHostModeModel"
         Title="{Binding Title}"
-        Width="580" SizeToContent="Height"
+        Width="{StaticResource AgentHostModeWindowWidth}" SizeToContent="Height"
         CanResize="False"
         ShowInTaskbar="False"
         WindowStartupLocation="CenterOwner"

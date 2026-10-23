@@ -3,6 +3,8 @@
   "aDestinationFolderOrNonFileItem2": "गंतव्य का कोई फ़ोल्डर या गैर-फ़ाइल आइटम स्रोत फ़ाइल से टकराता है।",
   "aDestinationIsRequiredForDirectNavigation": "सीधे नेविगेशन के लिए गंतव्य आवश्यक है।",
   "aFileCannotBeCopiedOrMoved": "फ़ाइल को स्वयं पर कॉपी या मूव नहीं किया जा सकता।",
+  "aFolderCannotBeCopiedIntoItself": "किसी फ़ोल्डर को उसी में या उसके अंदर के फ़ोल्डर में कॉपी नहीं किया जा सकता।",
+  "theDestinationMovedBeforeQueueing": "स्थानांतरण कतार में जोड़ने से पहले गंतव्य पेन किसी दूसरे फ़ोल्डर में चला गया, इसलिए कुछ भी कतार में नहीं जोड़ा गया।",
   "aGroupNameIsRequired": "समूह का नाम आवश्यक है।",
   "aProfileNameIsRequired": "प्रोफ़ाइल का नाम आवश्यक है।",
   "aSavedConnectionIDAndVerifiedRoot": "सहेजे गए कनेक्शन की ID और सत्यापित रूट पहचान आवश्यक हैं।",

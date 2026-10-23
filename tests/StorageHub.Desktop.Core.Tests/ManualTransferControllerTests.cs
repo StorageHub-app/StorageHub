@@ -121,6 +121,25 @@ public sealed class ManualTransferControllerTests
         Assert.True(request.HasValidBounds);
     }
 
+    /// <summary>
+    /// A file arriving in a Windows folder that holds the same name in other letters is the file
+    /// already there, and is asked about as one; a server's names are told apart exactly.
+    /// </summary>
+    [Fact]
+    public void ANameAtTheDestinationIsMatchedAsItsFileSystemMatchesIt()
+    {
+        var remote = Saved(Guid.NewGuid(), "root", "");
+        var selection = Selection(remote, Item("readme.txt", "readme.txt", length: 1));
+
+        var local = Destination(
+            Context(PaneTransferContextKind.ThisPc, null, null, Rooted(@"Downloads")),
+            Item("Readme.TXT", Rooted(@"Downloads\Readme.TXT"), length: 2));
+        Assert.Equal(OperatingSystem.IsWindows(), ManualTransferController.FirstConflict(selection, local) is not null);
+
+        var server = Destination(Saved(Guid.NewGuid(), "other", ""), Item("Readme.TXT", "Readme.TXT", length: 2));
+        Assert.Null(ManualTransferController.FirstConflict(selection, server));
+    }
+
     [Fact]
     public void TwoLocalFoldersAreRejectedWithAReasonRatherThanQueued()
     {

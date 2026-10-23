@@ -110,6 +110,8 @@
   "mainToolbar": "Barra degli strumenti principale",
   "moreToolbarCommands": "Altri comandi della barra degli strumenti",
   "applicationStatus": "Stato dell'applicazione",
+  "startupStatus": "Stato dell'avvio",
+  "startupDetails": "Dettagli dell'avvio",
   "agentStatus": "Stato dell'agente",
   "updateStatus": "Stato degli aggiornamenti",
   "currentLocation": "Posizione corrente",

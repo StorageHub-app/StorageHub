@@ -3,6 +3,8 @@
   "aDestinationFolderOrNonFileItem2": "Folder tujuan atau item non-file berkonflik dengan file sumber.",
   "aDestinationIsRequiredForDirectNavigation": "Tujuan wajib diisi untuk navigasi langsung.",
   "aFileCannotBeCopiedOrMoved": "File tidak dapat disalin atau dipindahkan ke dirinya sendiri.",
+  "aFolderCannotBeCopiedIntoItself": "Folder tidak dapat disalin ke dalam dirinya sendiri atau ke folder di dalamnya.",
+  "theDestinationMovedBeforeQueueing": "Panel tujuan berpindah ke folder lain sebelum transfer dimasukkan ke antrean, jadi tidak ada yang dimasukkan.",
   "aGroupNameIsRequired": "Nama grup wajib diisi.",
   "aProfileNameIsRequired": "Nama profil wajib diisi.",
   "aSavedConnectionIDAndVerifiedRoot": "ID koneksi tersimpan dan identitas root yang terverifikasi wajib ada.",

@@ -6,7 +6,8 @@
         x:DataType="vm:SyncLocationPickerModel"
         Title="{Binding Title}"
         AutomationProperties.Name="{Binding AccessibleTitle}"
-        Width="720" Height="540" MinWidth="560" MinHeight="400"
+        Width="{StaticResource SyncLocationPickerWindowWidth}" Height="{StaticResource SyncLocationPickerWindowHeight}"
+        MinWidth="{StaticResource SyncLocationPickerWindowMinWidth}" MinHeight="{StaticResource SyncLocationPickerWindowMinHeight}"
         WindowStartupLocation="CenterOwner">
 
   <!--
@@ -16,7 +17,7 @@
   -->
 
   <DockPanel>
-    <Border DockPanel.Dock="Top" Classes="surface" Padding="18,12,18,10">
+    <Border DockPanel.Dock="Top" Classes="surface" Padding="{StaticResource PickerHeaderPadding}">
       <StackPanel Spacing="{StaticResource SpaceXs}">
         <TextBlock Classes="heading" Text="{Binding Heading}"/>
         <TextBlock Classes="muted" Text="{Binding Hint}" TextWrapping="Wrap"/>
@@ -24,11 +25,11 @@
     </Border>
 
     <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto,Auto"
-          ColumnSpacing="{StaticResource SpaceSm}" Margin="12,10,12,8">
+          ColumnSpacing="{StaticResource SpaceSm}" Margin="{StaticResource PickerAddressMargin}">
       <Button Grid.Column="0" Command="{Binding UpCommand}" ToolTip.Tip="{Binding UpLabel}"
               AutomationProperties.Name="{Binding UpLabel}">
         <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
-          <LucideIcon Kind="ArrowUp" Size="14"/>
+          <LucideIcon Kind="ArrowUp" Size="{StaticResource IconSizeXs}"/>
           <TextBlock Text="{Binding UpLabel}"/>
         </StackPanel>
       </Button>
@@ -43,7 +44,7 @@
       <Button Grid.Column="3" Content="{Binding RefreshLabel}" Command="{Binding RefreshCommand}"/>
     </Grid>
 
-    <Border DockPanel.Dock="Bottom" Classes="surface" Padding="12,8">
+    <Border DockPanel.Dock="Bottom" Classes="surface" Padding="{StaticResource DialogFooterPadding}">
       <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="{StaticResource SpaceSm}">
         <TextBlock Grid.Column="0" Classes="status" VerticalAlignment="Center"
                    Classes.danger="{Binding Status.IsDanger}"
@@ -58,7 +59,7 @@
 
     <ListBox ItemsSource="{Binding Folders}"
              SelectedItem="{Binding SelectedFolder, Mode=TwoWay}"
-             Margin="12,0,12,8"
+             Margin="{StaticResource PickerListMargin}"
              DoubleTapped="FolderDoubleTapped"
              AutomationProperties.Name="{Binding FoldersAccessibleName}">
       <ListBox.KeyBindings>
@@ -67,11 +68,11 @@
       <ListBox.ItemTemplate>
         <DataTemplate DataType="core:SyncLocationFolder">
           <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource SpaceSm}">
-            <LucideIcon Kind="Folder" Size="16" VerticalAlignment="Center"/>
+            <LucideIcon Kind="Folder" Size="{StaticResource IconSizeSm}" VerticalAlignment="Center"/>
             <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center"
                        TextTrimming="CharacterEllipsis"/>
             <TextBlock Grid.Column="2" Classes="muted" Text="{Binding RelativePath}"
-                       VerticalAlignment="Center" MaxWidth="280" TextTrimming="CharacterEllipsis"/>
+                       VerticalAlignment="Center" MaxWidth="{StaticResource PickerPathMaxWidth}" TextTrimming="CharacterEllipsis"/>
           </Grid>
         </DataTemplate>
       </ListBox.ItemTemplate>

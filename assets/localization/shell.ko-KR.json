@@ -110,6 +110,8 @@
   "mainToolbar": "주 도구 모음",
   "moreToolbarCommands": "도구 모음 명령 더 보기",
   "applicationStatus": "애플리케이션 상태",
+  "startupStatus": "시작 상태",
+  "startupDetails": "시작 세부 정보",
   "agentStatus": "에이전트 상태",
   "updateStatus": "업데이트 상태",
   "currentLocation": "현재 위치",

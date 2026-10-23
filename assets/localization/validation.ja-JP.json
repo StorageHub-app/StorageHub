@@ -3,6 +3,8 @@
   "aDestinationFolderOrNonFileItem2": "転送先のフォルダーまたはファイル以外の項目が、転送元のファイルと競合しています。",
   "aDestinationIsRequiredForDirectNavigation": "直接移動には転送先が必要です。",
   "aFileCannotBeCopiedOrMoved": "ファイルを自分自身にコピーまたは移動することはできません。",
+  "aFolderCannotBeCopiedIntoItself": "フォルダーをそのフォルダー自身やその中のフォルダーにコピーすることはできません。",
+  "theDestinationMovedBeforeQueueing": "転送をキューに追加する前にコピー先ペインが別のフォルダーに移動したため、何もキューに追加されませんでした。",
   "aGroupNameIsRequired": "グループ名が必要です。",
   "aProfileNameIsRequired": "プロファイル名が必要です。",
   "aSavedConnectionIDAndVerifiedRoot": "保存済み接続の ID と、確認済みのルート ID が必要です。",

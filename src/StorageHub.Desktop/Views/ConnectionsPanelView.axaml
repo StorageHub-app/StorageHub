@@ -140,7 +140,7 @@
                   </Border>
                   <TextBlock Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding Name}" FontWeight="SemiBold"
                              TextTrimming="CharacterEllipsis"/>
-                  <StackPanel Grid.Column="1" Grid.Row="1" Spacing="2">
+                  <StackPanel Grid.Column="1" Grid.Row="1" Spacing="{StaticResource SpaceXs}">
                     <TextBlock Classes="caption" Text="{Binding Subtitle}"
                                TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Endpoint}"/>
                     <!-- The link, while it is in trouble or has just come back: retrying in the
@@ -158,10 +158,10 @@
                                  Classes.success="{Binding LinkIsSuccess}"/>
                     </StackPanel>
                     <ItemsControl ItemsSource="{Binding Tags}" IsVisible="{Binding HasTags}"
-                                  Margin="0,2,0,0">
+                                  Margin="{StaticResource GapAboveXs}">
                       <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
-                          <WrapPanel ItemSpacing="4" LineSpacing="4"/>
+                          <WrapPanel ItemSpacing="{StaticResource SpaceSm}" LineSpacing="{StaticResource SpaceSm}"/>
                         </ItemsPanelTemplate>
                       </ItemsControl.ItemsPanel>
                       <ItemsControl.ItemTemplate>
@@ -179,19 +179,15 @@
                     <Button Classes="tool" Padding="{StaticResource CardActionPadding}"
                             Command="{Binding $parent[UserControl].((vm:ConnectionsSidebar)DataContext).EditSelectedCommand}"
                             CommandParameter="{Binding}"
-                            ToolTip.Tip="{Binding $parent[UserControl].((vm:ConnectionsSidebar)DataContext).EditLabel}">
+                            ToolTip.Tip="{Binding $parent[UserControl].((vm:ConnectionsSidebar)DataContext).EditLabel}"
+                            AutomationProperties.Name="{Binding $parent[UserControl].((vm:ConnectionsSidebar)DataContext).EditLabel}">
                       <LucideIcon Kind="Pencil" Size="{StaticResource IconSizeSm}"/>
-                    </Button>
-                    <Button Classes="tool" Padding="{StaticResource CardActionPadding}"
-                            Command="{Binding $parent[UserControl].((vm:ConnectionsSidebar)DataContext).DuplicateSelectedCommand}"
-                            CommandParameter="{Binding}"
-                            ToolTip.Tip="{Binding $parent[UserControl].((vm:ConnectionsSidebar)DataContext).DuplicateLabel}">
-                      <LucideIcon Kind="Copy" Size="{StaticResource IconSizeSm}"/>
                     </Button>
                     <Button Classes="tool" Padding="{StaticResource CardActionPadding}"
                             Command="{Binding $parent[UserControl].((vm:ConnectionsSidebar)DataContext).DeleteSelectedCommand}"
                             CommandParameter="{Binding}"
-                            ToolTip.Tip="{Binding $parent[UserControl].((vm:ConnectionsSidebar)DataContext).DeleteLabel}">
+                            ToolTip.Tip="{Binding $parent[UserControl].((vm:ConnectionsSidebar)DataContext).DeleteLabel}"
+                            AutomationProperties.Name="{Binding $parent[UserControl].((vm:ConnectionsSidebar)DataContext).DeleteLabel}">
                       <LucideIcon Kind="Trash" Size="{StaticResource IconSizeSm}" Classes="danger"/>
                     </Button>
                   </StackPanel>
@@ -219,7 +215,7 @@
           </StackPanel>
         </Button>
         <Button Grid.Column="2" Classes="tool" Margin="{StaticResource PaddingSm}"
-                ToolTip.Tip="{Binding MoreLabel}">
+                ToolTip.Tip="{Binding MoreLabel}" AutomationProperties.Name="{Binding MoreLabel}">
           <LucideIcon Kind="Ellipsis" Size="{StaticResource IconSizeSm}"/>
           <Button.Flyout>
             <MenuFlyout>
@@ -261,15 +257,16 @@
       <!-- The search box carries its own glyph, as the owner-drawn field did. It had no Text
            binding at all until now, which made it decoration: it accepted typing and nothing
            read it. -->
-      <Grid DockPanel.Dock="Top" Margin="12,0,12,0">
+      <Grid DockPanel.Dock="Top" Margin="{StaticResource SidebarSearchMargin}">
         <TextBox Text="{Binding Search, Mode=TwoWay}"
                  PlaceholderText="{Binding SearchPlaceholder}"
-                 Padding="30,8,32,8"/>
+                 Padding="{StaticResource SidebarSearchPadding}"/>
         <Button Classes="tool" HorizontalAlignment="Right" VerticalAlignment="Center"
-                Margin="0,0,4,0"
+                Margin="{StaticResource GapAfterSm}"
                 IsVisible="{Binding HasSearch}"
                 Command="{Binding ClearSearchCommand}"
-                ToolTip.Tip="{Binding ClearSearchLabel}">
+                ToolTip.Tip="{Binding ClearSearchLabel}"
+                AutomationProperties.Name="{Binding ClearSearchLabel}">
           <LucideIcon Kind="X" Size="{StaticResource IconSizeSm}"/>
         </Button>
         <LucideIcon Kind="Search" Size="{StaticResource IconSizeSm}"
@@ -282,7 +279,7 @@
         (ui-reference 09): a provider badge and the name, the connection's facts as key and value,
         and its actions, with Delete styled as the destructive one.
       -->
-      <Border DockPanel.Dock="Bottom" Height="230"
+      <Border DockPanel.Dock="Bottom" Height="{StaticResource ConnectionDetailsHeight}"
               BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0"
               Padding="{StaticResource PaddingLg}">
         <Panel>
@@ -292,7 +289,7 @@
                      HorizontalAlignment="Center" VerticalAlignment="Center"/>
           <DockPanel IsVisible="{Binding HasSelection}">
             <StackPanel DockPanel.Dock="Top" Orientation="Horizontal"
-                        Spacing="{StaticResource SpaceSm}" Margin="0,0,0,8">
+                        Spacing="{StaticResource SpaceSm}" Margin="{StaticResource GapBelowMd}">
               <Border Classes="detail-badge" Background="{Binding Selected.AccentBrush}">
                 <TextBlock Text="{Binding Selected.Card.Descriptor.ShortName}"/>
               </Border>
@@ -350,7 +347,7 @@
             <!-- Above the actions, in the warning colour, as 1.x's was: "Fix credentials…" or
                  "Review trust…" when the last check found one, opening the editor on the tab
                  that fixes it. -->
-            <Button DockPanel.Dock="Bottom" HorizontalAlignment="Stretch" Margin="0,8,0,0"
+            <Button DockPanel.Dock="Bottom" HorizontalAlignment="Stretch" Margin="{StaticResource GapAboveMd}"
                     IsVisible="{Binding HasAttention}" Command="{Binding AttentionCommand}">
               <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
                 <LucideIcon Kind="TriangleAlert" Size="{StaticResource IconSizeSm}" Classes="warning"/>
@@ -360,7 +357,7 @@
 
             <!-- Under the saved facts rather than in the row of actions, which fits four labelled
                  at the panel's usual width: what the live connection says about itself. -->
-            <Button DockPanel.Dock="Bottom" Classes="tool" HorizontalAlignment="Left" Margin="0,4,0,0"
+            <Button DockPanel.Dock="Bottom" Classes="tool" HorizontalAlignment="Left" Margin="{StaticResource GapAboveSm}"
                     Command="{Binding DescribeSelectedCommand}"
                     ToolTip.Tip="{Binding DescribeHint}" AutomationProperties.Name="{Binding DescribeLabel}">
               <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
@@ -423,11 +420,11 @@
         </Panel>
       </Border>
 
-      <DockPanel Margin="12,12,12,0">
+      <DockPanel Margin="{StaticResource SidebarListMargin}">
         <!-- Why the panel is empty, above the always-drawn groups when there are any. -->
         <TextBlock DockPanel.Dock="Top" Classes="muted" Text="{Binding Status}"
                    HorizontalAlignment="Center" TextWrapping="Wrap"
-                   Margin="0,12,0,12"
+                   Margin="{StaticResource GapAroundLg}"
                    IsVisible="{Binding IsEmpty}"/>
         <!--
           Groups somebody made, rather than the Storage and Clients split 1.x had. That split

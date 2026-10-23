@@ -4,8 +4,8 @@
         x:Class="StorageHub.Desktop.Views.DiagnosticsWindow"
         x:DataType="vm:DiagnosticsModel"
         Title="{x:Static vm:DiagnosticsModel.Title}"
-        Width="760" Height="480"
-        MinWidth="560" MinHeight="340"
+        Width="{StaticResource DiagnosticsWindowWidth}" Height="{StaticResource DiagnosticsWindowHeight}"
+        MinWidth="{StaticResource DiagnosticsWindowMinWidth}" MinHeight="{StaticResource DiagnosticsWindowMinHeight}"
         WindowStartupLocation="CenterOwner">
 
   <!--
@@ -18,10 +18,10 @@
     <DockPanel Margin="{StaticResource PaddingLg}">
 
       <TextBlock DockPanel.Dock="Top" Classes="caption" Text="{x:Static vm:DiagnosticsModel.Intro}"
-                 TextWrapping="Wrap" Margin="0,0,0,8"/>
+                 TextWrapping="Wrap" Margin="{StaticResource GapBelowMd}"/>
 
       <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto,Auto,Auto,Auto"
-            ColumnSpacing="{StaticResource SpaceSm}" Margin="0,8,0,0">
+            ColumnSpacing="{StaticResource SpaceSm}" Margin="{StaticResource GapAboveMd}">
         <TextBlock Grid.Column="0" Classes="status"
                    Classes.success="{Binding Status.IsSuccess}"
                    Classes.warning="{Binding Status.IsWarning}"

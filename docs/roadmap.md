@@ -179,8 +179,11 @@ applied, and chosen on the Appearance page (P.5.1).
       and all, and ask OK/Cancel or, with some already there, Yes (replace), No (skip) or Cancel,
       then "Queued N Explorer import file(s)."; dropped on a folder in the tree they go there, as
       in 1.4. The agent now serves that review on Linux as well, so a Nautilus or Dolphin drop is
-      asked about the same way. Kept from 2.0: files dropped on a This PC folder, which 1.4 refused,
-      are queued as a paste from This PC.
+      asked about the same way. Files dropped from Explorer on a This PC folder are refused, as 1.4
+      refused them: they would be a transfer with a local folder on both sides, which
+      `ManualTransferController` and the agent's enqueue both reject ("Copying between two local
+      folders is not supported yet; use File Explorer for that"). A folder can be dragged from the
+      tree as well as from the list, copy only.
       Not possible on Linux: dragging a connection's rows out. There is no drop broker, and a file
       manager takes file URIs and nothing that could stand in for a file not yet downloaded;
       staging the download first, as 1.4's Explorer export did for Copy, would hold the pointer for

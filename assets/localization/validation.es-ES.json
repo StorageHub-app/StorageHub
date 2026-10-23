@@ -3,6 +3,8 @@
   "aDestinationFolderOrNonFileItem2": "Una carpeta de destino o un elemento que no es un archivo entra en conflicto con un archivo de origen.",
   "aDestinationIsRequiredForDirectNavigation": "Se requiere un destino para la navegación directa.",
   "aFileCannotBeCopiedOrMoved": "Un archivo no se puede copiar ni mover sobre sí mismo.",
+  "aFolderCannotBeCopiedIntoItself": "Una carpeta no se puede copiar dentro de sí misma ni de una carpeta que contenga.",
+  "theDestinationMovedBeforeQueueing": "El panel de destino cambió a otra carpeta antes de poner en cola la transferencia, así que no se puso nada en cola.",
   "aGroupNameIsRequired": "Se requiere un nombre de grupo.",
   "aProfileNameIsRequired": "Se requiere un nombre de perfil.",
   "aSavedConnectionIDAndVerifiedRoot": "Se requieren un ID de conexión guardada y una identidad de raíz verificada.",

@@ -3,6 +3,8 @@
   "aDestinationFolderOrNonFileItem2": "Uma pasta de destino ou item que não é arquivo conflita com um arquivo de origem.",
   "aDestinationIsRequiredForDirectNavigation": "É necessário um destino para a navegação direta.",
   "aFileCannotBeCopiedOrMoved": "Um arquivo não pode ser copiado ou movido sobre si mesmo.",
+  "aFolderCannotBeCopiedIntoItself": "Uma pasta não pode ser copiada para dentro dela mesma nem para uma pasta dentro dela.",
+  "theDestinationMovedBeforeQueueing": "O painel de destino foi para outra pasta antes de a transferência entrar na fila, então nada foi enfileirado.",
   "aGroupNameIsRequired": "É necessário um nome de grupo.",
   "aProfileNameIsRequired": "É necessário um nome de perfil.",
   "aSavedConnectionIDAndVerifiedRoot": "São necessários o ID de uma conexão salva e a identidade da raiz verificada.",

@@ -4,8 +4,8 @@
         x:Class="StorageHub.Desktop.Views.SettingsWindow"
         x:DataType="vm:SettingsModel"
         Title="{Binding Title}"
-        Width="1160" Height="780"
-        MinWidth="1080" MinHeight="720"
+        Width="{StaticResource SettingsWindowWidth}" Height="{StaticResource SettingsWindowHeight}"
+        MinWidth="{StaticResource SettingsWindowMinWidth}" MinHeight="{StaticResource SettingsWindowMinHeight}"
         WindowStartupLocation="CenterOwner">
 
   <!--
@@ -251,7 +251,7 @@
                          SelectedIndex="{Binding SelectedAvailable, Mode=TwoWay}"
                          AutomationProperties.Name="{Binding AvailableAccessibleName}"/>
 
-                <StackPanel Grid.Row="1" Grid.Column="1" Width="150"
+                <StackPanel Grid.Row="1" Grid.Column="1" Width="{StaticResource ToolbarSettingsButtonsWidth}"
                             VerticalAlignment="Center" Spacing="{StaticResource SpaceSm}">
                   <Button Classes="primary" HorizontalAlignment="Stretch"
                           Content="{Binding AddLabel}" Command="{Binding AddCommand}"/>

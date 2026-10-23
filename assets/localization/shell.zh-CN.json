@@ -110,6 +110,8 @@
   "mainToolbar": "主工具栏",
   "moreToolbarCommands": "更多工具栏命令",
   "applicationStatus": "应用程序状态",
+  "startupStatus": "启动状态",
+  "startupDetails": "启动详细信息",
   "agentStatus": "代理程序状态",
   "updateStatus": "更新状态",
   "currentLocation": "当前位置",

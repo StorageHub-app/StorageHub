@@ -206,6 +206,51 @@ public sealed class RecursiveTransferControllerTests
         }
     }
 
+    /// <summary>
+    /// A renamed file must not take a name a sibling later in the same folder already has: "a.txt"
+    /// renamed to "a (1).txt" made the real "a (1).txt" a duplicate target and stopped the copy.
+    /// </summary>
+    [Fact]
+    public async Task A_rename_skips_names_that_files_later_in_the_folder_bring()
+    {
+        var sourceId = Guid.NewGuid();
+        var destinationId = Guid.NewGuid();
+        var storage = new FakeStorageClient(
+            sourceId,
+            destinationId,
+            "source-root",
+            "destination-root",
+            destinationExisting:
+            [
+                FakeStorageClient.Item("a.txt", "destination/folder/a.txt", StorageItemKind.File, 4, "dest-a-v1")
+            ],
+            sourceEntries:
+            [
+                FakeStorageClient.Item("a.txt", "source/folder/a.txt", StorageItemKind.File, 4, "source-a-v1"),
+                FakeStorageClient.Item("a (1).txt", "source/folder/a (1).txt", StorageItemKind.File, 4, "source-a1-v1")
+            ]);
+        var queue = new FakeTransferClient();
+        await using var transfers = new ManualTransferController(queue);
+        await using var controller = new RecursiveTransferController(transfers, storage, new FakeMutationClient());
+        var conflicts = new TransferConflictPolicy(static (_, _) =>
+            Task.FromResult<TransferConflictChoice?>(TransferConflictChoice.Rename));
+
+        var result = await controller.EnqueueAsync(
+            CreateFolderSelection(sourceId, "source-root"),
+            CreateDestination(destinationId, "destination-root"),
+            TransferQueueOperation.Copy,
+            progress: null,
+            conflicts,
+            stop: default,
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess, result.Failure?.Message);
+        Assert.Equal(
+            [("source/folder/a (1).txt", "destination/folder/a (1).txt"), ("source/folder/a.txt", "destination/folder/a (2).txt")],
+            queue.Requests.Select(static request => (request.Source.RelativePath, request.Destination.RelativePath)));
+        Assert.Equal(1, conflicts.Renamed);
+    }
+
     [Fact]
     public async Task Cancelling_the_question_stops_the_walk_without_queueing_the_file_it_was_about()
     {
@@ -269,7 +314,8 @@ public sealed class RecursiveTransferControllerTests
         string destinationRoot,
         bool repeatSourcePageToken = false,
         bool sourceKindCollision = false,
-        StorageListItem[]? destinationExisting = null) : IRemoteStorageAgentClient
+        StorageListItem[]? destinationExisting = null,
+        StorageListItem[]? sourceEntries = null) : IRemoteStorageAgentClient
     {
         public int SourceListCount { get; private set; }
 
@@ -289,7 +335,7 @@ public sealed class RecursiveTransferControllerTests
             if (request.ConnectionId == sourceId && request.RelativePath == "source/folder")
             {
                 SourceListCount++;
-                var entries = sourceKindCollision
+                var entries = sourceEntries ?? (sourceKindCollision
                     ? new[]
                     {
                         Item("same", "source/folder/same", StorageItemKind.Directory),
@@ -301,7 +347,7 @@ public sealed class RecursiveTransferControllerTests
                         Item("nested", "source/folder/nested", StorageItemKind.Directory),
                         Item("root.txt", "source/folder/root.txt", StorageItemKind.File, 4, "source-root-v1"),
                         Item("child.bin", "source/folder/nested/child.bin", StorageItemKind.File, 8, "source-child-v1")
-                    };
+                    });
                 return Task.FromResult(new StorageListPageResponse(
                     StorageIpcContract.CurrentVersion,
                     sourceId,

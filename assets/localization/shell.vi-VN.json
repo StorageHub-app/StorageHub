@@ -110,6 +110,8 @@
   "mainToolbar": "Thanh công cụ chính",
   "moreToolbarCommands": "Thêm lệnh thanh công cụ",
   "applicationStatus": "Trạng thái ứng dụng",
+  "startupStatus": "Trạng thái khởi động",
+  "startupDetails": "Chi tiết khởi động",
   "agentStatus": "Trạng thái tác nhân",
   "updateStatus": "Trạng thái cập nhật",
   "currentLocation": "Vị trí hiện tại",

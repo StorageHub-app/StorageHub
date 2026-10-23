@@ -3,6 +3,8 @@
   "aDestinationFolderOrNonFileItem2": "Un dossier de destination ou un élément qui n'est pas un fichier est en conflit avec un fichier source.",
   "aDestinationIsRequiredForDirectNavigation": "Une destination est requise pour la navigation directe.",
   "aFileCannotBeCopiedOrMoved": "Un fichier ne peut pas être copié ni déplacé sur lui-même.",
+  "aFolderCannotBeCopiedIntoItself": "Un dossier ne peut pas être copié dans lui-même ni dans un dossier qu'il contient.",
+  "theDestinationMovedBeforeQueueing": "Le volet de destination est passé à un autre dossier avant la mise en file d'attente du transfert ; rien n'a été mis en file d'attente.",
   "aGroupNameIsRequired": "Un nom de groupe est requis.",
   "aProfileNameIsRequired": "Un nom de profil est requis.",
   "aSavedConnectionIDAndVerifiedRoot": "Un ID de connexion enregistrée et l'identité de racine vérifiée sont requis.",

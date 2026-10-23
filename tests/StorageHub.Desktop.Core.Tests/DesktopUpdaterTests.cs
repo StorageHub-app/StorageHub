@@ -357,6 +357,32 @@ public sealed class DesktopUpdaterTests
         Assert.Equal(0, engine.ApplyCalls);
     }
 
+    /// <summary>
+    /// A channel changed in Settings is the one the next check asks, without a restart.
+    /// </summary>
+    /// <remarks>
+    /// The Settings window saves through a store of its own and never tells the updater, which used
+    /// to hold the settings it was made with: the release-candidate choice only took effect at the
+    /// next start, and the update window went on naming the old channel.
+    /// </remarks>
+    [Fact]
+    public async Task AChannelChangedInSettingsIsUsedByTheNextCheck()
+    {
+        using var fixture = new SettingsFixture();
+        var factory = new FakeEngineFactory();
+        using var updater = new DesktopUpdater(fixture.Store, factory);
+        await updater.CheckForUpdatesAsync(CancellationToken.None);
+
+        var settings = new DesktopConfigStore(fixture.SettingsDirectory);
+        settings.Save(settings.Load() with { IncludePrereleases = false });
+
+        Assert.False(updater.Preferences.IncludePrereleases);
+        await updater.CheckForUpdatesAsync(CancellationToken.None);
+        Assert.Equal(
+            [true, false],
+            factory.CreatedEngines.Cast<FakeUpdateEngine>().Select(static engine => engine.IncludePrereleases));
+    }
+
     [Fact]
     public void GithubSourceAndDowngradePolicyAreNotUserConfigurable()
     {

@@ -42,7 +42,8 @@ public class TransferQueueModelTests
     /// The row of a drag out the agent has taken goes as soon as the queue holds more transfers than
     /// it did, because those are the transfers it handed over to. It said "Queued" for as long as it
     /// took to expire, over a file that had already arrived. A drop that failed keeps its row, which
-    /// holds the reason.
+    /// holds the reason. Two drops first seen together need a transfer each, and one first seen
+    /// before Clear history still goes when its transfer comes after it.
     /// </summary>
     [AvaloniaFact]
     public async Task ADropTheAgentHasTakenGoesOnceItsTransfersAreInTheQueue()
@@ -50,6 +51,8 @@ public class TransferQueueModelTests
         var drops = new PendingDropRegistry();
         drops.Begin("taken", "start.sh", 1);
         drops.MarkQueued("taken", @"C:\Desktop");
+        drops.Begin("also", "notes.txt", 1);
+        drops.MarkQueued("also", @"C:\Desktop");
         drops.Begin("failed", "photos", 1);
         drops.MarkFailed("failed", "Could not list the folder.");
         var agent = new FakeQueueAgent { Counts = new() { [TransferQueueState.Completed] = 3 } };
@@ -57,14 +60,53 @@ public class TransferQueueModelTests
 
         // First seen: nothing new has appeared in the queue yet.
         await queue.RefreshAsync();
+        Assert.Equal(3, drops.Snapshot().Count);
+
+        // One of the agent's transfers arrives, and finishes, as one does for a small file. It
+        // belongs to one drop, not to both.
+        agent.Counts[TransferQueueState.Completed] = 4;
+        await queue.RefreshAsync();
         Assert.Equal(2, drops.Snapshot().Count);
 
-        // The agent's transfer arrives, and finishes, as one does for a small file.
-        agent.Counts[TransferQueueState.Completed] = 4;
+        // History is cleared, and then the other drop's transfer arrives.
+        agent.Counts[TransferQueueState.Completed] = 0;
+        await queue.RefreshAsync();
+        Assert.Equal(2, drops.Snapshot().Count);
+        agent.Counts[TransferQueueState.Completed] = 1;
         await queue.RefreshAsync();
 
         var left = Assert.Single(drops.Snapshot());
         Assert.Equal("failed", left.Token);
+    }
+
+    /// <summary>
+    /// The polls stand aside while an action sends its requests. They share the action's client,
+    /// which takes one request at a time, and a poll that timed out behind a long run of them
+    /// disposed that client and stopped the action part-way.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task ThePollWaitsWhileAQueueWideActionIsSending()
+    {
+        var agent = new FakeQueueAgent();
+        var running = Summary(TransferQueueState.Transferring);
+        agent.Transfers.Add(running);
+        agent.Counts = new() { [TransferQueueState.Transferring] = 1 };
+        await using var queue = new TransferQueueModel(() => agent);
+        await queue.RefreshAsync();
+
+        var hold = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        agent.HoldPauses = hold.Task;
+        var pausing = queue.PauseAllAsync();
+        var listed = agent.ListCalls;
+        await queue.RefreshAsync(background: true);
+        await queue.RefreshAsync();
+        Assert.Equal(listed, agent.ListCalls);
+
+        hold.SetResult();
+        await pausing;
+        Assert.Equal([running.TransferId], agent.Paused);
+        Assert.Equal(Ui.Format(Ui.Transfer.PausedTransfersFormat, 1), queue.Message);
+        Assert.True(agent.ListCalls > listed);
     }
 
     /// <summary>
@@ -604,21 +646,29 @@ public class TransferQueueModelTests
 
         internal List<Guid> Retried { get; } = [];
 
-        public Task<TransferMutationResponse> PauseAsync(
+        /// <summary>Every list request, the queue's polls and its actions' reads alike.</summary>
+        internal int ListCalls { get; private set; }
+
+        /// <summary>When set, a pause is answered only once this completes, as a slow agent answers.</summary>
+        internal Task? HoldPauses { get; set; }
+
+        public async Task<TransferMutationResponse> PauseAsync(
             TransferPauseRequest request,
             CancellationToken cancellationToken = default)
         {
+            if (HoldPauses is { } hold) await hold;
             Paused.Add(request.TransferId);
-            return Task.FromResult(new TransferMutationResponse(
+            return new TransferMutationResponse(
                 TransferQueueIpcContract.CurrentVersion,
                 request.TransferId,
-                TransferQueueMutationOutcome.Accepted));
+                TransferQueueMutationOutcome.Accepted);
         }
 
         public Task<TransferListResponse> ListAsync(
             TransferListRequest request,
             CancellationToken cancellationToken = default)
         {
+            ListCalls++;
             if (Throw) throw new IOException("The agent is not listening.");
 
             // As the real client does: a request outside the contract is refused before it is sent.

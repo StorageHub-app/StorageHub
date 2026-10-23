@@ -146,6 +146,21 @@ public sealed class LocalFileBrowserDataSource : IPagedLocalFileBrowserDataSourc
 
     private readonly object _sessionGate = new();
     private readonly Dictionary<string, DirectoryEnumerationSession> _sessions = new(StringComparer.Ordinal);
+    private readonly Func<DirectoryInfo, IEnumerable<FileSystemInfo>> _enumerate;
+
+    public LocalFileBrowserDataSource()
+        : this(static directory => directory.EnumerateFileSystemInfos())
+    {
+    }
+
+    /// <summary>
+    /// Lets a test stand a slow folder, such as a network share that takes seconds per entry, in
+    /// for the real enumeration.
+    /// </summary>
+    internal LocalFileBrowserDataSource(Func<DirectoryInfo, IEnumerable<FileSystemInfo>> enumerate)
+    {
+        _enumerate = enumerate;
+    }
 
     public Task<LocalBrowserSnapshot> BrowseAsync(
         LocalBrowserLocation location,
@@ -164,25 +179,35 @@ public sealed class LocalFileBrowserDataSource : IPagedLocalFileBrowserDataSourc
             cancellationToken);
     }
 
+    /// <summary>
+    /// Forgets a listing and closes its enumeration. It never waits for a page that is still being
+    /// read: the controller calls this on the UI thread when the user navigates away, and waiting
+    /// there for a page of 500 entries from a slow network share froze the window until the page
+    /// was in. A page in progress is told to stop at the next entry and closes the enumeration
+    /// itself when it does.
+    /// </summary>
     public void Release(string? continuationToken)
     {
         if (string.IsNullOrWhiteSpace(continuationToken)) return;
+        DirectoryEnumerationSession? session;
         lock (_sessionGate)
         {
-            if (_sessions.Remove(continuationToken, out var session))
-            {
-                lock (session.Gate) session.Dispose();
-            }
+            _sessions.Remove(continuationToken, out session);
         }
+
+        session?.Release();
     }
 
     public void Dispose()
     {
+        DirectoryEnumerationSession[] sessions;
         lock (_sessionGate)
         {
-            foreach (var session in _sessions.Values) session.Dispose();
+            sessions = [.. _sessions.Values];
             _sessions.Clear();
         }
+
+        foreach (var session in sessions) session.Release();
     }
 
     private LocalBrowserSnapshot BrowsePage(
@@ -203,49 +228,78 @@ public sealed class LocalFileBrowserDataSource : IPagedLocalFileBrowserDataSourc
         DirectoryEnumerationSession session;
         string token;
         var createdSession = false;
-        lock (_sessionGate)
+        if (continuationToken is null)
         {
-            if (continuationToken is null)
+            // Opened outside the session lock: on a slow share even the existence check can take
+            // seconds, and a Release from the UI thread must not queue behind it.
+            var directory = new DirectoryInfo(location.DirectoryPath!);
+            if (!directory.Exists) throw new DirectoryNotFoundException();
+            token = Guid.NewGuid().ToString("N");
+            session = new DirectoryEnumerationSession(location, _enumerate(directory).GetEnumerator());
+            lock (_sessionGate) _sessions.Add(token, session);
+            createdSession = true;
+        }
+        else
+        {
+            lock (_sessionGate)
             {
-                var directory = new DirectoryInfo(location.DirectoryPath!);
-                if (!directory.Exists) throw new DirectoryNotFoundException();
-                token = Guid.NewGuid().ToString("N");
-                session = new DirectoryEnumerationSession(location, directory.EnumerateFileSystemInfos().GetEnumerator());
-                _sessions.Add(token, session);
-                createdSession = true;
+                if (!_sessions.TryGetValue(continuationToken, out session!) ||
+                    !session.Location.IsSameLocation(location))
+                {
+                    throw new InvalidOperationException(Ui.Validation.TheLocalListingContinuationIsNoLonger);
+                }
             }
-            else if (!_sessions.TryGetValue(continuationToken, out session!) ||
-                !session.Location.IsSameLocation(location))
-            {
-                throw new InvalidOperationException(Ui.Validation.TheLocalListingContinuationIsNoLonger);
-            }
-            else
-            {
-                token = continuationToken;
-            }
+
+            token = continuationToken;
         }
 
         try
         {
             var entries = new List<LocalBrowserEntry>(pageSize);
             var exhausted = false;
+            var released = false;
             lock (session.Gate)
             {
-                for (; entries.Count < pageSize;)
+                if (!session.TryBeginPage())
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    if (!session.Enumerator.MoveNext())
-                    {
-                        exhausted = true;
-                        break;
-                    }
-                    var item = session.Enumerator.Current;
-                    if (!string.Equals(item.Name, ".storagehub-internal", StringComparison.OrdinalIgnoreCase))
-                    {
-                        entries.Add(CreateEntry(item));
-                    }
+                    throw new InvalidOperationException(Ui.Validation.TheLocalListingContinuationIsNoLonger);
                 }
-                session.IndexedCount += entries.Count;
+
+                try
+                {
+                    for (; entries.Count < pageSize;)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        if (session.IsReleased)
+                        {
+                            released = true;
+                            break;
+                        }
+
+                        if (!session.Enumerator.MoveNext())
+                        {
+                            exhausted = true;
+                            break;
+                        }
+                        var item = session.Enumerator.Current;
+                        if (!string.Equals(item.Name, ".storagehub-internal", StringComparison.OrdinalIgnoreCase))
+                        {
+                            entries.Add(CreateEntry(item));
+                        }
+                    }
+                    session.IndexedCount += entries.Count;
+                }
+                finally
+                {
+                    session.EndPage();
+                }
+            }
+
+            // Released while it was being read: whoever let go of the listing has moved on, so the
+            // partial page goes back without a continuation and the caller drops it as superseded.
+            if (released)
+            {
+                return new LocalBrowserSnapshot(location, entries, null, session.IndexedCount);
             }
 
             entries.Sort(static (left, right) =>
@@ -404,13 +458,60 @@ public sealed class LocalFileBrowserDataSource : IPagedLocalFileBrowserDataSourc
         _ => "Storage"
     };
 
-    private sealed record DirectoryEnumerationSession(
-        LocalBrowserLocation Location,
-        IEnumerator<FileSystemInfo> Enumerator) : IDisposable
+    /// <summary>
+    /// One open listing. <see cref="Gate"/> keeps two pages of the same listing from reading at
+    /// once; the release state has its own small lock so that letting go of the listing never
+    /// waits for a page, and whichever of the two finishes last closes the enumerator.
+    /// </summary>
+    private sealed class DirectoryEnumerationSession(
+        LocalBrowserLocation location,
+        IEnumerator<FileSystemInfo> enumerator)
     {
+        private readonly object _state = new();
+        private bool _pageRunning;
+        private bool _released;
+        private bool _disposed;
+
+        public LocalBrowserLocation Location { get; } = location;
+        public IEnumerator<FileSystemInfo> Enumerator { get; } = enumerator;
         public object Gate { get; } = new();
         public long IndexedCount { get; set; }
-        public void Dispose() => Enumerator.Dispose();
+        public bool IsReleased => Volatile.Read(ref _released);
+
+        public bool TryBeginPage()
+        {
+            lock (_state)
+            {
+                if (_released) return false;
+                _pageRunning = true;
+                return true;
+            }
+        }
+
+        public void EndPage()
+        {
+            lock (_state)
+            {
+                _pageRunning = false;
+                if (_released) DisposeEnumerator();
+            }
+        }
+
+        public void Release()
+        {
+            lock (_state)
+            {
+                Volatile.Write(ref _released, true);
+                if (!_pageRunning) DisposeEnumerator();
+            }
+        }
+
+        private void DisposeEnumerator()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            Enumerator.Dispose();
+        }
     }
 }
 

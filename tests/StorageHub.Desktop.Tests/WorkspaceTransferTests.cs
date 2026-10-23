@@ -352,11 +352,25 @@ public class WorkspaceTransferTests
         Assert.True(PaneDragHandler.IsInsideSelection(folder, "/Reports/"));
         Assert.False(PaneDragHandler.IsInsideSelection(folder, "reports-old"));
         Assert.False(PaneDragHandler.IsInsideSelection(folder, "backups"));
+
+        // Nor by a paste: copied, then pasted from inside it, it is refused before anything is
+        // asked or queued. Only a drag onto the pane it came from used to be stopped.
+        fixture.Workspace.Stage(TransferQueueOperation.Copy);
+        await fixture.Left.NavigateAsync("reports", TestContext.Current.CancellationToken);
+        fixture.Left.IsActive = true;
+        await fixture.Workspace.PasteAsync(TestContext.Current.CancellationToken);
+
+        Assert.Single(fixture.Queue.Enqueued);
+        Assert.Equal(Ui.Validation.AFolderCannotBeCopiedIntoItself, fixture.Workspace.Message);
     }
 
-    /// <summary>A folder cannot be moved, so a drag of one can only copy.</summary>
+    /// <summary>
+    /// A folder cannot be moved, so a drag of one can only copy, from the list or from the tree.
+    /// A folder dragged from the tree is rooted in its own parent, which is where a selection's
+    /// items are named from, and may be anywhere in the tree; the root itself is nothing to drag.
+    /// </summary>
     [AvaloniaFact]
-    public async Task ADraggedFolderCanOnlyBeCopied()
+    public async Task ADraggedFolderCanOnlyBeCopiedFromTheListOrTheTree()
     {
         await using var fixture = await Fixture.CreateAsync();
         fixture.Left.SelectedRows.Add(fixture.Left.Rows.Single(row => row.Name == "reports"));
@@ -365,6 +379,22 @@ public class WorkspaceTransferTests
 
         Assert.NotNull(payload);
         Assert.False(payload!.CanMove);
+
+        // The tree, from inside "reports": the pane is in reports, the folder dragged is above it.
+        await fixture.Left.NavigateAsync("reports", TestContext.Current.CancellationToken);
+        var reports = fixture.Left.Tree.Roots[0].Children.Single(node => node.Name == "reports");
+        var fromTree = PaneDragHandler.Payload(fixture.Left, reports);
+
+        Assert.NotNull(fromTree);
+        Assert.False(fromTree!.CanMove);
+        Assert.Equal("", fromTree.Selection.Context.RelativePath);
+        Assert.Equal(fixture.SourceConnectionId, fromTree.Selection.Context.ConnectionId);
+        var item = Assert.Single(fromTree.Selection.Items);
+        Assert.Equal("reports", item.RelativePath);
+        Assert.True(item.IsContainer);
+        Assert.True(PaneDragHandler.IsInsideSelection(fromTree, "reports/q1"));
+
+        Assert.Null(PaneDragHandler.Payload(fixture.Left, fixture.Left.Tree.Roots[0]));
     }
 
     /// <summary>A pane with nothing behind it, or a terminal, refuses drops; nothing selected is no drag.</summary>

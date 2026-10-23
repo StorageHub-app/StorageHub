@@ -76,6 +76,23 @@ public sealed class AgentAvailabilityTests : IDisposable
     }
 
     [Fact]
+    public void AFailureWhileOfflineLeavesItOffline()
+    {
+        // The queue polls every two seconds whether the agent is there or not. Each failed poll
+        // used to say "reconnecting" and the next probe "not connected", and the status bar
+        // flickered between the two for the whole outage.
+        DesktopAgentAvailability.ReportMonitor(AgentConnectionState.Disconnected);
+        var changes = 0;
+        DesktopAgentAvailability.Changed += (_, _) => changes++;
+
+        var described = DesktopAgentAvailability.ReportFailure(new IOException("Pipe is broken."));
+
+        Assert.Equal(AgentAvailability.Offline, DesktopAgentAvailability.Current);
+        Assert.Equal(Ui.Shell.AgentOffline, described);
+        Assert.Equal(0, changes);
+    }
+
+    [Fact]
     public void TheMonitorIsWhatDecidesTheAgentIsGone()
     {
         // A surface's broken pipe says one connection is dead. Only a probe on a fresh connection

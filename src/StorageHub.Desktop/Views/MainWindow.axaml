@@ -5,8 +5,8 @@
         x:Class="StorageHub.Desktop.Views.MainWindow"
         x:DataType="vm:ShellPreviewModel"
         Title="StorageHub"
-        Width="1500" Height="920"
-        MinWidth="1120" MinHeight="720"
+        Width="{StaticResource MainWindowWidth}" Height="{StaticResource MainWindowHeight}"
+        MinWidth="{StaticResource MainWindowMinWidth}" MinHeight="{StaticResource MainWindowMinHeight}"
         WindowStartupLocation="CenterScreen">
 
   <!--
@@ -197,7 +197,8 @@
                cancelled. Templated into the strip, so it follows the last tab at any width. -->
           <TabControl.Tag>
             <Button Classes="tool tab-add" Command="{Binding NewWorkspaceCommand}"
-                    ToolTip.Tip="{Binding NewWorkspaceLabel}">
+                    ToolTip.Tip="{Binding NewWorkspaceLabel}"
+                    AutomationProperties.Name="{Binding NewWorkspaceLabel}">
               <LucideIcon Kind="Plus" Size="{StaticResource IconSizeSm}"/>
             </Button>
           </TabControl.Tag>
@@ -215,7 +216,7 @@
                         CommandParameter="{Binding}"
                         ToolTip.Tip="{x:Static vm:ShellPreviewModel.CloseWorkspaceLabel}"
                         AutomationProperties.Name="{x:Static vm:ShellPreviewModel.CloseWorkspaceLabel}">
-                  <LucideIcon Kind="X" Size="12"/>
+                  <LucideIcon Kind="X" Size="{StaticResource TabCloseIconSize}"/>
                 </Button>
               </StackPanel>
             </DataTemplate>
@@ -279,7 +280,7 @@
                               DataContext="{Binding Workspace}"
                               IsVisible="{Binding HasClipboard}"
                               Spacing="{StaticResource SpaceXs}"
-                              Margin="0,0,0,4">
+                              Margin="{StaticResource GapBelowSm}">
                     <!--
                       The strip above the panes, shown only while something is staged: what is
                       staged, and pasting it into the active pane or clearing it. Empty, it said
@@ -290,14 +291,16 @@
                     <TextBlock Classes="caption" VerticalAlignment="Center" Text="{Binding ClipboardText}"
                                FontWeight="SemiBold"/>
                     <Button Classes="tool" Command="{Binding PasteCommand}"
-                            ToolTip.Tip="{Binding PasteToActivePaneLabel}">
+                            ToolTip.Tip="{Binding PasteToActivePaneLabel}"
+                            AutomationProperties.Name="{Binding PasteToActivePaneLabel}">
                       <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
                         <LucideIcon Kind="ClipboardPaste" Size="{StaticResource IconSizeSm}"/>
                         <TextBlock Classes="caption" Text="{Binding PasteToActivePaneLabel}"/>
                       </StackPanel>
                     </Button>
                     <Button Classes="tool" Command="{Binding ClearClipboardCommand}"
-                            ToolTip.Tip="{Binding ClearStagedLabel}">
+                            ToolTip.Tip="{Binding ClearStagedLabel}"
+                            AutomationProperties.Name="{Binding ClearStagedLabel}">
                       <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
                         <LucideIcon Kind="X" Size="{StaticResource IconSizeSm}"/>
                         <TextBlock Classes="caption" Text="{Binding ClearLabel}"/>

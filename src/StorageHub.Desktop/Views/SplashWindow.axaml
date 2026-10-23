@@ -4,7 +4,7 @@
         x:Class="StorageHub.Desktop.Views.SplashWindow"
         x:DataType="vm:SplashModel"
         Title="{Binding Title}"
-        Width="420" SizeToContent="Height"
+        Width="{StaticResource SplashWindowWidth}" SizeToContent="Height"
         CanResize="False"
         WindowDecorations="None"
         WindowStartupLocation="CenterScreen"
@@ -19,23 +19,23 @@
   <Border Classes="splash">
     <StackPanel Spacing="{StaticResource SpaceSm}" HorizontalAlignment="Stretch">
       <Image Source="avares://StorageHub.Desktop/Assets/storagehub-icon.png"
-             Width="64" Height="64" HorizontalAlignment="Center" Margin="0,0,0,6"/>
+             Width="{StaticResource SplashLogoSize}" Height="{StaticResource SplashLogoSize}" HorizontalAlignment="Center" Margin="{StaticResource ItemGapBelow}"/>
       <TextBlock Classes="splash-title" Text="{Binding Title}" HorizontalAlignment="Center"/>
       <TextBlock Classes="muted" Text="{Binding Version}" HorizontalAlignment="Center"
-                 Margin="0,0,0,12"/>
+                 Margin="{StaticResource GapBelowLg}"/>
 
       <TextBlock Text="{Binding Status}" TextWrapping="Wrap" TextAlignment="Center"
                  Classes.danger="{Binding IsFailed}"
-                 AutomationProperties.Name="Startup status"/>
+                 AutomationProperties.Name="{Binding StatusAccessibleName}"/>
       <TextBlock Classes="muted" Text="{Binding Details}" TextWrapping="Wrap"
                  TextAlignment="Center" IsVisible="{Binding HasDetails}"
-                 AutomationProperties.Name="Startup details"/>
+                 AutomationProperties.Name="{Binding DetailsAccessibleName}"/>
 
       <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsWorking}"
-                   Margin="0,10,0,0" MinHeight="4"/>
+                   Margin="{StaticResource BlockGapAbove}" MinHeight="{StaticResource IndeterminateBarHeight}"/>
 
       <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
-                  Spacing="{StaticResource SpaceSm}" Margin="0,12,0,0"
+                  Spacing="{StaticResource SpaceSm}" Margin="{StaticResource GapAboveLg}"
                   IsVisible="{Binding IsFailed}">
         <Button Content="{Binding QuitLabel}" Command="{Binding QuitCommand}"/>
         <Button Content="{Binding CheckInstallationLabel}" Command="{Binding CheckInstallationCommand}"/>

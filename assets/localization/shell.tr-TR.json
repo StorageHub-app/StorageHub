@@ -110,6 +110,8 @@
   "mainToolbar": "Ana araç çubuğu",
   "moreToolbarCommands": "Daha fazla araç çubuğu komutu",
   "applicationStatus": "Uygulama durumu",
+  "startupStatus": "Başlangıç durumu",
+  "startupDetails": "Başlangıç ayrıntıları",
   "agentStatus": "Aracı durumu",
   "updateStatus": "Güncelleme durumu",
   "currentLocation": "Geçerli konum",

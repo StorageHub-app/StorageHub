@@ -18,6 +18,64 @@ chosen is written down in [Versioning and merges](docs/versioning.md).
 
 ## Unreleased
 
+**Dragging several files.** A drag that began on one of several selected rows carried only that row,
+so three files dragged to Explorer or to another pane arrived as one: the list makes the pressed row
+the whole selection on the press, before the pointer has moved. The selection as it stood is kept and
+put back when the drag begins.
+
+**Dragging from the folder tree.** A folder can be dragged out of the tree beside the list, to another
+pane, onto a folder, or to Explorer, as it could in 1.4. It is copied, never moved, like a folder from
+the list.
+
+**Load all.** Beside Load more in the footer of a folder that has more pages than have been read, so
+a folder many pages long is read to the end in one go.
+
+**The tree follows the pane.** The folder tree scrolls to the folder the pane is in. It followed the
+pane there, but a folder far down a long drive, reached through the address bar, a double-click or
+Back, was selected out of sight.
+
+**Fixed:**
+
+- A connection that would not open left the pane holding the connection it had before. Retry
+  refreshed that one under the new name and said "Disconnected" over the real reason, Review trust
+  went away, and a paste or a drop into the pane was queued into the old connection. Retry now opens
+  the connection again, and a pane that never opened takes nothing.
+- A folder could be pasted into itself or into a folder inside it, and from another pane on the
+  same connection dropped there too; on a server read as it is walked, the copies were copied again.
+  It is refused before anything is asked.
+- Files dragged in from Explorer onto a folder in the list went into the folder the pane was
+  showing, though that folder was lit; dropped on the top of the tree they went to the connection's
+  root. They go where the light is.
+- A pane that went to another folder while a drop was reading its pages received the drop there.
+  Nothing is queued now when the pane has moved.
+- A folder loaded past its first page lost the rest, and what was selected there, each time it was
+  read again during a transfer or by auto-refresh. Every page that had been read is read again, and
+  a row that changed is selected once, not twice.
+- A folder deleted under a pane that was following it left the address naming it over its parent's
+  files. The address and the note follow the parent now.
+- A file arriving in a Windows folder that held the same name in other letters was not asked about.
+- Ticking "Don't show this warning again" for an external edit rewrote the settings as they were at
+  the first edit of the session, losing every change made in Settings since. A new external editor
+  chosen in Settings was not used until a restart.
+- Update settings, release candidates included, took effect only after a restart.
+- While the agent was down the status bar flickered between "reconnecting" and "not connected",
+  "Starting" was overwritten during a restart of the agent, and everything was reloaded twice once
+  it was back.
+- Going to another folder while a slow drive or share was still reading a page held the window
+  until the page was read.
+- Pause all, Start queue and Clear could stop partway with "Queue unavailable" when the queue's own
+  refresh timed out beside them. Two drags out to Explorer at once, or a Clear history between, left
+  a "Queued" row behind or took away the wrong one.
+- Rename, in a folder being copied, could give a file a name another file in the same folder had,
+  and the copy stopped partway.
+- Typing a This PC path in other letters ("c:\temp") added a second drive to the tree.
+- A closed pane's folder tree kept reading the disk.
+- The folder tree read the folder the pane was in a second time when its item was first drawn.
+- The selected connection's card shows Edit and Delete, as 1.4's did; Duplicate is on its
+  right-click menu.
+- Back, Forward, Up, Clear filter and several icon buttons in the connections panel and the tab
+  strip had no name for a screen reader; the splash screen's two were English in every language.
+
 ---
 
 ## 2.1.1 — 2026-10-12

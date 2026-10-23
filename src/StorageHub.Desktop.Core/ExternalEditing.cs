@@ -237,10 +237,16 @@ internal static class EditSessionDirectory
 /// open session, and a client is strictly correlated: two uploads saved at once on one pipe could
 /// have their responses crossed.
 /// </para>
+/// <para>
+/// The settings store is made per use for the same kind of reason. The controller lives as long as
+/// the shell, and a store reads its files once and then answers from that snapshot: held, it would
+/// not see an editor or size limit changed in Settings, and saving "don't show this again" through
+/// it would write the whole snapshot back over every setting changed since the first edit.
+/// </para>
 /// </remarks>
 internal sealed class ExternalEditController : IAsyncDisposable
 {
-    private readonly DesktopConfigStore _preferences;
+    private readonly Func<DesktopConfigStore> _preferences;
     private readonly Func<IObjectInspectorAgentClient> _clients;
     private readonly IExternalEditPrompts _prompts;
     private readonly IEditorLauncher _launcher;
@@ -251,7 +257,7 @@ internal sealed class ExternalEditController : IAsyncDisposable
     private bool _disposed;
 
     internal ExternalEditController(
-        DesktopConfigStore preferences,
+        Func<DesktopConfigStore> preferences,
         Func<IObjectInspectorAgentClient> clients,
         IExternalEditPrompts prompts,
         IEditorLauncher? launcher = null,
@@ -292,7 +298,7 @@ internal sealed class ExternalEditController : IAsyncDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(address);
 
-        var preferences = _preferences.Load();
+        var preferences = _preferences().Load();
         var maximumBytes = Math.Clamp(
             preferences.MaximumEditableFileBytes, 1, EditableFileIpcContract.MaximumContentBytes);
         if (capturedLength is > 0 && capturedLength > maximumBytes)
@@ -363,7 +369,10 @@ internal sealed class ExternalEditController : IAsyncDisposable
         {
             try
             {
-                _preferences.Save(preferences with { WarnBeforeUnsafeExternalEdit = false });
+                // Read again rather than saving the copy this open started with: the prompt can sit
+                // on screen while Settings is changed, and that change must survive this one.
+                var store = _preferences();
+                store.Save(store.Load() with { WarnBeforeUnsafeExternalEdit = false });
             }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException or
                 ArgumentException or NotSupportedException)

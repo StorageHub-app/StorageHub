@@ -73,6 +73,16 @@ internal sealed partial class BrowserPaneModel
 
     public static string FtpConsoleLabel => Ui.Commands.ConnectionsFtpConsole;
 
+    // The address row's icon-only buttons. Back, Forward and Up carry the Go menu's own words, so
+    // a screen reader and the tooltip name them as the menu does.
+    public static string BackLabel => Ui.Commands.GoBack;
+
+    public static string ForwardLabel => Ui.Commands.GoForward;
+
+    public static string UpLabel => Ui.Commands.GoUp;
+
+    public static string ClearFilterLabel => Ui.Pane.ClearFilter;
+
     /// <summary>
     /// Whether the list and the tree include what is hidden: a name starting with a dot, or a file
     /// this computer marks hidden. View > Hidden Files sets it on every pane at once.

@@ -161,7 +161,7 @@
   <Style Selector="ProgressBar.transfer">
     <Setter Property="MinHeight" Value="0"/>
     <Setter Property="VerticalAlignment" Value="Stretch"/>
-    <Setter Property="CornerRadius" Value="3"/>
+    <Setter Property="CornerRadius" Value="{StaticResource TransferBarRadius}"/>
     <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}"/>
     <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}"/>
     <Setter Property="Opacity" Value="0.55"/>
@@ -404,7 +404,7 @@
   <Style Selector="Border.pane">
     <Setter Property="Background" Value="{DynamicResource CanvasBrush}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
-    <Setter Property="BorderThickness" Value="2"/>
+    <Setter Property="BorderThickness" Value="{StaticResource PaneBorderThickness}"/>
   </Style>
   <!--
     The active pane is marked by colour alone, never by a thicker border. Two panes sit side by
@@ -538,7 +538,7 @@
 
   <Style Selector="LucideIcon">
     <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
-    <Setter Property="StrokeWidth" Value="1.75"/>
+    <Setter Property="StrokeWidth" Value="{StaticResource IconStrokeWidth}"/>
   </Style>
   <Style Selector="LucideIcon.primary">
     <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}"/>
@@ -578,7 +578,7 @@
   -->
   <Style Selector="Grid.group-header">
     <Setter Property="Height" Value="{StaticResource GroupHeaderHeight}"/>
-    <Setter Property="Margin" Value="0,0,0,4"/>
+    <Setter Property="Margin" Value="{StaticResource GapBelowSm}"/>
   </Style>
 
   <Style Selector="TextBlock.group-title">
@@ -608,7 +608,7 @@
     <Setter Property="CornerRadius" Value="{StaticResource DenseFieldRadius}"/>
   </Style>
   <Style Selector="Border.group-tile LucideIcon">
-    <Setter Property="Foreground" Value="White"/>
+    <Setter Property="Foreground" Value="{DynamicResource OnPrimaryBrush}"/>
     <Setter Property="HorizontalAlignment" Value="Center"/>
     <Setter Property="VerticalAlignment" Value="Center"/>
   </Style>
@@ -630,12 +630,12 @@
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
     <Setter Property="BorderThickness" Value="1"/>
     <Setter Property="CornerRadius" Value="{StaticResource DenseFieldRadius}"/>
-    <Setter Property="Padding" Value="4,1"/>
-    <Setter Property="Margin" Value="0,2,0,0"/>
+    <Setter Property="Padding" Value="{StaticResource BadgePadding}"/>
+    <Setter Property="Margin" Value="{StaticResource GapAboveXs}"/>
   </Style>
 
   <Style Selector="Border.badge TextBlock">
-    <Setter Property="FontSize" Value="10"/>
+    <Setter Property="FontSize" Value="{StaticResource FontSizeMicro}"/>
     <Setter Property="FontWeight" Value="SemiBold"/>
     <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
   </Style>
@@ -676,7 +676,7 @@
     with a white glyph, its tags as quiet chips, and the provider badge in the details panel.
   -->
   <Style Selector="Border.card.connection-row">
-    <Setter Property="Padding" Value="10,8"/>
+    <Setter Property="Padding" Value="{StaticResource ConnectionRowPadding}"/>
     <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
   </Style>
   <Style Selector="Border.card.connection-row:pointerover">
@@ -691,36 +691,36 @@
     <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
   </Style>
   <Style Selector="Border.icon-tile">
-    <Setter Property="Width" Value="34"/>
-    <Setter Property="Height" Value="34"/>
-    <Setter Property="CornerRadius" Value="8"/>
+    <Setter Property="Width" Value="{StaticResource IconTileSize}"/>
+    <Setter Property="Height" Value="{StaticResource IconTileSize}"/>
+    <Setter Property="CornerRadius" Value="{StaticResource IconTileRadius}"/>
   </Style>
   <Style Selector="Border.icon-tile LucideIcon">
-    <Setter Property="Foreground" Value="White"/>
+    <Setter Property="Foreground" Value="{DynamicResource OnPrimaryBrush}"/>
     <Setter Property="HorizontalAlignment" Value="Center"/>
     <Setter Property="VerticalAlignment" Value="Center"/>
   </Style>
   <Style Selector="Border.tag">
     <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}"/>
-    <Setter Property="CornerRadius" Value="4"/>
-    <Setter Property="Padding" Value="6,1"/>
+    <Setter Property="CornerRadius" Value="{StaticResource TagRadius}"/>
+    <Setter Property="Padding" Value="{StaticResource TagPadding}"/>
   </Style>
   <Style Selector="Border.tag TextBlock">
     <Setter Property="FontSize" Value="{StaticResource FontSizeCaption}"/>
     <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
   </Style>
   <Style Selector="Border.detail-badge">
-    <Setter Property="CornerRadius" Value="4"/>
-    <Setter Property="Padding" Value="6,2"/>
+    <Setter Property="CornerRadius" Value="{StaticResource TagRadius}"/>
+    <Setter Property="Padding" Value="{StaticResource DetailBadgePadding}"/>
     <Setter Property="VerticalAlignment" Value="Center"/>
   </Style>
   <Style Selector="Border.detail-badge TextBlock">
-    <Setter Property="Foreground" Value="White"/>
+    <Setter Property="Foreground" Value="{DynamicResource OnPrimaryBrush}"/>
     <Setter Property="FontSize" Value="{StaticResource FontSizeCaption}"/>
     <Setter Property="FontWeight" Value="SemiBold"/>
   </Style>
   <Style Selector="Grid.detail-row">
-    <Setter Property="Margin" Value="0,1"/>
+    <Setter Property="Margin" Value="{StaticResource DetailRowMargin}"/>
   </Style>
   <!-- A section heading in the connection details, bold as 1.4 drew them, a step below the last
        fact of the section before. -->
@@ -738,9 +738,9 @@
   <Style Selector="ToggleButton.disclosure">
     <Setter Property="Background" Value="Transparent"/>
     <Setter Property="BorderThickness" Value="0"/>
-    <Setter Property="Padding" Value="2"/>
-    <Setter Property="Width" Value="18"/>
-    <Setter Property="Height" Value="18"/>
+    <Setter Property="Padding" Value="{StaticResource DisclosurePadding}"/>
+    <Setter Property="Width" Value="{StaticResource DisclosureSize}"/>
+    <Setter Property="Height" Value="{StaticResource DisclosureSize}"/>
     <Setter Property="Content" Value="&#x25B8;"/>
   </Style>
 
@@ -778,7 +778,7 @@
   <!-- A pane's folder tree: as dense as the list beside it, on the same surface. -->
   <Style Selector="TreeView.pane-tree">
     <Setter Property="Background" Value="Transparent"/>
-    <Setter Property="Padding" Value="0,4"/>
+    <Setter Property="Padding" Value="{StaticResource PaneTreePadding}"/>
   </Style>
   <Style Selector="TreeView.pane-tree TreeViewItem">
     <Setter Property="MinHeight" Value="{StaticResource TreeRowHeight}"/>
@@ -806,7 +806,7 @@
     <Setter Property="BorderThickness" Value="0,0,0,1"/>
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
     <Setter Property="CornerRadius" Value="0"/>
-    <Setter Property="Padding" Value="10,6"/>
+    <Setter Property="Padding" Value="{StaticResource PaneBannerPadding}"/>
     <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
   </Style>
   <Style Selector="Button.pane-banner.warning">
@@ -835,7 +835,7 @@
     <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
     <Setter Property="BorderThickness" Value="1"/>
-    <Setter Property="Padding" Value="28,28,28,24"/>
+    <Setter Property="Padding" Value="{StaticResource SplashPadding}"/>
   </Style>
   <Style Selector="TextBlock.splash-title">
     <Setter Property="FontSize" Value="{StaticResource FontSizeHeading}"/>
@@ -849,54 +849,54 @@
     <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
     <Setter Property="BorderThickness" Value="0,0,0,1"/>
-    <Setter Property="Padding" Value="16,12"/>
+    <Setter Property="Padding" Value="{StaticResource EditorHeaderPadding}"/>
   </Style>
   <Style Selector="Border.editor-footer">
     <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
     <Setter Property="BorderThickness" Value="0,1,0,0"/>
-    <Setter Property="Padding" Value="16,10"/>
+    <Setter Property="Padding" Value="{StaticResource EditorFooterPadding}"/>
   </Style>
   <Style Selector="TabControl.editor-tabs">
     <Setter Property="Padding" Value="0"/>
-    <Setter Property="Margin" Value="8,6,0,0"/>
+    <Setter Property="Margin" Value="{StaticResource EditorTabsMargin}"/>
   </Style>
   <Style Selector="StackPanel.editor-section">
-    <Setter Property="Margin" Value="16,16,24,8"/>
+    <Setter Property="Margin" Value="{StaticResource EditorSectionMargin}"/>
   </Style>
   <Style Selector="TextBlock.heading-sm">
     <Setter Property="FontSize" Value="{StaticResource FontSizeSubtitle}"/>
     <Setter Property="FontWeight" Value="SemiBold"/>
   </Style>
   <Style Selector="Button.swatch">
-    <Setter Property="Width" Value="18"/>
-    <Setter Property="Height" Value="18"/>
+    <Setter Property="Width" Value="{StaticResource SwatchSize}"/>
+    <Setter Property="Height" Value="{StaticResource SwatchSize}"/>
     <Setter Property="MinWidth" Value="0"/>
     <Setter Property="MinHeight" Value="0"/>
     <Setter Property="Padding" Value="0"/>
-    <Setter Property="CornerRadius" Value="9"/>
+    <Setter Property="CornerRadius" Value="{StaticResource SwatchRadius}"/>
     <Setter Property="BorderThickness" Value="0"/>
   </Style>
   <Style Selector="Button.swatch:pointerover /template/ ContentPresenter">
     <Setter Property="Background" Value="{Binding $parent[Button].Background}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource TextBrush}"/>
-    <Setter Property="BorderThickness" Value="2"/>
+    <Setter Property="BorderThickness" Value="{StaticResource SwatchRingThickness}"/>
   </Style>
   <!-- The colour a picker has chosen wears the ring a hovered swatch does, so it can be found. -->
   <Style Selector="Button.swatch.chosen /template/ ContentPresenter">
     <Setter Property="BorderBrush" Value="{DynamicResource TextBrush}"/>
-    <Setter Property="BorderThickness" Value="2"/>
+    <Setter Property="BorderThickness" Value="{StaticResource SwatchRingThickness}"/>
   </Style>
   <Style Selector="Border.badge-preview">
     <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}"/>
     <Setter Property="CornerRadius" Value="{StaticResource DenseFieldRadius}"/>
-    <Setter Property="Padding" Value="10,6"/>
+    <Setter Property="Padding" Value="{StaticResource BadgePreviewPadding}"/>
   </Style>
   <Style Selector="Border.trust-notice">
     <Setter Property="Background" Value="{DynamicResource WarningTintBrush}"/>
     <Setter Property="CornerRadius" Value="{StaticResource FieldRadius}"/>
-    <Setter Property="Padding" Value="14,10"/>
-    <Setter Property="Margin" Value="16,16,24,0"/>
+    <Setter Property="Padding" Value="{StaticResource TrustNoticePadding}"/>
+    <Setter Property="Margin" Value="{StaticResource TrustNoticeMargin}"/>
   </Style>
   <Style Selector="Border.trust-notice TextBlock">
     <Setter Property="Foreground" Value="{DynamicResource WarningBrush}"/>
@@ -917,8 +917,8 @@
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
     <Setter Property="BorderThickness" Value="1"/>
     <Setter Property="CornerRadius" Value="{StaticResource DenseFieldRadius}"/>
-    <Setter Property="Padding" Value="10,4"/>
-    <Setter Property="MinHeight" Value="34"/>
+    <Setter Property="Padding" Value="{StaticResource PaneChipPadding}"/>
+    <Setter Property="MinHeight" Value="{StaticResource PaneChipMinHeight}"/>
   </Style>
   <Style Selector="TextBlock.pane-chip-name">
     <Setter Property="FontSize" Value="{StaticResource FontSizeSubtitle}"/>
@@ -930,11 +930,11 @@
     <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
     <Setter Property="BorderThickness" Value="1"/>
-    <Setter Property="CornerRadius" Value="10"/>
-    <Setter Property="Padding" Value="8,1"/>
+    <Setter Property="CornerRadius" Value="{StaticResource PillRadius}"/>
+    <Setter Property="Padding" Value="{StaticResource PillPadding}"/>
   </Style>
   <Style Selector="Border.pill TextBlock">
-    <Setter Property="FontSize" Value="10"/>
+    <Setter Property="FontSize" Value="{StaticResource FontSizeMicro}"/>
     <Setter Property="FontWeight" Value="SemiBold"/>
     <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
   </Style>
@@ -987,26 +987,26 @@
     <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
     <Setter Property="BorderThickness" Value="0,1"/>
-    <Setter Property="Padding" Value="8,2"/>
+    <Setter Property="Padding" Value="{StaticResource PaneCommandsPadding}"/>
   </Style>
   <Style Selector="TextBlock.pane-caption">
-    <Setter Property="FontSize" Value="10"/>
+    <Setter Property="FontSize" Value="{StaticResource FontSizeMicro}"/>
     <Setter Property="FontWeight" Value="Bold"/>
     <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
-    <Setter Property="Margin" Value="2,0,4,0"/>
+    <Setter Property="Margin" Value="{StaticResource PaneCaptionMargin}"/>
   </Style>
 
   <!-- A drop-down in a toolbar: as tall as the buttons beside it. -->
   <Style Selector="ComboBox.dense">
-    <Setter Property="MinHeight" Value="26"/>
-    <Setter Property="Padding" Value="8,2"/>
+    <Setter Property="MinHeight" Value="{StaticResource DenseFieldMinHeight}"/>
+    <Setter Property="Padding" Value="{StaticResource DenseChoicePadding}"/>
     <Setter Property="CornerRadius" Value="{StaticResource DenseFieldRadius}"/>
   </Style>
 
   <!-- A field in a pane's navigation row: as tall as the buttons beside it, not a dialog's. -->
   <Style Selector="TextBox.dense">
     <Setter Property="Padding" Value="{StaticResource DenseFieldPadding}"/>
-    <Setter Property="MinHeight" Value="26"/>
+    <Setter Property="MinHeight" Value="{StaticResource DenseFieldMinHeight}"/>
     <Setter Property="CornerRadius" Value="{StaticResource DenseFieldRadius}"/>
   </Style>
 
@@ -1051,8 +1051,8 @@
 
   <!-- The X on a workspace tab: small, and pushed away from the title so it is not hit by accident. -->
   <Style Selector="Button.tab-close">
-    <Setter Property="Padding" Value="3"/>
-    <Setter Property="Margin" Value="12,0,0,0"/>
+    <Setter Property="Padding" Value="{StaticResource TabClosePadding}"/>
+    <Setter Property="Margin" Value="{StaticResource TabCloseMargin}"/>
     <Setter Property="VerticalAlignment" Value="Center"/>
   </Style>
 
@@ -1093,7 +1093,7 @@
   <Style Selector="Border.metric">
     <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
-    <Setter Property="BorderThickness" Value="2,1,1,1"/>
+    <Setter Property="BorderThickness" Value="{StaticResource MetricBorderThickness}"/>
     <Setter Property="CornerRadius" Value="{StaticResource CardRadius}"/>
     <Setter Property="Padding" Value="{StaticResource PaddingLg}"/>
   </Style>

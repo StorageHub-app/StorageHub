@@ -1,4 +1,8 @@
+using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Localization;
 using StorageHub.Desktop.Views;
@@ -75,6 +79,23 @@ public class PaneTreeTests
         Assert.Equal(["z"], tree.Roots[0].Children.Select(static child => child.Name));
     }
 
+    /// <summary>
+    /// A path typed in another case than the listing gave is the same folder on this computer, so
+    /// "c:\temp" opens under the "C:\" drive the tree already has instead of growing a second one.
+    /// </summary>
+    [Fact]
+    public void ALocalPathInAnotherCaseFindsTheDriveAlreadyThere()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        var tree = new PaneTreeModel();
+        tree.Follow("pc", "This PC", local: true, "", [Folder(@"C:\", @"C:\")]);
+        tree.Follow("pc", "This PC", local: true, @"c:\temp", [Folder("inside", @"c:\temp\inside")]);
+
+        var drive = Assert.Single(tree.Roots[0].Children);
+        Assert.Equal(@"C:\", drive.Target);
+        Assert.Equal(["temp"], drive.Children.Select(static child => child.Name));
+    }
+
     /// <summary>Choosing a node asks to go there; the tree following a listing does not.</summary>
     [Fact]
     public void OnlyAChoiceAsksToGoSomewhere()
@@ -88,6 +109,44 @@ public class PaneTreeTests
 
         tree.Chosen(tree.Roots[0].Children[0]);
         Assert.Equal(["a"], asked);
+    }
+
+    /// <summary>
+    /// The tree scrolls to the folder the pane is in. It followed the pane there but left the
+    /// scroll where it was, so a folder far down a long drive was selected out of sight.
+    /// </summary>
+    [AvaloniaFact]
+    public void TheTreeScrollsToTheFolderThePaneIsIn()
+    {
+        var model = ShellPreview.CreateOnWorkspace();
+        var window = new MainWindow { DataContext = model };
+        window.Show();
+        window.Measure(new Size(1500, 920));
+        window.Arrange(new Rect(0, 0, 1500, 920));
+        window.UpdateLayout();
+
+        var tree = window.GetVisualDescendants().OfType<TreeView>().First(static t => t.Name == "PART_Tree");
+        var pane = (BrowserPaneModel)tree.DataContext!;
+        var folders = Enumerable.Range(0, 120).Select(index => Folder($"folder-{index:000}", $"folder-{index:000}")).ToArray();
+        var asked = new List<string>();
+        pane.Tree.NavigateRequested += (_, target) => asked.Add(target);
+        pane.Tree.Follow("bucket", "B", local: false, "", folders);
+        pane.Tree.Follow("bucket", "B", local: false, "folder-110", []);
+        window.UpdateLayout();
+        Dispatcher.UIThread.RunJobs();
+        window.UpdateLayout();
+
+        // Following the pane, and the items it brought into view being made, ask for nothing: a
+        // selection the tree made itself is not somebody choosing a folder.
+        Assert.Empty(asked);
+
+        var selected = pane.Tree.Roots[0].Children.Single(static node => node.Name == "folder-110");
+        Assert.True(selected.IsSelected);
+        var item = Assert.IsType<TreeViewItem>(tree.TreeContainerFromItem(selected));
+        var scroller = tree.GetVisualDescendants().OfType<ScrollViewer>().First();
+        var middle = item.TranslatePoint(new Point(0, item.Bounds.Height / 2), scroller)!.Value.Y;
+        Assert.True(scroller.Offset.Y > 0, "The tree did not scroll.");
+        Assert.InRange(middle, 0, scroller.Viewport.Height);
     }
 
     /// <summary>On this computer: This PC, the drive, and every folder down to where the pane is.</summary>

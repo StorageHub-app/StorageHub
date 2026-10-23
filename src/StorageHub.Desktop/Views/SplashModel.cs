@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Windows.Input;
 using StorageHub.Desktop.Framework;
+using StorageHub.Desktop.Localization;
 
 namespace StorageHub.Desktop.Views;
 
@@ -42,6 +43,12 @@ internal sealed class SplashModel : INotifyPropertyChanged
     public static string CopyDetailsLabel => BootText.CopyDetails;
 
     public static string CheckInstallationLabel => BootText.CheckInstallation;
+
+    // Through Ui rather than BootText, so they can be translated: before the language files are
+    // read Ui answers from its compiled-in English, which is what BootText would have said anyway.
+    public static string StatusAccessibleName => Ui.Shell.StartupStatus;
+
+    public static string DetailsAccessibleName => Ui.Shell.StartupDetails;
 
     /// <summary>The step, or the failure, in one line.</summary>
     public string Status

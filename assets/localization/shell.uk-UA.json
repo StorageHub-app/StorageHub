@@ -110,6 +110,8 @@
   "mainToolbar": "Головна панель інструментів",
   "moreToolbarCommands": "Більше команд панелі інструментів",
   "applicationStatus": "Стан застосунку",
+  "startupStatus": "Стан запуску",
+  "startupDetails": "Відомості про запуск",
   "agentStatus": "Стан агента",
   "updateStatus": "Стан оновлення",
   "currentLocation": "Поточне розташування",

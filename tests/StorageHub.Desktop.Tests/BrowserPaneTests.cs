@@ -113,7 +113,7 @@ public class BrowserPaneTests
         now = now.AddSeconds(1);
         Assert.True(await pane.AutoRefreshAsync());
         Assert.Contains(pane.Rows, static row => row.Name == "q3.pdf");
-        Assert.Contains(q1, pane.SelectedRows);
+        Assert.Equal("q1.pdf", Assert.Single(pane.SelectedRows).Name);
         Assert.False(pane.ShowsLoading);
     }
 

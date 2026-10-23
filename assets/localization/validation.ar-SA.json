@@ -3,6 +3,8 @@
   "aDestinationFolderOrNonFileItem2": "يتعارض مجلد وجهة أو عنصر غير ملف مع ملف مصدر.",
   "aDestinationIsRequiredForDirectNavigation": "الوجهة مطلوبة للتنقل المباشر.",
   "aFileCannotBeCopiedOrMoved": "لا يمكن نسخ ملف أو نقله فوق نفسه.",
+  "aFolderCannotBeCopiedIntoItself": "لا يمكن نسخ مجلد إلى داخل نفسه أو إلى مجلد بداخله.",
+  "theDestinationMovedBeforeQueueing": "انتقلت لوحة الوجهة إلى مجلد آخر قبل إضافة النقل إلى قائمة الانتظار، لذلك لم تتم إضافة أي شيء.",
   "aGroupNameIsRequired": "اسم المجموعة مطلوب.",
   "aProfileNameIsRequired": "اسم ملف التعريف مطلوب.",
   "aSavedConnectionIDAndVerifiedRoot": "معرّف الاتصال المحفوظ وهوية الجذر الموثقة مطلوبان.",

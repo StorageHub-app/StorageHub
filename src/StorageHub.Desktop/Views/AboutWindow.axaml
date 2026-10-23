@@ -4,7 +4,7 @@
         x:Class="StorageHub.Desktop.Views.AboutWindow"
         x:DataType="vm:AboutModel"
         Title="{Binding Title}"
-        Width="500" SizeToContent="Height"
+        Width="{StaticResource AboutWindowWidth}" SizeToContent="Height"
         CanResize="False"
         WindowStartupLocation="CenterOwner"
         AutomationProperties.Name="{Binding Title}">
@@ -18,7 +18,7 @@
   <Border Classes="surface" Padding="{StaticResource PaddingLg}">
     <StackPanel Spacing="{StaticResource SpaceMd}">
       <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceLg}">
-        <Image Grid.Column="0" Width="56" Height="56" VerticalAlignment="Top"
+        <Image Grid.Column="0" Width="{StaticResource AboutLogoSize}" Height="{StaticResource AboutLogoSize}" VerticalAlignment="Top"
                Source="avares://StorageHub.Desktop/Assets/storagehub-icon.png"
                AutomationProperties.Name="{Binding Title}"/>
         <StackPanel Grid.Column="1" Spacing="{StaticResource SpaceSm}">
@@ -33,7 +33,7 @@
         </StackPanel>
       </Grid>
 
-      <Button Classes="primary" HorizontalAlignment="Right" MinWidth="88"
+      <Button Classes="primary" HorizontalAlignment="Right" MinWidth="{StaticResource AboutButtonMinWidth}"
               Content="{Binding CloseLabel}" Command="{Binding CloseCommand}"
               IsDefault="True" IsCancel="True"/>
     </StackPanel>

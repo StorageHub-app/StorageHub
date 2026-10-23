@@ -111,6 +111,12 @@ internal sealed partial class BrowserPaneModel : INotifyPropertyChanged, IAsyncD
     private bool _needsTrust;
     private Task<bool>? _loadingMore;
 
+    /// <summary>A quiet re-read of the folder while one is under way.</summary>
+    private Task<bool>? _quietRefresh;
+
+    /// <summary>How many pages of the folder have been read, which a quiet re-read reads again.</summary>
+    private int _pagesRead;
+
     /// <summary>
     /// Which navigation the pane is on: moved on by everything that points it somewhere -- another
     /// source, another folder, back, up, a refresh -- and when it is closed.
@@ -232,6 +238,7 @@ internal sealed partial class BrowserPaneModel : INotifyPropertyChanged, IAsyncD
         RefreshCommand = new RelayCommand(_ => _ = MoveAsync(PaneNavigationKind.Refresh));
         Tree.NavigateRequested += (_, target) => _ = NavigateAsync(target);
         LoadMoreCommand = new RelayCommand(_ => _ = LoadMoreAsync(), _ => _hasMore && _loadingMore is null);
+        LoadAllCommand = new RelayCommand(_ => _ = LoadAllAsync(), _ => _hasMore && _loadingMore is null);
     }
 
     public ObservableCollection<PaneConnection> Connections { get; } = [];
@@ -1253,6 +1260,14 @@ internal sealed partial class BrowserPaneModel : INotifyPropertyChanged, IAsyncD
 
     public static string LoadMoreLabel => Ui.Pane.LoadMore;
 
+    /// <summary>
+    /// "Load all", beside it: every remaining page, for a folder many pages long where Load more
+    /// a page at a time, or scrolling, would take a while to reach the end.
+    /// </summary>
+    public ICommand LoadAllCommand { get; }
+
+    public static string LoadAllLabel => Ui.Pane.LoadAll;
+
     public bool IsLoadingMore => _loadingMore is not null;
 
     /// <summary>
@@ -1277,7 +1292,9 @@ internal sealed partial class BrowserPaneModel : INotifyPropertyChanged, IAsyncD
         // Not while the pane is on its way somewhere else: the page would be the folder it is
         // leaving, and a connection's browser gives up whatever it was doing for the newer request,
         // so asking would cancel the navigation rather than the page.
-        if (!_hasMore || _busy || _source is not { } source) return Task.FromResult(false);
+        // Nor while the folder is being read again quietly: that read is going through the same
+        // pages, and a page asked for beside it would take the next one out from under it.
+        if (!_hasMore || _busy || _quietRefresh is not null || _source is not { } source) return Task.FromResult(false);
 
         // Recorded only if it is still running: a page that came back at once has already cleared
         // the marker on its way out, and storing the finished task after that would leave every
@@ -1289,6 +1306,7 @@ internal sealed partial class BrowserPaneModel : INotifyPropertyChanged, IAsyncD
             Raise(nameof(IsLoadingMore));
             Raise(nameof(ItemCount));
             (LoadMoreCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (LoadAllCommand as RelayCommand)?.RaiseCanExecuteChanged();
         }
 
         return page;
@@ -1304,31 +1322,90 @@ internal sealed partial class BrowserPaneModel : INotifyPropertyChanged, IAsyncD
     /// tick tries again, and a banner every five seconds for a flaky connection would be noise.
     /// </remarks>
     /// <returns>Whether the folder was read; false when skipped, moved away from, or failed.</returns>
-    internal async Task<bool> RefreshQuietlyAsync(CancellationToken cancellationToken = default)
+    internal Task<bool> RefreshQuietlyAsync(CancellationToken cancellationToken = default)
     {
-        if (!CanRefreshQuietly || _source is not { } source) return false;
+        if (!CanRefreshQuietly || _source is not { } source) return Task.FromResult(false);
 
-        // Not a navigation of its own: the same folder read again, which anything that moves the
-        // pane meanwhile makes stale.
-        var navigation = _navigation;
-        var result = await source.MoveAsync(PaneNavigationKind.Refresh, cancellationToken: cancellationToken)
-            .ConfigureAwait(true);
-        if (navigation != _navigation || _busy || result.Listing is not { } listing) return false;
+        var refresh = RefreshQuietlyCoreAsync(source, cancellationToken);
+        if (!refresh.IsCompleted) _quietRefresh = refresh;
+        return refresh;
+    }
 
-        _hasMore = listing.HasMore;
-        Index.Reset(listing.Rows);
-        SyncView();
-        FollowTree(listing.Rows, append: false);
-        Raise(nameof(HasMorePages));
-        await ReadSpaceAsync(navigation, source).ConfigureAwait(true);
+    /// <remarks>
+    /// <para>
+    /// As many pages as had been read are read again, and the list is brought in line once, at the
+    /// end. A re-read used to stop at the first page, so a folder scrolled or loaded to its end lost
+    /// every row past it, and what was selected there, on every tick; while transfers ran the list
+    /// then asked for page two again as it shrank, and lost it again on the next tick. Reading them
+    /// all costs what reading them did the first time, which somebody chose by scrolling there.
+    /// </para>
+    /// <para>
+    /// A folder that is gone is answered with its nearest parent and a note, and that is shown as a
+    /// navigation shows it: the address, the way back up and the note follow the folder listed,
+    /// rather than the address naming a folder that no longer exists over its parent's files.
+    /// </para>
+    /// </remarks>
+    private async Task<bool> RefreshQuietlyCoreAsync(IPaneSource source, CancellationToken cancellationToken)
+    {
+        try
+        {
+            // Not a navigation of its own: the same folder read again, which anything that moves
+            // the pane meanwhile makes stale.
+            var navigation = _navigation;
+            var pages = _pagesRead;
+            var result = await source.MoveAsync(PaneNavigationKind.Refresh, cancellationToken: cancellationToken)
+                .ConfigureAwait(true);
+            if (navigation != _navigation || _busy || result.Listing is not { } listing) return false;
 
-        // The folder may be gone and its parent shown instead, which is the one to follow now.
-        FollowFolder(readSettings: false);
-        return true;
+            var moved = !string.Equals(listing.DisplayPath, Path, StringComparison.Ordinal);
+            var rows = new List<BrowserListItem>(listing.Rows);
+            var hasMore = listing.HasMore;
+            var read = 1;
+            while (!moved && hasMore && read < pages)
+            {
+                var page = await source.LoadMoreAsync(cancellationToken).ConfigureAwait(true);
+                if (navigation != _navigation || _busy) return false;
+                if (page.Listing is not { } more) break;
+                rows.AddRange(more.Rows);
+                hasMore = more.HasMore;
+                read++;
+            }
+
+            _hasMore = hasMore;
+            _pagesRead = read;
+            Index.Reset(rows);
+            if (moved)
+            {
+                Path = listing.DisplayPath;
+                _isAtRoot = listing.IsAtRoot;
+                _note = listing.Note;
+                ApplyView();
+                Raise(nameof(Title));
+            }
+            else
+            {
+                SyncView();
+            }
+
+            FollowTree(rows, append: false);
+            Raise(nameof(HasMorePages));
+            (LoadMoreCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (LoadAllCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            await ReadSpaceAsync(navigation, source).ConfigureAwait(true);
+
+            // The folder may be gone and its parent shown instead, which is the one to follow now.
+            FollowFolder(readSettings: false);
+            return true;
+        }
+        finally
+        {
+            _quietRefresh = null;
+        }
     }
 
     /// <summary>Whether a quiet refresh would read the folder now, rather than wait.</summary>
-    private bool CanRefreshQuietly => _source is not null && !IsTerminal && !_busy && _loadingMore is null;
+    private bool CanRefreshQuietly =>
+        _source is not null && !IsTerminal && !_busy && _loadingMore is null && _quietRefresh is null;
 
     /// <summary>
     /// Follows the folder the pane shows now for auto-refresh -- watched, polled or neither, as
@@ -1398,6 +1475,10 @@ internal sealed partial class BrowserPaneModel : INotifyPropertyChanged, IAsyncD
     /// <returns>Whether the folder is now fully read.</returns>
     internal async Task<bool> LoadAllAsync(CancellationToken cancellationToken = default)
     {
+        // A quiet re-read under way is let finish rather than refused as a folder that could not
+        // be read to the end: a paste during a transfer would otherwise fail on a timer's tick.
+        if (_quietRefresh is { } refresh) await refresh.ConfigureAwait(true);
+
         while (_hasMore)
         {
             var before = AllRows.Count;
@@ -1429,6 +1510,7 @@ internal sealed partial class BrowserPaneModel : INotifyPropertyChanged, IAsyncD
             }
 
             _hasMore = listing.HasMore;
+            _pagesRead++;
             Index.Append(listing.Rows);
             SyncView();
             FollowTree(listing.Rows, append: true);
@@ -1441,6 +1523,7 @@ internal sealed partial class BrowserPaneModel : INotifyPropertyChanged, IAsyncD
             Raise(nameof(HasMorePages));
             Raise(nameof(ItemCount));
             (LoadMoreCommand as RelayCommand)?.RaiseCanExecuteChanged();
+            (LoadAllCommand as RelayCommand)?.RaiseCanExecuteChanged();
         }
     }
 
@@ -1469,6 +1552,14 @@ internal sealed partial class BrowserPaneModel : INotifyPropertyChanged, IAsyncD
         for (var index = Rows.Count - 1; index >= 0; index--)
         {
             if (!wanted.Contains(Rows[index])) Rows.RemoveAt(index);
+        }
+
+        // A row that changed is a new row with the same location: the old one leaves the selection
+        // as it leaves the list, and the new one is selected in its place below. Left in, the file
+        // was selected twice, and a copy took it twice.
+        for (var index = SelectedRows.Count - 1; index >= 0; index--)
+        {
+            if (!wanted.Contains(SelectedRows[index])) SelectedRows.RemoveAt(index);
         }
 
         for (var index = 0; index < target.Count; index++)
@@ -1659,6 +1750,12 @@ internal sealed partial class BrowserPaneModel : INotifyPropertyChanged, IAsyncD
                 // a source this pane no longer holds.
                 if (opened.Listing is null)
                 {
+                    // And holds no source. The browser keeps whatever it had open before when a new
+                    // connection fails, so a source left here answered for that one: Retry refreshed
+                    // it under this one's name, saying "Disconnected" over the real reason and
+                    // losing Review trust; Up walked it; a paste or a drop was queued into it. With
+                    // no source, Retry opens the connection again, and nothing can act on the pane.
+                    _source = null;
                     Tree.Clear();
                     Rows.Clear();
                     SelectedRows.Clear();
@@ -2395,8 +2492,10 @@ internal sealed partial class BrowserPaneModel : INotifyPropertyChanged, IAsyncD
     {
         // A listing still on its way lands nowhere, and a connection list still being read opens
         // nothing: either would otherwise build a new index, and its SQLite file, for a pane that
-        // is gone.
+        // is gone. The tree's scan stops too, or a local one would go on reading up to 500
+        // folders off a disk for a pane nobody can see.
         _navigation++;
+        Tree.CancelScan();
         _autoRefreshTimer?.Stop();
         _autoRefresh?.Dispose();
         await CloseTerminalAsync().ConfigureAwait(false);
@@ -2450,8 +2549,10 @@ internal sealed partial class BrowserPaneModel : INotifyPropertyChanged, IAsyncD
 
         Path = listing.DisplayPath;
         _hasMore = listing.HasMore;
+        _pagesRead = 1;
         Raise(nameof(HasMorePages));
         (LoadMoreCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        (LoadAllCommand as RelayCommand)?.RaiseCanExecuteChanged();
         _isAtRoot = listing.IsAtRoot;
         _note = listing.Note;
 

@@ -3,6 +3,8 @@
   "aDestinationFolderOrNonFileItem2": "Một thư mục đích hoặc mục không phải tệp xung đột với tệp nguồn.",
   "aDestinationIsRequiredForDirectNavigation": "Cần có đích để điều hướng trực tiếp.",
   "aFileCannotBeCopiedOrMoved": "Không thể sao chép hoặc di chuyển tệp lên chính nó.",
+  "aFolderCannotBeCopiedIntoItself": "Không thể sao chép một thư mục vào chính nó hoặc vào thư mục bên trong nó.",
+  "theDestinationMovedBeforeQueueing": "Ngăn đích đã chuyển sang thư mục khác trước khi việc truyền được đưa vào hàng đợi, nên không có gì được đưa vào.",
   "aGroupNameIsRequired": "Cần có tên nhóm.",
   "aProfileNameIsRequired": "Cần có tên hồ sơ.",
   "aSavedConnectionIDAndVerifiedRoot": "Cần có ID kết nối đã lưu và danh tính thư mục gốc đã xác minh.",

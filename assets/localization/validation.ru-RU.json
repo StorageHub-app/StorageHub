@@ -3,6 +3,8 @@
   "aDestinationFolderOrNonFileItem2": "Папка назначения или не-файловый элемент конфликтует с исходным файлом.",
   "aDestinationIsRequiredForDirectNavigation": "Для прямой навигации требуется назначение.",
   "aFileCannotBeCopiedOrMoved": "Файл нельзя копировать или перемещать на самого себя.",
+  "aFolderCannotBeCopiedIntoItself": "Папку нельзя скопировать в саму себя или во вложенную в неё папку.",
+  "theDestinationMovedBeforeQueueing": "Панель назначения перешла в другую папку до постановки передачи в очередь, поэтому ничего не поставлено в очередь.",
   "aGroupNameIsRequired": "Требуется имя группы.",
   "aProfileNameIsRequired": "Требуется имя профиля.",
   "aSavedConnectionIDAndVerifiedRoot": "Требуются ID сохранённого подключения и проверенная идентичность корня.",

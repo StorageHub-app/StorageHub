@@ -5,7 +5,7 @@
         x:Class="StorageHub.Desktop.Views.NewWorkspaceWindow"
         x:DataType="vm:NewWorkspaceModel"
         Title="{Binding Caption}"
-        Width="660" SizeToContent="Height"
+        Width="{StaticResource NewWorkspaceWindowWidth}" SizeToContent="Height"
         CanResize="False"
         WindowStartupLocation="CenterOwner">
 
@@ -23,7 +23,7 @@
                 Content="{Binding RememberLabel}"
                 AutomationProperties.Name="{Binding RememberAccessibleName}"
                 AutomationProperties.HelpText="{Binding RememberAccessibleDescription}"
-                Margin="0,8,0,0"/>
+                Margin="{StaticResource GapAboveMd}"/>
 
       <ItemsControl ItemsSource="{Binding Presets}"
                     AutomationProperties.Name="{Binding ChooserAccessibleName}">
@@ -44,7 +44,7 @@
                     CommandParameter="{Binding}"
                     ToolTip.Tip="{Binding Description}">
               <StackPanel Spacing="{StaticResource SpaceSm}">
-                <vm:PresetThumbnail Preset="{Binding}" Height="96"
+                <vm:PresetThumbnail Preset="{Binding}" Height="{StaticResource PresetThumbnailHeight}"
                                     HorizontalAlignment="Stretch"/>
                 <TextBlock Text="{Binding Title}" FontWeight="SemiBold"/>
                 <TextBlock Classes="caption" Text="{Binding Description}" TextWrapping="Wrap"/>

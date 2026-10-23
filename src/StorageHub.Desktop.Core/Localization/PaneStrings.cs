@@ -85,6 +85,8 @@ internal sealed class PaneStrings : LocalizationModelBase
     public string FilterAccessibleName { get; set; } =
         "Filter the visible items by name. Wildcards star and question mark are supported.";
 
+    public string ClearFilter { get; set; } = "Clear filter";
+
     public string NoItemsMatchFilter { get; set; } = "No items match the current filter.";
 
     public string FolderIsEmpty { get; set; } = "This folder is empty.";
@@ -144,6 +146,9 @@ internal sealed class PaneStrings : LocalizationModelBase
         "SSH clients open a terminal here instead of a file listing.";
 
     public string LoadMore { get; set; } = "Load more";
+
+    /// <summary>Beside Load more: every remaining page, for a folder that is many pages long.</summary>
+    public string LoadAll { get; set; } = "Load all";
 
     /// <summary>After the item count while the folder has more than has been read.</summary>
     public string MoreAvailableSuffix { get; set; } = " | more available";

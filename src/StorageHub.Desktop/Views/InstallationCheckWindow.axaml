@@ -4,7 +4,8 @@
         x:Class="StorageHub.Desktop.Views.InstallationCheckWindow"
         x:DataType="vm:InstallationCheckModel"
         Title="{Binding Title}"
-        Width="680" Height="560" MinWidth="560" MinHeight="420"
+        Width="{StaticResource InstallationCheckWindowWidth}" Height="{StaticResource InstallationCheckWindowHeight}"
+        MinWidth="{StaticResource InstallationCheckWindowMinWidth}" MinHeight="{StaticResource InstallationCheckWindowMinHeight}"
         WindowStartupLocation="CenterOwner"
         AutomationProperties.Name="{Binding Title}">
 

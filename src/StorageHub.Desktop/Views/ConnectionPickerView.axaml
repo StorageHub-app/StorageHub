@@ -3,7 +3,7 @@
              xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
              x:Class="StorageHub.Desktop.Views.ConnectionPickerView"
              x:DataType="vm:ConnectionPickerModel"
-             Width="380" Height="380">
+             Width="{StaticResource ConnectionPickerWidth}" Height="{StaticResource ConnectionPickerHeight}">
 
   <!--
     The pane's connection chooser: a search box, then the connections under their group headings,
@@ -13,7 +13,7 @@
   -->
 
   <DockPanel>
-    <TextBox x:Name="PART_Search" DockPanel.Dock="Top" Margin="0,0,0,6"
+    <TextBox x:Name="PART_Search" DockPanel.Dock="Top" Margin="{StaticResource ItemGapBelow}"
              Text="{Binding Search, Mode=TwoWay}"
              PlaceholderText="{Binding SearchPlaceholder}"
              AutomationProperties.Name="{Binding SearchPlaceholder}"/>
@@ -45,9 +45,9 @@
           <DataTemplate DataType="vm:ConnectionPickerRowModel">
             <Panel>
               <TextBlock Classes="caption" IsVisible="{Binding IsHeader}"
-                         Text="{Binding Heading}" Margin="6,10,6,2"/>
+                         Text="{Binding Heading}" Margin="{StaticResource PickerHeadingMargin}"/>
 
-              <Border Classes="card connection-row" IsVisible="{Binding IsCard}" Margin="2,2"
+              <Border Classes="card connection-row" IsVisible="{Binding IsCard}" Margin="{StaticResource PickerCardMargin}"
                       Classes.selected="{Binding $parent[ListBoxItem].IsSelected}">
                 <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource SpaceSm}">
                   <LucideIcon Grid.Column="0" Kind="{Binding Icon}" Size="{StaticResource IconSizeSm}"

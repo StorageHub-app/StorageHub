@@ -108,6 +108,8 @@
   "mainToolbar": "Hovedværktøjslinje",
   "moreToolbarCommands": "Flere værktøjslinjekommandoer",
   "applicationStatus": "Programstatus",
+  "startupStatus": "Opstartsstatus",
+  "startupDetails": "Opstartsdetaljer",
   "agentStatus": "Agentstatus",
   "updateStatus": "Opdateringsstatus",
   "currentLocation": "Aktuel placering",

@@ -7,7 +7,8 @@
         Title="{Binding Title}"
         AutomationProperties.Name="{Binding AccessibleName}"
         AutomationProperties.HelpText="{Binding AccessibleDescription}"
-        Width="880" Height="760" MinWidth="720" MinHeight="620"
+        Width="{StaticResource ConnectionEditorWidth}" Height="{StaticResource ConnectionEditorHeight}"
+        MinWidth="{StaticResource ConnectionEditorMinWidth}" MinHeight="{StaticResource ConnectionEditorMinHeight}"
         WindowStartupLocation="CenterOwner">
 
   <!--
@@ -24,17 +25,21 @@
       <StackPanel Classes="editor-section">
         <TextBlock Classes="heading-sm" Text="{Binding Title}"/>
         <TextBlock Classes="muted" IsVisible="{Binding HasHint}" Text="{Binding Hint}"
-                   TextWrapping="Wrap" Margin="0,2,0,10"/>
+                   TextWrapping="Wrap" Margin="{StaticResource SectionHintMargin}"/>
         <ItemsControl ItemsSource="{Binding Fields}"/>
       </StackPanel>
     </DataTemplate>
 
     <DataTemplate DataType="vm:ConnectionFieldModel">
-      <Grid ColumnDefinitions="190,*" RowDefinitions="Auto,Auto,Auto,Auto"
-            ColumnSpacing="{StaticResource SpaceMd}" Margin="0,0,0,12">
+      <Grid RowDefinitions="Auto,Auto,Auto,Auto"
+            ColumnSpacing="{StaticResource SpaceMd}" Margin="{StaticResource GapBelowLg}">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="{StaticResource EditorLabelColumnWidth}"/>
+          <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
         <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal"
                     Spacing="{StaticResource SpaceXs}" VerticalAlignment="Center">
-          <TextBlock Text="{Binding Label}" TextWrapping="Wrap" MaxWidth="180"/>
+          <TextBlock Text="{Binding Label}" TextWrapping="Wrap" MaxWidth="{StaticResource EditorLabelMaxWidth}"/>
           <TextBlock Classes="danger" Text="{Binding RequiredMark}"/>
         </StackPanel>
 
@@ -100,11 +105,11 @@
               <TextBlock Text="{Binding ChooseIconLabel}"/>
             </StackPanel>
           </Button>
-          <ItemsControl ItemsSource="{Binding Editor.AccentChoices}" MaxWidth="200"
+          <ItemsControl ItemsSource="{Binding Editor.AccentChoices}" MaxWidth="{StaticResource SwatchPanelMaxWidth}"
                         VerticalAlignment="Center">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate>
-                <WrapPanel ItemSpacing="6" LineSpacing="6"/>
+                <WrapPanel ItemSpacing="{StaticResource SwatchSpacing}" LineSpacing="{StaticResource SwatchSpacing}"/>
               </ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
@@ -120,17 +125,17 @@
         </StackPanel>
 
         <TextBlock Grid.Row="1" Grid.Column="1" Classes="caption" IsVisible="{Binding HasHelp}"
-                   Text="{Binding HelpText}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                   Text="{Binding HelpText}" TextWrapping="Wrap" Margin="{StaticResource GapAboveSm}"/>
 
         <!-- The badge preview follows the colour: how this connection will read in a pane. -->
         <TextBlock Grid.Row="2" Grid.Column="0" IsVisible="{Binding IsIcon}"
-                   Text="{Binding Editor.BadgeLabel}" VerticalAlignment="Center" Margin="0,12,0,0"/>
+                   Text="{Binding Editor.BadgeLabel}" VerticalAlignment="Center" Margin="{StaticResource GapAboveLg}"/>
         <Border Grid.Row="2" Grid.Column="1" Classes="badge-preview" IsVisible="{Binding IsIcon}"
-                Margin="0,12,0,0">
+                Margin="{StaticResource GapAboveLg}">
           <TextBlock Text="{Binding Editor.BadgeText}" Foreground="{Binding Editor.AccentBrush}"/>
         </Border>
         <TextBlock Grid.Row="3" Grid.Column="1" Classes="caption" IsVisible="{Binding IsIcon}"
-                   Text="{Binding Editor.BadgeHint}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                   Text="{Binding Editor.BadgeHint}" TextWrapping="Wrap" Margin="{StaticResource GapAboveSm}"/>
       </Grid>
     </DataTemplate>
   </Window.DataTemplates>
@@ -152,12 +157,12 @@
         <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto"
               ColumnSpacing="{StaticResource SpaceLg}" RowSpacing="{StaticResource SpaceSm}">
           <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding TypeLabel}" VerticalAlignment="Center"/>
-          <ComboBox Grid.Row="0" Grid.Column="1" Width="260"
+          <ComboBox Grid.Row="0" Grid.Column="1" Width="{StaticResource EditorTypeChoiceWidth}"
                     ItemsSource="{Binding Types}"
                     SelectedItem="{Binding Type, Mode=TwoWay}"
                     AutomationProperties.Name="{Binding TypeLabel}"/>
           <TextBlock Grid.Row="1" Grid.Column="0" Text="{Binding ProviderProtocolLabel}" VerticalAlignment="Center"/>
-          <ComboBox Grid.Row="1" Grid.Column="1" Width="260"
+          <ComboBox Grid.Row="1" Grid.Column="1" Width="{StaticResource EditorTypeChoiceWidth}"
                     ItemsSource="{Binding ProvidersForType}"
                     SelectedItem="{Binding Provider, Mode=TwoWay}"
                     AutomationProperties.Name="{Binding ProviderProtocolLabel}">
@@ -200,7 +205,12 @@
         <ItemsControl ItemsSource="{Binding TestSteps}">
           <ItemsControl.ItemTemplate>
             <DataTemplate DataType="vm:ConnectionTestStepRow">
-              <Grid ColumnDefinitions="180,110,*" ColumnSpacing="{StaticResource SpaceSm}">
+              <Grid ColumnSpacing="{StaticResource SpaceSm}">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="{StaticResource TestStepLabelColumnWidth}"/>
+                  <ColumnDefinition Width="{StaticResource TestStepOutcomeColumnWidth}"/>
+                  <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="{Binding Label}"/>
                 <TextBlock Grid.Column="1" Classes="muted" Text="{Binding Outcome}"
                            IsVisible="{Binding !IsPassed}"/>

@@ -116,10 +116,12 @@ internal static class ShellServices
 
     private static ExternalEditController CreateEditing()
     {
-        var store = new DesktopConfigStore(DesktopFrameworkPaths.Resolve().ApplicationRoot);
-        store.Preflight();
+        // Preflighted once, on the first edit, and then read through a fresh store each time so a
+        // change made in Settings since is what the next open sees and what a save keeps.
+        var root = DesktopFrameworkPaths.Resolve().ApplicationRoot;
+        new DesktopConfigStore(root).Preflight();
         var editing = new ExternalEditController(
-            store,
+            () => new DesktopConfigStore(root),
             static () => new NamedPipeObjectInspectorAgentClient(),
             new AvaloniaExternalEditPrompts(Dialogs, () => MainWindow()));
         editing.FileUploaded += (_, _) =>

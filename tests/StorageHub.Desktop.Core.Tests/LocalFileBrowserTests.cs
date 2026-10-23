@@ -194,6 +194,64 @@ public sealed class LocalFileBrowserTests
         Assert.False(more.Snapshot.HasMore);
     }
 
+    [Fact]
+    public async Task NavigatingAwayDoesNotWaitForAPageStillBeingRead()
+    {
+        var root = Directory.CreateTempSubdirectory("StorageHub.SlowBrowser.");
+        using var pageBlocked = new ManualResetEventSlim();
+        using var gate = new ManualResetEventSlim();
+        try
+        {
+            var slow = Directory.CreateDirectory(Path.Combine(root.FullName, "slow"));
+            var fast = Directory.CreateDirectory(Path.Combine(root.FullName, "fast"));
+            var file = Path.Combine(slow.FullName, "a.txt");
+            await File.WriteAllTextAsync(file, "x");
+
+            // The second page of "slow" stalls after its first entry, the way a network share does.
+            IEnumerable<FileSystemInfo> Enumerate(DirectoryInfo directory)
+            {
+                if (!string.Equals(directory.FullName, slow.FullName, StringComparison.OrdinalIgnoreCase))
+                {
+                    foreach (var item in directory.EnumerateFileSystemInfos()) yield return item;
+                    yield break;
+                }
+
+                for (var index = 0; index < LocalBrowserController.DefaultPageSize + 1; index++)
+                {
+                    yield return new FileInfo(file);
+                }
+
+                pageBlocked.Set();
+                gate.Wait(TimeSpan.FromSeconds(30));
+                yield return new FileInfo(file);
+            }
+
+            await using var controller = new LocalBrowserController(new LocalFileBrowserDataSource(Enumerate));
+            var opened = await controller.NavigateAsync(
+                LocalBrowserNavigationKind.Navigate,
+                LocalBrowserLocation.FromDirectory(slow.FullName));
+            Assert.True(opened.Snapshot!.HasMore);
+
+            var loadMore = controller.LoadMoreAsync();
+            Assert.True(pageBlocked.Wait(TimeSpan.FromSeconds(5)));
+            var navigation = Task.Run(() => controller.NavigateAsync(
+                LocalBrowserNavigationKind.Navigate,
+                LocalBrowserLocation.FromDirectory(fast.FullName)));
+            var navigated = await navigation.WaitAsync(TimeSpan.FromSeconds(5));
+
+            gate.Set();
+            var late = await loadMore.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal(LocalBrowserNavigationStatus.Succeeded, navigated.Status);
+            Assert.True(controller.CurrentLocation.IsSameLocation(LocalBrowserLocation.FromDirectory(fast.FullName)));
+            Assert.Equal(LocalBrowserNavigationStatus.Superseded, late.Status);
+        }
+        finally
+        {
+            gate.Set();
+            root.Delete(recursive: true);
+        }
+    }
+
     private static LocalBrowserEntry Entry(string name) =>
         new(name, name, IsContainer: false, 1, null, "File", string.Empty);
 

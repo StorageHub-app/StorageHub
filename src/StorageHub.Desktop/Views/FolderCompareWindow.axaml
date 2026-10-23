@@ -4,8 +4,8 @@
         x:Class="StorageHub.Desktop.Views.FolderCompareWindow"
         x:DataType="vm:FolderCompareModel"
         Title="{x:Static vm:FolderCompareModel.Title}"
-        Width="1040" Height="620"
-        MinWidth="760" MinHeight="420"
+        Width="{StaticResource FolderCompareWindowWidth}" Height="{StaticResource FolderCompareWindowHeight}"
+        MinWidth="{StaticResource FolderCompareWindowMinWidth}" MinHeight="{StaticResource FolderCompareWindowMinHeight}"
         WindowStartupLocation="CenterOwner">
 
   <!--
@@ -19,7 +19,7 @@
     <DockPanel Margin="{StaticResource PaddingLg}">
 
       <Grid DockPanel.Dock="Top" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto"
-            ColumnSpacing="{StaticResource SpaceMd}" Margin="0,0,0,8">
+            ColumnSpacing="{StaticResource SpaceMd}" Margin="{StaticResource GapBelowMd}">
         <TextBlock Grid.Row="0" Grid.Column="0" Classes="caption" Text="{x:Static vm:FolderCompareModel.LeftHeading}"/>
         <TextBlock Grid.Row="1" Grid.Column="0" Text="{Binding LeftLabel}" TextTrimming="CharacterEllipsis"
                    ToolTip.Tip="{Binding LeftLabel}"/>
@@ -28,8 +28,18 @@
                    ToolTip.Tip="{Binding RightLabel}"/>
       </Grid>
 
-      <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,Auto,Auto,Auto,*,220,Auto,Auto"
-            ColumnSpacing="{StaticResource SpaceSm}" Margin="0,0,0,8">
+      <Grid DockPanel.Dock="Top"
+            ColumnSpacing="{StaticResource SpaceSm}" Margin="{StaticResource GapBelowMd}">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="{StaticResource CompareFilterColumnWidth}"/>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
         <CheckBox Grid.Column="0" Content="{Binding OnlyLeftLabel}" IsChecked="{Binding ShowOnlyLeft, Mode=TwoWay}"/>
         <CheckBox Grid.Column="1" Content="{Binding OnlyRightLabel}" IsChecked="{Binding ShowOnlyRight, Mode=TwoWay}"/>
         <CheckBox Grid.Column="2" Content="{Binding DifferentLabel}" IsChecked="{Binding ShowDifferent, Mode=TwoWay}"/>
@@ -44,7 +54,7 @@
       </Grid>
 
       <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto,Auto,Auto"
-            ColumnSpacing="{StaticResource SpaceSm}" Margin="0,8,0,0">
+            ColumnSpacing="{StaticResource SpaceSm}" Margin="{StaticResource GapAboveMd}">
         <TextBlock Grid.Column="0" Classes="status"
                    Classes.primary="{Binding Status.IsPrimary}"
                    Classes.success="{Binding Status.IsSuccess}"
@@ -66,8 +76,8 @@
                  AutomationProperties.Name="{x:Static vm:FolderCompareModel.Title}">
         <TableView.Columns>
           <TableViewColumn Header="{x:Static vm:FolderCompareModel.ColumnPath}" Binding="{Binding Path}" Width="300*"/>
-          <TableViewColumn Header="{x:Static vm:FolderCompareModel.ColumnLeftSize}" Binding="{Binding LeftSize}" Width="90"/>
-          <TableViewColumn Header="{x:Static vm:FolderCompareModel.ColumnLeftModified}" Binding="{Binding LeftModified}" Width="140"/>
+          <TableViewColumn Header="{x:Static vm:FolderCompareModel.ColumnLeftSize}" Binding="{Binding LeftSize}" Width="{StaticResource SizeColumnWidth}"/>
+          <TableViewColumn Header="{x:Static vm:FolderCompareModel.ColumnLeftModified}" Binding="{Binding LeftModified}" Width="{StaticResource DateColumnWidth}"/>
           <!-- Coloured by kind, so the differences stand out from the paths only one side has. -->
           <TableViewColumn Header="{x:Static vm:FolderCompareModel.ColumnStatus}" Width="190*">
             <TableViewColumn.CellTemplate>
@@ -81,8 +91,8 @@
               </DataTemplate>
             </TableViewColumn.CellTemplate>
           </TableViewColumn>
-          <TableViewColumn Header="{x:Static vm:FolderCompareModel.ColumnRightSize}" Binding="{Binding RightSize}" Width="90"/>
-          <TableViewColumn Header="{x:Static vm:FolderCompareModel.ColumnRightModified}" Binding="{Binding RightModified}" Width="140"/>
+          <TableViewColumn Header="{x:Static vm:FolderCompareModel.ColumnRightSize}" Binding="{Binding RightSize}" Width="{StaticResource SizeColumnWidth}"/>
+          <TableViewColumn Header="{x:Static vm:FolderCompareModel.ColumnRightModified}" Binding="{Binding RightModified}" Width="{StaticResource DateColumnWidth}"/>
         </TableView.Columns>
       </TableView>
     </DockPanel>

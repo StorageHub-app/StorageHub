@@ -3,6 +3,8 @@
   "aDestinationFolderOrNonFileItem2": "目标文件夹或非文件项目与源文件冲突。",
   "aDestinationIsRequiredForDirectNavigation": "直接导航需要指定目标。",
   "aFileCannotBeCopiedOrMoved": "不能将文件复制或移动到其自身。",
+  "aFolderCannotBeCopiedIntoItself": "无法将文件夹复制到其自身或其内部的文件夹中。",
+  "theDestinationMovedBeforeQueueing": "在传输加入队列之前，目标窗格已转到另一个文件夹，因此未加入任何内容。",
   "aGroupNameIsRequired": "必须提供分组名称。",
   "aProfileNameIsRequired": "必须提供配置文件名称。",
   "aSavedConnectionIDAndVerifiedRoot": "必须提供已保存连接 ID 和已验证的根目录标识。",

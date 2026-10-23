@@ -49,12 +49,22 @@ internal interface IDesktopUpdateEngineFactory
     IDesktopUpdateEngine Create(bool includePrereleases);
 }
 
+/// <summary>
+/// Checks for, downloads and installs a newer StorageHub, as the update settings allow.
+/// </summary>
+/// <remarks>
+/// The settings are read from disk each time they are needed rather than held. The shell makes
+/// one updater for the whole session and the Settings window saves through a store of its own, so
+/// a copy taken at construction meant "Include release candidate builds" changed nothing until the
+/// next start, and the update window went on naming the channel that had been in force then.
+/// </remarks>
 internal sealed class DesktopUpdater : IDisposable
 {
     private readonly DesktopConfigStore _preferencesStore;
     private readonly IDesktopUpdateEngineFactory _engineFactory;
     private DesktopUpdatePreferences _preferences;
     private IDesktopUpdateEngine? _engine;
+    private bool _engineIncludesPrereleases;
     private DesktopUpdateCandidate? _candidate;
     private bool _downloaded;
     private int _operationActive;
@@ -76,14 +86,16 @@ internal sealed class DesktopUpdater : IDisposable
 
     internal DesktopUpdateSnapshot Snapshot { get; private set; } = DesktopUpdateSnapshot.Initial;
 
-    internal DesktopUpdatePreferences Preferences => _preferences;
+    /// <summary>The update settings as they stand on disk now.</summary>
+    internal DesktopUpdatePreferences Preferences => ReadPreferences();
 
     internal void SavePreferences(DesktopUpdatePreferences preferences)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(preferences);
-        _preferencesStore.Save(preferences);
-        var sourceChanged = _preferences.IncludePrereleases != preferences.IncludePrereleases;
+        var previous = ReadPreferences();
+        FreshStore().Save(preferences);
+        var sourceChanged = previous.IncludePrereleases != preferences.IncludePrereleases;
         _preferences = preferences;
         if (sourceChanged)
         {
@@ -106,7 +118,7 @@ internal sealed class DesktopUpdater : IDisposable
     internal async Task RunAutomaticAsync(CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        if (!_preferences.CheckAutomatically)
+        if (!ReadPreferences().CheckAutomatically)
         {
             Publish(new DesktopUpdateSnapshot(DesktopUpdateState.Disabled, Ui.Validation.UpdatesAutomaticChecksOff));
             return;
@@ -121,17 +133,20 @@ internal sealed class DesktopUpdater : IDisposable
         try
         {
             var snapshot = await CheckForUpdatesAsync(automaticOperation.Token).ConfigureAwait(false);
-            if (snapshot.State != DesktopUpdateState.UpdateAvailable || !_preferences.DownloadAutomatically)
+            if (snapshot.State != DesktopUpdateState.UpdateAvailable || !ReadPreferences().DownloadAutomatically)
             {
                 return;
             }
 
             snapshot = await DownloadAvailableAsync(automaticOperation.Token).ConfigureAwait(false);
+            // Read again after the download, which can take minutes: a restart turned off while it
+            // ran must not still happen.
+            var preferences = ReadPreferences();
             if (!_disposed &&
                 snapshot.State == DesktopUpdateState.ReadyToRestart &&
-                _preferences.CheckAutomatically &&
-                _preferences.DownloadAutomatically &&
-                _preferences.RestartAutomatically)
+                preferences.CheckAutomatically &&
+                preferences.DownloadAutomatically &&
+                preferences.RestartAutomatically)
             {
                 ApplyAndRestart();
             }
@@ -155,7 +170,15 @@ internal sealed class DesktopUpdater : IDisposable
         {
             _candidate = null;
             _downloaded = false;
-            _engine ??= _engineFactory.Create(_preferences.IncludePrereleases);
+            // A channel changed in Settings since the engine was made means a different feed, so
+            // the engine is made again rather than asked with the old one.
+            var includePrereleases = ReadPreferences().IncludePrereleases;
+            if (_engine is null || _engineIncludesPrereleases != includePrereleases)
+            {
+                _engine = _engineFactory.Create(includePrereleases);
+                _engineIncludesPrereleases = includePrereleases;
+            }
+
             if (!_engine.IsInstalled)
             {
                 return Publish(new DesktopUpdateSnapshot(
@@ -278,6 +301,27 @@ internal sealed class DesktopUpdater : IDisposable
                 DesktopUpdateState.Failed,
                 Ui.Validation.UpdatesCouldNotStartTheInstaller));
             return false;
+        }
+    }
+
+    /// <summary>
+    /// A store over the same directory that has not read anything yet, since a store answers from
+    /// its first read for as long as it lives.
+    /// </summary>
+    private DesktopConfigStore FreshStore() => new(_preferencesStore.Directory);
+
+    /// <summary>
+    /// The settings on disk, or the last ones read when the files cannot be read just now.
+    /// </summary>
+    private DesktopUpdatePreferences ReadPreferences()
+    {
+        try
+        {
+            return _preferences = FreshStore().Load();
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            return _preferences;
         }
     }
 

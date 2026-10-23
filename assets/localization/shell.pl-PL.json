@@ -110,6 +110,8 @@
   "mainToolbar": "Główny pasek narzędzi",
   "moreToolbarCommands": "Więcej poleceń paska narzędzi",
   "applicationStatus": "Stan aplikacji",
+  "startupStatus": "Stan uruchamiania",
+  "startupDetails": "Szczegóły uruchamiania",
   "agentStatus": "Stan agenta",
   "updateStatus": "Stan aktualizacji",
   "currentLocation": "Bieżąca lokalizacja",

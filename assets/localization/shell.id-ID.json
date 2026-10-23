@@ -110,6 +110,8 @@
   "mainToolbar": "Bilah alat utama",
   "moreToolbarCommands": "Perintah bilah alat lainnya",
   "applicationStatus": "Status aplikasi",
+  "startupStatus": "Status pengaktifan",
+  "startupDetails": "Detail pengaktifan",
   "agentStatus": "Status agen",
   "updateStatus": "Status pembaruan",
   "currentLocation": "Lokasi saat ini",

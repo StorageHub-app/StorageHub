@@ -4,8 +4,8 @@
         x:Class="StorageHub.Desktop.Views.StagingCleanupWindow"
         x:DataType="vm:StagingCleanupModel"
         Title="{x:Static vm:StagingCleanupModel.Title}"
-        Width="960" Height="540"
-        MinWidth="720" MinHeight="380"
+        Width="{StaticResource StagingCleanupWindowWidth}" Height="{StaticResource StagingCleanupWindowHeight}"
+        MinWidth="{StaticResource StagingCleanupWindowMinWidth}" MinHeight="{StaticResource StagingCleanupWindowMinHeight}"
         WindowStartupLocation="CenterOwner">
 
   <!--
@@ -19,10 +19,10 @@
     <DockPanel Margin="{StaticResource PaddingLg}">
 
       <TextBlock DockPanel.Dock="Top" Classes="caption" Text="{x:Static vm:StagingCleanupModel.Intro}"
-                 TextWrapping="Wrap" Margin="0,0,0,8"/>
+                 TextWrapping="Wrap" Margin="{StaticResource GapBelowMd}"/>
 
       <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto"
-            ColumnSpacing="{StaticResource SpaceSm}" Margin="0,0,0,8">
+            ColumnSpacing="{StaticResource SpaceSm}" Margin="{StaticResource GapBelowMd}">
         <CheckBox Grid.Column="0" Content="{x:Static vm:StagingCleanupModel.IncludeRemoteLabel}"
                   IsChecked="{Binding IncludeRemote, Mode=TwoWay}"/>
         <Button Grid.Column="2" Content="{x:Static vm:StagingCleanupModel.SearchLabel}"
@@ -30,7 +30,7 @@
       </Grid>
 
       <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto,Auto"
-            ColumnSpacing="{StaticResource SpaceSm}" Margin="0,8,0,0">
+            ColumnSpacing="{StaticResource SpaceSm}" Margin="{StaticResource GapAboveMd}">
         <TextBlock Grid.Column="0" Classes="status"
                    Classes.primary="{Binding Status.IsPrimary}"
                    Classes.success="{Binding Status.IsSuccess}"
@@ -50,11 +50,11 @@
                  AutomationProperties.Name="{x:Static vm:StagingCleanupModel.Title}">
         <TableView.Columns>
           <TableViewColumn Header="{x:Static vm:StagingCleanupModel.ColumnName}" Binding="{Binding Name}" Width="230*"/>
-          <TableViewColumn Header="{x:Static vm:StagingCleanupModel.ColumnKind}" Binding="{Binding Kind}" Width="140"/>
+          <TableViewColumn Header="{x:Static vm:StagingCleanupModel.ColumnKind}" Binding="{Binding Kind}" Width="{StaticResource KindColumnWidth}"/>
           <TableViewColumn Header="{x:Static vm:StagingCleanupModel.ColumnFolder}" Binding="{Binding Folder}" Width="260*"/>
-          <TableViewColumn Header="{x:Static vm:StagingCleanupModel.ColumnSize}" Binding="{Binding Size}" Width="90"/>
-          <TableViewColumn Header="{x:Static vm:StagingCleanupModel.ColumnModified}" Binding="{Binding Modified}" Width="140"/>
-          <TableViewColumn Header="{x:Static vm:StagingCleanupModel.ColumnState}" Width="120">
+          <TableViewColumn Header="{x:Static vm:StagingCleanupModel.ColumnSize}" Binding="{Binding Size}" Width="{StaticResource SizeColumnWidth}"/>
+          <TableViewColumn Header="{x:Static vm:StagingCleanupModel.ColumnModified}" Binding="{Binding Modified}" Width="{StaticResource DateColumnWidth}"/>
+          <TableViewColumn Header="{x:Static vm:StagingCleanupModel.ColumnState}" Width="{StaticResource StateColumnWidth}">
             <TableViewColumn.CellTemplate>
               <DataTemplate DataType="vm:LeftoverRow">
                 <TextBlock Classes="status" Classes.warning="{Binding InUse}"

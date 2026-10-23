@@ -110,7 +110,7 @@
 
       <!-- The connection's colour across the pane under its title bar, as 1.x drew it: there the
            title bar was the workspace's and the colour the top of the pane below it. -->
-      <Border x:Name="PART_Accent" DockPanel.Dock="Top" Height="3" Background="{Binding AccentBrush}"
+      <Border x:Name="PART_Accent" DockPanel.Dock="Top" Height="{StaticResource PaneAccentThickness}" Background="{Binding AccentBrush}"
               IsVisible="{Binding HasBadges}"/>
 
       <!--
@@ -126,7 +126,7 @@
         <Border Grid.Column="0" Classes="pane-chip">
           <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceMd}">
             <TextBlock Classes="pane-chip-name" Text="{Binding Title}"
-                       MaxWidth="260" TextTrimming="CharacterEllipsis"
+                       MaxWidth="{StaticResource PaneChipNameMaxWidth}" TextTrimming="CharacterEllipsis"
                        VerticalAlignment="Center"/>
             <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceSm}"
                         IsVisible="{Binding HasBadges}" VerticalAlignment="Center">
@@ -148,7 +148,7 @@
           <Grid ColumnSpacing="{StaticResource SpaceMd}">
             <Grid.ColumnDefinitions>
               <ColumnDefinition Width="*"/>
-              <ColumnDefinition Width="*" MinWidth="140" MaxWidth="280"/>
+              <ColumnDefinition Width="*" MinWidth="{StaticResource PanePickerMinWidth}" MaxWidth="{StaticResource PanePickerMaxWidth}"/>
             </Grid.ColumnDefinitions>
             <TextBlock Grid.Column="0" Classes="pane-state" VerticalAlignment="Center"
                        TextTrimming="CharacterEllipsis"
@@ -283,14 +283,17 @@
       <Grid x:Name="PART_AddressRow" DockPanel.Dock="Top" ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto,Auto"
             ColumnSpacing="{StaticResource SpaceXs}"
             IsVisible="{Binding IsListing}"
-            Margin="8,4">
-        <Button Grid.Column="0" Classes="tool" Command="{Binding BackCommand}">
+            Margin="{StaticResource RowInsetMargin}">
+        <Button Grid.Column="0" Classes="tool" Command="{Binding BackCommand}"
+                ToolTip.Tip="{Binding BackLabel}" AutomationProperties.Name="{Binding BackLabel}">
           <LucideIcon Kind="ArrowLeft" Size="{StaticResource IconSizeSm}"/>
         </Button>
-        <Button Grid.Column="1" Classes="tool" Command="{Binding ForwardCommand}">
+        <Button Grid.Column="1" Classes="tool" Command="{Binding ForwardCommand}"
+                ToolTip.Tip="{Binding ForwardLabel}" AutomationProperties.Name="{Binding ForwardLabel}">
           <LucideIcon Kind="ArrowRight" Size="{StaticResource IconSizeSm}"/>
         </Button>
-        <Button Grid.Column="2" Classes="tool" Command="{Binding UpCommand}">
+        <Button Grid.Column="2" Classes="tool" Command="{Binding UpCommand}"
+                ToolTip.Tip="{Binding UpLabel}" AutomationProperties.Name="{Binding UpLabel}">
           <LucideIcon Kind="ArrowUp" Size="{StaticResource IconSizeSm}"/>
         </Button>
         <TextBox x:Name="PART_Address" Grid.Column="3" Classes="dense"
@@ -298,22 +301,23 @@
                  AutomationProperties.Name="{Binding Path}"
                  VerticalAlignment="Center"/>
         <Button Grid.Column="4" Classes="tool" Command="{Binding RefreshCommand}"
-                ToolTip.Tip="{Binding RefreshLabel}">
+                ToolTip.Tip="{Binding RefreshLabel}" AutomationProperties.Name="{Binding RefreshLabel}">
           <LucideIcon Kind="RefreshCw" Size="{StaticResource IconSizeSm}"/>
         </Button>
         <TextBlock Grid.Column="5" Classes="muted" Text="{Binding FilterLabel}"
                    VerticalAlignment="Center" Margin="{StaticResource PaddingSm}"/>
-        <TextBox Grid.Column="6" Classes="dense" Width="170" Text="{Binding Filter, Mode=TwoWay}"
+        <TextBox Grid.Column="6" Classes="dense" Width="{StaticResource PaneFilterWidth}" Text="{Binding Filter, Mode=TwoWay}"
                  Watermark="{Binding FilterPlaceholder}"
                  AutomationProperties.Name="{Binding FilterAccessibleName}"
                  VerticalAlignment="Center">
           <TextBox.InnerLeftContent>
             <LucideIcon Kind="Search" Size="{StaticResource IconSizeSm}"
-                        Margin="6,0,0,0" VerticalAlignment="Center"/>
+                        Margin="{StaticResource InnerGlyphMargin}" VerticalAlignment="Center"/>
           </TextBox.InnerLeftContent>
         </TextBox>
         <Button Grid.Column="7" Classes="tool" Command="{Binding ClearFilterCommand}"
-                IsVisible="{Binding HasFilter}">
+                IsVisible="{Binding HasFilter}"
+                ToolTip.Tip="{Binding ClearFilterLabel}" AutomationProperties.Name="{Binding ClearFilterLabel}">
           <LucideIcon Kind="X" Size="{StaticResource IconSizeSm}"/>
         </Button>
       </Grid>
@@ -323,10 +327,12 @@
       <Grid x:Name="PART_Footer" DockPanel.Dock="Bottom" ColumnDefinitions="Auto,*,Auto"
             ColumnSpacing="{StaticResource SpaceLg}"
             IsVisible="{Binding IsListing}"
-            Margin="8,4">
+            Margin="{StaticResource RowInsetMargin}">
         <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="{StaticResource SpaceSm}">
           <TextBlock Classes="muted" Text="{Binding ItemCount}" VerticalAlignment="Center"/>
           <Button Classes="link" Content="{Binding LoadMoreLabel}" Command="{Binding LoadMoreCommand}"
+                  IsVisible="{Binding HasMorePages}" VerticalAlignment="Center"/>
+          <Button Classes="link" Content="{Binding LoadAllLabel}" Command="{Binding LoadAllCommand}"
                   IsVisible="{Binding HasMorePages}" VerticalAlignment="Center"/>
         </StackPanel>
         <TextBlock Grid.Column="1" Classes="muted" Text="{Binding SelectionSummary}" VerticalAlignment="Center"
@@ -380,7 +386,12 @@
         -->
         <!-- Hidden, the tree's column is sized to nothing in code-behind and given back the width
              it was dragged to when it returns; a hidden child alone would leave its column. -->
-        <Grid x:Name="PART_Listing" ColumnDefinitions="185,Auto,*" IsVisible="{Binding IsListing}">
+        <Grid x:Name="PART_Listing" IsVisible="{Binding IsListing}">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="{StaticResource PaneTreeWidth}"/>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*"/>
+          </Grid.ColumnDefinitions>
           <!-- No sideways scrolling: a deep folder would scroll the tree left until the top of
                the path was out of sight. Names past the edge end in an ellipsis instead. -->
           <TreeView x:Name="PART_Tree" Grid.Column="0" Classes="pane-tree"
@@ -389,7 +400,7 @@
                     AutomationProperties.Name="{Binding Title}">
             <TreeView.Resources>
               <x:Double x:Key="TreeViewItemIndent">12</x:Double>
-              <x:Double x:Key="TreeViewItemMinHeight">22</x:Double>
+              <StaticResource x:Key="TreeViewItemMinHeight" ResourceKey="TreeRowHeight"/>
               <SolidColorBrush x:Key="TreeViewItemBackgroundSelected" Color="{DynamicResource SelectionColor}"/>
               <SolidColorBrush x:Key="TreeViewItemBackgroundSelectedPointerOver" Color="{DynamicResource SelectionColor}"/>
               <SolidColorBrush x:Key="TreeViewItemForegroundSelected" Color="{DynamicResource TextColor}"/>
@@ -420,13 +431,13 @@
             </TreeView.Styles>
             <TreeView.ItemTemplate>
               <TreeDataTemplate DataType="vm:PaneTreeNode" ItemsSource="{Binding Children}">
-                <StackPanel Orientation="Horizontal" Spacing="6" ToolTip.Tip="{Binding Target}">
+                <StackPanel Orientation="Horizontal" Spacing="{StaticResource IconLabelSpacing}" ToolTip.Tip="{Binding Target}">
                   <!-- The spinner is drawn in the room the expander leaves, to the left of the icon,
                        and takes none of its own, so the icon does not move when it comes and goes. -->
                   <Grid>
-                    <LucideIcon Kind="{Binding Icon}" Size="16" Classes.folder="{Binding !IsRoot}"/>
-                    <LucideIcon Classes="tree-spinner" Kind="{x:Static vm:PaneTreeNode.SpinnerIcon}" Size="14"
-                                HorizontalAlignment="Left" VerticalAlignment="Center" Margin="-22,0,0,0"
+                    <LucideIcon Kind="{Binding Icon}" Size="{StaticResource IconSizeSm}" Classes.folder="{Binding !IsRoot}"/>
+                    <LucideIcon Classes="tree-spinner" Kind="{x:Static vm:PaneTreeNode.SpinnerIcon}" Size="{StaticResource IconSizeXs}"
+                                HorizontalAlignment="Left" VerticalAlignment="Center" Margin="{StaticResource TreeSpinnerOutset}"
                                 IsVisible="{Binding ShowsSpinner}" IsHitTestVisible="False"/>
                   </Grid>
                   <TextBlock Text="{Binding Name}" VerticalAlignment="Center"
@@ -467,12 +478,12 @@
                        there is one, a glyph chosen from the extension where there is not. -->
                   <TableViewColumn.CellTemplate>
                     <DataTemplate DataType="core:BrowserListItem">
-                      <StackPanel Orientation="Horizontal" Spacing="6">
-                        <Panel Width="16" Height="16" VerticalAlignment="Center">
-                          <Image Width="16" Height="16"
+                      <StackPanel Orientation="Horizontal" Spacing="{StaticResource IconLabelSpacing}">
+                        <Panel Width="{StaticResource IconSizeSm}" Height="{StaticResource IconSizeSm}" VerticalAlignment="Center">
+                          <Image Width="{StaticResource IconSizeSm}" Height="{StaticResource IconSizeSm}"
                                  RenderOptions.BitmapInterpolationMode="HighQuality"
                                  Source="{Binding Converter={x:Static themes:FileSystemIconConverter.Instance}}"/>
-                          <LucideIcon Size="16"
+                          <LucideIcon Size="{StaticResource IconSizeSm}"
                                       Kind="{Binding Converter={x:Static themes:FileGlyphConverter.Instance}}"
                                       Classes.folder="{Binding Converter={x:Static themes:IsContainerRowConverter.Instance}}"
                                       IsVisible="{Binding Converter={x:Static themes:HasNoSystemIconConverter.Instance}}"/>
@@ -484,17 +495,17 @@
                   </TableViewColumn.CellTemplate>
                 </TableViewColumn>
                 <!-- Right-aligned, as 1.x had it, so the digits of sizes line up. -->
-                <TableViewColumn Width="80" HorizontalContentAlignment="Right">
+                <TableViewColumn Width="{StaticResource PaneSizeColumnWidth}" HorizontalContentAlignment="Right">
                   <TableViewColumn.CellTemplate>
                     <DataTemplate DataType="core:BrowserListItem">
                       <TextBlock Text="{Binding Size}" TextAlignment="Right" HorizontalAlignment="Right"
-                                 VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                 VerticalAlignment="Center" Margin="{StaticResource SizeCellMargin}"/>
                     </DataTemplate>
                   </TableViewColumn.CellTemplate>
                 </TableViewColumn>
-                <TableViewColumn Binding="{Binding Type}" Width="110"/>
-                <TableViewColumn Binding="{Binding Modified}" Width="120"/>
-                <TableViewColumn Binding="{Binding Status}" Width="90"/>
+                <TableViewColumn Binding="{Binding Type}" Width="{StaticResource PaneTypeColumnWidth}"/>
+                <TableViewColumn Binding="{Binding Modified}" Width="{StaticResource PaneModifiedColumnWidth}"/>
+                <TableViewColumn Binding="{Binding Status}" Width="{StaticResource PaneStatusColumnWidth}"/>
               </TableView.Columns>
             </TableView>
 
@@ -508,10 +519,10 @@
                  acted on while they are about to be replaced. -->
             <Border Classes="pane-loading" IsVisible="{Binding ShowsLoading}">
               <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
-                          Spacing="{StaticResource SpaceSm}" Width="200"
+                          Spacing="{StaticResource SpaceSm}" Width="{StaticResource PaneLoadingWidth}"
                           AutomationProperties.Name="{Binding FetchingFolderLabel}">
                 <TextBlock Text="{Binding FetchingFolderLabel}" HorizontalAlignment="Center"/>
-                <ProgressBar IsIndeterminate="True" MinHeight="4"/>
+                <ProgressBar IsIndeterminate="True" MinHeight="{StaticResource IndeterminateBarHeight}"/>
               </StackPanel>
             </Border>
           </Panel>

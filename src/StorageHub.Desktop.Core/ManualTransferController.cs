@@ -530,15 +530,14 @@ public sealed class ManualTransferController : IAsyncDisposable
             return StorageResult<ManualTransferPlan>.Fail(endpointFailure);
         }
 
-        var destinationByName = destination.Entries.ToDictionary(
-            static item => item.Name,
-            StringComparer.Ordinal);
+        var names = NameComparer(destination.Context);
+        var destinationByName = ByName(destination.Entries, names);
         var requests = new List<TransferEnqueueRequest>(source.Items.Count);
-        var destinationPaths = new HashSet<string>(StringComparer.Ordinal);
+        var destinationPaths = new HashSet<string>(names);
 
         // A name a rename may not take: one at the destination, one another selected file keeps,
         // or one an earlier rename in this plan already took.
-        var claimedNames = new HashSet<string>(destinationByName.Keys, StringComparer.Ordinal);
+        var claimedNames = new HashSet<string>(destinationByName.Keys, names);
         claimedNames.UnionWith(source.Items.Select(static item => item.Name));
         var skipped = 0;
         var renamed = 0;
@@ -726,12 +725,78 @@ public sealed class ManualTransferController : IAsyncDisposable
         };
     }
 
+    /// <summary>
+    /// How names at the destination are told apart: as the destination's file system tells them.
+    /// </summary>
+    /// <remarks>
+    /// A folder on this PC under Windows holds one of Readme.TXT and readme.txt, not both, so the
+    /// one arriving is the one already there. Compared exactly, it was not, so nobody was asked
+    /// whether to replace it. A server's names are compared exactly, as the server compares them.
+    /// </remarks>
+    internal static StringComparer NameComparer(PaneTransferContext destination) =>
+        destination.Kind == PaneTransferContextKind.ThisPc && OperatingSystem.IsWindows()
+            ? StringComparer.OrdinalIgnoreCase
+            : StringComparer.Ordinal;
+
+    /// <summary>
+    /// Refuses a selection with a folder that would land in itself or in a folder inside it.
+    /// </summary>
+    /// <remarks>
+    /// The folder would be read while its copy was being written into it, and on a server read
+    /// as it is walked the copies would be read too and copied again, a level deeper each time.
+    /// A drag onto a pane's own folder was the only way in that was stopped; a paste, and a drop
+    /// from another pane on the same connection, went ahead.
+    /// </remarks>
+    internal static StorageFailure? RequireNotIntoItself(PaneSelectionSnapshot source, PaneTransferContext destination)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(destination);
+        if (source.Context.Kind != destination.Kind ||
+            source.Context.ConnectionId != destination.ConnectionId ||
+            !string.Equals(source.Context.RootIdentity, destination.RootIdentity, StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var comparison = destination.Kind == PaneTransferContextKind.ThisPc && OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        static string Norm(string path) => path.Replace('\\', '/').Trim('/');
+
+        var target = Norm(destination.RelativePath);
+        foreach (var item in source.Items.Where(static item => item.IsContainer))
+        {
+            var folder = Norm(item.RelativePath);
+            if (folder.Length == 0) continue;
+            if (string.Equals(target, folder, comparison) || target.StartsWith(folder + "/", comparison))
+            {
+                return new StorageFailure(
+                    "manual_transfer.folder_into_itself",
+                    StorageFailureKind.Validation,
+                    Ui.Validation.AFolderCannotBeCopiedIntoItself);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The destination's entries by name, the first of any two the comparer cannot tell apart: a
+    /// Windows folder made case-sensitive can hold both Readme.TXT and readme.txt.
+    /// </summary>
+    private static Dictionary<string, PaneTransferItem> ByName(IEnumerable<PaneTransferItem> entries, StringComparer names)
+    {
+        var byName = new Dictionary<string, PaneTransferItem>(names);
+        foreach (var entry in entries) byName.TryAdd(entry.Name, entry);
+        return byName;
+    }
+
     /// <summary>The first selected file whose name a file at the destination already has.</summary>
     internal static PaneTransferItem? FirstConflict(PaneSelectionSnapshot source, PaneDestinationSnapshot destination)
     {
-        var files = destination.Entries
-            .Where(static entry => entry.Kind == StorageItemKind.File)
-            .ToDictionary(static entry => entry.Name, StringComparer.Ordinal);
+        var files = ByName(
+            destination.Entries.Where(static entry => entry.Kind == StorageItemKind.File),
+            NameComparer(destination.Context));
         return source.Items
             .Where(static item => item.Kind == StorageItemKind.File)
             .Select(item => files.GetValueOrDefault(item.Name))

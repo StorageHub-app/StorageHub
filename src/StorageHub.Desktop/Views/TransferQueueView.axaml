@@ -73,7 +73,7 @@
              off the edge; and clear of the edge, where the last word used to be cut. -->
         <TextBlock Grid.Column="1" Classes="muted" Text="{Binding Message}"
                    HorizontalAlignment="Right" VerticalAlignment="Center"
-                   TextTrimming="CharacterEllipsis" Margin="12,0,8,0"
+                   TextTrimming="CharacterEllipsis" Margin="{StaticResource QueueMessageMargin}"
                    ToolTip.Tip="{Binding Message}"/>
       </Grid>
     </Border>
@@ -113,7 +113,7 @@
               </TableView.ContextMenu>
               <TableView.Columns>
                 <TableViewColumn Header="{Binding $parent[vm:TransferQueueView].((vm:TransferQueueModel)DataContext).ColumnOperation}"
-                                 Binding="{Binding Operation}" Width="140"/>
+                                 Binding="{Binding Operation}" Width="{StaticResource QueueOperationColumnWidth}"/>
                 <TableViewColumn Header="{Binding $parent[vm:TransferQueueView].((vm:TransferQueueModel)DataContext).ColumnSource}"
                                  Binding="{Binding Source}" Width="*"/>
                 <TableViewColumn Header="{Binding $parent[vm:TransferQueueView].((vm:TransferQueueModel)DataContext).ColumnDestination}"
@@ -122,10 +122,10 @@
                      the value a screen reader reads. A transfer of unknown size has no bar until
                      it finishes, and then a full one. -->
                 <TableViewColumn Header="{Binding $parent[vm:TransferQueueView].((vm:TransferQueueModel)DataContext).ColumnProgress}"
-                                 Width="160">
+                                 Width="{StaticResource QueueProgressColumnWidth}">
                   <TableViewColumn.CellTemplate>
                     <DataTemplate DataType="vm:TransferRow">
-                      <Panel Margin="0,3">
+                      <Panel Margin="{StaticResource ProgressCellMargin}">
                         <!-- Hidden by opacity rather than removed, so a row with no bar is as wide as
                              one with a bar and its text is centred the same way. -->
                         <ProgressBar Classes="transfer"
@@ -139,7 +139,7 @@
                   </TableViewColumn.CellTemplate>
                 </TableViewColumn>
                 <TableViewColumn Header="{Binding $parent[vm:TransferQueueView].((vm:TransferQueueModel)DataContext).ColumnAttempt}"
-                                 Binding="{Binding Attempt}" Width="90"/>
+                                 Binding="{Binding Attempt}" Width="{StaticResource QueueAttemptColumnWidth}"/>
                 <!-- As wide as Source and Destination, as 1.x's was: it reads "Failed: " and then
                      the error, which a fixed width cut off after a few words. What still does not
                      fit is on the tip, as 1.x's grid showed a cut-off cell. -->

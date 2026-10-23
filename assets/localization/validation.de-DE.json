@@ -3,6 +3,8 @@
   "aDestinationFolderOrNonFileItem2": "Ein Zielordner oder ein Nicht-Datei-Element steht in Konflikt mit einer Quelldatei.",
   "aDestinationIsRequiredForDirectNavigation": "Für die direkte Navigation ist ein Ziel erforderlich.",
   "aFileCannotBeCopiedOrMoved": "Eine Datei kann nicht auf sich selbst kopiert oder verschoben werden.",
+  "aFolderCannotBeCopiedIntoItself": "Ein Ordner kann nicht in sich selbst oder in einen Ordner darin kopiert werden.",
+  "theDestinationMovedBeforeQueueing": "Der Zielbereich ist in einen anderen Ordner gewechselt, bevor die Übertragung eingereiht wurde, daher wurde nichts eingereiht.",
   "aProfileNameIsRequired": "Ein Profilname ist erforderlich.",
   "aSavedConnectionIDAndVerifiedRoot": "Eine gespeicherte Verbindungs-ID und eine geprüfte Stammidentität sind erforderlich.",
   "aSavedConnectionPaneMustUseA": "Ein Bereich mit gespeicherter Verbindung muss einen kanonischen stammrelativen Pfad verwenden.",

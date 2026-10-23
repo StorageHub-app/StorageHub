@@ -179,9 +179,6 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         AttentionCommand = new RelayCommand(
             _ => { if (_selected is { } row && Attention is { } attention) EditConnection?.Invoke(row.Id, attention.Tab); },
             _ => EditConnection is not null);
-        DuplicateSelectedCommand = new RelayCommand(
-            row => { if ((row as ConnectionRowModel ?? _selected) is { } chosen) _ = DuplicateConnectionAsync(chosen.Id); },
-            _ => _profiles is not null);
         DeleteSelectedCommand = new RelayCommand(
             row => { if ((row as ConnectionRowModel ?? _selected) is { } chosen && DeleteConnection is { } delete) _ = DeleteAndRefreshAsync(delete, chosen.Id); },
             _ => DeleteConnection is not null);
@@ -405,9 +402,6 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
 
     /// <summary>Edit, on the selected card and in the details panel. Its parameter is the row, if any.</summary>
     public ICommand EditSelectedCommand { get; }
-
-    /// <summary>Duplicate, likewise: a copy beside the original, named for it, and selected.</summary>
-    public ICommand DuplicateSelectedCommand { get; }
 
     /// <summary>Delete, likewise. The panel asks first, and lists again after.</summary>
     public ICommand DeleteSelectedCommand { get; }
@@ -735,7 +729,6 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         (TestSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
         (DescribeSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
         (EditSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
-        (DuplicateSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
         (DeleteSelectedCommand as RelayCommand)?.RaiseCanExecuteChanged();
         (AttentionCommand as RelayCommand)?.RaiseCanExecuteChanged();
     }
@@ -941,8 +934,6 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     public string EditLabel => Ui.Connections.DetailEdit;
 
     public string DeleteLabel => Ui.Connections.DetailDelete;
-
-    public string DuplicateLabel => Ui.Connections.DetailDuplicate;
 #pragma warning restore CA1822
 
     /// <summary>

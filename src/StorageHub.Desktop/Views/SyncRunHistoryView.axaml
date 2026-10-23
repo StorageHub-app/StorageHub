@@ -20,7 +20,7 @@
       <TextBox Grid.Column="1" Text="{Binding RunId, Mode=TwoWay}"
                PlaceholderText="{Binding RunIdWatermark}"
                AutomationProperties.Name="{Binding RunIdAccessibleName}"
-               MaxWidth="360" HorizontalAlignment="Left" MinWidth="320"/>
+               MaxWidth="{StaticResource RunIdMaxWidth}" HorizontalAlignment="Left" MinWidth="{StaticResource RunIdMinWidth}"/>
       <Button Grid.Column="2" Classes="primary" Content="{Binding LoadRunLabel}"
               Command="{Binding LoadRunCommand}"
               Margin="{StaticResource PaddingSm}"/>
@@ -137,7 +137,7 @@
                   Margin="{StaticResource PaddingSm}" VerticalAlignment="Top"/>
         </Grid>
 
-        <TabControl Margin="0,12,0,0">
+        <TabControl Margin="{StaticResource GapAboveLg}">
           <TabItem Header="{Binding PlanTabLabel}">
             <DockPanel>
               <Button DockPanel.Dock="Bottom" Content="{Binding LoadMoreLabel}"
@@ -151,8 +151,8 @@
                     programmatic name, and its header there was this. A translated word does not
                     fit the width a row number needs anyway.
                   -->
-                  <TableViewColumn Header="#" Binding="{Binding Index}" Width="60"/>
-                  <TableViewColumn Header="{Binding ColumnAction}" Binding="{Binding Action}" Width="100"/>
+                  <TableViewColumn Header="#" Binding="{Binding Index}" Width="{StaticResource RunIndexColumnWidth}"/>
+                  <TableViewColumn Header="{Binding ColumnAction}" Binding="{Binding Action}" Width="{StaticResource RunActionColumnWidth}"/>
                   <!-- The connection's name, then the path, cut from the left when there is not
                        room for it, so what shows is the connection and the file's own name: the
                        middle of a path is the part a reviewer needs least. The whole of it is on
@@ -180,10 +180,10 @@
                       </DataTemplate>
                     </TableViewColumn.CellTemplate>
                   </TableViewColumn>
-                  <TableViewColumn Header="{Binding ColumnExpectedBytes}" Binding="{Binding ExpectedBytes}" Width="105"/>
+                  <TableViewColumn Header="{Binding ColumnExpectedBytes}" Binding="{Binding ExpectedBytes}" Width="{StaticResource RunExpectedBytesColumnWidth}"/>
                   <!-- Wide enough for "Deletes data - approval required", which is the one cell
                        here nobody should have to widen a column to read. -->
-                  <TableViewColumn Header="{Binding ColumnSafety}" Binding="{Binding Approval}" Width="210"/>
+                  <TableViewColumn Header="{Binding ColumnSafety}" Binding="{Binding Approval}" Width="{StaticResource RunSafetyColumnWidth}"/>
                 </TableView.Columns>
               </TableView>
             </DockPanel>
@@ -204,8 +204,8 @@
                       </DataTemplate>
                     </TableViewColumn.CellTemplate>
                   </TableViewColumn>
-                  <TableViewColumn Header="{Binding ColumnKind}" Binding="{Binding Kind}" Width="140"/>
-                  <TableViewColumn Header="{Binding ColumnState}" Binding="{Binding State}" Width="120"/>
+                  <TableViewColumn Header="{Binding ColumnKind}" Binding="{Binding Kind}" Width="{StaticResource KindColumnWidth}"/>
+                  <TableViewColumn Header="{Binding ColumnState}" Binding="{Binding State}" Width="{StaticResource StateColumnWidth}"/>
                   <TableViewColumn Header="{Binding ColumnSafeReason}" Width="*">
                     <TableViewColumn.CellTemplate>
                       <DataTemplate DataType="vm:ConflictRow">

@@ -713,12 +713,29 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
         };
     }
 
+    /// <summary>Whether two pane locations are the same folder of the same connection, or of this PC.</summary>
+    private static bool SamePlace(PaneTransferContext left, PaneTransferContext right) =>
+        left.Kind == right.Kind &&
+        left.ConnectionId == right.ConnectionId &&
+        string.Equals(left.RootIdentity, right.RootIdentity, StringComparison.Ordinal) &&
+        BrowserPaneModel.SameFolder(left.RelativePath, right.RelativePath);
+
     /// <summary>Queues a selection into a pane, after confirming it. True when it was queued.</summary>
     private async Task<bool> TransferAsync(
         PaneClipboard clipboard,
         BrowserPaneModel destination,
         CancellationToken cancellationToken)
     {
+        // Where the transfer was asked to go, before anything is waited on. Not asked about at all
+        // when a folder would go into itself.
+        var asked = PaneTransferSnapshots.ContextFor(destination.Source) is { IsSuccess: true } here ? here.Value : null;
+        if (asked is not null &&
+            ManualTransferController.RequireNotIntoItself(clipboard.Selection, asked) is { } intoItself)
+        {
+            await RefuseAsync(intoItself.Message, cancellationToken).ConfigureAwait(true);
+            return false;
+        }
+
         if (!await ConfirmAsync(clipboard, destination, cancellationToken).ConfigureAwait(true))
         {
             return false;
@@ -754,6 +771,16 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
         {
             gathering?.Fail(target.Error.Message);
             await RefuseAsync(target.Error.Message, cancellationToken).ConfigureAwait(true);
+            return false;
+        }
+
+        // The pane is not held while its pages are read, and a folder opened meanwhile became the
+        // destination: the files went where somebody had clicked next, while the queue's row named
+        // the folder they were dropped on. Nothing is queued when the pane has moved.
+        if (asked is not null && !SamePlace(asked, target.Value.Context))
+        {
+            gathering?.Fail(Ui.Validation.TheDestinationMovedBeforeQueueing);
+            await RefuseAsync(Ui.Validation.TheDestinationMovedBeforeQueueing, cancellationToken).ConfigureAwait(true);
             return false;
         }
 

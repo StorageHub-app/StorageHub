@@ -3,6 +3,8 @@
   "aDestinationFolderOrNonFileItem2": "Een doelmap of item dat geen bestand is, conflicteert met een bronbestand.",
   "aDestinationIsRequiredForDirectNavigation": "Een bestemming is vereist voor directe navigatie.",
   "aFileCannotBeCopiedOrMoved": "Een bestand kan niet naar zichzelf worden gekopieerd of verplaatst.",
+  "aFolderCannotBeCopiedIntoItself": "Een map kan niet naar zichzelf of naar een map erin worden gekopieerd.",
+  "theDestinationMovedBeforeQueueing": "Het doelvenster ging naar een andere map voordat de overdracht in de wachtrij werd gezet, dus er is niets in de wachtrij gezet.",
   "aGroupNameIsRequired": "Een groepsnaam is vereist.",
   "aProfileNameIsRequired": "Een profielnaam is vereist.",
   "aSavedConnectionIDAndVerifiedRoot": "Een ID van een opgeslagen verbinding en een geverifieerde hoofdmapidentiteit zijn vereist.",

@@ -1,3 +1,4 @@
+using StorageHub.Contracts.Ipc;
 using StorageHub.Contracts.Results;
 using StorageHub.Desktop.Localization;
 
@@ -73,6 +74,58 @@ internal static class PaneTransferSnapshots
         }
 
         return PaneSelectionSnapshot.Create(context.Value, items);
+    }
+
+    /// <summary>
+    /// One folder from the pane's tree, as the thing to move: a drag that starts on the tree
+    /// rather than on a row.
+    /// </summary>
+    /// <remarks>
+    /// The tree shows folders above and beside the one the pane is in, so the selection is rooted
+    /// in the folder's own parent rather than in the pane's folder: a selection names its items
+    /// relative to the folder they are in. A drive, or a connection's root, has no parent to be
+    /// rooted in and is not something to copy, so it is refused.
+    /// </remarks>
+    /// <param name="name">The folder's name, as the tree shows it.</param>
+    /// <param name="target">The folder: a full path on this computer, or a path relative to the connection's root.</param>
+    internal static StorageResult<PaneSelectionSnapshot> FolderFor(IPaneSource? source, string name, string target)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        ArgumentNullException.ThrowIfNull(target);
+
+        var context = ContextFor(source);
+        if (context.IsFailure)
+        {
+            return StorageResult<PaneSelectionSnapshot>.Fail(context.Error);
+        }
+
+        var parent = context.Value.Kind == PaneTransferContextKind.ThisPc
+            ? Path.GetDirectoryName(target)
+            : target.Trim('/') is { Length: > 0 } relative
+                ? relative[..Math.Max(0, relative.LastIndexOf('/'))]
+                : null;
+        if (parent is null)
+        {
+            return StorageResult<PaneSelectionSnapshot>.Fail(new StorageFailure(
+                "manual_transfer.pane.item_unavailable",
+                StorageFailureKind.Validation,
+                Ui.Pane.NotTransferable));
+        }
+
+        var rooted = PaneTransferContext.Create(
+            context.Value.Kind, context.Value.ConnectionId, context.Value.RootIdentity, parent);
+        if (rooted.IsFailure)
+        {
+            return StorageResult<PaneSelectionSnapshot>.Fail(rooted.Error);
+        }
+
+        var item = PaneTransferItem.Create(name, target, StorageItemKind.Directory, null);
+        if (item.IsFailure)
+        {
+            return StorageResult<PaneSelectionSnapshot>.Fail(item.Error);
+        }
+
+        return PaneSelectionSnapshot.Create(rooted.Value, [item.Value]);
     }
 
     /// <summary>

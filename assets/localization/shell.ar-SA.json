@@ -110,6 +110,8 @@
   "mainToolbar": "شريط الأدوات الرئيسي",
   "moreToolbarCommands": "المزيد من أوامر شريط الأدوات",
   "applicationStatus": "حالة التطبيق",
+  "startupStatus": "حالة بدء التشغيل",
+  "startupDetails": "تفاصيل بدء التشغيل",
   "agentStatus": "حالة الوكيل",
   "updateStatus": "حالة التحديث",
   "currentLocation": "الموقع الحالي",

@@ -92,7 +92,7 @@
             that has gone is dimmed rather than disabled, since opening it is what offers to take
             it off the list. Name and Location are 1.x's widths, and State takes what is left.
           -->
-          <TableView x:Name="PART_Workspaces" ItemsSource="{Binding Workspaces}" Height="140"
+          <TableView x:Name="PART_Workspaces" ItemsSource="{Binding Workspaces}" Height="{StaticResource OverviewTableHeight}"
                      SelectedItem="{Binding SelectedWorkspace, Mode=TwoWay}">
             <TableView.ContextMenu>
               <ContextMenu x:Name="PART_WorkspaceMenu">
@@ -103,7 +103,7 @@
               </ContextMenu>
             </TableView.ContextMenu>
             <TableView.Columns>
-              <TableViewColumn Header="{Binding ColumnName}" Width="176">
+              <TableViewColumn Header="{Binding ColumnName}" Width="{StaticResource OverviewWorkspaceNameColumnWidth}">
                 <TableViewColumn.CellTemplate>
                   <DataTemplate DataType="vm:WorkspaceRow">
                     <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpaceSm}"
@@ -118,7 +118,7 @@
                   </DataTemplate>
                 </TableViewColumn.CellTemplate>
               </TableViewColumn>
-              <TableViewColumn Header="{Binding ColumnLocation}" Width="336">
+              <TableViewColumn Header="{Binding ColumnLocation}" Width="{StaticResource OverviewLocationColumnWidth}">
                 <TableViewColumn.CellTemplate>
                   <DataTemplate DataType="vm:WorkspaceRow">
                     <TextBlock Text="{Binding Location}" VerticalAlignment="Center" ToolTip.Tip="{Binding ToolTip}"
@@ -151,7 +151,7 @@
                 <TextBlock Classes="caption" Text="{Binding ConnectionsSubtitle}"/>
               </StackPanel>
             </StackPanel>
-            <TableView ItemsSource="{Binding RecentConnections}" Height="140">
+            <TableView ItemsSource="{Binding RecentConnections}" Height="{StaticResource OverviewTableHeight}">
               <TableView.Columns>
                 <TableViewColumn Header="{Binding ColumnName}" Width="*">
                   <TableViewColumn.CellTemplate>
@@ -164,7 +164,7 @@
                     </DataTemplate>
                   </TableViewColumn.CellTemplate>
                 </TableViewColumn>
-                <TableViewColumn Header="{Binding ColumnProvider}" Binding="{Binding Provider}" Width="120"/>
+                <TableViewColumn Header="{Binding ColumnProvider}" Binding="{Binding Provider}" Width="{StaticResource OverviewProviderColumnWidth}"/>
                 <TableViewColumn Header="{Binding ColumnDetails}" Binding="{Binding Details}" Width="*"/>
               </TableView.Columns>
             </TableView>
@@ -184,7 +184,7 @@
                 <TextBlock Classes="caption" Text="{Binding AttentionSubtitle}"/>
               </StackPanel>
             </StackPanel>
-            <TableView ItemsSource="{Binding Attention}" Height="140">
+            <TableView ItemsSource="{Binding Attention}" Height="{StaticResource OverviewTableHeight}">
               <TableView.Columns>
                 <TableViewColumn Header="{Binding ColumnName}" Width="*">
                   <TableViewColumn.CellTemplate>
@@ -199,7 +199,7 @@
                     </DataTemplate>
                   </TableViewColumn.CellTemplate>
                 </TableViewColumn>
-                <TableViewColumn Header="{Binding ColumnState}" Binding="{Binding State}" Width="120"/>
+                <TableViewColumn Header="{Binding ColumnState}" Binding="{Binding State}" Width="{StaticResource StateColumnWidth}"/>
                 <TableViewColumn Header="{Binding ColumnUpdated}" Binding="{Binding Updated}" Width="*"/>
               </TableView.Columns>
             </TableView>

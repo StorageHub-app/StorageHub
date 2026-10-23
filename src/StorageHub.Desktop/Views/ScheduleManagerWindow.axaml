@@ -4,7 +4,7 @@
         x:Class="StorageHub.Desktop.Views.ScheduleManagerWindow"
         x:DataType="vm:ScheduleManagerModel"
         Title="{Binding Title}"
-        Width="1180" Height="720"
+        Width="{StaticResource ScheduleManagerWindowWidth}" Height="{StaticResource ScheduleManagerWindowHeight}"
         WindowStartupLocation="CenterOwner">
 
   <!--
@@ -17,10 +17,15 @@
   -->
 
   <Border Classes="surface">
-    <Grid ColumnDefinitions="*,Auto,440">
+    <Grid>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="Auto"/>
+        <ColumnDefinition Width="{StaticResource ScheduleEditorWidth}"/>
+      </Grid.ColumnDefinitions>
 
       <DockPanel Grid.Column="0" Margin="{StaticResource PaddingLg}">
-        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,8">
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto,Auto" Margin="{StaticResource GapBelowMd}">
           <TextBlock Classes="title" Text="{Binding SavedSchedules}" VerticalAlignment="Center"/>
           <Button Grid.Column="1" Content="{Binding RefreshLabel}"
                   Command="{Binding RefreshCommand}" Margin="{StaticResource PaddingSm}"/>
@@ -34,7 +39,7 @@
                    Classes.warning="{Binding Status.IsWarning}"
                    Classes.danger="{Binding Status.IsDanger}"
                    Text="{Binding Status.Text}" TextWrapping="Wrap"
-                   Margin="0,8,0,0"
+                   Margin="{StaticResource GapAboveMd}"
                    AutomationProperties.Name="{Binding StatusAccessibleName}"/>
 
         <TableView ItemsSource="{Binding Schedules}"
@@ -58,7 +63,7 @@
           Save and Enable sit together; Delete is apart and on the danger style, because disabling
           is the reversible version of it and the two should not be a slip of the mouse apart.
         -->
-        <Grid DockPanel.Dock="Bottom" ColumnDefinitions="Auto,*,Auto,Auto" Margin="0,12,0,0">
+        <Grid DockPanel.Dock="Bottom" ColumnDefinitions="Auto,*,Auto,Auto" Margin="{StaticResource GapAboveLg}">
           <Button Grid.Column="0" Classes="danger" Content="{Binding DeleteLabel}"
                   Command="{Binding DeleteCommand}"/>
           <Button Grid.Column="2" Content="{Binding ToggleLabel}"
@@ -88,35 +93,35 @@
                         HorizontalAlignment="Stretch"
                         AutomationProperties.Name="{Binding FrequencyAccessibleName}"/>
 
-              <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding ShowsTime}" Margin="0,4,0,0">
+              <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding ShowsTime}" Margin="{StaticResource GapAboveSm}">
                 <TextBlock Classes="muted" Text="{Binding TimeAccessibleName}"
-                           VerticalAlignment="Center" Margin="0,0,8,0"/>
+                           VerticalAlignment="Center" Margin="{StaticResource GapAfterMd}"/>
                 <TimePicker Grid.Column="1" SelectedTime="{Binding TimeOfDay, Mode=TwoWay}"
                             ClockIdentifier="24HourClock"
                             HorizontalAlignment="Left"
                             AutomationProperties.Name="{Binding TimeAccessibleName}"/>
               </Grid>
 
-              <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding ShowsWeekDay}" Margin="0,4,0,0">
+              <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding ShowsWeekDay}" Margin="{StaticResource GapAboveSm}">
                 <TextBlock Classes="muted" Text="{Binding DayOfWeekLabel}"
-                           VerticalAlignment="Center" Margin="0,0,8,0"/>
+                           VerticalAlignment="Center" Margin="{StaticResource GapAfterMd}"/>
                 <ComboBox Grid.Column="1" ItemsSource="{Binding Days}"
                           SelectedItem="{Binding DayOfWeek, Mode=TwoWay}"
-                          HorizontalAlignment="Left" MinWidth="180"
+                          HorizontalAlignment="Left" MinWidth="{StaticResource ScheduleDayChoiceMinWidth}"
                           AutomationProperties.Name="{Binding DayOfWeekLabel}"/>
               </Grid>
 
-              <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding ShowsMonthDay}" Margin="0,4,0,0">
+              <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding ShowsMonthDay}" Margin="{StaticResource GapAboveSm}">
                 <TextBlock Classes="muted" Text="{Binding DayOfMonthLabel}"
-                           VerticalAlignment="Center" Margin="0,0,8,0"/>
+                           VerticalAlignment="Center" Margin="{StaticResource GapAfterMd}"/>
                 <NumericUpDown Grid.Column="1" Value="{Binding DayOfMonth, Mode=TwoWay}"
                                Minimum="1" Maximum="31" Increment="1"
-                               HorizontalAlignment="Left" MinWidth="140"
+                               HorizontalAlignment="Left" MinWidth="{StaticResource ScheduleDayNumberMinWidth}"
                                AutomationProperties.Name="{Binding DayOfMonthLabel}"/>
               </Grid>
 
               <StackPanel IsVisible="{Binding ShowsCron}" Spacing="{StaticResource SpaceXs}"
-                          Margin="0,4,0,0">
+                          Margin="{StaticResource GapAboveSm}">
                 <TextBlock Classes="caption" Text="{Binding CronLabel}"/>
                 <TextBox Text="{Binding CronExpression, Mode=TwoWay}"
                          AutomationProperties.Name="{Binding CronLabel}"/>
@@ -125,14 +130,14 @@
 
               <!-- What the builder has produced, in words. The point of the builder. -->
               <TextBlock Classes="status primary" Text="{Binding RecurrenceSummary}"
-                         TextWrapping="Wrap" Margin="0,4,0,0"/>
+                         TextWrapping="Wrap" Margin="{StaticResource GapAboveSm}"/>
             </StackPanel>
 
             <StackPanel Spacing="{StaticResource SpaceXs}">
               <TextBlock Classes="caption" Text="{Binding TimeZoneLabel}"/>
               <ComboBox ItemsSource="{Binding TimeZones}"
                         SelectedItem="{Binding TimeZone, Mode=TwoWay}"
-                        HorizontalAlignment="Stretch" MaxDropDownHeight="320"
+                        HorizontalAlignment="Stretch" MaxDropDownHeight="{StaticResource TimeZoneDropDownMaxHeight}"
                         AutomationProperties.Name="{Binding TimeZoneAccessibleName}"/>
               <TextBlock Classes="muted" Text="{Binding TimeZoneHint}" TextWrapping="Wrap"/>
               <!-- Which zone a new schedule starts on, and where that is decided. -->
@@ -155,7 +160,7 @@
               <TextBlock Classes="caption" Text="{Binding MisfireGraceLabel}"/>
               <NumericUpDown Value="{Binding MisfireGraceMinutes, Mode=TwoWay}"
                              Minimum="1" Maximum="43200" Increment="5"
-                             HorizontalAlignment="Left" MinWidth="160"
+                             HorizontalAlignment="Left" MinWidth="{StaticResource ScheduleGraceMinWidth}"
                              AutomationProperties.Name="{Binding MisfireGraceLabel}"/>
               <TextBlock Classes="muted" Text="{Binding MisfireGraceHint}" TextWrapping="Wrap"/>
             </StackPanel>
