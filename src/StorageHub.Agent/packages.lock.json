@@ -10,25 +10,25 @@
       },
       "System.ServiceProcess.ServiceController": {
         "type": "Direct",
-        "requested": "[10.0.12, )",
-        "resolved": "10.0.12",
-        "contentHash": "sFV+RM/yPtshiCAEIuTm8Dt4F7VuKRbL50PnGC9nXHolk/jw+z3T8zx7axKTBC8mqtQU2ZmjsoPC9b1iwOilNQ==",
+        "requested": "[10.0.14, )",
+        "resolved": "10.0.14",
+        "contentHash": "riMCsgbGKGonluQzaRRrx5ney0QNkEmepNTrHD3QpqU/ICZpCJsyAWNi6JESTxqYkc+9kNQ55aZaH/n3xOjSlg==",
         "dependencies": {
-          "System.Diagnostics.EventLog": "10.0.12"
+          "System.Diagnostics.EventLog": "10.0.14"
         }
       },
       "System.Diagnostics.EventLog": {
         "type": "Transitive",
-        "resolved": "10.0.12",
-        "contentHash": "sOZM+VyRj1pg/ItlHsvrSbjws6oGqZveTzTNBGZ9ziwRDyKsOF3ub6vhvOdxotCIqtlnyHAIwP5sLNvgiZC+pQ=="
+        "resolved": "10.0.14",
+        "contentHash": "O/RzNwWoDzehkLlAG9hR8xooY5L41U7VUaYlcKvE3+FhHohBJqF10oLUzuv0v59VeJ62hv3uw9VoeX12zej7Sg=="
       },
       "storagehub.application": {
         "type": "Project",
         "dependencies": {
           "CodeLogic": "[4.8.20, )",
           "Cronos": "[0.13.0, )",
-          "StorageHub.Domain": "[2.0.0, )",
-          "StorageHub.Security": "[2.0.0, )"
+          "StorageHub.Domain": "[2.1.2, )",
+          "StorageHub.Security": "[2.1.2, )"
         }
       },
       "storagehub.contracts": {
@@ -37,20 +37,20 @@
       "storagehub.domain": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[2.0.0, )"
+          "StorageHub.Contracts": "[2.1.2, )"
         }
       },
       "storagehub.infrastructure": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Security": "[2.0.0, )"
+          "StorageHub.Security": "[2.1.2, )"
         }
       },
       "storagehub.ipc": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[2.0.0, )",
-          "StorageHub.Infrastructure": "[2.0.0, )"
+          "StorageHub.Contracts": "[2.1.2, )",
+          "StorageHub.Infrastructure": "[2.1.2, )"
         }
       },
       "storagehub.security": {
@@ -59,23 +59,23 @@
       "storagehub.storage": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[2.0.0, )",
-          "StorageHub.Domain": "[2.0.0, )"
+          "StorageHub.Contracts": "[2.1.2, )",
+          "StorageHub.Domain": "[2.1.2, )"
         }
       },
       "storagehub.sync": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Domain": "[2.0.0, )",
-          "StorageHub.Storage": "[2.0.0, )",
-          "StorageHub.Transfers": "[2.0.0, )"
+          "StorageHub.Domain": "[2.1.2, )",
+          "StorageHub.Storage": "[2.1.2, )",
+          "StorageHub.Transfers": "[2.1.2, )"
         }
       },
       "storagehub.transfers": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Domain": "[2.0.0, )",
-          "StorageHub.Storage": "[2.0.0, )"
+          "StorageHub.Domain": "[2.1.2, )",
+          "StorageHub.Storage": "[2.1.2, )"
         }
       },
       "CodeLogic": {
@@ -88,65 +88,65 @@
     "net10.0/linux-arm64": {
       "System.ServiceProcess.ServiceController": {
         "type": "Direct",
-        "requested": "[10.0.12, )",
-        "resolved": "10.0.12",
-        "contentHash": "sFV+RM/yPtshiCAEIuTm8Dt4F7VuKRbL50PnGC9nXHolk/jw+z3T8zx7axKTBC8mqtQU2ZmjsoPC9b1iwOilNQ==",
+        "requested": "[10.0.14, )",
+        "resolved": "10.0.14",
+        "contentHash": "riMCsgbGKGonluQzaRRrx5ney0QNkEmepNTrHD3QpqU/ICZpCJsyAWNi6JESTxqYkc+9kNQ55aZaH/n3xOjSlg==",
         "dependencies": {
-          "System.Diagnostics.EventLog": "10.0.12"
+          "System.Diagnostics.EventLog": "10.0.14"
         }
       },
       "System.Diagnostics.EventLog": {
         "type": "Transitive",
-        "resolved": "10.0.12",
-        "contentHash": "sOZM+VyRj1pg/ItlHsvrSbjws6oGqZveTzTNBGZ9ziwRDyKsOF3ub6vhvOdxotCIqtlnyHAIwP5sLNvgiZC+pQ=="
+        "resolved": "10.0.14",
+        "contentHash": "O/RzNwWoDzehkLlAG9hR8xooY5L41U7VUaYlcKvE3+FhHohBJqF10oLUzuv0v59VeJ62hv3uw9VoeX12zej7Sg=="
       }
     },
     "net10.0/linux-x64": {
       "System.ServiceProcess.ServiceController": {
         "type": "Direct",
-        "requested": "[10.0.12, )",
-        "resolved": "10.0.12",
-        "contentHash": "sFV+RM/yPtshiCAEIuTm8Dt4F7VuKRbL50PnGC9nXHolk/jw+z3T8zx7axKTBC8mqtQU2ZmjsoPC9b1iwOilNQ==",
+        "requested": "[10.0.14, )",
+        "resolved": "10.0.14",
+        "contentHash": "riMCsgbGKGonluQzaRRrx5ney0QNkEmepNTrHD3QpqU/ICZpCJsyAWNi6JESTxqYkc+9kNQ55aZaH/n3xOjSlg==",
         "dependencies": {
-          "System.Diagnostics.EventLog": "10.0.12"
+          "System.Diagnostics.EventLog": "10.0.14"
         }
       },
       "System.Diagnostics.EventLog": {
         "type": "Transitive",
-        "resolved": "10.0.12",
-        "contentHash": "sOZM+VyRj1pg/ItlHsvrSbjws6oGqZveTzTNBGZ9ziwRDyKsOF3ub6vhvOdxotCIqtlnyHAIwP5sLNvgiZC+pQ=="
+        "resolved": "10.0.14",
+        "contentHash": "O/RzNwWoDzehkLlAG9hR8xooY5L41U7VUaYlcKvE3+FhHohBJqF10oLUzuv0v59VeJ62hv3uw9VoeX12zej7Sg=="
       }
     },
     "net10.0/win-arm64": {
       "System.ServiceProcess.ServiceController": {
         "type": "Direct",
-        "requested": "[10.0.12, )",
-        "resolved": "10.0.12",
-        "contentHash": "sFV+RM/yPtshiCAEIuTm8Dt4F7VuKRbL50PnGC9nXHolk/jw+z3T8zx7axKTBC8mqtQU2ZmjsoPC9b1iwOilNQ==",
+        "requested": "[10.0.14, )",
+        "resolved": "10.0.14",
+        "contentHash": "riMCsgbGKGonluQzaRRrx5ney0QNkEmepNTrHD3QpqU/ICZpCJsyAWNi6JESTxqYkc+9kNQ55aZaH/n3xOjSlg==",
         "dependencies": {
-          "System.Diagnostics.EventLog": "10.0.12"
+          "System.Diagnostics.EventLog": "10.0.14"
         }
       },
       "System.Diagnostics.EventLog": {
         "type": "Transitive",
-        "resolved": "10.0.12",
-        "contentHash": "sOZM+VyRj1pg/ItlHsvrSbjws6oGqZveTzTNBGZ9ziwRDyKsOF3ub6vhvOdxotCIqtlnyHAIwP5sLNvgiZC+pQ=="
+        "resolved": "10.0.14",
+        "contentHash": "O/RzNwWoDzehkLlAG9hR8xooY5L41U7VUaYlcKvE3+FhHohBJqF10oLUzuv0v59VeJ62hv3uw9VoeX12zej7Sg=="
       }
     },
     "net10.0/win-x64": {
       "System.ServiceProcess.ServiceController": {
         "type": "Direct",
-        "requested": "[10.0.12, )",
-        "resolved": "10.0.12",
-        "contentHash": "sFV+RM/yPtshiCAEIuTm8Dt4F7VuKRbL50PnGC9nXHolk/jw+z3T8zx7axKTBC8mqtQU2ZmjsoPC9b1iwOilNQ==",
+        "requested": "[10.0.14, )",
+        "resolved": "10.0.14",
+        "contentHash": "riMCsgbGKGonluQzaRRrx5ney0QNkEmepNTrHD3QpqU/ICZpCJsyAWNi6JESTxqYkc+9kNQ55aZaH/n3xOjSlg==",
         "dependencies": {
-          "System.Diagnostics.EventLog": "10.0.12"
+          "System.Diagnostics.EventLog": "10.0.14"
         }
       },
       "System.Diagnostics.EventLog": {
         "type": "Transitive",
-        "resolved": "10.0.12",
-        "contentHash": "sOZM+VyRj1pg/ItlHsvrSbjws6oGqZveTzTNBGZ9ziwRDyKsOF3ub6vhvOdxotCIqtlnyHAIwP5sLNvgiZC+pQ=="
+        "resolved": "10.0.14",
+        "contentHash": "O/RzNwWoDzehkLlAG9hR8xooY5L41U7VUaYlcKvE3+FhHohBJqF10oLUzuv0v59VeJ62hv3uw9VoeX12zej7Sg=="
       }
     }
   }
