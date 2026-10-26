@@ -4,9 +4,9 @@
     "net10.0": {
       "CodeLogic": {
         "type": "Direct",
-        "requested": "[4.8.20, )",
-        "resolved": "4.8.20",
-        "contentHash": "LbQME0BglRO87dcJvJ/v/dC++xWSbQsrFk1WVcNcPVzpTP9qYawsMU3P0gRUzFnT9A5T5DfoN9A69JwTi5n/JA=="
+        "requested": "[4.9.24, )",
+        "resolved": "4.9.24",
+        "contentHash": "JUfTSLIJNu5gUXGxoSTSVMq5nVzUVIMOvOexpBTvQUUKp+aPirwV3lytAVBi7RM5Lc3+6vy2OvqbwFzdWgWlJw=="
       },
       "CodeLogic.Storage": {
         "type": "Direct",
@@ -303,10 +303,10 @@
       "storagehub.application": {
         "type": "Project",
         "dependencies": {
-          "CodeLogic": "[4.8.20, )",
+          "CodeLogic": "[4.9.24, )",
           "Cronos": "[0.13.0, )",
-          "StorageHub.Domain": "[2.0.0, )",
-          "StorageHub.Security": "[2.0.0, )"
+          "StorageHub.Domain": "[2.1.2, )",
+          "StorageHub.Security": "[2.1.2, )"
         }
       },
       "storagehub.contracts": {
@@ -315,7 +315,7 @@
       "storagehub.domain": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[2.0.0, )"
+          "StorageHub.Contracts": "[2.1.2, )"
         }
       },
       "storagehub.security": {
@@ -324,8 +324,8 @@
       "storagehub.storage": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[2.0.0, )",
-          "StorageHub.Domain": "[2.0.0, )"
+          "StorageHub.Contracts": "[2.1.2, )",
+          "StorageHub.Domain": "[2.1.2, )"
         }
       },
       "Cronos": {
