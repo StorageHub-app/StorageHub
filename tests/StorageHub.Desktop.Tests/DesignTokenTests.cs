@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Headless.XUnit;
 using Avalonia.Media;
 using Avalonia.Styling;
+using Avalonia.VisualTree;
 using StorageHub.Desktop.Themes;
 using Xunit;
 
@@ -165,6 +166,58 @@ public class DesignTokenTests
 
         Assert.Contains(OperatingSystem.IsWindows() ? "Segoe UI" : "Inter", ui, StringComparison.Ordinal);
         Assert.NotEqual(DesignTokens.UiFont.Name, DesignTokens.MonospaceFont.Name);
+    }
+
+    [AvaloniaFact]
+    public void ScrollBarsAreSlimAndButtonless()
+    {
+        var window = new Avalonia.Controls.Window();
+        var scroller = new Avalonia.Controls.ScrollViewer
+        {
+            Content = new Avalonia.Controls.StackPanel { Height = 2000, Width = 2000 },
+            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Visible,
+            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Visible,
+            Height = 200,
+            Width = 100
+        };
+        window.Content = scroller;
+        window.Show();
+
+        var vScroll = scroller.GetVisualDescendants().OfType<Avalonia.Controls.Primitives.ScrollBar>()
+            .First(s => s.Orientation == Avalonia.Layout.Orientation.Vertical);
+        Assert.NotNull(vScroll);
+        vScroll.ApplyTemplate();
+
+        var upBtn = vScroll.FindDescendantOfType<Avalonia.Controls.RepeatButton>();
+        var downBtn = vScroll.GetVisualDescendants().OfType<Avalonia.Controls.RepeatButton>().Last();
+        var trackRect = vScroll.FindDescendantOfType<Avalonia.Controls.Shapes.Rectangle>();
+        var thumb = vScroll.FindDescendantOfType<Avalonia.Controls.Primitives.Thumb>();
+        var thumbBorder = thumb?.FindDescendantOfType<Avalonia.Controls.Border>();
+
+        Assert.False(upBtn?.IsVisible ?? true);
+        Assert.False(downBtn?.IsVisible ?? true);
+        Assert.False(trackRect?.IsVisible ?? true);
+        Assert.Equal(8.0, vScroll.Width);
+        Assert.Equal(new CornerRadius(4), thumbBorder?.CornerRadius);
+
+        var hScroll = scroller.GetVisualDescendants().OfType<Avalonia.Controls.Primitives.ScrollBar>()
+            .First(s => s.Orientation == Avalonia.Layout.Orientation.Horizontal);
+        Assert.NotNull(hScroll);
+        hScroll.ApplyTemplate();
+
+        var hUpBtn = hScroll.FindDescendantOfType<Avalonia.Controls.RepeatButton>();
+        var hDownBtn = hScroll.GetVisualDescendants().OfType<Avalonia.Controls.RepeatButton>().Last();
+        var hTrackRect = hScroll.FindDescendantOfType<Avalonia.Controls.Shapes.Rectangle>();
+        var hThumb = hScroll.FindDescendantOfType<Avalonia.Controls.Primitives.Thumb>();
+        var hThumbBorder = hThumb?.FindDescendantOfType<Avalonia.Controls.Border>();
+
+        Assert.False(hUpBtn?.IsVisible ?? true);
+        Assert.False(hDownBtn?.IsVisible ?? true);
+        Assert.False(hTrackRect?.IsVisible ?? true);
+        Assert.Equal(8.0, hScroll.Height);
+        Assert.Equal(new CornerRadius(4), hThumbBorder?.CornerRadius);
+
+        window.Close();
     }
 
     private static T Token<T>(string key, ThemeVariant variant) =>

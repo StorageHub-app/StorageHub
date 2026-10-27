@@ -229,6 +229,10 @@
     Chrome heights. Written once here rather than per view, so the toolbar and the tab strip cannot
     disagree about how tall a row is.
   -->
+  <!-- Modern slim scroll bars: buttonless, transparent track, pill thumb. -->
+  <sys:Double x:Key="ScrollBarThickness">8</sys:Double>
+  <sys:Double x:Key="ScrollBarThumbThickness">8</sys:Double>
+  <CornerRadius x:Key="ScrollBarThumbRadius">4</CornerRadius>
   <!-- The menu bar sizes its own row. Padding on a menu-bar item has to be horizontal only: the
        bar gives each item a fixed height, so vertical padding makes the content taller than its
        slot and the labels clip at both ends rather than the row growing. -->
