@@ -65,8 +65,29 @@ internal sealed class StorageHubUpdateEngine : IDesktopUpdateEngine, IDisposable
         _ownsClient = client is null;
         _client = client ?? new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
         _installer = installer ?? UpdateInstallers.ForCurrentPlatform();
-        _downloadDirectory = downloadDirectory ??
-            Path.Combine(Path.GetTempPath(), "storagehub-updates");
+        _downloadDirectory = downloadDirectory ?? ResolveDefaultDownloadDirectory();
+    }
+
+    private static string ResolveDefaultDownloadDirectory()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return Path.Combine(Path.GetTempPath(), "storagehub-updates");
+        }
+
+        var runtimeDir = Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR");
+        if (!string.IsNullOrWhiteSpace(runtimeDir))
+        {
+            return Path.Combine(runtimeDir, "storagehub-updates");
+        }
+
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (!string.IsNullOrWhiteSpace(home))
+        {
+            return Path.Combine(home, ".cache", "storagehub", "updates");
+        }
+
+        return Path.Combine(Path.GetTempPath(), "storagehub-updates");
     }
 
     /// <summary>

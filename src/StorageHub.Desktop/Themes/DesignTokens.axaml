@@ -517,6 +517,7 @@
   <!-- The buttons between the toolbar settings' two lists. -->
   <sys:Double x:Key="ToolbarSettingsButtonsWidth">150</sys:Double>
   <!-- A filter or search box at the end of a tool window's top row. -->
+  <sys:Double x:Key="CompareFilterWidth">220</sys:Double>
   <GridLength x:Key="CompareFilterColumnWidth">220</GridLength>
   <GridLength x:Key="KeyStoreSearchColumnWidth">240</GridLength>
   <!-- Permissions' octal field: four digits. -->
@@ -637,6 +638,8 @@
   <sys:Double x:Key="ObjectInspectorWindowMinHeight">560</sys:Double>
   <sys:Double x:Key="ScheduleManagerWindowWidth">1180</sys:Double>
   <sys:Double x:Key="ScheduleManagerWindowHeight">720</sys:Double>
+  <sys:Double x:Key="ScheduleManagerWindowMinWidth">820</sys:Double>
+  <sys:Double x:Key="ScheduleManagerWindowMinHeight">520</sys:Double>
   <sys:Double x:Key="SettingsExportWindowWidth">660</sys:Double>
   <sys:Double x:Key="SettingsExportWindowHeight">640</sys:Double>
   <sys:Double x:Key="SettingsExportWindowMinWidth">560</sys:Double>
@@ -655,6 +658,8 @@
   <sys:Double x:Key="SyncLocationPickerWindowMinHeight">400</sys:Double>
   <sys:Double x:Key="SyncProfileEditorWindowWidth">1040</sys:Double>
   <sys:Double x:Key="SyncProfileEditorWindowHeight">760</sys:Double>
+  <sys:Double x:Key="SyncProfileEditorWindowMinWidth">780</sys:Double>
+  <sys:Double x:Key="SyncProfileEditorWindowMinHeight">560</sys:Double>
   <sys:Double x:Key="AboutWindowWidth">500</sys:Double>
   <sys:Double x:Key="AgentControlWindowWidth">520</sys:Double>
   <sys:Double x:Key="AgentHostModeWindowWidth">580</sys:Double>

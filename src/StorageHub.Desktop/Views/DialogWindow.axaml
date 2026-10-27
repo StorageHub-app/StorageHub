@@ -7,7 +7,8 @@
         CanMaximize="False"
         ShowInTaskbar="False"
         Background="{DynamicResource SurfaceBrush}"
-        WindowStartupLocation="CenterOwner">
+        WindowStartupLocation="CenterOwner"
+        MaxHeight="600">
 
   <!--
     StorageHub's message box, laid out as the Windows one is, which is what 1.4 showed: the title

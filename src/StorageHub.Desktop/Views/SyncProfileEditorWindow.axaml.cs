@@ -9,6 +9,7 @@ public partial class SyncProfileEditorWindow : Window
     public SyncProfileEditorWindow()
     {
         AvaloniaXamlLoader.Load(this);
+        WindowBoundsHelper.FitToScreen(this);
         DataContextChanged += (_, _) =>
         {
             if (DataContext is SyncProfileEditorModel model) model.Closed += (_, _) => Close();

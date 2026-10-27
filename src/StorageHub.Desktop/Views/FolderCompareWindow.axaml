@@ -28,30 +28,20 @@
                    ToolTip.Tip="{Binding RightLabel}"/>
       </Grid>
 
-      <Grid DockPanel.Dock="Top"
-            ColumnSpacing="{StaticResource SpaceSm}" Margin="{StaticResource GapBelowMd}">
-        <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="Auto"/>
-          <ColumnDefinition Width="Auto"/>
-          <ColumnDefinition Width="Auto"/>
-          <ColumnDefinition Width="Auto"/>
-          <ColumnDefinition Width="*"/>
-          <ColumnDefinition Width="{StaticResource CompareFilterColumnWidth}"/>
-          <ColumnDefinition Width="Auto"/>
-          <ColumnDefinition Width="Auto"/>
-        </Grid.ColumnDefinitions>
-        <CheckBox Grid.Column="0" Content="{Binding OnlyLeftLabel}" IsChecked="{Binding ShowOnlyLeft, Mode=TwoWay}"/>
-        <CheckBox Grid.Column="1" Content="{Binding OnlyRightLabel}" IsChecked="{Binding ShowOnlyRight, Mode=TwoWay}"/>
-        <CheckBox Grid.Column="2" Content="{Binding DifferentLabel}" IsChecked="{Binding ShowDifferent, Mode=TwoWay}"/>
-        <CheckBox Grid.Column="3" Content="{Binding SameLabel}" IsChecked="{Binding ShowSame, Mode=TwoWay}"/>
-        <TextBox Grid.Column="5" Text="{Binding NameFilter, Mode=TwoWay}"
+      <WrapPanel DockPanel.Dock="Top" ItemSpacing="{StaticResource SpaceSm}" LineSpacing="{StaticResource SpaceSm}" Margin="{StaticResource GapBelowMd}">
+        <CheckBox Content="{Binding OnlyLeftLabel}" IsChecked="{Binding ShowOnlyLeft, Mode=TwoWay}"/>
+        <CheckBox Content="{Binding OnlyRightLabel}" IsChecked="{Binding ShowOnlyRight, Mode=TwoWay}"/>
+        <CheckBox Content="{Binding DifferentLabel}" IsChecked="{Binding ShowDifferent, Mode=TwoWay}"/>
+        <CheckBox Content="{Binding SameLabel}" IsChecked="{Binding ShowSame, Mode=TwoWay}"/>
+        <TextBox Width="{StaticResource CompareFilterWidth}"
+                 Text="{Binding NameFilter, Mode=TwoWay}"
                  PlaceholderText="{x:Static vm:FolderCompareModel.NameFilterPlaceholder}"
                  AutomationProperties.Name="{x:Static vm:FolderCompareModel.NameFilterPlaceholder}"/>
-        <CheckBox Grid.Column="6" Content="{x:Static vm:FolderCompareModel.CompareContentsLabel}"
+        <CheckBox Content="{x:Static vm:FolderCompareModel.CompareContentsLabel}"
                   IsChecked="{Binding CompareContents, Mode=TwoWay}"/>
-        <Button Grid.Column="7" Content="{x:Static vm:FolderCompareModel.CompareAgainLabel}"
+        <Button Content="{x:Static vm:FolderCompareModel.CompareAgainLabel}"
                 Command="{Binding CompareCommand}"/>
-      </Grid>
+      </WrapPanel>
 
       <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto,Auto,Auto"
             ColumnSpacing="{StaticResource SpaceSm}" Margin="{StaticResource GapAboveMd}">

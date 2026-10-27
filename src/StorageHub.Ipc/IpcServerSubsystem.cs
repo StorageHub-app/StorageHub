@@ -372,8 +372,9 @@ public sealed class IpcServerSubsystem : IAgentSubsystem, IAsyncDisposable
         {
             // Lifetime cancellation and unauthenticated handshake timeouts are both session-local.
         }
-        catch (ObjectDisposedException) when (cancellationToken.IsCancellationRequested)
+        catch (ObjectDisposedException)
         {
+            // Client disconnection or stream disposal is session-local, not subsystem failure.
         }
         catch (JsonException)
         {

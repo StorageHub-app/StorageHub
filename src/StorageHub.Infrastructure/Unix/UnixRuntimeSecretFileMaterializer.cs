@@ -20,6 +20,7 @@ public sealed class UnixRuntimeSecretFileMaterializer : IRuntimeSecretFileMateri
 {
     private const int MaximumSecretLength = 16 * 1024 * 1024;
     private readonly string _rootDirectory;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> _activeFiles = new(StringComparer.Ordinal);
 
     public UnixRuntimeSecretFileMaterializer(string rootDirectory)
     {
@@ -77,10 +78,12 @@ public sealed class UnixRuntimeSecretFileMaterializer : IRuntimeSecretFileMateri
                 FileShare.Read,
                 bufferSize: 1,
                 FileOptions.None);
-            return new RuntimeSecretFile(path, lifetimeLease);
+            _activeFiles[path] = 1;
+            return new RuntimeSecretFile(path, lifetimeLease, () => _activeFiles.TryRemove(path, out _));
         }
         catch
         {
+            _activeFiles.TryRemove(path, out _);
             TryDelete(path);
             throw;
         }
@@ -102,6 +105,11 @@ public sealed class UnixRuntimeSecretFileMaterializer : IRuntimeSecretFileMateri
         var removed = 0;
         foreach (var path in Directory.EnumerateFiles(_rootDirectory, ".material-*", SearchOption.TopDirectoryOnly))
         {
+            if (_activeFiles.ContainsKey(path))
+            {
+                continue;
+            }
+
             try
             {
                 if (File.GetLastWriteTimeUtc(path) <= threshold)
@@ -153,7 +161,7 @@ public sealed class UnixRuntimeSecretFileMaterializer : IRuntimeSecretFileMateri
         }
     }
 
-    private sealed class RuntimeSecretFile(string fullPath, FileStream lifetimeLease) : IRuntimeSecretFile
+    private sealed class RuntimeSecretFile(string fullPath, FileStream lifetimeLease, Action onDisposed) : IRuntimeSecretFile
     {
         private string? _path = fullPath;
         private FileStream? _lease = lifetimeLease;
@@ -172,6 +180,7 @@ public sealed class UnixRuntimeSecretFileMaterializer : IRuntimeSecretFileMateri
 
             if (path is not null)
             {
+                onDisposed();
                 TryDelete(path);
             }
         }

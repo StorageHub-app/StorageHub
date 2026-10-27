@@ -313,19 +313,29 @@ internal static class ShellViewCommands
             model.Router.Reconsider();
         }
 
+        void PaneOnPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName is nameof(BrowserPaneModel.IsActive) or nameof(BrowserPaneModel.Connection)
+                or nameof(BrowserPaneModel.Path) or nameof(BrowserPaneModel.ContentKind)
+                or nameof(BrowserPaneModel.IsBusy) or nameof(BrowserPaneModel.ShowTree))
+            {
+                Refresh();
+            }
+        }
+
         void WatchPane(BrowserPaneModel pane)
         {
             pane.ShowHiddenItems = toggles.ShowHiddenFiles;
             if (!watched.Add(pane)) return;
-            pane.PropertyChanged += (_, e) =>
+            pane.PropertyChanged += PaneOnPropertyChanged;
+        }
+
+        void UnwatchPane(BrowserPaneModel pane)
+        {
+            if (watched.Remove(pane))
             {
-                if (e.PropertyName is nameof(BrowserPaneModel.IsActive) or nameof(BrowserPaneModel.Connection)
-                    or nameof(BrowserPaneModel.Path) or nameof(BrowserPaneModel.ContentKind)
-                    or nameof(BrowserPaneModel.IsBusy) or nameof(BrowserPaneModel.ShowTree))
-                {
-                    Refresh();
-                }
-            };
+                pane.PropertyChanged -= PaneOnPropertyChanged;
+            }
         }
 
         void WatchWorkspace(WorkspaceModel workspace)
@@ -333,6 +343,7 @@ internal static class ShellViewCommands
             foreach (var pane in workspace.Panes) WatchPane(pane);
             workspace.Panes.CollectionChanged += (_, e) =>
             {
+                foreach (var removed in e.OldItems?.OfType<BrowserPaneModel>() ?? []) UnwatchPane(removed);
                 foreach (var added in e.NewItems?.OfType<BrowserPaneModel>() ?? []) WatchPane(added);
                 Refresh();
             };
@@ -345,9 +356,20 @@ internal static class ShellViewCommands
 
         model.Workspaces.CollectionChanged += (_, e) =>
         {
-            if (e.Action == NotifyCollectionChangedAction.Add)
+            if (e.OldItems != null)
             {
-                foreach (var added in e.NewItems?.OfType<WorkspaceTab>() ?? [])
+                foreach (var removed in e.OldItems.OfType<WorkspaceTab>())
+                {
+                    if (removed.Workspace is { } workspace)
+                    {
+                        foreach (var pane in workspace.Panes) UnwatchPane(pane);
+                    }
+                }
+            }
+
+            if (e.NewItems != null)
+            {
+                foreach (var added in e.NewItems.OfType<WorkspaceTab>())
                 {
                     if (added.Workspace is { } workspace) WatchWorkspace(workspace);
                 }

@@ -720,6 +720,7 @@ internal sealed class ScheduleManagerModel : INotifyPropertyChanged
     public static string RefreshLabel => Ui.Schedules.Refresh;
 
     public static string SaveLabel => Ui.Schedules.SaveSchedule;
+    public static string CloseLabel => Ui.Dialogs.ButtonClose;
 
     public static string DeleteLabel => Ui.Schedules.Delete;
 

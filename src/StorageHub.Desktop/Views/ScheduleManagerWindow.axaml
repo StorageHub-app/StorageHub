@@ -5,6 +5,7 @@
         x:DataType="vm:ScheduleManagerModel"
         Title="{Binding Title}"
         Width="{StaticResource ScheduleManagerWindowWidth}" Height="{StaticResource ScheduleManagerWindowHeight}"
+        MinWidth="{StaticResource ScheduleManagerWindowMinWidth}" MinHeight="{StaticResource ScheduleManagerWindowMinHeight}"
         WindowStartupLocation="CenterOwner">
 
   <!--

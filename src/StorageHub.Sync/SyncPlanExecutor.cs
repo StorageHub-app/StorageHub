@@ -716,10 +716,6 @@ public static class SyncPlanExecutor
         SyncPlanExecutionRequest request,
         StorageAddress target)
     {
-        if (request.Mode == SyncPlanExecutionMode.Preview)
-        {
-            return StorageResult.Success();
-        }
 
         if (string.IsNullOrWhiteSpace(target.VersionId) &&
             string.IsNullOrWhiteSpace(target.EntityTag))

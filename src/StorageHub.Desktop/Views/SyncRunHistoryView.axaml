@@ -13,7 +13,7 @@
 
   <DockPanel Margin="{StaticResource PaddingLg}">
 
-    <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto"
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*"
           Margin="{StaticResource PaddingMd}">
       <TextBlock Grid.Column="0" Classes="muted" Text="{Binding RunIdLabel}"
                  VerticalAlignment="Center" Margin="{StaticResource PaddingMd}"/>
@@ -36,6 +36,8 @@
                  Classes.warning="{Binding HistoryStatus.IsWarning}"
                  Classes.danger="{Binding HistoryStatus.IsDanger}"
                  Text="{Binding HistoryStatus.Text}"
+                 TextTrimming="CharacterEllipsis"
+                 ToolTip.Tip="{Binding HistoryStatus.Text}"
                  VerticalAlignment="Center" Margin="{StaticResource PaddingLg}"/>
     </Grid>
 
@@ -44,7 +46,12 @@
       moment a plan loads: the history has five narrow columns and the review side has six, two of
       which are paths, so half the window leaves every path truncated to its connection id.
     -->
-    <Grid ColumnDefinitions="35*,Auto,65*">
+    <Grid>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="35*" MinWidth="220"/>
+        <ColumnDefinition Width="Auto"/>
+        <ColumnDefinition Width="65*" MinWidth="380"/>
+      </Grid.ColumnDefinitions>
       <!--
         Selecting a row fills the run id box; opening one loads it. Reading down the list to find
         the run you want should not fetch a plan per row, and a plan is three round trips.

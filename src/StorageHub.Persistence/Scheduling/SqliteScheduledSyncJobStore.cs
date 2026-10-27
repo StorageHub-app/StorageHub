@@ -695,5 +695,5 @@ public sealed class SqliteScheduledSyncJobStore : IScheduledSyncJobStore
         reader.IsDBNull(ordinal) ? null : reader.GetString(ordinal);
 
     private static string FormatTimestamp(DateTimeOffset value) =>
-        value.ToString("O", CultureInfo.InvariantCulture);
+        value.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture);
 }

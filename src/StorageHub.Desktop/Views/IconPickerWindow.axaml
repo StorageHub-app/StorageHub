@@ -4,7 +4,7 @@
         x:Class="StorageHub.Desktop.Views.IconPickerWindow"
         x:DataType="vm:IconPickerModel"
         Title="{Binding Title}"
-        Width="{StaticResource IconPickerWindowWidth}" SizeToContent="Height"
+        Width="{StaticResource IconPickerWindowWidth}" MaxHeight="520" SizeToContent="Height"
         CanResize="False"
         WindowStartupLocation="CenterOwner">
 
@@ -15,7 +15,7 @@
 
   <Border Classes="surface" Padding="{StaticResource PaddingLg}">
     <StackPanel Spacing="{StaticResource SpaceMd}">
-      <ListBox ItemsSource="{Binding Choices}"
+      <ListBox ItemsSource="{Binding Choices}" MaxHeight="320" ScrollViewer.VerticalScrollBarVisibility="Auto"
                SelectedItem="{Binding Selected, Mode=TwoWay}"
                Background="Transparent" BorderThickness="0"
                AutomationProperties.Name="{Binding Title}">

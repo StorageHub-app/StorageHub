@@ -255,11 +255,13 @@ public partial class BrowserPaneView : UserControl
         var column = listing.ColumnDefinitions[0];
         if (model.ShowTree)
         {
+            column.MinWidth = 120;
             if (column.Width.IsAbsolute && column.Width.Value == 0) column.Width = _treeWidth;
         }
         else if (!column.Width.IsAbsolute || column.Width.Value > 0)
         {
             _treeWidth = column.Width;
+            column.MinWidth = 0;
             column.Width = new GridLength(0);
         }
 
@@ -589,6 +591,11 @@ public partial class BrowserPaneView : UserControl
                     natural.Width - address.DesiredSize.Width +
                     DesignTokens.Get<double>("PaneAddressMinWidth"));
             }
+        }
+
+        if (Model is { ShowTree: true })
+        {
+            width = Math.Max(width, 120 + DesignTokens.Get<double>("SplitterThickness") + 200);
         }
 
         height += LayoutLimits.ListBand("PaneMinimumListRows");

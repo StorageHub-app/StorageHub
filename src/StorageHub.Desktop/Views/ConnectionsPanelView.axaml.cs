@@ -46,7 +46,7 @@ public partial class ConnectionsPanelView : UserControl
     {
         if (actions.Bounds.Width <= 0) return;
         var compact = actions.Classes.Contains("compact");
-        if (!compact)
+        if (!compact || _labelledActionsWidth <= 0)
         {
             var natural = 0d;
             foreach (var child in actions.Children)
@@ -55,10 +55,13 @@ public partial class ConnectionsPanelView : UserControl
                 natural += child.DesiredSize.Width;
             }
 
-            _labelledActionsWidth = natural;
+            if (!compact || _labelledActionsWidth <= 0)
+            {
+                _labelledActionsWidth = natural;
+            }
         }
 
-        var fits = _labelledActionsWidth <= actions.Bounds.Width;
+        var fits = _labelledActionsWidth > 0 && _labelledActionsWidth <= actions.Bounds.Width;
         if (fits == !compact) return;
         actions.Classes.Set("compact", !fits);
         actions.InvalidateMeasure();

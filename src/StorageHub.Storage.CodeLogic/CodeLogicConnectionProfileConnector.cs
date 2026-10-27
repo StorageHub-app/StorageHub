@@ -149,6 +149,7 @@ public sealed class CodeLogicConnectionProfileConnector : IAsyncDisposable
     {
         RuntimeStorageConnection? retire = null;
         RuntimeStorageConnection? stale = null;
+        var staleWasIdle = false;
         lock (_gate)
         {
             if (_disposed)
@@ -171,6 +172,7 @@ public sealed class CodeLogicConnectionProfileConnector : IAsyncDisposable
                 // credentials, host or root may all have changed.
                 if (existing is not null)
                 {
+                    staleWasIdle = existing.Idle is not null || existing.Connection.Leases == 0;
                     existing.Idle?.Dispose();
                     existing.Idle = null;
                     stale = existing.Connection;
@@ -184,7 +186,14 @@ public sealed class CodeLogicConnectionProfileConnector : IAsyncDisposable
         // Outside the lock: both close sessions and delete materialised secret files.
         if (stale is not null)
         {
-            await stale.DisposeAsync().ConfigureAwait(false);
+            if (staleWasIdle)
+            {
+                await stale.TearDownAsync().ConfigureAwait(false);
+            }
+            else
+            {
+                await stale.DisposeAsync().ConfigureAwait(false);
+            }
         }
 
         if (retire is not null)
@@ -204,7 +213,7 @@ public sealed class CodeLogicConnectionProfileConnector : IAsyncDisposable
         var orphaned = true;
         lock (_gate)
         {
-            if (!_disposed && TryFindKey(connection, out var key))
+            if (!_disposed && connection.Leases == 0 && TryFindKey(connection, out var key))
             {
                 orphaned = false;
                 var entry = _open[key];

@@ -6,6 +6,7 @@
         x:DataType="vm:SyncProfileEditorModel"
         Title="{Binding Heading}"
         Width="{StaticResource SyncProfileEditorWindowWidth}" Height="{StaticResource SyncProfileEditorWindowHeight}"
+        MinWidth="{StaticResource SyncProfileEditorWindowMinWidth}" MinHeight="{StaticResource SyncProfileEditorWindowMinHeight}"
         WindowStartupLocation="CenterOwner">
 
   <!--
@@ -70,12 +71,12 @@
             <TextBlock Classes="title" Text="{Binding ProfileNameLabel}"/>
             <!-- Stretched to its maximum rather than sized to its content: a box that grows as
                  you type starts the width of the word in it, which reads as a disabled field. -->
-            <TextBox Text="{Binding Name, Mode=TwoWay}" Width="{StaticResource ProfileNameWidth}"
+            <TextBox Text="{Binding Name, Mode=TwoWay}" MaxWidth="{StaticResource ProfileNameWidth}"
                      HorizontalAlignment="Left"
                      AutomationProperties.Name="{Binding ProfileNameLabel}"/>
             <TextBlock Classes="status danger" Text="{Binding NameProblem}"
                        IsVisible="{Binding HasNameProblem}" TextWrapping="Wrap"/>
-            <TextBlock Classes="muted" Text="{Binding ProfileNameHint}"/>
+            <TextBlock Classes="muted" Text="{Binding ProfileNameHint}" TextWrapping="Wrap"/>
             <CheckBox Content="{Binding EnabledLabel}" IsChecked="{Binding Enabled, Mode=TwoWay}"/>
             <TextBlock Classes="muted" Text="{Binding DisabledProfilesHint}" TextWrapping="Wrap"/>
           </StackPanel>
@@ -126,7 +127,7 @@
                            IsVisible="{Binding HasLocationBProblem}" TextWrapping="Wrap"/>
               </StackPanel>
             </Grid>
-            <TextBlock Classes="muted" Text="{Binding EmptyMeansRoot}"/>
+            <TextBlock Classes="muted" Text="{Binding EmptyMeansRoot}" TextWrapping="Wrap"/>
           </StackPanel>
 
           <!-- Step 2 -->
@@ -193,7 +194,7 @@
                            IsVisible="{Binding HasExcludeGlobsProblem}" TextWrapping="Wrap"/>
               </StackPanel>
             </Grid>
-            <TextBlock Classes="muted" Text="{Binding GlobHint}"/>
+            <TextBlock Classes="muted" Text="{Binding GlobHint}" TextWrapping="Wrap"/>
             <TextBlock Classes="muted" Text="{Binding FiltersHint}" TextWrapping="Wrap"/>
 
             <CheckBox Content="{Binding IncludeHiddenFilesLabel}"

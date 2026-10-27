@@ -75,6 +75,16 @@ Back, was selected out of sight.
   right-click menu.
 - Back, Forward, Up, Clear filter and several icon buttons in the connections panel and the tab
   strip had no name for a screen reader; the splash screen's two were English in every language.
+- Schedules in non-UTC time zones crashed the schedule calculator loop on Cronos offset inspection; next occurrences are now explicitly normalized to UTC.
+- Windows and dialog bounds on high-DPI displays (such as 1080p at 150% scaling) are clamped to the working screen area, and dialogs now support vertical scrolling so footers and buttons remain accessible.
+- Missing MinWidth limits on GridSplitter columns in the browser pane, run history, and schedule manager could collapse panels to zero width.
+- Window overflow and clipping on localized buttons in Folder Compare, Agent Control, and Splash screens are resolved using responsive wrapping layouts.
+- Memory leaks from persistent sidebar link polling, unhooked agent availability events, and workspace collection subscriptions on closed panes were eliminated.
+- Session lifecycle races and unreleased materializations in the storage connection pool were fixed.
+- Terminal IPC endpoints now gracefully handle malformed payloads and prune abandoned disconnected sessions.
+- IPC client stream disconnections no longer report false-positive subsystem failures.
+- Update package downloads and staging destinations enforce secure directory permissions and root path containment.
+- Unix runtime secret materialization now tracks active file leases to protect secrets during orphan cleanup.
 
 ---
 

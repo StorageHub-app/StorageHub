@@ -10,6 +10,7 @@ public partial class FolderCompareWindow : Window
     public FolderCompareWindow()
     {
         AvaloniaXamlLoader.Load(this);
+        Services.WindowBoundsHelper.FitToScreen(this);
         Closed += (_, _) => (DataContext as FolderCompareModel)?.Dispose();
     }
 

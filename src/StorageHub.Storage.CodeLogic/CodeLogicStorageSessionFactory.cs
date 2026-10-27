@@ -221,6 +221,9 @@ public sealed class RuntimeStorageConnection : IAsyncDisposable
     internal void BindOwner(Func<RuntimeStorageConnection, ValueTask> onLastReleased) =>
         _onLastReleased = onLastReleased;
 
+    /// <summary>Active borrow count.</summary>
+    internal int Leases => Volatile.Read(ref _leases);
+
     /// <summary>Takes another borrow. Balanced by one <see cref="DisposeAsync"/>.</summary>
     internal void Retain() => Interlocked.Increment(ref _leases);
 
