@@ -369,7 +369,7 @@
             <TextBlock DockPanel.Dock="Bottom" Classes="caption" TextWrapping="Wrap"
                        IsVisible="{Binding HasDetailStatus}" Text="{Binding DetailStatus}"/>
 
-            <ScrollViewer Padding="{StaticResource GapAfterMd}">
+            <ScrollViewer Padding="{StaticResource SidebarScrollerPadding}">
               <ItemsControl ItemsSource="{Binding Details}">
                 <ItemsControl.ItemTemplate>
                   <!-- 1.4's sections, a heading over the facts that belong to it: Server,
@@ -434,7 +434,7 @@
           which is where it is actually useful.
         -->
         <ScrollViewer x:Name="PART_Connections" IsVisible="{Binding HasGroups}"
-                      Padding="{StaticResource GapAfterMd}">
+                      Padding="{StaticResource SidebarScrollerPadding}">
           <!-- Favorites above the groups, as 1.x listed them above its sections (ui-reference 09),
                drawn by the same template as a group; always there unless Settings hides empty groups. -->
           <StackPanel Spacing="{StaticResource SpaceMd}">

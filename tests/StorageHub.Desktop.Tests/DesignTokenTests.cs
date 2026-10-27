@@ -220,6 +220,37 @@ public class DesignTokenTests
         window.Close();
     }
 
+    [AvaloniaFact]
+    public void SidebarScrollBarDoesNotOverlapContent()
+    {
+        var window = new Avalonia.Controls.Window();
+        var card = new Avalonia.Controls.Border { Height = 50, Width = double.NaN, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
+        var stack = new Avalonia.Controls.StackPanel { Height = 1000 };
+        stack.Children.Add(card);
+        var padding = DesignTokens.Get<Thickness>("SidebarScrollerPadding");
+        var scroller = new Avalonia.Controls.ScrollViewer
+        {
+            Content = stack,
+            Padding = padding,
+            Height = 200,
+            Width = 100
+        };
+        window.Content = scroller;
+        window.Show();
+        scroller.UpdateLayout();
+
+        var vScroll = scroller.GetVisualDescendants().OfType<Avalonia.Controls.Primitives.ScrollBar>()
+            .First(s => s.Orientation == Avalonia.Layout.Orientation.Vertical);
+
+        // Assert that the card ends strictly before the scrollbar begins, leaving a positive margin
+        var cardRight = card.Bounds.Right;
+        var scrollBarLeft = vScroll.Bounds.Left;
+        Assert.True(cardRight < scrollBarLeft, $"Card right ({cardRight}) must be less than scrollbar left ({scrollBarLeft})");
+        Assert.True(scrollBarLeft - cardRight >= 4.0, $"Gap between card and scrollbar must be at least 4 DIPs (actual: {scrollBarLeft - cardRight})");
+
+        window.Close();
+    }
+
     private static T Token<T>(string key, ThemeVariant variant) =>
         global::Avalonia.Application.Current!.Resources.TryGetResource(key, variant, out var value) &&
         value is T typed
