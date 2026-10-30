@@ -433,7 +433,7 @@
           inside two fixed lists gives that. The classification survives as a badge on the row,
           which is where it is actually useful.
         -->
-        <ScrollViewer x:Name="PART_Connections" IsVisible="{Binding HasGroups}">
+        <ScrollViewer x:Name="PART_Connections" IsVisible="{Binding HasGroups}" AllowAutoHide="False">
           <!-- Favorites above the groups, as 1.x listed them above its sections (ui-reference 09),
                drawn by the same template as a group; always there unless Settings hides empty groups. -->
           <StackPanel Spacing="{StaticResource SpaceMd}">

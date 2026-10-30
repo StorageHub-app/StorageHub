@@ -1,7 +1,9 @@
 ﻿using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Layout;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -494,6 +496,46 @@ public class ConnectionGroupPanelTests
         Directory.CreateDirectory(directory);
         using var stream = File.Create(Path.Combine(directory, $"connections-empty-groups-{(dark ? "dark" : "light")}.png"));
         window.CaptureRenderedFrame()!.Save(stream, new PngBitmapEncoderOptions());
+    }
+
+    /// <summary>
+    /// A list longer than the panel scrolls beside the cards, not over them: no card, and no
+    /// group's menu button, runs under the scroll bar.
+    /// </summary>
+    /// <remarks>Set STORAGEHUB_SHOT_DIR to keep connections-scrolled.png.</remarks>
+    [AvaloniaFact]
+    public async Task TheScrollBarDoesNotCoverTheCards()
+    {
+        var agent = new GroupAgent();
+        foreach (var name in new[] { "Team", "Lab", "Archive" })
+        {
+            var group = agent.AddGroup(name);
+            for (var i = 1; i <= 3; i++) agent.File(Summary($"{name} {i}"), group.GroupId);
+        }
+        var window = await PanelAsync(agent, height: 520);
+
+        var scroller = window.GetVisualDescendants().OfType<ScrollViewer>()
+            .Single(static viewer => viewer.Name == "PART_Connections");
+        var bar = scroller.GetVisualDescendants().OfType<ScrollBar>()
+            .Single(static bar => bar.Orientation == Orientation.Vertical);
+        Assert.True(bar.IsEffectivelyVisible);
+        var barLeft = bar.TranslatePoint(default, window)!.Value.X;
+
+        var cards = scroller.GetVisualDescendants().OfType<Control>()
+            .Where(static control => control.Classes.Contains("connection-row") || control is Button { Flyout: not null })
+            .Where(static control => control.IsEffectivelyVisible)
+            .ToArray();
+        Assert.NotEmpty(cards);
+        Assert.All(cards, card => Assert.True(
+            card.TranslatePoint(new Point(card.Bounds.Width, 0), window)!.Value.X <= barLeft,
+            $"{card.GetType().Name} reaches under the scroll bar"));
+
+        if (Environment.GetEnvironmentVariable("STORAGEHUB_SHOT_DIR") is { Length: > 0 } directory)
+        {
+            Directory.CreateDirectory(directory);
+            using var stream = File.Create(Path.Combine(directory, "connections-scrolled.png"));
+            window.CaptureRenderedFrame()!.Save(stream, new PngBitmapEncoderOptions());
+        }
     }
 
     /// <summary>
