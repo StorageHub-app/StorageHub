@@ -57,17 +57,7 @@ internal static class UpdateDownload
         ArgumentNullException.ThrowIfNull(package);
         ArgumentException.ThrowIfNullOrWhiteSpace(directory);
 
-        if (!Directory.Exists(directory))
-        {
-            if (OperatingSystem.IsWindows())
-            {
-                Directory.CreateDirectory(directory);
-            }
-            else
-            {
-                Directory.CreateDirectory(directory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
-            }
-        }
+        Directory.CreateDirectory(directory);
         var path = Path.Combine(directory, FileNameFor(package));
 
         try

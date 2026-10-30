@@ -185,14 +185,11 @@ internal sealed record QueueTab(string Title, LucideIconKind Icon);
 /// the data: connections, pane rows and queue tabs. Those arrive per screen as each is ported, and
 /// the commands are not wired to anything yet - a Command per entry is the next step.
 /// </remarks>
-internal sealed class ShellPreviewModel : INotifyPropertyChanged, IDisposable
+internal sealed class ShellPreviewModel : INotifyPropertyChanged
 {
     private ShellStatusSnapshot _shellStatus = ShellStatusSnapshot.Initial;
     private string _agentToolTip = Ui.Shell.AgentControlsTooltip;
     private DesktopUpdateSnapshot _update = DesktopUpdateSnapshot.Initial;
-
-    /// <summary>Puts the location back once the last message has been up long enough.</summary>
-    private EventHandler<AgentAvailabilityChangedEventArgs>? _onAgentAvailabilityChanged;
 
     /// <summary>Puts the location back once the last message has been up long enough.</summary>
     private IDisposable? _unsay;
@@ -1612,17 +1609,6 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged, IDisposable
     /// not polling a socket. The monitor raises on its own thread, and Avalonia requires the
     /// property change on the UI one.
     /// </remarks>
-    public void Dispose()
-    {
-        if (_onAgentAvailabilityChanged is not null)
-        {
-            DesktopAgentAvailability.Changed -= _onAgentAvailabilityChanged;
-            _onAgentAvailabilityChanged = null;
-        }
-
-        Sidebar.StopLinks();
-    }
-
     public void Watch(AgentStatusMonitor monitor)
     {
         ArgumentNullException.ThrowIfNull(monitor);
@@ -1634,7 +1620,7 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged, IDisposable
         // report is posted after this one, so recovery mode from a poll still has the last word.
         // Every surface reloads when the agent comes back, and so do the panes: a pane that failed
         // while the agent was away kept its error until somebody refreshed it by hand.
-        _onAgentAvailabilityChanged = (_, e) => Dispatcher.UIThread.Post(() =>
+        DesktopAgentAvailability.Changed += (_, e) => Dispatcher.UIThread.Post(() =>
         {
             var state = e.Availability switch
             {
@@ -1651,7 +1637,6 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged, IDisposable
 
             if (e.Recovered) ReloadEverything();
         });
-        DesktopAgentAvailability.Changed += _onAgentAvailabilityChanged;
 
         monitor.Start();
     }

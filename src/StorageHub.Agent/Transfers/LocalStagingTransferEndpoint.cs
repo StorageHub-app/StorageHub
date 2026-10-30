@@ -43,13 +43,7 @@ public static class LocalStagingTransferEndpoint
     {
         try
         {
-            var approved = LocalUserPathTransferEndpoint.ApproveRoot(destinationRoot);
-            if (approved.IsFailure)
-            {
-                return StorageResult<StorageAddress>.Fail(approved.Error);
-            }
-
-            var root = approved.Value;
+            var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(destinationRoot));
             if (!Directory.Exists(root))
                 return Fail<StorageAddress>("local-destination.root", "The Explorer destination folder is unavailable.");
             var identity = DestinationPrefix + Convert.ToBase64String(Encoding.UTF8.GetBytes(root));
@@ -63,24 +57,9 @@ public static class LocalStagingTransferEndpoint
 
     public static StorageResult<ITransferEndpointConnection> Open(StorageAddress address)
     {
-        if (!TryDecodeRoot(address, out var root, out var staging))
-        {
+        if (!TryDecodeRoot(address, out var root, out var staging) ||
+            (staging && !IsApprovedRoot(root)) || !Directory.Exists(root))
             return Fail<ITransferEndpointConnection>("local-stage.invalid", "The Explorer staging destination is unavailable.");
-        }
-
-        if (staging)
-        {
-            if (!IsApprovedRoot(root) || !Directory.Exists(root))
-                return Fail<ITransferEndpointConnection>("local-stage.invalid", "The Explorer staging destination is unavailable.");
-        }
-        else
-        {
-            var approved = LocalUserPathTransferEndpoint.ApproveRoot(root);
-            if (approved.IsFailure || !Directory.Exists(approved.Value))
-                return Fail<ITransferEndpointConnection>("local-stage.invalid", "The Explorer destination is unavailable.");
-            root = approved.Value;
-        }
-
         return StorageResult<ITransferEndpointConnection>.Success(
             new Connection(new Session(address.ProfileId, root, address.RootIdentity)));
     }

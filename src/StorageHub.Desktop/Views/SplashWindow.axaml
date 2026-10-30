@@ -34,14 +34,15 @@
       <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsWorking}"
                    Margin="{StaticResource BlockGapAbove}" MinHeight="{StaticResource IndeterminateBarHeight}"/>
 
-      <WrapPanel HorizontalAlignment="Center" ItemSpacing="{StaticResource SpaceSm}" LineSpacing="{StaticResource SpaceSm}" Margin="{StaticResource GapAboveLg}"
-                 IsVisible="{Binding IsFailed}">
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
+                  Spacing="{StaticResource SpaceSm}" Margin="{StaticResource GapAboveLg}"
+                  IsVisible="{Binding IsFailed}">
         <Button Content="{Binding QuitLabel}" Command="{Binding QuitCommand}"/>
         <Button Content="{Binding CheckInstallationLabel}" Command="{Binding CheckInstallationCommand}"/>
         <Button Content="{Binding CopyDetailsLabel}" Command="{Binding CopyDetailsCommand}"/>
         <Button Classes="primary" Content="{Binding RetryLabel}" Command="{Binding RetryCommand}"
                 IsVisible="{Binding CanRetry}" IsDefault="True"/>
-      </WrapPanel>
+      </StackPanel>
     </StackPanel>
   </Border>
 </Window>

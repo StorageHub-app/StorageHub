@@ -245,11 +245,9 @@ public partial class App : global::Avalonia.Application
         // its own connections as it is made.
         _ = model.Overview?.RefreshAsync();
         // An edited file that was uploaded shows up in the pane it came from.
-        EventHandler onEditedFile = (_, _) => _ = model.EditedFileUploadedAsync();
+        Services.ShellServices.EditedFileUploaded += (_, _) => _ = model.EditedFileUploadedAsync();
         // So does a permission or time changed in Properties.
-        EventHandler onItemAttributes = (_, _) => _ = model.ItemAttributesChangedAsync();
-        Services.ShellServices.EditedFileUploaded += onEditedFile;
-        Services.ShellServices.ItemAttributesChanged += onItemAttributes;
+        Services.ShellServices.ItemAttributesChanged += (_, _) => _ = model.ItemAttributesChangedAsync();
 
         // The first time an installed build opens, it asks how StorageHub should run, as 1.4 did:
         // once the window is up, so the shell is usable behind the question.
@@ -298,9 +296,6 @@ public partial class App : global::Avalonia.Application
             // startup on a language restart. One already running is waited for before that stop.
             yield return () =>
             {
-                Services.ShellServices.EditedFileUploaded -= onEditedFile;
-                Services.ShellServices.ItemAttributesChanged -= onItemAttributes;
-                model.Dispose();
                 model.StopRestartingAgent();
                 return Task.CompletedTask;
             };

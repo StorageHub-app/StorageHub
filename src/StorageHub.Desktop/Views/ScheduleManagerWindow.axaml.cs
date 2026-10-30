@@ -8,13 +8,7 @@ namespace StorageHub.Desktop.Views;
 
 public partial class ScheduleManagerWindow : Window
 {
-    public ScheduleManagerWindow()
-    {
-        AvaloniaXamlLoader.Load(this);
-        WindowBoundsHelper.FitToScreen(this);
-    }
-
-    private void OnClose(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => Close();
+    public ScheduleManagerWindow() => AvaloniaXamlLoader.Load(this);
 
     /// <summary>
     /// The manager, pointed at the running agent.

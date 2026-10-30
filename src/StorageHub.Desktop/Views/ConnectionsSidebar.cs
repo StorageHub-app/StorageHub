@@ -1505,13 +1505,6 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         _ = RefreshLinksAsync();
     }
 
-    /// <summary>Stops polling the links when the sidebar is detached or window is closed.</summary>
-    internal void StopLinks()
-    {
-        _linkPoll?.Stop();
-        _linkPoll = null;
-    }
-
     private void ShowLinks()
     {
         var now = Clock();

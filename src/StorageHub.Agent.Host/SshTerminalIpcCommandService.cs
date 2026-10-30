@@ -332,16 +332,7 @@ public sealed class SshTerminalIpcCommandService : IAgentIpcCommandHandler, IAsy
         IpcEnvelope envelope,
         CancellationToken cancellationToken)
     {
-        SshTerminalWriteRequest request;
-        try
-        {
-            request = envelope.DeserializePayload<SshTerminalWriteRequest>();
-        }
-        catch (JsonException)
-        {
-            return WriteFailure(Guid.Empty, "ssh.terminal.request.invalid", StorageIpcFailureCategory.Validation, "The SSH terminal request was invalid.");
-        }
-
+        var request = envelope.DeserializePayload<SshTerminalWriteRequest>();
         if (!request.HasValidBounds || !_sessions.TryGetValue(request.SessionId, out var session))
         {
             return WriteFailure(request.SessionId, "ssh.terminal.session.not_found", StorageIpcFailureCategory.NotFound,
@@ -367,16 +358,7 @@ public sealed class SshTerminalIpcCommandService : IAgentIpcCommandHandler, IAsy
         IpcEnvelope envelope,
         CancellationToken cancellationToken)
     {
-        SshTerminalReadRequest request;
-        try
-        {
-            request = envelope.DeserializePayload<SshTerminalReadRequest>();
-        }
-        catch (JsonException)
-        {
-            return ReadFailure(Guid.Empty, "ssh.terminal.request.invalid", StorageIpcFailureCategory.Validation, "The SSH terminal request was invalid.");
-        }
-
+        var request = envelope.DeserializePayload<SshTerminalReadRequest>();
         if (!request.HasValidBounds || !_sessions.TryGetValue(request.SessionId, out var session))
         {
             return ReadFailure(request.SessionId, "ssh.terminal.session.not_found", StorageIpcFailureCategory.NotFound,
@@ -421,16 +403,7 @@ public sealed class SshTerminalIpcCommandService : IAgentIpcCommandHandler, IAsy
         IpcEnvelope envelope,
         CancellationToken cancellationToken)
     {
-        SshTerminalResizeRequest request;
-        try
-        {
-            request = envelope.DeserializePayload<SshTerminalResizeRequest>();
-        }
-        catch (JsonException)
-        {
-            return ResizeFailure(Guid.Empty, "ssh.terminal.request.invalid", StorageIpcFailureCategory.Validation, "The SSH terminal request was invalid.");
-        }
-
+        var request = envelope.DeserializePayload<SshTerminalResizeRequest>();
         if (!request.HasValidBounds || !_sessions.TryGetValue(request.SessionId, out var session))
         {
             return ResizeFailure(request.SessionId, "ssh.terminal.session.not_found", StorageIpcFailureCategory.NotFound,
@@ -454,18 +427,7 @@ public sealed class SshTerminalIpcCommandService : IAgentIpcCommandHandler, IAsy
 
     private AgentIpcCommandResponse Close(IpcEnvelope envelope)
     {
-        SshTerminalCloseRequest request;
-        try
-        {
-            request = envelope.DeserializePayload<SshTerminalCloseRequest>();
-        }
-        catch (JsonException)
-        {
-            return AgentIpcCommandResponse.Create(
-                SshTerminalIpcMessageTypes.CloseResponse,
-                new SshTerminalCloseResponse(SshTerminalIpcContract.CurrentVersion, Guid.Empty, Closed: false));
-        }
-
+        var request = envelope.DeserializePayload<SshTerminalCloseRequest>();
         var closed = request.HasValidBounds && RemoveSession(request.SessionId);
         return AgentIpcCommandResponse.Create(
             SshTerminalIpcMessageTypes.CloseResponse,
@@ -485,13 +447,11 @@ public sealed class SshTerminalIpcCommandService : IAgentIpcCommandHandler, IAsy
     private void ScavengeIdleSessions()
     {
         var cutoff = DateTimeOffset.UtcNow - IdleLifetime;
-        var hardCutoff = DateTimeOffset.UtcNow - (IdleLifetime * 2);
 
         // A faulted session still holding output is not idle -- it is waiting to be drained, and
         // reaping it here would discard exactly the bytes the ring exists to preserve.
-        // If abandoned past hardCutoff, remove to avoid leaking memory and sockets.
         foreach (var pair in _sessions
-            .Where(pair => pair.Value.LastActivityUtc < hardCutoff || (pair.Value.LastActivityUtc < cutoff && pair.Value.Output.BufferedBytes == 0))
+            .Where(pair => pair.Value.LastActivityUtc < cutoff && pair.Value.Output.BufferedBytes == 0)
             .ToArray())
         {
             RemoveSession(pair.Key);

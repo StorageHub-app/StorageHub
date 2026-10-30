@@ -307,7 +307,7 @@
         <TextBlock Grid.Column="5" Classes="muted" Text="{Binding FilterLabel}"
                    VerticalAlignment="Center" Margin="{StaticResource PaddingSm}"/>
         <TextBox Grid.Column="6" Classes="dense" Width="{StaticResource PaneFilterWidth}" Text="{Binding Filter, Mode=TwoWay}"
-                 PlaceholderText="{Binding FilterPlaceholder}"
+                 Watermark="{Binding FilterPlaceholder}"
                  AutomationProperties.Name="{Binding FilterAccessibleName}"
                  VerticalAlignment="Center">
           <TextBox.InnerLeftContent>
@@ -388,9 +388,9 @@
              it was dragged to when it returns; a hidden child alone would leave its column. -->
         <Grid x:Name="PART_Listing" IsVisible="{Binding IsListing}">
           <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="{StaticResource PaneTreeWidth}" MinWidth="120"/>
+            <ColumnDefinition Width="{StaticResource PaneTreeWidth}"/>
             <ColumnDefinition Width="Auto"/>
-            <ColumnDefinition Width="*" MinWidth="200"/>
+            <ColumnDefinition Width="*"/>
           </Grid.ColumnDefinitions>
           <!-- No sideways scrolling: a deep folder would scroll the tree left until the top of
                the path was out of sight. Names past the edge end in an ellipsis instead. -->
