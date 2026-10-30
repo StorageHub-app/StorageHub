@@ -474,16 +474,16 @@ internal sealed class SettingsStrings : LocalizationModelBase
         "How often the agent is asked for new output. Lower feels more responsive; higher uses "
         + "fewer resources.";
 
-    public string ShowFavoritesInFolders { get; set; } = "Show favourites in their folders too";
+    public string ShowFavoritesInFolders { get; set; } = "Show favorites in their folders too";
 
     public string ShowFavoritesInFoldersHint { get; set; } =
-        "A favourite is listed under Favourites and again where it actually lives. Turn this off "
-        + "to list it only under Favourites.";
+        "A favorite is listed under Favorites and again where it actually lives. Turn this off "
+        + "to list it only under Favorites.";
 
     public string HideEmptyGroups { get; set; } = "Hide empty groups";
 
     public string HideEmptyGroupsHint { get; set; } =
-        "The connections panel always shows Favourites, every group and Ungrouped, even with nothing in them. Turn this on to leave out the ones that are empty.";
+        "The connections panel always shows Favorites, every group and Ungrouped, even with nothing in them. Turn this on to leave out the ones that are empty.";
 
     public string ScanSubfolders { get; set; } = "Scan subfolders for the folder tree";
 

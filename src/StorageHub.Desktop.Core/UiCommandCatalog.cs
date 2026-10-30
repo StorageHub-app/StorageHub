@@ -400,7 +400,7 @@ internal static class UiCommandCatalog
             UiMenuId.Transfer,
             static strings => strings.TransferResumeAll,
             static strings => strings.TransferResumeAllDescription,
-            null,
+            new KeyGesture(Key.F9),
             UiGlyph.Run,
             UiIconTone.Text),
         new(
@@ -544,7 +544,7 @@ internal static class UiCommandCatalog
             UiMenuId.Help,
             static strings => strings.HelpDocumentation,
             static strings => strings.HelpDocumentationDescription,
-            null,
+            new KeyGesture(Key.F1),
             UiGlyph.Documentation,
             UiIconTone.Text),
         new(
@@ -564,6 +564,86 @@ internal static class UiCommandCatalog
             UiGlyph.Info,
             UiIconTone.Text),
     ];
+
+    /// <summary>
+    /// What each menu lists, in order, with <see cref="ToolbarLayout.Separator"/> between groups.
+    /// </summary>
+    /// <remarks>
+    /// Apart from <see cref="Specs"/>, whose order is the Shortcuts page's, so a menu can be grouped
+    /// without moving a command around that page. Actions first, then what changes them, with
+    /// anything that deletes or leaves on its own at the foot. A command can be left out of every
+    /// menu, as Go > Favorites is: the Go menu lists the favourites themselves, so an entry that
+    /// opens a list of them beside it would be the same thing twice.
+    /// </remarks>
+    internal static IReadOnlyDictionary<UiMenuId, IReadOnlyList<string>> MenuLayout { get; } =
+        new Dictionary<UiMenuId, IReadOnlyList<string>>
+        {
+            [UiMenuId.Workspace] =
+            [
+                UiCommandIds.WorkspaceNewWorkspace, UiCommandIds.WorkspaceOpenWorkspace, ToolbarLayout.Separator,
+                UiCommandIds.WorkspaceSaveWorkspace, UiCommandIds.WorkspaceSaveWorkspaceAs,
+                UiCommandIds.WorkspaceRenameWorkspace, ToolbarLayout.Separator,
+                UiCommandIds.WorkspaceCloseWorkspace, ToolbarLayout.Separator,
+                UiCommandIds.WorkspaceExit,
+            ],
+            [UiMenuId.Edit] =
+            [
+                UiCommandIds.EditCut, UiCommandIds.EditCopy, UiCommandIds.EditPaste, ToolbarLayout.Separator,
+                UiCommandIds.EditNewFolder, UiCommandIds.EditNewEmptyFile, ToolbarLayout.Separator,
+                UiCommandIds.EditRename, UiCommandIds.EditBatchRename, ToolbarLayout.Separator,
+                UiCommandIds.EditSelectAll, UiCommandIds.EditInvertSelection, ToolbarLayout.Separator,
+                UiCommandIds.EditDelete, ToolbarLayout.Separator,
+                UiCommandIds.EditProperties,
+            ],
+            [UiMenuId.View] =
+            [
+                UiCommandIds.ViewConnectionsPanel, UiCommandIds.ViewDirectoryTree, UiCommandIds.ViewTransferQueue,
+                UiCommandIds.ViewSessionLog, UiCommandIds.ViewHiddenFiles, ToolbarLayout.Separator,
+                UiCommandIds.ViewMoveConnectionsPanel, UiCommandIds.ViewTheme, ToolbarLayout.Separator,
+                UiCommandIds.ViewRefresh,
+            ],
+            [UiMenuId.Go] =
+            [
+                UiCommandIds.GoBack, UiCommandIds.GoForward, UiCommandIds.GoUp, UiCommandIds.GoHome,
+                ToolbarLayout.Separator,
+                UiCommandIds.GoFocusAddress, UiCommandIds.GoNextPane, ToolbarLayout.Separator,
+                UiCommandIds.GoHistory,
+            ],
+            [UiMenuId.Connections] =
+            [
+                UiCommandIds.ConnectionsNewConnection, UiCommandIds.ConnectionsQuickConnect, ToolbarLayout.Separator,
+                UiCommandIds.ConnectionsReconnect, UiCommandIds.ConnectionsDisconnect,
+                UiCommandIds.ConnectionsTestConnection, ToolbarLayout.Separator,
+                UiCommandIds.ConnectionsKeyStore, UiCommandIds.ConnectionsFtpConsole,
+            ],
+            [UiMenuId.Transfer] =
+            [
+                UiCommandIds.TransferStartQueue, UiCommandIds.TransferPauseAll, UiCommandIds.TransferResumeAll,
+                ToolbarLayout.Separator,
+                UiCommandIds.TransferCancelSelected, ToolbarLayout.Separator,
+                UiCommandIds.TransferSpeedLimits,
+            ],
+            [UiMenuId.Sync] =
+            [
+                UiCommandIds.SyncComparePanes, ToolbarLayout.Separator,
+                UiCommandIds.SyncSyncProfiles, UiCommandIds.SyncReviewRun, UiCommandIds.SyncSchedules,
+            ],
+            [UiMenuId.Tools] =
+            [
+                UiCommandIds.ToolsSearch, UiCommandIds.ToolsChecksums, ToolbarLayout.Separator,
+                UiCommandIds.ToolsBackgroundAgent, UiCommandIds.ToolsCleanUpLeftovers,
+                UiCommandIds.ToolsDiagnostics, UiCommandIds.ToolsLogs, ToolbarLayout.Separator,
+                UiCommandIds.ToolsExportSettings, UiCommandIds.ToolsImportSettings, ToolbarLayout.Separator,
+                UiCommandIds.ToolsSettings,
+            ],
+            [UiMenuId.Help] =
+            [
+                UiCommandIds.HelpDocumentation, UiCommandIds.HelpKeyboardShortcuts, UiCommandIds.HelpReportIssue,
+                ToolbarLayout.Separator,
+                UiCommandIds.HelpCheckForUpdates, ToolbarLayout.Separator,
+                UiCommandIds.HelpAboutStorageHub,
+            ],
+        };
 
     /// <summary>The menus, in display order.</summary>
     internal static IReadOnlyList<UiMenuId> Menus { get; } = Enum.GetValues<UiMenuId>();

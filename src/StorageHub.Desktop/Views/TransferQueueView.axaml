@@ -28,13 +28,13 @@
           </Button>
           <Button Classes="tool" Command="{Binding CancelCommand}" ToolTip.Tip="{Binding CancelHint}">
             <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
-              <LucideIcon Kind="Trash" Size="{StaticResource IconSizeSm}"/>
+              <LucideIcon Kind="CircleStop" Size="{StaticResource IconSizeSm}"/>
               <TextBlock Text="{Binding CancelLabel}"/>
             </StackPanel>
           </Button>
           <Button Classes="tool" Command="{Binding RetryCommand}" ToolTip.Tip="{Binding RetryHint}">
             <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
-              <LucideIcon Kind="Play" Size="{StaticResource IconSizeSm}"/>
+              <LucideIcon Kind="RotateCcw" Size="{StaticResource IconSizeSm}"/>
               <TextBlock Text="{Binding RetryLabel}"/>
             </StackPanel>
           </Button>

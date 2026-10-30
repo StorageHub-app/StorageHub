@@ -562,11 +562,14 @@ public class WorkspacePaneLayoutTests
             await shell.Workspaces[2].Workspace!.DisposeAsync();
 
             // What follows the catalog's own entries up to Exit, and whether each is a heading.
+            // Pin follows Rename, with the other commands on the workspace showing, and the
+            // workspaces come after Close.
             IEnumerable<(string, bool)> Listed() => menu
-                .SkipWhile(static entry => entry.Id != UiCommandIds.WorkspaceCloseWorkspace)
+                .SkipWhile(static entry => entry.Id != UiCommandIds.WorkspaceRenameWorkspace)
                 .Skip(1)
                 .TakeWhile(static entry => entry.Id != UiCommandIds.WorkspaceExit)
-                .Where(static entry => entry.Label != CommandEntry.SeparatorLabel)
+                .Where(static entry => entry.Label != CommandEntry.SeparatorLabel &&
+                                       entry.Id != UiCommandIds.WorkspaceCloseWorkspace)
                 .Select(static entry => (entry.Label, entry.IsHeading));
         }
         finally

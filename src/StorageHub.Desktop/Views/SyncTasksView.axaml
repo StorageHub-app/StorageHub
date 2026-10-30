@@ -109,7 +109,7 @@
                         VerticalAlignment="Center"/>
             <TextBlock Classes="title" Text="{Binding LastSyncsTitle}" VerticalAlignment="Center"/>
           </StackPanel>
-          <TableView ItemsSource="{Binding LastSyncs}" Height="{StaticResource LastSyncsTableHeight}">
+          <TableView x:Name="PART_LastSyncs" ItemsSource="{Binding LastSyncs}" Height="{StaticResource LastSyncsTableHeight}">
             <TableView.Columns>
               <TableViewColumn Header="{Binding ColumnName}" Width="*">
                 <TableViewColumn.CellTemplate>

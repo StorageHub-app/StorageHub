@@ -43,7 +43,7 @@ internal sealed class CommandStrings : LocalizationModelBase
 
     public string WorkspaceExitDescription { get; set; } = "Close StorageHub.";
 
-    public string EditNewFolder { get; set; } = "New Folder";
+    public string EditNewFolder { get; set; } = "New Folder...";
 
     public string EditNewFolderDescription { get; set; } = "Create a folder in the active pane.";
 
@@ -83,7 +83,7 @@ internal sealed class CommandStrings : LocalizationModelBase
 
     public string EditInvertSelectionDescription { get; set; } = "Invert the visible selection in the active pane.";
 
-    public string EditProperties { get; set; } = "Properties";
+    public string EditProperties { get; set; } = "Properties...";
 
     public string EditPropertiesDescription { get; set; } =
         "Show the permissions, owner and times of one item on a saved connection, change its permissions or modified time where the connection allows, and see a file's versions, metadata and tags.";
@@ -176,7 +176,7 @@ internal sealed class CommandStrings : LocalizationModelBase
 
     public string ConnectionsTestConnectionDescription { get; set; } = "Check that the selected profile can reach its endpoint.";
 
-    public string ConnectionsFtpConsole { get; set; } = "FTP Command Console…";
+    public string ConnectionsFtpConsole { get; set; } = "FTP Command Console...";
 
     public string ConnectionsFtpConsoleDescription { get; set; } =
         "Send raw commands to the active pane's FTP or FTPS server and read its replies.";
@@ -201,7 +201,7 @@ internal sealed class CommandStrings : LocalizationModelBase
 
     public string TransferSpeedLimitsDescription { get; set; } = "Cap the bandwidth StorageHub transfers use.";
 
-    public string SyncComparePanes { get; set; } = "Compare Panes";
+    public string SyncComparePanes { get; set; } = "Compare Panes...";
 
     public string SyncComparePanesDescription { get; set; } = "Compare the visible source and destination.";
 
@@ -246,7 +246,7 @@ internal sealed class CommandStrings : LocalizationModelBase
 
     public string ToolsImportSettingsDescription { get; set; } = "Review a settings file and choose what to bring in.";
 
-    public string ToolsLogs { get; set; } = "Logs...";
+    public string ToolsLogs { get; set; } = "Logs";
 
     public string ToolsLogsDescription { get; set; } = "Open the StorageHub log directory.";
 
@@ -258,7 +258,7 @@ internal sealed class CommandStrings : LocalizationModelBase
 
     public string HelpCheckForUpdatesDescription { get; set; } = "Check the official StorageHub GitHub releases for an update.";
 
-    public string HelpKeyboardShortcuts { get; set; } = "Keyboard Shortcuts";
+    public string HelpKeyboardShortcuts { get; set; } = "Keyboard Shortcuts...";
 
     public string HelpKeyboardShortcutsDescription { get; set; } = "Show and rebind the StorageHub keyboard shortcuts.";
 

@@ -106,6 +106,9 @@ internal sealed record RecentConnectionRow(string Name, string Provider, string 
 {
     public bool IsPlaceholder { get; init; }
 
+    /// <summary>The connection the row opens; none for the empty table's message.</summary>
+    internal Guid? ConnectionId { get; init; }
+
     internal RowIcon Icon => IsPlaceholder ? RowIcon.Empty : RowIcon.Connection;
 }
 
@@ -340,6 +343,9 @@ internal sealed class OverviewModel : INotifyPropertyChanged
     /// <summary>Puts a path on the clipboard. Set by the shell, which has the window it belongs to.</summary>
     internal Func<string, Task>? CopyWorkspacePath { get; set; }
 
+    /// <summary>Opens a recent connection in the active pane. Supplied by the shell; unset does nothing.</summary>
+    internal Action<Guid>? OpenConnection { get; set; }
+
     /// <summary>
     /// Lists the remembered workspaces, as the shell has already ordered them: pinned first.
     /// </summary>
@@ -533,7 +539,10 @@ internal sealed class OverviewModel : INotifyPropertyChanged
                 // The provider's name as the editor and the cards write it, "SFTP", not the
                 // enum's "Sftp".
                 ConnectionProviderCatalog.Get(ConnectionCardFactory.MapProvider(value.Provider)).DisplayName,
-                value.IsFavorite ? Ui.Overview.ConnectionFavorite : value.FolderPath ?? string.Empty))
+                value.IsFavorite ? Ui.Overview.ConnectionFavorite : value.FolderPath ?? string.Empty)
+            {
+                ConnectionId = value.ConnectionId
+            })
             .ToArray();
         RecentConnections = rows.Length > 0
             ? rows

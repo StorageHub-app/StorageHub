@@ -73,8 +73,12 @@ internal sealed class CommandShortcut : INotifyPropertyChanged
             if (Equals(field, value)) return;
             field = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Gesture)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Text)));
         }
     }
+
+    /// <summary>The key as a toolbar tooltip writes it, "Ctrl+C", or empty when there is none.</summary>
+    public string Text => Gesture is null ? string.Empty : Configuration.ShortcutChord.Format(Gesture);
 
     public event PropertyChangedEventHandler? PropertyChanged;
 }

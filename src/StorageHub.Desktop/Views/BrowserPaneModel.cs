@@ -976,7 +976,7 @@ internal sealed partial class BrowserPaneModel : INotifyPropertyChanged, IAsyncD
 
     public static string CopyLabel => Ui.Commands.EditCopy;
 
-    public static string MoveLabel => Ui.Pane.Move;
+    public static string CutLabel => Ui.Pane.Cut;
 
     public static string PasteLabel => Ui.Pane.Paste;
 

@@ -65,6 +65,9 @@ internal sealed record LastSyncRow(string Name, string State, string Updated) : 
 {
     public bool IsPlaceholder { get; init; }
 
+    /// <summary>The run the row opens on the review sub-tab; none for the empty table's message.</summary>
+    internal Guid? RunId { get; init; }
+
     internal RowIcon Icon => IsPlaceholder ? RowIcon.EmptySync : RowIcon.Run;
 }
 
@@ -160,6 +163,9 @@ internal sealed class SyncTasksModel : INotifyPropertyChanged
         set { if (Set(ref _schedulesCommand, value)) { } }
     }
 
+    /// <summary>Opens a run on the review sub-tab. Supplied by the shell, as the buttons are.</summary>
+    internal Action<Guid>? OpenRun { get; set; }
+
     public ICommand? RunHistoryCommand
     {
         get => _runHistoryCommand;
@@ -247,7 +253,10 @@ internal sealed class SyncTasksModel : INotifyPropertyChanged
             LastSyncs.Add(new LastSyncRow(
                 names.TryGetValue(run.ProfileId, out var name) ? name : Ui.Sync.UnknownProfile,
                 UiEnumNames.Describe(run.Phase),
-                Moment(run.UpdatedUtc)));
+                Moment(run.UpdatedUtc))
+            {
+                RunId = run.SyncRunId
+            });
         }
 
         if (LastSyncs.Count == 0)

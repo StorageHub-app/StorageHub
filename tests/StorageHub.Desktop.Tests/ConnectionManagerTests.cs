@@ -895,7 +895,7 @@ public class ConnectionManagerTests
             Security(StorageConnectionProvider.Sftp));
         Assert.Contains(
             sidebar.ContextEntriesFor(favourite),
-            static entry => entry.Label == Ui.Connections.ContextToggleFavorite && entry.Enabled);
+            static entry => entry.Label == Ui.Connections.FieldFavorite && entry.Enabled && entry.Checked == true);
 
         // Settings can list it under Favorites only.
         sidebar.ShowFavoritesInTheirFolders = false;

@@ -55,24 +55,35 @@ public class IconCatalogTests
     public void TheMenusAreTheCatalogs()
     {
         var model = ShellPreview.Sample;
+        var commands = model.Menus.SelectMany(static section => section.Items)
+            .Where(static entry => entry.Label != CommandEntry.SeparatorLabel)
+            .ToArray();
 
-        // Only the menus with something wired up in them.
+        // Every command is in exactly one menu, the one it declares, except Go > Favorites: the Go
+        // menu lists the favourites themselves.
         Assert.Equal(
-            UiCommandCatalog.Menus.Count(menu =>
-                UiCommandCatalog.ForMenu(menu).Any(d => UiCommandCatalog.IsAvailable(d.Id))),
-            model.Menus.Count);
+            UiCommandCatalog.Definitions
+                .Where(static definition => UiCommandCatalog.IsAvailable(definition.Id) &&
+                                            definition.Id != UiCommandIds.GoFavorites)
+                .Select(static definition => definition.Id)
+                .Order(StringComparer.Ordinal),
+            commands.Select(static entry => entry.Id).Order(StringComparer.Ordinal));
+        Assert.All(model.Menus, section => Assert.All(
+            section.Items.Where(static entry => entry.Label != CommandEntry.SeparatorLabel),
+            entry => Assert.Equal(section.Menu, UiCommandCatalog.GetDefinition(entry.Id).Menu)));
 
-        // Declared but not yet wired commands are left out, as MainForm leaves them out: a menu
-        // entry that does nothing is worse than an absent one.
-        Assert.Equal(
-            UiCommandCatalog.Definitions.Count(definition => UiCommandCatalog.IsAvailable(definition.Id)),
-            model.Menus.Sum(section => section.Items.Count));
-        Assert.All(
-            model.Menus.SelectMany(section => section.Items),
-            entry => Assert.True(UiCommandCatalog.IsAvailable(entry.Id)));
+        // Grouped, with a line between groups but never two together or one at either end.
+        Assert.All(model.Menus, section =>
+        {
+            var lines = section.Items.Select(static entry => entry.Label == CommandEntry.SeparatorLabel).ToArray();
+            Assert.False(lines[0] || lines[^1], section.Header);
+            Assert.DoesNotContain(true, lines.Zip(lines.Skip(1), static (a, b) => a && b));
+        });
+        Assert.Contains(model.Menus.Single(static s => s.Menu == UiMenuId.Edit).Items,
+            static entry => entry.Label == CommandEntry.SeparatorLabel);
 
         // Every entry carries its tooltip and its shortcut through, which is what the menu displays.
-        Assert.All(model.Menus.SelectMany(section => section.Items), entry =>
+        Assert.All(commands, entry =>
         {
             Assert.False(string.IsNullOrWhiteSpace(entry.Label));
             Assert.False(string.IsNullOrWhiteSpace(entry.Description));

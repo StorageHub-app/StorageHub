@@ -84,7 +84,7 @@ public class CommandAvailabilityTests
         // A handled entry is dimmed only while its condition says there is nothing to act on --
         // Reconnect with no connection open -- so the count is of those that can run now.
         Assert.Equal(
-            UiCommandCatalog.Definitions.Count(definition => model.Router.CanRun(definition.Id)),
+            UiCommandCatalog.MenuLayout.Values.SelectMany(static ids => ids).Count(id => model.Router.CanRun(id)),
             enabled.Length);
         Assert.All(enabled, id => Assert.True(
             model.Router.IsHandled(id),
@@ -94,6 +94,29 @@ public class CommandAvailabilityTests
             Assert.True(model.Router.IsHandled(id));
             Assert.DoesNotContain(id, enabled);
         });
+    }
+
+    /// <summary>
+    /// A pane command dims when the pane would refuse it, in the menu, on the toolbar and for its
+    /// shortcut alike, rather than staying lit and doing nothing as 1.x's did.
+    /// </summary>
+    [AvaloniaFact]
+    public void APaneCommandDimsWhenThePaneWouldRefuseIt()
+    {
+        var model = ShellPreview.CreateOnWorkspace();
+        var pane = model.ActivePane()!;
+
+        // A pane just opened has nowhere to go back to and nothing selected to delete.
+        Assert.False(pane.BackCommand.CanExecute(null));
+        Assert.False(model.Router.For(UiCommandIds.GoBack).CanExecute(null));
+        Assert.Equal(pane.DeleteCommand.CanExecute(null), model.Router.For(UiCommandIds.EditDelete).CanExecute(null));
+        Assert.Equal(pane.RefreshCommand.CanExecute(null), model.Router.For(UiCommandIds.ViewRefresh).CanExecute(null));
+
+        // On Welcome there is no pane at all, so nothing that acts on one is lit.
+        model.SelectedWorkspace = 0;
+        Assert.All(
+            new[] { UiCommandIds.ViewRefresh, UiCommandIds.EditCopy, UiCommandIds.EditPaste, UiCommandIds.GoUp },
+            id => Assert.False(model.Router.For(id).CanExecute(null), id));
     }
 
     /// <summary>

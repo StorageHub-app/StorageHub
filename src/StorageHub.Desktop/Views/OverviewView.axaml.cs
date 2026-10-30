@@ -18,25 +18,28 @@ public partial class OverviewView : UserControl
         // so the menu cancels there, as 1.x's did in its Opening.
         if (this.FindControl<TableView>("PART_Workspaces") is { } table)
         {
-            table.DoubleTapped += (_, e) =>
-            {
-                if (e.Source is Visual source && source.FindAncestorOfType<TableViewRow>(includeSelf: true) is not null)
-                {
-                    e.Handled = OpenSelected();
-                }
-            };
-            // Tunnelling, because the table is a ListBox, and a ListBox marks Enter handled in its
-            // own class handler before a KeyDown handler added here would ever see it.
-            table.AddHandler(InputElement.KeyDownEvent, (_, e) =>
-            {
-                if (e.Key == Key.Enter) e.Handled = OpenSelected();
-            }, RoutingStrategies.Tunnel);
+            TableActivation.OnActivate(table, OpenSelected);
+        }
+
+        // A recent connection opens in the active pane, as double-clicking its card does.
+        if (this.FindControl<TableView>("PART_RecentConnections") is { } recent)
+        {
+            TableActivation.OnActivate(recent, () =>
+                recent.SelectedItem is RecentConnectionRow { ConnectionId: { } id } &&
+                DataContext is OverviewModel { OpenConnection: { } openConnection } &&
+                Run(() => openConnection(id)));
         }
 
         if (this.FindControl<ContextMenu>("PART_WorkspaceMenu") is { } menu)
         {
             menu.Opening += (_, e) => e.Cancel = (DataContext as OverviewModel)?.SelectedWorkspace?.Shortcut is null;
         }
+    }
+
+    private static bool Run(Action action)
+    {
+        action();
+        return true;
     }
 
     private bool OpenSelected()

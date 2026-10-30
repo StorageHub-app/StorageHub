@@ -345,6 +345,8 @@
   <Thickness x:Key="DialogButtonPadding">12,4</Thickness>
   <sys:Double x:Key="DialogMinWidth">360</sys:Double>
   <sys:Double x:Key="DialogMaxWidth">520</sys:Double>
+  <!-- A toolbar tooltip's description wraps rather than running across the window. -->
+  <sys:Double x:Key="ToolTipMaxWidth">320</sys:Double>
   <sys:Double x:Key="DialogIconSize">32</sys:Double>
   <!-- A dialog that asks for a name: wide enough for a long file name without resizing. -->
   <sys:Double x:Key="DialogPromptWidth">420</sys:Double>

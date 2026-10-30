@@ -36,6 +36,12 @@ internal sealed record CommandEntry(
     /// <summary>The tooltip, or none for an entry with nothing to say, rather than an empty box.</summary>
     internal string? ToolTip => Description.Length > 0 ? Description : null;
 
+    /// <summary>
+    /// The name a toolbar tooltip leads with: the menu's label without its "...", since a toolbar
+    /// of icons otherwise never says what a button is called.
+    /// </summary>
+    internal string ToolTipTitle => Label.TrimEnd('.', '…');
+
     /// <summary>A group's heading, such as the Workspace menu's "Pinned": shown bold, never run.</summary>
     internal bool IsHeading { get; init; }
 
@@ -915,11 +921,11 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
     private CommandEntry[]? _workspaceCatalogEntries;
 
     /// <summary>Never enabled: a heading or a line in a menu is there to be read.</summary>
-    private static readonly RelayCommand Inert = new(static _ => { }, static _ => false);
+    internal static readonly RelayCommand Inert = new(static _ => { }, static _ => false);
 
     /// <summary>
-    /// Puts Pin Workspace, then the pinned and then the recent workspaces, into the Workspace menu
-    /// ahead of Exit, as 1.x's RebuildWorkspaceSection did.
+    /// Puts Pin Workspace after Rename, with the other commands on the workspace showing, and the
+    /// pinned and then the recent workspaces ahead of Exit, as 1.x's RebuildWorkspaceSection did.
     /// </summary>
     /// <remarks>
     /// A group with nothing in it leaves out its heading too. The entries are replaced only when
@@ -938,6 +944,10 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         var catalog = _workspaceCatalogEntries;
         var exit = Array.FindIndex(catalog, static entry => entry.Id == UiCommandIds.WorkspaceExit);
         if (exit < 0) exit = catalog.Length;
+        // Exit's own line stays in front of it, after the workspaces.
+        if (exit > 0 && catalog[exit - 1].Label == CommandEntry.SeparatorLabel) exit--;
+        var rename = Array.FindIndex(catalog, static entry => entry.Id == UiCommandIds.WorkspaceRenameWorkspace) + 1;
+        if (rename <= 0 || rename > exit) rename = exit;
 
         var showing = ActiveWorkspace()?.FilePath;
         var pinned = showing is not null && WorkspaceShortcutSettings.Contains(
@@ -947,9 +957,8 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
             _ => { if (_files is { } current) _ = current.TogglePinAsync(); },
             _ => _files is not null && ActiveWorkspace() is not null);
 
-        var next = new List<CommandEntry>(catalog[..exit])
+        var next = new List<CommandEntry>(catalog[..rename])
         {
-            Line(),
             new(
                 "workspace.pin",
                 pinned ? Ui.Shell.UnpinWorkspace : Ui.Shell.PinWorkspace,
@@ -958,6 +967,7 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
                 UiIconTone.Text,
                 _togglePin),
         };
+        next.AddRange(catalog[rename..exit]);
         Group(Ui.Overview.WorkspaceStatePinned, shortcuts.Where(static shortcut => shortcut.IsPinned));
         Group(Ui.Overview.WorkspaceStateRecent, shortcuts.Where(static shortcut => !shortcut.IsPinned));
         next.AddRange(catalog[exit..]);
@@ -1947,6 +1957,7 @@ internal static class ShellPreview
         overview.ToggleWorkspacePin = shortcut => model.Files?.Bookmarks.TogglePin(shortcut.Entry.Path, shortcut.Entry.Name);
         overview.ForgetWorkspace = path => model.Files?.Bookmarks.Forget(path);
         overview.CopyWorkspacePath = path => Services.ShellServices.Clipboard.SetTextAsync(path);
+        overview.OpenConnection = id => model.Sidebar.OpenConnection?.Invoke(id);
         model.Overview = overview;
         model.Workspaces.Add(new WorkspaceTab(Ui.Shell.TabWelcome, LucideIconKind.House, overview));
         // The review names each side of a planned operation from the connections panel, as the
@@ -1978,6 +1989,7 @@ internal static class ShellPreview
         if (model.SyncTasks is { } tasks)
         {
             tasks.RunHistoryCommand = new RelayCommand(_ => syncPage.SelectedIndex = 1);
+            tasks.OpenRun = model.ReviewRun;
         }
 
         if (!live) model.AddWorkspace(WorkspacePreset.All[1]);
@@ -2208,21 +2220,65 @@ internal static class ShellPreview
     }
 
     private static IReadOnlyList<MenuSection> BuildMenus(
-        ShellCommandRouter router, IReadOnlyDictionary<string, CommandCheck> checks) =>
-    [
-        .. UiCommandCatalog.Menus
-            .Select(menu => new MenuSection(
+        ShellCommandRouter router, IReadOnlyDictionary<string, CommandCheck> checks)
+    {
+        var titles = WithAccessKeys([.. UiCommandCatalog.Menus.Select(UiCommandCatalog.MenuTitle)]);
+        return
+        [
+            .. UiCommandCatalog.Menus
+            .Select((menu, index) => new MenuSection(
                 menu,
-                UiCommandCatalog.MenuTitle(menu),
-                new ObservableCollection<CommandEntry>(UiCommandCatalog.ForMenu(menu)
-                    .Where(definition => UiCommandCatalog.IsAvailable(definition.Id))
-                    .Select(definition => ToEntry(definition, router, checks)))))
+                titles[index],
+                new ObservableCollection<CommandEntry>(UiCommandCatalog.MenuLayout[menu]
+                    .Where(id => id == ToolbarLayout.Separator || UiCommandCatalog.IsAvailable(id))
+                    .Select((id, index) => id == ToolbarLayout.Separator
+                        ? new CommandEntry(
+                            $"{menu}.separator.{index}", CommandEntry.SeparatorLabel, string.Empty, null, UiIconTone.Text, ShellPreviewModel.Inert)
+                        : ToEntry(UiCommandCatalog.GetDefinition(id), router, checks)))))
             .Where(section => section.Items.Count > 0),
-    ];
+        ];
+    }
 
     /// <summary>
-    /// A pane's right-click menu, as 1.x had it: making things, then changing the selection, then
-    /// moving it between panes, then the pane itself. Built from the catalog, so each entry is the
+    /// Marks an access key in each menu title, so Alt and a letter opens it: the first letter of the
+    /// title that no menu before it has taken, as Windows chooses them. Worked out here rather than
+    /// written into eighteen translations, where two menus would sooner or later share a letter.
+    /// A title with no free letter, such as one written in kana, gets the English menu's letter in
+    /// brackets after it, which is how Japanese and Chinese Windows write theirs.
+    /// </summary>
+    internal static IReadOnlyList<string> WithAccessKeys(IReadOnlyList<string> titles)
+    {
+        var taken = new HashSet<char>();
+        var marked = new string[titles.Count];
+        for (var i = 0; i < titles.Count; i++)
+        {
+            var title = titles[i].Replace("_", "__", StringComparison.Ordinal);
+            var at = title.IndexOf(title.FirstOrDefault(c => char.IsAsciiLetter(c) && !taken.Contains(char.ToUpperInvariant(c))));
+            if (at >= 0 && char.IsAsciiLetter(title[at]))
+            {
+                taken.Add(char.ToUpperInvariant(title[at]));
+                marked[i] = title.Insert(at, "_");
+                continue;
+            }
+
+            var fallback = UiCommandCatalog.Menus[Math.Min(i, UiCommandCatalog.Menus.Count - 1)].ToString()
+                .FirstOrDefault(c => !taken.Contains(char.ToUpperInvariant(c)));
+            if (fallback == default)
+            {
+                marked[i] = title;
+                continue;
+            }
+
+            taken.Add(char.ToUpperInvariant(fallback));
+            marked[i] = $"{title} (_{char.ToUpperInvariant(fallback)})";
+        }
+
+        return marked;
+    }
+
+    /// <summary>
+    /// A pane's right-click menu: making things, moving them between panes, changing them, the
+    /// selection, the tools that act on it, the pane itself, and Delete apart at the foot. Built from the catalog, so each entry is the
     /// menu bar's own -- the same label, icon, shortcut and routing to the pane it was opened on.
     /// Open and Edit are the pane's own and are added by the view in front of these. Invert selection
     /// is 2.0's addition, from 1.x's "..." on the FILES row: with it, this menu holds everything that
@@ -2233,11 +2289,13 @@ internal static class ShellPreview
         .. new[]
         {
             UiCommandIds.EditNewFolder, UiCommandIds.EditNewEmptyFile, ToolbarLayout.Separator,
+            UiCommandIds.EditCut, UiCommandIds.EditCopy, UiCommandIds.EditPaste, ToolbarLayout.Separator,
             UiCommandIds.EditRename, UiCommandIds.EditBatchRename, ToolbarLayout.Separator,
-            UiCommandIds.EditCopy, UiCommandIds.EditCut, UiCommandIds.EditPaste, UiCommandIds.EditDelete,
+            UiCommandIds.EditSelectAll, UiCommandIds.EditInvertSelection, ToolbarLayout.Separator,
+            UiCommandIds.ToolsSearch, UiCommandIds.ToolsChecksums, UiCommandIds.SyncComparePanes,
             ToolbarLayout.Separator,
-            UiCommandIds.ViewRefresh, UiCommandIds.EditSelectAll, UiCommandIds.EditInvertSelection,
-            ToolbarLayout.Separator,
+            UiCommandIds.ViewRefresh, ToolbarLayout.Separator,
+            UiCommandIds.EditDelete, ToolbarLayout.Separator,
             UiCommandIds.EditProperties,
         }
         .Where(id => id == ToolbarLayout.Separator || UiCommandCatalog.IsAvailable(id))

@@ -68,7 +68,7 @@ internal sealed class ConnectionEditorStrings : LocalizationModelBase
 
     public string ChooseRootFolder { get; set; } = "Choose the connection root folder";
 
-    public string Appearance { get; set; } = "Icon and colour";
+    public string Appearance { get; set; } = "Icon and color";
 
     public string AppearanceHint { get; set; } =
         "How this connection is shown in the list and in a pane's header.";

@@ -98,8 +98,9 @@
               <ContextMenu x:Name="PART_WorkspaceMenu">
                 <MenuItem Header="{Binding OpenWorkspaceLabel}" Command="{Binding OpenWorkspaceCommand}"/>
                 <MenuItem Header="{Binding PinWorkspaceLabel}" Command="{Binding ToggleWorkspacePinCommand}"/>
-                <MenuItem Header="{Binding ForgetWorkspaceLabel}" Command="{Binding ForgetWorkspaceCommand}"/>
                 <MenuItem Header="{Binding CopyWorkspacePathLabel}" Command="{Binding CopyWorkspacePathCommand}"/>
+                <Separator/>
+                <MenuItem Header="{Binding ForgetWorkspaceLabel}" Command="{Binding ForgetWorkspaceCommand}"/>
               </ContextMenu>
             </TableView.ContextMenu>
             <TableView.Columns>
@@ -151,7 +152,8 @@
                 <TextBlock Classes="caption" Text="{Binding ConnectionsSubtitle}"/>
               </StackPanel>
             </StackPanel>
-            <TableView ItemsSource="{Binding RecentConnections}" Height="{StaticResource OverviewTableHeight}">
+            <TableView x:Name="PART_RecentConnections" ItemsSource="{Binding RecentConnections}"
+                       Height="{StaticResource OverviewTableHeight}">
               <TableView.Columns>
                 <TableViewColumn Header="{Binding ColumnName}" Width="*">
                   <TableViewColumn.CellTemplate>

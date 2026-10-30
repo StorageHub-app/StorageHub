@@ -898,20 +898,23 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     public Action<Guid>? OpenConnectionInNewPane { get; internal set; }
 
     /// <summary>
-    /// A card's right-click menu, as 1.x had it: Open and Open in new pane, then Toggle favorite
-    /// and Edit, then Delete, with a line between each pair. Built when it opens, on the card it
-    /// opened on, which the right-click has just selected. A label of "-" is one of the lines.
+    /// A card's right-click menu, as 1.x had it: Open and Open in new pane, then Favorite, Edit,
+    /// Duplicate and Test, then Delete, with a line between each group. Favorite is ticked while the
+    /// connection is one, where 1.x's "Toggle favorite" left somebody to work out which way it would
+    /// go. Built when it opens, on the card it opened on, which the right-click has just selected. A
+    /// label of "-" is one of the lines; Checked is null for an entry that is not ticked either way.
     /// </summary>
-    internal IReadOnlyList<(string Label, Action Run, bool Enabled)> ContextEntriesFor(ConnectionRowModel row) =>
+    internal IReadOnlyList<(string Label, Action Run, bool Enabled, bool? Checked)> ContextEntriesFor(ConnectionRowModel row) =>
     [
-        (Ui.Connections.ContextOpen, () => OpenConnection?.Invoke(row.Id), OpenConnection is not null),
-        (Ui.Connections.ContextOpenInNewPane, () => OpenConnectionInNewPane?.Invoke(row.Id), OpenConnectionInNewPane is not null),
-        (CommandEntry.SeparatorLabel, static () => { }, false),
-        (Ui.Connections.ContextToggleFavorite, () => _ = ToggleFavoriteAsync(row.Id), _profiles is not null),
-        (Ui.Connections.ContextEdit, () => EditConnection?.Invoke(row.Id, ConnectionEditorTab.General), EditConnection is not null),
-        (Ui.Connections.ContextDuplicate, () => _ = DuplicateConnectionAsync(row.Id), _profiles is not null),
-        (CommandEntry.SeparatorLabel, static () => { }, false),
-        (Ui.Connections.ContextDelete, () => { if (DeleteConnection is { } delete) _ = DeleteAndRefreshAsync(delete, row.Id); }, DeleteConnection is not null),
+        (Ui.Connections.ContextOpen, () => OpenConnection?.Invoke(row.Id), OpenConnection is not null, null),
+        (Ui.Connections.ContextOpenInNewPane, () => OpenConnectionInNewPane?.Invoke(row.Id), OpenConnectionInNewPane is not null, null),
+        (CommandEntry.SeparatorLabel, static () => { }, false, null),
+        (Ui.Connections.FieldFavorite, () => _ = ToggleFavoriteAsync(row.Id), _profiles is not null, row.IsFavorite),
+        (Ui.Connections.ContextEdit, () => EditConnection?.Invoke(row.Id, ConnectionEditorTab.General), EditConnection is not null, null),
+        (Ui.Connections.ContextDuplicate, () => _ = DuplicateConnectionAsync(row.Id), _profiles is not null, null),
+        (Ui.Connections.DetailTest, () => _ = TestSelectedAsync(), true, null),
+        (CommandEntry.SeparatorLabel, static () => { }, false, null),
+        (Ui.Connections.ContextDelete, () => { if (DeleteConnection is { } delete) _ = DeleteAndRefreshAsync(delete, row.Id); }, DeleteConnection is not null, null),
     ];
 
     public Action<Guid>? OpenConnection

@@ -95,9 +95,21 @@
             <DataTemplate DataType="vm:CommandEntry">
               <!-- "checked" frames a button while what it shows is showing, as 1.x drew the
                    connections panel's (ui-reference 01). -->
-              <Button Classes="tool" Command="{Binding Command}" ToolTip.Tip="{Binding Description}"
+              <Button Classes="tool" Command="{Binding Command}"
                       AutomationProperties.Name="{Binding Label}"
                       Classes.checked="{Binding Check.IsChecked}">
+                <!-- The name and its key first, then what it does: the toolbar shows icons only by
+                     default, so the tooltip is the only place a button says what it is called. -->
+                <ToolTip.Tip>
+                  <StackPanel Spacing="{StaticResource SpaceXs}">
+                    <TextBlock FontWeight="SemiBold">
+                      <Run Text="{Binding ToolTipTitle}"/>
+                      <Run Text="{Binding Shortcut.Text}" FontWeight="Normal" Foreground="{DynamicResource TextMutedBrush}"/>
+                    </TextBlock>
+                    <TextBlock Text="{Binding Description}" TextWrapping="Wrap"
+                               MaxWidth="{StaticResource ToolTipMaxWidth}"/>
+                  </StackPanel>
+                </ToolTip.Tip>
                 <StackPanel Classes="tool-content">
                   <LucideIcon Kind="{Binding Icon}"
                               Size="{StaticResource IconSizeMd}"

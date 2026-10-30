@@ -23,7 +23,7 @@ internal sealed class ConnectionStrings : LocalizationModelBase
     public string PanelStatus { get; set; } = "Connections status";
 
     public string PanelAccessibleDescription { get; set; } =
-        "Saved connections, grouped by favourites, type, and folder.";
+        "Saved connections, grouped by favorites, type, and folder.";
 
     public string SearchPlaceholder { get; set; } = "Search connections…";
 
@@ -641,7 +641,7 @@ internal sealed class ConnectionStrings : LocalizationModelBase
     /// <summary>What an open group with nothing in it says, on one quiet line.</summary>
     public string GroupEmpty { get; set; } = "No connections";
 
-    public string GroupIconAndColor { get; set; } = "Icon and colour…";
+    public string GroupIconAndColor { get; set; } = "Icon and color…";
 
     public string MoveGroupUp { get; set; } = "Move up";
 
@@ -665,10 +665,10 @@ internal sealed class ConnectionStrings : LocalizationModelBase
 
     public string NewGroupChoice { get; set; } = "New group…";
 
-    public string IconPickerColor { get; set; } = "Colour";
+    public string IconPickerColor { get; set; } = "Color";
 
-    public string IconPickerNoColor { get; set; } = "No colour";
+    public string IconPickerNoColor { get; set; } = "No color";
 
     /// <summary>{0} = the group's name.</summary>
-    public string IconPickerGroupTitleFormat { get; set; } = "Icon and colour for {0}";
+    public string IconPickerGroupTitleFormat { get; set; } = "Icon and color for {0}";
 }

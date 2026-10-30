@@ -254,8 +254,8 @@
             </Button>
             <Button Classes="tool" Command="{Binding MoveCommand}" ToolTip.Tip="{Binding MoveHint}">
               <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceXs}">
-                <LucideIcon Kind="ArrowRight" Size="{StaticResource IconSizeSm}"/>
-                <TextBlock Text="{Binding MoveLabel}"/>
+                <LucideIcon Kind="Scissors" Size="{StaticResource IconSizeSm}"/>
+                <TextBlock Text="{Binding CutLabel}"/>
               </StackPanel>
             </Button>
             <Button Classes="tool" Command="{Binding PasteCommand}" ToolTip.Tip="{Binding PasteHint}">

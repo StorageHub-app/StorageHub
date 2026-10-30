@@ -96,6 +96,25 @@ a wish; each one below names the test that fails when it is broken. The target i
   says so and offers the Key Store's own Import, which selects what it imported.
   _Test:_ `KeyStoreTests.ThePickerImportsIntoAnEmptyStoreAndSelectsTheEntry`.
 
+## Menus and commands
+
+- **Grouped, in one place.** Each menu's order and groups are `UiCommandCatalog.MenuLayout`, not
+  the order of `Specs` (which is the Shortcuts page's). Actions come first, then what changes them;
+  Delete, Cancel Selected and Exit stand apart at the foot. A line separates groups, never two
+  together and never one at either end.
+  _Test:_ `IconCatalogTests.TheMenusAreTheCatalogs`.
+- **Dim what cannot run.** A command that acts on the active pane is lit only while the pane's own
+  command would run, so the menu entry, the toolbar button, the right-click entry and the shortcut
+  agree. 1.x left them lit on every tab; that is not kept.
+  _Test:_ `CommandAvailabilityTests.APaneCommandDimsWhenThePaneWouldRefuseIt`.
+- **One name per action.** The menu bar and right-click menus built from the catalog use Title Case
+  ("New Folder..."); flyouts and buttons use sentence case ("New folder"). The words are the same:
+  Cut is Cut on the FILES row too. "..." (three dots, never "…") marks an entry that asks for more
+  before it acts, such as a name or a window of choices; one that only opens a folder or a page has
+  none.
+- **Toolbar tooltips name the button.** The name and its key first, then the description, because
+  the toolbar shows icons only by default.
+
 ## Connections panel
 
 - **Groups are the agent's.** The panel shows the agent's groups in their sort order (Move up and
