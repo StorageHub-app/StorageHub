@@ -154,6 +154,9 @@ internal sealed class DesktopConfig : ConfigModelBase
 
     /// <summary>Whether Favorites was closed when the panel was last used.</summary>
     public bool FavoritesCollapsed { get; set; }
+
+    /// <summary>The colour scheme's id; absent follows the appearance with the house schemes.</summary>
+    public string? ColorScheme { get; set; }
 }
 
 /// <summary>

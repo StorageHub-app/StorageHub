@@ -723,6 +723,8 @@ internal sealed class ScheduleManagerModel : INotifyPropertyChanged
 
     public static string DeleteLabel => Ui.Schedules.Delete;
 
+    public static string CloseLabel => Ui.Schedules.Close;
+
     public static string ProfileLabel => Ui.Schedules.SyncProfile;
 
     public static string RepeatsLabel => Ui.Schedules.Repeats;

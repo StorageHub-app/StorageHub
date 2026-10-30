@@ -18,12 +18,14 @@
   <Border Classes="surface" Padding="{StaticResource PaddingLg}">
     <DockPanel>
 
-      <CheckBox DockPanel.Dock="Bottom"
-                IsChecked="{Binding Remember, Mode=TwoWay}"
-                Content="{Binding RememberLabel}"
-                AutomationProperties.Name="{Binding RememberAccessibleName}"
-                AutomationProperties.HelpText="{Binding RememberAccessibleDescription}"
-                Margin="{StaticResource GapAboveMd}"/>
+      <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto" Margin="{StaticResource GapAboveMd}">
+        <CheckBox IsChecked="{Binding Remember, Mode=TwoWay}"
+                  Content="{Binding RememberLabel}"
+                  AutomationProperties.Name="{Binding RememberAccessibleName}"
+                  AutomationProperties.HelpText="{Binding RememberAccessibleDescription}"/>
+        <Button Grid.Column="1" Classes="dialog" IsCancel="True"
+                Content="{Binding CancelLabel}" Command="{Binding CancelCommand}"/>
+      </Grid>
 
       <ItemsControl ItemsSource="{Binding Presets}"
                     AutomationProperties.Name="{Binding ChooserAccessibleName}">

@@ -117,14 +117,4 @@ internal static class ShortcutBindings
 
         return null;
     }
-
-    /// <summary>
-    /// Whether a command acts on the active browser pane.
-    /// </summary>
-    /// <remarks>
-    /// Pane commands are declined when there is no pane, and yield to a remote shell that owns the
-    /// keystroke. Both shells apply the same rule through ShellCommandRouter.
-    /// </remarks>
-    internal static bool IsPaneCommand(UiCommandDefinition command) =>
-        UiCommandCatalog.IsPaneCommand(command);
 }

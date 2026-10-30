@@ -650,6 +650,19 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     /// <summary>Whether this is a connection that does not exist yet.</summary>
     public bool IsNew => _current is null;
 
+    /// <summary>
+    /// "New Connection — StorageHub" until the connection is saved, then "Edit Connection — StorageHub".
+    /// 1.x titled both Edit, which told somebody filling in a new one that they were changing an old one.
+    /// </summary>
+    public string WindowTitle => IsNew
+        ? $"{NewConnectionName} — StorageHub"
+        : Ui.ConnectionEditor.EditTitle;
+
+    /// <summary>The window's accessible name, which follows its title.</summary>
+    public string WindowAccessibleName => IsNew ? NewConnectionName : Ui.ConnectionEditor.EditAccessibleName;
+
+    private static string NewConnectionName => Ui.Commands.ConnectionsNewConnection.TrimEnd('.', '…');
+
     public bool IsBusy
     {
         get => _isBusy;
@@ -2273,6 +2286,8 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
     private void RaiseAll()
     {
         Raise(nameof(IsNew));
+        Raise(nameof(WindowTitle));
+        Raise(nameof(WindowAccessibleName));
         RaiseGroupChoices();
         Raise(nameof(Provider));
         Raise(nameof(Type));

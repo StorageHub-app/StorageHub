@@ -5,6 +5,7 @@
         x:DataType="vm:ScheduleManagerModel"
         Title="{Binding Title}"
         Width="{StaticResource ScheduleManagerWindowWidth}" Height="{StaticResource ScheduleManagerWindowHeight}"
+        MinWidth="{StaticResource ScheduleManagerWindowMinWidth}" MinHeight="{StaticResource ScheduleManagerWindowMinHeight}"
         WindowStartupLocation="CenterOwner">
 
   <!--
@@ -33,14 +34,18 @@
                   Command="{Binding NewScheduleCommand}" Margin="{StaticResource PaddingSm}"/>
         </Grid>
 
-        <TextBlock DockPanel.Dock="Bottom" Classes="status"
-                   Classes.primary="{Binding Status.IsPrimary}"
-                   Classes.success="{Binding Status.IsSuccess}"
-                   Classes.warning="{Binding Status.IsWarning}"
-                   Classes.danger="{Binding Status.IsDanger}"
-                   Text="{Binding Status.Text}" TextWrapping="Wrap"
-                   Margin="{StaticResource GapAboveMd}"
-                   AutomationProperties.Name="{Binding StatusAccessibleName}"/>
+        <!-- Close beside the status line: the window had only its title bar's X. Not Escape,
+             because the editor beside it has no unsaved-changes guard. -->
+        <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto" Margin="{StaticResource GapAboveMd}">
+          <TextBlock Classes="status" VerticalAlignment="Center"
+                     Classes.primary="{Binding Status.IsPrimary}"
+                     Classes.success="{Binding Status.IsSuccess}"
+                     Classes.warning="{Binding Status.IsWarning}"
+                     Classes.danger="{Binding Status.IsDanger}"
+                     Text="{Binding Status.Text}" TextWrapping="Wrap"
+                     AutomationProperties.Name="{Binding StatusAccessibleName}"/>
+          <Button Grid.Column="1" x:Name="CloseButton" Content="{Binding CloseLabel}"/>
+        </Grid>
 
         <TableView ItemsSource="{Binding Schedules}"
                    SelectedItem="{Binding SelectedRow, Mode=TwoWay}"

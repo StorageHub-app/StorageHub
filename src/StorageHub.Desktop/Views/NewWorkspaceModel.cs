@@ -24,13 +24,21 @@ internal sealed class NewWorkspaceModel : INotifyPropertyChanged
 {
     private bool _remember;
 
-    internal NewWorkspaceModel() =>
+    internal NewWorkspaceModel()
+    {
         ChooseCommand = new RelayCommand(preset =>
         {
             if (preset is not WorkspacePreset chosen) return;
             Chosen = chosen;
             Closed?.Invoke(this, EventArgs.Empty);
         });
+        // Cancel and Escape: nothing chosen, so no workspace is made.
+        CancelCommand = new RelayCommand(_ => Closed?.Invoke(this, EventArgs.Empty));
+    }
+
+    public ICommand CancelCommand { get; }
+
+    public static string CancelLabel => Ui.Dialogs.ButtonCancel;
 
     /// <summary>The six arrangements, each drawn from the layout it actually produces.</summary>
     public static IReadOnlyList<WorkspacePreset> Presets => WorkspacePreset.All;

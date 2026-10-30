@@ -6,6 +6,7 @@
         x:DataType="vm:SyncProfileEditorModel"
         Title="{Binding Heading}"
         Width="{StaticResource SyncProfileEditorWindowWidth}" Height="{StaticResource SyncProfileEditorWindowHeight}"
+        MinWidth="{StaticResource SyncProfileEditorWindowMinWidth}" MinHeight="{StaticResource SyncProfileEditorWindowMinHeight}"
         WindowStartupLocation="CenterOwner">
 
   <!--

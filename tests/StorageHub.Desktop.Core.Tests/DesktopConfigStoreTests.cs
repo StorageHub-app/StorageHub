@@ -74,6 +74,7 @@ public sealed class DesktopConfigStoreTests : IDisposable
         var saved = DesktopUpdatePreferences.Defaults with
         {
             Appearance = DesktopAppearance.Dark,
+            ColorScheme = "nord",
             Language = "da-DK",
             MaximumTransferConcurrency = 9,
             ConnectionsPanelWidth = 420,

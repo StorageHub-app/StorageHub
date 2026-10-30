@@ -157,10 +157,10 @@ public partial class App : global::Avalonia.Application
         model.Router.Handle(UiCommandIds.ConnectionsKeyStore, () => ShowKeyStore(desktop));
 
         // The sync profile editor, from the menu and from the tasks screen's New button.
-        // Review & run opens the same window: in 1.x it was a second entry point into the same
-        // form, and previewing is what its primary button already does.
         model.Router.Handle(UiCommandIds.SyncSyncProfiles, () => ShowSyncEditor(desktop, model));
-        model.Router.Handle(UiCommandIds.SyncReviewRun, () => ShowSyncEditor(desktop, model));
+        // Run history and review: in 1.x this entry opened the editor a second time, which left the
+        // runs it produced reachable only through the Sync tasks page.
+        model.Router.Handle(UiCommandIds.SyncReviewRun, model.ShowRunHistory);
         // And the schedule manager, which is what turns a profile into something that runs
         // without anybody present.
         model.Router.Handle(UiCommandIds.SyncSchedules, () => ShowSchedules(desktop, model));

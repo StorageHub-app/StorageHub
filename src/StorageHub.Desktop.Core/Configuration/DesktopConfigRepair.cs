@@ -1,5 +1,6 @@
 using StorageHub.Desktop.Localization;
 using StorageHub.Contracts.Ipc;
+using StorageHub.Desktop.Themes;
 
 namespace StorageHub.Desktop.Configuration;
 
@@ -171,6 +172,7 @@ internal static class DesktopConfigRepair
             ConnectionGroupsAtStartup = Enum.IsDefined(preferences.ConnectionGroupsAtStartup)
                 ? preferences.ConnectionGroupsAtStartup
                 : ConnectionGroupsAtStartup.Expanded,
+            ColorScheme = ColorSchemeCatalog.Knows(preferences.ColorScheme) ? preferences.ColorScheme : null,
             Language = DesktopCulture.IsSupportedSetting(preferences.Language)
                 ? preferences.Language
                 : DesktopCulture.AutomaticLanguage,
@@ -250,18 +252,35 @@ internal static class DesktopConfigRepair
             return "How often a connection's folder is read again is outside what StorageHub allows.";
         }
 
-        return !IsValidEditorPath(preferences.ExternalEditorPath) ||
-            preferences.MaximumEditableFileBytes is < 1 or > EditableFileIpcContract.MaximumContentBytes ||
-            preferences.MinimumConcurrency is < 1 or > 8 ||
+        if (preferences.ColorScheme is not null && !ColorSchemeCatalog.Knows(preferences.ColorScheme))
+        {
+            return "The colour scheme is not one StorageHub has.";
+        }
+
+        if (!Enum.IsDefined(preferences.Appearance))
+        {
+            return "The theme must be light, dark or the system's.";
+        }
+
+        if (!IsValidEditorPath(preferences.ExternalEditorPath) ||
+            preferences.MaximumEditableFileBytes is < 1 or > EditableFileIpcContract.MaximumContentBytes)
+        {
+            return "External editor preferences exceed the permitted bounds.";
+        }
+
+        if (preferences.MinimumConcurrency is < 1 or > 8 ||
             preferences.MaximumTransferConcurrency is < 1 or > 32 ||
             preferences.MinimumConcurrency > preferences.MaximumTransferConcurrency ||
             preferences.PerConnectionConcurrency is < 1 or > 16 ||
             preferences.MaximumSyncConcurrency is < 1 or > 8 ||
-            preferences.MinimumConcurrency > preferences.MaximumSyncConcurrency ||
-            DesktopUpdatePreferences.ValidSpeedLimit(preferences.TotalUploadBytesPerSecond) != preferences.TotalUploadBytesPerSecond ||
-            DesktopUpdatePreferences.ValidSpeedLimit(preferences.TotalDownloadBytesPerSecond) != preferences.TotalDownloadBytesPerSecond ||
-            !Enum.IsDefined(preferences.Appearance)
-                ? "External editor preferences exceed the permitted bounds."
+            preferences.MinimumConcurrency > preferences.MaximumSyncConcurrency)
+        {
+            return "The number of transfers or synchronizations at once is outside what StorageHub allows.";
+        }
+
+        return DesktopUpdatePreferences.ValidSpeedLimit(preferences.TotalUploadBytesPerSecond) != preferences.TotalUploadBytesPerSecond ||
+            DesktopUpdatePreferences.ValidSpeedLimit(preferences.TotalDownloadBytesPerSecond) != preferences.TotalDownloadBytesPerSecond
+                ? "A speed limit is outside what StorageHub allows."
                 : null;
     }
 

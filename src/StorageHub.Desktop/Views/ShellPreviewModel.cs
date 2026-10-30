@@ -205,7 +205,10 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         Router = router;
         // A command with nowhere to go is reachable by shortcut, which does not consult
         // CanExecute the way a menu does. Saying so beats appearing to ignore the keystroke.
-        Router.Unhandled += (_, id) => Say(Ui.Format(Ui.Shell.CommandNotBuiltFormat, id));
+        // Named as the menu names it, since an id such as "workspace.new-workspace" tells nobody anything.
+        Router.Unhandled += (_, id) => Say(Ui.Format(
+            Ui.Shell.CommandNotBuiltFormat,
+            UiCommandCatalog.Definitions.FirstOrDefault(definition => definition.Id == id)?.Label.TrimEnd('.', '…') ?? id));
     }
 
     /// <summary>Dispatch for every command, whether it arrives by menu, toolbar or keystroke.</summary>
@@ -237,8 +240,7 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
 
         // Everything else the pane already draws a button for. Routed through the command rather
         // than the method so the menu entry and the button decline in the same cases -- a rename
-        // with two rows selected, a paste into a terminal -- instead of the menu finding out by
-        // failing.
+        // with two rows selected, a paste into a terminal -- and dim in them.
         Pane(UiCommandIds.ViewRefresh, static pane => pane.RefreshCommand);
         Pane(UiCommandIds.EditNewFolder, static pane => pane.NewFolderCommand);
         Pane(UiCommandIds.EditNewEmptyFile, static pane => pane.NewFileCommand);
@@ -260,11 +262,19 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
         // Moving between panes is the workspace's too: it owns which one is active.
         Router.Handle(UiCommandIds.GoNextPane, FocusNextPane);
 
-        void Pane(string id, Func<BrowserPaneModel, ICommand?> choose) =>
+        // Each is lit only while the command behind it would run, so the menu entry, the toolbar
+        // button and the pane's own right-click menu dim together. 1.x left them lit on every tab.
+        void Pane(string id, Func<BrowserPaneModel, ICommand?> choose)
+        {
             Router.Handle(id, () => Run(ActivePane() is { } pane ? choose(pane) : null));
+            Router.When(id, () => ActivePane() is { } pane && choose(pane)?.CanExecute(null) == true);
+        }
 
-        void Workspace(string id, Func<WorkspaceModel, ICommand?> choose) =>
+        void Workspace(string id, Func<WorkspaceModel, ICommand?> choose)
+        {
             Router.Handle(id, () => Run(ActiveWorkspace() is { } workspace ? choose(workspace) : null));
+            Router.When(id, () => ActiveWorkspace() is { } workspace && choose(workspace)?.CanExecute(null) == true);
+        }
 
         static void Run(ICommand? command)
         {
@@ -458,6 +468,12 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
             // a paste or drop came to, which nothing else in the window shows. A refused one is a
             // warning instead, as 1.x's was.
             workspace.Announced += (_, message) => Say(message);
+            // Paste lights up when something is staged, which changes nothing else the bar reads.
+            foreach (var command in new[] { workspace.StageCopyCommand, workspace.StageMoveCommand, workspace.PasteCommand })
+            {
+                command.CanExecuteChanged += (_, _) => Router.Reconsider();
+            }
+
             foreach (var pane in workspace.Panes) WatchPane(pane);
             workspace.Panes.CollectionChanged += (_, e) =>
             {
@@ -484,6 +500,16 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
             };
 
             pane.SelectedRows.CollectionChanged += (_, _) => ReportThePane();
+            // And the pane's own commands, such as Back once there is somewhere to go back to.
+            foreach (var command in new[]
+            {
+                pane.RefreshCommand, pane.NewFolderCommand, pane.NewFileCommand, pane.RenameCommand,
+                pane.BatchRenameCommand, pane.DeleteCommand, pane.PropertiesCommand,
+                pane.BackCommand, pane.ForwardCommand, pane.UpCommand
+            })
+            {
+                command.CanExecuteChanged += (_, _) => Router.Reconsider();
+            }
         }
     }
 
@@ -1050,8 +1076,8 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
     /// </summary>
     /// <remarks>
     /// Save, Save As, Rename, Close and Pin, the same five 1.x's UpdateWorkspaceCommandState and its
-    /// Pin entry governed. The pane commands stay as they were in 1.x, lit on every tab: its
-    /// Welcome (docs/ui-reference/01) shows Back, Copy and the rest available and only Save dimmed.
+    /// Pin entry governed. The pane commands dim by their own commands (RouteToActivePane), which
+    /// on a page means always.
     /// </remarks>
     internal void DimWorkspaceCommandsOnPages()
     {
@@ -1537,13 +1563,21 @@ internal sealed class ShellPreviewModel : INotifyPropertyChanged
     /// <summary>Shows a run on the review sub-tab, whichever tab is currently open.</summary>
     internal void ReviewRun(Guid syncRunId)
     {
-        if (SyncPage is not { } page || SyncRunHistory is not { } history) return;
+        if (SyncRunHistory is not { } history) return;
+
+        ShowRunHistory();
+        _ = history.ReviewNewRunAsync(syncRunId);
+    }
+
+    /// <summary>Goes to the Run history and review sub-tab, whichever tab is currently open.</summary>
+    internal void ShowRunHistory()
+    {
+        if (SyncPage is not { } page) return;
 
         SelectedWorkspace = Workspaces
             .Select(static (tab, index) => (tab, index))
             .FirstOrDefault(entry => ReferenceEquals(entry.tab.Page, page)).index;
         page.SelectedIndex = 1;
-        _ = history.ReviewNewRunAsync(syncRunId);
     }
 
     /// <summary>

@@ -205,9 +205,9 @@ internal sealed class CommandStrings : LocalizationModelBase
 
     public string SyncComparePanesDescription { get; set; } = "Compare the visible source and destination.";
 
-    public string SyncReviewRun { get; set; } = "Review & Run...";
+    public string SyncReviewRun { get; set; } = "Run History & Review";
 
-    public string SyncReviewRunDescription { get; set; } = "Review an exact sync plan, then run it when its safety checks pass.";
+    public string SyncReviewRunDescription { get; set; } = "Synchronization run history and review.";
 
     public string SyncSyncProfiles { get; set; } = "Sync Profiles...";
 
@@ -236,7 +236,7 @@ internal sealed class CommandStrings : LocalizationModelBase
 
     public string ToolsSettings { get; set; } = "Settings...";
 
-    public string ToolsSettingsDescription { get; set; } = "Configure automatic StorageHub updates.";
+    public string ToolsSettingsDescription { get; set; } = "Configure StorageHub behavior, connection trust, and updates.";
 
     public string ToolsExportSettings { get; set; } = "Export Settings...";
 

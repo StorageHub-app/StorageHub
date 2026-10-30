@@ -640,6 +640,9 @@
   <sys:Double x:Key="ObjectInspectorWindowMinHeight">560</sys:Double>
   <sys:Double x:Key="ScheduleManagerWindowWidth">1180</sys:Double>
   <sys:Double x:Key="ScheduleManagerWindowHeight">720</sys:Double>
+  <!-- The editor column at its width, and room beside it for a list that still reads. -->
+  <sys:Double x:Key="ScheduleManagerWindowMinWidth">900</sys:Double>
+  <sys:Double x:Key="ScheduleManagerWindowMinHeight">560</sys:Double>
   <sys:Double x:Key="SettingsExportWindowWidth">660</sys:Double>
   <sys:Double x:Key="SettingsExportWindowHeight">640</sys:Double>
   <sys:Double x:Key="SettingsExportWindowMinWidth">560</sys:Double>
@@ -658,6 +661,9 @@
   <sys:Double x:Key="SyncLocationPickerWindowMinHeight">400</sys:Double>
   <sys:Double x:Key="SyncProfileEditorWindowWidth">1040</sys:Double>
   <sys:Double x:Key="SyncProfileEditorWindowHeight">760</sys:Double>
+  <!-- Narrow enough for 1366x768, wide enough for the two locations side by side. -->
+  <sys:Double x:Key="SyncProfileEditorWindowMinWidth">860</sys:Double>
+  <sys:Double x:Key="SyncProfileEditorWindowMinHeight">600</sys:Double>
   <sys:Double x:Key="AboutWindowWidth">500</sys:Double>
   <sys:Double x:Key="AgentControlWindowWidth">520</sys:Double>
   <sys:Double x:Key="AgentHostModeWindowWidth">580</sys:Double>

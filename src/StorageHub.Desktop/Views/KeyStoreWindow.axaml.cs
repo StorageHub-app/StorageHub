@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Markup.Xaml;
 using StorageHub.Contracts.Ipc;
 using StorageHub.Desktop.Services;
@@ -7,7 +8,17 @@ namespace StorageHub.Desktop.Views;
 
 public partial class KeyStoreWindow : Window
 {
-    public KeyStoreWindow() => AvaloniaXamlLoader.Load(this);
+    public KeyStoreWindow()
+    {
+        AvaloniaXamlLoader.Load(this);
+        // Escape closes it, as it closes the dialogs it opens; nothing here is left unsaved.
+        AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (e.Key != Key.Escape) return;
+            Close();
+            e.Handled = true;
+        }, global::Avalonia.Interactivity.RoutingStrategies.Tunnel);
+    }
 
     /// <summary>
     /// The key store, pointed at the running agent.

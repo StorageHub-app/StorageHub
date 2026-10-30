@@ -69,11 +69,6 @@ internal sealed class ConnectionManagerModel
 
     public static string CancelLabel => Ui.ConnectionEditor.Cancel;
 
-    /// <summary>"Edit Connection — StorageHub", for a new connection as well, as 1.x titled it.</summary>
-    public static string Title => Ui.ConnectionEditor.EditTitle;
-
-    public static string AccessibleName => Ui.ConnectionEditor.EditAccessibleName;
-
     public static string AccessibleDescription => Ui.ConnectionEditor.WindowAccessibleDescription;
 
     /// <summary>Raised when the window should close.</summary>

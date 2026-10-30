@@ -8,7 +8,11 @@ namespace StorageHub.Desktop.Views;
 
 public partial class ScheduleManagerWindow : Window
 {
-    public ScheduleManagerWindow() => AvaloniaXamlLoader.Load(this);
+    public ScheduleManagerWindow()
+    {
+        AvaloniaXamlLoader.Load(this);
+        this.FindControl<Button>("CloseButton")!.Click += (_, _) => Close();
+    }
 
     /// <summary>
     /// The manager, pointed at the running agent.

@@ -3,6 +3,7 @@ using CodeLogic.Core.Configuration;
 using StorageHub.Desktop.Configuration.Legacy;
 using StorageHub.Desktop.Localization;
 using StorageHub.Desktop.Shell;
+using StorageHub.Desktop.Themes;
 
 namespace StorageHub.Desktop.Configuration;
 
@@ -308,7 +309,9 @@ internal sealed class DesktopConfigStore
                 ? general.ConnectionGroupsAtStartup
                 : ConnectionGroupsAtStartup.Expanded,
             CollapsedConnectionGroups: general.CollapsedConnectionGroups?.ToArray(),
-            FavoritesCollapsed: general.FavoritesCollapsed);
+            FavoritesCollapsed: general.FavoritesCollapsed,
+            // A scheme this build does not have follows the appearance, as if none were chosen.
+            ColorScheme: ColorSchemeCatalog.Knows(general.ColorScheme) ? general.ColorScheme : null);
     }
 
     /// <summary>
@@ -403,7 +406,8 @@ internal sealed class DesktopConfigStore
             CollapsedConnectionGroups = preferences.CollapsedConnectionGroups is { Count: > 0 } collapsed
                 ? [.. collapsed]
                 : null,
-            FavoritesCollapsed = preferences.FavoritesCollapsed
+            FavoritesCollapsed = preferences.FavoritesCollapsed,
+            ColorScheme = preferences.ColorScheme
         };
 
         var shortcuts = new DesktopShortcutsConfig
