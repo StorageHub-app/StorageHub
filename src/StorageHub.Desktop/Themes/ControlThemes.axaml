@@ -578,7 +578,8 @@
   -->
   <Style Selector="Grid.group-header">
     <Setter Property="Height" Value="{StaticResource GroupHeaderHeight}"/>
-    <Setter Property="Margin" Value="{StaticResource GapBelowSm}"/>
+    <!-- Room enough that the menu button's hover does not touch the first card under it. -->
+    <Setter Property="Margin" Value="{StaticResource GapBelowMd}"/>
   </Style>
 
   <Style Selector="TextBlock.group-title">
@@ -669,6 +670,20 @@
 
   <Style Selector="Border.badge.success TextBlock">
     <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}"/>
+  </Style>
+
+  <!--
+    The connections list scrolls beside its cards rather than over them (AllowAutoHide off in the
+    view), on a bar a little slimmer than the theme's and a few pixels clear of the cards' edge.
+  -->
+  <Style Selector="ScrollViewer.sidebar-list">
+    <Style.Resources>
+      <StaticResource x:Key="ScrollBarSize" ResourceKey="SidebarScrollBarSize"/>
+    </Style.Resources>
+  </Style>
+  <Style Selector="ScrollViewer.sidebar-list /template/ ScrollBar:vertical">
+    <Setter Property="Width" Value="{StaticResource SidebarScrollBarSize}"/>
+    <Setter Property="Margin" Value="{StaticResource SidebarScrollBarGap}"/>
   </Style>
 
   <!--

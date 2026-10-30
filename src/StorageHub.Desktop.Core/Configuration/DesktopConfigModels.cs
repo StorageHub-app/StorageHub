@@ -145,6 +145,15 @@ internal sealed class DesktopConfig : ConfigModelBase
 
     /// <summary>Whether a pane's folder tree reads the folders below the current one; it does by default.</summary>
     public bool ScanSubfolders { get; set; } = true;
+
+    /// <summary>How the connections panel's groups open at startup; all open by default.</summary>
+    public ConnectionGroupsAtStartup ConnectionGroupsAtStartup { get; set; } = ConnectionGroupsAtStartup.Expanded;
+
+    /// <summary>The groups closed when the panel was last used, for opening them as they were left.</summary>
+    public List<Guid>? CollapsedConnectionGroups { get; set; }
+
+    /// <summary>Whether Favorites was closed when the panel was last used.</summary>
+    public bool FavoritesCollapsed { get; set; }
 }
 
 /// <summary>

@@ -178,10 +178,10 @@ public class ConnectionGroupPanelTests
         Assert.Equal(3, tiles.Length);
         Assert.All(tiles, static tile => Assert.IsType<global::Avalonia.Media.SolidColorBrush>(tile.Background));
         Assert.Single(rows, static row => row.IsClient);
-        Assert.StartsWith(
+        // Never tested, so the line stops at the group rather than saying "Not tested".
+        Assert.Equal(
             ConnectionProviderCatalog.Get(StorageProviderKind.Ssh).DisplayName + " · Team",
-            rows.Single(static row => row.IsClient).Subtitle,
-            StringComparison.Ordinal);
+            rows.Single(static row => row.IsClient).Subtitle);
     }
 
     /// <summary>
@@ -470,6 +470,54 @@ public class ConnectionGroupPanelTests
         Assert.Equal(["Team"], sidebar.Groups.Select(static g => g.Name));
     }
 
+    /// <summary>
+    /// Settings' "Connection groups at startup": as they were left opens the ones closed last time
+    /// closed and saves each change, and all collapsed closes every group once the agent has listed them.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task TheGroupsOpenAtStartupAsSettingsSays()
+    {
+        var cancellation = TestContext.Current.CancellationToken;
+        var agent = new GroupAgent();
+        var team = agent.AddGroup("Team");
+        var lab = agent.AddGroup("Lab");
+        agent.File(Summary("Studio Assets") with { IsFavorite = true }, team.GroupId);
+        bool Open(ConnectionsSidebar panel, string name) => panel.Groups.Single(g => g.Name == name).IsExpanded;
+
+        var saved = DesktopUpdatePreferences.Defaults with
+        {
+            ConnectionGroupsAtStartup = ConnectionGroupsAtStartup.Remember,
+            CollapsedConnectionGroups = [lab.GroupId],
+            FavoritesCollapsed = true
+        };
+        var remembered = Sidebar(agent);
+        remembered.RestoreGroups(saved);
+        remembered.Persist = change => saved = change(saved);
+        await remembered.RefreshAsync(cancellation);
+        Assert.False(remembered.Favorites!.IsExpanded);
+        Assert.True(Open(remembered, "Team"));
+        Assert.False(Open(remembered, "Lab"));
+
+        remembered.Groups.Single(static g => g.Name == "Team").IsExpanded = false;
+        remembered.Favorites!.IsExpanded = true;
+        Assert.Equal(new HashSet<Guid> { team.GroupId, lab.GroupId }, saved.CollapsedConnectionGroups!.ToHashSet());
+        Assert.False(saved.FavoritesCollapsed);
+
+        var collapsed = Sidebar(agent);
+        collapsed.RestoreGroups(DesktopUpdatePreferences.Defaults with
+        {
+            ConnectionGroupsAtStartup = ConnectionGroupsAtStartup.Collapsed
+        });
+        await collapsed.RefreshAsync(cancellation);
+        Assert.False(collapsed.Favorites!.IsExpanded);
+        Assert.All(collapsed.Groups, static group => Assert.False(group.IsExpanded));
+
+        // Only the first listing: a group opened afterwards stays open when the agent lists again.
+        collapsed.Groups.Single(static g => g.Name == "Team").IsExpanded = true;
+        await collapsed.RefreshAsync(cancellation);
+        Assert.True(Open(collapsed, "Team"));
+    }
+
     /// <summary>Photographs the panel with empty Favorites, an empty group and an empty Ungrouped.</summary>
     /// <remarks>Set STORAGEHUB_SHOT_DIR to keep connections-empty-groups-{dark,light}.png.</remarks>
     [AvaloniaTheory]
@@ -500,7 +548,8 @@ public class ConnectionGroupPanelTests
 
     /// <summary>
     /// A list longer than the panel scrolls beside the cards, not over them: no card, and no
-    /// group's menu button, runs under the scroll bar.
+    /// group's menu button, runs under the scroll bar, which is slimmer than the theme's and clear
+    /// of their edge.
     /// </summary>
     /// <remarks>Set STORAGEHUB_SHOT_DIR to keep connections-scrolled.png.</remarks>
     [AvaloniaFact]
@@ -520,6 +569,10 @@ public class ConnectionGroupPanelTests
             .Single(static bar => bar.Orientation == Orientation.Vertical);
         Assert.True(bar.IsEffectivelyVisible);
         var barLeft = bar.TranslatePoint(default, window)!.Value.X;
+        var size = (double)window.FindResource("SidebarScrollBarSize")!;
+        var gap = ((Thickness)window.FindResource("SidebarScrollBarGap")!).Left;
+        Assert.Equal(size, bar.Bounds.Width);
+        Assert.Equal(size, bar.GetVisualDescendants().OfType<Thumb>().Single().Bounds.Width);
 
         var cards = scroller.GetVisualDescendants().OfType<Control>()
             .Where(static control => control.Classes.Contains("connection-row") || control is Button { Flyout: not null })
@@ -527,8 +580,8 @@ public class ConnectionGroupPanelTests
             .ToArray();
         Assert.NotEmpty(cards);
         Assert.All(cards, card => Assert.True(
-            card.TranslatePoint(new Point(card.Bounds.Width, 0), window)!.Value.X <= barLeft,
-            $"{card.GetType().Name} reaches under the scroll bar"));
+            card.TranslatePoint(new Point(card.Bounds.Width, 0), window)!.Value.X + gap <= barLeft,
+            $"{card.GetType().Name} reaches under, or up against, the scroll bar"));
 
         if (Environment.GetEnvironmentVariable("STORAGEHUB_SHOT_DIR") is { Length: > 0 } directory)
         {

@@ -58,7 +58,11 @@ internal sealed record DesktopGeneralSection(
     bool? HideEmptyGroups = null,
     // Whether a pane's folder tree reads the folders below the current one. Absent in an older
     // file, which leaves the importing machine's choice alone.
-    bool? ScanSubfolders = null);
+    bool? ScanSubfolders = null,
+    // How the connection groups open at startup, the person's choice rather than the machine's.
+    // Which groups were closed is window layout and stays behind. Absent in an older file, which
+    // leaves the importing machine's choice alone.
+    ConnectionGroupsAtStartup? ConnectionGroupsAtStartup = null);
 
 /// <summary>
 /// Settings that name something on one computer: a path, or a reference into that machine's

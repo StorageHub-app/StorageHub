@@ -565,6 +565,26 @@ internal static class SettingsPageCatalog
                 },
                 new()
                 {
+                    Key = "connection-groups-at-startup",
+                    Label = Ui.Settings.ConnectionGroupsAtStartup,
+                    Hint = Ui.Settings.ConnectionGroupsAtStartupHint,
+                    Kind = SettingsControlKind.Choice,
+                    Choices =
+                    [
+                        new(nameof(ConnectionGroupsAtStartup.Expanded), Ui.Settings.GroupsExpanded),
+                        new(nameof(ConnectionGroupsAtStartup.Remember), Ui.Settings.GroupsRemember),
+                        new(nameof(ConnectionGroupsAtStartup.Collapsed), Ui.Settings.GroupsCollapsed)
+                    ],
+                    Read = p => p.ConnectionGroupsAtStartup.ToString(),
+                    Write = (p, v) => p with
+                    {
+                        ConnectionGroupsAtStartup = Enum.TryParse<ConnectionGroupsAtStartup>(v, out var parsed) && Enum.IsDefined(parsed)
+                            ? parsed
+                            : p.ConnectionGroupsAtStartup
+                    }
+                },
+                new()
+                {
                     Key = "connections-panel-side",
                     Label = Ui.Settings.ConnectionsPanelSide,
                     Kind = SettingsControlKind.Choice,

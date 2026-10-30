@@ -60,7 +60,8 @@ internal static class DesktopPreferenceSectionMapper
             preferences.AutoRefreshFolders,
             preferences.RemoteRefreshSeconds,
             preferences.HideEmptyGroups,
-            preferences.ScanSubfolders);
+            preferences.ScanSubfolders,
+            preferences.ConnectionGroupsAtStartup);
     }
 
     /// <summary>
@@ -234,7 +235,11 @@ internal static class DesktopPreferenceSectionMapper
                     ? seconds
                     : current.RemoteRefreshSeconds,
             HideEmptyGroups = general.HideEmptyGroups ?? current.HideEmptyGroups,
-            ScanSubfolders = general.ScanSubfolders ?? current.ScanSubfolders
+            ScanSubfolders = general.ScanSubfolders ?? current.ScanSubfolders,
+            // A choice from a newer StorageHub that this one does not have leaves it as it was.
+            ConnectionGroupsAtStartup = general.ConnectionGroupsAtStartup is { } groups && Enum.IsDefined(groups)
+                ? groups
+                : current.ConnectionGroupsAtStartup
         };
 
     private static DesktopUpdatePreferences ApplyMachineSpecific(

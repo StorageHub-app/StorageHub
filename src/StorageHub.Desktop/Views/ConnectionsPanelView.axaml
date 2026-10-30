@@ -433,16 +433,19 @@
           inside two fixed lists gives that. The classification survives as a badge on the row,
           which is where it is actually useful.
         -->
-        <ScrollViewer x:Name="PART_Connections" IsVisible="{Binding HasGroups}" AllowAutoHide="False">
+        <ScrollViewer x:Name="PART_Connections" Classes="sidebar-list" IsVisible="{Binding HasGroups}"
+                      AllowAutoHide="False">
           <!-- Favorites above the groups, as 1.x listed them above its sections (ui-reference 09),
                drawn by the same template as a group; always there unless Settings hides empty groups. -->
-          <StackPanel Spacing="{StaticResource SpaceMd}">
+          <!-- A group's width apart, and room after the last, so the list does not end on the
+               panel's edge when it is scrolled to the bottom. -->
+          <StackPanel Spacing="{StaticResource SpaceLg}" Margin="{StaticResource GapBelowLg}">
             <ContentControl Content="{Binding Favorites}"
                             IsVisible="{Binding Favorites, Converter={x:Static ObjectConverters.IsNotNull}}"/>
             <ItemsControl ItemsSource="{Binding Groups}">
               <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
-                  <StackPanel Spacing="{StaticResource SpaceMd}"/>
+                  <StackPanel Spacing="{StaticResource SpaceLg}"/>
                 </ItemsPanelTemplate>
               </ItemsControl.ItemsPanel>
             </ItemsControl>

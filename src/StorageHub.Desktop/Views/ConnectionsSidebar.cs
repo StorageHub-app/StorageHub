@@ -51,10 +51,14 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
 
     /// <summary>
     /// The groups closed by hand, by id, so a listing or a search that draws them again draws
-    /// them closed, as 1.x's <c>_collapsedGroups</c> kept them. For the session only, as 1.x's was.
+    /// them closed, as 1.x's <c>_collapsedGroups</c> kept them. Saved as they change, and read back
+    /// at startup when Settings says to open the groups as they were left.
     /// Ungrouped is <see cref="Guid.Empty"/>.
     /// </summary>
     private readonly HashSet<Guid> _collapsed = [];
+
+    /// <summary>Whether the first listing closes every group, as Settings' "All collapsed" says.</summary>
+    private bool _collapseOnFirstListing;
 
     /// <summary>The groups the agent keeps, in the panel's order, from its last answer.</summary>
     private IReadOnlyList<ConnectionGroupDocument> _groups = [];
@@ -812,6 +816,34 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
     /// <summary>Raised on the UI thread once a listing has been drawn.</summary>
     internal event EventHandler? Listed;
 
+    /// <summary>
+    /// Saves which groups are closed, as the panel's own layout saves its width. Null in tests and
+    /// the samples, which keep it for the session.
+    /// </summary>
+    internal Action<Func<DesktopUpdatePreferences, DesktopUpdatePreferences>>? Persist { get; set; }
+
+    /// <summary>
+    /// Opens the groups the way Settings' "Connection groups at startup" says: all open, as they
+    /// were left, or all closed once the first listing has drawn them. Once, at startup; a change in
+    /// Settings is for the next start, not the groups somebody has open now.
+    /// </summary>
+    internal void RestoreGroups(DesktopUpdatePreferences saved)
+    {
+        ArgumentNullException.ThrowIfNull(saved);
+        switch (saved.ConnectionGroupsAtStartup)
+        {
+            case ConnectionGroupsAtStartup.Remember:
+                _collapsed.UnionWith(saved.CollapsedConnectionGroups ?? []);
+                _favoritesCollapsed = saved.FavoritesCollapsed;
+                break;
+            case ConnectionGroupsAtStartup.Collapsed:
+                _collapseOnFirstListing = true;
+                break;
+        }
+
+        Rebuild();
+    }
+
     public ICommand NewCommand { get; }
 
     public ICommand NewGroupCommand { get; }
@@ -1324,6 +1356,14 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
             _cards = cards;
             if (groups is not null) _groups = groups;
             _listingStatus = status;
+            if (listed && _collapseOnFirstListing)
+            {
+                _collapseOnFirstListing = false;
+                _collapsed.UnionWith(_groups.Select(static group => group.GroupId));
+                _collapsed.Add(Guid.Empty);
+                _favoritesCollapsed = true;
+            }
+
             if (listed)
             {
                 var names = new Dictionary<Guid, string>();
@@ -1369,7 +1409,9 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         {
             starred.PropertyChanged += (_, e) =>
             {
-                if (e.PropertyName == nameof(ConnectionGroupModel.IsExpanded)) _favoritesCollapsed = !starred.IsExpanded;
+                if (e.PropertyName != nameof(ConnectionGroupModel.IsExpanded)) return;
+                _favoritesCollapsed = !starred.IsExpanded;
+                SaveCollapsed();
             };
         }
 
@@ -1529,7 +1571,17 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
             {
                 _collapsed.Add(key);
             }
+
+            SaveCollapsed();
         };
+    }
+
+    /// <summary>Saves which groups are closed, whatever Settings says, so "As I left them" is right the first start after choosing it.</summary>
+    private void SaveCollapsed()
+    {
+        Guid[] collapsed = [.. _collapsed];
+        var favorites = _favoritesCollapsed;
+        Persist?.Invoke(current => current with { CollapsedConnectionGroups = collapsed, FavoritesCollapsed = favorites });
     }
 
     /// <summary>Every card on the panel, Favorites' first, a favourite's two copies both included.</summary>

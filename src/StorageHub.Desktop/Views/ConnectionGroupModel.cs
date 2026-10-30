@@ -51,12 +51,13 @@ internal sealed class ConnectionRowModel(ConnectionCardModel card, string? group
     public Avalonia.Media.IBrush AccentBrush => AccentSwatch.BrushFor(Card.AccentHex);
 
     /// <summary>
-    /// "Local / UNC · Studio · Not tested": provider, group and health on one muted line, where 1.x
-    /// put the folder that was its group.
+    /// "Local / UNC · Studio · Unavailable": provider, group and health on one muted line, where 1.x
+    /// put the folder that was its group. A connection never tested says nothing about its health
+    /// there; "Not tested" on every new card read as noise. The details panel still says it.
     /// </summary>
     public string Subtitle => string.Join(
         " · ",
-        new[] { Card.Descriptor.DisplayName, groupName, Card.State }
+        new[] { Card.Descriptor.DisplayName, groupName, Card.State == Ui.Pane.NotTested ? null : Card.State }
             .Where(static part => !string.IsNullOrWhiteSpace(part)));
 
     public IReadOnlyList<string> Tags => Card.DisplayTags;

@@ -41,7 +41,12 @@ public sealed class DesktopPreferenceSectionMapperTests
 
         // Keyed by this machine's own connection folders, so the map means nothing on another
         // machine with different folders.
-        [nameof(DesktopUpdatePreferences.FolderIcons)] = "keyed by local folders"
+        [nameof(DesktopUpdatePreferences.FolderIcons)] = "keyed by local folders",
+
+        // Which connection groups were closed, by this machine's group ids: window layout, like the
+        // panel's width. How the groups open at startup is the choice, and that one travels.
+        [nameof(DesktopUpdatePreferences.CollapsedConnectionGroups)] = "keyed by this machine's groups",
+        [nameof(DesktopUpdatePreferences.FavoritesCollapsed)] = "window layout"
     };
 
     [Fact]

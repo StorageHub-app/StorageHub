@@ -32,6 +32,17 @@ public enum ConnectionsPanelSide
     Right = 2
 }
 
+/// <summary>How the connections panel's groups are drawn when StorageHub starts.</summary>
+public enum ConnectionGroupsAtStartup
+{
+    /// <summary>Every group open, as the panel always opened before there was a choice.</summary>
+    Expanded = 1,
+    /// <summary>Each group open or closed as it was left.</summary>
+    Remember = 2,
+    /// <summary>Every group closed.</summary>
+    Collapsed = 3
+}
+
 internal sealed record SshTerminalPreferences(
     string TerminalName = "xterm-256color",
     string? StartupCommand = null,
@@ -219,7 +230,20 @@ internal sealed record DesktopUpdatePreferences(
     /// down, so they can be opened without visiting each first. On by default; off keeps the tree
     /// to what the pane has listed, which costs no request of its own.
     /// </summary>
-    bool ScanSubfolders = true)
+    bool ScanSubfolders = true,
+    /// <summary>
+    /// How the connections panel's groups open when StorageHub starts: all open, as they were
+    /// left, or all closed. All open by default, as they always opened before.
+    /// </summary>
+    ConnectionGroupsAtStartup ConnectionGroupsAtStartup = ConnectionGroupsAtStartup.Expanded,
+    /// <summary>
+    /// The groups closed when the panel was last used, by id, Ungrouped as <see cref="Guid.Empty"/>,
+    /// for <see cref="ConnectionGroupsAtStartup.Remember"/>. Window layout, like the panel's width,
+    /// so it stays on the machine it was left on.
+    /// </summary>
+    IReadOnlyList<Guid>? CollapsedConnectionGroups = null,
+    /// <summary>Whether Favorites was closed, kept apart because it is nobody's group and has no id.</summary>
+    bool FavoritesCollapsed = false)
 {
     /// <summary>The auto-refresh settings as a pane follows them, the interval within its bounds.</summary>
     internal FolderAutoRefreshSettings FolderAutoRefresh =>

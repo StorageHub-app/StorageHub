@@ -168,6 +168,9 @@ internal static class DesktopConfigRepair
             ConnectionsPanelSide = Enum.IsDefined(preferences.ConnectionsPanelSide)
                 ? preferences.ConnectionsPanelSide
                 : ConnectionsPanelSide.Left,
+            ConnectionGroupsAtStartup = Enum.IsDefined(preferences.ConnectionGroupsAtStartup)
+                ? preferences.ConnectionGroupsAtStartup
+                : ConnectionGroupsAtStartup.Expanded,
             Language = DesktopCulture.IsSupportedSetting(preferences.Language)
                 ? preferences.Language
                 : DesktopCulture.AutomaticLanguage,
@@ -224,6 +227,11 @@ internal static class DesktopConfigRepair
         if (!Enum.IsDefined(preferences.ConnectionsPanelSide))
         {
             return "The connections panel must be docked to the left or the right.";
+        }
+
+        if (!Enum.IsDefined(preferences.ConnectionGroupsAtStartup))
+        {
+            return "The connection groups must open expanded, as they were left, or collapsed.";
         }
 
         if (preferences.NewScheduleTimeZone is { } zone &&

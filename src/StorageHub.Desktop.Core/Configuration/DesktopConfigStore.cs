@@ -303,7 +303,12 @@ internal sealed class DesktopConfigStore
             ShowHiddenFiles: general.ShowHiddenFiles,
             ShowFavoritesInTheirFolders: general.ShowFavoritesInTheirFolders,
             HideEmptyGroups: general.HideEmptyGroups,
-            ScanSubfolders: general.ScanSubfolders);
+            ScanSubfolders: general.ScanSubfolders,
+            ConnectionGroupsAtStartup: Enum.IsDefined(general.ConnectionGroupsAtStartup)
+                ? general.ConnectionGroupsAtStartup
+                : ConnectionGroupsAtStartup.Expanded,
+            CollapsedConnectionGroups: general.CollapsedConnectionGroups?.ToArray(),
+            FavoritesCollapsed: general.FavoritesCollapsed);
     }
 
     /// <summary>
@@ -393,7 +398,12 @@ internal sealed class DesktopConfigStore
             ShowHiddenFiles = preferences.ShowHiddenFiles,
             ShowFavoritesInTheirFolders = preferences.ShowFavoritesInTheirFolders,
             HideEmptyGroups = preferences.HideEmptyGroups,
-            ScanSubfolders = preferences.ScanSubfolders
+            ScanSubfolders = preferences.ScanSubfolders,
+            ConnectionGroupsAtStartup = preferences.ConnectionGroupsAtStartup,
+            CollapsedConnectionGroups = preferences.CollapsedConnectionGroups is { Count: > 0 } collapsed
+                ? [.. collapsed]
+                : null,
+            FavoritesCollapsed = preferences.FavoritesCollapsed
         };
 
         var shortcuts = new DesktopShortcutsConfig

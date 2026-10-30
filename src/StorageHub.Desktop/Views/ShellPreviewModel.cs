@@ -2011,6 +2011,14 @@ internal static class ShellPreview
         model.Sidebar.ShowFavoritesInTheirFolders = saved.ShowFavoritesInTheirFolders;
         model.Sidebar.HideEmptyGroups = saved.HideEmptyGroups;
 
+        // The groups open as Settings says, and which are closed is saved as it changes. Live
+        // only, as the panel's own layout is.
+        if (live)
+        {
+            model.Sidebar.RestoreGroups(saved);
+            model.Sidebar.Persist = UpdatePreferences;
+        }
+
         // Go > Favorites follows what the panel lists. Live only, as the Workspace menu's own
         // entries are: the samples list no connections and keep the catalog's menu.
         if (live)

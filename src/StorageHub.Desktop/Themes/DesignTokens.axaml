@@ -433,6 +433,9 @@
   <Thickness x:Key="SidebarSearchMargin">12,0</Thickness>
   <Thickness x:Key="SidebarSearchPadding">30,8,32,8</Thickness>
   <Thickness x:Key="SidebarListMargin">12,12,12,0</Thickness>
+  <!-- The list's scroll bar, a little slimmer than the theme's, and kept off the cards' edge. -->
+  <sys:Double x:Key="SidebarScrollBarSize">12</sys:Double>
+  <Thickness x:Key="SidebarScrollBarGap">4,0,0,0</Thickness>
   <!-- The selected connection's details under the list. -->
   <sys:Double x:Key="ConnectionDetailsHeight">230</sys:Double>
   <Thickness x:Key="ConnectionRowPadding">10,8</Thickness>

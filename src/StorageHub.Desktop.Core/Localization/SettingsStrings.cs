@@ -651,6 +651,17 @@ internal sealed class SettingsStrings : LocalizationModelBase
 
     public string PanelSideRight { get; set; } = "On the right";
 
+    public string ConnectionGroupsAtStartup { get; set; } = "Connection groups at startup";
+
+    public string ConnectionGroupsAtStartupHint { get; set; } =
+        "How the groups in the connections panel open when StorageHub starts.";
+
+    public string GroupsExpanded { get; set; } = "All expanded";
+
+    public string GroupsRemember { get; set; } = "As I left them";
+
+    public string GroupsCollapsed { get; set; } = "All collapsed";
+
     public string SettingsUnsaved { get; set; } = "Unsaved changes";
 
     public string ShortcutUpdatedHint { get; set; } = "Shortcut updated. Choose Apply or OK to save.";
