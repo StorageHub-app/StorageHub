@@ -55,7 +55,7 @@
         <TableView.Columns>
           <TableViewColumn Header="{x:Static vm:FileSearchModel.ColumnName}" Binding="{Binding Name}" Width="220*"/>
           <TableViewColumn Header="{x:Static vm:FileSearchModel.ColumnFolder}" Binding="{Binding Folder}" Width="360*"/>
-          <TableViewColumn Header="{x:Static vm:FileSearchModel.ColumnSize}" Binding="{Binding Size}" Width="{StaticResource SizeColumnWidth}"/>
+          <TableViewColumn HorizontalContentAlignment="Right" Header="{x:Static vm:FileSearchModel.ColumnSize}" Binding="{Binding Size}" Width="{StaticResource SizeColumnWidth}"/>
           <TableViewColumn Header="{x:Static vm:FileSearchModel.ColumnModified}" Binding="{Binding Modified}" Width="{StaticResource DateColumnWidth}"/>
         </TableView.Columns>
       </TableView>

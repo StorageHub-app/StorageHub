@@ -48,13 +48,17 @@
         </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>
           <DataTemplate DataType="vm:MetricCard">
-            <Border Classes="metric"
-                    Classes.primary="{Binding IsPrimary}"
-                    Classes.success="{Binding IsSuccess}"
-                    Classes.warning="{Binding IsWarning}"
-                    Classes.danger="{Binding IsDanger}"
-                    Margin="{StaticResource PaddingSm}">
-              <StackPanel Orientation="Horizontal" Spacing="{StaticResource SpaceMd}">
+            <!-- The tone is a rail down the left edge, as 1.4 drew it; the rest of the edge is the
+                 ordinary border, so a card reading 0 does not glow in its colour. -->
+            <Border Classes="metric" Margin="{StaticResource PaddingSm}">
+              <Grid ColumnDefinitions="Auto,*">
+              <Border Classes="metric-rail"
+                      Classes.primary="{Binding IsPrimary}"
+                      Classes.success="{Binding IsSuccess}"
+                      Classes.warning="{Binding IsWarning}"
+                      Classes.danger="{Binding IsDanger}"/>
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource SpaceMd}"
+                          Margin="{StaticResource PaddingLg}">
                 <LucideIcon Kind="{Binding Icon}" Size="{StaticResource IconSizeXl}"
                             VerticalAlignment="Center"
                             Classes.primary="{Binding IsPrimary}"
@@ -70,6 +74,7 @@
                   <TextBlock Classes="caption" Text="{Binding Caption}"/>
                 </StackPanel>
               </StackPanel>
+              </Grid>
             </Border>
           </DataTemplate>
         </ItemsControl.ItemTemplate>

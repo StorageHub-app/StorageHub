@@ -27,7 +27,7 @@ internal sealed class ProviderStrings : LocalizationModelBase
 
     public string AddressingStyle { get; set; } = "Addressing style";
 
-    public string AmazonS3AndS3CompatibleObjectStores { get; set; } = "Amazon S3 and S3-compatible object stores through CL.Storage.";
+    public string AmazonS3AndS3CompatibleObjectStores { get; set; } = "Amazon S3 and S3-compatible object stores.";
 
     public string AmazonAndMostCompatibleServicesRequireA { get; set; } = "Amazon and most compatible services require a signing region. Cloudflare R2 uses 'auto', which StorageHub selects automatically.";
 
@@ -131,7 +131,7 @@ internal sealed class ProviderStrings : LocalizationModelBase
 
     public string StorageHubDoesNotMaterializeUnprotectedClientPrivate { get; set; } = "A password-protected PFX needs its password; one with no password is used as it is.";
 
-    public string TheCurrentCLStorageS3ProviderUses { get; set; } = "The current CL.Storage S3 provider uses system TLS and hostname validation. Per-connection S3 certificate pins are not offered until the provider can enforce them.";
+    public string TheCurrentCLStorageS3ProviderUses { get; set; } = "The current StorageHub S3 provider uses system TLS and hostname validation. Per-connection S3 certificate pins are not offered until the provider can enforce them.";
 
     public string TheCurrentWindowsIdentityIsUsedOperations { get; set; } = "The current Windows identity is used. Operations remain restricted to the configured root.";
 

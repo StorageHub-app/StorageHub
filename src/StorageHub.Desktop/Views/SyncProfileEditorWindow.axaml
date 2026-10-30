@@ -10,7 +10,7 @@
         WindowStartupLocation="CenterOwner">
 
   <!--
-    Compare against docs/ui-reference/05-sync-profile-editor.png. Three numbered steps down one
+    No reference shot of 1.x's profile editor was taken. Three numbered steps down one
     column rather than the tabbed form 1.x used: the steps are in the order the decisions have to be
     made in, and the limits in step three only make sense once the behaviour in step two is chosen.
 

@@ -159,7 +159,7 @@ public class ConnectionGroupPanelTests
 
     /// <summary>
     /// Every connection reaches the panel as 1.x's card: a tile in its colour, and a line saying
-    /// what it is, and which group it is in.
+    /// what it is. The group is left off that line inside the group, whose heading says it.
     /// </summary>
     [AvaloniaFact]
     public async Task EveryConnectionIsDrawnWithItsTile()
@@ -178,9 +178,10 @@ public class ConnectionGroupPanelTests
         Assert.Equal(3, tiles.Length);
         Assert.All(tiles, static tile => Assert.IsType<global::Avalonia.Media.SolidColorBrush>(tile.Background));
         Assert.Single(rows, static row => row.IsClient);
-        // Never tested, so the line stops at the group rather than saying "Not tested".
+        // Never tested, so the line does not say "Not tested"; and it sits under Team's heading,
+        // so it does not say Team either.
         Assert.Equal(
-            ConnectionProviderCatalog.Get(StorageProviderKind.Ssh).DisplayName + " · Team",
+            ConnectionProviderCatalog.Get(StorageProviderKind.Ssh).DisplayName,
             rows.Single(static row => row.IsClient).Subtitle);
     }
 

@@ -144,7 +144,10 @@ count — `▾ Favorites · 2`, `▾ Cloud · 1`, `▾ Servers · 1`, `▾ Studi
 appears under both Favorites and its storage group, so the list is a projection, not a partition.
 
 A card is a coloured rounded icon tile, a name, a muted line combining provider, folder and health
-("Local / UNC · Studio · Not tested"), and tag chips underneath. The selected card takes an accent
+("Local / UNC · Studio · Not tested"), and tag chips underneath. 2.0 leaves two parts of that line
+out on purpose: "Not tested", which said nothing on every new card, and the group inside the group
+itself, whose heading already says it. Under Favorites, which gathers connections from every group,
+the line still names the group ("SFTP · Lab"). The selected card takes an accent
 border and reveals inline edit and delete icons on its right.
 
 The detail pane along the bottom is a real panel, not a caption. It carries a provider badge and the

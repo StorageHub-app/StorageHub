@@ -532,13 +532,16 @@ internal sealed partial class BrowserPaneModel : INotifyPropertyChanged, IAsyncD
     /// <summary>
     /// The chip's first badge: what kind of connection this is. Storage is the accent, as in 1.x.
     /// </summary>
-    public string TypeBadge => ConnectionCard()?.Type == ConnectionProfileType.Client
+    /// A shell whose card has not been read yet is still a client, not "STORAGE".
+    public string TypeBadge => (ConnectionCard()?.Type ?? (IsTerminal ? ConnectionProfileType.Client : null))
+        == ConnectionProfileType.Client
         ? Ui.Connections.BadgeClient
         : Ui.Connections.BadgeStorage;
 
-    /// <summary>The chip's second badge: the protocol, e.g. LOCAL, S3, SFTP.</summary>
+    /// <summary>The chip's second badge: the protocol, e.g. LOCAL, S3, SFTP, SSH.</summary>
     public string ProviderBadge =>
-        (ConnectionCard()?.Provider ?? StorageProviderKind.Local).ToString().ToUpperInvariant();
+        (ConnectionCard()?.Provider ?? (IsTerminal ? StorageProviderKind.Ssh : StorageProviderKind.Local))
+        .ToString().ToUpperInvariant();
 
     public bool HasBadges => _connection is not null;
 

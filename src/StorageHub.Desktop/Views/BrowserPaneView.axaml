@@ -27,7 +27,7 @@
       <Border x:Name="PART_Header" DockPanel.Dock="Top" Classes="pane-header"
               Cursor="SizeAll" ToolTip.Tip="{Binding DragPaneHeadersHint}">
         <Grid ColumnDefinitions="*,Auto">
-          <TextBlock Grid.Column="0" VerticalAlignment="Center"
+          <TextBlock Grid.Column="0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
                      FontWeight="SemiBold" Text="{Binding PaneHeading}"/>
           <Button Grid.Column="1" Classes="tool"
                   AutomationProperties.Name="{Binding PaneActionsLabel}"

@@ -14,7 +14,10 @@ namespace StorageHub.Desktop.Views;
 /// client and an SFTP connection to the same host look identical without it -- and it is not a
 /// reason to organise the whole panel around.
 /// </remarks>
-/// <param name="groupName">The name of the group it is filed in, for its subtitle; null when Ungrouped.</param>
+/// <param name="groupName">
+/// The name of the group it is filed in, for its subtitle under Favorites; null in the group itself,
+/// whose heading already says it, and when Ungrouped.
+/// </param>
 internal sealed class ConnectionRowModel(ConnectionCardModel card, string? groupName = null) : INotifyPropertyChanged
 {
     private bool _isSelected;

@@ -398,12 +398,10 @@ public class WorkspaceLayoutViewTests
             await pane.LoadConnectionsAsync(TestContext.Current.CancellationToken);
         }
 
-        // Opened directly rather than through the picker: what is being photographed is the
-        // surface, not the round trip, and the picker is covered elsewhere.
-        await workspace.Panes[1].OpenAsync(
-            new PaneConnection(shell.ConnectionId, shell.DisplayName, LucideIconKind.SquareTerminal,
-                PaneContentKind.SshClient),
-            TestContext.Current.CancellationToken);
+        // Chosen as the picker chooses, so the chip names the shell rather than what the pane
+        // showed before; the picker's own round trip is covered elsewhere.
+        workspace.Panes[1].Connection = new PaneConnection(
+            shell.ConnectionId, shell.DisplayName, LucideIconKind.SquareTerminal, PaneContentKind.SshClient);
         await Settled(workspace.Panes[1]);
         Lay(window);
 

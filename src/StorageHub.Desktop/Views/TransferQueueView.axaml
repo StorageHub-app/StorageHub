@@ -39,7 +39,7 @@
             </StackPanel>
           </Button>
           <TextBlock Classes="muted" Text="{Binding ReconcileLabel}"
-                     VerticalAlignment="Center" Margin="{StaticResource PaddingLg}"/>
+                     VerticalAlignment="Center" Margin="{StaticResource InlineGapLg}"/>
           <!-- As tall as the buttons beside it, as 1.x's was; Fluent's own field is a dialog's.
                Dimmed with Apply while no chosen row waits on a decision, as 1.x's was too. As
                wide whichever action is chosen, trimming the long German ones, as 1.x's was. -->
@@ -138,7 +138,7 @@
                     </DataTemplate>
                   </TableViewColumn.CellTemplate>
                 </TableViewColumn>
-                <TableViewColumn Header="{Binding $parent[vm:TransferQueueView].((vm:TransferQueueModel)DataContext).ColumnAttempt}"
+                <TableViewColumn HorizontalContentAlignment="Right" Header="{Binding $parent[vm:TransferQueueView].((vm:TransferQueueModel)DataContext).ColumnAttempt}"
                                  Binding="{Binding Attempt}" Width="{StaticResource QueueAttemptColumnWidth}"/>
                 <!-- As wide as Source and Destination, as 1.x's was: it reads "Failed: " and then
                      the error, which a fixed width cut off after a few words. What still does not

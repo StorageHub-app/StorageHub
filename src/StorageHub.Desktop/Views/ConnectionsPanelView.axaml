@@ -271,7 +271,7 @@
         </Button>
         <LucideIcon Kind="Search" Size="{StaticResource IconSizeSm}"
                     HorizontalAlignment="Left" VerticalAlignment="Center"
-                    Margin="{StaticResource PaddingLg}"/>
+                    Margin="{StaticResource InlineGapLg}"/>
       </Grid>
   
       <!--
@@ -437,8 +437,8 @@
                       AllowAutoHide="False">
           <!-- Favorites above the groups, as 1.x listed them above its sections (ui-reference 09),
                drawn by the same template as a group; always there unless Settings hides empty groups. -->
-          <!-- A group's width apart, and room after the last, so the list does not end on the
-               panel's edge when it is scrolled to the bottom. -->
+          <!-- A clear gap between groups, and room after the last, so the list does not end on
+               the panel's edge when it is scrolled to the bottom. -->
           <StackPanel Spacing="{StaticResource SpaceLg}" Margin="{StaticResource GapBelowLg}">
             <ContentControl Content="{Binding Favorites}"
                             IsVisible="{Binding Favorites, Converter={x:Static ObjectConverters.IsNotNull}}"/>

@@ -239,6 +239,8 @@
   <!-- A boxed tab, from 1.4's strip: about 120 wide at minimum, one list row tall, 2 apart. -->
   <sys:Double x:Key="TabMinWidth">120</sys:Double>
   <sys:Double x:Key="TabHeight">26</sys:Double>
+  <!-- The widest a workspace tab's name may be before it is cut short. -->
+  <sys:Double x:Key="WorkspaceTabTitleMaxWidth">220</sys:Double>
   <Thickness x:Key="TabPadding">10,3</Thickness>
   <Thickness x:Key="TabMargin">0,2,2,0</Thickness>
   <CornerRadius x:Key="TabRadius">4,4,0,0</CornerRadius>
@@ -345,6 +347,11 @@
   <Thickness x:Key="DialogButtonPadding">12,4</Thickness>
   <sys:Double x:Key="DialogMinWidth">360</sys:Double>
   <sys:Double x:Key="DialogMaxWidth">520</sys:Double>
+  <!-- A gap on both sides of something in a row, and none above or below, so it does not make the
+       row taller: the queue's "Reconcile:" label, the panel's search glyph. -->
+  <Thickness x:Key="InlineGapLg">12,0</Thickness>
+  <!-- The gap between a menu entry's label and its shortcut, beside it only. -->
+  <Thickness x:Key="MenuShortcutMargin">12,0,0,0</Thickness>
   <!-- A toolbar tooltip's description wraps rather than running across the window. -->
   <sys:Double x:Key="ToolTipMaxWidth">320</sys:Double>
   <sys:Double x:Key="DialogIconSize">32</sys:Double>
@@ -502,7 +509,8 @@
   <!-- A layout preset's picture in New Workspace. -->
   <sys:Double x:Key="PresetThumbnailHeight">96</sys:Double>
   <!-- An overview metric card: a coloured rail down its left edge, a hairline elsewhere. -->
-  <Thickness x:Key="MetricBorderThickness">2,1,1,1</Thickness>
+  <!-- The coloured rail down a metric card's left edge. -->
+  <sys:Double x:Key="MetricRailWidth">3</sys:Double>
   <!-- The tables on Welcome and Sync tasks, a few rows tall each. -->
   <sys:Double x:Key="OverviewTableHeight">140</sys:Double>
   <sys:Double x:Key="SyncTasksTableHeight">170</sys:Double>

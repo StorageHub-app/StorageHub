@@ -21,6 +21,10 @@ namespace StorageHub.Desktop.Themes;
 /// first -- before any column goes below its minimum.</item>
 /// <item>When even that is not enough, every column stays at its minimum and the table scrolls
 /// sideways; the flexible ones get their own widths back when there is room again.</item>
+/// <item>A fixed column that gave way gets its own width back, as written or as last dragged, as
+/// soon as there is room. Without this, a table first laid out narrow -- every pane is, for a
+/// moment, as its workspace opens -- kept its Size, Type and Modified at the minimum for good,
+/// and "930,4 GiB" read "930,4 ...".</item>
 /// </list>
 /// <para>
 /// Installed once for every TableView in the application (<see cref="Install"/>), so a new table
@@ -89,9 +93,19 @@ internal static class TableColumnRules
 
         foreach (var column in table.Columns)
         {
+            if (column.Width.IsAbsolute) Preferred.AddOrUpdate(column, new PinnedWidth(column.Width));
             column.PropertyChanged += (_, e) =>
             {
-                if (e.Property == TableViewColumn.WidthProperty) Enforce(column);
+                if (e.Property != TableViewColumn.WidthProperty) return;
+
+                // Dragged, or set by the view: that is the width it wants from now on. The rules'
+                // own changes come back here while enforcing and are not.
+                if (!enforcing && column.Width.IsAbsolute && !Pinned.TryGetValue(column, out PinnedWidth? _))
+                {
+                    Preferred.AddOrUpdate(column, new PinnedWidth(column.Width));
+                }
+
+                Enforce(column);
             };
         }
 
@@ -113,6 +127,16 @@ internal static class TableColumnRules
 
         var flexibleMinimum = table.GetValue(FlexibleMinimumProperty);
         Unpin(table, available, flexibleMinimum);
+
+        // Each fixed column back to its own width; the steps below take back what does not fit.
+        foreach (var column in columns)
+        {
+            if (column.Width.IsAbsolute && !Pinned.TryGetValue(column, out _) &&
+                Preferred.TryGetValue(column, out var preferred) && column.Width.Value < preferred.Width.Value)
+            {
+                column.Width = preferred.Width;
+            }
+        }
 
         // Every fixed column at least the minimum.
         foreach (var column in columns)
@@ -177,6 +201,9 @@ internal static class TableColumnRules
     private sealed record PinnedWidth(GridLength Width);
 
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<TableViewColumn, PinnedWidth> Pinned = new();
+
+    /// <summary>A fixed column's own width, as written or last dragged, to give back when there is room.</summary>
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<TableViewColumn, PinnedWidth> Preferred = new();
 
     /// <summary>Gives pinned columns their own widths back, if the table now has room for them.</summary>
     private static void Unpin(TableView table, double available, double flexibleMinimum)

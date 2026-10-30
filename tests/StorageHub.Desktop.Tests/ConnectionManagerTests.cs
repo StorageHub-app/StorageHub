@@ -72,7 +72,8 @@ public class ConnectionManagerTests
         editor.ChooseAccentCommand.Execute(swatch);
 
         Assert.Equal(swatch, editor.AccentColor);
-        Assert.Contains(swatch, editor.BadgeText, StringComparison.Ordinal);
+        Assert.Equal(Avalonia.Media.Color.Parse(swatch), Assert.IsAssignableFrom<Avalonia.Media.ISolidColorBrush>(editor.AccentBrush).Color);
+        Assert.DoesNotContain("#", editor.BadgeText, StringComparison.Ordinal);
         Assert.True(editor.IsDirty);
     }
 

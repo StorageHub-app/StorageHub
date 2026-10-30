@@ -9,7 +9,7 @@
         WindowStartupLocation="CenterOwner">
 
   <!--
-    Compare against docs/ui-reference/06-schedules.png. A list of what is scheduled on the left, and
+    No reference shot of 1.x's schedule manager was taken. A list of what is scheduled on the left, and
     one schedule's settings on the right.
 
     The recurrence is chosen, not written: the cron box appears only under the custom frequency,

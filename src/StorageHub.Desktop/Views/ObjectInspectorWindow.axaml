@@ -84,7 +84,7 @@
               <TableView.Columns>
                 <TableViewColumn Header="{Binding ColumnCurrent}" Binding="{Binding Current}" Width="{StaticResource InspectorCurrentColumnWidth}"/>
                 <TableViewColumn Header="{Binding ColumnVersion}" Binding="{Binding VersionId}" Width="150*"/>
-                <TableViewColumn Header="{Binding ColumnSize}" Binding="{Binding Size}" Width="{StaticResource SizeColumnWidth}"/>
+                <TableViewColumn HorizontalContentAlignment="Right" Header="{Binding ColumnSize}" Binding="{Binding Size}" Width="{StaticResource SizeColumnWidth}"/>
                 <TableViewColumn Header="{Binding ColumnModified}" Binding="{Binding Modified}" Width="{StaticResource InspectorModifiedColumnWidth}"/>
                 <TableViewColumn Header="{Binding ColumnDeleteMarker}" Binding="{Binding DeleteMarker}" Width="{StaticResource InspectorDeleteMarkerColumnWidth}"/>
                 <TableViewColumn Header="{Binding ColumnEntityTag}" Binding="{Binding EntityTag}" Width="120*"/>

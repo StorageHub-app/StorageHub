@@ -465,9 +465,11 @@ internal sealed class ConnectionEditorModel : INotifyPropertyChanged
 
     private RelayCommand? _chooseAccent;
 
-    /// <summary>"LOCAL · provider color #4C8BF5": how the connection reads in a pane's header.</summary>
-    public string BadgeText => Ui.Format(
-        Ui.ConnectionEditor.ProviderColorBadgeFormat, _provider.ShortName, AccentColor).Trim();
+    /// <summary>
+    /// "S3", in the connection's colour: how it reads in a pane's header. 1.x also wrote out the
+    /// colour's hex code, "provider color #F59E0B", which the colour itself already says.
+    /// </summary>
+    public string BadgeText => _provider.ShortName;
 
     public static string BadgeLabel => Ui.ConnectionEditor.ConnectionBadge;
 

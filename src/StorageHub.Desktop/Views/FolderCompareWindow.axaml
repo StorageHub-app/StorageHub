@@ -76,7 +76,7 @@
                  AutomationProperties.Name="{x:Static vm:FolderCompareModel.Title}">
         <TableView.Columns>
           <TableViewColumn Header="{x:Static vm:FolderCompareModel.ColumnPath}" Binding="{Binding Path}" Width="300*"/>
-          <TableViewColumn Header="{x:Static vm:FolderCompareModel.ColumnLeftSize}" Binding="{Binding LeftSize}" Width="{StaticResource SizeColumnWidth}"/>
+          <TableViewColumn HorizontalContentAlignment="Right" Header="{x:Static vm:FolderCompareModel.ColumnLeftSize}" Binding="{Binding LeftSize}" Width="{StaticResource SizeColumnWidth}"/>
           <TableViewColumn Header="{x:Static vm:FolderCompareModel.ColumnLeftModified}" Binding="{Binding LeftModified}" Width="{StaticResource DateColumnWidth}"/>
           <!-- Coloured by kind, so the differences stand out from the paths only one side has. -->
           <TableViewColumn Header="{x:Static vm:FolderCompareModel.ColumnStatus}" Width="190*">
@@ -91,7 +91,7 @@
               </DataTemplate>
             </TableViewColumn.CellTemplate>
           </TableViewColumn>
-          <TableViewColumn Header="{x:Static vm:FolderCompareModel.ColumnRightSize}" Binding="{Binding RightSize}" Width="{StaticResource SizeColumnWidth}"/>
+          <TableViewColumn HorizontalContentAlignment="Right" Header="{x:Static vm:FolderCompareModel.ColumnRightSize}" Binding="{Binding RightSize}" Width="{StaticResource SizeColumnWidth}"/>
           <TableViewColumn Header="{x:Static vm:FolderCompareModel.ColumnRightModified}" Binding="{Binding RightModified}" Width="{StaticResource DateColumnWidth}"/>
         </TableView.Columns>
       </TableView>

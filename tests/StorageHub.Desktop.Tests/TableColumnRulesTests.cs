@@ -55,7 +55,8 @@ public class TableColumnRulesTests
 
     /// <summary>
     /// Too narrow for its columns, a table keeps them at the minimum and scrolls; given room again,
-    /// the columns share it as they were written to.
+    /// the columns share it as they were written to, and a fixed column, such as a pane's Size, is
+    /// its own width again rather than left at the minimum it gave way to.
     /// </summary>
     [AvaloniaFact]
     public void ATableTooNarrowPinsItsColumnsAndGivesThemBackWhenWidened()
@@ -67,6 +68,7 @@ public class TableColumnRulesTests
                 new TableViewColumn { Width = new GridLength(3, GridUnitType.Star) },
                 new TableViewColumn { Width = new GridLength(1, GridUnitType.Star) },
                 new TableViewColumn { Width = new GridLength(1, GridUnitType.Star) },
+                new TableViewColumn { Width = new GridLength(110) },
             }
         };
         var window = new Window { Content = table, Width = 150, Height = 200 };
@@ -81,8 +83,9 @@ public class TableColumnRulesTests
         window.Arrange(new Rect(0, 0, 900, 200));
         Settle(window);
 
-        Assert.All(table.Columns, static column => Assert.True(column.Width.IsStar));
+        Assert.All(table.Columns.Take(3), static column => Assert.True(column.Width.IsStar));
         Assert.Equal(3, table.Columns[0].Width.Value);
+        Assert.Equal(new GridLength(110), table.Columns[3].Width);
     }
 
     private static void AssertAllAtLeastMinimum(TableView table)

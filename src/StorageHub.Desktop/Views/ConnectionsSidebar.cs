@@ -1419,13 +1419,15 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         }
 
         // In a group, by name: the agent keeps which group, and a name is what somebody looks for.
-        ConnectionRowModel[] RowsFor(Func<ConnectionCardModel, bool> filed, string? groupName) => [.. _cards
+        // A row here does not name its group in its subtitle, since it sits under the group's own
+        // heading; only Favorites, which gathers them from every group, says where each lives.
+        ConnectionRowModel[] RowsFor(Func<ConnectionCardModel, bool> filed) => [.. _cards
             .Where(static card => card.ConnectionId is not null)
             .Where(filed)
             .Where(card => _showFavoritesInTheirFolders || card is not { IsEnabled: true, IsFavorite: true })
             .Where(card => ConnectionPickerFilter.Matches(card, _search))
             .OrderBy(static card => card.Name, StringComparer.CurrentCultureIgnoreCase)
-            .Select(card => new ConnectionRowModel(card, groupName))];
+            .Select(static card => new ConnectionRowModel(card))];
 
         Groups.Clear();
         var matched = favorites.Length;
@@ -1434,7 +1436,7 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         {
             var group = ordered[position];
             var id = group.GroupId;
-            var rows = RowsFor(card => card.GroupId == id, group.Name);
+            var rows = RowsFor(card => card.GroupId == id);
             matched += rows.Length;
 
             // A group with nothing in it is still a group, and a search that finds nothing in one
@@ -1459,7 +1461,7 @@ internal sealed class ConnectionsSidebar : INotifyPropertyChanged
         // Ungrouped last: a connection in no group, or in one the agent no longer has. Drawn while
         // empty too, where it is also somewhere to drop a connection to take it out of its group.
         var known = ordered.Select(static group => group.GroupId).ToHashSet();
-        var loose = RowsFor(card => card.GroupId is not { } group || !known.Contains(group), null);
+        var loose = RowsFor(card => card.GroupId is not { } group || !known.Contains(group));
         matched += loose.Length;
         if (loose.Length > 0 || !_hideEmptyGroups)
         {

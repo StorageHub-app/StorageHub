@@ -192,7 +192,7 @@
     <Setter Property="Background" Value="Transparent"/>
     <Setter Property="TextElement.Foreground" Value="{DynamicResource PrimaryBrush}"/>
   </Style>
-  <Style Selector="Button.link:pointerover /template/ ContentPresenter">
+  <Style Selector="Button.link:pointerover /template/ ContentPresenter, Button.link:pressed /template/ ContentPresenter">
     <Setter Property="Background" Value="Transparent"/>
     <Setter Property="TextElement.Foreground" Value="{DynamicResource PrimaryHoverBrush}"/>
   </Style>
@@ -220,6 +220,30 @@
   <Style Selector="Button.danger">
     <Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource DangerBrush}"/>
+  </Style>
+
+  <!--
+    Hover and pressed from the palette, so a button does not flash Fluent's own grey under a scheme
+    that is not Fluent's. A plain button lifts onto the raised surface; pressed, it takes the
+    selection's pressed shade. The danger button keeps its colour and gains its tint.
+  -->
+  <Style Selector="Button:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource ElevatedBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource TextMutedBrush}"/>
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+  </Style>
+  <Style Selector="Button:pressed /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource SelectionPressedBrush}"/>
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+  </Style>
+  <Style Selector="Button.primary:pointerover /template/ ContentPresenter, Button.primary:pressed /template/ ContentPresenter">
+    <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
+    <Setter Property="Foreground" Value="{DynamicResource OnPrimaryBrush}"/>
+  </Style>
+  <Style Selector="Button.danger:pointerover /template/ ContentPresenter, Button.danger:pressed /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource DangerTintBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource DangerBrush}"/>
+    <Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/>
   </Style>
 
   <!--
@@ -272,6 +296,11 @@
   </Style>
   <Style Selector="Button.tool:pointerover /template/ ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}"/>
+    <Setter Property="BorderBrush" Value="Transparent"/>
+  </Style>
+  <Style Selector="Button.tool:pressed /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource SelectionPressedBrush}"/>
+    <Setter Property="BorderBrush" Value="Transparent"/>
   </Style>
   <!--
     An unavailable tool stays flat and dims, as 1.4's did. Fluent fills a disabled button's
@@ -297,7 +326,8 @@
     <Setter Property="Padding" Value="{StaticResource CheckedToolPadding}"/>
     <Setter Property="CornerRadius" Value="{StaticResource CheckedToolRadius}"/>
   </Style>
-  <Style Selector="Button.tool.checked:pointerover /template/ ContentPresenter">
+  <Style Selector="Button.tool.checked:pointerover /template/ ContentPresenter,
+                   Button.tool.checked:pressed /template/ ContentPresenter">
     <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
   </Style>
   <!--
@@ -336,6 +366,35 @@
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
     <Setter Property="CornerRadius" Value="{StaticResource FieldRadius}"/>
     <Setter Property="Padding" Value="{StaticResource FieldPadding}"/>
+  </Style>
+
+  <!--
+    A field keeps its own fill when it is hovered or has the focus, and says so with its edge: muted
+    on hover, the accent with the focus. Fluent swaps the fill for its own neutrals, which under any
+    scheme but the default turned a focused field a different colour from the rest of the form.
+  -->
+  <Style Selector="TextBox:pointerover /template/ Border#PART_BorderElement">
+    <Setter Property="Background" Value="{DynamicResource InputBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource TextMutedBrush}"/>
+  </Style>
+  <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
+    <Setter Property="Background" Value="{DynamicResource InputBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
+  </Style>
+  <Style Selector="TextBox:pointerover, TextBox:focus">
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+  </Style>
+  <Style Selector="ComboBox:pointerover /template/ Border#Background">
+    <Setter Property="Background" Value="{DynamicResource InputBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource TextMutedBrush}"/>
+  </Style>
+  <Style Selector="ComboBox:pressed /template/ Border#Background, ComboBox:dropdownopen /template/ Border#Background">
+    <Setter Property="Background" Value="{DynamicResource InputBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
+  </Style>
+  <Style Selector="ComboBox /template/ Border#PopupBorder">
+    <Setter Property="Background" Value="{DynamicResource ElevatedBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
   </Style>
 
   <!-- UiCard, and the accent rail it drew down the left edge of a connection card. -->
@@ -445,11 +504,29 @@
     <Setter Property="Padding" Value="{StaticResource PaddingSm}"/>
   </Style>
 
-  <Style Selector="MenuItem > MenuItem">
+  <!-- Right-click menus, button flyouts and tooltips: the same surface and edge as the menu bar's
+       drop-down, so a pane's right-click menu and its Pane actions do not look like another app's. -->
+  <Style Selector="ContextMenu, MenuFlyoutPresenter">
+    <Setter Property="Background" Value="{DynamicResource ElevatedBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="CornerRadius" Value="{StaticResource FieldRadius}"/>
+    <Setter Property="Padding" Value="{StaticResource PaddingSm}"/>
+  </Style>
+  <Style Selector="ToolTip">
+    <Setter Property="Background" Value="{DynamicResource ElevatedBrush}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="CornerRadius" Value="{StaticResource FieldRadius}"/>
+  </Style>
+
+  <Style Selector="MenuItem > MenuItem, ContextMenu > MenuItem, MenuFlyoutPresenter > MenuItem">
     <Setter Property="Padding" Value="{StaticResource FieldPadding}"/>
     <Setter Property="MinHeight" Value="{StaticResource ListRowHeight}"/>
   </Style>
-  <Style Selector="MenuItem > MenuItem:pointerover /template/ Border#PART_LayoutRoot">
+  <Style Selector="MenuItem > MenuItem:pointerover /template/ Border#PART_LayoutRoot,
+                   ContextMenu > MenuItem:pointerover /template/ Border#PART_LayoutRoot,
+                   MenuFlyoutPresenter > MenuItem:pointerover /template/ Border#PART_LayoutRoot">
     <Setter Property="Background" Value="{DynamicResource SelectionBrush}"/>
   </Style>
 
@@ -464,7 +541,7 @@
   </Style>
 
   <!-- A line between groups is an entry labelled "-". It is as tall as the line, not a row. -->
-  <Style Selector="MenuItem > MenuItem:separator">
+  <Style Selector="MenuItem > MenuItem:separator, ContextMenu > MenuItem:separator, MenuFlyoutPresenter > MenuItem:separator">
     <Setter Property="MinHeight" Value="0"/>
   </Style>
 
@@ -500,9 +577,10 @@
   </Style>
 
   <!-- The shortcut column reads as reference, not as an action. -->
+  <!-- Its gap is to the side only: all round, it made every entry with a key taller than one without. -->
   <Style Selector="MenuItem /template/ TextBlock#PART_InputGestureText">
     <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}"/>
-    <Setter Property="Margin" Value="{StaticResource PaddingLg}"/>
+    <Setter Property="Margin" Value="{StaticResource MenuShortcutMargin}"/>
   </Style>
 
   <Style Selector="Separator">
@@ -892,7 +970,7 @@
     <Setter Property="CornerRadius" Value="{StaticResource SwatchRadius}"/>
     <Setter Property="BorderThickness" Value="0"/>
   </Style>
-  <Style Selector="Button.swatch:pointerover /template/ ContentPresenter">
+  <Style Selector="Button.swatch:pointerover /template/ ContentPresenter, Button.swatch:pressed /template/ ContentPresenter">
     <Setter Property="Background" Value="{Binding $parent[Button].Background}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource TextBrush}"/>
     <Setter Property="BorderThickness" Value="{StaticResource SwatchRingThickness}"/>
@@ -1038,7 +1116,8 @@
     <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
   </Style>
 
-  <Style Selector="Button.preset:pointerover /template/ ContentPresenter">
+  <Style Selector="Button.preset:pointerover /template/ ContentPresenter,
+                   Button.preset:pressed /template/ ContentPresenter, Button.preset:focus-visible /template/ ContentPresenter">
     <Setter Property="Background" Value="{DynamicResource ElevatedBrush}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
   </Style>
@@ -1104,25 +1183,30 @@
   </Style>
 
   <!-- An overview metric card: a surface with a coloured rail down its left edge, which is what
-       UiCard drew by hand and re-tinted through the theme walker. -->
+       UiCard drew by hand and re-tinted through the theme walker. The rail is its own element: a
+       tone on the card's BorderBrush coloured all four sides. -->
   <Style Selector="Border.metric">
     <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
-    <Setter Property="BorderThickness" Value="{StaticResource MetricBorderThickness}"/>
+    <Setter Property="BorderThickness" Value="1"/>
     <Setter Property="CornerRadius" Value="{StaticResource CardRadius}"/>
-    <Setter Property="Padding" Value="{StaticResource PaddingLg}"/>
+    <Setter Property="ClipToBounds" Value="True"/>
   </Style>
-  <Style Selector="Border.metric.primary">
-    <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
+  <Style Selector="Border.metric-rail">
+    <Setter Property="Width" Value="{StaticResource MetricRailWidth}"/>
+    <Setter Property="Background" Value="{DynamicResource BorderBrush}"/>
   </Style>
-  <Style Selector="Border.metric.success">
-    <Setter Property="BorderBrush" Value="{DynamicResource SuccessBrush}"/>
+  <Style Selector="Border.metric-rail.primary">
+    <Setter Property="Background" Value="{DynamicResource PrimaryBrush}"/>
   </Style>
-  <Style Selector="Border.metric.warning">
-    <Setter Property="BorderBrush" Value="{DynamicResource WarningBrush}"/>
+  <Style Selector="Border.metric-rail.success">
+    <Setter Property="Background" Value="{DynamicResource SuccessBrush}"/>
   </Style>
-  <Style Selector="Border.metric.danger">
-    <Setter Property="BorderBrush" Value="{DynamicResource DangerBrush}"/>
+  <Style Selector="Border.metric-rail.warning">
+    <Setter Property="Background" Value="{DynamicResource WarningBrush}"/>
+  </Style>
+  <Style Selector="Border.metric-rail.danger">
+    <Setter Property="Background" Value="{DynamicResource DangerBrush}"/>
   </Style>
 
   <Style Selector="TextBlock.metric-value">
@@ -1164,10 +1248,12 @@
     <Setter Property="Padding" Value="{StaticResource PaddingMd}"/>
   </Style>
 
+  <!-- The main tabs' padding and height: with 8 all round a sub-tab stood taller than the tab it
+       sits under, in smaller text. -->
   <Style Selector="TabControl.subtabs > TabItem">
     <Setter Property="FontSize" Value="{StaticResource FontSizeCaption}"/>
-    <Setter Property="Padding" Value="{StaticResource PaddingMd}"/>
-    <Setter Property="MinHeight" Value="{StaticResource ListRowHeight}"/>
+    <Setter Property="Padding" Value="{StaticResource TabPadding}"/>
+    <Setter Property="MinHeight" Value="{StaticResource TabHeight}"/>
     <Setter Property="MinWidth" Value="0"/>
   </Style>
 

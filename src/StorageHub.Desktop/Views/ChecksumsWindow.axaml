@@ -48,7 +48,7 @@
                  AutomationProperties.Name="{x:Static vm:ChecksumsModel.Title}">
         <TableView.Columns>
           <TableViewColumn Header="{x:Static vm:ChecksumsModel.ColumnName}" Binding="{Binding Name}" Width="180*"/>
-          <TableViewColumn Header="{x:Static vm:ChecksumsModel.ColumnSize}" Binding="{Binding Size}" Width="{StaticResource ChecksumSizeColumnWidth}"/>
+          <TableViewColumn HorizontalContentAlignment="Right" Header="{x:Static vm:ChecksumsModel.ColumnSize}" Binding="{Binding Size}" Width="{StaticResource ChecksumSizeColumnWidth}"/>
           <TableViewColumn Header="{x:Static vm:ChecksumsModel.ColumnSha256}" Width="{StaticResource ChecksumHashColumnWidth}">
             <TableViewColumn.CellTemplate>
               <DataTemplate DataType="vm:ChecksumRow">

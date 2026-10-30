@@ -21,18 +21,16 @@
     <!-- In-window rather than NativeMenu: the requirement is the same classic menu bar on both
          platforms, and NativeMenu on Linux needs a dbusmenu host GNOME does not ship. -->
     <Menu x:Name="PART_Menu" DockPanel.Dock="Top" ItemsSource="{Binding Menus}">
-      <Menu.ItemTemplate>
-        <DataTemplate DataType="vm:MenuSection">
-          <TextBlock Text="{Binding Header}"/>
-        </DataTemplate>
-      </Menu.ItemTemplate>
       <Menu.Styles>
         <!-- The nine menus come straight from the catalog. Setting ItemsSource through a style
              rather than an ItemContainerTheme is deliberate: a theme based on {x:Type MenuItem}
              is Avalonia's *nested* menu item, so applying it to a menu bar made every root behave
              like a submenu - opening to the right of its header instead of below it. Leaving the
              container theme alone keeps the top-level one Avalonia already assigns. -->
+        <!-- The header as a string rather than through a TextBlock template, so the menu item reads
+             its "_" as the access key Alt opens it by instead of drawing it. -->
         <Style Selector="Menu > MenuItem" x:DataType="vm:MenuSection">
+          <Setter Property="Header" Value="{Binding Header}"/>
           <Setter Property="ItemsSource" Value="{Binding Items}"/>
         </Style>
 
@@ -222,7 +220,10 @@
                           ToolTip.Tip="{Binding ToolTip}"
                           AutomationProperties.Name="{Binding AccessibleName}">
                 <LucideIcon Kind="{Binding Icon}" Size="{StaticResource IconSizeSm}"/>
-                <TextBlock Text="{Binding Title}" VerticalAlignment="Center"/>
+                <!-- A long workspace name gives way rather than pushing the other tabs off the strip;
+                     the tab's tooltip still has it whole. -->
+                <TextBlock Text="{Binding Title}" VerticalAlignment="Center"
+                           MaxWidth="{StaticResource WorkspaceTabTitleMaxWidth}" TextTrimming="CharacterEllipsis"/>
                 <Button Classes="tool tab-close" IsVisible="{Binding IsClosable}"
                         Command="{Binding $parent[TabControl].((vm:ShellPreviewModel)DataContext).CloseWorkspaceCommand}"
                         CommandParameter="{Binding}"

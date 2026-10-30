@@ -52,7 +52,7 @@
           <TableViewColumn Header="{x:Static vm:StagingCleanupModel.ColumnName}" Binding="{Binding Name}" Width="230*"/>
           <TableViewColumn Header="{x:Static vm:StagingCleanupModel.ColumnKind}" Binding="{Binding Kind}" Width="{StaticResource KindColumnWidth}"/>
           <TableViewColumn Header="{x:Static vm:StagingCleanupModel.ColumnFolder}" Binding="{Binding Folder}" Width="260*"/>
-          <TableViewColumn Header="{x:Static vm:StagingCleanupModel.ColumnSize}" Binding="{Binding Size}" Width="{StaticResource SizeColumnWidth}"/>
+          <TableViewColumn HorizontalContentAlignment="Right" Header="{x:Static vm:StagingCleanupModel.ColumnSize}" Binding="{Binding Size}" Width="{StaticResource SizeColumnWidth}"/>
           <TableViewColumn Header="{x:Static vm:StagingCleanupModel.ColumnModified}" Binding="{Binding Modified}" Width="{StaticResource DateColumnWidth}"/>
           <TableViewColumn Header="{x:Static vm:StagingCleanupModel.ColumnState}" Width="{StaticResource StateColumnWidth}">
             <TableViewColumn.CellTemplate>
