@@ -51,8 +51,8 @@ public sealed class SettingsWindowTests : IDisposable
     /// The window is 1.4's (ui-reference 02) in its pages, its grouping and the rules between rows.
     /// </summary>
     /// <remarks>
-    /// One walk through the things 2.0 had lost: the rail's order with Storage and Clients under
-    /// Connections &amp; trust; Transfers &amp; sync holding what had become Performance and
+    /// One walk through the things 2.0 had lost: the rail's order, with Connections &amp; trust and
+    /// its Storage and Clients last so their tree pushes nothing down; Transfers &amp; sync holding what had become Performance and
     /// Confirmations, under captions, with the unit in each field; "Start with" dimmed without
     /// adaptive concurrency and raising the maximums it may not exceed, which the settings file
     /// would otherwise throw back to its defaults, and a maximum's arrow stopping at it rather than
@@ -74,8 +74,8 @@ public sealed class SettingsWindowTests : IDisposable
         Assert.Equal(
             [
                 Ui.Settings.CategoryTransfersAndSync, Ui.Settings.CategoryEditing, Ui.Settings.CategoryAppearance,
-                Ui.Settings.CategoryWorkspace, Ui.Settings.CategoryShortcuts, Ui.Settings.CategoryConnectionsAndTrust,
-                Ui.Settings.CategoryToolbar, Ui.Settings.CategoryAgent, Ui.Settings.CategoryUpdates
+                Ui.Settings.CategoryToolbar, Ui.Settings.CategoryWorkspace, Ui.Settings.CategoryShortcuts,
+                Ui.Settings.CategoryAgent, Ui.Settings.CategoryUpdates, Ui.Settings.CategoryConnectionsAndTrust
             ],
             model.Navigation.Where(entry => entry.IsTopLevel).Select(entry => entry.Text));
         var trust = model.Navigation.Select(entry => entry.Text)

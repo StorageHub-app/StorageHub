@@ -232,9 +232,19 @@ internal static class SettingsPageCatalog
 
     internal static IReadOnlyList<SettingsPageDefinition> Pages { get; } =
     [
+        // How StorageHub looks and behaves first, then the background agent and updates, and the
+        // connection pages last: their tree of providers opens below its heading and would push
+        // anything after it a dozen rows down.
         TransfersPage(),
         EditingPage(),
         AppearancePage(),
+        new()
+        {
+            Key = ToolbarPageKey,
+            Title = Ui.Settings.CategoryToolbar,
+            Description = Ui.Settings.PageToolbarDescription,
+            Glyph = UiGlyph.Toolbar
+        },
         WorkspacePage(),
         new()
         {
@@ -243,17 +253,6 @@ internal static class SettingsPageCatalog
             Description = Ui.Settings.PageShortcutsDescription,
             Glyph = UiGlyph.Keyboard
         },
-        ConnectionsPage(),
-        .. ConnectionProviderCatalog.All
-            .OrderBy(provider => provider.Type == ConnectionProfileType.Storage ? 0 : 1)
-            .Select(ProviderPage),
-        new()
-        {
-            Key = ToolbarPageKey,
-            Title = Ui.Settings.CategoryToolbar,
-            Description = Ui.Settings.PageToolbarDescription,
-            Glyph = UiGlyph.Layers
-        },
         new()
         {
             Key = AgentPageKey,
@@ -261,7 +260,11 @@ internal static class SettingsPageCatalog
             Description = Ui.Settings.PageAgentDescription,
             Glyph = UiGlyph.Server
         },
-        UpdatesPage()
+        UpdatesPage(),
+        ConnectionsPage(),
+        .. ConnectionProviderCatalog.All
+            .OrderBy(provider => provider.Type == ConnectionProfileType.Storage ? 0 : 1)
+            .Select(ProviderPage)
     ];
 
     /// <summary>Every row on every page, for a caller that wants them without the grouping.</summary>
@@ -439,7 +442,7 @@ internal static class SettingsPageCatalog
         Glyph = UiGlyph.Rename,
         Groups =
         [
-            new(Ui.Settings.PageExternalEditing,
+            new(null,
             [
                 new()
                 {
@@ -526,14 +529,15 @@ internal static class SettingsPageCatalog
                 new()
                 {
                     Key = "appearance",
-                    Label = Ui.Settings.Theme,
+                    Label = Ui.Settings.ThemeMode,
                     Hint = Ui.Settings.ThemeHint,
                     Kind = SettingsControlKind.Choice,
+                    // The default first.
                     Choices =
                     [
+                        new(nameof(DesktopAppearance.System), Ui.Settings.ThemeSystem),
                         new(nameof(DesktopAppearance.Light), Ui.Settings.ThemeLight),
-                        new(nameof(DesktopAppearance.Dark), Ui.Settings.ThemeDark),
-                        new(nameof(DesktopAppearance.System), Ui.Settings.ThemeSystem)
+                        new(nameof(DesktopAppearance.Dark), Ui.Settings.ThemeDark)
                     ],
                     Read = p => p.Appearance.ToString(),
                     Write = (p, v) => p with
@@ -543,8 +547,11 @@ internal static class SettingsPageCatalog
                             : p.Appearance
                     }
                 },
-                // Under the theme, where 1.4 had it: it changes how the connections panel looks,
-                // not how a workspace behaves.
+            ]),
+            // The connections panel's own card: 1.4 kept these under the theme, where they read as
+            // part of the colour scheme. They change how the panel looks, not how a workspace behaves.
+            new(Ui.Shell.ConnectionsPanel,
+            [
                 new()
                 {
                     Key = "show-favourites-in-folders",
@@ -586,7 +593,7 @@ internal static class SettingsPageCatalog
                 new()
                 {
                     Key = "connections-panel-side",
-                    Label = Ui.Settings.ConnectionsPanelSide,
+                    Label = Ui.Settings.ConnectionsPanelPosition,
                     Kind = SettingsControlKind.Choice,
                     Choices =
                     [
@@ -640,7 +647,7 @@ internal static class SettingsPageCatalog
         Glyph = UiGlyph.Layers,
         Groups =
         [
-            new(Ui.Settings.CategoryWorkspace,
+            new(null,
             [
                 new()
                 {
@@ -697,6 +704,10 @@ internal static class SettingsPageCatalog
                     Read = p => Text(p.ReconnectRemotePanesAutomatically),
                     Write = (p, v) => p with { ReconnectRemotePanesAutomatically = Flag(v) }
                 },
+            ]),
+            // How a pane keeps its folders up to date, apart from how workspaces are arranged.
+            new(Ui.Settings.SectionFolders,
+            [
                 // On by default, and bounded: a few levels, a few at a time, and only for the folder
                 // the pane is in. Turned off, the tree shows only what the pane has listed.
                 new()
@@ -855,6 +866,17 @@ internal static class SettingsPageCatalog
         };
     }
 
+    /// <summary>
+    /// A field's label as the middle of "Default {0}": "Port" becomes "port", but "TLS mode" keeps
+    /// its acronym, and German keeps the capital every noun takes. Lower-casing the whole label
+    /// wrote "Default tls mode" and "Standard-tls-modus".
+    /// </summary>
+    private static string InSentence(string label) =>
+        label.Length > 1 && char.IsUpper(label[0]) && !char.IsUpper(label[1]) &&
+        Ui.Culture.TwoLetterISOLanguageName != "de"
+            ? char.ToLower(label[0], Ui.Culture) + label[1..]
+            : label;
+
     /// <summary>A reusable field's default, stored under "Provider.field" as 1.x stored it.</summary>
     private static SettingsRowDefinition ProviderFieldRow(StorageProviderKind provider, ConnectionFieldDescriptor field)
     {
@@ -876,7 +898,7 @@ internal static class SettingsPageCatalog
             Key = "default:" + key,
             Label = isKey
                 ? Ui.Settings.DefaultPrivateKey
-                : Ui.Format(Ui.Settings.DefaultFieldFormat, field.Label.ToLower(CultureInfo.CurrentCulture)),
+                : Ui.Format(Ui.Settings.DefaultFieldFormat, InSentence(field.Label)),
             Hint = field.Key switch
             {
                 "authenticationMode" => Ui.Settings.AuthenticationModeHint,
@@ -1117,7 +1139,7 @@ internal static class SettingsPageCatalog
         Glyph = UiGlyph.Download,
         Groups =
         [
-            new(Ui.Settings.CategoryUpdates,
+            new(null,
             [
                 new()
                 {

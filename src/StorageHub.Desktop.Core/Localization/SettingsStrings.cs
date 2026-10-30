@@ -293,7 +293,7 @@ internal sealed class SettingsStrings : LocalizationModelBase
     /// <summary>A file-dialog filter. The descriptions translate; the patterns must not.</summary>
     public string ExecutableFilter { get; set; } = "Applications (*.exe)|*.exe|All files (*.*)|*.*";
 
-    public string MaximumEditableSize { get; set; } = "Maximum editable file size (KiB)";
+    public string MaximumEditableSize { get; set; } = "Maximum editable file size";
 
     public string MaximumEditableSizeAccessibleName { get; set; } =
         "Maximum externally editable file size in KiB";
@@ -452,7 +452,7 @@ internal sealed class SettingsStrings : LocalizationModelBase
 
     public string FontFamilyHint { get; set; } = "A monospaced font is recommended.";
 
-    public string FontSize { get; set; } = "Font size (points)";
+    public string FontSize { get; set; } = "Font size";
 
     public string FontSizeAccessibleName { get; set; } = "SSH terminal font size";
 
@@ -533,9 +533,9 @@ internal sealed class SettingsStrings : LocalizationModelBase
 
     public string UnknownControl { get; set; } = "Unknown connection-default control.";
 
-    public string ConnectionTimeout { get; set; } = "Connection timeout (seconds)";
+    public string ConnectionTimeout { get; set; } = "Connection timeout";
 
-    public string OperationTimeout { get; set; } = "Operation timeout (seconds)";
+    public string OperationTimeout { get; set; } = "Operation timeout";
 
     public string RetryAttempts { get; set; } = "Retry attempts";
 
@@ -646,6 +646,14 @@ internal sealed class SettingsStrings : LocalizationModelBase
     public string ColorSchemeHint { get; set; } = "Twenty-two schemes, identical on Windows and Linux. Changes preview immediately.";
 
     public string ConnectionsPanelSide { get; set; } = "Connections panel";
+
+    /// <summary>Which side of the window the panel is on, under the Connections panel caption.</summary>
+    public string ConnectionsPanelPosition { get; set; } = "Side";
+
+    /// <summary>Light, dark or the system's, beside Color scheme, which is also a theme.</summary>
+    public string ThemeMode { get; set; } = "Mode";
+
+    public string SectionFolders { get; set; } = "Folders";
 
     public string PanelSideLeft { get; set; } = "On the left";
 

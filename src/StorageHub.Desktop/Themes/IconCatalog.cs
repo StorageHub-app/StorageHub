@@ -82,6 +82,7 @@ internal static class IconCatalog
         [UiGlyph.Close] = LucideIconKind.X,
         [UiGlyph.Link] = LucideIconKind.Link,
         [UiGlyph.Layers] = LucideIconKind.Layers,
+        [UiGlyph.Toolbar] = LucideIconKind.PanelTop,
     };
 
     /// <summary>The icon for a glyph, or null when a command declares none.</summary>

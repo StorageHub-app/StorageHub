@@ -332,9 +332,8 @@
                   <TextBlock Classes="heading" Text="{Binding Heading}"/>
                   <TextBlock Classes="muted" Text="{Binding Description}" TextWrapping="Wrap"/>
                 </StackPanel>
-                <TextBlock Classes="settings-caption" Margin="{StaticResource SettingsCaptionMargin}"
-                           Text="{Binding Caption}"/>
-                <Border Classes="card settings-card">
+                <!-- No caption: it would only say "Background agent" again under the heading. -->
+                <Border Classes="card settings-card" Margin="{StaticResource SettingsCaptionMargin}">
                   <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Space2Xl}"
                         Margin="{StaticResource SettingsRowPadding}">
                     <StackPanel Grid.Column="0" Spacing="{StaticResource SpaceXs}" VerticalAlignment="Center">

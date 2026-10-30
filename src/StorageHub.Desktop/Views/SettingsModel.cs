@@ -46,7 +46,8 @@ internal sealed class SettingsRowModel : INotifyPropertyChanged
         ImportCommand = new RelayCommand(
             _ => _ = ImportAsync(importKey!),
             _ => importKey is not null && IsSecret);
-        ClearCommand = new RelayCommand(_ => Text = string.Empty, _ => IsSecret);
+        // Lit only while there is a default to clear.
+        _clear = new RelayCommand(_ => Text = string.Empty, _ => IsSecret && _value.Length > 0);
     }
 
     internal SettingsRowDefinition Definition => _definition;
@@ -127,7 +128,9 @@ internal sealed class SettingsRowModel : INotifyPropertyChanged
 
     public ICommand ImportCommand { get; }
 
-    public ICommand ClearCommand { get; }
+    public ICommand ClearCommand => _clear;
+
+    private readonly RelayCommand _clear;
 
     public static string BrowseLabel => Ui.Settings.ButtonBrowse;
 
@@ -279,6 +282,7 @@ internal sealed class SettingsRowModel : INotifyPropertyChanged
         Raise(nameof(IsOn));
         Raise(nameof(SelectedChoice));
         Raise(nameof(NumberValue));
+        _clear.RaiseCanExecuteChanged();
     }
 
     private void Raise(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));

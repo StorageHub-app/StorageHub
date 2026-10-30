@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.Globalization;
 using System.Windows.Input;
 using StorageHub.Agent;
 using StorageHub.Desktop.Localization;
@@ -41,8 +40,6 @@ internal sealed class AgentPageModel : SettingsPageModel, INotifyPropertyChanged
         _selectedMode = Math.Max(0, Array.IndexOf(ModeChoices, _current));
         ApplyCommand = new RelayCommand(_ => ApplyMode(), _ => CanApply);
     }
-
-    public static string Caption => Ui.Settings.AgentModeSection.ToUpper(CultureInfo.CurrentCulture);
 
     public static string ModeLabel => Ui.Settings.AgentModeLabel;
 

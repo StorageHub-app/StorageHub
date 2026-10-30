@@ -63,7 +63,8 @@ public enum UiGlyph
     Diagnostics,
     Close,
     Link,
-    Layers
+    Layers,
+    Toolbar
 }
 
 /// <summary>
