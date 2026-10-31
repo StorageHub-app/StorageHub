@@ -121,6 +121,7 @@ internal sealed class TerminalView : Control, ILogicalScrollable
     private (int Columns, int Rows) _reported;
     private long _viewportTop;
     private bool _followTail = true;
+    private bool _announcing;
     private long _selectionAnchorLine = -1;
     private int _selectionAnchorColumn;
     private long _selectionFocusLine = -1;
@@ -393,9 +394,16 @@ internal sealed class TerminalView : Control, ILogicalScrollable
         }
         set
         {
-            if (Document is not { } document) return;
+            // While this control is announcing a change, the ScrollViewer writes back what it has
+            // just read -- clamped to the extent it had before the new line, or judged in an
+            // arrange against a Bounds that still has no height. Taken as scrolling, either one
+            // reads as the user leaving the live end, and the view stopped following.
+            if (_announcing || Document is not { } document) return;
             Measure();
-            _viewportTop = document.FirstLineNumber + (long)Math.Round(value.Y / _cell.Height);
+            var top = document.FirstLineNumber + (long)Math.Round(value.Y / _cell.Height);
+            if (top == _viewportTop) return;
+
+            _viewportTop = top;
             ClampViewport();
             _followTail = _viewportTop >= BottomViewportTop();
             InvalidateVisual();
@@ -434,7 +442,18 @@ internal sealed class TerminalView : Control, ILogicalScrollable
 
     public Control? GetControlInDirection(NavigationDirection direction, Control? from) => null;
 
-    public void RaiseScrollInvalidated(EventArgs e) => ScrollInvalidated?.Invoke(this, e);
+    public void RaiseScrollInvalidated(EventArgs e)
+    {
+        _announcing = true;
+        try
+        {
+            ScrollInvalidated?.Invoke(this, e);
+        }
+        finally
+        {
+            _announcing = false;
+        }
+    }
 
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
     {

@@ -254,6 +254,42 @@ public class TerminalViewTests
         Assert.True(view.FollowsTail);
     }
 
+    /// <summary>
+    /// Inside the pane's ScrollViewer, output keeps the view at the live end, and dragging the bar
+    /// up still reads back.
+    /// </summary>
+    /// <remarks>
+    /// The ScrollViewer writes back each offset it reads, clamped to the extent it had before the
+    /// new line; taken as scrolling, that left the view stuck where it first was while the shell
+    /// went on below it. The tests above drive the control on its own and never saw it.
+    /// </remarks>
+    [AvaloniaFact]
+    public void OutputKeepsAScrolledPaneAtTheLiveEnd()
+    {
+        var emulator = Emulator("$ ");
+        var view = new TerminalView { Document = emulator.Document };
+        var scroller = new ScrollViewer { Content = view };
+        var window = new Window { Content = scroller, Width = 720, Height = 400 };
+        window.Show();
+        window.UpdateLayout();
+
+        for (var line = 1; line <= 80; line++)
+        {
+            emulator.Feed($"line {line}\r\n");
+            view.FollowOutput();
+            window.UpdateLayout();
+        }
+
+        Assert.True(view.FollowsTail);
+        Assert.Equal(emulator.Document.LastLineNumber - view.VisibleRows + 1, view.ViewportTopLine);
+
+        scroller.Offset = new Vector(0, 0);
+        window.UpdateLayout();
+        Assert.Equal(emulator.Document.FirstLineNumber, view.ViewportTopLine);
+        Assert.False(view.FollowsTail);
+        window.Close();
+    }
+
     /// <summary>What is drawn follows the viewport, not the screen.</summary>
     [AvaloniaFact]
     public void ScrollingBackChangesWhatIsDrawn()
