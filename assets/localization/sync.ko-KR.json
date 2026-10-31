@@ -156,7 +156,6 @@
   "awaitingApproval": "승인 대기 중입니다. 공급자 변경은 시작되지 않았습니다.",
   "notAwaitingApproval": "이 실행은 승인을 기다리고 있지 않습니다.",
   "refreshStatus": "상태 새로 고침",
-  "runStatusAccessibleName": "SyncRunStatus",
   "loadNextOperations": "다음 작업 불러오기",
   "loadNextConflicts": "다음 충돌 불러오기",
   "planPageMismatch": "계획 페이지가 더 이상 검토한 불변 계획과 일치하지 않습니다.",

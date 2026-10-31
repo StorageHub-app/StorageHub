@@ -145,7 +145,6 @@
   "awaitingApproval": "Afventer godkendelse. Ingen ændringer hos udbyderen er påbegyndt.",
   "notAwaitingApproval": "Denne kørsel afventer ikke godkendelse.",
   "refreshStatus": "Opdatér status",
-  "runStatusAccessibleName": "Status for synkroniseringskørsel",
   "loadNextOperations": "Indlæs næste handlinger",
   "loadNextConflicts": "Indlæs næste konflikter",
   "planPageMismatch": "Plansiden svarer ikke længere til den gennemsete uforanderlige plan.",

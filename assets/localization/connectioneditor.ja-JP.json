@@ -146,6 +146,5 @@
   "typeStorage": "ストレージ",
   "typeClient": "クライアント",
   "tabSecurity": "TLS / SSH 信頼",
-  "providerColorBadgeFormat": "  {0}  · プロバイダーカラー {1}",
   "culture": "ja-JP"
 }

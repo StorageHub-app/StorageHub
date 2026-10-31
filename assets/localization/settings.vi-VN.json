@@ -1,7 +1,6 @@
 {
   "categoryAgent": "Tác nhân nền",
   "pageAgentDescription": "Tác nhân thực hiện các lượt truyền và đồng bộ theo lịch. Chọn chạy khi bạn đăng nhập hoặc chỉ chạy khi StorageHub đang mở.",
-  "agentModeSection": "Tác nhân nền",
   "agentModeLabel": "Chạy tác nhân",
   "agentModeUserSession": "Khi tôi đăng nhập",
   "agentModeService": "Như một dịch vụ Windows",

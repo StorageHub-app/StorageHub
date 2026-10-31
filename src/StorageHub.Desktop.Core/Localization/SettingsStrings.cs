@@ -23,8 +23,6 @@ internal sealed class SettingsStrings : LocalizationModelBase
         "The agent does the transfers and scheduled syncs. Choose whether it starts when you sign " +
         "in, or runs only while StorageHub is open.";
 
-    public string AgentModeSection { get; set; } = "Background agent";
-
     public string AgentModeLabel { get; set; } = "Run the agent";
 
     public string AgentModeUserSession { get; set; } = "When I sign in";

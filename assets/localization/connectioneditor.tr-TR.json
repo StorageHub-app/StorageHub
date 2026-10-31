@@ -146,6 +146,5 @@
   "typeStorage": "Depolama",
   "typeClient": "İstemci",
   "tabSecurity": "TLS / SSH Güveni",
-  "providerColorBadgeFormat": "  {0}  · sağlayıcı rengi {1}",
   "culture": "tr-TR"
 }

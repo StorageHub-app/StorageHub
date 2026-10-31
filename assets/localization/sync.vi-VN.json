@@ -156,7 +156,6 @@
   "awaitingApproval": "Đang chờ phê duyệt. Chưa có thay đổi nào ở nhà cung cấp bắt đầu.",
   "notAwaitingApproval": "Lần chạy này không chờ phê duyệt.",
   "refreshStatus": "Làm mới trạng thái",
-  "runStatusAccessibleName": "SyncRunStatus",
   "loadNextOperations": "Tải các thao tác kế tiếp",
   "loadNextConflicts": "Tải các xung đột kế tiếp",
   "planPageMismatch": "Trang kế hoạch không còn khớp với kế hoạch bất biến đã xem lại.",

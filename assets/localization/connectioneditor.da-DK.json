@@ -123,7 +123,6 @@
   "temporaryConnectionFormat": "Midlertidig {0}-forbindelse",
   "typeLabel": "Type",
   "tabSecurity": "TLS / SSH-tillid",
-  "providerColorBadgeFormat": "  {0}  · udbyderfarve {1}",
   "typeStorage": "Lager",
   "typeClient": "Klient",
   "testStepsHeading": "Forbindelsestest",

@@ -156,7 +156,6 @@
   "awaitingApproval": "Oczekiwanie na zatwierdzenie. Zmiany u dostawców nie zostały rozpoczęte.",
   "notAwaitingApproval": "To uruchomienie nie oczekuje na zatwierdzenie.",
   "refreshStatus": "Odśwież stan",
-  "runStatusAccessibleName": "SyncRunStatus",
   "loadNextOperations": "Wczytaj kolejne operacje",
   "loadNextConflicts": "Wczytaj kolejne konflikty",
   "planPageMismatch": "Strona planu nie zgadza się już z przejrzanym niezmiennym planem.",

@@ -146,6 +146,5 @@
   "typeStorage": "تخزين",
   "typeClient": "عميل",
   "tabSecurity": "ثقة TLS / SSH",
-  "providerColorBadgeFormat": "  {0}  · لون المزوّد {1}",
   "culture": "ar-SA"
 }

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using StorageHub.Ipc;
 using StorageHub.Contracts.Ipc;
+using StorageHub.Desktop.Localization;
 
 namespace StorageHub.Desktop;
 
@@ -148,7 +149,9 @@ public sealed class AgentStatusMonitor : IAsyncDisposable
                 AgentConnectionState.Disconnected,
                 0,
                 0,
-                "Background agent is offline; browsing remains available.",
+                // The shell's own sentence for it, in the shell's language; this is the agent
+                // cell's tooltip and Agent control's status line.
+                Ui.Shell.AgentOffline,
                 DateTimeOffset.UtcNow));
         }
     }

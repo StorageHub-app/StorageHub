@@ -1,7 +1,6 @@
 {
   "categoryAgent": "Agente en segundo plano",
   "pageAgentDescription": "El agente realiza las transferencias y las sincronizaciones programadas. Elija si se inicia al iniciar sesión o si se ejecuta solo mientras StorageHub está abierto.",
-  "agentModeSection": "Agente en segundo plano",
   "agentModeLabel": "Ejecutar el agente",
   "agentModeUserSession": "Al iniciar sesión",
   "agentModeService": "Como servicio de Windows",

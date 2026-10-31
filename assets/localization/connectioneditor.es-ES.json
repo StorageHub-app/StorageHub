@@ -146,6 +146,5 @@
   "typeStorage": "Almacenamiento",
   "typeClient": "Cliente",
   "tabSecurity": "Confianza TLS / SSH",
-  "providerColorBadgeFormat": "  {0}  · color del proveedor {1}",
   "culture": "es-ES"
 }

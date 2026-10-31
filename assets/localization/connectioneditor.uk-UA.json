@@ -146,6 +146,5 @@
   "typeStorage": "Сховище",
   "typeClient": "Клієнт",
   "tabSecurity": "Довіра TLS / SSH",
-  "providerColorBadgeFormat": "  {0}  · колір постачальника {1}",
   "culture": "uk-UA"
 }

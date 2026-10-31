@@ -146,6 +146,5 @@
   "typeStorage": "Penyimpanan",
   "typeClient": "Klien",
   "tabSecurity": "Kepercayaan TLS / SSH",
-  "providerColorBadgeFormat": "  {0}  · warna penyedia {1}",
   "culture": "id-ID"
 }

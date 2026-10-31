@@ -156,7 +156,6 @@
   "awaitingApproval": "In attesa di approvazione. Nessuna modifica al provider è iniziata.",
   "notAwaitingApproval": "Questa esecuzione non è in attesa di approvazione.",
   "refreshStatus": "Aggiorna stato",
-  "runStatusAccessibleName": "SyncRunStatus",
   "loadNextOperations": "Carica le operazioni successive",
   "loadNextConflicts": "Carica i conflitti successivi",
   "planPageMismatch": "La pagina del piano non corrisponde più al piano immutabile verificato.",

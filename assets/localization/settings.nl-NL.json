@@ -1,7 +1,6 @@
 {
   "categoryAgent": "Achtergrondagent",
   "pageAgentDescription": "De agent voert de overdrachten en geplande synchronisaties uit. Kies of hij start wanneer u zich aanmeldt, of alleen draait terwijl StorageHub geopend is.",
-  "agentModeSection": "Achtergrondagent",
   "agentModeLabel": "De agent uitvoeren",
   "agentModeUserSession": "Wanneer ik me aanmeld",
   "agentModeService": "Als Windows-service",

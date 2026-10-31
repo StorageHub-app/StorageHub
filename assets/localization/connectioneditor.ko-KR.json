@@ -146,6 +146,5 @@
   "typeStorage": "스토리지",
   "typeClient": "클라이언트",
   "tabSecurity": "TLS / SSH 신뢰",
-  "providerColorBadgeFormat": "  {0}  · 공급자 색 {1}",
   "culture": "ko-KR"
 }

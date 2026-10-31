@@ -227,7 +227,6 @@
   "timeoutKeptByProvider": "Der eigene Client dieses Anbieters legt das Zeitlimit fest, etwa 100 Sekunden pro Anfrage.",
   "categoryAgent": "Hintergrund-Agent",
   "pageAgentDescription": "Der Agent führt Übertragungen und geplante Synchronisierungen aus. Wählen Sie, ob er bei der Anmeldung startet oder nur läuft, während StorageHub geöffnet ist.",
-  "agentModeSection": "Hintergrund-Agent",
   "agentModeLabel": "Agent ausführen",
   "agentModeUserSession": "Bei meiner Anmeldung",
   "agentModeService": "Als Windows-Dienst",

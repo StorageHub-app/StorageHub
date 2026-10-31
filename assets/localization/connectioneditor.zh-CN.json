@@ -146,6 +146,5 @@
   "typeStorage": "存储",
   "typeClient": "客户端",
   "tabSecurity": "TLS / SSH 信任",
-  "providerColorBadgeFormat": "  {0}  · 提供程序颜色 {1}",
   "culture": "zh-CN"
 }

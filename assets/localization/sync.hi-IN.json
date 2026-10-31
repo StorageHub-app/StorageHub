@@ -156,7 +156,6 @@
   "awaitingApproval": "स्वीकृति की प्रतीक्षा। प्रदाता पर कोई बदलाव शुरू नहीं हुआ।",
   "notAwaitingApproval": "यह रन स्वीकृति की प्रतीक्षा में नहीं है।",
   "refreshStatus": "स्थिति रीफ़्रेश करें",
-  "runStatusAccessibleName": "SyncRunStatus",
   "loadNextOperations": "अगले ऑपरेशन लोड करें",
   "loadNextConflicts": "अगले टकराव लोड करें",
   "planPageMismatch": "योजना पृष्ठ अब समीक्षा की गई अपरिवर्तनीय योजना से मेल नहीं खाता।",

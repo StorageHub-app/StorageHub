@@ -156,7 +156,6 @@
   "awaitingApproval": "Wacht op goedkeuring. Er zijn nog geen providerwijzigingen gestart.",
   "notAwaitingApproval": "Deze run wacht niet op goedkeuring.",
   "refreshStatus": "Status vernieuwen",
-  "runStatusAccessibleName": "SyncRunStatus",
   "loadNextOperations": "Volgende bewerkingen laden",
   "loadNextConflicts": "Volgende conflicten laden",
   "planPageMismatch": "De planpagina komt niet meer overeen met het gecontroleerde onveranderlijke plan.",

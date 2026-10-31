@@ -146,6 +146,5 @@
   "typeStorage": "Хранилище",
   "typeClient": "Клиент",
   "tabSecurity": "Доверие TLS / SSH",
-  "providerColorBadgeFormat": "  {0}  · цвет поставщика {1}",
   "culture": "ru-RU"
 }

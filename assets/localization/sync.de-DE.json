@@ -145,7 +145,6 @@
   "awaitingApproval": "Wartet auf Genehmigung. Beim Anbieter wurden keine Änderungen begonnen.",
   "notAwaitingApproval": "Dieser Lauf wartet nicht auf eine Genehmigung.",
   "refreshStatus": "Status aktualisieren",
-  "runStatusAccessibleName": "Status des Synchronisierungslaufs",
   "loadNextOperations": "Nächste Vorgänge laden",
   "loadNextConflicts": "Nächste Konflikte laden",
   "planPageMismatch": "Die Planseite entspricht nicht mehr dem geprüften unveränderlichen Plan.",

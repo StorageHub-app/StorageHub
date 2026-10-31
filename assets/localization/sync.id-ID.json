@@ -156,7 +156,6 @@
   "awaitingApproval": "Menunggu persetujuan. Belum ada perubahan penyedia yang dimulai.",
   "notAwaitingApproval": "Eksekusi ini tidak menunggu persetujuan.",
   "refreshStatus": "Segarkan status",
-  "runStatusAccessibleName": "SyncRunStatus",
   "loadNextOperations": "Muat operasi berikutnya",
   "loadNextConflicts": "Muat konflik berikutnya",
   "planPageMismatch": "Halaman rencana tidak lagi cocok dengan rencana tak berubah yang ditinjau.",

@@ -156,7 +156,6 @@
   "awaitingApproval": "承認待ちです。プロバイダーの変更は開始されていません。",
   "notAwaitingApproval": "この実行は承認待ちではありません。",
   "refreshStatus": "状態を更新",
-  "runStatusAccessibleName": "SyncRunStatus",
   "loadNextOperations": "次の操作を読み込む",
   "loadNextConflicts": "次の競合を読み込む",
   "planPageMismatch": "プランのページが、確認済みの変更不可のプランと一致しなくなりました。",

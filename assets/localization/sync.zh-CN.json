@@ -156,7 +156,6 @@
   "awaitingApproval": "等待批准。尚未开始对提供程序做任何更改。",
   "notAwaitingApproval": "此运行不在等待批准。",
   "refreshStatus": "刷新状态",
-  "runStatusAccessibleName": "SyncRunStatus",
   "loadNextOperations": "加载更多操作",
   "loadNextConflicts": "加载更多冲突",
   "planPageMismatch": "计划页面与已检查的不可变计划不再一致。",

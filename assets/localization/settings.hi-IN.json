@@ -1,7 +1,6 @@
 {
   "categoryAgent": "बैकग्राउंड एजेंट",
   "pageAgentDescription": "एजेंट स्थानांतरण और शेड्यूल किए गए सिंक करता है। चुनें कि वह साइन-इन पर शुरू हो या केवल StorageHub खुला होने तक चले।",
-  "agentModeSection": "बैकग्राउंड एजेंट",
   "agentModeLabel": "एजेंट चलाएँ",
   "agentModeUserSession": "मेरे साइन-इन करने पर",
   "agentModeService": "Windows सेवा के रूप में",

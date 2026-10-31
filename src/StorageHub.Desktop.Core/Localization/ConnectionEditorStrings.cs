@@ -379,7 +379,4 @@ internal sealed class ConnectionEditorStrings : LocalizationModelBase
     public string TypeClient { get; set; } = "Client";
 
     public string TabSecurity { get; set; } = "TLS / SSH Trust";
-
-    /// <summary>{0} = the provider's short name, {1} = its accent colour as a hex value.</summary>
-    public string ProviderColorBadgeFormat { get; set; } = "  {0}  \u00b7 provider color {1}";
 }

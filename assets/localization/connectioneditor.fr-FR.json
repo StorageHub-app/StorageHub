@@ -146,6 +146,5 @@
   "typeStorage": "Stockage",
   "typeClient": "Client",
   "tabSecurity": "Approbation TLS / SSH",
-  "providerColorBadgeFormat": "  {0}  · couleur du fournisseur {1}",
   "culture": "fr-FR"
 }

@@ -1,7 +1,6 @@
 {
   "categoryAgent": "Фоновый агент",
   "pageAgentDescription": "Агент выполняет передачи и синхронизацию по расписанию. Выберите, запускать ли его при входе в систему или только пока открыт StorageHub.",
-  "agentModeSection": "Фоновый агент",
   "agentModeLabel": "Запуск агента",
   "agentModeUserSession": "При входе в систему",
   "agentModeService": "Как служба Windows",

@@ -156,7 +156,6 @@
   "awaitingApproval": "Onay bekleniyor. Hiçbir sağlayıcı değişikliği başlamadı.",
   "notAwaitingApproval": "Bu çalıştırma onay beklemiyor.",
   "refreshStatus": "Durumu yenile",
-  "runStatusAccessibleName": "SyncRunStatus",
   "loadNextOperations": "Sonraki işlemleri yükle",
   "loadNextConflicts": "Sonraki çakışmaları yükle",
   "planPageMismatch": "Plan sayfası artık gözden geçirilen değişmez planla eşleşmiyor.",

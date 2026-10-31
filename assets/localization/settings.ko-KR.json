@@ -1,7 +1,6 @@
 {
   "categoryAgent": "백그라운드 에이전트",
   "pageAgentDescription": "에이전트가 전송과 스케줄된 동기화를 수행합니다. 로그인할 때 시작할지, StorageHub가 열려 있는 동안에만 실행할지 선택하십시오.",
-  "agentModeSection": "백그라운드 에이전트",
   "agentModeLabel": "에이전트 실행",
   "agentModeUserSession": "로그인할 때",
   "agentModeService": "Windows 서비스로",

@@ -156,7 +156,6 @@
   "awaitingApproval": "Ожидает одобрения. Никакие изменения у поставщика не начаты.",
   "notAwaitingApproval": "Этот запуск не ожидает одобрения.",
   "refreshStatus": "Обновить состояние",
-  "runStatusAccessibleName": "SyncRunStatus",
   "loadNextOperations": "Загрузить следующие операции",
   "loadNextConflicts": "Загрузить следующие конфликты",
   "planPageMismatch": "Страница плана больше не соответствует проверенному неизменяемому плану.",

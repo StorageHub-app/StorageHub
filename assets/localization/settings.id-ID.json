@@ -1,7 +1,6 @@
 {
   "categoryAgent": "Agen latar belakang",
   "pageAgentDescription": "Agen mengerjakan transfer dan sinkronisasi terjadwal. Pilih apakah agen dimulai saat Anda masuk, atau hanya berjalan selama StorageHub terbuka.",
-  "agentModeSection": "Agen latar belakang",
   "agentModeLabel": "Jalankan agen",
   "agentModeUserSession": "Saat saya masuk",
   "agentModeService": "Sebagai layanan Windows",

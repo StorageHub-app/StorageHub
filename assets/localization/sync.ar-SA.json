@@ -156,7 +156,6 @@
   "awaitingApproval": "بانتظار الموافقة. لم تبدأ أي تغييرات لدى المزوّد.",
   "notAwaitingApproval": "هذا التشغيل لا ينتظر الموافقة.",
   "refreshStatus": "تحديث الحالة",
-  "runStatusAccessibleName": "SyncRunStatus",
   "loadNextOperations": "تحميل العمليات التالية",
   "loadNextConflicts": "تحميل التعارضات التالية",
   "planPageMismatch": "لم تعد صفحة الخطة تطابق الخطة الثابتة التي تمت مراجعتها.",

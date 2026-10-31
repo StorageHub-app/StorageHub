@@ -421,8 +421,6 @@ internal sealed class SyncStrings : LocalizationModelBase
 
     public string RefreshStatus { get; set; } = "Refresh status";
 
-    public string RunStatusAccessibleName { get; set; } = "SyncRunStatus";
-
     public string LoadNextOperations { get; set; } = "Load next operations";
 
     public string LoadNextConflicts { get; set; } = "Load next conflicts";

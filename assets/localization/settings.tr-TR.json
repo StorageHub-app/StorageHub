@@ -1,7 +1,6 @@
 {
   "categoryAgent": "Arka plan aracısı",
   "pageAgentDescription": "Aracı, aktarımları ve zamanlanmış eşitlemeleri yapar. Oturum açtığınızda mı başlayacağını yoksa yalnızca StorageHub açıkken mi çalışacağını seçin.",
-  "agentModeSection": "Arka plan aracısı",
   "agentModeLabel": "Aracıyı çalıştır",
   "agentModeUserSession": "Oturum açtığımda",
   "agentModeService": "Windows hizmeti olarak",

@@ -146,6 +146,5 @@
   "typeStorage": "स्टोरेज",
   "typeClient": "क्लाइंट",
   "tabSecurity": "TLS / SSH विश्वास",
-  "providerColorBadgeFormat": "  {0}  · प्रदाता रंग {1}",
   "culture": "hi-IN"
 }

@@ -146,6 +146,5 @@
   "typeStorage": "Opslag",
   "typeClient": "Client",
   "tabSecurity": "TLS / SSH-vertrouwen",
-  "providerColorBadgeFormat": "  {0}  · providerkleur {1}",
   "culture": "nl-NL"
 }

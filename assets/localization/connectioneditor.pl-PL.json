@@ -146,6 +146,5 @@
   "typeStorage": "Magazyn",
   "typeClient": "Klient",
   "tabSecurity": "Zaufanie TLS / SSH",
-  "providerColorBadgeFormat": "  {0}  · kolor dostawcy {1}",
   "culture": "pl-PL"
 }

@@ -71,8 +71,6 @@ internal sealed class ConnectionStrings : LocalizationModelBase
 
     public string ContextDuplicate { get; set; } = "Duplicate";
 
-    public string ContextToggleFavorite { get; set; } = "Toggle favorite";
-
     // ---------------------------------------------------------------- sidebar
     public string GroupFavorites { get; set; } = "Favorites";
 

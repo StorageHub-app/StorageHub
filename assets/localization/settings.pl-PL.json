@@ -1,7 +1,6 @@
 {
   "categoryAgent": "Agent w tle",
   "pageAgentDescription": "Agent wykonuje transfery i zaplanowane synchronizacje. Wybierz, czy uruchamia się po zalogowaniu, czy działa tylko przy otwartym StorageHub.",
-  "agentModeSection": "Agent w tle",
   "agentModeLabel": "Uruchamiaj agenta",
   "agentModeUserSession": "Po zalogowaniu",
   "agentModeService": "Jako usługa systemu Windows",

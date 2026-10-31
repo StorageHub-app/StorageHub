@@ -1,7 +1,6 @@
 {
   "categoryAgent": "Agent d'arrière-plan",
   "pageAgentDescription": "L'agent effectue les transferts et les synchronisations planifiées. Choisissez s'il démarre à l'ouverture de session ou s'il s'exécute uniquement tant que StorageHub est ouvert.",
-  "agentModeSection": "Agent d'arrière-plan",
   "agentModeLabel": "Exécuter l'agent",
   "agentModeUserSession": "À l'ouverture de session",
   "agentModeService": "En tant que service Windows",

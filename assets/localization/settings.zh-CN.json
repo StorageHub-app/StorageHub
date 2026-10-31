@@ -1,7 +1,6 @@
 {
   "categoryAgent": "后台代理程序",
   "pageAgentDescription": "代理程序负责执行传输和计划同步。选择它是在您登录时启动，还是仅在 StorageHub 打开期间运行。",
-  "agentModeSection": "后台代理程序",
   "agentModeLabel": "运行代理程序",
   "agentModeUserSession": "在我登录时",
   "agentModeService": "作为 Windows 服务",

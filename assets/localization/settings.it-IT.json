@@ -1,7 +1,6 @@
 {
   "categoryAgent": "Agente in background",
   "pageAgentDescription": "L'agente esegue i trasferimenti e le sincronizzazioni pianificate. Scegli se avviarlo all'accesso o eseguirlo solo mentre StorageHub è aperto.",
-  "agentModeSection": "Agente in background",
   "agentModeLabel": "Esegui l'agente",
   "agentModeUserSession": "Quando accedo",
   "agentModeService": "Come servizio Windows",

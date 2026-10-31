@@ -227,7 +227,6 @@
   "timeoutKeptByProvider": "Udbyderens egen klient fastsætter tidsgrænsen, cirka 100 sekunder pr. forespørgsel.",
   "categoryAgent": "Baggrundsagent",
   "pageAgentDescription": "Agenten udfører overførsler og planlagte synkroniseringer. Vælg, om den starter, når du logger på, eller kun kører, mens StorageHub er åben.",
-  "agentModeSection": "Baggrundsagent",
   "agentModeLabel": "Kør agenten",
   "agentModeUserSession": "Når jeg logger på",
   "agentModeService": "Som en Windows-tjeneste",

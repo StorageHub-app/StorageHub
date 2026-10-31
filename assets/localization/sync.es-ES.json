@@ -156,7 +156,6 @@
   "awaitingApproval": "Esperando aprobación. No ha comenzado ningún cambio en el proveedor.",
   "notAwaitingApproval": "Esta ejecución no está esperando aprobación.",
   "refreshStatus": "Actualizar estado",
-  "runStatusAccessibleName": "SyncRunStatus",
   "loadNextOperations": "Cargar las siguientes operaciones",
   "loadNextConflicts": "Cargar los siguientes conflictos",
   "planPageMismatch": "La página del plan ya no coincide con el plan inmutable revisado.",

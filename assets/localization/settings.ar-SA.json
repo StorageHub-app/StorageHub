@@ -1,7 +1,6 @@
 {
   "categoryAgent": "وكيل الخلفية",
   "pageAgentDescription": "يتولى الوكيل عمليات النقل وعمليات المزامنة المجدولة. اختر ما إذا كان يبدأ عند تسجيل الدخول، أو يعمل فقط أثناء فتح StorageHub.",
-  "agentModeSection": "وكيل الخلفية",
   "agentModeLabel": "تشغيل الوكيل",
   "agentModeUserSession": "عند تسجيل دخولي",
   "agentModeService": "كخدمة Windows",

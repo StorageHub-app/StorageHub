@@ -1,7 +1,6 @@
 {
   "categoryAgent": "バックグラウンドエージェント",
   "pageAgentDescription": "エージェントが転送とスケジュールされた同期を実行します。サインイン時に開始するか、StorageHub を開いている間のみ実行するかを選択します。",
-  "agentModeSection": "バックグラウンドエージェント",
   "agentModeLabel": "エージェントの実行方法",
   "agentModeUserSession": "サインイン時",
   "agentModeService": "Windows サービスとして",

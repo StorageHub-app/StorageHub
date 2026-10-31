@@ -43,7 +43,7 @@
   "requiredForImportedPFX": "Lascia vuoto per un PFX senza password",
   "requiredVaultEntry": "Voce del vault obbligatoria",
   "rootPath": "Percorso radice",
-  "s3ObjectStorage": "S3 / Object Storage",
+  "s3ObjectStorage": "S3 / Archiviazione a oggetti",
   "sSHFileTransferProtocolUsingOpenSource": "SSH File Transfer Protocol con librerie .NET open source; nessuna dipendenza da PuTTY.",
   "sSHTerminal": "Terminale SSH",
   "sSHHostKeysAreNeverAcceptedSilently": "Le chiavi host SSH non vengono mai accettate in modo silenzioso. Verifica e fissa l'impronta SHA-256 prima di connetterti.",

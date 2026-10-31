@@ -146,6 +146,5 @@
   "typeStorage": "Lưu trữ",
   "typeClient": "Máy khách",
   "tabSecurity": "Độ tin cậy TLS / SSH",
-  "providerColorBadgeFormat": "  {0}  · màu nhà cung cấp {1}",
   "culture": "vi-VN"
 }

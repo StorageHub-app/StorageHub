@@ -145,7 +145,6 @@
   "typeLabel": "Tipo",
   "typeStorage": "Archiviazione",
   "typeClient": "Client",
-  "tabSecurity": "Attendibilità TLS / SSH",
-  "providerColorBadgeFormat": "  {0}  · colore del provider {1}"
+  "tabSecurity": "Attendibilità TLS / SSH"
   ,"culture": "it-IT"
 }
