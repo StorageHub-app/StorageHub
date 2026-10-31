@@ -16,7 +16,26 @@ chosen is written down in [Versioning and merges](docs/versioning.md).
 
 ---
 
-## Unreleased
+## 2.1.2 — 2026-10-31
+
+The menus are grouped and dim what the active pane cannot do, Settings is reorganised, the colour
+scheme is remembered, the terminal follows its output again, folders can be dragged out of the tree,
+and a long list of fixes to dragging, pasting and folders that are read again during a transfer.
+
+**Menus.** Related commands are grouped with lines between them, Delete stands apart at the foot of
+the pane's right-click menu, and each menu title has an access key. Commands the active pane cannot
+run are dimmed in the menus and on the toolbar, as they already were on its right-click menu; 1.4
+left them lit. The pane's right-click menu gains Search, Checksums and Compare, a connection's card
+menu has a ticked Favorite and Test, and right-clicking a group heading opens its menu. Sync > Review
+& Run is now Run History & Review and opens that tab; it opened the profiles, as Sync Profiles did.
+F1 opens the documentation and F9 resumes all transfers. Toolbar tooltips name the shortcut.
+
+**Settings.** The connections panel's options have a card of their own on Appearance, Workspace's
+folder settings are split off, and Connections & trust is last in the list, so its providers no
+longer push Toolbar and Updates out of sight.
+
+**Tables.** Double-clicking a recent connection on Welcome, or a run on Sync tasks, opens it.
+Numbers are right-aligned, and the Welcome tiles show their tone as a stripe down the left edge.
 
 **Dragging several files.** A drag that began on one of several selected rows carried only that row,
 so three files dragged to Explorer or to another pane arrived as one: the list makes the pressed row
@@ -73,6 +92,17 @@ Back, was selected out of sight.
 - The folder tree read the folder the pane was in a second time when its item was first drawn.
 - The selected connection's card shows Edit and Delete, as 1.4's did; Duplicate is on its
   right-click menu.
+- The colour scheme went back to the default at every start.
+- The SSH terminal stopped following its output: new lines appeared below the bottom of the pane
+  and it had to be scrolled by hand.
+- Fixed-width columns -- Size, Type, Modified -- shrank when a pane first opened narrow and never
+  grew back, so sizes and types were cut off.
+- The Settings shortcut page discarded an imported Shift+Delete that the window itself accepted.
+- A new connection's editor was titled Edit, the Settings button's tooltip spoke of updates, and
+  every settings error blamed the external editor.
+- Key Store, New Workspace and Schedules could not be closed with Escape or a button.
+- The connections panel's groups open as they were left, or collapsed, as Settings says, and its
+  scroll bar no longer covers the cards.
 - Back, Forward, Up, Clear filter and several icon buttons in the connections panel and the tab
   strip had no name for a screen reader; the splash screen's two were English in every language.
 
