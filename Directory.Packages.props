@@ -14,7 +14,7 @@
          hand-drawn UiIconFactory set used, at twenty times the coverage. -->
     <PackageVersion Include="Lucide.Avalonia" Version="0.2.23" />
     <PackageVersion Include="Avalonia.Headless.XUnit" Version="12.1.2" />
-    <PackageVersion Include="CodeLogic" Version="4.8.20" />
+    <PackageVersion Include="CodeLogic" Version="4.9.24" />
     <PackageVersion Include="CodeLogic.Storage" Version="4.8.95" />
     <PackageVersion Include="Cronos" Version="0.13.0" />
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="9.0.18" />
