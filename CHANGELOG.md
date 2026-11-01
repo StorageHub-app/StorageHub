@@ -16,6 +16,32 @@ chosen is written down in [Versioning and merges](docs/versioning.md).
 
 ---
 
+## 2.2.0 — 2026-11-01
+
+Replacing a file that is already there works on every connection, each such file is asked about in a
+window of its own as FileZilla asks, and a transfer can list what it will change before it starts.
+
+**Replacing and moving.** A file already on, or coming from, an SFTP or FTP connection could not be
+replaced: StorageHub demanded a version or entity tag on both files, and neither protocol has one.
+Moves from SFTP, FTP and This PC were refused for the same reason. Both now go ahead once you agree,
+and a move deletes its source after the copy is checked. Settings, Transfers & sync, Existing files,
+"Only replace or move files whose version can be checked" brings back the old rules; it is off by
+default.
+
+**File already exists.** Each file a transfer finds already at its destination is asked about in a
+window showing both files' size and date, with overwrite, overwrite if newer, overwrite if the size
+differs, resume, rename and skip. "Always use this action for the rest of this transfer" stops the
+questions, and "Also make it the default" saves the choice in Settings. The question was asked once,
+at the first such file, for the whole transfer.
+
+**Preview changes.** The review dialog has a Preview changes button: every file the transfer will
+write, marked new, replaced, skipped or renamed, with a choice for each file already there and
+Replace all, Replace if newer and Skip all. Nothing is created or queued until Start transfer.
+"Preview what a transfer changes before it starts" in Settings opens it on every transfer.
+
+**Dropped from Explorer.** Replace chosen for files dropped onto an SFTP or FTP folder failed in the
+queue; it replaces them.
+
 ## 2.1.2 — 2026-10-31
 
 The menus are grouped and dim what the active pane cannot do, Settings is reorganised, the colour
