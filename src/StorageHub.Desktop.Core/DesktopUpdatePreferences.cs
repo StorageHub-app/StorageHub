@@ -243,7 +243,18 @@ internal sealed record DesktopUpdatePreferences(
     /// </summary>
     IReadOnlyList<Guid>? CollapsedConnectionGroups = null,
     /// <summary>Whether Favorites was closed, kept apart because it is nobody's group and has no id.</summary>
-    bool FavoritesCollapsed = false)
+    bool FavoritesCollapsed = false,
+    /// <summary>
+    /// Whether replacing and moving are held to a version or entity tag captured for both files,
+    /// which refuses them on SFTP, FTP and This PC sources. Off by default: a transfer replaces or
+    /// moves whatever the person agreed to, as FileZilla does.
+    /// </summary>
+    bool StrictTransferSafety = false,
+    /// <summary>
+    /// Whether every transfer first lists what it will create, replace, skip and rename. Off by
+    /// default; the review dialog's Preview changes button shows the list for one transfer.
+    /// </summary>
+    bool PreviewTransferChanges = false)
 {
     /// <summary>The auto-refresh settings as a pane follows them, the interval within its bounds.</summary>
     internal FolderAutoRefreshSettings FolderAutoRefresh =>

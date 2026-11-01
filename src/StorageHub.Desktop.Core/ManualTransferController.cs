@@ -503,13 +503,23 @@ public sealed class ManualTransferController : IAsyncDisposable
     /// What to do with a selected file whose name is already taken at the destination. Replacing
     /// is what a plan did before there was a choice, and what it still does when none is given.
     /// </param>
+    /// <param name="perFile">
+    /// Choices for particular files by the source's relative path, which win over
+    /// <paramref name="conflicts"/>: what was answered for each file, or picked in the preview.
+    /// </param>
+    /// <param name="unverified">
+    /// Replace and move without version or entity-tag evidence, as the relaxed default allows.
+    /// False holds them to the evidence, as the strict setting does.
+    /// </param>
     public StorageResult<ManualTransferPlan> BuildPlan(
         PaneSelectionSnapshot source,
         PaneDestinationSnapshot destination,
         TransferQueueOperation operation,
         TransferQueueVerification verification = TransferQueueVerification.StrongHashWhenAvailable,
         int priority = 0,
-        TransferConflictChoice conflicts = TransferConflictChoice.Overwrite)
+        TransferConflictChoice conflicts = TransferConflictChoice.Overwrite,
+        IReadOnlyDictionary<string, TransferConflictChoice>? perFile = null,
+        bool unverified = false)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         ArgumentNullException.ThrowIfNull(source);
@@ -554,14 +564,15 @@ public sealed class ManualTransferController : IAsyncDisposable
             // A file on this PC carries a time-and-length identity so it can be replaced or replace
             // something, but a move deletes its source, and the agent deletes only what it can
             // name by an exact version. Said here, rather than as a failed row in the queue.
-            if (operation == TransferQueueOperation.Move && source.Context.Kind == PaneTransferContextKind.ThisPc)
+            if (!unverified &&
+                operation == TransferQueueOperation.Move && source.Context.Kind == PaneTransferContextKind.ThisPc)
             {
                 return InvalidPlan(
                     "manual_transfer.move.local_source_unsupported",
                     Ui.Validation.MovingFromThisPCIsNotSupported);
             }
 
-            if (operation == TransferQueueOperation.Move && !item.HasStableIdentity)
+            if (!unverified && operation == TransferQueueOperation.Move && !item.HasStableIdentity)
             {
                 return InvalidPlan(
                     "manual_transfer.move.source_identity_required",
@@ -579,7 +590,10 @@ public sealed class ManualTransferController : IAsyncDisposable
             var name = item.Name;
             if (existing is not null)
             {
-                switch (TransferConflictRules.Decide(conflicts, item, existing))
+                var choice = perFile is not null && perFile.TryGetValue(item.RelativePath, out var picked)
+                    ? picked
+                    : conflicts;
+                switch (TransferConflictRules.Decide(choice, item, existing))
                 {
                     case TransferConflictOutcome.Skip:
                         skipped++;
@@ -607,7 +621,7 @@ public sealed class ManualTransferController : IAsyncDisposable
                     Ui.Validation.TheSelectedFilesDoNotProduceUnique);
             }
 
-            if (existing is not null && (!existing.HasStableIdentity || !item.HasStableIdentity))
+            if (!unverified && existing is not null && (!existing.HasStableIdentity || !item.HasStableIdentity))
             {
                 return InvalidPlan(
                     "manual_transfer.overwrite.identity_required",
@@ -636,7 +650,9 @@ public sealed class ManualTransferController : IAsyncDisposable
                 verification,
                 priority,
                 existing?.VersionId,
-                existing?.EntityTag);
+                existing?.EntityTag,
+                ReplaceExisting: existing is not null,
+                Unverified: unverified);
             if (!request.HasValidBounds)
             {
                 return StorageResult<ManualTransferPlan>.Fail(new StorageFailure(
@@ -699,18 +715,22 @@ public sealed class ManualTransferController : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(destination);
         conflicts ??= TransferConflictPolicy.Replace;
-        var choice = TransferConflictChoice.Overwrite;
-        if (FirstConflict(source, destination) is { } first)
+
+        // Each file already there is asked about in turn, until an answer covers the rest.
+        var perFile = new Dictionary<string, TransferConflictChoice>(StringComparer.Ordinal);
+        foreach (var (item, existing) in Conflicts(source, destination))
         {
-            if (await conflicts.ResolveAsync(first, cancellationToken).ConfigureAwait(false) is not { } resolved)
+            if (await conflicts.ResolveAsync(item, existing, cancellationToken).ConfigureAwait(false) is not { } resolved)
             {
                 return new ManualTransferEnqueueResult([], [], StoppedAtConflict());
             }
 
-            choice = resolved;
+            perFile[item.RelativePath] = resolved;
         }
 
-        var plan = BuildPlan(source, destination, operation, verification, priority, choice);
+        var plan = BuildPlan(
+            source, destination, operation, verification, priority,
+            TransferConflictChoice.Overwrite, perFile, conflicts.Unverified);
         if (plan.IsFailure)
         {
             return new ManualTransferEnqueueResult([], [], plan.Error);
@@ -791,16 +811,50 @@ public sealed class ManualTransferController : IAsyncDisposable
         return byName;
     }
 
+    /// <summary>
+    /// The files a selection of plain files would write and what each lands on, matched as
+    /// <see cref="BuildPlan"/> matches them. Nothing is queued.
+    /// </summary>
+    internal static TransferPreview Preview(PaneSelectionSnapshot source, PaneDestinationSnapshot destination)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(destination);
+        var names = NameComparer(destination.Context);
+        var byName = ByName(destination.Entries, names);
+        var taken = new HashSet<string>(names);
+        var rows = new List<TransferPreviewRow>(source.Items.Count);
+        foreach (var item in source.Items.Where(static item => item.Kind == StorageItemKind.File && !item.IsContainer))
+        {
+            TryDestinationPath(destination.Context, item.Name, taken, out var path);
+            var existing = byName.GetValueOrDefault(item.Name);
+            rows.Add(new TransferPreviewRow(
+                item,
+                path,
+                existing is { Kind: StorageItemKind.File } ? existing : null));
+        }
+
+        return new TransferPreview(rows.AsReadOnly());
+    }
+
     /// <summary>The first selected file whose name a file at the destination already has.</summary>
-    internal static PaneTransferItem? FirstConflict(PaneSelectionSnapshot source, PaneDestinationSnapshot destination)
+    internal static PaneTransferItem? FirstConflict(PaneSelectionSnapshot source, PaneDestinationSnapshot destination) =>
+        Conflicts(source, destination).Select(static pair => pair.Existing).FirstOrDefault();
+
+    /// <summary>Each selected file whose name a file at the destination already has, in order.</summary>
+    internal static IEnumerable<(PaneTransferItem Item, PaneTransferItem Existing)> Conflicts(
+        PaneSelectionSnapshot source,
+        PaneDestinationSnapshot destination)
     {
         var files = ByName(
             destination.Entries.Where(static entry => entry.Kind == StorageItemKind.File),
             NameComparer(destination.Context));
-        return source.Items
-            .Where(static item => item.Kind == StorageItemKind.File)
-            .Select(item => files.GetValueOrDefault(item.Name))
-            .FirstOrDefault(static existing => existing is not null);
+        foreach (var item in source.Items.Where(static item => item.Kind == StorageItemKind.File))
+        {
+            if (files.GetValueOrDefault(item.Name) is { } existing)
+            {
+                yield return (item, existing);
+            }
+        }
     }
 
     /// <summary>What a transfer stopped at the conflict question reports: a cancellation.</summary>

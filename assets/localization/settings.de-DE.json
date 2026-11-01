@@ -285,11 +285,15 @@
   "timeZoneFollowSystem": "Dem System folgen (empfohlen)",
   "sectionExistingFiles": "Vorhandene Dateien",
   "existingFileChoice": "Wenn eine Datei bereits vorhanden ist",
-  "existingFileChoiceHint": "Fragen zeigt die Auswahl bei der ersten solchen Datei, für die ganze Übertragung. Fortsetzen vervollständigt eine kürzere Datei und behält, was ein unterbrochener Versuch bereits gesendet hat.",
+  "existingFileChoiceHint": "Fragen zeigt jede solche Datei mit Größe und Datum beider Dateien, bis Sie „Diese Aktion immer …“ aktivieren. Fortsetzen vervollständigt eine kürzere Datei und behält, was ein unterbrochener Versuch bereits gesendet hat.",
   "conflictAsk": "Jedes Mal fragen",
   "hideEmptyGroups": "Leere Gruppen ausblenden",
   "hideEmptyGroupsHint": "Das Verbindungsfenster zeigt immer Favoriten, alle Gruppen und Ohne Gruppe, auch wenn sie leer sind. Einschalten, um leere Gruppen auszublenden.",
   "scanSubfolders": "Unterordner für den Ordnerbaum einlesen",
   "scanSubfoldersHint": "Der Ordnerbaum eines Bereichs liest die Ordner unterhalb des aktuellen einige Ebenen tief ein, damit sie sich öffnen lassen, ohne jeden vorher zu besuchen. Auf einem Server entstehen dadurch einige zusätzliche Anfragen, höchstens hundert pro geöffnetem Ordner, und sie enden, sobald Sie weitergehen. Ausschalten, um nur die Ordner zu zeigen, die der Bereich aufgelistet hat.",
-  "culture": "de-DE"
+  "culture": "de-DE",
+  "strictTransferSafety": "Dateien nur ersetzen oder verschieben, wenn ihre Version geprüft werden kann",
+  "strictTransferSafetyHint": "Verweigert das Ersetzen oder Verschieben einer Datei, sofern nicht beide Seiten eine Version oder ein ETag melden, was SFTP, FTP und Dateien auf diesem PC nie tun. Ausgeschaltet ersetzt oder verschiebt eine Übertragung alles, dem Sie zustimmen.",
+  "previewTransferChanges": "Vor dem Start anzeigen, was eine Übertragung ändert",
+  "previewTransferChangesHint": "Listet jede Datei auf, die eine Übertragung erstellt, ersetzt, überspringt oder umbenennt, und lässt Sie für jede einzeln wählen. Vorschau der Änderungen im Prüfdialog tut dies für eine einzelne Übertragung."
 }

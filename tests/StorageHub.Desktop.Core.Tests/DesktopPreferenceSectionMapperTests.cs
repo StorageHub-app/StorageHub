@@ -438,7 +438,9 @@ public sealed class DesktopPreferenceSectionMapperTests
         NewScheduleTimeZone = ScheduleTimeZones.Normalize("Asia/Tokyo"),
         TransferConflictDefault = TransferConflictChoice.OverwriteIfNewer,
         AutoRefreshFolders = true,
-        RemoteRefreshSeconds = 60
+        RemoteRefreshSeconds = 60,
+        StrictTransferSafety = true,
+        PreviewTransferChanges = true
     };
 
     private static DesktopUpdatePreferences WithPrivateKey(string reference) =>

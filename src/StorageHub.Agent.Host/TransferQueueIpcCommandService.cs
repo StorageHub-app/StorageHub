@@ -86,9 +86,13 @@ public sealed class TransferQueueIpcCommandService : IAgentIpcCommandHandler
                 "Source and destination must use canonical root-relative storage addresses."));
         }
 
-        if (request.Operation == TransferQueueOperation.Move && !HasStableIdentity(source) ||
-            HasOverwritePrecondition(request, destination) &&
-            (!HasStableIdentity(source) || !HasExactDestinationIdentity(request, destination)))
+        // An unverified request is one the person approved without version evidence, as the
+        // relaxed default allows: SFTP and FTP carry none, so nothing could be replaced or moved
+        // there otherwise. A strict request is held to the evidence as before.
+        if (!request.Unverified &&
+            (request.Operation == TransferQueueOperation.Move && !HasStableIdentity(source) ||
+             (HasOverwritePrecondition(request, destination) || request.ReplaceExisting) &&
+             (!HasStableIdentity(source) || !HasExactDestinationIdentity(request, destination))))
         {
             return EnqueueFailure(request.TransferId, ValidationFailure(
                 "Move and overwrite operations require immutable source and destination identity evidence."));
@@ -128,7 +132,9 @@ public sealed class TransferQueueIpcCommandService : IAgentIpcCommandHandler
                 Map(request.Verification),
                 _timeProvider.GetUtcNow(),
                 request.ExpectedDestinationVersionId,
-                request.ExpectedDestinationEntityTag);
+                request.ExpectedDestinationEntityTag,
+                replaceExisting: request.ReplaceExisting,
+                unverified: request.Unverified);
         }
         catch (ArgumentException)
         {
@@ -772,7 +778,9 @@ public sealed class TransferQueueIpcCommandService : IAgentIpcCommandHandler
         string.Equals(
             job.Intent.ExpectedDestinationEntityTag,
             intent.ExpectedDestinationEntityTag,
-            StringComparison.Ordinal);
+            StringComparison.Ordinal) &&
+        job.Intent.ReplaceExisting == intent.ReplaceExisting &&
+        job.Intent.Unverified == intent.Unverified;
 
     private static bool CanRetry(TransferState state) => state is
         TransferState.Paused or

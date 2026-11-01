@@ -35,7 +35,9 @@ public sealed record TransferIntent
         string? expectedDestinationEntityTag = null,
         PortableContentDigest? expectedSourceDigest = null,
         PortableContentDigest? expectedDestinationDigest = null,
-        PortableContentDigest? requiredDestinationDigest = null)
+        PortableContentDigest? requiredDestinationDigest = null,
+        bool replaceExisting = false,
+        bool unverified = false)
     {
         if (transferJobId.IsEmpty)
         {
@@ -109,7 +111,22 @@ public sealed record TransferIntent
         ExpectedSourceDigest = expectedSourceDigest;
         ExpectedDestinationDigest = expectedDestinationDigest;
         RequiredDestinationDigest = requiredDestinationDigest;
+        ReplaceExisting = replaceExisting;
+        Unverified = unverified;
     }
+
+    /// <summary>
+    /// The person agreed to replace a file found at the destination while planning, whether or not
+    /// any identity was captured for it.
+    /// </summary>
+    public bool ReplaceExisting { get; }
+
+    /// <summary>
+    /// The person agreed to replace or move without version or entity-tag evidence, as the relaxed
+    /// default allows: the overwrite is written plainly and a move deletes its source without a
+    /// condition. Never set by sync.
+    /// </summary>
+    public bool Unverified { get; }
 
     public TransferJobId TransferJobId { get; }
 

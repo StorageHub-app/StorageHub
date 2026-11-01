@@ -1164,7 +1164,9 @@ public sealed class SqliteTransferJobStore : ITransferJobStore, ITransferQueueQu
             intent.ExpectedDestinationEntityTag,
             ToDocument(intent.ExpectedSourceDigest),
             ToDocument(intent.ExpectedDestinationDigest),
-            ToDocument(intent.RequiredDestinationDigest)),
+            ToDocument(intent.RequiredDestinationDigest),
+            intent.ReplaceExisting ? true : null,
+            intent.Unverified ? true : null),
         JsonOptions);
 
     private static TransferIntent DeserializeIntent(TransferJobId jobId, string json)
@@ -1197,7 +1199,9 @@ public sealed class SqliteTransferJobStore : ITransferJobStore, ITransferQueueQu
             document.ExpectedDestinationEntityTag,
             RestorePortableDigest(document.ExpectedSourceDigest),
             RestorePortableDigest(document.ExpectedDestinationDigest),
-            RestorePortableDigest(document.RequiredDestinationDigest));
+            RestorePortableDigest(document.RequiredDestinationDigest),
+            document.ReplaceExisting == true,
+            document.Unverified == true);
     }
 
     private static string SerializeCheckpointState(TransferCheckpoint checkpoint) =>
@@ -1385,7 +1389,9 @@ public sealed class SqliteTransferJobStore : ITransferJobStore, ITransferQueueQu
         string? ExpectedDestinationEntityTag,
         DigestDocument? ExpectedSourceDigest,
         DigestDocument? ExpectedDestinationDigest,
-        DigestDocument? RequiredDestinationDigest);
+        DigestDocument? RequiredDestinationDigest,
+        bool? ReplaceExisting = null,
+        bool? Unverified = null);
 
     private sealed record AddressDocument(
         string ProfileId,

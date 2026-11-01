@@ -403,6 +403,27 @@ internal static class SettingsPageCatalog
                         : Enum.TryParse<TransferConflictChoice>(v, out var choice) && Enum.IsDefined(choice)
                             ? p with { TransferConflictDefault = choice }
                             : p
+                },
+                // New in 2.1. Off lists the changes only when asked, from the review dialog.
+                new()
+                {
+                    Key = "preview-transfer-changes",
+                    Label = Ui.Settings.PreviewTransferChanges,
+                    Hint = Ui.Settings.PreviewTransferChangesHint,
+                    Kind = SettingsControlKind.Toggle,
+                    Read = p => Text(p.PreviewTransferChanges),
+                    Write = (p, v) => p with { PreviewTransferChanges = Flag(v) }
+                },
+                // New in 2.1. Off by default, so SFTP, FTP and This PC files can be replaced and
+                // moved; on brings back the version-evidence rules 2.0 always applied.
+                new()
+                {
+                    Key = "strict-transfer-safety",
+                    Label = Ui.Settings.StrictTransferSafety,
+                    Hint = Ui.Settings.StrictTransferSafetyHint,
+                    Kind = SettingsControlKind.Toggle,
+                    Read = p => Text(p.StrictTransferSafety),
+                    Write = (p, v) => p with { StrictTransferSafety = Flag(v) }
                 }
             ]),
 

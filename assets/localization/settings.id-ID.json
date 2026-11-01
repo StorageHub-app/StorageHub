@@ -257,7 +257,7 @@
   "importBack": "Kembali",
   "sectionExistingFiles": "File yang sudah ada",
   "existingFileChoice": "Bila file sudah ada di sana",
-  "existingFileChoiceHint": "Tanya menampilkan pilihan pada file pertama seperti itu, untuk seluruh transfer. Lanjutkan menyelesaikan file yang lebih pendek dan mempertahankan yang sudah dikirim percobaan terputus.",
+  "existingFileChoiceHint": "Tanya menampilkan setiap file seperti itu dengan ukuran dan tanggal kedua file, hingga Anda mencentang Selalu gunakan tindakan ini. Lanjutkan menyelesaikan file yang lebih pendek dan mempertahankan yang sudah dikirim percobaan terputus.",
   "conflictAsk": "Tanya setiap kali",
   "cleanupTitle": "Bersihkan File Sisa",
   "cleanupIntro": "File kerja yang ditinggalkan transfer yang terputus dan editor eksternal. File yang mungkin masih dibutuhkan transfer, sinkronisasi, atau editor ditampilkan tetapi tidak dapat dihapus.",
@@ -291,5 +291,9 @@
   "cleanupKeptFormat": "{0} tertinggal: {1}",
   "scanSubfolders": "Pindai subfolder untuk pohon folder",
   "scanSubfoldersHint": "Pohon folder sebuah panel membaca folder di bawah folder Anda saat ini, beberapa tingkat ke bawah, sehingga Anda dapat membukanya tanpa mengunjungi masing-masing terlebih dahulu. Di server, ini menambah beberapa permintaan, paling banyak seratus untuk setiap folder yang Anda buka, dan berhenti saat Anda pindah. Matikan untuk hanya menampilkan folder yang sudah didaftar panel.",
-  "culture": "id-ID"
+  "culture": "id-ID",
+  "strictTransferSafety": "Hanya ganti atau pindahkan file yang versinya dapat diperiksa",
+  "strictTransferSafetyHint": "Menolak mengganti atau memindahkan file kecuali kedua sisi melaporkan versi atau ETag, yang tidak pernah dilakukan SFTP, FTP, dan file di PC ini. Jika nonaktif, transfer mengganti atau memindahkan apa pun yang Anda setujui.",
+  "previewTransferChanges": "Pratinjau perubahan transfer sebelum dimulai",
+  "previewTransferChangesHint": "Mencantumkan setiap file yang akan dibuat, diganti, dilewati, atau diubah namanya oleh transfer, dan memungkinkan Anda memilih untuk masing-masing. Pratinjau perubahan di dialog tinjauan melakukan ini untuk satu transfer."
 }

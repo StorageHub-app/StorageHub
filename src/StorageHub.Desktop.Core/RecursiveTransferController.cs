@@ -139,6 +139,66 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Every file the transfer would write and what each lands on, read the way the transfer
+    /// itself reads them: folders walked, destination listed, nothing created and nothing queued.
+    /// </summary>
+    internal async Task<StorageResult<TransferPreview>> PreviewAsync(
+        PaneSelectionSnapshot source,
+        PaneDestinationSnapshot destination,
+        CancellationToken stop,
+        CancellationToken cancellationToken)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(destination);
+        if (!source.Items.Any(static item => item.IsContainer))
+        {
+            return StorageResult<TransferPreview>.Success(ManualTransferController.Preview(source, destination));
+        }
+
+        if (source.Context.Kind != PaneTransferContextKind.SavedConnection ||
+            destination.Context.Kind != PaneTransferContextKind.SavedConnection ||
+            source.Context.ConnectionId is null ||
+            destination.Context.ConnectionId is null)
+        {
+            return StorageResult<TransferPreview>.Fail(new StorageFailure(
+                "manual_transfer.saved_connections_required",
+                StorageFailureKind.Validation,
+                Ui.Validation.RecursiveTransfersRequireSavedConnectionsOnBoth));
+        }
+
+        var rows = new List<TransferPreviewRow>();
+        using var walk = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, stop);
+        ManualTransferEnqueueResult walked;
+        try
+        {
+            walked = await StreamAsync(
+                source, destination, TransferQueueOperation.Copy, TransferConflictPolicy.Replace,
+                [], progress: null, walk.Token, rows).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return StorageResult<TransferPreview>.Fail(new StorageFailure(
+                "manual_transfer.gathering_cancelled",
+                StorageFailureKind.Cancelled,
+                Ui.Validation.ReadingTheFolderWasStopped));
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException or
+            InvalidOperationException or TimeoutException or System.Text.Json.JsonException)
+        {
+            return StorageResult<TransferPreview>.Fail(new StorageFailure(
+                "manual_transfer.manifest_unavailable",
+                StorageFailureKind.Unavailable,
+                DesktopAgentAvailability.ReportFailure(error),
+                isTransient: true));
+        }
+
+        return walked.Failure is { } failure
+            ? StorageResult<TransferPreview>.Fail(failure)
+            : StorageResult<TransferPreview>.Success(new TransferPreview(rows.AsReadOnly()));
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (_disposed)
@@ -172,7 +232,8 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
         TransferConflictPolicy conflicts,
         List<TransferEnqueueResponse> accepted,
         Action<int, int>? progress,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        List<TransferPreviewRow>? preview = null)
     {
         var sourceEntryKinds = new Dictionary<string, StorageItemKind>(StringComparer.Ordinal);
         var ensuredDirectories = new HashSet<string>(StringComparer.Ordinal);
@@ -202,7 +263,7 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
         {
             var flushed = await FlushAsync(
                 batch, source, destination, operation, conflicts, targetPaths, ensuredDirectories,
-                destinationEntries, accepted, deferredRenames, cancellationToken).ConfigureAwait(false);
+                destinationEntries, accepted, deferredRenames, cancellationToken, preview).ConfigureAwait(false);
             if (flushed is not null)
             {
                 return new ManualTransferEnqueueResult(accepted, flushed.AmbiguousTransferIds, flushed.Failure);
@@ -219,7 +280,7 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
             progress?.Invoke(accepted.Count, ensuredDirectories.Count);
 
             var rootFailure = await EnsureDirectoryChainAsync(
-                destination, targetRoot, ensuredDirectories, cancellationToken).ConfigureAwait(false);
+                destination, targetRoot, ensuredDirectories, cancellationToken, preview is not null).ConfigureAwait(false);
             if (rootFailure is not null)
             {
                 return new ManualTransferEnqueueResult(accepted, [], rootFailure);
@@ -311,7 +372,7 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
                         // Created as it is met rather than in one depth-ordered pass at the end,
                         // because the files inside it are queued before the walk has seen the rest.
                         var madeDirectory = await EnsureDirectoryChainAsync(
-                            destination, targetPath, ensuredDirectories, cancellationToken).ConfigureAwait(false);
+                            destination, targetPath, ensuredDirectories, cancellationToken, preview is not null).ConfigureAwait(false);
                         if (madeDirectory is not null)
                         {
                             return new ManualTransferEnqueueResult(accepted, [], madeDirectory);
@@ -341,7 +402,7 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
                 {
                     var flushed = await FlushAsync(
                         batch, source, destination, operation, conflicts, targetPaths, ensuredDirectories,
-                        destinationEntries, accepted, deferredRenames, cancellationToken).ConfigureAwait(false);
+                        destinationEntries, accepted, deferredRenames, cancellationToken, preview).ConfigureAwait(false);
                     if (flushed is not null)
                     {
                         return new ManualTransferEnqueueResult(accepted, flushed.AmbiguousTransferIds, flushed.Failure);
@@ -358,7 +419,7 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
         {
             var flushed = await FlushAsync(
                 deferredRenames, source, destination, operation, conflicts, targetPaths, ensuredDirectories,
-                destinationEntries, accepted, deferredRenames: null, cancellationToken).ConfigureAwait(false);
+                destinationEntries, accepted, deferredRenames: null, cancellationToken, preview).ConfigureAwait(false);
             if (flushed is not null)
             {
                 return new ManualTransferEnqueueResult(accepted, flushed.AmbiguousTransferIds, flushed.Failure);
@@ -387,7 +448,8 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
         Dictionary<string, PaneTransferItem> destinationEntries,
         List<TransferEnqueueResponse> accepted,
         List<(PaneTransferItem Item, string DestinationPath)>? deferredRenames,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        List<TransferPreviewRow>? preview = null)
     {
         var requests = new List<TransferEnqueueRequest>(batch.Count);
         var skipped = 0;
@@ -420,11 +482,18 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
                     Ui.Validation.ADestinationFolderOrNonFileItem2));
             }
 
+            // A preview only records what is there; nothing is asked or queued.
+            if (preview is not null)
+            {
+                preview.Add(new TransferPreviewRow(item, destinationPath, existing));
+                continue;
+            }
+
             if (existing is not null)
             {
-                // Asked at the first file found already there, wherever in the tree that is, and
-                // kept for the rest of the walk.
-                if (await conflicts.ResolveAsync(existing, cancellationToken).ConfigureAwait(false) is not { } choice)
+                // Asked at each file found already there, wherever in the tree that is, until an
+                // answer covers the rest of the walk.
+                if (await conflicts.ResolveAsync(item, existing, cancellationToken).ConfigureAwait(false) is not { } choice)
                 {
                     return new ManualTransferEnqueueResult([], [], ManualTransferController.StoppedAtConflict());
                 }
@@ -464,7 +533,7 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
                 }
             }
 
-            if (existing is not null && (!existing.HasStableIdentity || !item.HasStableIdentity))
+            if (!conflicts.Unverified && existing is not null && (!existing.HasStableIdentity || !item.HasStableIdentity))
             {
                 return new ManualTransferEnqueueResult([], [], new StorageFailure(
                     "manual_transfer.overwrite_identity_required",
@@ -493,7 +562,9 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
                 item.Length,
                 TransferQueueVerification.StrongHashWhenAvailable,
                 ExpectedDestinationVersionId: existing?.VersionId,
-                ExpectedDestinationEntityTag: existing?.EntityTag);
+                ExpectedDestinationEntityTag: existing?.EntityTag,
+                ReplaceExisting: existing is not null,
+                Unverified: conflicts.Unverified);
             if (!request.HasValidBounds || IsSameAddress(request.Source, request.Destination))
             {
                 return new ManualTransferEnqueueResult([], [], new StorageFailure(
@@ -527,7 +598,8 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
         PaneDestinationSnapshot destination,
         string path,
         HashSet<string> ensuredDirectories,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool recordOnly = false)
     {
         var root = destination.Context.RelativePath;
         if (string.Equals(path, root, StringComparison.Ordinal) || ensuredDirectories.Contains(path))
@@ -550,6 +622,14 @@ internal sealed class RecursiveTransferController : IAsyncDisposable
         }
 
         pending.Reverse();
+
+        // A preview creates nothing: the folders are only claimed, so the walk's checks still hold.
+        if (recordOnly)
+        {
+            ensuredDirectories.UnionWith(pending);
+            return null;
+        }
+
         foreach (var directoryPath in pending)
         {
             cancellationToken.ThrowIfCancellationRequested();

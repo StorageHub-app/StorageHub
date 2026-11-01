@@ -61,7 +61,9 @@ internal static class DesktopPreferenceSectionMapper
             preferences.RemoteRefreshSeconds,
             preferences.HideEmptyGroups,
             preferences.ScanSubfolders,
-            preferences.ConnectionGroupsAtStartup);
+            preferences.ConnectionGroupsAtStartup,
+            preferences.StrictTransferSafety,
+            preferences.PreviewTransferChanges);
     }
 
     /// <summary>
@@ -239,7 +241,9 @@ internal static class DesktopPreferenceSectionMapper
             // A choice from a newer StorageHub that this one does not have leaves it as it was.
             ConnectionGroupsAtStartup = general.ConnectionGroupsAtStartup is { } groups && Enum.IsDefined(groups)
                 ? groups
-                : current.ConnectionGroupsAtStartup
+                : current.ConnectionGroupsAtStartup,
+            StrictTransferSafety = general.StrictTransferSafety ?? current.StrictTransferSafety,
+            PreviewTransferChanges = general.PreviewTransferChanges ?? current.PreviewTransferChanges
         };
 
     private static DesktopUpdatePreferences ApplyMachineSpecific(

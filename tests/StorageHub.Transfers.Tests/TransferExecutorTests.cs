@@ -384,6 +384,46 @@ public sealed class TransferExecutorTests
         Assert.Null(occupied.Destination.LastWriteRequest);
     }
 
+    /// <summary>
+    /// SFTP and FTP, where nothing has a version or an entity tag: a move onto a file already there,
+    /// approved without evidence as the relaxed default allows, replaces it plainly and deletes the
+    /// source. The same move held to the evidence is refused before any I/O, as before.
+    /// </summary>
+    [Fact]
+    public async Task ExecuteAsync_UnverifiedMoveReplacesAndDeletesWhereNothingHasAVersion()
+    {
+        var fixture = CreateFixture([7, 8, 9]);
+        fixture.Source.Capabilities = Capabilities(StorageFeature.ReadStream, StorageFeature.Delete);
+        fixture.Destination.Capabilities = Capabilities(StorageFeature.WriteStream);
+        fixture.Destination.Entry = CreateEntry(fixture.Intent.Destination, 1);
+        TransferIntent Move(bool unverified) => new(
+            fixture.Intent.TransferJobId,
+            TransferOperationKind.Move,
+            fixture.Intent.Source,
+            fixture.Intent.Destination,
+            3,
+            TransferVerificationPolicy.Size,
+            fixture.Intent.CreatedAtUtc,
+            replaceExisting: true,
+            unverified: unverified);
+        var options = new TransferExecutionOptions(Overwrite: true, AllowNonAtomicDestinationWrites: true);
+
+        var refused = await TransferExecutor.ExecuteAsync(Move(unverified: false), fixture.Source, fixture.Destination, options);
+        Assert.True(refused.IsFailure);
+        Assert.Equal("transfer.overwrite.identity_required", refused.Error.Code);
+        Assert.Null(fixture.Destination.LastWriteRequest);
+
+        var moved = await TransferExecutor.ExecuteAsync(Move(unverified: true), fixture.Source, fixture.Destination, options);
+
+        Assert.True(moved.IsSuccess, moved.IsFailure ? moved.Error.Message : null);
+        Assert.Equal(StorageWriteMode.Overwrite, fixture.Destination.LastWriteRequest!.Mode);
+        Assert.Null(fixture.Destination.LastWriteRequest.ExpectedDestinationVersionId);
+        Assert.Null(fixture.Destination.LastWriteRequest.ExpectedDestinationEntityTag);
+        Assert.Equal(new byte[] { 7, 8, 9 }, fixture.Destination.WrittenBytes);
+        Assert.True(moved.Value.SourceDeleted);
+        Assert.Equal(1, fixture.Source.DeleteCalls);
+    }
+
     [Fact]
     public async Task ExecuteAsync_NonAtomicCompatibilityReplacesWithoutStaging()
     {

@@ -1,0 +1,70 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
+        x:Class="StorageHub.Desktop.Views.TransferConflictWindow"
+        x:DataType="vm:TransferConflictModel"
+        Title="{x:Static vm:TransferConflictModel.Title}"
+        Width="{StaticResource TransferConflictWindowWidth}"
+        SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner">
+
+  <!--
+    The file arriving and the file already there, side by side with their size and time, then what
+    to do with it, as FileZilla asks. Asked again at the next such file unless the first box is
+    ticked, which keeps the answer for the rest of the transfer.
+  -->
+
+  <Border Classes="surface" Padding="{StaticResource PaddingLg}">
+    <StackPanel Spacing="{StaticResource SpaceMd}">
+      <TextBlock Text="{Binding Prompt}" TextWrapping="Wrap" FontWeight="SemiBold"/>
+
+      <Grid ColumnDefinitions="*,*" ColumnSpacing="{StaticResource SpaceMd}">
+        <Border Grid.Column="0" Classes="card" Padding="{StaticResource PaddingLg}">
+          <StackPanel Spacing="{StaticResource SpaceXs}">
+            <TextBlock Classes="caption" Text="{x:Static vm:TransferConflictModel.SourceHeading}"/>
+            <TextBlock Text="{Binding SourcePlace}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding SourcePlace}"/>
+            <TextBlock Text="{Binding SourceSize}"/>
+            <TextBlock Text="{Binding SourceModified}"/>
+          </StackPanel>
+        </Border>
+        <Border Grid.Column="1" Classes="card" Padding="{StaticResource PaddingLg}">
+          <StackPanel Spacing="{StaticResource SpaceXs}">
+            <TextBlock Classes="caption" Text="{x:Static vm:TransferConflictModel.TargetHeading}"/>
+            <TextBlock Text="{Binding TargetPlace}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding TargetPlace}"/>
+            <TextBlock Text="{Binding TargetSize}"/>
+            <TextBlock Text="{Binding TargetModified}"/>
+          </StackPanel>
+        </Border>
+      </Grid>
+
+      <TextBlock Classes="caption" Text="{x:Static vm:TransferConflictModel.ActionHeading}"/>
+      <ItemsControl ItemsSource="{Binding Options}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:TransferConflictOption">
+            <RadioButton GroupName="TransferConflictAction"
+                         Content="{Binding Label}"
+                         IsChecked="{Binding IsSelected, Mode=TwoWay}"/>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <StackPanel Spacing="{StaticResource SpaceXs}">
+        <CheckBox Content="{x:Static vm:TransferConflictModel.ApplyToRestLabel}"
+                  IsChecked="{Binding ApplyToRest, Mode=TwoWay}"/>
+        <CheckBox Content="{x:Static vm:TransferConflictModel.RememberLabel}"
+                  IsVisible="{Binding CanRemember}"
+                  IsEnabled="{Binding ApplyToRest}"
+                  IsChecked="{Binding Remember, Mode=TwoWay}"
+                  Margin="20,0,0,0"/>
+      </StackPanel>
+
+      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="{StaticResource SpaceSm}"
+                  Margin="{StaticResource BlockGapAbove}">
+        <Button Content="{x:Static vm:TransferConflictModel.CancelLabel}" Command="{Binding CancelCommand}" IsCancel="True"/>
+        <Button x:Name="PART_Ok" Classes="primary" Content="{x:Static vm:TransferConflictModel.OkLabel}"
+                Command="{Binding OkCommand}" IsDefault="True"/>
+      </StackPanel>
+    </StackPanel>
+  </Border>
+</Window>

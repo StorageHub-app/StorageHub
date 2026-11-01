@@ -579,7 +579,8 @@ public sealed class TransferQueueAgentSubsystem
                         // staged and the retry sends the rest, unless somebody cancelled the
                         // transfer, whose staged bytes nobody will continue.
                         new TransferExecutionOptions(
-                            Overwrite: context.Job.Intent.ExpectedDestinationVersionId is not null ||
+                            Overwrite: context.Job.Intent.ReplaceExisting ||
+                                       context.Job.Intent.ExpectedDestinationVersionId is not null ||
                                        context.Job.Intent.ExpectedDestinationEntityTag is not null,
                             BufferSize: _options.BufferSize,
                             AllowNonAtomicDestinationWrites: true,

@@ -257,7 +257,7 @@
   "importBack": "Indietro",
   "sectionExistingFiles": "File esistenti",
   "existingFileChoice": "Quando un file è già presente",
-  "existingFileChoiceHint": "Chiedi mostra la scelta al primo file di questo tipo, per l'intero trasferimento. Riprendi completa un file più corto e mantiene quanto un tentativo interrotto aveva già inviato.",
+  "existingFileChoiceHint": "Chiedi mostra ogni file di questo tipo con dimensione e data di entrambi i file, finché non selezioni Usa sempre questa azione. Riprendi completa un file più corto e mantiene quanto un tentativo interrotto aveva già inviato.",
   "conflictAsk": "Chiedi ogni volta",
   "cleanupTitle": "Pulisci file residui",
   "cleanupIntro": "File di lavoro lasciati dai trasferimenti interrotti e dall'editor esterno. Un file di cui un trasferimento, una sincronizzazione o l'editor potrebbe ancora avere bisogno viene mostrato ma non può essere rimosso.",
@@ -291,5 +291,9 @@
   "cleanupKeptFormat": "{0} sono rimasti: {1}",
   "scanSubfolders": "Analizza le sottocartelle per l'albero delle cartelle",
   "scanSubfoldersHint": "L'albero delle cartelle di un riquadro legge le cartelle sotto quella in cui ti trovi, per alcuni livelli, così puoi aprirle senza visitare prima ciascuna. Su un server comporta alcune richieste aggiuntive, al massimo cento per ogni cartella che apri, e si ferma quando passi oltre. Disattiva per mostrare solo le cartelle elencate dal riquadro.",
-  "culture": "it-IT"
+  "culture": "it-IT",
+  "strictTransferSafety": "Sostituisci o sposta solo i file la cui versione può essere verificata",
+  "strictTransferSafetyHint": "Rifiuta di sostituire o spostare un file a meno che entrambi i lati riportino una versione o un ETag, cosa che SFTP, FTP e i file su questo PC non fanno mai. Se disattivato, un trasferimento sostituisce o sposta tutto ciò che accetti.",
+  "previewTransferChanges": "Mostra in anteprima cosa cambia un trasferimento prima che inizi",
+  "previewTransferChangesHint": "Elenca ogni file che un trasferimento creerà, sostituirà, salterà o rinominerà, e ti permette di scegliere per ciascuno. Anteprima modifiche nella finestra di verifica fa lo stesso per un singolo trasferimento."
 }

@@ -712,13 +712,20 @@ public sealed class ShellTransferIpcCommandService(
             var target = review.Destination.Append(file.RelativePath);
             if (target.IsFailure) return CommitFailure("A destination path from the reviewed import is no longer valid.");
             var destination = target.Value;
+            var replacing = review.Conflicts.Contains(file.RelativePath);
             if (review.ExistingDestinations.TryGetValue(file.RelativePath, out var existing))
             {
                 var withEvidence = StorageAddress.Create(destination.ProfileId, destination.RootIdentity, destination.CanonicalRelativePath, existing.NativeItemId, existing.VersionId, existing.EntityTag);
                 if (withEvidence.IsFailure) return CommitFailure("The reviewed destination identity is invalid.");
                 destination = withEvidence.Value;
             }
-            var intent = new TransferIntent(TransferJobId.New(), TransferOperationKind.Copy, source.Value, destination, file.File.Length, TransferVerificationPolicy.Size, _time.GetUtcNow());
+            // A file already there is replaced as agreed: plainly when the person allowed it without
+            // evidence, which SFTP and FTP never carry, and held to its identity otherwise.
+            var intent = new TransferIntent(
+                TransferJobId.New(), TransferOperationKind.Copy, source.Value, destination, file.File.Length,
+                TransferVerificationPolicy.Size, _time.GetUtcNow(),
+                replaceExisting: replacing && (request.Unverified || destination.VersionId is not null || destination.EntityTag is not null),
+                unverified: replacing && request.Unverified);
             var accepted = await _store.TryEnqueueAsync(intent, priority: 0, cancellationToken).ConfigureAwait(false);
             if (accepted) ids.Add(intent.TransferJobId.Value);
         }

@@ -257,7 +257,7 @@
   "importBack": "Retour",
   "sectionExistingFiles": "Fichiers existants",
   "existingFileChoice": "Lorsqu'un fichier existe déjà",
-  "existingFileChoiceHint": "Demander affiche le choix dès le premier fichier concerné, pour tout le transfert. Reprendre termine un fichier plus court et conserve ce qu'une tentative interrompue a déjà envoyé.",
+  "existingFileChoiceHint": "Demander affiche chaque fichier concerné avec la taille et la date des deux fichiers, jusqu'à ce que vous cochiez Toujours utiliser cette action. Reprendre termine un fichier plus court et conserve ce qu'une tentative interrompue a déjà envoyé.",
   "conflictAsk": "Demander à chaque fois",
   "cleanupTitle": "Nettoyer les fichiers résiduels",
   "cleanupIntro": "Fichiers de travail laissés par les transferts interrompus et l'éditeur externe. Un fichier dont un transfert, une synchronisation ou l'éditeur peut encore avoir besoin est affiché mais ne peut pas être supprimé.",
@@ -291,5 +291,9 @@
   "cleanupKeptFormat": "{0} ont été conservés : {1}",
   "scanSubfolders": "Analyser les sous-dossiers pour l'arborescence",
   "scanSubfoldersHint": "L'arborescence d'un volet lit les dossiers situés sous celui où vous êtes, sur quelques niveaux, afin de pouvoir les ouvrir sans visiter chacun d'abord. Sur un serveur, cela ajoute quelques requêtes, cent au plus par dossier ouvert, et s'arrête dès que vous passez à autre chose. Désactivez cette option pour n'afficher que les dossiers listés par le volet.",
-  "culture": "fr-FR"
+  "culture": "fr-FR",
+  "strictTransferSafety": "Ne remplacer ou déplacer que les fichiers dont la version peut être vérifiée",
+  "strictTransferSafetyHint": "Refuse de remplacer ou de déplacer un fichier si les deux côtés ne fournissent pas une version ou un ETag, ce que SFTP, FTP et les fichiers de ce PC ne font jamais. Désactivé, un transfert remplace ou déplace tout ce que vous acceptez.",
+  "previewTransferChanges": "Afficher un aperçu des modifications d'un transfert avant son démarrage",
+  "previewTransferChangesHint": "Liste chaque fichier qu'un transfert va créer, remplacer, ignorer ou renommer, et vous laisse choisir pour chacun. Aperçu des modifications, dans la boîte de vérification, fait de même pour un seul transfert."
 }

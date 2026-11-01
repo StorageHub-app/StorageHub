@@ -257,7 +257,7 @@
   "importBack": "Terug",
   "sectionExistingFiles": "Bestaande bestanden",
   "existingFileChoice": "Wanneer een bestand er al staat",
-  "existingFileChoiceHint": "Vragen toont de keuze bij het eerste zulke bestand, voor de hele overdracht. Hervatten maakt een korter bestand af en behoudt wat een onderbroken poging al heeft verzonden.",
+  "existingFileChoiceHint": "Vragen toont elk zulk bestand met grootte en datum van beide bestanden, totdat u Deze actie altijd gebruiken aanvinkt. Hervatten maakt een korter bestand af en behoudt wat een onderbroken poging al heeft verzonden.",
   "conflictAsk": "Elke keer vragen",
   "cleanupTitle": "Overgebleven bestanden opruimen",
   "cleanupIntro": "Werkbestanden die onderbroken overdrachten en de externe editor hebben achtergelaten. Een bestand dat een overdracht, een synchronisatie of de editor mogelijk nog nodig heeft, wordt getoond maar kan niet worden verwijderd.",
@@ -291,5 +291,9 @@
   "cleanupKeptFormat": "{0} zijn overgebleven: {1}",
   "scanSubfolders": "Submappen scannen voor de mappenstructuur",
   "scanSubfoldersHint": "De mappenstructuur van een paneel leest de mappen onder de map waarin u zich bevindt, enkele niveaus diep, zodat u ze kunt openen zonder eerst elke map te bezoeken. Op een server geeft dat enkele extra verzoeken, ten hoogste honderd per map die u opent, en het stopt zodra u verdergaat. Zet dit uit om alleen de mappen te tonen die het paneel heeft weergegeven.",
-  "culture": "nl-NL"
+  "culture": "nl-NL",
+  "strictTransferSafety": "Alleen bestanden vervangen of verplaatsen waarvan de versie te controleren is",
+  "strictTransferSafetyHint": "Weigert een bestand te vervangen of te verplaatsen tenzij beide kanten een versie of ETag melden, wat SFTP, FTP en bestanden op deze pc nooit doen. Uit vervangt of verplaatst een overdracht alles waarmee u instemt.",
+  "previewTransferChanges": "Vooraf tonen wat een overdracht wijzigt",
+  "previewTransferChangesHint": "Toont elk bestand dat een overdracht maakt, vervangt, overslaat of hernoemt, en laat u per bestand kiezen. Voorbeeld van wijzigingen in het controlevenster doet dit voor één overdracht."
 }

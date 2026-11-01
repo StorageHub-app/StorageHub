@@ -686,7 +686,17 @@ internal sealed class SettingsStrings : LocalizationModelBase
     public string ExistingFileChoice { get; set; } = "When a file is already there";
 
     public string ExistingFileChoiceHint { get; set; } =
-        "Ask shows the choice at the first such file, for the whole transfer. Resume finishes a shorter file and keeps what an interrupted attempt already sent.";
+        "Ask shows each such file with both files' size and date, until you tick Always use this action. Resume finishes a shorter file and keeps what an interrupted attempt already sent.";
+
+    public string StrictTransferSafety { get; set; } = "Only replace or move files whose version can be checked";
+
+    public string StrictTransferSafetyHint { get; set; } =
+        "Refuses to replace or move a file unless both sides report a version or entity tag, which SFTP, FTP and files on this PC never do. Off, a transfer replaces or moves whatever you agree to.";
+
+    public string PreviewTransferChanges { get; set; } = "Preview what a transfer changes before it starts";
+
+    public string PreviewTransferChangesHint { get; set; } =
+        "Lists every file a transfer will create, replace, skip or rename, and lets you choose for each one. Preview changes in the review dialog does this for a single transfer.";
 
     public string ConflictAsk { get; set; } = "Ask each time";
 

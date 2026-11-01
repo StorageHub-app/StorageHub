@@ -403,7 +403,7 @@ public sealed class FolderCompareController : IAsyncDisposable
                     continue;
                 }
 
-                if (await conflicts.ResolveAsync(existing, cancellationToken).ConfigureAwait(false) is not { } choice)
+                if (await conflicts.ResolveAsync(incoming, existing, cancellationToken).ConfigureAwait(false) is not { } choice)
                 {
                     return StorageResult<CopyPlan>.Fail(ManualTransferController.StoppedAtConflict());
                 }
@@ -432,7 +432,7 @@ public sealed class FolderCompareController : IAsyncDisposable
 
                 // Replacing a file is held to the version listed for it, and the agent can only
                 // hold it to one it was given.
-                if (to is not null && (to.VersionId is null && to.EntityTag is null ||
+                if (!conflicts.Unverified && to is not null && (to.VersionId is null && to.EntityTag is null ||
                     from.VersionId is null && from.EntityTag is null))
                 {
                     leftOut++;
@@ -452,7 +452,9 @@ public sealed class FolderCompareController : IAsyncDisposable
                 TransferQueueVerification.StrongHashWhenAvailable,
                 0,
                 to?.VersionId,
-                to?.EntityTag);
+                to?.EntityTag,
+                ReplaceExisting: to is not null,
+                Unverified: conflicts.Unverified);
             if (!request.HasValidBounds)
             {
                 return StorageResult<CopyPlan>.Fail(new StorageFailure(

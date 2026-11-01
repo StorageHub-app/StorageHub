@@ -310,6 +310,8 @@ internal sealed class DesktopConfigStore
                 : ConnectionGroupsAtStartup.Expanded,
             CollapsedConnectionGroups: general.CollapsedConnectionGroups?.ToArray(),
             FavoritesCollapsed: general.FavoritesCollapsed,
+            StrictTransferSafety: general.StrictTransferSafety,
+            PreviewTransferChanges: general.PreviewTransferChanges,
             // A scheme this build does not have follows the appearance, as if none were chosen.
             ColorScheme: ColorSchemeCatalog.Knows(general.ColorScheme) ? general.ColorScheme : null);
     }
@@ -407,7 +409,9 @@ internal sealed class DesktopConfigStore
                 ? [.. collapsed]
                 : null,
             FavoritesCollapsed = preferences.FavoritesCollapsed,
-            ColorScheme = preferences.ColorScheme
+            ColorScheme = preferences.ColorScheme,
+            StrictTransferSafety = preferences.StrictTransferSafety,
+            PreviewTransferChanges = preferences.PreviewTransferChanges
         };
 
         var shortcuts = new DesktopShortcutsConfig

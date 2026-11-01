@@ -62,7 +62,11 @@ internal sealed record DesktopGeneralSection(
     // How the connection groups open at startup, the person's choice rather than the machine's.
     // Which groups were closed is window layout and stays behind. Absent in an older file, which
     // leaves the importing machine's choice alone.
-    ConnectionGroupsAtStartup? ConnectionGroupsAtStartup = null);
+    ConnectionGroupsAtStartup? ConnectionGroupsAtStartup = null,
+    // How careful transfers are about replacing and moving, and whether they preview first: the
+    // person's choices. Absent in an older file, which leaves the importing machine's alone.
+    bool? StrictTransferSafety = null,
+    bool? PreviewTransferChanges = null);
 
 /// <summary>
 /// Settings that name something on one computer: a path, or a reference into that machine's

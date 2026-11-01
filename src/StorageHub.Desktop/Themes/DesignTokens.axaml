@@ -609,6 +609,11 @@
   <sys:Double x:Key="ConnectionPickerWidth">380</sys:Double>
   <sys:Double x:Key="ConnectionPickerHeight">380</sys:Double>
   <sys:Double x:Key="BatchRenameWindowWidth">620</sys:Double>
+  <sys:Double x:Key="TransferConflictWindowWidth">560</sys:Double>
+  <sys:Double x:Key="TransferPreviewWindowWidth">1000</sys:Double>
+  <sys:Double x:Key="TransferPreviewWindowHeight">560</sys:Double>
+  <sys:Double x:Key="TransferPreviewWindowMinWidth">720</sys:Double>
+  <sys:Double x:Key="TransferPreviewWindowMinHeight">360</sys:Double>
   <sys:Double x:Key="BatchRenameWindowHeight">460</sys:Double>
   <sys:Double x:Key="BatchRenameWindowMinWidth">480</sys:Double>
   <sys:Double x:Key="BatchRenameWindowMinHeight">360</sys:Double>

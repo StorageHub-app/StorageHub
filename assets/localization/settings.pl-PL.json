@@ -257,7 +257,7 @@
   "importBack": "Wstecz",
   "sectionExistingFiles": "Istniejące pliki",
   "existingFileChoice": "Gdy plik już istnieje",
-  "existingFileChoiceHint": "Pytaj pokazuje wybór przy pierwszym takim pliku, dla całego transferu. Wznów dokańcza krótszy plik i zachowuje to, co przerwana próba już wysłała.",
+  "existingFileChoiceHint": "Pytaj pokazuje każdy taki plik z rozmiarem i datą obu plików, dopóki nie zaznaczysz Zawsze używaj tej akcji. Wznów dokańcza krótszy plik i zachowuje to, co przerwana próba już wysłała.",
   "conflictAsk": "Pytaj za każdym razem",
   "cleanupTitle": "Wyczyść pozostałe pliki",
   "cleanupIntro": "Pliki robocze pozostawione przez przerwane transfery i edytor zewnętrzny. Plik, którego transfer, synchronizacja lub edytor może jeszcze potrzebować, jest wyświetlany, ale nie można go usunąć.",
@@ -291,5 +291,9 @@
   "cleanupKeptFormat": "Pozostawiono: {0}. {1}",
   "scanSubfolders": "Skanuj podfoldery dla drzewa folderów",
   "scanSubfoldersHint": "Drzewo folderów panelu odczytuje foldery znajdujące się pod bieżącym, na kilka poziomów w głąb, aby można je było otwierać bez odwiedzania każdego z osobna. Na serwerze oznacza to kilka dodatkowych żądań, najwyżej sto na każdy otwierany folder, a skanowanie kończy się, gdy przejdziesz dalej. Wyłącz, aby pokazywać tylko foldery wyświetlone przez panel.",
-  "culture": "pl-PL"
+  "culture": "pl-PL",
+  "strictTransferSafety": "Zastępuj lub przenoś tylko pliki, których wersję można sprawdzić",
+  "strictTransferSafetyHint": "Odmawia zastąpienia lub przeniesienia pliku, chyba że obie strony podają wersję lub ETag, czego SFTP, FTP i pliki na tym komputerze nigdy nie robią. Gdy wyłączone, transfer zastępuje lub przenosi wszystko, na co się zgodzisz.",
+  "previewTransferChanges": "Pokazuj podgląd zmian transferu przed jego rozpoczęciem",
+  "previewTransferChangesHint": "Wyświetla każdy plik, który transfer utworzy, zastąpi, pominie lub którego nazwę zmieni, i pozwala wybrać dla każdego z nich. Podgląd zmian w oknie przeglądu robi to dla pojedynczego transferu."
 }

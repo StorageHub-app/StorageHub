@@ -133,8 +133,14 @@ public sealed record TransferEnqueueRequest(
     TransferQueueVerification Verification,
     int Priority = 0,
     string? ExpectedDestinationVersionId = null,
-    string? ExpectedDestinationEntityTag = null)
+    string? ExpectedDestinationEntityTag = null,
+    bool ReplaceExisting = false,
+    bool Unverified = false)
 {
+    // ReplaceExisting: the person agreed to replace a file already at the destination.
+    // Unverified: the person agreed to replace or move without version evidence, as the relaxed
+    // default allows. Both default false, so an older client and an older stored job stay strict.
+
     public bool HasValidBounds =>
         ContractVersion > 0 &&
         TransferId != Guid.Empty &&

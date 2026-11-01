@@ -133,7 +133,15 @@ public sealed record ShellImportPlanResponse(
     ShellImportItem[] Items,
     StorageIpcFailure? Failure = null);
 
-public sealed record ShellImportCommitRequest(int ContractVersion, string ReviewToken, ShellImportDisposition Disposition)
+/// <param name="Unverified">
+/// Replace files already there without version evidence, as the relaxed default allows; false holds
+/// a replacement to the evidence, which SFTP and FTP never have.
+/// </param>
+public sealed record ShellImportCommitRequest(
+    int ContractVersion,
+    string ReviewToken,
+    ShellImportDisposition Disposition,
+    bool Unverified = false)
 {
     public bool HasValidBounds => ContractVersion > 0 && Enum.IsDefined(Disposition) &&
         !string.IsNullOrWhiteSpace(ReviewToken) && ReviewToken.Length <= ShellTransferIpcLimits.MaximumReviewTokenLength && !ReviewToken.Any(char.IsControl);

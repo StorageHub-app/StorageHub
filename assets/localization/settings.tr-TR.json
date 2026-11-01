@@ -257,7 +257,7 @@
   "importBack": "Geri",
   "sectionExistingFiles": "Var olan dosyalar",
   "existingFileChoice": "Bir dosya zaten oradayken",
-  "existingFileChoiceHint": "Sor, böyle ilk dosyada seçimi tüm aktarım için gösterir. Sürdür, daha kısa bir dosyayı tamamlar ve yarım kalan bir denemenin zaten gönderdiğini korur.",
+  "existingFileChoiceHint": "Sor, böyle her dosyayı iki dosyanın boyutu ve tarihiyle, “… her zaman bu eylemi kullan” seçeneğini işaretleyene kadar gösterir. Sürdür, daha kısa bir dosyayı tamamlar ve yarım kalan bir denemenin zaten gönderdiğini korur.",
   "conflictAsk": "Her seferinde sor",
   "cleanupTitle": "Artık Dosyaları Temizle",
   "cleanupIntro": "Yarım kalan aktarımların ve harici düzenleyicinin geride bıraktığı çalışma dosyaları. Bir aktarımın, eşitlemenin veya düzenleyicinin hâlâ ihtiyaç duyabileceği dosya gösterilir ancak kaldırılamaz.",
@@ -291,5 +291,9 @@
   "cleanupKeptFormat": "{0} bırakıldı: {1}",
   "scanSubfolders": "Klasör ağacı için alt klasörleri tara",
   "scanSubfoldersHint": "Bir bölmenin klasör ağacı, bulunduğunuz klasörün altındaki klasörleri birkaç düzey aşağıya kadar okur; böylece her birini önce ziyaret etmeden açabilirsiniz. Sunucuda bu, açtığınız her klasör için en fazla yüz olmak üzere birkaç ek istek yapar ve siz başka yere geçince durur. Yalnızca bölmenin listelediği klasörleri göstermek için kapatın.",
-  "culture": "tr-TR"
+  "culture": "tr-TR",
+  "strictTransferSafety": "Yalnızca sürümü denetlenebilen dosyaları değiştir veya taşı",
+  "strictTransferSafetyHint": "Her iki taraf da bir sürüm veya ETag bildirmedikçe bir dosyayı değiştirmeyi veya taşımayı reddeder; SFTP, FTP ve bu bilgisayardaki dosyalar bunu hiçbir zaman yapmaz. Kapalıyken bir aktarım, onayladığınız her şeyi değiştirir veya taşır.",
+  "previewTransferChanges": "Bir aktarımın neyi değiştireceğini başlamadan önce önizle",
+  "previewTransferChangesHint": "Bir aktarımın oluşturacağı, değiştireceği, atlayacağı veya yeniden adlandıracağı her dosyayı listeler ve her biri için seçim yapmanızı sağlar. İnceleme iletişim kutusundaki Değişiklikleri önizle, bunu tek bir aktarım için yapar."
 }

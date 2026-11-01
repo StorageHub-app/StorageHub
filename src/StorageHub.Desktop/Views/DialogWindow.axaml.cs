@@ -72,7 +72,11 @@ public partial class DialogWindow : Window
             var named = affirmative && !string.IsNullOrWhiteSpace(request.Accept);
             var button = new Button
             {
-                Content = named ? request.Accept : LabelFor(choice),
+                Content = named
+                    ? request.Accept
+                    : choice == DialogChoice.No && !string.IsNullOrWhiteSpace(request.Alternate)
+                        ? request.Alternate
+                        : LabelFor(choice),
                 IsDefault = choice == enter,
                 IsCancel = choice == fallback && choice is DialogChoice.Cancel or DialogChoice.No
             };

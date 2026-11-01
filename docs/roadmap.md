@@ -633,6 +633,18 @@ The profile already stores these; `CodeLogicConnectionProfileConnector.BuildAsyn
       they can be replaced and can replace; moving them stays refused. Left open: a choice per
       file, appending in place to a partial file StorageHub did not stage, and a source with no
       version or entity tag, which still cannot replace anything.
+      2.1.3: the open items but appending are closed, and replacing is no longer restricted by
+      default. Each file already there is asked about in its own window (both files' size and
+      time, "always use this action" for the rest, "make it the default"), as FileZilla asks. The
+      review dialog's Preview changes button lists every file a transfer writes (new, replaced,
+      skipped, renamed) with a choice per file, read without creating or queuing anything
+      (`TransferPreview`, `RecursiveTransferController.PreviewAsync`); Settings can open it on
+      every transfer. Requests and intents carry `ReplaceExisting` and `Unverified`: an unverified
+      replace with no identity is written plainly, and an unverified move deletes its source with
+      no condition, so SFTP, FTP and This PC files are replaced and moved. "Only replace or move
+      files whose version can be checked" in Settings brings back the evidence rules above. Still
+      open: folder moves, and the per-file window for files dropped in from Explorer, which keep
+      the Replace/Skip question.
 - [x] 1.7 Resume: real resume for uploads and downloads in place of the `ResumeToken => null` stubs.
       A write can carry a resume key (`TransferResumeKey`: the source's identity, version, size and
       time, and the destination), and a destination that supports `ResumeUpload` stages it in a

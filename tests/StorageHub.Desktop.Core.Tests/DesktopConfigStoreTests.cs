@@ -84,7 +84,9 @@ public sealed class DesktopConfigStoreTests : IDisposable
             AutoRefreshFolders = true,
             RemoteRefreshSeconds = 120,
             TransferQueueVisible = false,
-            ShowHiddenFiles = false
+            ShowHiddenFiles = false,
+            StrictTransferSafety = true,
+            PreviewTransferChanges = true
         };
         new DesktopConfigStore(_directory).Save(saved);
 

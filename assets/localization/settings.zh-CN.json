@@ -257,7 +257,7 @@
   "importBack": "返回",
   "sectionExistingFiles": "已有文件",
   "existingFileChoice": "当文件已存在时",
-  "existingFileChoiceHint": "“询问”会在遇到第一个此类文件时显示选项，并适用于整个传输。“续传”会补全较短的文件，并保留中断的尝试已发送的内容。",
+  "existingFileChoiceHint": "“询问”会显示每个此类文件及两个文件的大小和日期，直到您勾选“始终使用此操作”。“续传”会补全较短的文件，并保留中断的尝试已发送的内容。",
   "conflictAsk": "每次询问",
   "cleanupTitle": "清理残留文件",
   "cleanupIntro": "被中断的传输和外部编辑器遗留的工作文件。传输、同步或编辑器可能仍需要的文件会显示出来，但无法删除。",
@@ -291,5 +291,9 @@
   "cleanupKeptFormat": "保留了 {0} 个：{1}",
   "scanSubfolders": "为文件夹树扫描子文件夹",
   "scanSubfoldersHint": "窗格的文件夹树会读取当前文件夹下方几层的文件夹，这样无需先逐个访问就能展开它们。在服务器上，这会产生一些额外请求，每打开一个文件夹最多一百个，并在您转到别处时停止。关闭后只显示窗格已列出的文件夹。",
-  "culture": "zh-CN"
+  "culture": "zh-CN",
+  "strictTransferSafety": "仅替换或移动可校验版本的文件",
+  "strictTransferSafetyHint": "除非两端都报告版本或 ETag，否则拒绝替换或移动文件；SFTP、FTP 和此电脑上的文件从不报告。关闭时，传输会替换或移动您同意的所有内容。",
+  "previewTransferChanges": "在传输开始前预览其更改",
+  "previewTransferChangesHint": "列出传输将创建、替换、跳过或重命名的每个文件，并让您逐个选择。检查对话框中的“预览更改”可对单次传输执行此操作。"
 }

@@ -247,6 +247,8 @@ public static class LocalUserPathTransferEndpoint
             new KeyValuePair<StorageFeature, FeatureSupport>(StorageFeature.ReadStream, FeatureSupport.Native()),
             new KeyValuePair<StorageFeature, FeatureSupport>(StorageFeature.WriteStream, FeatureSupport.Native()),
             new KeyValuePair<StorageFeature, FeatureSupport>(StorageFeature.ConditionalCreate, FeatureSupport.Native()),
+            new KeyValuePair<StorageFeature, FeatureSupport>(StorageFeature.Delete, FeatureSupport.Native(
+                "Only the source of a move, once its copy is complete.")),
             new KeyValuePair<StorageFeature, FeatureSupport>(StorageFeature.ResumeDownload, FeatureSupport.Native()),
             new KeyValuePair<StorageFeature, FeatureSupport>(StorageFeature.ResumeUpload, FeatureSupport.Native(
                 "A partial file beside the destination is continued and renamed into place."))]);
@@ -457,10 +459,69 @@ public static class LocalUserPathTransferEndpoint
             ValueTask.FromResult(Fail<StoragePage>(
                 "local-user.unsupported", "The transfer worker does not browse local folders."));
 
-        public ValueTask<StorageResult> DeleteAsync(StorageDeleteRequest request, CancellationToken cancellationToken = default) =>
-            ValueTask.FromResult(StorageResult.Fail(new StorageFailure(
-                "local-user.unsupported", StorageFailureKind.Unsupported,
-                "A queued transfer does not delete from a local folder.")));
+        /// <summary>
+        /// Deletes one file: the source of a move off this PC, once the executor has verified its
+        /// copy. Never a folder, never recursively, and never on a condition, which a local file
+        /// has nothing to compare against.
+        /// </summary>
+        public ValueTask<StorageResult> DeleteAsync(StorageDeleteRequest request, CancellationToken cancellationToken = default)
+        {
+            var validation = request.Validate();
+            if (validation.IsFailure)
+            {
+                return ValueTask.FromResult(validation);
+            }
+
+            if (request.Recursive ||
+                request.ExpectedVersionId is not null ||
+                request.ExpectedEntityTag is not null)
+            {
+                return ValueTask.FromResult(StorageResult.Fail(new StorageFailure(
+                    "local-user.delete-mode", StorageFailureKind.Unsupported,
+                    "A local folder deletes one file, without a version condition.")));
+            }
+
+            var approved = Approve(request.Address);
+            if (approved is not null)
+            {
+                return ValueTask.FromResult(StorageResult.Fail(approved));
+            }
+
+            var resolved = Resolve(request.Address);
+            if (resolved.IsFailure)
+            {
+                return ValueTask.FromResult(StorageResult.Fail(resolved.Error));
+            }
+
+            try
+            {
+                var file = new FileInfo(resolved.Value);
+                if (Directory.Exists(resolved.Value) || file is { Exists: true, LinkTarget: not null })
+                {
+                    return ValueTask.FromResult(StorageResult.Fail(new StorageFailure(
+                        "local-user.not-a-file", StorageFailureKind.Unsupported,
+                        "The local source is a folder or a link.")));
+                }
+
+                if (!file.Exists)
+                {
+                    return ValueTask.FromResult(request.IgnoreMissing
+                        ? StorageResult.Success()
+                        : StorageResult.Fail(new StorageFailure(
+                            "local-user.missing", StorageFailureKind.NotFound,
+                            "The local file no longer exists.")));
+                }
+
+                file.Delete();
+                return ValueTask.FromResult(StorageResult.Success());
+            }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            {
+                return ValueTask.FromResult(StorageResult.Fail(new StorageFailure(
+                    "local-user.delete", StorageFailureKind.Unavailable,
+                    "The local file could not be deleted.", isTransient: true)));
+            }
+        }
 
         public ValueTask<StorageResult<StorageEntry>> CopyAsync(StorageCopyRequest request, CancellationToken cancellationToken = default) =>
             ValueTask.FromResult(Fail<StorageEntry>(

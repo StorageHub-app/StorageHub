@@ -257,7 +257,7 @@
   "importBack": "Atrás",
   "sectionExistingFiles": "Archivos existentes",
   "existingFileChoice": "Cuando ya hay un archivo",
-  "existingFileChoiceHint": "Preguntar muestra la elección en el primer archivo así, para toda la transferencia. Reanudar termina un archivo más corto y conserva lo que ya envió un intento interrumpido.",
+  "existingFileChoiceHint": "Preguntar muestra cada archivo así con el tamaño y la fecha de ambos archivos, hasta que marque Usar siempre esta acción. Reanudar termina un archivo más corto y conserva lo que ya envió un intento interrumpido.",
   "conflictAsk": "Preguntar cada vez",
   "cleanupTitle": "Limpiar archivos sobrantes",
   "cleanupIntro": "Archivos de trabajo que dejaron las transferencias interrumpidas y el editor externo. Un archivo que una transferencia, una sincronización o el editor aún pueda necesitar se muestra, pero no se puede quitar.",
@@ -291,5 +291,9 @@
   "cleanupKeptFormat": "Quedaron {0}: {1}",
   "scanSubfolders": "Explorar subcarpetas para el árbol de carpetas",
   "scanSubfoldersHint": "El árbol de carpetas de un panel lee las carpetas que hay debajo de la actual, unos cuantos niveles, para que puedas abrirlas sin visitar cada una antes. En un servidor supone algunas solicitudes adicionales, como máximo cien por cada carpeta que abres, y se detiene cuando sigues adelante. Desactívalo para mostrar solo las carpetas que el panel ha listado.",
-  "culture": "es-ES"
+  "culture": "es-ES",
+  "strictTransferSafety": "Reemplazar o mover solo archivos cuya versión se pueda comprobar",
+  "strictTransferSafetyHint": "Se niega a reemplazar o mover un archivo salvo que ambos lados indiquen una versión o ETag, algo que SFTP, FTP y los archivos de este equipo nunca hacen. Desactivado, una transferencia reemplaza o mueve todo lo que usted acepte.",
+  "previewTransferChanges": "Previsualizar lo que cambia una transferencia antes de que empiece",
+  "previewTransferChangesHint": "Enumera cada archivo que una transferencia creará, reemplazará, omitirá o renombrará, y le permite elegir para cada uno. Vista previa de los cambios, en el cuadro de revisión, hace esto para una sola transferencia."
 }

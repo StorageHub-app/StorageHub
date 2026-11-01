@@ -1,0 +1,101 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:StorageHub.Desktop.Views"
+        x:Class="StorageHub.Desktop.Views.TransferPreviewWindow"
+        x:DataType="vm:TransferPreviewModel"
+        Title="{x:Static vm:TransferPreviewModel.Title}"
+        Width="{StaticResource TransferPreviewWindowWidth}" Height="{StaticResource TransferPreviewWindowHeight}"
+        MinWidth="{StaticResource TransferPreviewWindowMinWidth}" MinHeight="{StaticResource TransferPreviewWindowMinHeight}"
+        WindowStartupLocation="CenterOwner">
+
+  <!--
+    Every file the transfer would write, before anything is queued: new ones, and those that land
+    on a file already there with a drop-down each for what to do with it. The buttons above the
+    list set every such file at once; the counts under it follow each change.
+  -->
+
+  <Border Classes="surface">
+    <DockPanel Margin="{StaticResource PaddingLg}">
+
+      <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto,Auto,Auto"
+            ColumnSpacing="{StaticResource SpaceSm}" Margin="{StaticResource GapBelowMd}">
+        <CheckBox Grid.Column="0" Content="{x:Static vm:TransferPreviewModel.OnlyConflictsLabel}"
+                  IsChecked="{Binding OnlyConflicts, Mode=TwoWay}"/>
+        <Button Grid.Column="2" Content="{x:Static vm:TransferPreviewModel.ReplaceAllLabel}"
+                Command="{Binding ReplaceAllCommand}" IsEnabled="{Binding HasConflicts}"/>
+        <Button Grid.Column="3" Content="{x:Static vm:TransferPreviewModel.ReplaceIfNewerLabel}"
+                Command="{Binding ReplaceIfNewerCommand}" IsEnabled="{Binding HasConflicts}"/>
+        <Button Grid.Column="4" Content="{x:Static vm:TransferPreviewModel.SkipAllLabel}"
+                Command="{Binding SkipAllCommand}" IsEnabled="{Binding HasConflicts}"/>
+      </Grid>
+
+      <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto,Auto"
+            ColumnSpacing="{StaticResource SpaceSm}" Margin="{StaticResource GapAboveMd}">
+        <TextBlock Grid.Column="0" Classes="status" Text="{Binding Summary}" TextWrapping="Wrap"
+                   VerticalAlignment="Center"/>
+        <Button Grid.Column="1" Content="{x:Static vm:TransferPreviewModel.CancelLabel}"
+                Command="{Binding CancelCommand}" IsCancel="True"/>
+        <Button Grid.Column="2" Classes="primary" Content="{x:Static vm:TransferPreviewModel.StartLabel}"
+                Command="{Binding StartCommand}" IsDefault="True"/>
+      </Grid>
+
+      <TableView ItemsSource="{Binding Rows}"
+                 AutomationProperties.Name="{x:Static vm:TransferPreviewModel.Title}">
+        <TableView.Columns>
+          <!-- A drop-down where a file is already there; the word New where nothing is. -->
+          <TableViewColumn Header="{x:Static vm:TransferPreviewModel.ColumnAction}" Width="230">
+            <TableViewColumn.CellTemplate>
+              <DataTemplate DataType="vm:TransferPreviewRowModel">
+                <Panel>
+                  <TextBlock Classes="status primary" Text="{Binding ActionText}"
+                             IsVisible="{Binding IsNew}" VerticalAlignment="Center"/>
+                  <ComboBox Classes="dense" IsVisible="{Binding IsConflict}"
+                            ItemsSource="{x:Static vm:TransferPreviewRowModel.ChoiceLabels}"
+                            SelectedIndex="{Binding ChoiceIndex, Mode=TwoWay}"
+                            Width="214" VerticalAlignment="Center"/>
+                </Panel>
+              </DataTemplate>
+            </TableViewColumn.CellTemplate>
+          </TableViewColumn>
+          <TableViewColumn Header="{x:Static vm:TransferPreviewModel.ColumnFile}" Width="300*">
+            <TableViewColumn.CellTemplate>
+              <DataTemplate DataType="vm:TransferPreviewRowModel">
+                <TextBlock Text="{Binding Path}" VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding ActionText}"
+                           Classes.warning="{Binding IsReplace}"/>
+              </DataTemplate>
+            </TableViewColumn.CellTemplate>
+          </TableViewColumn>
+          <TableViewColumn HorizontalContentAlignment="Right" Header="{x:Static vm:TransferPreviewModel.ColumnSourceSize}" Width="{StaticResource SizeColumnWidth}">
+            <TableViewColumn.CellTemplate>
+              <DataTemplate DataType="vm:TransferPreviewRowModel">
+                <TextBlock Text="{Binding SourceSize}" VerticalAlignment="Center"/>
+              </DataTemplate>
+            </TableViewColumn.CellTemplate>
+          </TableViewColumn>
+          <TableViewColumn Header="{x:Static vm:TransferPreviewModel.ColumnSourceModified}" Width="{StaticResource DateColumnWidth}">
+            <TableViewColumn.CellTemplate>
+              <DataTemplate DataType="vm:TransferPreviewRowModel">
+                <TextBlock Text="{Binding SourceModified}" VerticalAlignment="Center"/>
+              </DataTemplate>
+            </TableViewColumn.CellTemplate>
+          </TableViewColumn>
+          <TableViewColumn HorizontalContentAlignment="Right" Header="{x:Static vm:TransferPreviewModel.ColumnTargetSize}" Width="{StaticResource SizeColumnWidth}">
+            <TableViewColumn.CellTemplate>
+              <DataTemplate DataType="vm:TransferPreviewRowModel">
+                <TextBlock Text="{Binding TargetSize}" VerticalAlignment="Center"/>
+              </DataTemplate>
+            </TableViewColumn.CellTemplate>
+          </TableViewColumn>
+          <TableViewColumn Header="{x:Static vm:TransferPreviewModel.ColumnTargetModified}" Width="{StaticResource DateColumnWidth}">
+            <TableViewColumn.CellTemplate>
+              <DataTemplate DataType="vm:TransferPreviewRowModel">
+                <TextBlock Text="{Binding TargetModified}" VerticalAlignment="Center"/>
+              </DataTemplate>
+            </TableViewColumn.CellTemplate>
+          </TableViewColumn>
+        </TableView.Columns>
+      </TableView>
+    </DockPanel>
+  </Border>
+</Window>

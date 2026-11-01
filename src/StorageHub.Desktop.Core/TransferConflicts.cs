@@ -114,18 +114,27 @@ internal static class TransferConflictRules
 }
 
 /// <summary>
-/// How one transfer meets the files already at its destination: a choice made beforehand, or one
-/// asked for when the first conflict is found and kept for the rest.
+/// An answer to the question asked at a file already at the destination: what to do with it,
+/// whether to do the same with every other one this transfer meets, and whether to keep the
+/// choice as the default for transfers to come.
+/// </summary>
+public sealed record TransferConflictAnswer(
+    TransferConflictChoice Choice,
+    bool ApplyToRest = false,
+    bool Remember = false);
+
+/// <summary>
+/// How one transfer meets the files already at its destination: a choice made beforehand, a
+/// choice for a particular file made in the preview, or a question asked at each file found, as
+/// FileZilla asks, until the answer says to do the same with the rest.
 /// </summary>
 /// <remarks>
-/// Asked at most once, so a folder of a thousand files that are all there already is one
-/// question rather than a thousand, and only when there is a conflict, so a transfer into an
-/// empty folder asks nothing. What it decided is counted for the sentence that reports the
-/// transfer.
+/// Only asked when there is a conflict, so a transfer into an empty folder asks nothing. What it
+/// decided is counted for the sentence that reports the transfer.
 /// </remarks>
 public sealed class TransferConflictPolicy
 {
-    private readonly Func<PaneTransferItem, CancellationToken, Task<TransferConflictChoice?>>? _ask;
+    private readonly Func<PaneTransferItem, PaneTransferItem, CancellationToken, Task<TransferConflictAnswer?>>? _ask;
     private TransferConflictChoice? _choice;
     private bool _declined;
 
@@ -141,10 +150,24 @@ public sealed class TransferConflictPolicy
     }
 
     /// <summary>
-    /// A choice to ask for, given the first file found already at the destination. Null as the
-    /// answer stops the transfer.
+    /// A choice asked for once, given the first file found already at the destination, and kept
+    /// for the rest. Null as the answer stops the transfer.
     /// </summary>
     public TransferConflictPolicy(Func<PaneTransferItem, CancellationToken, Task<TransferConflictChoice?>> ask)
+    {
+        ArgumentNullException.ThrowIfNull(ask);
+        _ask = async (_, existing, cancellationToken) =>
+            await ask(existing, cancellationToken).ConfigureAwait(true) is { } choice
+                ? new TransferConflictAnswer(choice, ApplyToRest: true)
+                : null;
+    }
+
+    /// <summary>
+    /// A question asked at each file found already at the destination, given the file arriving
+    /// and the file there, until an answer applies to the rest. Null as the answer stops the
+    /// transfer.
+    /// </summary>
+    public TransferConflictPolicy(Func<PaneTransferItem, PaneTransferItem, CancellationToken, Task<TransferConflictAnswer?>> ask)
     {
         _ask = ask ?? throw new ArgumentNullException(nameof(ask));
     }
@@ -152,7 +175,19 @@ public sealed class TransferConflictPolicy
     /// <summary>What every transfer did before there was a choice: replace.</summary>
     public static TransferConflictPolicy Replace { get; } = new(TransferConflictChoice.Overwrite);
 
-    /// <summary>The choice, once it is known.</summary>
+    /// <summary>
+    /// Replacing and moving go ahead without the version or entity-tag evidence the strict mode
+    /// holds them to, as the relaxed default in Settings allows. False keeps the evidence rules.
+    /// </summary>
+    public bool Unverified { get; init; }
+
+    /// <summary>
+    /// Choices made beforehand for particular files, by the source's relative path, as the preview
+    /// makes them. A file named here is never asked about.
+    /// </summary>
+    public IReadOnlyDictionary<string, TransferConflictChoice>? Overrides { get; init; }
+
+    /// <summary>The choice for every remaining file, once it is known.</summary>
     public TransferConflictChoice? Choice => _choice;
 
     /// <summary>Files left as they were because they were already at the destination.</summary>
@@ -162,24 +197,37 @@ public sealed class TransferConflictPolicy
     public int Renamed { get; private set; }
 
     /// <summary>
-    /// The choice for <paramref name="existing"/>, asking for it if it is the first conflict.
-    /// Null when the question was answered with Cancel.
+    /// The choice for <paramref name="source"/> landing on <paramref name="existing"/>, asking for
+    /// it unless it is already known. Null when the question was answered with Cancel.
     /// </summary>
     internal async Task<TransferConflictChoice?> ResolveAsync(
+        PaneTransferItem source,
         PaneTransferItem existing,
         CancellationToken cancellationToken)
     {
+        if (Overrides is not null &&
+            Overrides.TryGetValue(source.RelativePath, out var preset) &&
+            Enum.IsDefined(preset))
+        {
+            return preset;
+        }
+
         if (_choice is { } known) return known;
         if (_declined || _ask is null) return null;
 
-        _choice = await _ask(existing, cancellationToken).ConfigureAwait(true);
-        if (_choice is { } chosen && !Enum.IsDefined(chosen))
+        var answer = await _ask(source, existing, cancellationToken).ConfigureAwait(true);
+        if (answer is null || !Enum.IsDefined(answer.Choice))
         {
-            _choice = null;
+            _declined = true;
+            return null;
         }
 
-        _declined = _choice is null;
-        return _choice;
+        if (answer.ApplyToRest)
+        {
+            _choice = answer.Choice;
+        }
+
+        return answer.Choice;
     }
 
     internal void Count(int skipped, int renamed)

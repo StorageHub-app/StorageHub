@@ -125,6 +125,27 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
     /// </summary>
     internal Action<TransferConflictChoice>? RememberConflictChoice { get; init; }
 
+    /// <summary>
+    /// Whether Settings holds replacing and moving to version evidence, read at each transfer.
+    /// Null, or false, is the relaxed default: whatever the person agrees to is replaced or moved.
+    /// </summary>
+    internal Func<bool>? StrictSafety { get; init; }
+
+    /// <summary>Whether Settings opens the preview on every transfer, read at each one.</summary>
+    internal Func<bool>? PreviewChanges { get; init; }
+
+    /// <summary>
+    /// The file-exists window, given the file arriving, the file there, where each is, and whether
+    /// the answer can be remembered. Null asks with the plain dialog instead, once per transfer.
+    /// </summary>
+    internal Func<PaneTransferItem, PaneTransferItem, string, string, bool, Task<TransferConflictAnswer?>>? ConflictWindow { get; init; }
+
+    /// <summary>
+    /// The preview window, given what a transfer would write and the choice each conflict starts
+    /// on, answering with a choice per file, or null when cancelled. Null offers no preview.
+    /// </summary>
+    internal Func<TransferPreview, TransferConflictChoice, Task<IReadOnlyDictionary<string, TransferConflictChoice>?>>? PreviewWindow { get; init; }
+
     /// <summary>The arrangement itself, for the view to walk and for a save to serialise.</summary>
     internal WorkspaceLayoutModel Layout => _layout;
 
@@ -644,7 +665,9 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
             await using (var agent = _queue())
             {
                 committed = await agent.CommitShellImportAsync(
-                    new ShellImportCommitRequest(ShellTransferIpcContract.CurrentVersion, plan.ReviewToken, choice),
+                    new ShellImportCommitRequest(
+                        ShellTransferIpcContract.CurrentVersion, plan.ReviewToken, choice,
+                        Unverified: StrictSafety?.Invoke() != true),
                     cancellationToken).ConfigureAwait(true);
             }
 
@@ -736,9 +759,18 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
             return false;
         }
 
-        if (!await ConfirmAsync(clipboard, destination, cancellationToken).ConfigureAwait(true))
+        // The preview stands in for the review when Settings asks for it on every transfer, and
+        // follows the review when its Preview changes button was pressed.
+        var preview = PreviewWindow is not null && PreviewChanges?.Invoke() == true;
+        if (!preview)
         {
-            return false;
+            var review = await ConfirmAsync(clipboard, destination, cancellationToken).ConfigureAwait(true);
+            if (review == TransferReview.Cancel)
+            {
+                return false;
+            }
+
+            preview = review == TransferReview.Preview;
         }
 
         // A folder cannot be queued until it has been read, and reading a big tree takes minutes.
@@ -784,7 +816,33 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
             return false;
         }
 
-        var conflicts = ConflictPolicy();
+        IReadOnlyDictionary<string, TransferConflictChoice>? chosen = null;
+        if (preview)
+        {
+            var previewed = await PreviewAsync(clipboard, target.Value, gathering, cancellationToken).ConfigureAwait(true);
+            if (previewed.IsFailure)
+            {
+                gathering?.Settle(previewed.Error);
+                if (previewed.Error.Kind != StorageFailureKind.Cancelled)
+                {
+                    await RefuseAsync(previewed.Error.Message, cancellationToken).ConfigureAwait(true);
+                }
+
+                return false;
+            }
+
+            chosen = await PreviewWindow!(
+                previewed.Value,
+                ConflictDefault?.Invoke() is { } initial && Enum.IsDefined(initial) ? initial : TransferConflictChoice.Overwrite)
+                .ConfigureAwait(true);
+            if (chosen is null)
+            {
+                gathering?.Settle(ManualTransferController.StoppedAtConflict());
+                return false;
+            }
+        }
+
+        var conflicts = ConflictPolicy(clipboard.SourceName, destination.Title, chosen);
         ManualTransferEnqueueResult? result;
         try
         {
@@ -836,20 +894,67 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
     }
 
     /// <summary>
-    /// How this transfer meets files already at its destination: as Settings says, or asked at the
-    /// first one. With nowhere to ask, as in a headless test, it replaces, as every transfer did
-    /// before there was a choice -- each replacement still held to the identity listed.
+    /// How this transfer meets files already at its destination: as picked in the preview, as
+    /// Settings says, or asked at each one in the file-exists window. With nowhere to ask, as in a
+    /// headless test, it replaces, as every transfer did before there was a choice. Held to version
+    /// evidence only when Settings says so.
     /// </summary>
-    private TransferConflictPolicy ConflictPolicy()
+    private TransferConflictPolicy ConflictPolicy(
+        string sourcePlace = "",
+        string targetPlace = "",
+        IReadOnlyDictionary<string, TransferConflictChoice>? overrides = null)
     {
+        var unverified = StrictSafety?.Invoke() != true;
         if (ConflictDefault?.Invoke() is { } chosen && Enum.IsDefined(chosen))
         {
-            return new TransferConflictPolicy(chosen);
+            return new TransferConflictPolicy(chosen) { Unverified = unverified, Overrides = overrides };
+        }
+
+        if (ConflictWindow is { } window)
+        {
+            return new TransferConflictPolicy(async (source, existing, cancellationToken) =>
+            {
+                var answer = await window(source, existing, sourcePlace, targetPlace, RememberConflictChoice is not null)
+                    .ConfigureAwait(true);
+                if (answer is { Remember: true }) RememberConflictChoice?.Invoke(answer.Choice);
+                return answer;
+            })
+            { Unverified = unverified, Overrides = overrides };
         }
 
         return _dialogs is null
-            ? TransferConflictPolicy.Replace
-            : new TransferConflictPolicy(AskConflictAsync);
+            ? new TransferConflictPolicy(TransferConflictChoice.Overwrite) { Unverified = unverified, Overrides = overrides }
+            : new TransferConflictPolicy(AskConflictAsync) { Unverified = unverified, Overrides = overrides };
+    }
+
+    /// <summary>
+    /// What the transfer would write, read the way the transfer reads it, through controllers
+    /// opened for it alone and closed before the preview is shown.
+    /// </summary>
+    private async Task<StorageResult<TransferPreview>> PreviewAsync(
+        PaneClipboard clipboard,
+        PaneDestinationSnapshot target,
+        PendingGathering? gathering,
+        CancellationToken cancellationToken)
+    {
+        await using var transfers = new ManualTransferController(_queue(), ownsClient: true);
+        await using var recursive = new RecursiveTransferController(
+            transfers, _storage(), _mutations(), ownsClients: true);
+        try
+        {
+            return await recursive
+                .PreviewAsync(clipboard.Selection, target, gathering?.Stopped ?? default, cancellationToken)
+                .ConfigureAwait(true);
+        }
+        catch (Exception error) when (error is IOException or TimeoutException or
+            InvalidOperationException or ObjectDisposedException)
+        {
+            return StorageResult<TransferPreview>.Fail(new StorageFailure(
+                "manual_transfer.preview_unavailable",
+                StorageFailureKind.Unavailable,
+                Ui.Shell.AgentCannotEnqueue,
+                isTransient: true));
+        }
     }
 
     /// <summary>
@@ -1372,12 +1477,20 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
         return pane;
     }
 
-    private async Task<bool> ConfirmAsync(
+    /// <summary>How the review of a transfer was answered.</summary>
+    private enum TransferReview
+    {
+        Cancel,
+        Go,
+        Preview
+    }
+
+    private async Task<TransferReview> ConfirmAsync(
         PaneClipboard clipboard,
         BrowserPaneModel destination,
         CancellationToken cancellationToken)
     {
-        if (_dialogs is null) return true;
+        if (_dialogs is null) return TransferReview.Go;
 
         var operation = clipboard.IsMove
             ? Ui.Dialogs.TransferOperationMove
@@ -1397,10 +1510,18 @@ internal sealed class WorkspaceModel : INotifyPropertyChanged, IAsyncDisposable
                         : Ui.Dialogs.TransferOriginalsRemain),
                 Detail = destination.WritesNonAtomically ? Ui.Dialogs.TransferNonAtomicNote : null,
                 Severity = clipboard.IsMove ? DialogSeverity.Warning : DialogSeverity.Question,
-                Buttons = DialogButtons.OkCancel
+                // A third button, Preview changes, where there is a preview to show.
+                Buttons = PreviewWindow is null ? DialogButtons.OkCancel : DialogButtons.YesNoCancel,
+                Accept = PreviewWindow is null ? null : Ui.Dialogs.ButtonOk,
+                Alternate = PreviewWindow is null ? null : Ui.Dialogs.PreviewChangesButton
             },
             cancellationToken).ConfigureAwait(true);
-        return choice == DialogChoice.Ok;
+        return choice switch
+        {
+            DialogChoice.Ok or DialogChoice.Yes => TransferReview.Go,
+            DialogChoice.No when PreviewWindow is not null => TransferReview.Preview,
+            _ => TransferReview.Cancel
+        };
     }
 
     /// <summary>

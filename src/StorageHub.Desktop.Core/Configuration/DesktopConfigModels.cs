@@ -157,6 +157,12 @@ internal sealed class DesktopConfig : ConfigModelBase
 
     /// <summary>The colour scheme's id; absent follows the appearance with the house schemes.</summary>
     public string? ColorScheme { get; set; }
+
+    /// <summary>Whether replacing and moving need version evidence for both files; off by default.</summary>
+    public bool StrictTransferSafety { get; set; }
+
+    /// <summary>Whether every transfer first lists what it will change; off by default.</summary>
+    public bool PreviewTransferChanges { get; set; }
 }
 
 /// <summary>

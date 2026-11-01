@@ -1913,6 +1913,22 @@ internal static class ShellPreview
                         preferences with { TransferConflictDefault = choice })
                     : null,
 
+                // Replacing and moving go ahead without version evidence unless Settings holds
+                // them to it, and every transfer previews first when Settings asks. The file-exists
+                // window asks at each file and the preview lists them all; both are the
+                // application's own, so a preview shell asks with the plain dialog, as tests do.
+                StrictSafety = live ? static () => ReadPreferences()?.StrictTransferSafety == true : null,
+                PreviewChanges = live ? static () => ReadPreferences()?.PreviewTransferChanges == true : null,
+                ConflictWindow = live
+                    ? static (source, existing, from, to, canRemember) => Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(
+                        () => TransferConflictWindow.AskAsync(
+                            Services.ShellServices.MainWindow(), source, existing, from, to, canRemember))
+                    : null,
+                PreviewWindow = live
+                    ? static (preview, initial) => Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(
+                        () => TransferPreviewWindow.AskAsync(Services.ShellServices.MainWindow(), preview, initial))
+                    : null,
+
                 // A connection's rows dragged out to Explorer go through the drop broker the boot
                 // registered, and wait on the queue's Active tab for where they landed, as 1.x's
                 // did. Only the application's own shell: a preview's agent is a test's.

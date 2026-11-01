@@ -176,6 +176,74 @@ public sealed class TransferConflictTests
         Assert.Equal(2, conflicts.Skipped);
     }
 
+    /// <summary>
+    /// The relaxed default, as on SFTP or FTP where no file has a version: the preview lists what
+    /// lands where, each file already there is asked about in turn until an answer covers the rest,
+    /// a file chosen for in the preview is never asked about, and the replacements go to the agent
+    /// as agreed without the evidence the strict setting would demand.
+    /// </summary>
+    [Fact]
+    public async Task EachFileIsAskedUntilAnAnswerCoversTheRestAndReplacesWithoutAVersion()
+    {
+        var client = new FakeTransferClient();
+        await using var controller = new ManualTransferController(client);
+        var source = Saved(Guid.NewGuid(), "source-root", "source");
+        var target = Saved(Guid.NewGuid(), "destination-root", "destination");
+        var selection = Selection(
+            source,
+            Item("a.txt", "source/a.txt", 5, Noon, versionId: null),
+            Item("b.txt", "source/b.txt", 5, Noon, versionId: null),
+            Item("c.txt", "source/c.txt", 5, Noon, versionId: null),
+            Item("d.txt", "source/d.txt", 5, Noon, versionId: null),
+            Item("new.txt", "source/new.txt", 5, Noon, versionId: null));
+        var destination = Destination(
+            target,
+            Item("a.txt", "destination/a.txt", 9, Noon, versionId: null),
+            Item("b.txt", "destination/b.txt", 9, Noon, versionId: null),
+            Item("c.txt", "destination/c.txt", 9, Noon, versionId: null),
+            Item("d.txt", "destination/d.txt", 9, Noon, versionId: null));
+
+        var preview = ManualTransferController.Preview(selection, destination);
+        Assert.Equal(
+            ["destination/a.txt", "destination/b.txt", "destination/c.txt", "destination/d.txt", "destination/new.txt"],
+            preview.Rows.Select(static row => row.DestinationPath));
+        Assert.Equal(4, preview.ConflictCount);
+        Assert.Equal(TransferPreviewAction.New, preview.Rows[^1].ActionFor(TransferConflictChoice.Skip));
+
+        var asked = new List<string>();
+        var conflicts = new TransferConflictPolicy((item, existing, _) =>
+        {
+            asked.Add(existing.Name);
+            return Task.FromResult<TransferConflictAnswer?>(item.Name == "b.txt"
+                ? new TransferConflictAnswer(TransferConflictChoice.Overwrite, ApplyToRest: true)
+                : new TransferConflictAnswer(TransferConflictChoice.Skip));
+        })
+        {
+            Unverified = true,
+            Overrides = new Dictionary<string, TransferConflictChoice> { ["source/a.txt"] = TransferConflictChoice.Rename }
+        };
+
+        var result = await controller.EnqueueAsync(
+            selection, destination, TransferQueueOperation.Copy, conflicts: conflicts,
+            cancellationToken: CancellationToken.None);
+
+        Assert.True(result.IsSuccess, result.Failure?.Message);
+        Assert.Equal(["b.txt"], asked);
+        Assert.Equal(
+            ["destination/a (1).txt", "destination/b.txt", "destination/c.txt", "destination/d.txt", "destination/new.txt"],
+            client.Requests.Select(static request => request.Destination.RelativePath));
+        Assert.Equal(
+            [false, true, true, true, false],
+            client.Requests.Select(static request => request.ReplaceExisting));
+        Assert.All(client.Requests, static request => Assert.True(request.Unverified));
+
+        // The same transfer held to the evidence, as the strict setting does, is refused.
+        var strict = new ManualTransferController(new FakeTransferClient()).BuildPlan(
+            selection, destination, TransferQueueOperation.Copy, conflicts: TransferConflictChoice.Overwrite);
+        Assert.True(strict.IsFailure);
+        Assert.Equal("manual_transfer.overwrite.identity_required", strict.Error!.Code);
+    }
+
     [Fact]
     public async Task CancellingTheQuestionQueuesNothing()
     {

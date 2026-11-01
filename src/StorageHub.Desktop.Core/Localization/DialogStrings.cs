@@ -317,4 +317,64 @@ internal sealed class DialogStrings : LocalizationModelBase
 
     public string TransferConflictRemember { get; set; } =
         "Always do this (Settings, Transfers & sync)";
+
+    // ------------------------------------------ the file-exists window, file by file (2.1)
+    public string ConflictSourceHeading { get; set; } = "Source file";
+
+    public string ConflictTargetHeading { get; set; } = "Target file";
+
+    public string ConflictSizeLabel { get; set; } = "Size";
+
+    public string ConflictModifiedLabel { get; set; } = "Modified";
+
+    public string ConflictUnknown { get; set; } = "Unknown";
+
+    public string ConflictActionHeading { get; set; } = "Action";
+
+    public string ConflictApplyToRest { get; set; } = "Always use this action for the rest of this transfer";
+
+    public string ConflictRememberDefault { get; set; } = "Also make it the default for future transfers";
+
+    public string ConflictCancelTransfer { get; set; } = "Cancel transfer";
+
+    // ------------------------------------------------- previewing a transfer (2.1)
+    public string PreviewChangesButton { get; set; } = "Preview changes…";
+
+    public string TransferPreviewCaption { get; set; } = "Preview changes";
+
+    /// <summary>{0} = new files; {1} = replaced; {2} = skipped; {3} = renamed.</summary>
+    public string TransferPreviewSummaryFormat { get; set; } =
+        "{0} new, {1} replaced, {2} skipped, {3} renamed";
+
+    public string TransferPreviewOnlyConflicts { get; set; } = "Only files already at the destination";
+
+    public string TransferPreviewReplaceAll { get; set; } = "Replace all";
+
+    public string TransferPreviewSkipAll { get; set; } = "Skip all";
+
+    public string TransferPreviewReplaceIfNewer { get; set; } = "Replace if newer";
+
+    public string TransferPreviewStart { get; set; } = "Start transfer";
+
+    public string TransferPreviewColumnAction { get; set; } = "Action";
+
+    public string TransferPreviewColumnFile { get; set; } = "File";
+
+    public string TransferPreviewColumnSourceSize { get; set; } = "Source size";
+
+    public string TransferPreviewColumnSourceModified { get; set; } = "Source modified";
+
+    public string TransferPreviewColumnTargetSize { get; set; } = "Target size";
+
+    public string TransferPreviewColumnTargetModified { get; set; } = "Target modified";
+
+    public string TransferPreviewActionNew { get; set; } = "New";
+
+    public string TransferPreviewActionReplace { get; set; } = "Replace";
+
+    public string TransferPreviewActionSkip { get; set; } = "Skip";
+
+    public string TransferPreviewActionRename { get; set; } = "Rename";
+
+    public string TransferPreviewEmpty { get; set; } = "There are no files to transfer.";
 }

@@ -91,9 +91,10 @@ public static class TransferExecutor
         }
 
         var directConditionalOverwrite = UsesDirectConditionalOverwrite(
+            intent,
             destinationSession,
             options);
-        var nonAtomicDestinationWrite = UsesNonAtomicDestinationWrite(destinationSession, options);
+        var nonAtomicDestinationWrite = UsesNonAtomicDestinationWrite(intent, destinationSession, options);
 
         // A non-atomic create is written as an overwrite, because the endpoint has no create-only
         // write. So it looks first, and refuses anything already there: checked before commit,
@@ -123,12 +124,18 @@ public static class TransferExecutor
             var destinationInfo = await destinationSession
                 .GetEntryAsync(intent.Destination, cancellationToken)
                 .ConfigureAwait(false);
-            if (destinationInfo.IsFailure)
+
+            // An unverified replace of a file that has gone since it was planned just writes it:
+            // the person agreed to whatever ends up there, and nothing is lost.
+            var goneUnverified = destinationInfo.IsFailure &&
+                                 intent.Unverified &&
+                                 destinationInfo.Error.Kind == StorageFailureKind.NotFound;
+            if (destinationInfo.IsFailure && !goneUnverified)
             {
                 return StorageResult<TransferExecutionReport>.Fail(destinationInfo.Error);
             }
 
-            if (!IdentityMatches(
+            if (!goneUnverified && !IdentityMatches(
                     destinationInfo.Value,
                     intent.ExpectedDestinationVersionId,
                     intent.ExpectedDestinationEntityTag))
@@ -139,7 +146,7 @@ public static class TransferExecutor
                     "The destination identity changed after the overwrite was approved.");
             }
 
-            if (intent.ExpectedDestinationDigest is not null)
+            if (!goneUnverified && intent.ExpectedDestinationDigest is not null)
             {
                 var destinationDigestFailure = await VerifyExpectedDestinationDigestAsync(
                     intent.ExpectedDestinationDigest,
@@ -420,8 +427,10 @@ public static class TransferExecutor
                     intent.Source,
                     Recursive: false,
                     IgnoreMissing: false,
-                    ExpectedVersionId: intent.Source.VersionId,
-                    ExpectedEntityTag: intent.Source.EntityTag),
+                    // An unverified move was checked against its source just before streaming, and
+                    // deletes it plainly: SFTP, FTP and This PC cannot delete on a condition.
+                    ExpectedVersionId: intent.Unverified ? null : intent.Source.VersionId,
+                    ExpectedEntityTag: intent.Unverified ? null : intent.Source.EntityTag),
                 cancellationToken).ConfigureAwait(false);
             if (deletion.IsFailure)
             {
@@ -692,7 +701,7 @@ public static class TransferExecutor
             return write;
         }
 
-        if (!options.Overwrite && !UsesNonAtomicDestinationWrite(destinationSession, options))
+        if (!options.Overwrite && !UsesNonAtomicDestinationWrite(intent, destinationSession, options))
         {
             var conditionalCreate = RequireNative(
                 destinationSession,
@@ -723,7 +732,8 @@ public static class TransferExecutor
 
         if (options.Overwrite)
         {
-            if (string.IsNullOrWhiteSpace(intent.ExpectedDestinationVersionId) &&
+            if (!intent.Unverified &&
+                string.IsNullOrWhiteSpace(intent.ExpectedDestinationVersionId) &&
                 string.IsNullOrWhiteSpace(intent.ExpectedDestinationEntityTag) &&
                 (!options.AllowNonAtomicDestinationWrites || intent.ExpectedDestinationDigest is null))
             {
@@ -732,13 +742,13 @@ public static class TransferExecutor
                     "An overwrite requires the exact destination version or entity tag captured during planning.");
             }
 
-            if (UsesNonAtomicDestinationWrite(destinationSession, options))
+            if (UsesNonAtomicDestinationWrite(intent, destinationSession, options))
             {
                 // Compatibility mode still verifies the reviewed destination digest immediately
                 // before writing when one is available, but the server cannot enforce an atomic
                 // compare-and-swap during publication.
             }
-            else if (UsesDirectConditionalOverwrite(destinationSession, options))
+            else if (UsesDirectConditionalOverwrite(intent, destinationSession, options))
             {
                 foreach (var feature in new[]
                          {
@@ -786,7 +796,8 @@ public static class TransferExecutor
                 }
             }
 
-            if (string.IsNullOrWhiteSpace(intent.Source.VersionId) &&
+            if (!intent.Unverified &&
+                string.IsNullOrWhiteSpace(intent.Source.VersionId) &&
                 string.IsNullOrWhiteSpace(intent.Source.EntityTag) &&
                 intent.ExpectedSourceDigest is null)
             {
@@ -795,7 +806,7 @@ public static class TransferExecutor
                     "An overwrite requires an exact source version, entity tag, or planned portable SHA-256 evidence.");
             }
 
-            if (intent.Source.VersionId is not null)
+            if (intent.Source.VersionId is not null && !intent.Unverified)
             {
                 var conditionalRead = RequireNative(
                     sourceSession,
@@ -810,7 +821,7 @@ public static class TransferExecutor
 
         if (intent.Operation == TransferOperationKind.Move)
         {
-            if (string.IsNullOrWhiteSpace(intent.Source.VersionId))
+            if (!intent.Unverified && string.IsNullOrWhiteSpace(intent.Source.VersionId))
             {
                 return UnsafeMutation(
                     "transfer.move.version_required",
@@ -823,30 +834,52 @@ public static class TransferExecutor
                 return delete;
             }
 
-            var conditionalDelete = RequireNative(
-                sourceSession,
-                StorageFeature.ConditionalDelete,
-                "conditionally delete the verified move source");
-            if (conditionalDelete.IsFailure)
+            if (!intent.Unverified)
             {
-                return conditionalDelete;
+                var conditionalDelete = RequireNative(
+                    sourceSession,
+                    StorageFeature.ConditionalDelete,
+                    "conditionally delete the verified move source");
+                if (conditionalDelete.IsFailure)
+                {
+                    return conditionalDelete;
+                }
             }
         }
 
         return StorageResult.Success();
     }
 
+    /// <summary>
+    /// An overwrite the person approved without any destination identity to hold it to, as the
+    /// relaxed default allows. It is written plainly, the way FileZilla writes one, since there is
+    /// nothing for a conditional or staged replace to compare against.
+    /// </summary>
+    private static bool PlainUnverifiedOverwrite(TransferIntent intent, TransferExecutionOptions options) =>
+        options.Overwrite &&
+        intent.Unverified &&
+        string.IsNullOrWhiteSpace(intent.ExpectedDestinationVersionId) &&
+        string.IsNullOrWhiteSpace(intent.ExpectedDestinationEntityTag);
+
     private static bool UsesDirectConditionalOverwrite(
+        TransferIntent intent,
         IStorageEndpointSession destinationSession,
         TransferExecutionOptions options) =>
         options.Overwrite &&
+        !PlainUnverifiedOverwrite(intent, options) &&
         destinationSession.Capabilities[StorageFeature.ConditionalUpdate].Level == FeatureSupportLevel.Native &&
         destinationSession.Capabilities[StorageFeature.AtomicReplace].Level == FeatureSupportLevel.Native;
 
     private static bool UsesNonAtomicDestinationWrite(
+        TransferIntent intent,
         IStorageEndpointSession destinationSession,
         TransferExecutionOptions options)
     {
+        if (PlainUnverifiedOverwrite(intent, options))
+        {
+            return true;
+        }
+
         if (!options.AllowNonAtomicDestinationWrites)
         {
             return false;
@@ -858,7 +891,7 @@ public static class TransferExecutor
                    FeatureSupportLevel.Native;
         }
 
-        return !UsesDirectConditionalOverwrite(destinationSession, options) &&
+        return !UsesDirectConditionalOverwrite(intent, destinationSession, options) &&
                !SupportsSafeStagedOverwrite(destinationSession);
     }
 

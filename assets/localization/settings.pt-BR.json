@@ -257,7 +257,7 @@
   "importBack": "Voltar",
   "sectionExistingFiles": "Arquivos existentes",
   "existingFileChoice": "Quando um arquivo já existe",
-  "existingFileChoiceHint": "Perguntar mostra a escolha no primeiro arquivo assim, para toda a transferência. Retomar conclui um arquivo mais curto e mantém o que uma tentativa interrompida já enviou.",
+  "existingFileChoiceHint": "Perguntar mostra cada arquivo assim com o tamanho e a data dos dois arquivos, até você marcar Sempre usar esta ação. Retomar conclui um arquivo mais curto e mantém o que uma tentativa interrompida já enviou.",
   "conflictAsk": "Perguntar sempre",
   "cleanupTitle": "Limpar arquivos residuais",
   "cleanupIntro": "Arquivos de trabalho deixados por transferências interrompidas e pelo editor externo. Um arquivo de que uma transferência, uma sincronização ou o editor ainda possa precisar é exibido, mas não pode ser removido.",
@@ -291,5 +291,9 @@
   "cleanupKeptFormat": "{0} foram mantidos: {1}",
   "scanSubfolders": "Verificar subpastas para a árvore de pastas",
   "scanSubfoldersHint": "A árvore de pastas de um painel lê as pastas abaixo da atual, alguns níveis para baixo, para que você possa abri-las sem visitar cada uma antes. Em um servidor, isso gera algumas solicitações extras, no máximo cem por pasta aberta, e para quando você segue adiante. Desative para mostrar apenas as pastas que o painel listou.",
-  "culture": "pt-BR"
+  "culture": "pt-BR",
+  "strictTransferSafety": "Substituir ou mover somente arquivos cuja versão possa ser verificada",
+  "strictTransferSafetyHint": "Recusa substituir ou mover um arquivo a menos que os dois lados informem uma versão ou ETag, o que SFTP, FTP e arquivos neste PC nunca fazem. Desativado, uma transferência substitui ou move tudo o que você aceitar.",
+  "previewTransferChanges": "Visualizar o que uma transferência altera antes de começar",
+  "previewTransferChangesHint": "Lista cada arquivo que uma transferência vai criar, substituir, ignorar ou renomear, e permite escolher para cada um. Visualizar alterações, na caixa de revisão, faz isso para uma única transferência."
 }

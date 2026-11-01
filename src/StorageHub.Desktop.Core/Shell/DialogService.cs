@@ -90,6 +90,12 @@ internal sealed record DialogRequest
     public string? Accept { get; init; }
 
     /// <summary>
+    /// What the No button of <see cref="DialogButtons.YesNoCancel"/> says when it is a third way
+    /// on rather than a refusal -- "Preview changes…". Null keeps No.
+    /// </summary>
+    public string? Alternate { get; init; }
+
+    /// <summary>
     /// A checkbox under the message, such as "Don't show this warning again". Null draws none.
     /// </summary>
     public string? CheckBoxLabel { get; init; }
