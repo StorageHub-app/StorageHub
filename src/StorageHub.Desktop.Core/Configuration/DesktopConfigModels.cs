@@ -58,6 +58,10 @@ internal sealed class DesktopConfig : ConfigModelBase
 
     public string? ExternalEditorPath { get; set; }
 
+    public Dictionary<string, string>? FileTypeEditors { get; set; }
+
+    public int EditorSettingsVersion { get; set; }
+
     public int MaximumEditableFileBytes { get; set; } = EditableFileIpcContract.MaximumContentBytes;
 
     public bool AdaptiveConcurrency { get; set; } = true;

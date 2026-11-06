@@ -588,6 +588,109 @@ public class TransferQueueModelTests
         Assert.Equal([(chosen.TransferId, 7L)], agent.Cancelled);
     }
 
+    [AvaloniaTheory]
+    [InlineData(TransferQueueTabs.ActiveKey, TransferQueueState.Transferring)]
+    [InlineData(TransferQueueTabs.QueuedKey, TransferQueueState.Pending)]
+    [InlineData(TransferQueueTabs.PausedKey, TransferQueueState.Paused)]
+    [InlineData(TransferQueueTabs.FailedKey, TransferQueueState.Failed)]
+    [InlineData(TransferQueueTabs.CompletedKey, TransferQueueState.Completed)]
+    [InlineData(TransferQueueTabs.ConflictsKey, TransferQueueState.NeedsReconciliation)]
+    public async Task DraggingAcrossRowsSelectsARangeAndCanShrinkIt(string tab, TransferQueueState state)
+    {
+        var agent = new FakeQueueAgent();
+        for (var index = 0; index < 6; index++) agent.Transfers.Add(Summary(state));
+        await using var queue = new TransferQueueModel(() => agent);
+        var window = new Window { Width = 1000, Height = 400, Content = new TransferQueueView { DataContext = queue } };
+        window.Show();
+        try
+        {
+            queue.SelectedTab = IndexOf(queue, tab);
+            await queue.RefreshAsync();
+            Settle(window);
+            var table = window.GetVisualDescendants().OfType<TableView>().First(each => each.IsEffectivelyVisible);
+            Point At(int index) => table.GetVisualDescendants().OfType<TableViewRow>()
+                .Single(row => ReferenceEquals(row.DataContext, queue.Rows[index]))
+                .TranslatePoint(new Point(30, 10), window)!.Value;
+
+            window.MouseDown(At(1), MouseButton.Left);
+            window.MouseMove(At(4), RawInputModifiers.LeftMouseButton);
+            Assert.Equal(queue.Rows.Skip(1).Take(4).ToHashSet(), queue.SelectedRows.ToHashSet());
+            window.MouseMove(At(2), RawInputModifiers.LeftMouseButton);
+            Assert.Equal(queue.Rows.Skip(1).Take(2).ToHashSet(), queue.SelectedRows.ToHashSet());
+            window.MouseUp(At(2), MouseButton.Left);
+
+            // A new drag replaces the old range; dragging upward works too.
+            window.MouseDown(At(5), MouseButton.Left);
+            window.MouseMove(At(3), RawInputModifiers.LeftMouseButton);
+            window.MouseUp(At(3), MouseButton.Left);
+            Assert.Equal(queue.Rows.Skip(3).Take(3).ToHashSet(), queue.SelectedRows.ToHashSet());
+
+            // Ctrl preserves rows outside the new range.
+            window.MouseDown(At(0), MouseButton.Left, RawInputModifiers.Control);
+            window.MouseMove(At(1), RawInputModifiers.LeftMouseButton | RawInputModifiers.Control);
+            window.MouseUp(At(1), MouseButton.Left, RawInputModifiers.Control);
+            Assert.Equal(new[] { queue.Rows[0], queue.Rows[1], queue.Rows[3], queue.Rows[4], queue.Rows[5] }.ToHashSet(),
+                queue.SelectedRows.ToHashSet());
+
+            // Starting below the rows can sweep upward into them as well.
+            var blank = At(5) + new Vector(0, 40);
+            window.MouseDown(blank, MouseButton.Left);
+            window.MouseMove(At(4), RawInputModifiers.LeftMouseButton);
+            window.MouseUp(At(4), MouseButton.Left);
+            Assert.Equal(queue.Rows.Skip(4).ToHashSet(), queue.SelectedRows.ToHashSet());
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task DraggingPastTheQueueEdgeScrollsUntilTheMouseIsReleased()
+    {
+        var agent = new FakeQueueAgent();
+        for (var index = 0; index < 80; index++) agent.Transfers.Add(Summary(TransferQueueState.Transferring));
+        await using var queue = new TransferQueueModel(() => agent);
+        var window = new Window { Width = 1000, Height = 320, Content = new TransferQueueView { DataContext = queue } };
+        window.Show();
+        try
+        {
+            await queue.RefreshAsync();
+            Settle(window);
+            var table = window.GetVisualDescendants().OfType<TableView>().First(each => each.IsEffectivelyVisible);
+            var scroller = table.GetVisualDescendants().OfType<ScrollViewer>().First();
+            var first = table.GetVisualDescendants().OfType<TableViewRow>()
+                .Single(row => ReferenceEquals(row.DataContext, queue.Rows[0]));
+            var start = first.TranslatePoint(new Point(30, 10), window)!.Value;
+            var below = scroller.TranslatePoint(new Point(30, scroller.Bounds.Height + 8), window)!.Value;
+            window.MouseDown(start, MouseButton.Left);
+            window.MouseMove(below, RawInputModifiers.LeftMouseButton);
+            await Task.Delay(200);
+            Settle(window);
+            Assert.True(scroller.Offset.Y > 0);
+            Assert.True(queue.SelectedRows.Count > 2);
+            window.MouseUp(below, MouseButton.Left);
+            var offset = scroller.Offset;
+            await Task.Delay(120);
+            Settle(window);
+            Assert.Equal(offset, scroller.Offset);
+
+            // Header dragging after scrolling must still leave the row selection alone.
+            var chosen = queue.SelectedRows.ToHashSet();
+            var header = table.GetVisualDescendants().OfType<TextBlock>()
+                .First(text => text.Text == TransferQueueModel.ColumnSource);
+            var heading = header.TranslatePoint(new Point(4, 4), window)!.Value;
+            window.MouseDown(heading, MouseButton.Left);
+            window.MouseMove(heading + new Vector(40, 0), RawInputModifiers.LeftMouseButton);
+            window.MouseUp(heading + new Vector(40, 0), MouseButton.Left);
+            Assert.Equal(chosen, queue.SelectedRows.ToHashSet());
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
     /// <summary>Runs what input and a poll queued, and lays the window out again.</summary>
     private static void Settle(Window window)
     {

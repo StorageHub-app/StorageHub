@@ -165,6 +165,82 @@ public sealed class ShellTransferIpcCommandServiceTests : IDisposable
     }
 
     [WindowsOnlyTheory]
+    [InlineData(TransferState.Failed)]
+    [InlineData(TransferState.Cancelled)]
+    [InlineData(TransferState.Interrupted)]
+    [InlineData(TransferState.NeedsReconciliation)]
+    [InlineData(TransferState.RestartRequired)]
+    public async Task Explorer_export_reports_failure_even_when_progress_is_available(TransferState state)
+    {
+        var profileId = ConnectionProfileId.New();
+        var session = new FakeExportSession(profileId, "remote-root");
+        var store = new FakeStore { State = state };
+        var service = new ShellTransferIpcCommandService(store, new FakeExportConnector(session),
+            activeProgress: new FakeActiveProgress());
+        var response = await service.HandleAsync(IpcEnvelope.Create(
+            ShellTransferIpcMessageTypes.StartExportRequest, Guid.NewGuid(), 1,
+            new ShellExportPrepareRequest(ShellTransferIpcContract.CurrentVersion,
+                [new ShellExportSource(new TransferQueueAddress(profileId.Value, session.RootIdentity, "resource"), true, "resource")])));
+        var started = response.Payload.Deserialize<ShellExportStartResponse>()!;
+        Assert.Null(started.Failure);
+
+        ShellExportStatusResponse? status = null;
+        for (var attempt = 0; attempt < 50; attempt++)
+        {
+            var envelope = await service.HandleAsync(IpcEnvelope.Create(
+                ShellTransferIpcMessageTypes.ExportStatusRequest, Guid.NewGuid(), 1,
+                new ShellExportStatusRequest(ShellTransferIpcContract.CurrentVersion, started.ExportId)));
+            status = envelope.Payload.Deserialize<ShellExportStatusResponse>();
+            if (status?.State == ShellExportState.Failed) break;
+            await Task.Delay(20);
+        }
+        Assert.NotNull(status);
+        Assert.Equal(ShellExportState.Failed, status.State);
+        Assert.NotNull(status.Failure);
+    }
+
+    private sealed class FakeActiveProgress : IActiveTransferProgress
+    {
+        public long? TryGetLiveProgressBytes(TransferJobId transferJobId) => 1;
+    }
+
+    [WindowsOnlyTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Explorer_export_rejects_repeated_empty_pages(bool queued)
+    {
+        var session = new FakeExportSession(ConnectionProfileId.New(), "remote-root") { RepeatEmptyPage = true };
+        var service = new ShellTransferIpcCommandService(new FakeStore(), new FakeExportConnector(session));
+        var response = await service.HandleAsync(IpcEnvelope.Create(
+            queued ? ShellTransferIpcMessageTypes.StartExportRequest : ShellTransferIpcMessageTypes.PrepareExportRequest,
+            Guid.NewGuid(), 1, new ShellExportPrepareRequest(ShellTransferIpcContract.CurrentVersion,
+                [new ShellExportSource(new TransferQueueAddress(session.ProfileId.Value, session.RootIdentity, "resource"), true, "resource")])));
+        if (!queued)
+        {
+            Assert.NotNull(response.Payload.Deserialize<ShellExportPrepareResponse>()!.Failure);
+            Assert.Equal(2, session.ListCalls);
+            return;
+        }
+
+        var started = response.Payload.Deserialize<ShellExportStartResponse>()!;
+        for (var attempt = 0; attempt < 50; attempt++)
+        {
+            var envelope = await service.HandleAsync(IpcEnvelope.Create(
+                ShellTransferIpcMessageTypes.ExportStatusRequest, Guid.NewGuid(), 1,
+                new ShellExportStatusRequest(ShellTransferIpcContract.CurrentVersion, started.ExportId)));
+            var status = envelope.Payload.Deserialize<ShellExportStatusResponse>()!;
+            if (status.State == ShellExportState.Failed)
+            {
+                Assert.NotNull(status.Failure);
+                Assert.Equal(2, session.ListCalls);
+                return;
+            }
+            await Task.Delay(20);
+        }
+        Assert.Fail("The export did not stop after the provider repeated a page token.");
+    }
+
+    [WindowsOnlyTheory]
     [InlineData("")]
     [InlineData("short")]
     [InlineData("../../escape/attempt/aaaaaaaaaaaaaaaa")]
@@ -356,6 +432,8 @@ public sealed class ShellTransferIpcCommandServiceTests : IDisposable
 
     private sealed class FakeExportSession(ConnectionProfileId profileId, string rootIdentity) : IStorageEndpointSession
     {
+        public bool RepeatEmptyPage { get; init; }
+        public int ListCalls { get; private set; }
         public ConnectionProfileId ProfileId => profileId;
         public string RootIdentity => rootIdentity;
         public EffectiveStorageCapabilities Capabilities { get; } = new([
@@ -365,6 +443,13 @@ public sealed class ShellTransferIpcCommandServiceTests : IDisposable
             ValueTask.FromResult(StorageResult<StorageEntry>.Success(Entry(address.CanonicalRelativePath, StorageEntryKind.File)));
         public ValueTask<StorageResult<StoragePage>> ListAsync(StorageAddress address, StorageListRequest? request = null, CancellationToken cancellationToken = default)
         {
+            ListCalls++;
+            if (RepeatEmptyPage)
+            {
+                // A finite fallback makes the regression fail without hanging the test runner.
+                return ValueTask.FromResult(StorageResult<StoragePage>.Success(
+                    new StoragePage([], ListCalls < 4 ? "repeated" : null)));
+            }
             var paths = address.CanonicalRelativePath switch
             {
                 "resource" => new[] { Entry("resource/root.txt", StorageEntryKind.File), Entry("resource/nested", StorageEntryKind.Directory) },
@@ -420,13 +505,14 @@ public sealed class ShellTransferIpcCommandServiceTests : IDisposable
 
     private sealed class FakeStore : ITransferJobStore
     {
+        public TransferState State { get; init; } = TransferState.Completed;
         public List<TransferIntent> Intents { get; } = [];
         public ValueTask<bool> TryEnqueueAsync(TransferIntent intent, int priority = 0, CancellationToken cancellationToken = default) { Intents.Add(intent); return ValueTask.FromResult(true); }
         public ValueTask<DurableTransferJob?> FindAsync(TransferJobId transferJobId, CancellationToken cancellationToken = default)
         {
             var intent = Intents.SingleOrDefault(candidate => candidate.TransferJobId == transferJobId);
             if (intent is null) return ValueTask.FromResult<DurableTransferJob?>(null);
-            var state = new TransferStateSnapshot(transferJobId, TransferState.Completed, 1, 1,
+            var state = new TransferStateSnapshot(transferJobId, State, 1, 1,
                 DateTimeOffset.UtcNow, TransferStatusCode.None);
             return ValueTask.FromResult<DurableTransferJob?>(new DurableTransferJob(intent, state, 0, null, null, null));
         }

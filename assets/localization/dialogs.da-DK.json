@@ -123,5 +123,19 @@
   "transferPreviewActionReplace": "Erstat",
   "transferPreviewActionSkip": "Spring over",
   "transferPreviewActionRename": "Omdøb",
-  "transferPreviewEmpty": "Der er ingen filer at overføre."
+  "transferPreviewEmpty": "Der er ingen filer at overføre.",
+  "editorDownloadingFormat": "Henter '{0}'...",
+  "editorOpeningFormat": "Åbner editor til '{0}'...",
+  "editorDownloading": "Henter",
+  "editorDownloaded": "Hentet",
+  "editorOpened": "Editor åbnet",
+  "editorNotOpened": "Ikke åbnet",
+  "editorWatching": "Overvåger gemte ændringer.",
+  "editorChanged": "Gemt ændring registreret",
+  "editorUploading": "Uploader ændringer",
+  "editorUploaded": "Ændringer uploadet",
+  "editorUploadDeferred": "Upload udsat",
+  "editorStoppedWatching": "Overvågning stoppet",
+  "editorFailed": "Mislykkedes",
+  "editorBytesFormat": "{0:N0} byte"
 }

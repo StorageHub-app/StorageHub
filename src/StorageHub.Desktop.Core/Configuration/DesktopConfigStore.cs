@@ -1,4 +1,5 @@
 using System.Text.Json;
+using StorageHub.Contracts.Ipc;
 using CodeLogic.Core.Configuration;
 using StorageHub.Desktop.Configuration.Legacy;
 using StorageHub.Desktop.Localization;
@@ -265,7 +266,8 @@ internal sealed class DesktopConfigStore
             general.IncludePrereleases,
             general.SshHostKeyDiscovery,
             general.ExternalEditorPath,
-            general.MaximumEditableFileBytes,
+            general.EditorSettingsVersion == 0 && general.MaximumEditableFileBytes == EditableFileIpcContract.InlineContentBytes
+                ? EditableFileIpcContract.MaximumContentBytes : general.MaximumEditableFileBytes,
             general.AdaptiveConcurrency,
             general.MinimumConcurrency,
             general.MaximumTransferConcurrency,
@@ -312,6 +314,7 @@ internal sealed class DesktopConfigStore
             FavoritesCollapsed: general.FavoritesCollapsed,
             StrictTransferSafety: general.StrictTransferSafety,
             PreviewTransferChanges: general.PreviewTransferChanges,
+            FileTypeEditors: general.FileTypeEditors,
             // A scheme this build does not have follows the appearance, as if none were chosen.
             ColorScheme: ColorSchemeCatalog.Knows(general.ColorScheme) ? general.ColorScheme : null);
     }
@@ -357,6 +360,8 @@ internal sealed class DesktopConfigStore
             IncludePrereleases = preferences.IncludePrereleases,
             SshHostKeyDiscovery = preferences.SshHostKeyDiscovery,
             ExternalEditorPath = preferences.ExternalEditorPath,
+            FileTypeEditors = preferences.FileTypeEditors is null ? null : EditorAssociations.Normalize(preferences.FileTypeEditors).ToDictionary(),
+            EditorSettingsVersion = 1,
             MaximumEditableFileBytes = preferences.MaximumEditableFileBytes,
             AdaptiveConcurrency = preferences.AdaptiveConcurrency,
             MinimumConcurrency = preferences.MinimumConcurrency,

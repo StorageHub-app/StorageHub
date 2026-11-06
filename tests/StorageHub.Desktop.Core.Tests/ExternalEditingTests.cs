@@ -35,6 +35,38 @@ public sealed class ExternalEditingTests : IDisposable
     }
 
     [Fact]
+    public async Task FileTypeChoiceProgressAndEditingLifecycleAppearInTheLogs()
+    {
+        var defaultEditor = TestPaths.Rooted("tools/default-editor");
+        var textEditor = TestPaths.Rooted("tools/text-editor");
+        await using var editing = Controller(editor: defaultEditor);
+        var store = Store();
+        store.Save(store.Load() with { FileTypeEditors = new Dictionary<string, string> { [".txt"] = textEditor } });
+        _agent.Download = Content("before");
+        var progress = new RecordingProgress();
+        var fileName = "edit-" + Guid.NewGuid().ToString("N") + ".txt";
+        var session = await editing.OpenAsync(Address, fileName, 6, progress);
+        Assert.NotNull(session);
+        Assert.Equal(textEditor, _launcher.Editor);
+        Assert.Equal(new[] { Ui.Format(Ui.Dialogs.EditorDownloadingFormat, fileName), Ui.Format(Ui.Dialogs.EditorOpeningFormat, fileName) }, progress.Messages);
+        await File.WriteAllTextAsync(session.LocalPath, "after");
+        await session.CheckAsync();
+        var logs = ActivityLog.Build([], [], editing: ExternalEditActivity.Snapshot()).Where(entry => entry.Item == fileName).ToArray();
+        Assert.Contains(logs, entry => entry.State == Ui.Dialogs.EditorDownloaded);
+        Assert.Contains(logs, entry => entry.State == Ui.Dialogs.EditorOpened);
+        Assert.Contains(logs, entry => entry.State == Ui.Dialogs.EditorChanged);
+        Assert.Contains(logs, entry => entry.State == Ui.Dialogs.EditorUploaded);
+        var diskLog = File.ReadAllText(Framework.DesktopErrorLog.FilePath);
+        Assert.Contains(fileName, diskLog, StringComparison.Ordinal);
+    }
+
+    private sealed class RecordingProgress : IProgress<ExternalEditProgress>
+    {
+        internal List<string> Messages { get; } = [];
+        public void Report(ExternalEditProgress value) => Messages.Add(value.Message);
+    }
+
+    [Fact]
     public async Task OpeningSavesTheFileAndStartsTheEditor()
     {
         _agent.Download = Content("hello");

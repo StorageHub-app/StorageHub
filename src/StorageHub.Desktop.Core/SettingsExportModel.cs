@@ -77,7 +77,8 @@ internal sealed record MachineSpecificSection(
     string? ExternalEditorPath,
     IReadOnlyList<WorkspaceShortcutEntry>? PinnedWorkspaces,
     IReadOnlyList<WorkspaceShortcutEntry>? RecentWorkspaces,
-    IReadOnlyDictionary<string, string>? PrivateKeyReferences);
+    IReadOnlyDictionary<string, string>? PrivateKeyReferences,
+    IReadOnlyDictionary<string, string>? FileTypeEditors = null);
 
 /// <summary>
 /// A saved connection as it travels: the profile draft exactly as the agent stores it, minus
@@ -271,7 +272,8 @@ internal static class SettingsExportSerializer
 
         // Cardinality before any per-item work, so an inflated file cannot cost a round trip per
         // claimed item.
-        if (document.Connections?.Count > MaximumConnections ||
+        if (document.MachineSpecific?.FileTypeEditors?.Count > EditorAssociations.MaximumRules ||
+            document.Connections?.Count > MaximumConnections ||
             document.ConnectionGroups?.Count > ConnectionGroupIpcLimits.MaximumGroups ||
             document.SyncProfiles?.Count > SyncManagementIpcLimits.MaximumProfileResults ||
             document.Schedules?.Count > ScheduleManagementIpcLimits.MaximumScheduleResults)

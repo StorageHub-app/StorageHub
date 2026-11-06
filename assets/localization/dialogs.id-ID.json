@@ -123,5 +123,19 @@
   "transferPreviewActionReplace": "Ganti",
   "transferPreviewActionSkip": "Lewati",
   "transferPreviewActionRename": "Ubah nama",
-  "transferPreviewEmpty": "Tidak ada file untuk ditransfer."
+  "transferPreviewEmpty": "Tidak ada file untuk ditransfer.",
+  "editorDownloadingFormat": "Mengunduh '{0}'...",
+  "editorOpeningFormat": "Membuka editor untuk '{0}'...",
+  "editorDownloading": "Mengunduh",
+  "editorDownloaded": "Diunduh",
+  "editorOpened": "Editor dibuka",
+  "editorNotOpened": "Tidak dibuka",
+  "editorWatching": "Memantau perubahan yang disimpan.",
+  "editorChanged": "Perubahan tersimpan terdeteksi",
+  "editorUploading": "Mengunggah perubahan",
+  "editorUploaded": "Perubahan diunggah",
+  "editorUploadDeferred": "Unggahan ditunda",
+  "editorStoppedWatching": "Pemantauan dihentikan",
+  "editorFailed": "Gagal",
+  "editorBytesFormat": "{0:N0} byte"
 }

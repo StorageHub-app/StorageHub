@@ -1819,7 +1819,8 @@ internal static class ShellPreview
                 static () => new NamedPipeTransferQueueAgentClient(),
                 static () => new NamedPipeSyncManagementAgentClient(),
                 drops.Snapshot,
-                static () => new NamedPipeRemoteStorageAgentClient()).ReadAsync),
+                static () => new NamedPipeRemoteStorageAgentClient(),
+                ExternalEditActivity.Snapshot).ReadAsync),
             // Clear all history asks first, as 1.x's did.
             Services.ShellServices.Dialogs)
         {

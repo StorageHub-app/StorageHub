@@ -358,6 +358,10 @@ internal class SettingsPageModel
 
     public bool HasFootnote => Footnote.Length > 0;
 
+    public EditorAssociationsModel? EditorAssociations { get; internal set; }
+
+    public bool HasEditorAssociations => EditorAssociations is not null;
+
     /// <summary>
     /// "Create a FTP connection…" under a provider's defaults, which opens the Connection Manager
     /// on a new connection of that kind. Null where there is no provider or nowhere to open it.
@@ -528,6 +532,13 @@ internal sealed class SettingsModel : INotifyPropertyChanged
                     group,
                     [.. group.Rows.Select(row => new SettingsRowModel(row, _working, OnRowChanged, browse, importKey))]))])
         })];
+
+        Pages.Single(page => page.Key == "editing").EditorAssociations = new EditorAssociationsModel(
+            _working.FileTypeEditors, rules =>
+            {
+                _working = _working with { FileTypeEditors = rules };
+                RaiseDirty();
+            }, browse);
 
         if (createConnection is not null)
         {

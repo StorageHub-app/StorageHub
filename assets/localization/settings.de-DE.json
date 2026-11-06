@@ -57,7 +57,7 @@
   "totalDownloadLimit": "Gesamtes Download-Limit",
   "totalSpeedLimitHint": "Wird von allen Übertragungen auf allen Verbindungen geteilt; 0 bedeutet kein Limit. Eine Verbindung kann ein eigenes, niedrigeres Limit haben.",
   "minimumConcurrencyHint": "Die adaptive Steuerung beginnt vorsichtig mit so vielen Aufträgen.",
-  "editorExecutable": "Editor-Programmdatei",
+  "editorExecutable": "Standardeditor",
   "editorExecutableAccessibleName": "Programmdatei des externen Editors",
   "editorPlaceholder": "Wählen Sie eine Editor-Programmdatei oder lassen Sie das Feld leer für den Systemstandard",
   "editorPathMustBeFull": "Geben Sie den vollständigen Pfad zum Editor an, nicht nur seinen Namen.",
@@ -66,7 +66,7 @@
   "executableFilter": "Anwendungen (*.exe)|*.exe|Alle Dateien (*.*)|*.*",
   "maximumEditableSize": "Max. bearbeitbare Dateigröße",
   "maximumEditableSizeAccessibleName": "Maximale extern bearbeitbare Dateigröße in KiB",
-  "maximumEditableSizeHint": "Maximum: 1.024 KiB (1 MiB).",
+  "maximumEditableSizeHint": "102,400 KiB (100 MiB)",
   "warnUnsafeEdit": "Vor dem Bearbeiten ohne Schutz vor Remoteänderungen warnen",
   "warnUnsafeEditHint": "Wenn ein Anbieter keine Versions- oder ETag-Prüfung erzwingen kann, vor einer Bearbeitung fragen, die neuere Remoteänderungen überschreiben könnte.",
   "theme": "Design",
@@ -295,5 +295,11 @@
   "strictTransferSafety": "Dateien nur ersetzen oder verschieben, wenn ihre Version geprüft werden kann",
   "strictTransferSafetyHint": "Verweigert das Ersetzen oder Verschieben einer Datei, sofern nicht beide Seiten eine Version oder ein ETag melden, was SFTP, FTP und Dateien auf diesem PC nie tun. Ausgeschaltet ersetzt oder verschiebt eine Übertragung alles, dem Sie zustimmen.",
   "previewTransferChanges": "Vor dem Start anzeigen, was eine Übertragung ändert",
-  "previewTransferChangesHint": "Listet jede Datei auf, die eine Übertragung erstellt, ersetzt, überspringt oder umbenennt, und lässt Sie für jede einzeln wählen. Vorschau der Änderungen im Prüfdialog tut dies für eine einzelne Übertragung."
+  "previewTransferChangesHint": "Listet jede Datei auf, die eine Übertragung erstellt, ersetzt, überspringt oder umbenennt, und lässt Sie für jede einzeln wählen. Vorschau der Änderungen im Prüfdialog tut dies für eine einzelne Übertragung.",
+  "fileTypeEditors": "Editoren nach Dateityp",
+  "fileTypeEditorsHint": "Passende Typen verwenden den zugewiesenen Editor. Andere verwenden den Standardeditor oder bei leerem Feld die Systemzuordnung. Längere Erweiterungen haben Vorrang.",
+  "editorExtensionsPlaceholder": "Dateitypen, z. B. .txt; .log; .json",
+  "addEditorRule": "Hinzufügen oder ersetzen",
+  "removeEditorRule": "Entfernen",
+  "editorRuleInvalid": "Gültige Erweiterungen und vollständigen Editorpfad eingeben (höchstens 64 Typen)."
 }

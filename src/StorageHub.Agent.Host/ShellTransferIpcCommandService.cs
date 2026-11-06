@@ -286,17 +286,23 @@ public sealed class ShellTransferIpcCommandService(
     {
         var pending = new Queue<(StorageAddress Remote, string Local)>();
         pending.Enqueue((root, localRoot));
+        var pages = 0;
         while (pending.Count > 0)
         {
             var (remoteDirectory, localDirectory) = pending.Dequeue();
             string? continuation = null;
             var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var tokens = new HashSet<string>(StringComparer.Ordinal);
             do
             {
+                if (++pages > ShellTransferIpcLimits.MaximumEntries)
+                    throw new ShellImportException("The remote folder listing exceeded the Explorer export page limit.");
                 var page = await session.ListAsync(remoteDirectory,
                     new StorageListRequest(false, 1000, continuation), CancellationToken.None).ConfigureAwait(false);
                 if (page.IsFailure) throw new ShellImportException("A selected remote folder could not be listed.");
                 continuation = page.Value.ContinuationToken;
+                if (continuation is not null && !tokens.Add(continuation))
+                    throw new ShellImportException("The remote folder listing repeated a continuation token.");
                 foreach (var entry in page.Value.Entries)
                 {
                     job.Discovered(_time.GetUtcNow());
@@ -370,16 +376,15 @@ public sealed class ShellTransferIpcCommandService(
                     completed++;
                     completedBytes += transfer.Intent.ExpectedLength ?? 0;
                 }
-                else if (await ReadInFlightBytesAsync(id).ConfigureAwait(false) is { } inFlight)
-                {
-                    // Counting only finished files made a single large object sit at 0% and then
-                    // jump to 100%. Partial bytes are added so the export advances as it copies.
-                    completedBytes += Math.Min(inFlight, transfer.Intent.ExpectedLength ?? inFlight);
-                }
                 else if (transfer.State.State is TransferState.Failed or TransferState.Cancelled or
                          TransferState.Interrupted or TransferState.NeedsReconciliation or TransferState.RestartRequired)
                 {
                     throw new ShellImportException("One or more queued Explorer transfers did not complete.");
+                }
+                else if (await ReadInFlightBytesAsync(id).ConfigureAwait(false) is { } inFlight)
+                {
+                    // A checkpoint can survive failure: only count progress after checking state.
+                    completedBytes += Math.Min(inFlight, transfer.Intent.ExpectedLength ?? inFlight);
                 }
             }
             export.Progress(completed, completedBytes, _time.GetUtcNow());
@@ -492,13 +497,17 @@ public sealed class ShellTransferIpcCommandService(
         var pending = new Queue<(StorageAddress Remote, string Local)>();
         pending.Enqueue((root, localRoot));
         var entries = 0;
+        var pages = 0;
         while (pending.Count > 0)
         {
             var (remoteDirectory, localDirectory) = pending.Dequeue();
             string? continuation = null;
             var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var tokens = new HashSet<string>(StringComparer.Ordinal);
             do
             {
+                if (++pages > ShellTransferIpcLimits.MaximumEntries)
+                    throw new ShellImportException("The remote folder listing exceeded the Explorer export page limit.");
                 var page = await session.ListAsync(remoteDirectory,
                     new StorageListRequest(false, 1000, continuation), cancellationToken).ConfigureAwait(false);
                 if (page.IsFailure)
@@ -506,6 +515,8 @@ public sealed class ShellTransferIpcCommandService(
                     throw new ShellImportException("A selected remote folder could not be listed.");
                 }
                 continuation = page.Value.ContinuationToken;
+                if (continuation is not null && !tokens.Add(continuation))
+                    throw new ShellImportException("The remote folder listing repeated a continuation token.");
                 foreach (var entry in page.Value.Entries)
                 {
                     cancellationToken.ThrowIfCancellationRequested();

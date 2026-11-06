@@ -507,6 +507,8 @@
   <!-- Right-click menus, button flyouts and tooltips: the same surface and edge as the menu bar's
        drop-down, so a pane's right-click menu and its Pane actions do not look like another app's. -->
   <Style Selector="ContextMenu, MenuFlyoutPresenter">
+    <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
+    <Setter Property="FontFamily" Value="{DynamicResource AppFontUi}"/>
     <Setter Property="Background" Value="{DynamicResource ElevatedBrush}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
     <Setter Property="BorderThickness" Value="1"/>
@@ -521,8 +523,9 @@
   </Style>
 
   <Style Selector="MenuItem > MenuItem, ContextMenu > MenuItem, MenuFlyoutPresenter > MenuItem">
-    <Setter Property="Padding" Value="{StaticResource FieldPadding}"/>
-    <Setter Property="MinHeight" Value="{StaticResource ListRowHeight}"/>
+    <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
+    <Setter Property="Padding" Value="{StaticResource PopupMenuItemPadding}"/>
+    <Setter Property="MinHeight" Value="{StaticResource PopupMenuRowHeight}"/>
   </Style>
   <Style Selector="MenuItem > MenuItem:pointerover /template/ Border#PART_LayoutRoot,
                    ContextMenu > MenuItem:pointerover /template/ Border#PART_LayoutRoot,

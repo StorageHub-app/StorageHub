@@ -166,7 +166,7 @@ public class SshTerminalSessionTests
         await agent.Settled;
 
         Assert.False(session.IsConnected);
-        Assert.Equal(Ui.Connections.TerminalDisconnected, session.Status);
+        Assert.Equal(Ui.Connections.TerminalLostAgent, session.Status);
         Assert.Contains(Ui.Connections.TerminalLostAgent, Text(session));
     }
 

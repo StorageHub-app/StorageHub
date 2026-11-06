@@ -16,16 +16,19 @@ namespace StorageHub.Agent.Host;
 /// download/upload workflow over the normal authenticated pipe. Saved profile resolution and the
 /// root-scoped provider connection are delegated to the same connector used by synchronization.
 /// </summary>
-public sealed class ObjectInspectorIpcCommandService : IAgentIpcCommandHandler
+public sealed partial class ObjectInspectorIpcCommandService : IAgentIpcCommandHandler, IAsyncDisposable
 {
     private readonly ISyncEndpointConnector _connector;
 
     public ObjectInspectorIpcCommandService(ISyncEndpointConnector connector)
     {
         _connector = connector ?? throw new ArgumentNullException(nameof(connector));
+        _editCleanup = new Timer(_ => _ = PurgeEditTransfersAsync(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
     }
 
     public bool CanHandle(string messageType) => messageType is
+        EditableFileTransferMessages.Open or EditableFileTransferMessages.Chunk or
+        EditableFileTransferMessages.Finish or EditableFileTransferMessages.Close or
         ObjectInspectorIpcMessageTypes.VersionListRequest or
         ObjectInspectorIpcMessageTypes.MetadataGetRequest or
         ObjectInspectorIpcMessageTypes.TagsGetRequest or
@@ -45,6 +48,9 @@ public sealed class ObjectInspectorIpcCommandService : IAgentIpcCommandHandler
         ArgumentNullException.ThrowIfNull(request);
         return request.MessageType switch
         {
+            EditableFileTransferMessages.Open or EditableFileTransferMessages.Chunk or
+            EditableFileTransferMessages.Finish or EditableFileTransferMessages.Close =>
+                HandleEditTransferAsync(request, cancellationToken),
             ObjectInspectorIpcMessageTypes.VersionListRequest =>
                 ListVersionsAsync(request, cancellationToken),
             ObjectInspectorIpcMessageTypes.MetadataGetRequest =>

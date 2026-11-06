@@ -71,7 +71,8 @@ internal static class ActivityLog
         IEnumerable<TransferQueueSummary> transfers,
         IEnumerable<SyncRunSummary> runs,
         IEnumerable<PendingDropEntry>? pending = null,
-        IEnumerable<ConnectionLinkEvent>? links = null)
+        IEnumerable<ConnectionLinkEvent>? links = null,
+        IEnumerable<ActivityEntry>? editing = null)
     {
         ArgumentNullException.ThrowIfNull(transfers);
         ArgumentNullException.ThrowIfNull(runs);
@@ -82,6 +83,7 @@ internal static class ActivityLog
                 .Concat(runs.Select(FromRun))
                 .Concat((pending ?? []).Select(FromPendingDrop))
                 .Concat((links ?? []).Select(ConnectionLinkPresentation.ToActivity))
+                .Concat(editing ?? [])
                 .OrderByDescending(static entry => entry.UpdatedUtc)
                 .ThenBy(static entry => entry.Area, StringComparer.Ordinal)
                 .ThenBy(static entry => entry.Key, StringComparer.Ordinal)
@@ -165,7 +167,8 @@ internal sealed class ActivityLogReader(
     Func<ITransferQueueAgentClient> transfers,
     Func<ISyncManagementAgentClient> sync,
     Func<IReadOnlyList<PendingDropEntry>>? pending = null,
-    Func<IRemoteStorageAgentClient>? links = null)
+    Func<IRemoteStorageAgentClient>? links = null,
+    Func<IReadOnlyList<ActivityEntry>>? editing = null)
 {
     private readonly Func<ITransferQueueAgentClient> _transfers =
         transfers ?? throw new ArgumentNullException(nameof(transfers));
@@ -206,7 +209,7 @@ internal sealed class ActivityLogReader(
             var drops = pending?.Invoke() ?? [];
             var changes = await ReadLinksAsync(cancellationToken).ConfigureAwait(false);
             return new ActivityLogResult(
-                ActivityLog.Build(transferList.Transfers, runList.Runs, drops, changes),
+                ActivityLog.Build(transferList.Transfers, runList.Runs, drops, changes, editing?.Invoke()),
                 drops.Count);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

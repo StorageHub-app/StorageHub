@@ -123,5 +123,19 @@
   "transferPreviewActionReplace": "替换",
   "transferPreviewActionSkip": "跳过",
   "transferPreviewActionRename": "重命名",
-  "transferPreviewEmpty": "没有要传输的文件。"
+  "transferPreviewEmpty": "没有要传输的文件。",
+  "editorDownloadingFormat": "正在下载“{0}”...",
+  "editorOpeningFormat": "正在为“{0}”打开编辑器...",
+  "editorDownloading": "正在下载",
+  "editorDownloaded": "已下载",
+  "editorOpened": "编辑器已打开",
+  "editorNotOpened": "未打开",
+  "editorWatching": "正在监视已保存的更改。",
+  "editorChanged": "检测到已保存的更改",
+  "editorUploading": "正在上传更改",
+  "editorUploaded": "更改已上传",
+  "editorUploadDeferred": "已推迟上传",
+  "editorStoppedWatching": "已停止监视",
+  "editorFailed": "失败",
+  "editorBytesFormat": "{0:N0} 字节"
 }

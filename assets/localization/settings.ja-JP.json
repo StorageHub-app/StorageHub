@@ -98,7 +98,7 @@
   "newScheduleTimeZone": "新しいスケジュールのタイムゾーン",
   "newScheduleTimeZoneHint": "新しいスケジュールの開始時のタイムゾーンのみを決定します。各スケジュールは独自のタイムゾーンを保持します。他の場所に表示される時刻はシステムに従います。",
   "timeZoneFollowSystem": "システムに従う (推奨)",
-  "editorExecutable": "エディターの実行ファイル",
+  "editorExecutable": "既定のエディター",
   "editorExecutableAccessibleName": "外部エディターの実行ファイル",
   "editorPlaceholder": "エディターの実行ファイルを選択します。空の場合はシステムの既定を使用します",
   "editorPathMustBeFull": "名前だけでなく、エディターのフルパスを入力してください。",
@@ -107,7 +107,7 @@
   "executableFilter": "アプリケーション (*.exe)|*.exe|すべてのファイル (*.*)|*.*",
   "maximumEditableSize": "編集可能なファイルの最大サイズ",
   "maximumEditableSizeAccessibleName": "外部で編集可能なファイルの最大サイズ (KiB)",
-  "maximumEditableSizeHint": "最大: 1,024 KiB (1 MiB)。",
+  "maximumEditableSizeHint": "102,400 KiB (100 MiB)",
   "warnUnsafeEdit": "リモートの変更保護なしで編集する前に警告する",
   "warnUnsafeEditHint": "プロバイダーがバージョンや ETag の確認を強制できない場合、より新しいリモートの変更を上書きする可能性のある編集を続行する前に確認します。",
   "theme": "テーマ",
@@ -295,5 +295,11 @@
   "strictTransferSafety": "バージョンを確認できるファイルのみ置換または移動する",
   "strictTransferSafetyHint": "両側がバージョンまたは ETag を報告しない限り、ファイルの置換や移動を拒否します。SFTP、FTP、およびこの PC 上のファイルは報告しません。オフの場合、転送は同意したものをすべて置換または移動します。",
   "previewTransferChanges": "転送の開始前に変更内容をプレビューする",
-  "previewTransferChangesHint": "転送で作成、置換、スキップ、名前変更されるすべてのファイルを一覧表示し、ファイルごとに選択できます。確認ダイアログの「変更のプレビュー」では、1 回の転送に対してこれを行います。"
+  "previewTransferChangesHint": "転送で作成、置換、スキップ、名前変更されるすべてのファイルを一覧表示し、ファイルごとに選択できます。確認ダイアログの「変更のプレビュー」では、1 回の転送に対してこれを行います。",
+  "fileTypeEditors": "ファイル形式別のエディター",
+  "fileTypeEditorsHint": "一致する形式には指定したエディターを使います。それ以外は既定エディター、空欄の場合はシステムの関連付けを使います。長い拡張子を優先します。",
+  "editorExtensionsPlaceholder": "ファイル形式の例: .txt; .log; .json",
+  "addEditorRule": "追加または置換",
+  "removeEditorRule": "削除",
+  "editorRuleInvalid": "有効な拡張子とエディターのフルパスを入力してください（最大64形式）。"
 }

@@ -95,7 +95,7 @@ internal sealed partial class BrowserPaneModel : INotifyPropertyChanged, IAsyncD
     private readonly Func<PaneMutationController>? _mutations;
     private readonly IDialogService? _dialogs;
     private readonly Func<ObjectInspectorAddress, StorageItemKind, Task>? _inspect;
-    private readonly Func<ObjectInspectorAddress, string, long?, Task>? _edit;
+    private readonly Func<ObjectInspectorAddress, string, long?, IProgress<ExternalEditProgress>, Task>? _edit;
     private readonly Func<IReadOnlyList<string>, IReadOnlyList<string>, Task<IReadOnlyList<BatchRenameLine>?>>? _batchRename;
     private PagedListingIndex? _index;
     private int _paneNumber = 1;
@@ -179,7 +179,7 @@ internal sealed partial class BrowserPaneModel : INotifyPropertyChanged, IAsyncD
         Func<ISshTerminalAgentClient>? terminals = null,
         Func<IAgentLifecycleController?>? agentLifecycle = null,
         Func<ObjectInspectorAddress, StorageItemKind, Task>? inspect = null,
-        Func<ObjectInspectorAddress, string, long?, Task>? edit = null,
+        Func<ObjectInspectorAddress, string, long?, IProgress<ExternalEditProgress>, Task>? edit = null,
         Func<IReadOnlyList<string>, IReadOnlyList<string>, Task<IReadOnlyList<BatchRenameLine>?>>? batchRename = null)
     {
         _terminals = terminals;
@@ -1035,6 +1035,11 @@ internal sealed partial class BrowserPaneModel : INotifyPropertyChanged, IAsyncD
 
     public static string EditLabel => Ui.Pane.EditInExternalEditor;
 
+    private bool _preparingEdit;
+    private string _editStatus = string.Empty;
+    public bool IsPreparingEdit => _preparingEdit;
+    public string EditStatus => _editStatus;
+
     /// <summary>
     /// Whether the selection is one file on a saved connection, which is what can be edited.
     /// </summary>
@@ -1045,6 +1050,7 @@ internal sealed partial class BrowserPaneModel : INotifyPropertyChanged, IAsyncD
     /// </remarks>
     internal bool CanEdit =>
         _edit is not null &&
+        !_preparingEdit &&
         !IsTerminal &&
         PaneTransferSnapshots.SelectionFor(_source, SelectedRows) is { IsSuccess: true } selection &&
         PaneInspection.CanInspect(Here(), selection.Value.Items);
@@ -1054,7 +1060,7 @@ internal sealed partial class BrowserPaneModel : INotifyPropertyChanged, IAsyncD
     /// </summary>
     internal async Task EditAsync(CancellationToken cancellationToken = default)
     {
-        if (_edit is null) return;
+        if (_edit is null || _preparingEdit) return;
 
         var selection = PaneTransferSnapshots.SelectionFor(_source, SelectedRows);
         if (selection.IsFailure)
@@ -1073,7 +1079,26 @@ internal sealed partial class BrowserPaneModel : INotifyPropertyChanged, IAsyncD
 
         cancellationToken.ThrowIfCancellationRequested();
         var item = selection.Value.Items[0];
-        await _edit(address, item.Name, item.Length).ConfigureAwait(true);
+        _preparingEdit = true;
+        _editStatus = Ui.Format(Ui.Dialogs.EditorDownloadingFormat, item.Name);
+        Raise(nameof(IsPreparingEdit));
+        Raise(nameof(EditStatus));
+        (EditCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        try
+        {
+            var progress = new Progress<ExternalEditProgress>(status =>
+            {
+                _editStatus = status.Message;
+                Raise(nameof(EditStatus));
+            });
+            await _edit(address, item.Name, item.Length, progress).ConfigureAwait(true);
+        }
+        finally
+        {
+            _preparingEdit = false;
+            Raise(nameof(IsPreparingEdit));
+            (EditCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        }
     }
 
     /// <summary>

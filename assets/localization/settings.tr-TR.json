@@ -98,7 +98,7 @@
   "newScheduleTimeZone": "Yeni zamanlamalar için saat dilimi",
   "newScheduleTimeZoneHint": "Yalnızca yeni bir zamanlamanın hangi saat diliminde başlayacağını belirler; her zamanlama kendi dilimini korur. Başka yerlerde gösterilen saatler sistemi izler.",
   "timeZoneFollowSystem": "Sistemi izle (önerilir)",
-  "editorExecutable": "Düzenleyici yürütülebilir dosyası",
+  "editorExecutable": "Varsayılan düzenleyici",
   "editorExecutableAccessibleName": "Harici düzenleyici yürütülebilir dosyası",
   "editorPlaceholder": "Bir düzenleyici yürütülebilir dosyası seçin veya sistem varsayılanı için boş bırakın",
   "editorPathMustBeFull": "Düzenleyicinin yalnızca adını değil, tam yolunu girin.",
@@ -107,7 +107,7 @@
   "executableFilter": "Uygulamalar (*.exe)|*.exe|Tüm dosyalar (*.*)|*.*",
   "maximumEditableSize": "En büyük düzenlenebilir dosya boyutu",
   "maximumEditableSizeAccessibleName": "Harici olarak düzenlenebilir en büyük dosya boyutu (KiB)",
-  "maximumEditableSizeHint": "En fazla: 1.024 KiB (1 MiB).",
+  "maximumEditableSizeHint": "102,400 KiB (100 MiB)",
   "warnUnsafeEdit": "Uzak değişiklik koruması olmadan düzenlemeden önce uyar",
   "warnUnsafeEditHint": "Bir sağlayıcı sürüm veya ETag denetimlerini uygulayamadığında, daha yeni uzak değişikliklerin üzerine yazabilecek bir düzenlemeye devam etmeden önce sorar.",
   "theme": "Tema",
@@ -295,5 +295,11 @@
   "strictTransferSafety": "Yalnızca sürümü denetlenebilen dosyaları değiştir veya taşı",
   "strictTransferSafetyHint": "Her iki taraf da bir sürüm veya ETag bildirmedikçe bir dosyayı değiştirmeyi veya taşımayı reddeder; SFTP, FTP ve bu bilgisayardaki dosyalar bunu hiçbir zaman yapmaz. Kapalıyken bir aktarım, onayladığınız her şeyi değiştirir veya taşır.",
   "previewTransferChanges": "Bir aktarımın neyi değiştireceğini başlamadan önce önizle",
-  "previewTransferChangesHint": "Bir aktarımın oluşturacağı, değiştireceği, atlayacağı veya yeniden adlandıracağı her dosyayı listeler ve her biri için seçim yapmanızı sağlar. İnceleme iletişim kutusundaki Değişiklikleri önizle, bunu tek bir aktarım için yapar."
+  "previewTransferChangesHint": "Bir aktarımın oluşturacağı, değiştireceği, atlayacağı veya yeniden adlandıracağı her dosyayı listeler ve her biri için seçim yapmanızı sağlar. İnceleme iletişim kutusundaki Değişiklikleri önizle, bunu tek bir aktarım için yapar.",
+  "fileTypeEditors": "Dosya türüne göre düzenleyiciler",
+  "fileTypeEditorsHint": "Eşleşen türler atanan düzenleyiciyi kullanır. Diğer türler varsayılan düzenleyiciyi veya boşsa sistem ilişkilendirmesini kullanır. Uzun uzantılar önceliklidir.",
+  "editorExtensionsPlaceholder": "Dosya türleri, ör. .txt; .log; .json",
+  "addEditorRule": "Ekle veya değiştir",
+  "removeEditorRule": "Kaldır",
+  "editorRuleInvalid": "Geçerli uzantıları ve düzenleyicinin tam yolunu girin (en fazla 64 tür)."
 }

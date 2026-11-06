@@ -16,7 +16,8 @@
   -->
 
   <Border x:Name="PART_Frame" Classes="pane" Classes.active="{Binding IsActive}">
-    <DockPanel>
+    <Grid>
+    <DockPanel IsEnabled="{Binding !IsPreparingEdit}">
 
       <!--
         The pane's own title bar. It says which pane this is and whether it is the active one,
@@ -307,7 +308,7 @@
         <TextBlock Grid.Column="5" Classes="muted" Text="{Binding FilterLabel}"
                    VerticalAlignment="Center" Margin="{StaticResource PaddingSm}"/>
         <TextBox Grid.Column="6" Classes="dense" Width="{StaticResource PaneFilterWidth}" Text="{Binding Filter, Mode=TwoWay}"
-                 Watermark="{Binding FilterPlaceholder}"
+                 PlaceholderText="{Binding FilterPlaceholder}"
                  AutomationProperties.Name="{Binding FilterAccessibleName}"
                  VerticalAlignment="Center">
           <TextBox.InnerLeftContent>
@@ -573,5 +574,15 @@
       </Panel>
 
     </DockPanel>
+      <Border IsVisible="{Binding IsPreparingEdit}" Background="{DynamicResource SurfaceBrush}"
+              Opacity="0.96" Padding="{StaticResource PaddingLg}" Cursor="Wait"
+              AutomationProperties.Name="{Binding EditStatus}">
+        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="{StaticResource SpaceLg}"
+                    MaxWidth="{StaticResource PanePickerMaxWidth}">
+          <TextBlock Text="{Binding EditStatus}" TextWrapping="Wrap" TextAlignment="Center"/>
+          <ProgressBar IsIndeterminate="True"/>
+        </StackPanel>
+      </Border>
+    </Grid>
   </Border>
 </UserControl>

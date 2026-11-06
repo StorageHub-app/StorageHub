@@ -87,7 +87,8 @@ internal static class DesktopPreferenceSectionMapper
             preferences.RecentWorkspaces,
             ConnectionDefaultSettings.Normalize(preferences.ConnectionDefaults)
                 .Where(pair => IsPrivateKeyReference(pair.Key) && pair.Value.Length > 0)
-                .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal));
+                .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal),
+            EditorAssociations.Normalize(preferences.FileTypeEditors));
     }
 
     /// <summary>
@@ -271,6 +272,7 @@ internal static class DesktopPreferenceSectionMapper
         return current with
         {
             ExternalEditorPath = editorPath,
+            FileTypeEditors = machine.FileTypeEditors is null ? current.FileTypeEditors : EditorAssociations.Normalize(machine.FileTypeEditors),
             PinnedWorkspaces = machine.PinnedWorkspaces is null
                 ? current.PinnedWorkspaces
                 : WorkspaceShortcutSettings.Resolve(

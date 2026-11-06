@@ -98,7 +98,7 @@
   "newScheduleTimeZone": "Tijdzone voor nieuwe planningen",
   "newScheduleTimeZoneHint": "Bepaalt alleen waarmee een nieuwe planning begint; elke planning behoudt zijn eigen zone. Elders getoonde tijden volgen het systeem.",
   "timeZoneFollowSystem": "Het systeem volgen (aanbevolen)",
-  "editorExecutable": "Uitvoerbaar bestand van editor",
+  "editorExecutable": "Standaardeditor",
   "editorExecutableAccessibleName": "Uitvoerbaar bestand van externe editor",
   "editorPlaceholder": "Kies een uitvoerbaar bestand van een editor, of laat leeg voor de systeemstandaard",
   "editorPathMustBeFull": "Voer het volledige pad van de editor in, niet alleen de naam.",
@@ -107,7 +107,7 @@
   "executableFilter": "Toepassingen (*.exe)|*.exe|Alle bestanden (*.*)|*.*",
   "maximumEditableSize": "Maximale grootte van bewerkbaar bestand",
   "maximumEditableSizeAccessibleName": "Maximale grootte van extern bewerkbaar bestand in KiB",
-  "maximumEditableSizeHint": "Maximum: 1.024 KiB (1 MiB).",
+  "maximumEditableSizeHint": "102,400 KiB (100 MiB)",
   "warnUnsafeEdit": "Waarschuwen voor bewerken zonder bescherming tegen externe wijzigingen",
   "warnUnsafeEditHint": "Wanneer een provider versie- of ETag-controles niet kan afdwingen, vraag dan voordat u doorgaat met een bewerking die nieuwere externe wijzigingen kan overschrijven.",
   "theme": "Thema",
@@ -295,5 +295,11 @@
   "strictTransferSafety": "Alleen bestanden vervangen of verplaatsen waarvan de versie te controleren is",
   "strictTransferSafetyHint": "Weigert een bestand te vervangen of te verplaatsen tenzij beide kanten een versie of ETag melden, wat SFTP, FTP en bestanden op deze pc nooit doen. Uit vervangt of verplaatst een overdracht alles waarmee u instemt.",
   "previewTransferChanges": "Vooraf tonen wat een overdracht wijzigt",
-  "previewTransferChangesHint": "Toont elk bestand dat een overdracht maakt, vervangt, overslaat of hernoemt, en laat u per bestand kiezen. Voorbeeld van wijzigingen in het controlevenster doet dit voor één overdracht."
+  "previewTransferChangesHint": "Toont elk bestand dat een overdracht maakt, vervangt, overslaat of hernoemt, en laat u per bestand kiezen. Voorbeeld van wijzigingen in het controlevenster doet dit voor één overdracht.",
+  "fileTypeEditors": "Editors per bestandstype",
+  "fileTypeEditorsHint": "Passende typen gebruiken de toegewezen editor. Andere gebruiken de standaardeditor of de systeemkoppeling als het veld leeg is. Langere extensies hebben voorrang.",
+  "editorExtensionsPlaceholder": "Typen, bijv. .txt; .log; .json",
+  "addEditorRule": "Toevoegen of vervangen",
+  "removeEditorRule": "Verwijderen",
+  "editorRuleInvalid": "Voer geldige extensies en het volledige editorpad in (maximaal 64 typen)."
 }

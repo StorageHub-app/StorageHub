@@ -98,7 +98,7 @@
   "newScheduleTimeZone": "Fuseau horaire des nouvelles planifications",
   "newScheduleTimeZoneHint": "Détermine seulement le fuseau de départ d'une nouvelle planification ; chaque planification conserve le sien. Les heures affichées ailleurs suivent le système.",
   "timeZoneFollowSystem": "Suivre le système (recommandé)",
-  "editorExecutable": "Exécutable de l'éditeur",
+  "editorExecutable": "Éditeur par défaut",
   "editorExecutableAccessibleName": "Exécutable de l'éditeur externe",
   "editorPlaceholder": "Choisissez un exécutable d'éditeur, ou laissez vide pour la valeur par défaut du système",
   "editorPathMustBeFull": "Saisissez le chemin complet de l'éditeur, pas seulement son nom.",
@@ -107,7 +107,7 @@
   "executableFilter": "Applications (*.exe)|*.exe|Tous les fichiers (*.*)|*.*",
   "maximumEditableSize": "Taille maximale de fichier modifiable",
   "maximumEditableSizeAccessibleName": "Taille maximale de fichier modifiable en externe, en Kio",
-  "maximumEditableSizeHint": "Maximum : 1 024 Kio (1 Mio).",
+  "maximumEditableSizeHint": "102,400 KiB (100 MiB)",
   "warnUnsafeEdit": "Avertir avant une modification sans protection contre les changements distants",
   "warnUnsafeEditHint": "Lorsqu'un fournisseur ne peut pas appliquer de contrôle de version ou d'ETag, demande confirmation avant de poursuivre une modification qui pourrait écraser des changements distants plus récents.",
   "theme": "Thème",
@@ -295,5 +295,11 @@
   "strictTransferSafety": "Ne remplacer ou déplacer que les fichiers dont la version peut être vérifiée",
   "strictTransferSafetyHint": "Refuse de remplacer ou de déplacer un fichier si les deux côtés ne fournissent pas une version ou un ETag, ce que SFTP, FTP et les fichiers de ce PC ne font jamais. Désactivé, un transfert remplace ou déplace tout ce que vous acceptez.",
   "previewTransferChanges": "Afficher un aperçu des modifications d'un transfert avant son démarrage",
-  "previewTransferChangesHint": "Liste chaque fichier qu'un transfert va créer, remplacer, ignorer ou renommer, et vous laisse choisir pour chacun. Aperçu des modifications, dans la boîte de vérification, fait de même pour un seul transfert."
+  "previewTransferChangesHint": "Liste chaque fichier qu'un transfert va créer, remplacer, ignorer ou renommer, et vous laisse choisir pour chacun. Aperçu des modifications, dans la boîte de vérification, fait de même pour un seul transfert.",
+  "fileTypeEditors": "Éditeurs par type de fichier",
+  "fileTypeEditorsHint": "Les types correspondants utilisent l’éditeur attribué. Les autres utilisent l’éditeur par défaut ou l’association système si le champ est vide. Les extensions longues sont prioritaires.",
+  "editorExtensionsPlaceholder": "Types, p. ex. .txt; .log; .json",
+  "addEditorRule": "Ajouter ou remplacer",
+  "removeEditorRule": "Supprimer",
+  "editorRuleInvalid": "Saisissez des extensions valides et le chemin complet de l’éditeur (64 types maximum)."
 }

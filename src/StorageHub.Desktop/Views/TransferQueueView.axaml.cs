@@ -15,6 +15,7 @@ public partial class TransferQueueView : UserControl
     public TransferQueueView()
     {
         AvaloniaXamlLoader.Load(this);
+        _ = new TransferRowDragSelection(this);
         AddHandler(PointerPressedEvent, OnPointerPressed, RoutingStrategies.Tunnel);
         AddHandler(ContextRequestedEvent, OnContextRequested, RoutingStrategies.Tunnel);
     }

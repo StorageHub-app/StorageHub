@@ -303,6 +303,10 @@ internal sealed class VtTerminalDocument
 
             var offsetInLogical = current.Count;
             var keep = line.WrappedToNext ? line.Length : line.TrimmedLength();
+            // Cursor-addressed live displays can leave the cursor past the last printed cell.
+            // Those blanks still locate the cursor: dropping them clamps it onto the wrong
+            // physical row after a narrow resize, so the next in-place redraw overwrites text.
+            if (index == cursorIndex) keep = Math.Max(keep, cursorColumn + 1);
             for (var column = 0; column < keep; column++)
             {
                 current.Add(line[column]);

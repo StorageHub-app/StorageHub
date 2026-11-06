@@ -94,7 +94,7 @@ public interface IObjectInspectorAgentClient : IAsyncDisposable
 /// Strict, correlated client for exact-object inspection and bounded external editing. A cancelled
 /// framed exchange retires its pipe so a late response can never satisfy a subsequent request.
 /// </summary>
-public sealed class NamedPipeObjectInspectorAgentClient : IObjectInspectorAgentClient
+public sealed partial class NamedPipeObjectInspectorAgentClient : IObjectInspectorAgentClient
 {
     private readonly IStorageIpcTransport _transport;
     private readonly TimeSpan _requestTimeout;
@@ -179,6 +179,8 @@ public sealed class NamedPipeObjectInspectorAgentClient : IObjectInspectorAgentC
         CancellationToken cancellationToken = default)
     {
         ValidateRequest(request, request?.HasValidBounds == true, nameof(request));
+        if (request!.MaximumBytes > EditableFileIpcContract.InlineContentBytes)
+            return DownloadChunksAsync(request, cancellationToken);
         return ExecuteAsync<EditableFileDownloadRequest, EditableFileDownloadResponse>(
             EditableFileIpcMessageTypes.DownloadRequest,
             EditableFileIpcMessageTypes.DownloadResponse,
@@ -192,6 +194,8 @@ public sealed class NamedPipeObjectInspectorAgentClient : IObjectInspectorAgentC
         CancellationToken cancellationToken = default)
     {
         ValidateRequest(request, request?.HasValidBounds == true, nameof(request));
+        if (request!.Content.Length > EditableFileIpcContract.InlineContentBytes)
+            return UploadChunksAsync(request, cancellationToken);
         return ExecuteAsync<EditableFileUploadRequest, EditableFileUploadResponse>(
             EditableFileIpcMessageTypes.UploadRequest,
             EditableFileIpcMessageTypes.UploadResponse,

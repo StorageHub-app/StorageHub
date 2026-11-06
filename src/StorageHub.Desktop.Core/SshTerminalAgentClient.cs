@@ -126,6 +126,7 @@ public sealed class NamedPipeSshTerminalAgentClient : ISshTerminalAgentClient
     {
         private readonly SemaphoreSlim _gate = new(1, 1);
         private long _sendSequence;
+        private long _lastResponseTimestamp;
         private bool _disposed;
 
         internal async Task<TResponse> ExecuteAsync<TRequest, TResponse>(
@@ -143,6 +144,11 @@ public sealed class NamedPipeSshTerminalAgentClient : ISshTerminalAgentClient
             await _gate.WaitAsync(deadline.Token).ConfigureAwait(false);
             try
             {
+                // Refresh an unused pipe before sending input. The server may have reaped it
+                // while the independent output channel remained active. Never replay a write.
+                if (transport.IsConnected && _lastResponseTimestamp != 0 &&
+                    System.Diagnostics.Stopwatch.GetElapsedTime(_lastResponseTimestamp) >= TimeSpan.FromSeconds(15))
+                    await transport.DisconnectAsync(deadline.Token).ConfigureAwait(false);
                 if (!transport.IsConnected)
                 {
                     await transport.ConnectAsync(deadline.Token).ConfigureAwait(false);
@@ -164,6 +170,7 @@ public sealed class NamedPipeSshTerminalAgentClient : ISshTerminalAgentClient
                     throw new InvalidDataException("The agent returned an unexpected SSH terminal response.");
                 }
 
+                _lastResponseTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
                 return envelope.DeserializePayload<TResponse>();
             }
             catch (Exception error) when (error is IOException or TimeoutException or UnauthorizedAccessException
@@ -172,6 +179,8 @@ public sealed class NamedPipeSshTerminalAgentClient : ISshTerminalAgentClient
                 // The connection is now of unknown state: drop it so the next call reconnects
                 // cleanly rather than reading someone else's response off a half-consumed stream.
                 await DisconnectAfterFailureAsync().ConfigureAwait(false);
+                if (error is OperationCanceledException && !cancellationToken.IsCancellationRequested)
+                    throw new TimeoutException("The SSH terminal agent request timed out.", error);
                 throw;
             }
             finally

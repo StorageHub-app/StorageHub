@@ -123,5 +123,19 @@
   "transferPreviewActionReplace": "Ersetzen",
   "transferPreviewActionSkip": "Überspringen",
   "transferPreviewActionRename": "Umbenennen",
-  "transferPreviewEmpty": "Es gibt keine Dateien zu übertragen."
+  "transferPreviewEmpty": "Es gibt keine Dateien zu übertragen.",
+  "editorDownloadingFormat": "'{0}' wird heruntergeladen...",
+  "editorOpeningFormat": "Editor für '{0}' wird geöffnet...",
+  "editorDownloading": "Wird heruntergeladen",
+  "editorDownloaded": "Heruntergeladen",
+  "editorOpened": "Editor geöffnet",
+  "editorNotOpened": "Nicht geöffnet",
+  "editorWatching": "Gespeicherte Änderungen werden überwacht.",
+  "editorChanged": "Gespeicherte Änderung erkannt",
+  "editorUploading": "Änderungen werden hochgeladen",
+  "editorUploaded": "Änderungen hochgeladen",
+  "editorUploadDeferred": "Hochladen verschoben",
+  "editorStoppedWatching": "Überwachung beendet",
+  "editorFailed": "Fehlgeschlagen",
+  "editorBytesFormat": "{0:N0} Bytes"
 }

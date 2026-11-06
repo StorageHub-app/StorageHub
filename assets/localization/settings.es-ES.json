@@ -98,7 +98,7 @@
   "newScheduleTimeZone": "Zona horaria de las programaciones nuevas",
   "newScheduleTimeZoneHint": "Solo decide con qué zona empieza una programación nueva; cada programación conserva la suya. Las horas que se muestran en otros lugares siguen la del sistema.",
   "timeZoneFollowSystem": "Seguir el sistema (recomendado)",
-  "editorExecutable": "Ejecutable del editor",
+  "editorExecutable": "Editor predeterminado",
   "editorExecutableAccessibleName": "Ejecutable del editor externo",
   "editorPlaceholder": "Elija un ejecutable de editor o déjelo en blanco para usar el predeterminado del sistema",
   "editorPathMustBeFull": "Introduzca la ruta completa del editor, no solo su nombre.",
@@ -107,7 +107,7 @@
   "executableFilter": "Aplicaciones (*.exe)|*.exe|Todos los archivos (*.*)|*.*",
   "maximumEditableSize": "Tamaño máximo de archivo editable",
   "maximumEditableSizeAccessibleName": "Tamaño máximo de archivo editable externamente en KiB",
-  "maximumEditableSizeHint": "Máximo: 1.024 KiB (1 MiB).",
+  "maximumEditableSizeHint": "102,400 KiB (100 MiB)",
   "warnUnsafeEdit": "Avisar antes de editar sin protección frente a cambios remotos",
   "warnUnsafeEditHint": "Cuando un proveedor no puede aplicar comprobaciones de versión o ETag, pregunta antes de continuar con una edición que podría sobrescribir cambios remotos más recientes.",
   "theme": "Tema",
@@ -295,5 +295,11 @@
   "strictTransferSafety": "Reemplazar o mover solo archivos cuya versión se pueda comprobar",
   "strictTransferSafetyHint": "Se niega a reemplazar o mover un archivo salvo que ambos lados indiquen una versión o ETag, algo que SFTP, FTP y los archivos de este equipo nunca hacen. Desactivado, una transferencia reemplaza o mueve todo lo que usted acepte.",
   "previewTransferChanges": "Previsualizar lo que cambia una transferencia antes de que empiece",
-  "previewTransferChangesHint": "Enumera cada archivo que una transferencia creará, reemplazará, omitirá o renombrará, y le permite elegir para cada uno. Vista previa de los cambios, en el cuadro de revisión, hace esto para una sola transferencia."
+  "previewTransferChangesHint": "Enumera cada archivo que una transferencia creará, reemplazará, omitirá o renombrará, y le permite elegir para cada uno. Vista previa de los cambios, en el cuadro de revisión, hace esto para una sola transferencia.",
+  "fileTypeEditors": "Editores por tipo de archivo",
+  "fileTypeEditorsHint": "Los tipos coincidentes usan el editor asignado. Otros usan el editor predeterminado o la asociación del sistema si está vacío. Las extensiones más largas tienen prioridad.",
+  "editorExtensionsPlaceholder": "Tipos, p. ej. .txt; .log; .json",
+  "addEditorRule": "Añadir o reemplazar",
+  "removeEditorRule": "Eliminar",
+  "editorRuleInvalid": "Introduce extensiones válidas y la ruta completa del editor (hasta 64 tipos)."
 }

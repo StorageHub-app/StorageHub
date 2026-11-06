@@ -194,7 +194,7 @@ public class SettingsPageCatalogTests
         var limit = SettingsPageCatalog.AllRows.Single(r => r.Key == "maximum-editable-kib");
 
         Assert.Equal(512 * 1024, limit.Write(DesktopUpdatePreferences.Defaults, "512").MaximumEditableFileBytes);
-        Assert.Equal("1024", limit.Read(DesktopUpdatePreferences.Defaults));
+        Assert.Equal("102400", limit.Read(DesktopUpdatePreferences.Defaults));
     }
 
     /// <summary>Total speed limits are KiB/s on screen and bytes per second stored; 0 is no limit.</summary>

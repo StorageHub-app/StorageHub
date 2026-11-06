@@ -120,6 +120,20 @@ internal sealed class DialogStrings : LocalizationModelBase
 
     // -------------------------------------------------------- external editor
     public string ExternalEditorCaption { get; set; } = "External editor";
+    public string EditorDownloadingFormat { get; set; } = "Downloading '{0}'...";
+    public string EditorOpeningFormat { get; set; } = "Opening editor for '{0}'...";
+    public string EditorDownloading { get; set; } = "Downloading";
+    public string EditorDownloaded { get; set; } = "Downloaded";
+    public string EditorOpened { get; set; } = "Editor opened";
+    public string EditorNotOpened { get; set; } = "Not opened";
+    public string EditorWatching { get; set; } = "Watching for saved changes.";
+    public string EditorChanged { get; set; } = "Saved change detected";
+    public string EditorUploading { get; set; } = "Uploading changes";
+    public string EditorUploaded { get; set; } = "Changes uploaded";
+    public string EditorUploadDeferred { get; set; } = "Upload deferred";
+    public string EditorStoppedWatching { get; set; } = "Stopped watching";
+    public string EditorFailed { get; set; } = "Failed";
+    public string EditorBytesFormat { get; set; } = "{0:N0} bytes";
 
     /// <summary>{0} = the underlying error message.</summary>
     public string ExternalEditorOpenFailedFormat { get; set; } =

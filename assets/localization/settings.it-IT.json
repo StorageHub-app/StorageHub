@@ -98,7 +98,7 @@
   "newScheduleTimeZone": "Fuso orario per le nuove pianificazioni",
   "newScheduleTimeZoneHint": "Decide solo quale fuso usa una nuova pianificazione all'inizio; ogni pianificazione mantiene il proprio. Gli orari mostrati altrove seguono il sistema.",
   "timeZoneFollowSystem": "Segui il sistema (consigliato)",
-  "editorExecutable": "Eseguibile dell'editor",
+  "editorExecutable": "Editor predefinito",
   "editorExecutableAccessibleName": "Eseguibile dell'editor esterno",
   "editorPlaceholder": "Scegli un eseguibile di editor oppure lascia vuoto per il predefinito del sistema",
   "editorPathMustBeFull": "Inserisci il percorso completo dell'editor, non solo il nome.",
@@ -107,7 +107,7 @@
   "executableFilter": "Applicazioni (*.exe)|*.exe|Tutti i file (*.*)|*.*",
   "maximumEditableSize": "Dimensione massima file modificabile",
   "maximumEditableSizeAccessibleName": "Dimensione massima del file modificabile esternamente in KiB",
-  "maximumEditableSizeHint": "Massimo: 1.024 KiB (1 MiB).",
+  "maximumEditableSizeHint": "102,400 KiB (100 MiB)",
   "warnUnsafeEdit": "Avvisa prima di modificare senza protezione dalle modifiche remote",
   "warnUnsafeEditHint": "Quando un provider non può imporre i controlli di versione o ETag, chiede conferma prima di proseguire con una modifica che potrebbe sovrascrivere modifiche remote più recenti.",
   "theme": "Tema",
@@ -295,5 +295,11 @@
   "strictTransferSafety": "Sostituisci o sposta solo i file la cui versione può essere verificata",
   "strictTransferSafetyHint": "Rifiuta di sostituire o spostare un file a meno che entrambi i lati riportino una versione o un ETag, cosa che SFTP, FTP e i file su questo PC non fanno mai. Se disattivato, un trasferimento sostituisce o sposta tutto ciò che accetti.",
   "previewTransferChanges": "Mostra in anteprima cosa cambia un trasferimento prima che inizi",
-  "previewTransferChangesHint": "Elenca ogni file che un trasferimento creerà, sostituirà, salterà o rinominerà, e ti permette di scegliere per ciascuno. Anteprima modifiche nella finestra di verifica fa lo stesso per un singolo trasferimento."
+  "previewTransferChangesHint": "Elenca ogni file che un trasferimento creerà, sostituirà, salterà o rinominerà, e ti permette di scegliere per ciascuno. Anteprima modifiche nella finestra di verifica fa lo stesso per un singolo trasferimento.",
+  "fileTypeEditors": "Editor per tipo di file",
+  "fileTypeEditorsHint": "I tipi corrispondenti usano l’editor assegnato. Gli altri usano l’editor predefinito o l’associazione di sistema se vuoto. Le estensioni lunghe hanno la precedenza.",
+  "editorExtensionsPlaceholder": "Tipi, ad es. .txt; .log; .json",
+  "addEditorRule": "Aggiungi o sostituisci",
+  "removeEditorRule": "Rimuovi",
+  "editorRuleInvalid": "Inserisci estensioni valide e il percorso completo dell’editor (massimo 64 tipi)."
 }

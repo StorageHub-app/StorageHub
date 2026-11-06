@@ -1,4 +1,5 @@
 using System.Text;
+using StorageHub.Desktop.Localization;
 using Avalonia;
 using Avalonia.Automation.Peers;
 using Avalonia.Automation.Provider;
@@ -799,9 +800,9 @@ internal sealed class TerminalView : Control, ILogicalScrollable
         }
 
         // A right-click pastes the clipboard, as 1.x's terminal did.
-        if (e.InitialPressMouseButton == MouseButton.Right && Session is { } session)
+        if (e.InitialPressMouseButton == MouseButton.Right)
         {
-            _ = PasteAsync(session);
+            OpenClipboardMenu();
             e.Handled = true;
             return;
         }
@@ -810,6 +811,25 @@ internal sealed class TerminalView : Control, ILogicalScrollable
         _selecting = false;
         e.Pointer.Capture(null);
         e.Handled = true;
+    }
+
+    private void OpenClipboardMenu()
+    {
+        var copy = new MenuItem { Header = Ui.Pane.Copy, IsEnabled = HasSelection };
+        copy.Click += (_, _) => _ = CopyAsync();
+        var paste = new MenuItem { Header = Ui.Pane.Paste,
+            IsEnabled = Session is { } active && (active is not SshTerminalSession ssh || ssh.IsConnected) };
+        paste.Click += (_, _) => { if (Session is { } session) _ = PasteAsync(session); };
+        var selectAll = new MenuItem { Header = Ui.Pane.SelectAll, IsEnabled = Document is not null };
+        selectAll.Click += (_, _) =>
+        {
+            if (Document is { } document)
+                Select(document.FirstLineNumber, 0, document.LastLineNumber, document.Columns);
+        };
+        var menu = new ContextMenu { ItemsSource = new[] { copy, paste, selectAll } };
+        menu.Closed += (_, _) => Focus();
+        ContextMenu = menu;
+        menu.Open(this);
     }
 
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
@@ -981,7 +1001,8 @@ internal sealed class TerminalView : Control, ILogicalScrollable
             // TryGetTextAsync, not GetTextAsync: a clipboard holding an image or a file list has
             // no text to give, and that is an ordinary answer rather than a failure.
             var text = await clipboard.TryGetTextAsync().ConfigureAwait(true);
-            if (!string.IsNullOrEmpty(text)) session.Paste(text);
+            if (!string.IsNullOrEmpty(text) && ReferenceEquals(Session, session) &&
+                (session is not SshTerminalSession ssh || ssh.IsConnected)) session.Paste(text);
         }
         catch (Exception error) when (error is InvalidOperationException or TimeoutException or IOException)
         {

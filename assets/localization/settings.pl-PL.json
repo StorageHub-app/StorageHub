@@ -98,7 +98,7 @@
   "newScheduleTimeZone": "Strefa czasowa nowych harmonogramów",
   "newScheduleTimeZoneHint": "Decyduje tylko o tym, od czego zaczyna nowy harmonogram; każdy harmonogram zachowuje własną strefę. Czasy wyświetlane w innych miejscach podążają za systemem.",
   "timeZoneFollowSystem": "Zgodnie z systemem (zalecane)",
-  "editorExecutable": "Plik wykonywalny edytora",
+  "editorExecutable": "Edytor domyślny",
   "editorExecutableAccessibleName": "Plik wykonywalny edytora zewnętrznego",
   "editorPlaceholder": "Wybierz plik wykonywalny edytora lub pozostaw puste dla domyślnego systemowego",
   "editorPathMustBeFull": "Wpisz pełną ścieżkę edytora, a nie tylko jego nazwę.",
@@ -107,7 +107,7 @@
   "executableFilter": "Aplikacje (*.exe)|*.exe|Wszystkie pliki (*.*)|*.*",
   "maximumEditableSize": "Maksymalny rozmiar edytowalnego pliku",
   "maximumEditableSizeAccessibleName": "Maksymalny rozmiar pliku edytowalnego zewnętrznie w KiB",
-  "maximumEditableSizeHint": "Maksimum: 1024 KiB (1 MiB).",
+  "maximumEditableSizeHint": "102,400 KiB (100 MiB)",
   "warnUnsafeEdit": "Ostrzegaj przed edycją bez ochrony przed zmianami zdalnymi",
   "warnUnsafeEditHint": "Gdy dostawca nie może wymusić sprawdzania wersji lub ETag, pytaj przed kontynuowaniem edycji, która mogłaby nadpisać nowsze zmiany zdalne.",
   "theme": "Motyw",
@@ -295,5 +295,11 @@
   "strictTransferSafety": "Zastępuj lub przenoś tylko pliki, których wersję można sprawdzić",
   "strictTransferSafetyHint": "Odmawia zastąpienia lub przeniesienia pliku, chyba że obie strony podają wersję lub ETag, czego SFTP, FTP i pliki na tym komputerze nigdy nie robią. Gdy wyłączone, transfer zastępuje lub przenosi wszystko, na co się zgodzisz.",
   "previewTransferChanges": "Pokazuj podgląd zmian transferu przed jego rozpoczęciem",
-  "previewTransferChangesHint": "Wyświetla każdy plik, który transfer utworzy, zastąpi, pominie lub którego nazwę zmieni, i pozwala wybrać dla każdego z nich. Podgląd zmian w oknie przeglądu robi to dla pojedynczego transferu."
+  "previewTransferChangesHint": "Wyświetla każdy plik, który transfer utworzy, zastąpi, pominie lub którego nazwę zmieni, i pozwala wybrać dla każdego z nich. Podgląd zmian w oknie przeglądu robi to dla pojedynczego transferu.",
+  "fileTypeEditors": "Edytory według typu pliku",
+  "fileTypeEditorsHint": "Pasujące typy używają przypisanego edytora. Inne używają edytora domyślnego lub skojarzenia systemowego, gdy pole jest puste. Dłuższe rozszerzenia mają pierwszeństwo.",
+  "editorExtensionsPlaceholder": "Typy, np. .txt; .log; .json",
+  "addEditorRule": "Dodaj lub zastąp",
+  "removeEditorRule": "Usuń",
+  "editorRuleInvalid": "Podaj prawidłowe rozszerzenia i pełną ścieżkę edytora (do 64 typów)."
 }

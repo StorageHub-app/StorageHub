@@ -123,5 +123,19 @@
   "transferPreviewActionReplace": "Vervangen",
   "transferPreviewActionSkip": "Overslaan",
   "transferPreviewActionRename": "Hernoemen",
-  "transferPreviewEmpty": "Er zijn geen bestanden om over te dragen."
+  "transferPreviewEmpty": "Er zijn geen bestanden om over te dragen.",
+  "editorDownloadingFormat": "'{0}' downloaden...",
+  "editorOpeningFormat": "Editor voor '{0}' openen...",
+  "editorDownloading": "Downloaden",
+  "editorDownloaded": "Gedownload",
+  "editorOpened": "Editor geopend",
+  "editorNotOpened": "Niet geopend",
+  "editorWatching": "Opgeslagen wijzigingen controleren.",
+  "editorChanged": "Opgeslagen wijziging gedetecteerd",
+  "editorUploading": "Wijzigingen uploaden",
+  "editorUploaded": "Wijzigingen geüpload",
+  "editorUploadDeferred": "Upload uitgesteld",
+  "editorStoppedWatching": "Controle gestopt",
+  "editorFailed": "Mislukt",
+  "editorBytesFormat": "{0:N0} bytes"
 }

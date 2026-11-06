@@ -293,6 +293,7 @@ internal sealed class ExternalEditController : IAsyncDisposable
         ObjectInspectorAddress address,
         string fileName,
         long? capturedLength,
+        IProgress<ExternalEditProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -303,14 +304,22 @@ internal sealed class ExternalEditController : IAsyncDisposable
             preferences.MaximumEditableFileBytes, 1, EditableFileIpcContract.MaximumContentBytes);
         if (capturedLength is > 0 && capturedLength > maximumBytes)
         {
+            ExternalEditActivity.Record(fileName, Ui.Dialogs.EditorFailed, Ui.Format(Ui.Dialogs.FileTooLargeToEditFormat, fileName, maximumBytes / 1024));
             await _prompts.ShowAsync(
                 Ui.Format(Ui.Dialogs.FileTooLargeToEditFormat, fileName, maximumBytes / 1024)).ConfigureAwait(false);
             return null;
         }
 
+        progress?.Report(new(Ui.Format(Ui.Dialogs.EditorDownloadingFormat, fileName)));
+        ExternalEditActivity.Record(fileName, Ui.Dialogs.EditorDownloading);
         var response = await DownloadAsync(address, fileName, maximumBytes, preferences, cancellationToken)
             .ConfigureAwait(false);
-        if (response is null) return null;
+        if (response is null)
+        {
+            ExternalEditActivity.Record(fileName, Ui.Dialogs.EditorNotOpened);
+            return null;
+        }
+        ExternalEditActivity.Record(fileName, Ui.Dialogs.EditorDownloaded, Ui.Format(Ui.Dialogs.EditorBytesFormat, response.Content.Length));
 
         var directory = Path.Combine(_root, Guid.NewGuid().ToString("N"));
         EditSessionDirectory.CreatePrivate(directory);
@@ -324,11 +333,14 @@ internal sealed class ExternalEditController : IAsyncDisposable
         try
         {
             session.StartWatching();
-            _launcher.Launch(preferences.ExternalEditorPath, localPath, directory);
+            progress?.Report(new(Ui.Format(Ui.Dialogs.EditorOpeningFormat, fileName)));
+            _launcher.Launch(EditorAssociations.Resolve(preferences, fileName), localPath, directory);
+            ExternalEditActivity.Record(fileName, Ui.Dialogs.EditorOpened, Ui.Dialogs.EditorWatching);
             return session;
         }
-        catch
+        catch (Exception error)
         {
+            ExternalEditActivity.Record(fileName, Ui.Dialogs.EditorFailed, error.Message);
             session.Dispose();
             throw;
         }
@@ -356,6 +368,7 @@ internal sealed class ExternalEditController : IAsyncDisposable
         if (!unprotected)
         {
             if (response.Failure is null) return response;
+            ExternalEditActivity.Record(fileName, Ui.Dialogs.EditorFailed, response.Failure.Message);
             await _prompts.ShowAsync(response.Failure.Message).ConfigureAwait(false);
             return null;
         }
@@ -384,6 +397,7 @@ internal sealed class ExternalEditController : IAsyncDisposable
         response = await RequestAsync(address with { VersionId = null, EntityTag = null }, maximumBytes, cancellationToken)
             .ConfigureAwait(false);
         if (response.Failure is null) return response;
+        ExternalEditActivity.Record(fileName, Ui.Dialogs.EditorFailed, response.Failure.Message);
         await _prompts.ShowAsync(response.Failure.Message).ConfigureAwait(false);
         return null;
     }
@@ -399,12 +413,17 @@ internal sealed class ExternalEditController : IAsyncDisposable
     internal IExternalEditPrompts Prompts => _prompts;
 
     internal async Task<EditableFileUploadResponse> UploadAsync(
-        ObjectInspectorAddress address, byte[] content, string? contentType)
+        ObjectInspectorAddress address, byte[] content, string? contentType, string? fileName = null)
     {
         await using var client = _clients();
-        return await client.UploadEditedFileAsync(
+        fileName ??= EditSessionDirectory.LocalName(address.RelativePath);
+        ExternalEditActivity.Record(fileName, Ui.Dialogs.EditorUploading);
+        var response = await client.UploadEditedFileAsync(
             new EditableFileUploadRequest(EditableFileIpcContract.CurrentVersion, address, content, contentType))
             .ConfigureAwait(false);
+        ExternalEditActivity.Record(fileName, response.Failure is null ? Ui.Dialogs.EditorUploaded : Ui.Dialogs.EditorFailed,
+            response.Failure?.Message ?? Ui.Format(Ui.Dialogs.EditorBytesFormat, content.Length));
+        return response;
     }
 
     internal void Uploaded() => FileUploaded?.Invoke(this, EventArgs.Empty);
@@ -520,6 +539,7 @@ internal sealed class ExternalEditSession : IDisposable
             var file = new FileInfo(LocalPath);
             if (file.LinkTarget is not null || (file.Attributes & FileAttributes.ReparsePoint) != 0)
             {
+                ExternalEditActivity.Record(Path.GetFileName(LocalPath), Ui.Dialogs.EditorFailed, Ui.Validation.TheEditorReplacedTheTemporaryFileWith);
                 // A link could point anywhere the editor's account can read; uploading through it
                 // would send that file to the remote connection instead.
                 await _owner.Prompts.ShowAsync(Ui.Validation.TheEditorReplacedTheTemporaryFileWith).ConfigureAwait(false);
@@ -529,14 +549,18 @@ internal sealed class ExternalEditSession : IDisposable
 
             if (file.Length > _maximumBytes)
             {
+                ExternalEditActivity.Record(Path.GetFileName(LocalPath), Ui.Dialogs.EditorFailed,
+                    Ui.Format(Ui.Dialogs.ExternalEditorTooLargeFormat, _maximumBytes / 1024));
                 await _owner.Prompts.ShowAsync(
                     Ui.Format(Ui.Dialogs.ExternalEditorTooLargeFormat, _maximumBytes / 1024)).ConfigureAwait(false);
                 return;
             }
 
-            var content = await File.ReadAllBytesAsync(LocalPath).ConfigureAwait(false);
+            var content = await ReadWorkingCopyAsync().ConfigureAwait(false);
             var hash = SHA256.HashData(content);
             if (CryptographicOperations.FixedTimeEquals(hash, _observedHash)) return;
+
+            ExternalEditActivity.Record(Path.GetFileName(LocalPath), Ui.Dialogs.EditorChanged);
 
             switch (await _owner.Prompts.ConfirmUploadAsync(Path.GetFileName(LocalPath)).ConfigureAwait(false))
             {
@@ -544,11 +568,12 @@ internal sealed class ExternalEditSession : IDisposable
                     Dispose();
                     return;
                 case EditedFileChoice.NotNow:
+                    ExternalEditActivity.Record(Path.GetFileName(LocalPath), Ui.Dialogs.EditorUploadDeferred);
                     _observedHash = hash;
                     return;
             }
 
-            var response = await _owner.UploadAsync(_address, content, _contentType).ConfigureAwait(false);
+            var response = await _owner.UploadAsync(_address, content, _contentType, Path.GetFileName(LocalPath)).ConfigureAwait(false);
             if (response.Failure is not null)
             {
                 // The hash is not moved on, so the next save offers the upload again.
@@ -563,6 +588,7 @@ internal sealed class ExternalEditSession : IDisposable
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException or
             InvalidOperationException or TimeoutException or System.Text.Json.JsonException)
         {
+            ExternalEditActivity.Record(Path.GetFileName(LocalPath), Ui.Dialogs.EditorFailed, error.Message);
             await _owner.Prompts.ShowAsync(
                 Ui.Format(Ui.Dialogs.ExternalEditorProcessFailedFormat, error.Message)).ConfigureAwait(false);
         }
@@ -597,6 +623,23 @@ internal sealed class ExternalEditSession : IDisposable
         }
 
         _owner.Closed(this);
+        ExternalEditActivity.Record(Path.GetFileName(LocalPath), Ui.Dialogs.EditorStoppedWatching);
+    }
+
+    private async Task<byte[]> ReadWorkingCopyAsync()
+    {
+        await using var stream = new FileStream(LocalPath, FileMode.Open, FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete, EditableFileIpcContract.ChunkBytes, FileOptions.Asynchronous);
+        using var content = new MemoryStream();
+        var buffer = new byte[EditableFileIpcContract.ChunkBytes];
+        int read;
+        while ((read = await stream.ReadAsync(buffer).ConfigureAwait(false)) != 0)
+        {
+            if (content.Length + read > _maximumBytes)
+                throw new InvalidDataException(Ui.Format(Ui.Dialogs.ExternalEditorTooLargeFormat, _maximumBytes / 1024));
+            await content.WriteAsync(buffer.AsMemory(0, read)).ConfigureAwait(false);
+        }
+        return content.ToArray();
     }
 
     private void OnChanged(object sender, FileSystemEventArgs e)

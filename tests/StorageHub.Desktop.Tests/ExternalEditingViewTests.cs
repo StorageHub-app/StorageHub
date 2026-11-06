@@ -217,14 +217,65 @@ public sealed class ExternalEditingViewTests
         return new SettingsModel(() => stored, saved => stored = saved, files: picker);
     }
 
-    private static async Task<(BrowserPaneModel Pane, List<(ObjectInspectorAddress Address, string Name)> Edits)> PaneAsync()
+    [AvaloniaFact]
+    public async Task EditingShowsPaneProgressAndAlwaysClearsItAfterFailure()
+    {
+        var finished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        IProgress<ExternalEditProgress>? progress = null;
+        var (pane, _) = await PaneAsync((_, _, _, reporter) => { progress = reporter; return finished.Task; });
+        await using var cleanup = pane;
+        var file = pane.Rows.Single(row => row.Name == "render.exr");
+        var window = new Window { Width = 900, Height = 700, Content = new BrowserPaneView { DataContext = pane } };
+        window.Show();
+        pane.Selected = file;
+        if (!pane.SelectedRows.Contains(file)) pane.SelectedRows.Add(file);
+        try
+        {
+            var opening = pane.EditAsync(TestContext.Current.CancellationToken);
+            Assert.True(pane.IsPreparingEdit);
+            Assert.Contains("render.exr", pane.EditStatus, StringComparison.Ordinal);
+            Assert.False(pane.EditCommand.CanExecute(null));
+            progress!.Report(new("Opening the editor..."));
+            await Task.Yield();
+            Assert.Equal("Opening the editor...", pane.EditStatus);
+            finished.SetException(new IOException("Editor could not start"));
+            await Assert.ThrowsAsync<IOException>(() => opening);
+            Assert.False(pane.IsPreparingEdit);
+            Assert.True(pane.EditCommand.CanExecute(null));
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
+    public void FileTypeRulesCanBeAddedReplacedAndRemovedInSettings()
+    {
+        var settings = Settings(out _);
+        var rules = settings.Pages.Single(page => page.Key == "editing").EditorAssociations!;
+        rules.Extensions = ".txt; *.LOG";
+        rules.Editor = OperatingSystem.IsWindows() ? @"C:\Tools\editor.exe" : "/usr/bin/editor";
+        Assert.True(rules.AddCommand.CanExecute(null));
+        rules.AddCommand.Execute(null);
+        Assert.Equal(2, settings.Working.FileTypeEditors!.Count);
+        rules.Extensions = ".txt";
+        rules.Editor = OperatingSystem.IsWindows() ? @"C:\Tools\other.exe" : "/usr/bin/other";
+        rules.AddCommand.Execute(null);
+        Assert.Equal(rules.Editor, settings.Working.FileTypeEditors[".txt"]);
+        rules.Rows.Single(row => row.Extension == ".log").RemoveCommand.Execute(null);
+        Assert.Single(settings.Working.FileTypeEditors);
+        rules.Extensions = "../invalid";
+        Assert.False(rules.AddCommand.CanExecute(null));
+        Assert.NotEmpty(rules.Problem);
+    }
+
+    private static async Task<(BrowserPaneModel Pane, List<(ObjectInspectorAddress Address, string Name)> Edits)> PaneAsync(
+        Func<ObjectInspectorAddress, string, long?, IProgress<ExternalEditProgress>, Task>? editing = null)
     {
         var connection = Summary("Studio Assets");
         var edits = new List<(ObjectInspectorAddress, string)>();
-        var pane = new BrowserPaneModel(new RecordingAgent([connection]), edit: (address, name, _) =>
+        var pane = new BrowserPaneModel(new RecordingAgent([connection]), edit: (address, name, length, progress) =>
         {
             edits.Add((address, name));
-            return Task.CompletedTask;
+            return editing?.Invoke(address, name, length, progress) ?? Task.CompletedTask;
         });
         await pane.LoadConnectionsAsync(TestContext.Current.CancellationToken);
         await pane.OpenConnectionAsync(connection.ConnectionId, TestContext.Current.CancellationToken);

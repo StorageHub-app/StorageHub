@@ -26,18 +26,14 @@ internal static class TestPaths
     /// A file in the repository, for the rare test whose subject is a file that is not compiled.
     /// </summary>
     /// <remarks>
-    /// Found by walking up from the test binary to the solution rather than by counting
-    /// directories, because the number of them between the two is a build-configuration detail and
-    /// a test that hard-codes it breaks the first time anyone changes the output path.
+    /// Walks from the test binary, then the caller's source file when build artifacts live outside
+    /// the checkout. Neither output directory depth nor the working directory is assumed.
     /// </remarks>
-    internal static string RepositoryFile(string relative)
+    internal static string RepositoryFile(string relative,
+        [System.Runtime.CompilerServices.CallerFilePath] string sourceFile = "")
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(relative);
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "StorageHub.slnx")))
-        {
-            directory = directory.Parent;
-        }
+        var directory = FindRoot(AppContext.BaseDirectory) ?? FindRoot(Path.GetDirectoryName(sourceFile));
 
         if (directory is null)
         {
@@ -48,6 +44,16 @@ internal static class TestPaths
         return Path.Combine(
             directory.FullName,
             relative.Replace('/', Path.DirectorySeparatorChar));
+    }
+
+    private static DirectoryInfo? FindRoot(string? path)
+    {
+        var directory = string.IsNullOrEmpty(path) ? null : new DirectoryInfo(path);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "StorageHub.slnx")))
+        {
+            directory = directory.Parent;
+        }
+        return directory;
     }
 
     /// <summary>

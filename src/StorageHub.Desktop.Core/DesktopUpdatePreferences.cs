@@ -254,7 +254,8 @@ internal sealed record DesktopUpdatePreferences(
     /// Whether every transfer first lists what it will create, replace, skip and rename. Off by
     /// default; the review dialog's Preview changes button shows the list for one transfer.
     /// </summary>
-    bool PreviewTransferChanges = false)
+    bool PreviewTransferChanges = false,
+    IReadOnlyDictionary<string, string>? FileTypeEditors = null)
 {
     /// <summary>The auto-refresh settings as a pane follows them, the interval within its bounds.</summary>
     internal FolderAutoRefreshSettings FolderAutoRefresh =>

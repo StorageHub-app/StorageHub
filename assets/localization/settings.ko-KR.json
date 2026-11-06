@@ -98,7 +98,7 @@
   "newScheduleTimeZone": "새 스케줄의 표준 시간대",
   "newScheduleTimeZoneHint": "새 스케줄이 시작할 시간대만 결정하며, 각 스케줄은 자체 시간대를 유지합니다. 다른 곳에 표시되는 시간은 시스템을 따릅니다.",
   "timeZoneFollowSystem": "시스템 따르기 (권장)",
-  "editorExecutable": "편집기 실행 파일",
+  "editorExecutable": "기본 편집기",
   "editorExecutableAccessibleName": "외부 편집기 실행 파일",
   "editorPlaceholder": "편집기 실행 파일을 선택하거나, 시스템 기본값을 사용하려면 비워 두십시오",
   "editorPathMustBeFull": "이름만이 아니라 편집기의 전체 경로를 입력하십시오.",
@@ -107,7 +107,7 @@
   "executableFilter": "응용 프로그램 (*.exe)|*.exe|모든 파일 (*.*)|*.*",
   "maximumEditableSize": "편집 가능한 최대 파일 크기",
   "maximumEditableSizeAccessibleName": "외부에서 편집 가능한 최대 파일 크기(KiB)",
-  "maximumEditableSizeHint": "최대: 1,024 KiB (1 MiB).",
+  "maximumEditableSizeHint": "102,400 KiB (100 MiB)",
   "warnUnsafeEdit": "원격 변경 보호 없이 편집하기 전에 경고",
   "warnUnsafeEditHint": "공급자가 버전 또는 ETag 검사를 적용할 수 없는 경우, 더 새로운 원격 변경 내용을 덮어쓸 수 있는 편집을 계속하기 전에 확인합니다.",
   "theme": "테마",
@@ -295,5 +295,11 @@
   "strictTransferSafety": "버전을 확인할 수 있는 파일만 교체하거나 이동",
   "strictTransferSafetyHint": "양쪽 모두 버전 또는 ETag를 보고하지 않으면 파일 교체나 이동을 거부합니다. SFTP, FTP 및 이 PC의 파일은 이를 보고하지 않습니다. 끄면 전송은 동의한 모든 항목을 교체하거나 이동합니다.",
   "previewTransferChanges": "전송을 시작하기 전에 변경 내용 미리 보기",
-  "previewTransferChangesHint": "전송에서 만들거나 교체하거나 건너뛰거나 이름을 바꿀 모든 파일을 나열하고 파일마다 선택할 수 있게 합니다. 검토 대화 상자의 변경 내용 미리 보기는 단일 전송에 대해 이 작업을 수행합니다."
+  "previewTransferChangesHint": "전송에서 만들거나 교체하거나 건너뛰거나 이름을 바꿀 모든 파일을 나열하고 파일마다 선택할 수 있게 합니다. 검토 대화 상자의 변경 내용 미리 보기는 단일 전송에 대해 이 작업을 수행합니다.",
+  "fileTypeEditors": "파일 형식별 편집기",
+  "fileTypeEditorsHint": "일치하는 형식은 지정된 편집기를 사용합니다. 나머지는 기본 편집기를 사용하며 비어 있으면 시스템 연결을 사용합니다. 긴 확장자가 우선합니다.",
+  "editorExtensionsPlaceholder": "파일 형식 예: .txt; .log; .json",
+  "addEditorRule": "추가 또는 바꾸기",
+  "removeEditorRule": "제거",
+  "editorRuleInvalid": "유효한 확장자와 편집기의 전체 경로를 입력하세요(최대 64개 형식)."
 }

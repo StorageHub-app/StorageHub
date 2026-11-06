@@ -16,6 +16,45 @@ chosen is written down in [Versioning and merges](docs/versioning.md).
 
 ---
 
+## Unreleased
+
+## 2.3.0 — 2026-11-06
+
+Choose an external editor for each file type, edit remote files up to 100 MiB, and select several
+transfers by dragging across their rows. Menus share compact sizing throughout the application.
+
+**External editing.** Settings > Editing has a default editor and file-type rules such as `.txt`,
+`.log` and `.json`. Matching ignores letter case and gives longer extensions priority. Files without
+a rule use the default editor, or the system association when it is blank. Rules can be added,
+replaced and removed, and travel with the optional machine-specific settings export.
+
+The editing limit rises from 1 MiB to 100 MiB. The old default migrates once; other configured limits
+are kept. Large files download and upload in bounded chunks, while the file pane shows downloading
+and opening-editor messages. Saved changes still ask before upload, and remote version and ETag
+checks remain in place. Downloads, editor launches, saved changes, uploads, deferrals, stopped
+monitoring and failures appear in Logs and the desktop log file.
+
+**Transfer selection.** Drag across rows in Active, Queued, Paused, Failed, Completed and Conflicts
+to select a range. Dragging back shrinks it, Ctrl-drag adds to it, and dragging past the list edge
+scrolls. The toolbar and context menu act on all selected rows.
+
+**Menus.** Menu-bar dropdowns, right-click menus, pane actions and other flyouts use the same compact
+text and row spacing. Confirmation dialogs keep their existing sizing.
+
+**Terminal.** Right-click offers Copy, Paste and Select all. Idle input channels reconnect before
+sending, disconnected sessions retain their failure message, and resizing preserves a cursor in
+the blank part of a live line. Clipboard text is not sent to a session replaced or disconnected
+while the clipboard was being read.
+
+**Fixed:**
+
+- Explorer exports could keep waiting after a failed or cancelled transfer if saved progress was
+  still available. Failure is now checked before progress.
+- An Explorer export could loop indefinitely over repeated empty provider pages. Repeated page
+  tokens are rejected and the number of pages is bounded.
+- Recursive sync filters such as `**/*.txt` missed matching files at the sync root. Recursive
+  exclusions now apply at the root as well.
+
 ## 2.2.0 — 2026-11-01
 
 Replacing a file that is already there works on every connection, each such file is asked about in a

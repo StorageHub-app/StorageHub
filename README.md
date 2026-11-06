@@ -20,7 +20,7 @@ adapts the all-in-one `CL.Storage` (`CodeLogic.Storage`) provider library behind
 a provider-neutral contract.
 
 > [!IMPORTANT]
-> StorageHub 2.0.0 is the current stable release, marked Latest on the releases
+> StorageHub 2.3.0 is the current stable release, marked Latest on the releases
 > page; `main` carries the next version and publishes pre-releases between
 > releases. The 1.4 source is kept on the
 > [`1.x-archive`](https://github.com/StorageHub-app/StorageHub/tree/1.x-archive)

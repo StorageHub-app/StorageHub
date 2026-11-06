@@ -98,7 +98,7 @@
   "newScheduleTimeZone": "Fuso horário para novos agendamentos",
   "newScheduleTimeZoneHint": "Define apenas em qual fuso um novo agendamento começa; cada agendamento mantém o seu próprio. Os horários exibidos em outros lugares seguem o sistema.",
   "timeZoneFollowSystem": "Seguir o sistema (recomendado)",
-  "editorExecutable": "Executável do editor",
+  "editorExecutable": "Editor padrão",
   "editorExecutableAccessibleName": "Executável do editor externo",
   "editorPlaceholder": "Escolha um executável de editor ou deixe em branco para o padrão do sistema",
   "editorPathMustBeFull": "Informe o caminho completo do editor, não apenas o nome.",
@@ -107,7 +107,7 @@
   "executableFilter": "Aplicativos (*.exe)|*.exe|Todos os arquivos (*.*)|*.*",
   "maximumEditableSize": "Tamanho máximo de arquivo editável",
   "maximumEditableSizeAccessibleName": "Tamanho máximo de arquivo editável externamente em KiB",
-  "maximumEditableSizeHint": "Máximo: 1.024 KiB (1 MiB).",
+  "maximumEditableSizeHint": "102,400 KiB (100 MiB)",
   "warnUnsafeEdit": "Avisar antes de editar sem proteção contra alterações remotas",
   "warnUnsafeEditHint": "Quando um provedor não consegue aplicar verificações de versão ou ETag, pergunta antes de continuar com uma edição que poderia sobrescrever alterações remotas mais recentes.",
   "theme": "Tema",
@@ -295,5 +295,11 @@
   "strictTransferSafety": "Substituir ou mover somente arquivos cuja versão possa ser verificada",
   "strictTransferSafetyHint": "Recusa substituir ou mover um arquivo a menos que os dois lados informem uma versão ou ETag, o que SFTP, FTP e arquivos neste PC nunca fazem. Desativado, uma transferência substitui ou move tudo o que você aceitar.",
   "previewTransferChanges": "Visualizar o que uma transferência altera antes de começar",
-  "previewTransferChangesHint": "Lista cada arquivo que uma transferência vai criar, substituir, ignorar ou renomear, e permite escolher para cada um. Visualizar alterações, na caixa de revisão, faz isso para uma única transferência."
+  "previewTransferChangesHint": "Lista cada arquivo que uma transferência vai criar, substituir, ignorar ou renomear, e permite escolher para cada um. Visualizar alterações, na caixa de revisão, faz isso para uma única transferência.",
+  "fileTypeEditors": "Editores por tipo de arquivo",
+  "fileTypeEditorsHint": "Os tipos correspondentes usam o editor atribuído. Outros usam o editor padrão ou a associação do sistema se estiver vazio. Extensões longas têm prioridade.",
+  "editorExtensionsPlaceholder": "Tipos, ex.: .txt; .log; .json",
+  "addEditorRule": "Adicionar ou substituir",
+  "removeEditorRule": "Remover",
+  "editorRuleInvalid": "Insira extensões válidas e o caminho completo do editor (até 64 tipos)."
 }

@@ -274,7 +274,7 @@ internal sealed class SettingsStrings : LocalizationModelBase
     public string TimeZoneFollowSystem { get; set; } = "Follow the system (recommended)";
 
     // ------------------------------------------------------------------ editing
-    public string EditorExecutable { get; set; } = "Editor executable";
+    public string EditorExecutable { get; set; } = "Default editor";
 
     public string EditorExecutableAccessibleName { get; set; } = "External editor executable";
 
@@ -296,7 +296,13 @@ internal sealed class SettingsStrings : LocalizationModelBase
     public string MaximumEditableSizeAccessibleName { get; set; } =
         "Maximum externally editable file size in KiB";
 
-    public string MaximumEditableSizeHint { get; set; } = "Maximum: 1,024 KiB (1 MiB).";
+    public string MaximumEditableSizeHint { get; set; } = "Maximum: 102,400 KiB (100 MiB).";
+    public string FileTypeEditors { get; set; } = "File type editors";
+    public string FileTypeEditorsHint { get; set; } = "Matching file types use their assigned editor. Other files use the default editor above, or the system association when it is blank. Longer extensions match first.";
+    public string EditorExtensionsPlaceholder { get; set; } = "File types, e.g. .txt; .log; .json";
+    public string AddEditorRule { get; set; } = "Add or replace";
+    public string RemoveEditorRule { get; set; } = "Remove";
+    public string EditorRuleInvalid { get; set; } = "Enter valid file extensions and a full editor executable path (up to 64 file types).";
 
     public string WarnUnsafeEdit { get; set; } =
         "Warn before editing without remote change protection";

@@ -123,5 +123,19 @@
   "transferPreviewActionReplace": "Заменить",
   "transferPreviewActionSkip": "Пропустить",
   "transferPreviewActionRename": "Переименовать",
-  "transferPreviewEmpty": "Нет файлов для передачи."
+  "transferPreviewEmpty": "Нет файлов для передачи.",
+  "editorDownloadingFormat": "Загрузка «{0}»...",
+  "editorOpeningFormat": "Открытие редактора для «{0}»...",
+  "editorDownloading": "Загрузка",
+  "editorDownloaded": "Загружено",
+  "editorOpened": "Редактор открыт",
+  "editorNotOpened": "Не открыто",
+  "editorWatching": "Отслеживание сохранённых изменений.",
+  "editorChanged": "Обнаружено сохранённое изменение",
+  "editorUploading": "Отправка изменений",
+  "editorUploaded": "Изменения отправлены",
+  "editorUploadDeferred": "Отправка отложена",
+  "editorStoppedWatching": "Отслеживание остановлено",
+  "editorFailed": "Ошибка",
+  "editorBytesFormat": "{0:N0} байт"
 }

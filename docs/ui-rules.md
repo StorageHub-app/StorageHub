@@ -98,6 +98,16 @@ a wish; each one below names the test that fails when it is broken. The target i
 
 ## Menus and commands
 
+- **Popup rows share compact metrics.** Menu-bar dropdowns, context menus, and button flyouts use
+  `FontSizeBody`, `PopupMenuItemPadding` (8,3), and `PopupMenuRowHeight` (26 minimum). Their widths
+  follow labels and shortcuts; their typography and row spacing agree. Popup hosts set the UI font
+  explicitly so a detached popup cannot fall back to Fluent's larger defaults. Dialog fields keep
+  their own padding.
+  _Test:_ `MenuSizingTests.PopupRowsShareCompactMetricsAcrossMenuHosts`, in light and dark themes.
+- **Preparing an external edit belongs to its pane.** Downloading and opening the editor show an
+  overlay in the requesting pane. Its file actions are disabled until preparation finishes, and
+  the overlay clears on success or failure. The editor continues to be watched after it opens.
+  _Test:_ `ExternalEditingViewTests.EditingShowsPaneProgressAndAlwaysClearsItAfterFailure`.
 - **Grouped, in one place.** Each menu's order and groups are `UiCommandCatalog.MenuLayout`, not
   the order of `Specs` (which is the Shortcuts page's). Actions come first, then what changes them;
   Delete, Cancel Selected and Exit stand apart at the foot. A line separates groups, never two

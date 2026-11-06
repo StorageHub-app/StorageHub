@@ -123,5 +123,19 @@
   "transferPreviewActionReplace": "प्रतिस्थापित करें",
   "transferPreviewActionSkip": "छोड़ें",
   "transferPreviewActionRename": "नाम बदलें",
-  "transferPreviewEmpty": "स्थानांतरित करने के लिए कोई फ़ाइल नहीं है।"
+  "transferPreviewEmpty": "स्थानांतरित करने के लिए कोई फ़ाइल नहीं है।",
+  "editorDownloadingFormat": "'{0}' डाउनलोड हो रहा है...",
+  "editorOpeningFormat": "'{0}' के लिए संपादक खुल रहा है...",
+  "editorDownloading": "डाउनलोड हो रहा है",
+  "editorDownloaded": "डाउनलोड हो गया",
+  "editorOpened": "संपादक खुल गया",
+  "editorNotOpened": "नहीं खुला",
+  "editorWatching": "सहेजे गए बदलावों की निगरानी जारी है।",
+  "editorChanged": "सहेजा गया बदलाव मिला",
+  "editorUploading": "बदलाव अपलोड हो रहे हैं",
+  "editorUploaded": "बदलाव अपलोड हो गए",
+  "editorUploadDeferred": "अपलोड टाला गया",
+  "editorStoppedWatching": "निगरानी बंद",
+  "editorFailed": "विफल",
+  "editorBytesFormat": "{0:N0} बाइट"
 }

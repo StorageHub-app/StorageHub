@@ -18,6 +18,7 @@ public sealed class DesktopPreferenceSectionMapperTests
         [nameof(DesktopUpdatePreferences.Shortcuts)] = "its own section",
         [nameof(DesktopUpdatePreferences.ConnectionDefaults)] = "its own section",
         [nameof(DesktopUpdatePreferences.ExternalEditorPath)] = "machine-specific section",
+        [nameof(DesktopUpdatePreferences.FileTypeEditors)] = "machine-specific section",
         [nameof(DesktopUpdatePreferences.PinnedWorkspaces)] = "machine-specific section",
         [nameof(DesktopUpdatePreferences.RecentWorkspaces)] = "machine-specific section",
 

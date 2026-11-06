@@ -123,5 +123,19 @@
   "transferPreviewActionReplace": "استبدال",
   "transferPreviewActionSkip": "تخطي",
   "transferPreviewActionRename": "إعادة تسمية",
-  "transferPreviewEmpty": "لا توجد ملفات لنقلها."
+  "transferPreviewEmpty": "لا توجد ملفات لنقلها.",
+  "editorDownloadingFormat": "جارٍ تنزيل '{0}'...",
+  "editorOpeningFormat": "جارٍ فتح المحرر للملف '{0}'...",
+  "editorDownloading": "جارٍ التنزيل",
+  "editorDownloaded": "تم التنزيل",
+  "editorOpened": "تم فتح المحرر",
+  "editorNotOpened": "لم يتم الفتح",
+  "editorWatching": "تتم مراقبة التغييرات المحفوظة.",
+  "editorChanged": "تم اكتشاف تغيير محفوظ",
+  "editorUploading": "جارٍ رفع التغييرات",
+  "editorUploaded": "تم رفع التغييرات",
+  "editorUploadDeferred": "تم تأجيل الرفع",
+  "editorStoppedWatching": "توقفت المراقبة",
+  "editorFailed": "فشل",
+  "editorBytesFormat": "{0:N0} بايت"
 }

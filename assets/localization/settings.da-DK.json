@@ -57,7 +57,7 @@
   "totalDownloadLimit": "Samlet downloadgrænse",
   "totalSpeedLimitHint": "Deles af alle overførsler på alle forbindelser; 0 er ingen grænse. En forbindelse kan have sin egen, lavere grænse.",
   "minimumConcurrencyHint": "Den adaptive styring begynder forsigtigt med så mange job.",
-  "editorExecutable": "Programfil til editor",
+  "editorExecutable": "Standardeditor",
   "editorExecutableAccessibleName": "Programfil til ekstern editor",
   "editorPlaceholder": "Vælg en programfil til editoren, eller lad feltet stå tomt for systemets standard",
   "editorPathMustBeFull": "Angiv den fulde sti til editoren, ikke kun dens navn.",
@@ -66,7 +66,7 @@
   "executableFilter": "Programmer (*.exe)|*.exe|Alle filer (*.*)|*.*",
   "maximumEditableSize": "Maks. redigerbar filstørrelse",
   "maximumEditableSizeAccessibleName": "Maksimal eksternt redigerbar filstørrelse i KiB",
-  "maximumEditableSizeHint": "Maksimum: 1.024 KiB (1 MiB).",
+  "maximumEditableSizeHint": "102,400 KiB (100 MiB)",
   "warnUnsafeEdit": "Advar før redigering uden beskyttelse mod fjernændringer",
   "warnUnsafeEditHint": "Når en udbyder ikke kan håndhæve version- eller ETag-kontrol, så spørg før en redigering, der kan overskrive nyere fjernændringer.",
   "theme": "Tema",
@@ -295,5 +295,11 @@
   "strictTransferSafety": "Erstat eller flyt kun filer, hvis version kan kontrolleres",
   "strictTransferSafetyHint": "Nægter at erstatte eller flytte en fil, medmindre begge sider oplyser en version eller et ETag, hvilket SFTP, FTP og filer på denne pc aldrig gør. Slået fra erstatter eller flytter en overførsel det, du accepterer.",
   "previewTransferChanges": "Forhåndsvis, hvad en overførsel ændrer, før den starter",
-  "previewTransferChangesHint": "Viser hver fil, en overførsel vil oprette, erstatte, springe over eller omdøbe, og lader dig vælge for hver enkelt. Forhåndsvis ændringer i gennemsynsdialogen gør det for en enkelt overførsel."
+  "previewTransferChangesHint": "Viser hver fil, en overførsel vil oprette, erstatte, springe over eller omdøbe, og lader dig vælge for hver enkelt. Forhåndsvis ændringer i gennemsynsdialogen gør det for en enkelt overførsel.",
+  "fileTypeEditors": "Editorer efter filtype",
+  "fileTypeEditorsHint": "Matchende filtyper bruger den valgte editor. Andre filer bruger standardeditoren eller systemets tilknytning, hvis feltet er tomt. Længere filendelser matches først.",
+  "editorExtensionsPlaceholder": "Filtyper, f.eks. .txt; .log; .json",
+  "addEditorRule": "Tilføj eller erstat",
+  "removeEditorRule": "Fjern",
+  "editorRuleInvalid": "Angiv gyldige filendelser og en fuld editorsti (højst 64 filtyper)."
 }

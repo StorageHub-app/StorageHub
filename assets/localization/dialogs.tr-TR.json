@@ -123,5 +123,19 @@
   "transferPreviewActionReplace": "Değiştir",
   "transferPreviewActionSkip": "Atla",
   "transferPreviewActionRename": "Yeniden adlandır",
-  "transferPreviewEmpty": "Aktarılacak dosya yok."
+  "transferPreviewEmpty": "Aktarılacak dosya yok.",
+  "editorDownloadingFormat": "'{0}' indiriliyor...",
+  "editorOpeningFormat": "'{0}' için düzenleyici açılıyor...",
+  "editorDownloading": "İndiriliyor",
+  "editorDownloaded": "İndirildi",
+  "editorOpened": "Düzenleyici açıldı",
+  "editorNotOpened": "Açılmadı",
+  "editorWatching": "Kaydedilen değişiklikler izleniyor.",
+  "editorChanged": "Kaydedilen değişiklik algılandı",
+  "editorUploading": "Değişiklikler yükleniyor",
+  "editorUploaded": "Değişiklikler yüklendi",
+  "editorUploadDeferred": "Yükleme ertelendi",
+  "editorStoppedWatching": "İzleme durduruldu",
+  "editorFailed": "Başarısız",
+  "editorBytesFormat": "{0:N0} bayt"
 }

@@ -98,7 +98,7 @@
   "newScheduleTimeZone": "Zona waktu untuk jadwal baru",
   "newScheduleTimeZoneHint": "Hanya menentukan zona awal jadwal baru; setiap jadwal menyimpan zonanya sendiri. Waktu yang ditampilkan di tempat lain mengikuti sistem.",
   "timeZoneFollowSystem": "Ikuti sistem (disarankan)",
-  "editorExecutable": "File eksekusi editor",
+  "editorExecutable": "Editor bawaan",
   "editorExecutableAccessibleName": "File eksekusi editor eksternal",
   "editorPlaceholder": "Pilih file eksekusi editor, atau kosongkan untuk bawaan sistem",
   "editorPathMustBeFull": "Masukkan jalur lengkap editor, bukan hanya namanya.",
@@ -107,7 +107,7 @@
   "executableFilter": "Aplikasi (*.exe)|*.exe|Semua file (*.*)|*.*",
   "maximumEditableSize": "Ukuran file maksimum yang dapat diedit",
   "maximumEditableSizeAccessibleName": "Ukuran file maksimum yang dapat diedit secara eksternal dalam KiB",
-  "maximumEditableSizeHint": "Maksimum: 1.024 KiB (1 MiB).",
+  "maximumEditableSizeHint": "102,400 KiB (100 MiB)",
   "warnUnsafeEdit": "Peringatkan sebelum mengedit tanpa perlindungan perubahan jarak jauh",
   "warnUnsafeEditHint": "Bila penyedia tidak dapat menegakkan pemeriksaan versi atau ETag, tanyakan sebelum melanjutkan pengeditan yang dapat menimpa perubahan jarak jauh yang lebih baru.",
   "theme": "Tema",
@@ -295,5 +295,11 @@
   "strictTransferSafety": "Hanya ganti atau pindahkan file yang versinya dapat diperiksa",
   "strictTransferSafetyHint": "Menolak mengganti atau memindahkan file kecuali kedua sisi melaporkan versi atau ETag, yang tidak pernah dilakukan SFTP, FTP, dan file di PC ini. Jika nonaktif, transfer mengganti atau memindahkan apa pun yang Anda setujui.",
   "previewTransferChanges": "Pratinjau perubahan transfer sebelum dimulai",
-  "previewTransferChangesHint": "Mencantumkan setiap file yang akan dibuat, diganti, dilewati, atau diubah namanya oleh transfer, dan memungkinkan Anda memilih untuk masing-masing. Pratinjau perubahan di dialog tinjauan melakukan ini untuk satu transfer."
+  "previewTransferChangesHint": "Mencantumkan setiap file yang akan dibuat, diganti, dilewati, atau diubah namanya oleh transfer, dan memungkinkan Anda memilih untuk masing-masing. Pratinjau perubahan di dialog tinjauan melakukan ini untuk satu transfer.",
+  "fileTypeEditors": "Editor menurut jenis berkas",
+  "fileTypeEditorsHint": "Jenis yang cocok memakai editor yang ditetapkan. Jenis lain memakai editor bawaan atau asosiasi sistem jika kosong. Ekstensi yang lebih panjang diutamakan.",
+  "editorExtensionsPlaceholder": "Jenis, mis. .txt; .log; .json",
+  "addEditorRule": "Tambah atau ganti",
+  "removeEditorRule": "Hapus",
+  "editorRuleInvalid": "Masukkan ekstensi yang valid dan jalur lengkap editor (maksimal 64 jenis)."
 }

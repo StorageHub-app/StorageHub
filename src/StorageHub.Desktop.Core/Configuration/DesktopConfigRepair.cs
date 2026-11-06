@@ -50,6 +50,7 @@ internal static class DesktopConfigRepair
         }
 
         return !SameDictionary(loaded.ConnectionDefaults, repaired.ConnectionDefaults) ||
+            !SameDictionary(loaded.FileTypeEditors is { Count: > 0 } ? loaded.FileTypeEditors : null, repaired.FileTypeEditors) ||
             !SameDictionary(loaded.Shortcuts, repaired.Shortcuts) ||
             !SameList(loaded.PinnedWorkspaces, repaired.PinnedWorkspaces) ||
             !SameList(loaded.RecentWorkspaces, repaired.RecentWorkspaces);
@@ -59,6 +60,7 @@ internal static class DesktopConfigRepair
         preferences with
         {
             ConnectionDefaults = null,
+            FileTypeEditors = null,
             Shortcuts = null,
             PinnedWorkspaces = null,
             RecentWorkspaces = null
@@ -123,6 +125,7 @@ internal static class DesktopConfigRepair
             ExternalEditorPath = IsValidEditorPath(preferences.ExternalEditorPath)
                 ? preferences.ExternalEditorPath
                 : null,
+            FileTypeEditors = EditorAssociations.Normalize(preferences.FileTypeEditors) is { Count: > 0 } editors ? editors : null,
             MaximumEditableFileBytes =
                 preferences.MaximumEditableFileBytes is >= 1 and <= EditableFileIpcContract.MaximumContentBytes
                     ? preferences.MaximumEditableFileBytes
@@ -263,6 +266,8 @@ internal static class DesktopConfigRepair
         }
 
         if (!IsValidEditorPath(preferences.ExternalEditorPath) ||
+            preferences.FileTypeEditors?.Count > EditorAssociations.MaximumRules ||
+            EditorAssociations.Normalize(preferences.FileTypeEditors).Count != (preferences.FileTypeEditors?.Count ?? 0) ||
             preferences.MaximumEditableFileBytes is < 1 or > EditableFileIpcContract.MaximumContentBytes)
         {
             return "External editor preferences exceed the permitted bounds.";

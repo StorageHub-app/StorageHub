@@ -502,6 +502,38 @@
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
 
+                <Border Classes="settings-card" IsVisible="{Binding HasEditorAssociations}"
+                        Margin="{StaticResource SettingsAfterCardMargin}" Padding="{StaticResource PaddingLg}">
+                  <StackPanel Spacing="{StaticResource SpaceMd}" DataContext="{Binding EditorAssociations}"
+                              x:DataType="vm:EditorAssociationsModel">
+                    <TextBlock Classes="settings-label" Text="{Binding Heading}"/>
+                    <TextBlock Classes="muted" Text="{Binding Hint}" TextWrapping="Wrap"/>
+                    <ItemsControl ItemsSource="{Binding Rows}">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:EditorAssociationRow">
+                          <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource SpaceMd}"
+                                Margin="{StaticResource PaddingSm}">
+                            <TextBlock Text="{Binding Extension}" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="1" Text="{Binding Editor}" TextTrimming="CharacterEllipsis"
+                                       ToolTip.Tip="{Binding Editor}" VerticalAlignment="Center"/>
+                            <Button Grid.Column="2" Classes="tool" Command="{Binding RemoveCommand}"
+                                    Content="{x:Static vm:EditorAssociationsModel.RemoveLabel}"/>
+                          </Grid>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBox Text="{Binding Extensions, Mode=TwoWay}" PlaceholderText="{Binding ExtensionsPlaceholder}"
+                             AutomationProperties.Name="{Binding ExtensionsPlaceholder}"/>
+                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{StaticResource SpaceSm}">
+                      <TextBox Text="{Binding Editor, Mode=TwoWay}" PlaceholderText="{Binding EditorPlaceholder}"
+                               AutomationProperties.Name="{Binding EditorPlaceholder}"/>
+                      <Button Grid.Column="1" Content="{Binding BrowseLabel}" Command="{Binding BrowseCommand}"/>
+                      <Button Grid.Column="2" Content="{Binding AddLabel}" Command="{Binding AddCommand}"/>
+                    </Grid>
+                    <TextBlock Classes="warning" Text="{Binding Problem}" TextWrapping="Wrap"/>
+                  </StackPanel>
+                </Border>
+
                 <Button Classes="primary" HorizontalAlignment="Left"
                         Margin="{StaticResource SettingsAfterCardMargin}"
                         IsVisible="{Binding HasCreateConnection}"

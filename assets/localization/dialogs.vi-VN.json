@@ -123,5 +123,19 @@
   "transferPreviewActionReplace": "Thay thế",
   "transferPreviewActionSkip": "Bỏ qua",
   "transferPreviewActionRename": "Đổi tên",
-  "transferPreviewEmpty": "Không có tệp nào để truyền."
+  "transferPreviewEmpty": "Không có tệp nào để truyền.",
+  "editorDownloadingFormat": "Đang tải xuống '{0}'...",
+  "editorOpeningFormat": "Đang mở trình chỉnh sửa cho '{0}'...",
+  "editorDownloading": "Đang tải xuống",
+  "editorDownloaded": "Đã tải xuống",
+  "editorOpened": "Đã mở trình chỉnh sửa",
+  "editorNotOpened": "Chưa mở",
+  "editorWatching": "Đang theo dõi các thay đổi đã lưu.",
+  "editorChanged": "Phát hiện thay đổi đã lưu",
+  "editorUploading": "Đang tải lên thay đổi",
+  "editorUploaded": "Đã tải lên thay đổi",
+  "editorUploadDeferred": "Đã hoãn tải lên",
+  "editorStoppedWatching": "Đã dừng theo dõi",
+  "editorFailed": "Thất bại",
+  "editorBytesFormat": "{0:N0} byte"
 }

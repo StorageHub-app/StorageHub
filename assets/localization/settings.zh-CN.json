@@ -98,7 +98,7 @@
   "newScheduleTimeZone": "新计划的时区",
   "newScheduleTimeZoneHint": "仅决定新计划的初始时区；每个计划保留自己的时区。其他位置显示的时间遵循系统。",
   "timeZoneFollowSystem": "跟随系统（推荐）",
-  "editorExecutable": "编辑器可执行文件",
+  "editorExecutable": "默认编辑器",
   "editorExecutableAccessibleName": "外部编辑器可执行文件",
   "editorPlaceholder": "选择编辑器可执行文件，或留空以使用系统默认值",
   "editorPathMustBeFull": "请输入编辑器的完整路径，而不仅是名称。",
@@ -107,7 +107,7 @@
   "executableFilter": "应用程序 (*.exe)|*.exe|所有文件 (*.*)|*.*",
   "maximumEditableSize": "最大可编辑文件大小",
   "maximumEditableSizeAccessibleName": "外部可编辑文件的最大大小（KiB）",
-  "maximumEditableSizeHint": "上限：1,024 KiB (1 MiB)。",
+  "maximumEditableSizeHint": "102,400 KiB (100 MiB)",
   "warnUnsafeEdit": "在没有远程更改保护时编辑前发出警告",
   "warnUnsafeEditHint": "当提供程序无法强制执行版本或 ETag 检查时，在继续可能覆盖较新远程更改的编辑前先询问。",
   "theme": "主题",
@@ -295,5 +295,11 @@
   "strictTransferSafety": "仅替换或移动可校验版本的文件",
   "strictTransferSafetyHint": "除非两端都报告版本或 ETag，否则拒绝替换或移动文件；SFTP、FTP 和此电脑上的文件从不报告。关闭时，传输会替换或移动您同意的所有内容。",
   "previewTransferChanges": "在传输开始前预览其更改",
-  "previewTransferChangesHint": "列出传输将创建、替换、跳过或重命名的每个文件，并让您逐个选择。检查对话框中的“预览更改”可对单次传输执行此操作。"
+  "previewTransferChangesHint": "列出传输将创建、替换、跳过或重命名的每个文件，并让您逐个选择。检查对话框中的“预览更改”可对单次传输执行此操作。",
+  "fileTypeEditors": "按文件类型设置编辑器",
+  "fileTypeEditorsHint": "匹配的类型使用指定编辑器。其他文件使用默认编辑器；留空时使用系统关联。较长的扩展名优先匹配。",
+  "editorExtensionsPlaceholder": "文件类型，例如 .txt; .log; .json",
+  "addEditorRule": "添加或替换",
+  "removeEditorRule": "删除",
+  "editorRuleInvalid": "请输入有效的扩展名和编辑器完整路径（最多64种类型）。"
 }

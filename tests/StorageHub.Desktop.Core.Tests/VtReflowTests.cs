@@ -285,6 +285,22 @@ public sealed class VtReflowTests
         Assert.Contains("line 0", AllText(emulator));
     }
 
+    [Fact]
+    public void Cursor_in_blank_part_of_live_line_survives_narrowing_and_widening()
+    {
+        var emulator = new VtTerminalEmulator(40, 6);
+        emulator.Feed("working\u001b[1;26H");
+        emulator.Resize(20, 6);
+        Assert.Equal(1, emulator.Document.Screen.CursorRow);
+        Assert.Equal(5, emulator.Document.Screen.CursorColumn);
+        emulator.Resize(40, 6);
+        Assert.Equal(0, emulator.Document.Screen.CursorRow);
+        Assert.Equal(25, emulator.Document.Screen.CursorColumn);
+        emulator.Feed("\r\u001b[2Kdone");
+        Assert.StartsWith("done", ScreenText(emulator));
+        Assert.DoesNotContain("working", ScreenText(emulator));
+    }
+
     private static char CharacterUnderCursor(VtTerminalEmulator emulator)
     {
         var line = emulator.Document.FindLine(emulator.Document.CursorLineNumber)!;

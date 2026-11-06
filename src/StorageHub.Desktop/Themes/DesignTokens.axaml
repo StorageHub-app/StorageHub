@@ -246,6 +246,9 @@
   <CornerRadius x:Key="TabRadius">4,4,0,0</CornerRadius>
   <sys:Double x:Key="MenuBarHeight">30</sys:Double>
   <Thickness x:Key="MenuItemPadding">10,0</Thickness>
+  <!-- All popup menus use compact rows, independently of dialog field sizing. -->
+  <Thickness x:Key="PopupMenuItemPadding">8,3</Thickness>
+  <sys:Double x:Key="PopupMenuRowHeight">26</sys:Double>
   <sys:Double x:Key="ToolbarHeight">36</sys:Double>
   <!-- A drop-down in a toolbar, 1.4's 170: one width whichever entry is chosen, so choosing a
        long one does not push the buttons after it along. What does not fit is trimmed. -->

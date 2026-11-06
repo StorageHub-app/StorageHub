@@ -76,16 +76,18 @@ internal static class ShellServices
     /// failure to start is said in a dialog rather than thrown, since the pane that asked has
     /// already moved on.
     /// </remarks>
-    internal static async Task EditExternallyAsync(ObjectInspectorAddress address, string fileName, long? length)
+    internal static async Task EditExternallyAsync(ObjectInspectorAddress address, string fileName, long? length,
+        IProgress<ExternalEditProgress> progress)
     {
         try
         {
             _editing ??= CreateEditing();
-            await _editing.OpenAsync(address, fileName, length).ConfigureAwait(false);
+            await _editing.OpenAsync(address, fileName, length, progress: progress).ConfigureAwait(false);
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or
             InvalidDataException or InvalidOperationException or TimeoutException)
         {
+            ExternalEditActivity.Record(fileName, Ui.Dialogs.EditorFailed, error.Message);
             await Dialogs.ShowAsync(new DialogRequest
             {
                 Title = Ui.Dialogs.ExternalEditorCaption,

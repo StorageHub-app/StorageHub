@@ -98,7 +98,7 @@
   "newScheduleTimeZone": "Múi giờ cho lịch trình mới",
   "newScheduleTimeZoneHint": "Chỉ quyết định lịch trình mới bắt đầu theo múi giờ nào; mỗi lịch giữ múi giờ riêng. Giờ hiển thị ở nơi khác theo hệ thống.",
   "timeZoneFollowSystem": "Theo hệ thống (khuyến nghị)",
-  "editorExecutable": "Tệp thực thi của trình chỉnh sửa",
+  "editorExecutable": "Trình chỉnh sửa mặc định",
   "editorExecutableAccessibleName": "Tệp thực thi của trình chỉnh sửa bên ngoài",
   "editorPlaceholder": "Chọn tệp thực thi của trình chỉnh sửa, hoặc để trống để dùng mặc định của hệ thống",
   "editorPathMustBeFull": "Hãy nhập đường dẫn đầy đủ của trình chỉnh sửa, không chỉ tên.",
@@ -107,7 +107,7 @@
   "executableFilter": "Ứng dụng (*.exe)|*.exe|Tất cả tệp (*.*)|*.*",
   "maximumEditableSize": "Kích thước tệp tối đa có thể chỉnh sửa",
   "maximumEditableSizeAccessibleName": "Kích thước tệp tối đa có thể chỉnh sửa bên ngoài, tính bằng KiB",
-  "maximumEditableSizeHint": "Tối đa: 1,024 KiB (1 MiB).",
+  "maximumEditableSizeHint": "102,400 KiB (100 MiB)",
   "warnUnsafeEdit": "Cảnh báo trước khi chỉnh sửa không có bảo vệ thay đổi từ xa",
   "warnUnsafeEditHint": "Khi nhà cung cấp không thể thực thi kiểm tra phiên bản hoặc ETag, hãy hỏi trước khi tiếp tục chỉnh sửa có thể ghi đè các thay đổi từ xa mới hơn.",
   "theme": "Giao diện",
@@ -295,5 +295,11 @@
   "strictTransferSafety": "Chỉ thay thế hoặc di chuyển tệp có thể kiểm tra phiên bản",
   "strictTransferSafetyHint": "Từ chối thay thế hoặc di chuyển tệp trừ khi cả hai bên đều báo phiên bản hoặc ETag, điều mà SFTP, FTP và tệp trên PC này không bao giờ làm. Khi tắt, lượt truyền sẽ thay thế hoặc di chuyển mọi thứ bạn đồng ý.",
   "previewTransferChanges": "Xem trước những gì lượt truyền thay đổi trước khi bắt đầu",
-  "previewTransferChangesHint": "Liệt kê mọi tệp mà lượt truyền sẽ tạo, thay thế, bỏ qua hoặc đổi tên, và cho phép bạn chọn cho từng tệp. Xem trước thay đổi trong hộp thoại xem lại làm việc này cho một lượt truyền."
+  "previewTransferChangesHint": "Liệt kê mọi tệp mà lượt truyền sẽ tạo, thay thế, bỏ qua hoặc đổi tên, và cho phép bạn chọn cho từng tệp. Xem trước thay đổi trong hộp thoại xem lại làm việc này cho một lượt truyền.",
+  "fileTypeEditors": "Trình chỉnh sửa theo loại tệp",
+  "fileTypeEditorsHint": "Loại khớp dùng trình được chỉ định. Tệp khác dùng trình mặc định hoặc liên kết hệ thống nếu để trống. Ưu tiên phần mở rộng dài hơn.",
+  "editorExtensionsPlaceholder": "Loại tệp, ví dụ .txt; .log; .json",
+  "addEditorRule": "Thêm hoặc thay thế",
+  "removeEditorRule": "Xóa",
+  "editorRuleInvalid": "Nhập phần mở rộng hợp lệ và đường dẫn đầy đủ của trình chỉnh sửa (tối đa 64 loại)."
 }

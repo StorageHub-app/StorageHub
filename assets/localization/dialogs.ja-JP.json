@@ -123,5 +123,19 @@
   "transferPreviewActionReplace": "置換",
   "transferPreviewActionSkip": "スキップ",
   "transferPreviewActionRename": "名前変更",
-  "transferPreviewEmpty": "転送するファイルはありません。"
+  "transferPreviewEmpty": "転送するファイルはありません。",
+  "editorDownloadingFormat": "「{0}」をダウンロード中...",
+  "editorOpeningFormat": "「{0}」のエディターを起動中...",
+  "editorDownloading": "ダウンロード中",
+  "editorDownloaded": "ダウンロード完了",
+  "editorOpened": "エディターを起動しました",
+  "editorNotOpened": "開かれませんでした",
+  "editorWatching": "保存された変更を監視しています。",
+  "editorChanged": "保存された変更を検出",
+  "editorUploading": "変更をアップロード中",
+  "editorUploaded": "変更をアップロードしました",
+  "editorUploadDeferred": "アップロードを延期",
+  "editorStoppedWatching": "監視を停止",
+  "editorFailed": "失敗",
+  "editorBytesFormat": "{0:N0} バイト"
 }

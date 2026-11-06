@@ -70,7 +70,10 @@ public sealed class SyncPathFilterPolicy
             {
                 var isDouble = patternIndex + 1 < pattern.Length && pattern[patternIndex + 1] == '*';
                 var next = patternIndex + (isDouble ? 2 : 1);
-                result = Match(next, pathIndex) ||
+                // A recursive directory prefix also matches zero directories ("**/*.txt"
+                // includes "file.txt" as well as "folder/file.txt").
+                result = isDouble && next < pattern.Length && pattern[next] == '/' && Match(next + 1, pathIndex) ||
+                         Match(next, pathIndex) ||
                          pathIndex < path.Length && (isDouble || path[pathIndex] != '/') && Match(patternIndex, pathIndex + 1);
             }
             else

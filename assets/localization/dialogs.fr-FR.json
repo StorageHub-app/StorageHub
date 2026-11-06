@@ -123,5 +123,19 @@
   "transferPreviewActionReplace": "Remplacer",
   "transferPreviewActionSkip": "Ignorer",
   "transferPreviewActionRename": "Renommer",
-  "transferPreviewEmpty": "Aucun fichier à transférer."
+  "transferPreviewEmpty": "Aucun fichier à transférer.",
+  "editorDownloadingFormat": "Téléchargement de « {0} »...",
+  "editorOpeningFormat": "Ouverture de l’éditeur pour « {0} »...",
+  "editorDownloading": "Téléchargement",
+  "editorDownloaded": "Téléchargé",
+  "editorOpened": "Éditeur ouvert",
+  "editorNotOpened": "Non ouvert",
+  "editorWatching": "Surveillance des modifications enregistrées.",
+  "editorChanged": "Modification enregistrée détectée",
+  "editorUploading": "Envoi des modifications",
+  "editorUploaded": "Modifications envoyées",
+  "editorUploadDeferred": "Envoi différé",
+  "editorStoppedWatching": "Surveillance arrêtée",
+  "editorFailed": "Échec",
+  "editorBytesFormat": "{0:N0} octets"
 }

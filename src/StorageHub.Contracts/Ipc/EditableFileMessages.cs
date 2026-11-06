@@ -3,10 +3,42 @@ namespace StorageHub.Contracts.Ipc;
 public static class EditableFileIpcContract
 {
     public const int CurrentVersion = 1;
-    public const int MaximumContentBytes = 1_048_576;
+    public const int MaximumContentBytes = 100 * 1024 * 1024;
+    public const int InlineContentBytes = 1024 * 1024;
+    public const int ChunkBytes = 512 * 1024;
 
     public static bool IsSupported(int version) => version == CurrentVersion;
 }
+
+public static class EditableFileTransferMessages
+{
+    public const string Open = "editable-file.transfer.open";
+    public const string Chunk = "editable-file.transfer.chunk";
+    public const string Finish = "editable-file.transfer.finish";
+    public const string Close = "editable-file.transfer.close";
+    public const string Response = "editable-file.transfer.response";
+}
+
+public sealed record EditableFileTransferOpenRequest(int ContractVersion, ObjectInspectorAddress Address,
+    int MaximumBytes, bool Upload = false, long Length = 0, string? ContentType = null)
+{
+    public bool HasValidBounds => EditableFileIpcContract.IsSupported(ContractVersion) && Address?.HasValidBounds == true &&
+        MaximumBytes is >= 1 and <= EditableFileIpcContract.MaximumContentBytes && Length >= 0 && Length <= MaximumBytes &&
+        (ContentType is null || !string.IsNullOrWhiteSpace(ContentType) &&
+            ContentType.Length <= StorageIpcLimits.MaximumContentTypeLength && !ContentType.Any(char.IsControl));
+}
+
+public sealed record EditableFileTransferChunkRequest(Guid SessionId, long Offset, byte[]? Content = null)
+{
+    public bool HasValidBounds => SessionId != Guid.Empty && Offset is >= 0 and <= EditableFileIpcContract.MaximumContentBytes &&
+        (Content is null || Content.Length <= EditableFileIpcContract.ChunkBytes);
+}
+
+public sealed record EditableFileTransferEndRequest(Guid SessionId);
+
+public sealed record EditableFileTransferResponse(Guid SessionId, long Offset = 0, byte[]? Content = null,
+    bool Completed = false, ObjectInspectorAddress? Address = null, string? ContentType = null,
+    long? Size = null, DateTimeOffset? LastModifiedUtc = null, StorageIpcFailure? Failure = null);
 
 public static class EditableFileIpcMessageTypes
 {

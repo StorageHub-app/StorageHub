@@ -310,6 +310,7 @@ internal sealed class SshTerminalSession : ITerminalSession, IAsyncDisposable
                         ReadWaitMilliseconds),
                     cancellationToken).ConfigureAwait(true);
 
+                if (!IsConnected) return;
                 _consecutiveReadFailures = 0;
 
                 if (response.Failure is not null)
@@ -355,11 +356,13 @@ internal sealed class SshTerminalSession : ITerminalSession, IAsyncDisposable
             }
             catch (Exception error) when (IsTransportFailure(error))
             {
+                System.Diagnostics.Trace.TraceError("SSH terminal read failed: session={0}, attempt={1}, error={2}",
+                    _sessionId, _consecutiveReadFailures + 1, error.GetType().Name);
                 _consecutiveReadFailures++;
                 if (_consecutiveReadFailures >= MaximumConsecutiveReadFailures)
                 {
                     WriteSystemLine(Ui.Connections.TerminalLostAgent);
-                    Disconnect();
+                    Disconnect(Ui.Connections.TerminalLostAgent);
                     return;
                 }
 
@@ -446,7 +449,7 @@ internal sealed class SshTerminalSession : ITerminalSession, IAsyncDisposable
             if (response.Failure is not null)
             {
                 WriteSystemLine(response.Failure.Message);
-                Disconnect();
+                Disconnect(response.Failure.Message);
             }
         }
         catch (OperationCanceledException)
@@ -454,8 +457,9 @@ internal sealed class SshTerminalSession : ITerminalSession, IAsyncDisposable
         }
         catch (Exception error) when (IsTransportFailure(error))
         {
+            System.Diagnostics.Trace.TraceError("SSH terminal input failed: session={0}, error={1}", _sessionId, error.GetType().Name);
             WriteSystemLine(Ui.Connections.TerminalCouldNotSendInput);
-            Disconnect();
+            Disconnect(Ui.Connections.TerminalCouldNotSendInput);
         }
     }
 
@@ -491,7 +495,7 @@ internal sealed class SshTerminalSession : ITerminalSession, IAsyncDisposable
                 new SshTerminalResizeRequest(
                     SshTerminalIpcContract.CurrentVersion, _sessionId, columns, rows),
                 linked.Token).ConfigureAwait(true);
-            if (response.Resized)
+            if (response.Resized && IsConnected)
             {
                 Status = Ui.Format(Ui.Connections.TerminalResizedFormat, columns, rows);
             }
@@ -538,9 +542,10 @@ internal sealed class SshTerminalSession : ITerminalSession, IAsyncDisposable
     /// the ways this is reached -- but the agent still holds a session record with a keep-alive
     /// against it, and nothing else will ever come to collect it.
     /// </remarks>
-    private void Disconnect()
+    private void Disconnect(string? reason = null)
     {
-        Status = Ui.Connections.TerminalDisconnected;
+        if (!IsConnected) return;
+        Status = reason ?? Ui.Connections.TerminalDisconnected;
         _closing = CloseAsync();
     }
 

@@ -247,15 +247,26 @@ public class TerminalInputTests
 
         window.MouseDown(point, MouseButton.Right, RawInputModifiers.Shift);
         window.MouseUp(point, MouseButton.Right);
+        PasteFromMenu();
         await PastedAsync("pasted");
 
         // And once the program lets go, a right-click pastes.
         session.Write("\u001b[?1000l");
         window.MouseDown(point, MouseButton.Right);
         window.MouseUp(point, MouseButton.Right);
+        PasteFromMenu();
         await PastedAsync("pastedpasted");
 
         Assert.Equal(11, session.Mouse.Count);
+
+        void PasteFromMenu()
+        {
+            Assert.NotNull(view.ContextMenu);
+            Assert.Equal(3, view.ContextMenu.Items.Count);
+            var paste = Assert.IsType<MenuItem>(view.ContextMenu.Items[1]);
+            paste.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(MenuItem.ClickEvent));
+            view.ContextMenu.Close();
+        }
 
         // The clipboard answers asynchronously.
         async Task PastedAsync(string text)
