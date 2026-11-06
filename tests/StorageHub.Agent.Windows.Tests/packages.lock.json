@@ -338,8 +338,8 @@
       },
       "System.Diagnostics.EventLog": {
         "type": "Transitive",
-        "resolved": "10.0.12",
-        "contentHash": "sOZM+VyRj1pg/ItlHsvrSbjws6oGqZveTzTNBGZ9ziwRDyKsOF3ub6vhvOdxotCIqtlnyHAIwP5sLNvgiZC+pQ=="
+        "resolved": "10.0.14",
+        "contentHash": "O/RzNwWoDzehkLlAG9hR8xooY5L41U7VUaYlcKvE3+FhHohBJqF10oLUzuv0v59VeJ62hv3uw9VoeX12zej7Sg=="
       },
       "System.IO.Hashing": {
         "type": "Transitive",
@@ -413,16 +413,16 @@
         "type": "Project",
         "dependencies": {
           "Cronos": "[0.13.0, )",
-          "StorageHub.Application": "[2.2.1, )",
-          "StorageHub.Contracts": "[2.2.1, )",
-          "StorageHub.Domain": "[2.2.1, )",
-          "StorageHub.Infrastructure": "[2.2.1, )",
-          "StorageHub.Ipc": "[2.2.1, )",
-          "StorageHub.Security": "[2.2.1, )",
-          "StorageHub.Storage": "[2.2.1, )",
-          "StorageHub.Sync": "[2.2.1, )",
-          "StorageHub.Transfers": "[2.2.1, )",
-          "System.ServiceProcess.ServiceController": "[10.0.12, )"
+          "StorageHub.Application": "[2.3.0, )",
+          "StorageHub.Contracts": "[2.3.0, )",
+          "StorageHub.Domain": "[2.3.0, )",
+          "StorageHub.Infrastructure": "[2.3.0, )",
+          "StorageHub.Ipc": "[2.3.0, )",
+          "StorageHub.Security": "[2.3.0, )",
+          "StorageHub.Storage": "[2.3.0, )",
+          "StorageHub.Sync": "[2.3.0, )",
+          "StorageHub.Transfers": "[2.3.0, )",
+          "System.ServiceProcess.ServiceController": "[10.0.14, )"
         }
       },
       "storagehub.agent.host": {
@@ -431,30 +431,30 @@
           "CodeLogic": "[4.8.20, )",
           "CodeLogic.Storage": "[4.8.95, )",
           "SSH.NET": "[2026.0.0, )",
-          "StorageHub.Agent": "[2.2.1, )",
-          "StorageHub.Agent.Windows": "[2.2.1, )",
-          "StorageHub.Application": "[2.2.1, )",
-          "StorageHub.Infrastructure": "[2.2.1, )",
-          "StorageHub.Ipc": "[2.2.1, )",
-          "StorageHub.Persistence": "[2.2.1, )",
-          "StorageHub.Security": "[2.2.1, )",
-          "StorageHub.Storage": "[2.2.1, )",
-          "StorageHub.Storage.CodeLogic": "[2.2.1, )",
-          "StorageHub.Sync": "[2.2.1, )"
+          "StorageHub.Agent": "[2.3.0, )",
+          "StorageHub.Agent.Windows": "[2.3.0, )",
+          "StorageHub.Application": "[2.3.0, )",
+          "StorageHub.Infrastructure": "[2.3.0, )",
+          "StorageHub.Ipc": "[2.3.0, )",
+          "StorageHub.Persistence": "[2.3.0, )",
+          "StorageHub.Security": "[2.3.0, )",
+          "StorageHub.Storage": "[2.3.0, )",
+          "StorageHub.Storage.CodeLogic": "[2.3.0, )",
+          "StorageHub.Sync": "[2.3.0, )"
         }
       },
       "storagehub.agent.windows": {
         "type": "Project",
         "dependencies": {
           "CodeLogic": "[4.8.20, )",
-          "StorageHub.Agent": "[2.2.1, )",
-          "StorageHub.Application": "[2.2.1, )",
-          "StorageHub.Infrastructure": "[2.2.1, )",
-          "StorageHub.Ipc": "[2.2.1, )",
-          "StorageHub.Persistence": "[2.2.1, )",
-          "StorageHub.Security": "[2.2.1, )",
-          "StorageHub.Storage": "[2.2.1, )",
-          "StorageHub.Sync": "[2.2.1, )"
+          "StorageHub.Agent": "[2.3.0, )",
+          "StorageHub.Application": "[2.3.0, )",
+          "StorageHub.Infrastructure": "[2.3.0, )",
+          "StorageHub.Ipc": "[2.3.0, )",
+          "StorageHub.Persistence": "[2.3.0, )",
+          "StorageHub.Security": "[2.3.0, )",
+          "StorageHub.Storage": "[2.3.0, )",
+          "StorageHub.Sync": "[2.3.0, )"
         }
       },
       "storagehub.application": {
@@ -462,8 +462,8 @@
         "dependencies": {
           "CodeLogic": "[4.8.20, )",
           "Cronos": "[0.13.0, )",
-          "StorageHub.Domain": "[2.2.1, )",
-          "StorageHub.Security": "[2.2.1, )"
+          "StorageHub.Domain": "[2.3.0, )",
+          "StorageHub.Security": "[2.3.0, )"
         }
       },
       "storagehub.contracts": {
@@ -476,11 +476,11 @@
           "CodeLogic": "[4.8.20, )",
           "Microsoft.Data.Sqlite": "[9.0.18, )",
           "SQLitePCLRaw.bundle_e_sqlite3": "[2.1.12, )",
-          "StorageHub.Agent": "[2.2.1, )",
-          "StorageHub.Contracts": "[2.2.1, )",
-          "StorageHub.Diagnostics": "[2.2.1, )",
-          "StorageHub.Ipc": "[2.2.1, )",
-          "StorageHub.Security": "[2.2.1, )"
+          "StorageHub.Agent": "[2.3.0, )",
+          "StorageHub.Contracts": "[2.3.0, )",
+          "StorageHub.Diagnostics": "[2.3.0, )",
+          "StorageHub.Ipc": "[2.3.0, )",
+          "StorageHub.Security": "[2.3.0, )"
         }
       },
       "storagehub.diagnostics": {
@@ -489,20 +489,20 @@
       "storagehub.domain": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[2.2.1, )"
+          "StorageHub.Contracts": "[2.3.0, )"
         }
       },
       "storagehub.infrastructure": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Security": "[2.2.1, )"
+          "StorageHub.Security": "[2.3.0, )"
         }
       },
       "storagehub.ipc": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[2.2.1, )",
-          "StorageHub.Infrastructure": "[2.2.1, )"
+          "StorageHub.Contracts": "[2.3.0, )",
+          "StorageHub.Infrastructure": "[2.3.0, )"
         }
       },
       "storagehub.persistence": {
@@ -510,10 +510,10 @@
         "dependencies": {
           "Microsoft.Data.Sqlite": "[9.0.18, )",
           "SQLitePCLRaw.bundle_e_sqlite3": "[2.1.12, )",
-          "StorageHub.Application": "[2.2.1, )",
-          "StorageHub.Security": "[2.2.1, )",
-          "StorageHub.Sync": "[2.2.1, )",
-          "StorageHub.Transfers": "[2.2.1, )"
+          "StorageHub.Application": "[2.3.0, )",
+          "StorageHub.Security": "[2.3.0, )",
+          "StorageHub.Sync": "[2.3.0, )",
+          "StorageHub.Transfers": "[2.3.0, )"
         }
       },
       "storagehub.security": {
@@ -522,8 +522,8 @@
       "storagehub.storage": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[2.2.1, )",
-          "StorageHub.Domain": "[2.2.1, )"
+          "StorageHub.Contracts": "[2.3.0, )",
+          "StorageHub.Domain": "[2.3.0, )"
         }
       },
       "storagehub.storage.codelogic": {
@@ -532,19 +532,19 @@
           "CodeLogic": "[4.8.20, )",
           "CodeLogic.Storage": "[4.8.95, )",
           "SSH.NET": "[2026.0.0, )",
-          "StorageHub.Application": "[2.2.1, )",
-          "StorageHub.Contracts": "[2.2.1, )",
-          "StorageHub.Domain": "[2.2.1, )",
-          "StorageHub.Security": "[2.2.1, )",
-          "StorageHub.Storage": "[2.2.1, )"
+          "StorageHub.Application": "[2.3.0, )",
+          "StorageHub.Contracts": "[2.3.0, )",
+          "StorageHub.Domain": "[2.3.0, )",
+          "StorageHub.Security": "[2.3.0, )",
+          "StorageHub.Storage": "[2.3.0, )"
         }
       },
       "storagehub.sync": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Domain": "[2.2.1, )",
-          "StorageHub.Storage": "[2.2.1, )",
-          "StorageHub.Transfers": "[2.2.1, )"
+          "StorageHub.Domain": "[2.3.0, )",
+          "StorageHub.Storage": "[2.3.0, )",
+          "StorageHub.Transfers": "[2.3.0, )"
         }
       },
       "storagehub.testing": {
@@ -556,8 +556,8 @@
       "storagehub.transfers": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Domain": "[2.2.1, )",
-          "StorageHub.Storage": "[2.2.1, )"
+          "StorageHub.Domain": "[2.3.0, )",
+          "StorageHub.Storage": "[2.3.0, )"
         }
       },
       "Avalonia": {
@@ -622,11 +622,11 @@
       },
       "System.ServiceProcess.ServiceController": {
         "type": "CentralTransitive",
-        "requested": "[10.0.12, )",
-        "resolved": "10.0.12",
-        "contentHash": "sFV+RM/yPtshiCAEIuTm8Dt4F7VuKRbL50PnGC9nXHolk/jw+z3T8zx7axKTBC8mqtQU2ZmjsoPC9b1iwOilNQ==",
+        "requested": "[10.0.14, )",
+        "resolved": "10.0.14",
+        "contentHash": "riMCsgbGKGonluQzaRRrx5ney0QNkEmepNTrHD3QpqU/ICZpCJsyAWNi6JESTxqYkc+9kNQ55aZaH/n3xOjSlg==",
         "dependencies": {
-          "System.Diagnostics.EventLog": "10.0.12"
+          "System.Diagnostics.EventLog": "10.0.14"
         }
       }
     }
