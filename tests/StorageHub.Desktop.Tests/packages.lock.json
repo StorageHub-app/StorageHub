@@ -4,11 +4,11 @@
     "net10.0": {
       "Avalonia.Headless.XUnit": {
         "type": "Direct",
-        "requested": "[12.1.2, )",
-        "resolved": "12.1.2",
-        "contentHash": "Lt0TOcr7pzCigAyWxrs0HbIHBbDfNkn7+q9bt6beKuJu2tH5vwx87x1wva6pkZ+v8c7Uk/KKCgRo9dbkxm3uMw==",
+        "requested": "[12.1.6, )",
+        "resolved": "12.1.6",
+        "contentHash": "A+fhTWp+z5tGfYtF/kIHv1vFLEJekVao7txQ1dbNVVdlAIZ81gCy9n1LjSrpRVAyMB8S5uuraf9J7RrNOiZ9yw==",
         "dependencies": {
-          "Avalonia.Headless": "12.1.2",
+          "Avalonia.Headless": "12.1.6",
           "xunit.v3.extensibility.core": "3.2.2"
         }
       },
@@ -81,10 +81,10 @@
       },
       "Avalonia.HarfBuzz": {
         "type": "Transitive",
-        "resolved": "12.1.2",
-        "contentHash": "CqYTMnOLuAXjGldTEMdEf5/ozMY1z5ZshpE4YF0i2s2o4ycsYq855BD/eQS0iBt5PbjtlJgk8njILrBwW0HteQ==",
+        "resolved": "12.1.6",
+        "contentHash": "Y+0vG5+ObryzJl/fs1Vc25E7raOvW+inDkLU7QDxmdXgsxUq3wVx5S/k35vYn2fB9gWtFdGwSrEfLdOQev39Ag==",
         "dependencies": {
-          "Avalonia": "12.1.2",
+          "Avalonia": "12.1.6",
           "HarfBuzzSharp": "8.3.1.3",
           "HarfBuzzSharp.NativeAssets.Linux": "8.3.1.3",
           "HarfBuzzSharp.NativeAssets.WebAssembly": "8.3.1.3"
@@ -92,12 +92,12 @@
       },
       "Avalonia.Headless": {
         "type": "Transitive",
-        "resolved": "12.1.2",
-        "contentHash": "yKOcUtIOWuGLtGRo0/6KvQYSEKQpii0CGTJqelAwip6C/UAlzAWp/LE/YvKFhUYMyjJSunyyBu/qrLddqZQ0tw==",
+        "resolved": "12.1.6",
+        "contentHash": "xnhxqnaumfhd0i6TVQ1CCtAYJcQNZLqsNuE3UKslgaiDS5Vx4wCQ0YJ8G+eDqL4LDJOCbGF88Dzf8gDTskVvZQ==",
         "dependencies": {
-          "Avalonia": "12.1.2",
-          "Avalonia.Fonts.Inter": "12.1.2",
-          "Avalonia.HarfBuzz": "12.1.2"
+          "Avalonia": "12.1.6",
+          "Avalonia.Fonts.Inter": "12.1.6",
+          "Avalonia.HarfBuzz": "12.1.6"
         }
       },
       "Avalonia.Native": {
@@ -381,15 +381,15 @@
         "type": "Project",
         "dependencies": {
           "Cronos": "[0.13.0, )",
-          "StorageHub.Application": "[2.0.0, )",
-          "StorageHub.Contracts": "[2.0.0, )",
-          "StorageHub.Domain": "[2.0.0, )",
-          "StorageHub.Infrastructure": "[2.0.0, )",
-          "StorageHub.Ipc": "[2.0.0, )",
-          "StorageHub.Security": "[2.0.0, )",
-          "StorageHub.Storage": "[2.0.0, )",
-          "StorageHub.Sync": "[2.0.0, )",
-          "StorageHub.Transfers": "[2.0.0, )",
+          "StorageHub.Application": "[2.3.0, )",
+          "StorageHub.Contracts": "[2.3.0, )",
+          "StorageHub.Domain": "[2.3.0, )",
+          "StorageHub.Infrastructure": "[2.3.0, )",
+          "StorageHub.Ipc": "[2.3.0, )",
+          "StorageHub.Security": "[2.3.0, )",
+          "StorageHub.Storage": "[2.3.0, )",
+          "StorageHub.Sync": "[2.3.0, )",
+          "StorageHub.Transfers": "[2.3.0, )",
           "System.ServiceProcess.ServiceController": "[10.0.12, )"
         }
       },
@@ -398,8 +398,8 @@
         "dependencies": {
           "CodeLogic": "[4.8.20, )",
           "Cronos": "[0.13.0, )",
-          "StorageHub.Domain": "[2.0.0, )",
-          "StorageHub.Security": "[2.0.0, )"
+          "StorageHub.Domain": "[2.3.0, )",
+          "StorageHub.Security": "[2.3.0, )"
         }
       },
       "storagehub.contracts": {
@@ -413,7 +413,7 @@
           "Avalonia.Fonts.Inter": "[12.1.2, )",
           "Avalonia.Themes.Fluent": "[12.1.2, )",
           "Lucide.Avalonia": "[0.2.23, )",
-          "StorageHub.Desktop.Core": "[2.0.0, )"
+          "StorageHub.Desktop.Core": "[2.3.0, )"
         }
       },
       "storagehub.desktop.core": {
@@ -423,11 +423,11 @@
           "CodeLogic": "[4.8.20, )",
           "Microsoft.Data.Sqlite": "[9.0.18, )",
           "SQLitePCLRaw.bundle_e_sqlite3": "[2.1.12, )",
-          "StorageHub.Agent": "[2.0.0, )",
-          "StorageHub.Contracts": "[2.0.0, )",
-          "StorageHub.Diagnostics": "[2.0.0, )",
-          "StorageHub.Ipc": "[2.0.0, )",
-          "StorageHub.Security": "[2.0.0, )"
+          "StorageHub.Agent": "[2.3.0, )",
+          "StorageHub.Contracts": "[2.3.0, )",
+          "StorageHub.Diagnostics": "[2.3.0, )",
+          "StorageHub.Ipc": "[2.3.0, )",
+          "StorageHub.Security": "[2.3.0, )"
         }
       },
       "storagehub.diagnostics": {
@@ -436,20 +436,20 @@
       "storagehub.domain": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[2.0.0, )"
+          "StorageHub.Contracts": "[2.3.0, )"
         }
       },
       "storagehub.infrastructure": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Security": "[2.0.0, )"
+          "StorageHub.Security": "[2.3.0, )"
         }
       },
       "storagehub.ipc": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[2.0.0, )",
-          "StorageHub.Infrastructure": "[2.0.0, )"
+          "StorageHub.Contracts": "[2.3.0, )",
+          "StorageHub.Infrastructure": "[2.3.0, )"
         }
       },
       "storagehub.security": {
@@ -458,23 +458,23 @@
       "storagehub.storage": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Contracts": "[2.0.0, )",
-          "StorageHub.Domain": "[2.0.0, )"
+          "StorageHub.Contracts": "[2.3.0, )",
+          "StorageHub.Domain": "[2.3.0, )"
         }
       },
       "storagehub.sync": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Domain": "[2.0.0, )",
-          "StorageHub.Storage": "[2.0.0, )",
-          "StorageHub.Transfers": "[2.0.0, )"
+          "StorageHub.Domain": "[2.3.0, )",
+          "StorageHub.Storage": "[2.3.0, )",
+          "StorageHub.Transfers": "[2.3.0, )"
         }
       },
       "storagehub.transfers": {
         "type": "Project",
         "dependencies": {
-          "StorageHub.Domain": "[2.0.0, )",
-          "StorageHub.Storage": "[2.0.0, )"
+          "StorageHub.Domain": "[2.3.0, )",
+          "StorageHub.Storage": "[2.3.0, )"
         }
       },
       "Avalonia": {
